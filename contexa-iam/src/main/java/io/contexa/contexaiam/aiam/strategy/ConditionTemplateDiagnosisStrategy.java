@@ -18,7 +18,6 @@ import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<ConditionTemplateContext, ConditionTemplateGenerationResponse> {
 
@@ -66,8 +65,7 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
     protected Object buildLabRequest(AIRequest<ConditionTemplateContext> request) {
         
         String generationType = request.getParameter("generationType", String.class);
-        log.info("조건 템플릿 생성 유형: {}", generationType);
-
+        
         if ("specific".equals(generationType)) {
             String resourceIdentifier = request.getParameter("resourceIdentifier", String.class);
             String methodInfo = request.getParameter("methodInfo", String.class);
@@ -86,15 +84,13 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
             ConditionTemplateGenerationRequest conditionTemplateLabRequest =
                     new ConditionTemplateGenerationRequest(true);
             response = conditionTemplateGenerationLab.process(conditionTemplateLabRequest);
-            log.info("범용 조건 템플릿 생성 완료");
-
+            
         } else if (labRequest instanceof SpecificTemplateRequest specificTemplateRequest) {
             ConditionTemplateGenerationRequest conditionTemplateLabRequest =
                     new ConditionTemplateGenerationRequest(false, "specific", specificTemplateRequest.resourceIdentifier, specificTemplateRequest.methodInfo);
             response = conditionTemplateGenerationLab.process(conditionTemplateLabRequest);
 
-            log.info("특정 조건 템플릿 생성 완료");
-        } else {
+                    } else {
             throw new DiagnosisException("CONDITION_TEMPLATE", "INVALID_REQUEST_TYPE",
                     "알 수 없는 요청 타입: " + labRequest.getClass().getSimpleName());
         }
@@ -123,8 +119,6 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
         }
     }
 
-
-    
     private static class UniversalTemplateRequest {
         
     }

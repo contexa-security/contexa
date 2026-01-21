@@ -20,7 +20,6 @@ import org.springframework.util.CollectionUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PermissionWizardServiceImpl implements PermissionWizardService {
@@ -32,8 +31,7 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
     @Transactional
     public WizardContext beginCreation(InitiateGrantRequestDto request, String policyName, String policyDescription) {
         String contextId = UUID.randomUUID().toString();
-        log.info("Beginning new permission grant wizard. Context ID: {}", contextId);
-
+        
         WizardContext initialContext = WizardContext.builder()
                 .contextId(contextId)
                 .sessionTitle(policyName)
@@ -51,15 +49,11 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
         return userContextService.getWizardProgress(contextId);
     }
 
-    
     @Override
     @Transactional
     public WizardContext updateSubjects(String contextId, SaveSubjectsRequest request) {
         WizardContext currentContext = userContextService.getWizardProgress(contextId);
-        log.info("Updating selected roles for wizard context: {}", contextId);
 
-        
-        
         Set<WizardContext.Subject> selectedRoles = request.userIds().stream()
                 .map(roleId -> new WizardContext.Subject(roleId, "ROLE"))
                 .collect(Collectors.toSet());
@@ -80,8 +74,7 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
     @Transactional
     public WizardContext updatePermissions(String contextId, SavePermissionsRequest request) {
         WizardContext currentContext = userContextService.getWizardProgress(contextId);
-        log.info("Updating permissions for wizard context: {}", contextId);
-
+        
         WizardContext updatedContext = WizardContext.builder()
                 .contextId(currentContext.contextId())
                 .sessionTitle(currentContext.sessionTitle())
@@ -98,8 +91,7 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
     @Transactional
     public void updatePolicyDetails(String contextId, String policyName, String policyDescription) {
         WizardContext currentContext = userContextService.getWizardProgress(contextId);
-        log.info("Updating policy details for wizard context: {}", contextId);
-
+        
         WizardContext updatedContext = WizardContext.builder()
                 .contextId(currentContext.contextId())
                 .sessionTitle(policyName)
@@ -111,17 +103,14 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
         userContextService.saveWizardProgress(contextId, getCurrentUserId(), updatedContext);
     }
 
-    
     @Override
     @Transactional
     public void commitPolicy(String contextId, List<Long> selectedRoleIds, Set<Long> permissionIds) {
-        log.info("Committing permission-to-role assignment for wizard context: {}", contextId);
-
+        
         if (CollectionUtils.isEmpty(selectedRoleIds) || CollectionUtils.isEmpty(permissionIds)) {
             throw new IllegalStateException("역할과 권한이 반드시 선택되어야 합니다.");
         }
 
-        
         Long permissionIdToAdd = permissionIds.iterator().next();
 
         for (Long roleId : selectedRoleIds) {

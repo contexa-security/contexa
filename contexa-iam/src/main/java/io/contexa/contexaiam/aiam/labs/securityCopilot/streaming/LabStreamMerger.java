@@ -25,27 +25,23 @@ public class LabStreamMerger {
         private final Map<String, CompletableFuture<String>> diagnosisFutures;
         private static final Scheduler VIRTUAL_SCHEDULER = Schedulers.fromExecutor(Executors.newVirtualThreadPerTaskExecutor());
 
-        
+
         public Mono<Map<String, String>> waitForAllDiagnosis() {
             return Mono.fromCallable(() -> {
                 Map<String, String> results = new HashMap<>();
 
-                
+
                 for (Map.Entry<String, CompletableFuture<String>> entry : diagnosisFutures.entrySet()) {
                     String labName = entry.getKey();
                     CompletableFuture<String> future = entry.getValue();
 
                     try {
-                        
+
                         String result = future.get(300, java.util.concurrent.TimeUnit.SECONDS);
 
-                        
+
                         if (result != null && !result.isEmpty()) {
                             results.put(labName, result);
-                            log.info("[{}] 진단 결과 수집 성공 - 길이: {}", labName, result.length());
-                            log.info("Result [{}] ",result);
-
-                            
                             if (result.length() > 100) {
                                 String tail = result.substring(result.length() - 100);
                                 log.debug("[{}] 결과 끝부분: {}", labName, tail);
@@ -60,11 +56,8 @@ public class LabStreamMerger {
                     }
                 }
 
-                log.info("전체 진단 결과 수집 완료 - 총 {} 개 Lab", results.size());
-
-                
                 results.forEach((lab, json) -> {
-                        log.error("[{}] [{}]", lab, json);
+                    log.error("[{}] [{}]", lab, json);
                 });
 
                 return results;
@@ -74,28 +67,23 @@ public class LabStreamMerger {
         }
     }
 
-    
-    public MergeResult mergeLabStreams(Map<String, Flux<String>> labStreams) {
-        log.info("🔀 Lab 스트림 병합 시작: {} 개", labStreams.size());
 
+    public MergeResult mergeLabStreams(Map<String, Flux<String>> labStreams) {
         Map<String, CompletableFuture<String>> diagnosisFutures = new ConcurrentHashMap<>();
         Map<String, Flux<String>> processedStreams = new HashMap<>();
 
         labStreams.forEach((labName, stream) -> {
             CompletableFuture<String> diagnosisFuture = new CompletableFuture<>();
             diagnosisFutures.put(labName, diagnosisFuture);
-
-            
             Flux<String> processedStream = processStreamWithMarkerBuffer(labName, stream, diagnosisFuture);
-
             processedStreams.put(labName, processedStream);
         });
 
-        
+
         Flux<String> mergedStream = Flux.merge(processedStreams.values())
                 .doOnSubscribe(sub -> log.info("병합 스트림 시작"))
                 .doOnNext(chunk -> {
-                    
+
                     if (log.isDebugEnabled()) {
                         log.debug("병합 스트림 청크: {}",
                                 chunk.length() > 50 ? chunk.substring(0, 50) + "..." : chunk);
@@ -106,20 +94,20 @@ public class LabStreamMerger {
         return new MergeResult(mergedStream, diagnosisFutures);
     }
 
-    
+
     private Flux<String> processStreamWithMarkerBuffer(
             String labName,
             Flux<String> stream,
             CompletableFuture<String> diagnosisFuture) {
 
-        
+
         final AtomicReference<StringBuilder> markerBuffer = new AtomicReference<>(new StringBuilder());
         final AtomicReference<StringBuilder> jsonBuffer = new AtomicReference<>(new StringBuilder());
         final AtomicBoolean markerDetected = new AtomicBoolean(false);
 
         return stream
                 .<String>handle((chunk, sink) -> {
-                    
+
                     if (markerDetected.get()) {
                         jsonBuffer.get().append(chunk);
                         return;
@@ -138,20 +126,20 @@ public class LabStreamMerger {
                             sink.next(formatLabOutput(labName, beforeMarker));
                         }
 
-                        
+
                         String afterMarker = currentBuffer.substring(markerIndex + "###FINAL_RESPONSE###".length());
                         jsonBuffer.get().append(afterMarker);
                         markerBuffer.get().setLength(0);
 
-                    } else if (markerBuffer.get().length() >= 60) {  
-                        
+                    } else if (markerBuffer.get().length() >= 60) {
+
                         String buffer = markerBuffer.get().toString();
                         int sendLength = Math.min(150, buffer.length() - 50);
 
                         if (sendLength > 0) {
                             String toSend = buffer.substring(0, sendLength);
 
-                            
+
                             if (!isCompleteCharacter(toSend)) {
                                 sendLength = findLastCompleteChar(toSend);
                                 toSend = buffer.substring(0, sendLength);
@@ -166,11 +154,11 @@ public class LabStreamMerger {
                     }
                 })
                 .doOnComplete(() -> {
-                    
+
                     try {
-                        
+
                         if (!markerDetected.get() && markerBuffer.get().length() > 0) {
-                            
+
                             String remaining = markerBuffer.get().toString();
                             int markerIndex = remaining.indexOf("###FINAL_RESPONSE###");
                             if (markerIndex != -1) {
@@ -183,11 +171,11 @@ public class LabStreamMerger {
                         if (markerDetected.get()) {
                             String finalData = jsonBuffer.get().toString();
 
-                            
+
                             String completeJson = JsonExtractor.extractJson(finalData);
 
                             if (!"{}".equals(completeJson)) {
-                                
+
                                 diagnosisFuture.complete(completeJson);
                                 log.info("[{}] 100% 완성된 진단 결과 수집 완료.", labName);
                             } else {
@@ -207,7 +195,7 @@ public class LabStreamMerger {
                     log.error("[{}] 스트림 오류", labName, error);
                     diagnosisFuture.completeExceptionally(error);
                 })
-                
+
                 .timeout(java.time.Duration.ofSeconds(300))
                 .onErrorResume(TimeoutException.class, error -> {
                     if (!diagnosisFuture.isDone()) {
@@ -218,14 +206,14 @@ public class LabStreamMerger {
                 });
     }
 
-    
+
     private String formatLabOutput(String labName, String content) {
-        
+
         if (content.contains("[") && content.contains("]")) {
             return content;
         }
 
-        
+
         String displayName = getDisplayName(labName);
         return String.format("[%s] %s", displayName, content);
     }
@@ -239,22 +227,22 @@ public class LabStreamMerger {
         };
     }
 
-    
+
     private boolean isCompleteCharacter(String str) {
         if (str == null || str.isEmpty()) return true;
 
         try {
-            
+
             byte[] bytes = str.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             String reconstructed = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
-            
+
             return str.equals(reconstructed);
         } catch (Exception e) {
             return false;
         }
     }
 
-    
+
     private int findLastCompleteChar(String str) {
         for (int i = str.length() - 1; i > 0; i--) {
             if (isCompleteCharacter(str.substring(0, i))) {

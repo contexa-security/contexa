@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 @Getter
 @Setter
 public class PolicyContext extends IAMContext {
@@ -42,16 +41,14 @@ public class PolicyContext extends IAMContext {
     public String getIAMContextType() {
         return "POLICY";
     }
-    
-    
+
     public boolean isComplete() {
         return availableRoles != null && !availableRoles.isEmpty() &&
                availablePermissions != null && !availablePermissions.isEmpty() &&
                availableConditionTypes != null && !availableConditionTypes.isEmpty() &&
                naturalLanguageQuery != null && !naturalLanguageQuery.trim().isEmpty();
     }
-    
-    
+
     public int calculateComplexity() {
         int complexity = 1;
         
@@ -63,15 +60,13 @@ public class PolicyContext extends IAMContext {
         
         return Math.min(complexity, 10);
     }
-    
-    
+
     public boolean isStreamingRecommended() {
         return calculateComplexity() >= 6 || 
                (naturalLanguageQuery != null && naturalLanguageQuery.length() > 200) ||
                generationMode == PolicyGenerationMode.AI_ASSISTED;
     }
-    
-    
+
     public static class Builder {
         private final PolicyContext context;
         

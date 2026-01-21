@@ -15,7 +15,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 public class AccessVectorService extends AbstractVectorLabService {
     
@@ -32,8 +31,7 @@ public class AccessVectorService extends AbstractVectorLabService {
     private boolean excessivePermissionDetection;
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    
-    
+
     private static final Map<String, Pattern> PERMISSION_PATTERNS = Map.of(
         "GRANT", Pattern.compile("grant|assign|give|허용|부여", Pattern.CASE_INSENSITIVE),
         "REVOKE", Pattern.compile("revoke|remove|delete|회수|삭제", Pattern.CASE_INSENSITIVE),
@@ -44,8 +42,7 @@ public class AccessVectorService extends AbstractVectorLabService {
         "EXECUTE", Pattern.compile("execute|run|call|실행", Pattern.CASE_INSENSITIVE),
         "CREATE", Pattern.compile("create|new|add|생성", Pattern.CASE_INSENSITIVE)
     );
-    
-    
+
     private static final Set<Pattern> SENSITIVE_RESOURCE_PATTERNS = Set.of(
         Pattern.compile(".*admin.*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*system.*", Pattern.CASE_INSENSITIVE),
@@ -55,8 +52,7 @@ public class AccessVectorService extends AbstractVectorLabService {
         Pattern.compile(".*hr.*", Pattern.CASE_INSENSITIVE),
         Pattern.compile(".*payroll.*", Pattern.CASE_INSENSITIVE)
     );
-    
-    
+
     private static final Set<Set<String>> SOD_RISK_COMBINATIONS = Set.of(
         Set.of("FINANCIAL_CREATE", "FINANCIAL_APPROVE"),
         Set.of("USER_CREATE", "USER_ADMIN"),
@@ -88,39 +84,30 @@ public class AccessVectorService extends AbstractVectorLabService {
             
             String permissionAction = classifyPermissionAction(document.getText());
             metadata.put("permissionAction", permissionAction);
-            
-            
+
             String resourceSensitivity = analyzeResourceSensitivity(document.getText(), metadata);
             metadata.put("resourceSensitivity", resourceSensitivity);
-            
-            
+
             if (sodViolationTracking) {
                 boolean sodRisk = analyzeSodViolationRisk(metadata);
                 metadata.put("sodViolationRisk", sodRisk);
             }
-            
-            
+
             analyzePermissionInheritance(metadata);
-            
-            
+
             analyzeBusinessSeparation(metadata);
-            
-            
+
             analyzePermissionUsagePattern(metadata);
-            
-            
+
             double governanceRiskScore = calculateGovernanceRiskScore(metadata);
             metadata.put("governanceRiskScore", governanceRiskScore);
-            
-            
+
             String governanceSignature = generateGovernanceSignature(metadata);
             metadata.put("governanceSignature", governanceSignature);
-            
-            
+
             Map<String, Object> analysisSummary = generateAnalysisSummary(metadata);
             metadata.put("analysisSummary", analysisSummary);
-            
-            
+
             metadata.put("enrichmentVersion", "2.0");
             metadata.put("enrichedByService", "AccessVectorService");
             metadata.put("analysisTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
@@ -137,16 +124,14 @@ public class AccessVectorService extends AbstractVectorLabService {
     @Override
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         if (!metadata.containsKey("auditScope") && 
             !metadata.containsKey("analysisType") && 
             !metadata.containsKey("organizationId")) {
             throw new IllegalArgumentException(
                 "접근 거버넌스 문서는 auditScope, analysisType, organizationId 중 최소 하나는 포함해야 합니다");
         }
-        
-        
+
         Object analysisType = metadata.get("analysisType");
         if (analysisType != null) {
             String typeStr = analysisType.toString();
@@ -154,8 +139,7 @@ public class AccessVectorService extends AbstractVectorLabService {
                 throw new IllegalArgumentException("유효하지 않은 분석 타입: " + typeStr);
             }
         }
-        
-        
+
         Object auditScope = metadata.get("auditScope");
         if (auditScope != null) {
             String scopeStr = auditScope.toString();
@@ -169,8 +153,7 @@ public class AccessVectorService extends AbstractVectorLabService {
     protected void postProcessDocument(Document document, OperationType operationType) {
         try {
             Map<String, Object> metadata = document.getMetadata();
-            
-            
+
             if (operationType == OperationType.STORE) {
                 Double governanceScore = (Double) metadata.get("governanceRiskScore");
                 if (governanceScore != null && governanceScore >= governanceThreshold) {
@@ -181,8 +164,7 @@ public class AccessVectorService extends AbstractVectorLabService {
                     metadata.put("governanceAlertTriggered", true);
                     metadata.put("alertTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
                 }
-                
-                
+
                 if (Boolean.TRUE.equals(metadata.get("sodViolationRisk"))) {
                     log.warn("[AccessVectorService] SOD 위반 위험 감지: {}", 
                             metadata.get("auditScope"));
@@ -199,8 +181,7 @@ public class AccessVectorService extends AbstractVectorLabService {
     protected Map<String, Object> getLabSpecificFilters() {
         Map<String, Object> filters = new HashMap<>();
         filters.put("labName", getLabName());
-        
-        
+
         if (dormantPermissionAnalysis) {
             filters.put("includeDormantAnalysis", true);
         }
@@ -213,8 +194,7 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         return filters;
     }
-    
-    
+
     public void storeAnalysisRequest(AccessGovernanceContext context) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -224,13 +204,11 @@ public class AccessVectorService extends AbstractVectorLabService {
             metadata.put("priority", context.getPriority());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "access_governance_request");
-            
-            
+
             metadata.put("enableDormantPermissionAnalysis", context.isEnableDormantPermissionAnalysis());
             metadata.put("enableExcessivePermissionDetection", context.isEnableExcessivePermissionDetection());
             metadata.put("enableSodViolationCheck", context.isEnableSodViolationCheck());
-            
-            
+
             String requestId = UUID.randomUUID().toString();
             metadata.put("requestId", requestId);
             
@@ -244,16 +222,13 @@ public class AccessVectorService extends AbstractVectorLabService {
             
             Document requestDoc = new Document(requestText, metadata);
             storeDocument(requestDoc);
-            
-            log.debug("[AccessVectorService] 분석 요청 저장 완료: 범위={}", context.getAuditScope());
-            
+
         } catch (Exception e) {
             log.error("[AccessVectorService] 분석 요청 저장 실패", e);
             throw new VectorStoreException("분석 요청 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeAnalysisResult(AccessGovernanceContext context, AccessGovernanceResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -263,17 +238,14 @@ public class AccessVectorService extends AbstractVectorLabService {
             metadata.put("organizationId", context.getOrganizationId());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "access_governance_result");
-            
-            
+
             metadata.put("governanceScore", response.getOverallGovernanceScore());
             metadata.put("riskLevel", response.getRiskLevel());
             metadata.put("governanceStatus", response.getRiskLevel());
-            
-            
+
             metadata.put("findingsCount", response.getFindings() != null ? response.getFindings().size() : 0);
             metadata.put("recommendationsCount", response.getRecommendations() != null ? response.getRecommendations().size() : 0);
-            
-            
+
             if (response.getOverallGovernanceScore() >= governanceThreshold) {
                 metadata.put("isHighRisk", true);
                 metadata.put("requiresAction", true);
@@ -281,8 +253,7 @@ public class AccessVectorService extends AbstractVectorLabService {
                 metadata.put("isHighRisk", false);
                 metadata.put("requiresAction", false);
             }
-            
-            
+
             analyzeSpecificRiskTypes(response, metadata);
             
             String resultText = String.format(
@@ -296,16 +267,13 @@ public class AccessVectorService extends AbstractVectorLabService {
             
             Document resultDoc = new Document(resultText, metadata);
             storeDocument(resultDoc);
-            
-            log.debug("[AccessVectorService] 분석 결과 저장 완료: 보고서ID={}", response.getAnalysisId());
-            
+
         } catch (Exception e) {
             log.error("[AccessVectorService] 분석 결과 저장 실패", e);
             throw new VectorStoreException("분석 결과 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeFeedback(String reportId, boolean isCorrect, String feedback) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -315,8 +283,7 @@ public class AccessVectorService extends AbstractVectorLabService {
             metadata.put("feedbackTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "access_governance_feedback");
             metadata.put("feedbackType", isCorrect ? "POSITIVE" : "NEGATIVE");
-            
-            
+
             String feedbackCategory = categorizeFeedback(feedback);
             metadata.put("feedbackCategory", feedbackCategory);
             
@@ -329,17 +296,13 @@ public class AccessVectorService extends AbstractVectorLabService {
             
             Document feedbackDoc = new Document(feedbackText, metadata);
             storeDocument(feedbackDoc);
-            
-            log.info("📚 [AccessVectorService] 피드백 저장 완료: 보고서ID={}, 정확도={}", 
-                    reportId, isCorrect);
-            
+
         } catch (Exception e) {
             log.error("[AccessVectorService] 피드백 저장 실패", e);
             throw new VectorStoreException("피드백 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     private String classifyPermissionAction(String content) {
         if (content == null) return "UNKNOWN";
         
@@ -351,8 +314,7 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         return "OTHER";
     }
-    
-    
+
     private String analyzeResourceSensitivity(String content, Map<String, Object> metadata) {
         String resourceAccessed = (String) metadata.get("resourceAccessed");
         String combinedText = (content + " " + (resourceAccessed != null ? resourceAccessed : "")).toLowerCase();
@@ -362,8 +324,7 @@ public class AccessVectorService extends AbstractVectorLabService {
                 return "HIGH";
             }
         }
-        
-        
+
         if (combinedText.contains("user") || combinedText.contains("role") || 
             combinedText.contains("permission") || combinedText.contains("data")) {
             return "MEDIUM";
@@ -371,14 +332,12 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         return "LOW";
     }
-    
-    
+
     private boolean analyzeSodViolationRisk(Map<String, Object> metadata) {
         
         String permissionAction = (String) metadata.get("permissionAction");
         String resourceSensitivity = (String) metadata.get("resourceSensitivity");
-        
-        
+
         if ("HIGH".equals(resourceSensitivity) && 
             ("GRANT".equals(permissionAction) || "CREATE".equals(permissionAction))) {
             return true;
@@ -386,35 +345,30 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         return false;
     }
-    
-    
+
     private void analyzePermissionInheritance(Map<String, Object> metadata) {
         
         int inheritanceDepth = calculateInheritanceDepth(metadata);
         metadata.put("inheritanceDepth", inheritanceDepth);
-        
-        
+
         if (inheritanceDepth > 3) {
             metadata.put("complexInheritance", true);
         } else {
             metadata.put("complexInheritance", false);
         }
     }
-    
-    
+
     private void analyzeBusinessSeparation(Map<String, Object> metadata) {
         String permissionAction = (String) metadata.get("permissionAction");
         String resourceSensitivity = (String) metadata.get("resourceSensitivity");
-        
-        
+
         if ("HIGH".equals(resourceSensitivity)) {
             if ("GRANT".equals(permissionAction) || "EXECUTE".equals(permissionAction)) {
                 metadata.put("requiresBusinessSeparation", true);
             }
         }
     }
-    
-    
+
     private void analyzePermissionUsagePattern(Map<String, Object> metadata) {
         
         LocalDateTime now = LocalDateTime.now();
@@ -427,40 +381,33 @@ public class AccessVectorService extends AbstractVectorLabService {
             metadata.put("unusualAccessTime", true);
         }
     }
-    
-    
+
     private double calculateGovernanceRiskScore(Map<String, Object> metadata) {
         double score = 0.0;
-        
-        
+
         String sensitivity = (String) metadata.get("resourceSensitivity");
         if ("HIGH".equals(sensitivity)) score += 30.0;
         else if ("MEDIUM".equals(sensitivity)) score += 15.0;
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("sodViolationRisk"))) {
             score += 25.0;
         }
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("complexInheritance"))) {
             score += 20.0;
         }
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("unusualAccessTime"))) {
             score += 15.0;
         }
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("requiresBusinessSeparation"))) {
             score += 10.0;
         }
         
         return Math.min(score, 100.0);
     }
-    
-    
+
     private String generateGovernanceSignature(Map<String, Object> metadata) {
         StringBuilder signature = new StringBuilder();
         
@@ -482,12 +429,10 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         return signature.toString();
     }
-    
-    
+
     private Map<String, Object> generateAnalysisSummary(Map<String, Object> metadata) {
         Map<String, Object> summary = new HashMap<>();
-        
-        
+
         List<String> riskFactors = new ArrayList<>();
         if (Boolean.TRUE.equals(metadata.get("sodViolationRisk"))) {
             riskFactors.add("SOD 위반 위험");
@@ -501,15 +446,13 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         summary.put("riskFactors", riskFactors);
         summary.put("riskFactorCount", riskFactors.size());
-        
-        
+
         List<String> recommendations = generateRecommendations(metadata);
         summary.put("recommendations", recommendations);
         
         return summary;
     }
-    
-    
+
     private List<String> generateRecommendations(Map<String, Object> metadata) {
         List<String> recommendations = new ArrayList<>();
         
@@ -532,8 +475,7 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         return recommendations;
     }
-    
-    
+
     private void analyzeSpecificRiskTypes(AccessGovernanceResponse response, Map<String, Object> metadata) {
         if (response.getFindings() != null) {
             long excessivePermissions = response.getFindings().stream()
@@ -553,8 +495,7 @@ public class AccessVectorService extends AbstractVectorLabService {
             metadata.put("sodViolationsCount", sodViolations);
         }
     }
-    
-    
+
     private String categorizeFeedback(String feedback) {
         if (feedback == null) return "GENERAL";
         
@@ -572,18 +513,15 @@ public class AccessVectorService extends AbstractVectorLabService {
         
         return "GENERAL";
     }
-    
-    
+
     private int calculateInheritanceDepth(Map<String, Object> metadata) {
-        
-        
+
         String permissionAction = (String) metadata.get("permissionAction");
         if ("ADMIN".equals(permissionAction)) return 3;
         if ("EXECUTE".equals(permissionAction)) return 2;
         return 1;
     }
-    
-    
+
     private boolean isValidAnalysisType(String analysisType) {
         Set<String> validTypes = Set.of(
             "DORMANT_PERMISSIONS", "EXCESSIVE_PERMISSIONS", "SOD_VIOLATIONS", 
@@ -591,21 +529,18 @@ public class AccessVectorService extends AbstractVectorLabService {
         );
         return validTypes.contains(analysisType);
     }
-    
-    
+
     private boolean isValidAuditScope(String auditScope) {
         Set<String> validScopes = Set.of(
             "ORGANIZATION", "DEPARTMENT", "ROLE", "USER", "RESOURCE", "APPLICATION"
         );
         return validScopes.contains(auditScope);
     }
-    
-    
+
     public void storeGovernanceContext(AccessGovernanceContext context) {
         storeAnalysisRequest(context); 
     }
-    
-    
+
     public List<Document> findSimilarGovernanceDocuments(String query, int topK) {
         try {
             Map<String, Object> filters = new HashMap<>();

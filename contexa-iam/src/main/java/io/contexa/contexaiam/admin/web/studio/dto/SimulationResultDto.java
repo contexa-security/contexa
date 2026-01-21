@@ -2,7 +2,6 @@ package io.contexa.contexaiam.admin.web.studio.dto;
 
 import java.util.List;
 
-
 public record SimulationResultDto(
         String summary, 
         List<ImpactDetail> impactDetails 

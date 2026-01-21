@@ -3,7 +3,6 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 
-
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
@@ -30,20 +29,16 @@ import java.util.List;
 import java.util.ArrayList;
 import jakarta.servlet.http.HttpServletRequest;
 
-
 @Slf4j
 public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressionRoot {
 
-    
     private static final Duration AI_TIMEOUT = Duration.ofSeconds(30);
     private static final Duration CRITICAL_AI_TIMEOUT = Duration.ofSeconds(60);
 
-    
     private static final double FRAUD_THRESHOLD = 0.7;
     private static final double ANOMALY_THRESHOLD = 0.6;
     private static final double CRITICAL_THRESHOLD = 0.8;
 
-    
     private final StringRedisTemplate stringRedisTemplate;
 
     public RealtimeAISecurityExpressionRoot(Authentication authentication,
@@ -54,10 +49,8 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                                             StringRedisTemplate stringRedisTemplate) {
         super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
         this.stringRedisTemplate = stringRedisTemplate;
-        log.info("RealtimeAISecurityExpressionRoot 초기화 - 실시간 AI 분석 모드");
-    }
+            }
 
-    
     public RealtimeAISecurityExpressionRoot(Authentication authentication,
                                             AttributeInformationPoint attributePIP,
                                             AICoreOperations aINativeProcessor,
@@ -65,10 +58,8 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                                             AuditLogRepository auditLogRepository) {
         super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
         this.stringRedisTemplate = null;
-        log.info("RealtimeAISecurityExpressionRoot 초기화 - 실시간 AI 분석 모드 (Redis 없음)");
-    }
-    
-    
+            }
+
     public boolean analyzeFraud(Map<String, Object> transaction) {
         if (transaction == null || transaction.isEmpty()) {
             log.warn("analyzeFraud: 거래 정보가 없음");
@@ -82,10 +73,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         }
         
         try {
-            log.info("사기 거래 분석 시작 - userId: {}, amount: {}", 
-                    userId, transaction.get("amount"));
-            
-            
+
             FraudAnalysisContext context = new FraudAnalysisContext();
             context.setUserId(userId);
             context.setTransactionId(String.valueOf(transaction.get("id")));
@@ -95,8 +83,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             context.setTimestamp(LocalDateTime.now());
             context.setSourceIp(getRemoteIp());
             context.setDeviceId(String.valueOf(transaction.get("deviceId")));
-            
-            
+
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("transactionType", transaction.get("type"));
             metadata.put("paymentMethod", transaction.get("paymentMethod"));
@@ -107,8 +94,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                     context.addMetadata(entry.getKey(), entry.getValue());
                 }
             }
-            
-            
+
             AIRequest<FraudAnalysisContext> aiRequest = FraudAnalysisRequest.create(context, "riskAssessment");
             
             Mono<FraudAnalysisResponse> responseMono = aINativeProcessor.process(aiRequest, FraudAnalysisResponse.class);
@@ -120,11 +106,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             if (response != null) {
                 double fraudScore = response.getFraudProbability();
                 boolean isSafe = fraudScore < FRAUD_THRESHOLD;
-                
-                log.info("사기 거래 분석 완료 - userId: {}, fraudScore: {}, safe: {}, reason: {}",
-                        userId, fraudScore, isSafe, response.getReason());
-                
-                
+
                 recordAuditLog("FRAUD_ANALYSIS", userId, transaction, fraudScore, isSafe);
                 
                 return isSafe;
@@ -138,8 +120,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             return false; 
         }
     }
-    
-    
+
     public boolean detectAnomaly(String operation) {
         String userId = extractUserId();
         if (userId == null || operation == null) {
@@ -148,13 +129,9 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         }
 
         try {
-            log.info("이상 행동 탐지 시작 (AI Native) - userId: {}, operation: {}", userId, operation);
 
-            
-            
             SecurityEvent event = createSecurityEvent(userId, operation);
 
-            
             RiskAssessmentContext riskContext = new RiskAssessmentContext();
             riskContext.setUserId(userId);
             riskContext.setActionType(operation);
@@ -181,17 +158,12 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                 isNormal = riskScore < ANOMALY_THRESHOLD;
             }
 
-            
             String action = getCurrentAction();
             if ("BLOCK".equals(action)) {
                 log.warn("detectAnomaly: LLM BLOCK action detected - userId: {}, operation: {}", userId, operation);
                 isNormal = false;
             }
 
-            log.info("이상 행동 탐지 완료 (AI Native) - userId: {}, riskScore: {}, action: {}, normal: {}",
-                    userId, riskScore, action, isNormal);
-
-            
             Map<String, Object> operationData = new HashMap<>();
             operationData.put("operation", operation);
             operationData.put("analysisType", "AI_NATIVE");
@@ -205,8 +177,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             return false;
         }
     }
-    
-    
+
     public boolean evaluateCriticalOperation(Map<String, Object> context) {
         String userId = extractUserId();
         if (userId == null || context == null) {
@@ -217,24 +188,20 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         try {
             log.warn("중요 작업 평가 시작 (높은 비용) - userId: {}, operation: {}", 
                     userId, context.get("operationType"));
-            
-            
+
             RiskAssessmentContext riskContext = new RiskAssessmentContext();
             riskContext.setUserId(userId);
             riskContext.setActionType(String.valueOf(context.get("operationType")));
             riskContext.setResourceIdentifier(String.valueOf(context.get("resourceId")));
-            
-            
+
             riskContext.setRemoteIp(getRemoteIp());
-            
-            
+
             Map<String, Object> additionalContext = new HashMap<>();
             additionalContext.put("targetSystem", context.get("targetSystem"));
             additionalContext.put("dataClassification", context.get("dataClassification"));
             additionalContext.put("privilegeLevel", context.get("privilegeLevel"));
             riskContext.setEnvironmentAttributes(additionalContext);
-            
-            
+
             AIRequest<RiskAssessmentContext> aiRequest = RiskAssessmentRequest.create(riskContext, "riskAssessment");
             
             Mono<RiskAssessmentResponse> responseMono = aINativeProcessor.process(aiRequest, RiskAssessmentResponse.class);
@@ -249,11 +216,9 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
                 
                 log.warn("중요 작업 평가 완료 - userId: {}, riskScore: {}, safe: {}, mitigation: {}",
                         userId, riskScore, isSafe, response.recommendation());
-                
-                
+
                 recordAuditLog("CRITICAL_OPERATION", userId, context, riskScore, isSafe);
-                
-                
+
                 if (!isSafe) {
                     sendSecurityAlert(userId, context, riskScore);
                 }
@@ -269,8 +234,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             return false;
         }
     }
-    
-    
+
     public boolean evaluateDataExfiltration(Map<String, Object> dataAccess) {
         String userId = extractUserId();
         if (userId == null || dataAccess == null) {
@@ -278,10 +242,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         }
 
         try {
-            log.info("데이터 유출 위험 평가 (AI Native) - userId: {}, volume: {}",
-                    userId, dataAccess.get("dataVolume"));
 
-            
             RiskAssessmentContext riskContext = new RiskAssessmentContext();
             riskContext.setUserId(userId);
             riskContext.setActionType("DATA_EXFILTRATION_CHECK");
@@ -299,9 +260,6 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             if (response != null) {
                 boolean isSafe = response.riskScore() < 0.5;
 
-                log.info("데이터 유출 평가 완료 (AI Native) - userId: {}, risk: {}, safe: {}",
-                        userId, response.riskScore(), isSafe);
-
                 return isSafe;
             }
 
@@ -313,8 +271,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             return false; 
         }
     }
-    
-    
+
     public boolean evaluatePrivilegeEscalation(String requestedRole) {
         String userId = extractUserId();
         if (userId == null || requestedRole == null) {
@@ -322,9 +279,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         }
 
         try {
-            log.info("권한 상승 평가 (AI Native) - userId: {}, requestedRole: {}", userId, requestedRole);
 
-            
             RiskAssessmentContext riskContext = new RiskAssessmentContext();
             riskContext.setUserId(userId);
             riskContext.setActionType("PRIVILEGE_ESCALATION");
@@ -361,8 +316,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             return false;
         }
     }
-    
-    
+
     private SecurityEvent createSecurityEvent(String userId, String eventType) {
         SecurityEvent event = new SecurityEvent();
         event.setEventId(java.util.UUID.randomUUID().toString());
@@ -377,9 +331,6 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         return event;
     }
 
-    
-
-    
     private void recordAuditLog(String action, String userId, Map<String, Object> context, 
                                 double riskScore, boolean allowed) {
         try {
@@ -398,15 +349,12 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             log.error("감사 로그 기록 실패", e);
         }
     }
-    
-    
+
     private void sendSecurityAlert(String userId, Map<String, Object> context, double riskScore) {
         log.error("🚨 보안 알림: 고위험 작업 시도 - userId: {}, risk: {}, context: {}", 
                  userId, riskScore, context);
         
     }
-
-    
 
     @Override
     protected String getCurrentActivityDescription() {
@@ -433,11 +381,6 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         return calculateContextHashFromAuthorizationContext();
     }
 
-    
-    
-    
-
-    
     @Override
     protected String getCurrentAction() {
         String userId = extractUserId();
@@ -446,18 +389,14 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
             return "PENDING_ANALYSIS";
         }
 
-        
         if (stringRedisTemplate == null) {
-            log.debug("getCurrentAction: StringRedisTemplate 없음 - PENDING_ANALYSIS 반환");
-            return "PENDING_ANALYSIS";
+                        return "PENDING_ANALYSIS";
         }
 
-        
         String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
         return getActionFromRedisHash(userId, redisKey, stringRedisTemplate);
     }
 
-    
     private static class FraudAnalysisContext extends io.contexa.contexacommon.domain.context.DomainContext {
         private String transactionId;
         private Double amount;
@@ -480,8 +419,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
         public int getPriorityLevel() {
             return 9; 
         }
-        
-        
+
         public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
         public void setAmount(Double amount) { this.amount = amount; }
         public void setCurrency(String currency) { this.currency = currency; }

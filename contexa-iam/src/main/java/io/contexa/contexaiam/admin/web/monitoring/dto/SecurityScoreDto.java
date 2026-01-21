@@ -2,7 +2,6 @@ package io.contexa.contexaiam.admin.web.monitoring.dto;
 
 import java.util.List;
 
-
 public record SecurityScoreDto(
         int score, 
         String summary, 

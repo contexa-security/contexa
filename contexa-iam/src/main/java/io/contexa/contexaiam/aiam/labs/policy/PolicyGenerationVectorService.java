@@ -17,7 +17,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 public class PolicyGenerationVectorService extends AbstractVectorLabService {
     
@@ -37,8 +36,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
     private boolean streamingSupport;
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    
-    
+
     private static final Map<String, Pattern> POLICY_TYPE_PATTERNS = Map.of(
         "ACCESS_CONTROL", Pattern.compile("access|permission|authorization|접근|권한|인가", Pattern.CASE_INSENSITIVE),
         "DATA_PROTECTION", Pattern.compile("data|privacy|encryption|데이터|개인정보|암호화", Pattern.CASE_INSENSITIVE),
@@ -49,16 +47,14 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         "IDENTITY_MANAGEMENT", Pattern.compile("identity|user|account|신원|사용자|계정", Pattern.CASE_INSENSITIVE),
         "NETWORK", Pattern.compile("network|firewall|routing|네트워크|방화벽|라우팅", Pattern.CASE_INSENSITIVE)
     );
-    
-    
+
     private static final Map<String, Pattern> POLICY_EFFECT_PATTERNS = Map.of(
         "ALLOW", Pattern.compile("allow|permit|grant|enable|허용|승인|부여|활성", Pattern.CASE_INSENSITIVE),
         "DENY", Pattern.compile("deny|block|reject|disable|거부|차단|금지|비활성", Pattern.CASE_INSENSITIVE),
         "CONDITIONAL", Pattern.compile("if|when|condition|unless|조건|경우|제외", Pattern.CASE_INSENSITIVE),
         "REQUIRE", Pattern.compile("require|must|mandatory|force|요구|필수|강제", Pattern.CASE_INSENSITIVE)
     );
-    
-    
+
     private static final Map<String, Pattern> POLICY_SCOPE_PATTERNS = Map.of(
         "ORGANIZATION", Pattern.compile("organization|company|enterprise|조직|회사|기업", Pattern.CASE_INSENSITIVE),
         "DEPARTMENT", Pattern.compile("department|division|team|부서|팀|부문", Pattern.CASE_INSENSITIVE),
@@ -95,71 +91,60 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             Set<String> policyTypes = classifyPolicyTypes(document.getText());
             metadata.put("policyTypes", new ArrayList<>(policyTypes));
             metadata.put("multiTypePolic", policyTypes.size() > 1);
-            
-            
+
             PolicyEffect effect = analyzePolicyEffect(document.getText());
             metadata.put("policyEffect", effect.getEffect());
             metadata.put("effectStrength", effect.getStrength());
             metadata.put("isConditional", effect.isConditional());
-            
-            
+
             Set<String> scopes = identifyPolicyScopes(document.getText());
             metadata.put("policyScopes", new ArrayList<>(scopes));
             metadata.put("scopeLevel", determineScopeLevel(scopes));
-            
-            
+
             PolicyComplexity complexity = evaluatePolicyComplexity(document.getText(), metadata);
             metadata.put("complexityScore", complexity.getScore());
             metadata.put("complexityLevel", complexity.getLevel());
             metadata.put("complexityFactors", complexity.getFactors());
-            
-            
+
             RolePermissionAnalysis rolePermAnalysis = extractRolePermissions(document.getText());
             metadata.put("extractedRoles", rolePermAnalysis.getRoles());
             metadata.put("extractedPermissions", rolePermAnalysis.getPermissions());
             metadata.put("rolePermissionMapping", rolePermAnalysis.getMappings());
-            
-            
+
             ConditionAnalysis conditions = analyzeConditions(document.getText());
             metadata.put("hasConditions", conditions.hasConditions());
             metadata.put("conditionTypes", conditions.getTypes());
             metadata.put("conditionComplexity", conditions.getComplexity());
-            
-            
+
             if (conflictDetection) {
                 ConflictDetection conflicts = detectPolicyConflicts(metadata);
                 metadata.put("hasConflicts", conflicts.hasConflicts());
                 metadata.put("conflictTypes", conflicts.getTypes());
                 metadata.put("conflictSeverity", conflicts.getSeverity());
             }
-            
-            
+
             if (complianceValidation) {
                 ComplianceValidation compliance = validateCompliance(metadata);
                 metadata.put("isCompliant", compliance.isCompliant());
                 metadata.put("complianceIssues", compliance.getIssues());
                 metadata.put("complianceScore", compliance.getScore());
             }
-            
-            
+
             PolicyQualityScore qualityScore = calculatePolicyQuality(metadata);
             metadata.put("policyQualityScore", qualityScore.getScore());
             metadata.put("qualityLevel", qualityScore.getLevel());
             metadata.put("qualityIndicators", qualityScore.getIndicators());
-            
-            
+
             String policySignature = generatePolicySignature(metadata);
             metadata.put("policySignature", policySignature);
-            
-            
+
             if (policyLearning) {
                 PolicyPattern pattern = extractPolicyPattern(metadata);
                 metadata.put("policyPattern", pattern.getPattern());
                 metadata.put("patternConfidence", pattern.getConfidence());
                 metadata.put("isReusablePattern", pattern.isReusable());
             }
-            
-            
+
             metadata.put("enrichmentVersion", "2.0");
             metadata.put("enrichedByService", "PolicyGenerationVectorService");
             metadata.put("analysisTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
@@ -176,22 +161,19 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
     @Override
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         if (!metadata.containsKey("organizationId") && 
             !metadata.containsKey("policyName") && 
             !metadata.containsKey("naturalLanguageQuery")) {
             throw new IllegalArgumentException(
                 "Policy Generation 문서는 organizationId, policyName, naturalLanguageQuery 중 최소 하나는 포함해야 합니다");
         }
-        
-        
+
         String text = document.getText();
         if (text == null || text.trim().length() < 10) {
             throw new IllegalArgumentException("정책 내용이 너무 짧습니다 (최소 10자 필요)");
         }
-        
-        
+
         if (text.length() > 10000) {
             throw new IllegalArgumentException("정책 내용이 너무 깁니다 (최대 10000자)");
         }
@@ -206,31 +188,25 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
                 
                 Double qualityScore = (Double) metadata.get("policyQualityScore");
                 if (qualityScore != null && qualityScore >= confidenceThreshold) {
-                    log.info("💎 [PolicyGenerationVectorService] 고품질 정책 감지: 점수={}", qualityScore);
-                    metadata.put("highQualityPolicy", true);
+                                        metadata.put("highQualityPolicy", true);
                     metadata.put("cacheablePolicy", true);
                     cacheHighQualityPolicy(metadata);
                 }
-                
-                
+
                 if (Boolean.TRUE.equals(metadata.get("hasConflicts"))) {
                     log.warn("[PolicyGenerationVectorService] 정책 충돌 감지: {}", 
                             metadata.get("conflictTypes"));
                     metadata.put("conflictAlert", true);
                 }
-                
-                
+
                 if (Boolean.FALSE.equals(metadata.get("isCompliant"))) {
                     log.warn("[PolicyGenerationVectorService] 규정 준수 문제: {}", 
                             metadata.get("complianceIssues"));
                     metadata.put("complianceAlert", true);
                 }
-                
-                
+
                 if (Boolean.TRUE.equals(metadata.get("isReusablePattern"))) {
-                    log.info("[PolicyGenerationVectorService] 재사용 가능 패턴 발견: {}", 
-                            metadata.get("policyPattern"));
-                    learnPolicyPattern(metadata);
+                                        learnPolicyPattern(metadata);
                 }
             }
             
@@ -260,8 +236,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return filters;
     }
-    
-    
+
     public void storePolicyGenerationRequest(PolicyGenerationRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -270,8 +245,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "policy_generation_request");
             metadata.put("requestId", UUID.randomUUID().toString());
-            
-            
+
             if (request.getAvailableItems() != null) {
                 metadata.put("availableRoles", request.getAvailableItems().roles() != null ? 
                         request.getAvailableItems().roles().size() : 0);
@@ -280,8 +254,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
                 metadata.put("availableConditions", request.getAvailableItems().conditions() != null ? 
                         request.getAvailableItems().conditions().size() : 0);
             }
-            
-            
+
             metadata.put("streamingEnabled", request.isStreamingRequired());
             
             String requestText = String.format(
@@ -296,16 +269,13 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             
             Document requestDoc = new Document(requestText, metadata);
             storeDocument(requestDoc);
-            
-            log.debug("[PolicyGenerationVectorService] 정책 생성 요청 저장 완료");
-            
+
         } catch (Exception e) {
             log.error("[PolicyGenerationVectorService] 정책 생성 요청 저장 실패", e);
             throw new VectorStoreException("정책 생성 요청 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeGeneratedPolicy(PolicyGenerationRequest request, AiGeneratedPolicyDraftDto policyDto) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -314,22 +284,19 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "generated_policy");
             metadata.put("policyId", UUID.randomUUID().toString());
-            
-            
+
             BusinessPolicyDto policy = policyDto.policyData();
             if (policy != null) {
                 metadata.put("policyName", policy.getPolicyName());
                 metadata.put("policyDescription", policy.getDescription());
                 metadata.put("policyEffect", policy.getEffect());
                 metadata.put("isConditional", policy.isConditional());
-                
-                
+
                 metadata.put("roleCount", policy.getRoleIds() != null ? policy.getRoleIds().size() : 0);
                 metadata.put("permissionCount", policy.getPermissionIds() != null ? policy.getPermissionIds().size() : 0);
                 metadata.put("conditionCount", policy.getConditions() != null ? policy.getConditions().size() : 0);
             }
-            
-            
+
             metadata.put("hasRoleMapping", policyDto.roleIdToNameMap() != null && !policyDto.roleIdToNameMap().isEmpty());
             metadata.put("hasPermissionMapping", policyDto.permissionIdToNameMap() != null && !policyDto.permissionIdToNameMap().isEmpty());
             metadata.put("hasConditionMapping", policyDto.conditionIdToNameMap() != null && !policyDto.conditionIdToNameMap().isEmpty());
@@ -346,20 +313,15 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             
             Document policyDoc = new Document(policyText, metadata);
             storeDocument(policyDoc);
-            
-            
+
             storePolicyMappingDetails(policyDto, metadata);
-            
-            log.debug("[PolicyGenerationVectorService] AI 생성 정책 저장 완료: {}",
-                    policy != null ? policy.getPolicyName() : "Unknown");
-            
+
         } catch (Exception e) {
             log.error("[PolicyGenerationVectorService] AI 생성 정책 저장 실패", e);
             throw new VectorStoreException("AI 생성 정책 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeStreamingProgress(String requestId, String chunk, double progress) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -382,8 +344,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             log.error("스트리밍 진행 상황 저장 실패", e);
         }
     }
-    
-    
+
     public void storePolicyFeedback(String policyId, boolean approved, String feedback) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -392,8 +353,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             metadata.put("feedbackText", feedback);
             metadata.put("feedbackTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "policy_feedback");
-            
-            
+
             FeedbackAnalysis analysis = analyzePolicyFeedback(feedback, approved);
             metadata.put("feedbackCategory", analysis.getCategory());
             metadata.put("improvementAreas", analysis.getImprovementAreas());
@@ -408,22 +368,17 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             
             Document feedbackDoc = new Document(feedbackText, metadata);
             storeDocument(feedbackDoc);
-            
-            
+
             if (policyLearning) {
                 updatePolicyLearning(metadata);
             }
-            
-            log.info("📚 [PolicyGenerationVectorService] 정책 피드백 저장 완료: ID={}, 승인={}", 
-                    policyId, approved);
-            
+
         } catch (Exception e) {
             log.error("[PolicyGenerationVectorService] 정책 피드백 저장 실패", e);
             throw new VectorStoreException("정책 피드백 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     private void storePolicyMappingDetails(AiGeneratedPolicyDraftDto policyDto, Map<String, Object> baseMetadata) {
         
         if (policyDto.roleIdToNameMap() != null) {
@@ -445,8 +400,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
                 }
             });
         }
-        
-        
+
         if (policyDto.permissionIdToNameMap() != null) {
             policyDto.permissionIdToNameMap().forEach((id, name) -> {
                 try {
@@ -467,8 +421,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             });
         }
     }
-    
-    
+
     private Set<String> classifyPolicyTypes(String content) {
         Set<String> types = new HashSet<>();
         
@@ -486,8 +439,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return types;
     }
-    
-    
+
     private PolicyEffect analyzePolicyEffect(String content) {
         PolicyEffect effect = new PolicyEffect();
         
@@ -497,21 +449,18 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             effect.setConditional(false);
             return effect;
         }
-        
-        
+
         for (Map.Entry<String, Pattern> entry : POLICY_EFFECT_PATTERNS.entrySet()) {
             if (entry.getValue().matcher(content).find()) {
                 effect.setEffect(entry.getKey());
                 break;
             }
         }
-        
-        
+
         if (POLICY_EFFECT_PATTERNS.get("CONDITIONAL").matcher(content).find()) {
             effect.setConditional(true);
         }
-        
-        
+
         if ("DENY".equals(effect.getEffect()) || "REQUIRE".equals(effect.getEffect())) {
             effect.setStrength(0.9);
         } else if ("ALLOW".equals(effect.getEffect())) {
@@ -522,8 +471,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return effect;
     }
-    
-    
+
     private Set<String> identifyPolicyScopes(String content) {
         Set<String> scopes = new HashSet<>();
         
@@ -541,8 +489,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return scopes;
     }
-    
-    
+
     private String determineScopeLevel(Set<String> scopes) {
         if (scopes.contains("GLOBAL")) return "GLOBAL";
         if (scopes.contains("ORGANIZATION")) return "ORGANIZATION";
@@ -552,40 +499,34 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         if (scopes.contains("USER")) return "USER";
         return "DEFAULT";
     }
-    
-    
+
     private PolicyComplexity evaluatePolicyComplexity(String content, Map<String, Object> metadata) {
         PolicyComplexity complexity = new PolicyComplexity();
         double score = 0.0;
         List<String> factors = new ArrayList<>();
-        
-        
+
         List<String> types = (List<String>) metadata.get("policyTypes");
         if (types != null && types.size() > 2) {
             score += 20.0;
             factors.add("다중 정책 유형");
         }
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("isConditional"))) {
             score += 25.0;
             factors.add("조건부 정책");
         }
-        
-        
+
         List<String> scopes = (List<String>) metadata.get("policyScopes");
         if (scopes != null && scopes.size() > 3) {
             score += 15.0;
             factors.add("다중 범위");
         }
-        
-        
+
         if (content != null && content.length() > 500) {
             score += 10.0;
             factors.add("긴 정책 설명");
         }
-        
-        
+
         Integer roleCount = (Integer) metadata.get("roleCount");
         Integer permCount = (Integer) metadata.get("permissionCount");
         if (roleCount != null && roleCount > 5) {
@@ -606,8 +547,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return complexity;
     }
-    
-    
+
     private RolePermissionAnalysis extractRolePermissions(String content) {
         RolePermissionAnalysis analysis = new RolePermissionAnalysis();
         Set<String> roles = new HashSet<>();
@@ -620,13 +560,11 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             analysis.setMappings(mappings);
             return analysis;
         }
-        
-        
+
         Pattern rolePattern = Pattern.compile("ROLE_[A-Z_]+|[A-Z][a-z]+(?:Admin|Manager|User|Viewer)");
         rolePattern.matcher(content).results()
             .forEach(match -> roles.add(match.group()));
-        
-        
+
         Pattern permPattern = Pattern.compile("(READ|WRITE|DELETE|EXECUTE|CREATE|UPDATE|VIEW|MANAGE)_[A-Z_]+");
         permPattern.matcher(content).results()
             .forEach(match -> permissions.add(match.group()));
@@ -637,8 +575,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return analysis;
     }
-    
-    
+
     private ConditionAnalysis analyzeConditions(String content) {
         ConditionAnalysis conditions = new ConditionAnalysis();
         List<String> types = new ArrayList<>();
@@ -649,18 +586,15 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             conditions.setComplexity("NONE");
             return conditions;
         }
-        
-        
+
         if (content.contains("time") || content.contains("hour") || content.contains("시간")) {
             types.add("TIME_BASED");
         }
-        
-        
+
         if (content.contains("location") || content.contains("geo") || content.contains("위치")) {
             types.add("LOCATION_BASED");
         }
-        
-        
+
         if (content.contains("attribute") || content.contains("property") || content.contains("속성")) {
             types.add("ATTRIBUTE_BASED");
         }
@@ -674,13 +608,11 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return conditions;
     }
-    
-    
+
     private ConflictDetection detectPolicyConflicts(Map<String, Object> metadata) {
         ConflictDetection conflicts = new ConflictDetection();
         List<String> types = new ArrayList<>();
-        
-        
+
         String effect = (String) metadata.get("policyEffect");
         if ("ALLOW".equals(effect) && metadata.get("policyTypes") != null) {
             List<String> policyTypes = (List<String>) metadata.get("policyTypes");
@@ -688,8 +620,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
                 types.add("EFFECT_CONFLICT");
             }
         }
-        
-        
+
         List<String> scopes = (List<String>) metadata.get("policyScopes");
         if (scopes != null && scopes.contains("USER") && scopes.contains("GLOBAL")) {
             types.add("SCOPE_CONFLICT");
@@ -701,14 +632,12 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return conflicts;
     }
-    
-    
+
     private ComplianceValidation validateCompliance(Map<String, Object> metadata) {
         ComplianceValidation compliance = new ComplianceValidation();
         List<String> issues = new ArrayList<>();
         double score = 1.0;
-        
-        
+
         if (metadata.get("policyName") == null) {
             issues.add("정책 이름 누락");
             score -= 0.2;
@@ -718,8 +647,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             issues.add("정책 설명 누락");
             score -= 0.1;
         }
-        
-        
+
         String effect = (String) metadata.get("policyEffect");
         if ("UNKNOWN".equals(effect)) {
             issues.add("정책 효과 불명확");
@@ -732,27 +660,23 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return compliance;
     }
-    
-    
+
     private PolicyQualityScore calculatePolicyQuality(Map<String, Object> metadata) {
         PolicyQualityScore qualityScore = new PolicyQualityScore();
         double score = 0.0;
         List<String> indicators = new ArrayList<>();
-        
-        
+
         if (metadata.get("policyName") != null && metadata.get("policyDescription") != null) {
             score += 30.0;
             indicators.add("완전한 정책 정보");
         }
-        
-        
+
         String effect = (String) metadata.get("policyEffect");
         if (effect != null && !"UNKNOWN".equals(effect)) {
             score += 25.0;
             indicators.add("명확한 정책 효과");
         }
-        
-        
+
         String complexityLevel = (String) metadata.get("complexityLevel");
         if ("MEDIUM".equals(complexityLevel)) {
             score += 20.0;
@@ -760,14 +684,12 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         } else if ("LOW".equals(complexityLevel)) {
             score += 15.0;
         }
-        
-        
+
         if (!Boolean.TRUE.equals(metadata.get("hasConflicts"))) {
             score += 15.0;
             indicators.add("충돌 없음");
         }
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("isCompliant"))) {
             score += 10.0;
             indicators.add("규정 준수");
@@ -783,8 +705,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return qualityScore;
     }
-    
-    
+
     private String generatePolicySignature(Map<String, Object> metadata) {
         StringBuilder signature = new StringBuilder("POL");
         
@@ -807,8 +728,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return signature.toString();
     }
-    
-    
+
     private PolicyPattern extractPolicyPattern(Map<String, Object> metadata) {
         PolicyPattern pattern = new PolicyPattern();
         
@@ -826,22 +746,17 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return pattern;
     }
-    
-    
+
     private void cacheHighQualityPolicy(Map<String, Object> metadata) {
-        log.info("💾 [PolicyGenerationVectorService] 고품질 정책 캐싱");
-        metadata.put("cachedAt", LocalDateTime.now().format(ISO_FORMATTER));
+                metadata.put("cachedAt", LocalDateTime.now().format(ISO_FORMATTER));
         metadata.put("cacheExpiry", LocalDateTime.now().plusDays(30).format(ISO_FORMATTER));
     }
-    
-    
+
     private void learnPolicyPattern(Map<String, Object> metadata) {
-        log.info("[PolicyGenerationVectorService] 정책 패턴 학습");
-        metadata.put("patternLearned", true);
+                metadata.put("patternLearned", true);
         metadata.put("learnedAt", LocalDateTime.now().format(ISO_FORMATTER));
     }
-    
-    
+
     private FeedbackAnalysis analyzePolicyFeedback(String feedback, boolean approved) {
         FeedbackAnalysis analysis = new FeedbackAnalysis();
         
@@ -854,8 +769,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         String lower = feedback.toLowerCase();
         List<String> improvements = new ArrayList<>();
-        
-        
+
         if (lower.contains("permission") || lower.contains("권한")) {
             analysis.setCategory("PERMISSION");
         } else if (lower.contains("role") || lower.contains("역할")) {
@@ -865,8 +779,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         } else {
             analysis.setCategory("GENERAL");
         }
-        
-        
+
         if (lower.contains("complex") || lower.contains("복잡")) {
             improvements.add("복잡도 감소");
         }
@@ -878,8 +791,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         }
         
         analysis.setImprovementAreas(improvements);
-        
-        
+
         if (approved) {
             if (lower.contains("excellent") || lower.contains("perfect") || lower.contains("완벽")) {
                 analysis.setSatisfactionLevel("VERY_SATISFIED");
@@ -896,16 +808,12 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         
         return analysis;
     }
-    
-    
+
     private void updatePolicyLearning(Map<String, Object> metadata) {
-        log.info("📚 [PolicyGenerationVectorService] 정책 학습 모델 업데이트");
-        metadata.put("learningUpdated", true);
+                metadata.put("learningUpdated", true);
         metadata.put("updateTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
     }
-    
-    
-    
+
     private static class PolicyEffect {
         private String effect;
         private double strength;
@@ -1022,8 +930,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
         public String getSatisfactionLevel() { return satisfactionLevel; }
         public void setSatisfactionLevel(String satisfactionLevel) { this.satisfactionLevel = satisfactionLevel; }
     }
-    
-    
+
     public void storePolicyRequest(PolicyContext context) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -1035,21 +942,18 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             Document doc = new Document(text, metadata);
             storeDocument(doc);
             
-            log.debug("정책 요청 저장 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("정책 요청 저장 실패", e);
         }
     }
-    
-    
+
     public List<Document> findSimilarPolicies(String query, int topK) {
         Map<String, Object> filters = new HashMap<>();
         filters.put("documentType", "policy_generation");
         filters.put("topK", topK);
         return searchSimilar(query, filters);
     }
-    
-    
+
     public void storePolicyResult(String requestId, String result) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -1060,8 +964,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             Document doc = new Document(result, metadata);
             storeDocument(doc);
             
-            log.debug("정책 결과 저장 완료: {}", requestId);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("정책 결과 저장 실패", e);
         }
     }

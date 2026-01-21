@@ -9,7 +9,6 @@ import io.contexa.contexaiam.aiam.protocol.response.SecurityCopilotResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-
 @Slf4j
 @PromptTemplateConfig(
         key = "securityCopilotAnalysis",
@@ -17,16 +16,13 @@ import org.springframework.ai.converter.BeanOutputConverter;
         description = "Spring AI Structured Output Security Copilot Analysis Template"
 )
 public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<SecurityCopilotResponse> converter = 
         new BeanOutputConverter<>(SecurityCopilotResponse.class);
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        log.debug("SecurityCopilot 분석 시스템 프롬프트 생성 시작");
-        
-        
+
         String formatInstructions = converter.getFormat();
 
         return String.format("""
@@ -224,21 +220,16 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
 
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
-        log.debug("SecurityCopilot 분석 사용자 프롬프트 생성 시작");
 
-        
         String securityQuery = extractSecurityQuery(request);
-        
-        
+
         String labResultsInfo = extractLabResultsInfo(request);
-        
-        
+
         String analysisScope = extractAnalysisScope(request);
 
         return buildAnalysisUserPrompt(securityQuery, labResultsInfo, analysisScope, contextInfo);
     }
 
-    
     private String buildAnalysisUserPrompt(String securityQuery, String labResultsInfo, 
                                          String analysisScope, String contextInfo) {
         String analysisRequest =  String.format("""
@@ -337,12 +328,10 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
             analysisScope, 
             labResultsInfo, 
             contextInfo);
-        
-        
+
         return analysisRequest + "\n\n" + converter.getFormat();
     }
 
-    
     private String extractSecurityQuery(AIRequest<? extends DomainContext> request) {
         
         String securityQuery = request.getParameter("securityQuery", String.class);
@@ -350,8 +339,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         if (securityQuery != null && !securityQuery.trim().isEmpty()) {
             return securityQuery;
         }
-        
-        
+
         if (request.getContext() instanceof SecurityCopilotContext) {
             SecurityCopilotContext context = (SecurityCopilotContext) request.getContext();
             return context.getSecurityQuery();
@@ -360,11 +348,9 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         return "포괄적 보안 분석 요청";
     }
 
-    
     private String extractLabResultsInfo(AIRequest<? extends DomainContext> request) {
         StringBuilder labResults = new StringBuilder();
-        
-        
+
         Boolean labCollaborationEnabled = request.getParameter("labCollaborationEnabled", Boolean.class);
         Integer labResultsCount = request.getParameter("labResultsCount", Integer.class);
         String labAnalysisId = request.getParameter("labAnalysisId", String.class);
@@ -385,8 +371,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
             if (labResult != null) {
                 hasResults = true;
                 labResults.append(labIcons[i]).append(" ").append(labNames[i]).append(" Lab:\n");
-                
-                
+
                 String resultStr = labResult.toString();
                 if (resultStr.length() > 500) {
                     labResults.append("   ").append(resultStr.substring(0, 500)).append("...\n");
@@ -396,8 +381,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
                 labResults.append("\n");
             }
         }
-        
-        
+
         Object labErrors = request.getParameter("labErrors", Object.class);
         if (labErrors != null) {
             labResults.append("Lab 오류 정보:\n");
@@ -407,8 +391,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         if (!hasResults) {
             labResults.append("Lab 결과가 제공되지 않았습니다.\n");
         }
-        
-        
+
         String processingMode = request.getParameter("processingMode", String.class);
         String dataSource = request.getParameter("dataSource", String.class);
         String analysisType = request.getParameter("analysisType", String.class);
@@ -421,15 +404,13 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         return labResults.toString();
     }
 
-    
     private String extractAnalysisScope(AIRequest<? extends DomainContext> request) {
         String analysisScope = request.getParameter("analysisScope", String.class);
         
         if (analysisScope != null && !analysisScope.trim().isEmpty()) {
             return analysisScope;
         }
-        
-        
+
         if (request.getContext() instanceof SecurityCopilotContext) {
             SecurityCopilotContext context = (SecurityCopilotContext) request.getContext();
             return context.getAnalysisScope();
@@ -437,8 +418,7 @@ public class SecurityCopilotAnalysisTemplate implements PromptTemplate {
         
         return "COMPREHENSIVE";
     }
-    
-    
+
     public BeanOutputConverter<SecurityCopilotResponse> getConverter() {
         return converter;
     }

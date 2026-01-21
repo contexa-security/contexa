@@ -7,18 +7,15 @@ import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.Getter;
 import lombok.Setter;
 
-
 @Getter
 @Setter
 public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatResponseContext> {
     
     private static final String PROMPT_TEMPLATE = "dynamicThreatResponse";
     private static final DiagnosisType DIAGNOSIS_TYPE = DiagnosisType.DYNAMIC_THREAT_RESPONSE;
-    
-    
+
     private String eventId;
-    
-    
+
     private boolean enablePolicyGeneration = true;
     private boolean enableSpelExpression = true;
     private boolean requiresApproval = false;
@@ -32,27 +29,23 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
     public DynamicThreatResponseRequest(DynamicThreatResponseContext context) {
         this(context, PROMPT_TEMPLATE);
     }
-    
-    
+
     public static DynamicThreatResponseRequest create(DynamicThreatResponseContext context) {
         return new DynamicThreatResponseRequest(context);
     }
-    
-    
+
     public static DynamicThreatResponseRequest createUrgent(DynamicThreatResponseContext context) {
         DynamicThreatResponseRequest request = new DynamicThreatResponseRequest(context);
         request.withParameter("priority", RequestPriority.CRITICAL);
         request.requiresApproval = true;
         return request;
     }
-    
-    
+
     public static DynamicThreatResponseRequest fromEvent(DynamicThreatResponseEvent event) {
         
         DynamicThreatResponseContext context = new DynamicThreatResponseContext();
         context.setEventId(event.getEventId());
-        
-        
+
         DynamicThreatResponseContext.ThreatInfo threatInfo = new DynamicThreatResponseContext.ThreatInfo();
         threatInfo.setThreatType(event.getThreatType());
         threatInfo.setAttackVector(event.getAttackVector());
@@ -61,8 +54,7 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         threatInfo.setSeverity(event.getSeverity());
         threatInfo.setOccurredAt(event.getOccurredAt());
         context.setThreatInfo(threatInfo);
-        
-        
+
         DynamicThreatResponseContext.ResponseInfo responseInfo = new DynamicThreatResponseContext.ResponseInfo();
         responseInfo.setMitigationAction(event.getMitigationAction());
         responseInfo.setSuccessful(event.isResponseSuccessful());
@@ -70,8 +62,7 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         responseInfo.setIncidentId(event.getIncidentId());
         responseInfo.setSoarWorkflowId(event.getSoarWorkflowId());
         context.setResponseInfo(responseInfo);
-        
-        
+
         DynamicThreatResponseContext.PolicyGenerationHint hint = new DynamicThreatResponseContext.PolicyGenerationHint();
         hint.setPreferredPolicyType(inferPolicyType(event));
         hint.setScope(inferScope(event));
@@ -79,16 +70,13 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         hint.setRequiresApproval(shouldRequireApproval(event));
         hint.setTargetAudience(inferTargetAudience(event));
         context.setHint(hint);
-        
-        
+
         if (event.getContext() != null) {
             context.setAdditionalContext(event.getContext());
         }
-        
-        
+
         context.adjustSecurityLevelBySeverity();
-        
-        
+
         DynamicThreatResponseRequest request = new DynamicThreatResponseRequest(context);
         request.setEventId(event.getEventId());
         request.requiresApproval = shouldRequireApproval(event);
@@ -115,18 +103,14 @@ public class DynamicThreatResponseRequest extends IAMRequest<DynamicThreatRespon
         if (target.contains("api") || target.contains("resource")) return "RESOURCE_SPECIFIC";
         return "GLOBAL";
     }
-    
-    
+
     private static Integer calculatePriority(DynamicThreatResponseEvent event) {
-        
-        
+
         return 50;
     }
 
-    
     private static Boolean shouldRequireApproval(DynamicThreatResponseEvent event) {
-        
-        
+
         return true;
     }
     

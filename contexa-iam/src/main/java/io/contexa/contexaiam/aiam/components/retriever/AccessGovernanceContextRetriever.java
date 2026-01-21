@@ -32,7 +32,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class AccessGovernanceContextRetriever extends ContextRetriever {
 
@@ -54,7 +53,6 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
     
     private RetrievalAugmentationAdvisor governanceAdvisor;
 
-    
     private static final int MAX_FINDINGS = 50;
     private static final double DORMANT_PERMISSION_THRESHOLD = 30; 
     private static final double EXCESSIVE_PERMISSION_THRESHOLD = 20; 
@@ -77,11 +75,9 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         this.vectorService = vectorService;
     }
 
-    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-        log.info("ApplicationContext refreshed. Initializing AccessGovernanceContextRetriever...");
-        registerSelf();
+                registerSelf();
     }
 
     private void registerSelf() {
@@ -91,36 +87,30 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         }
 
         registry.registerRetriever(AccessGovernanceContext.class, this);
-        log.info("AccessGovernanceContextRetriever 자동 등록 완료 (Spring AI RAG 지원)");
-    }
-    
-    
+            }
+
     private void createGovernanceAdvisor() {
         
         QueryTransformer governanceQueryTransformer = new GovernanceQueryTransformer(chatClientBuilder);
-        
-        
+
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
             filterBuilder.in("documentType", "governance", "policy", "compliance", "audit"),
             filterBuilder.gte("relevanceScore", 0.7)
         ).build();
-        
-        
+
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(governanceSimilarityThreshold)
             .topK(governanceTopK)
             .filterExpression(filter)
             .build();
-        
-        
+
         governanceAdvisor = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
             .queryTransformers(governanceQueryTransformer)
             .build();
-        
-        
+
         registerDomainAdvisor(AccessGovernanceContext.class, governanceAdvisor);
     }
 
@@ -132,14 +122,12 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             if (governanceAdvisor != null) {
                 ragResult = super.retrieveContext(request);
             }
-            
-            
+
             String contextInfo = retrieveAccessGovernanceContext(
                 (AIRequest<AccessGovernanceContext>) request,
                 ragResult != null ? ragResult.getDocuments() : List.of()
             );
-            
-            
+
             Map<String, Object> metadata = new HashMap<>();
             if (ragResult != null) {
                 metadata.putAll(ragResult.getMetadata());
@@ -157,67 +145,47 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         return super.retrieveContext(request);
     }
 
-    
     public String retrieveAccessGovernanceContext(AIRequest<AccessGovernanceContext> request, List<Document> ragDocuments) {
-        log.info("권한 거버넌스 분석 시작: scope={}, type={}", 
-                request.getContext().getAuditScope(), 
-                request.getContext().getAnalysisType());
-
+        
         try {
             AccessGovernanceContext context = request.getContext();
-            
-            
+
             try {
                 vectorService.storeGovernanceContext(context);
             } catch (Exception e) {
                 log.error("벡터 저장소 컨텍스트 저장 실패", e);
             }
 
-            
             PermissionMatrix permissionMatrix = collectPermissionMatrix(context);
 
-            
             UserPermissionAnalysis userAnalysis = analyzeUserPermissions(context, permissionMatrix);
 
-            
             RolePermissionAnalysis roleAnalysis = analyzeRolePermissions(context, permissionMatrix);
 
-            
             GroupPermissionAnalysis groupAnalysis = analyzeGroupPermissions(context, permissionMatrix);
 
-            
             AnomalyDetectionResult anomalyResult = detectAnomalies(context, permissionMatrix, userAnalysis, roleAnalysis, groupAnalysis);
 
-            
             GovernanceScore governanceScore = calculateGovernanceScore(anomalyResult);
-            
-            
+
             List<Document> vectorServiceDocs = List.of();
             try {
                 String query = String.format("거버넌스 분석: scope=%s, type=%s, 이상 징후=%d", 
                     context.getAuditScope(), context.getAnalysisType(), anomalyResult.getTotalAnomalies());
                 vectorServiceDocs = vectorService.findSimilarGovernanceDocuments(query, 10);
-                log.debug("벡터 서비스에서 {} 개의 유사 거버넌스 문서 검색", vectorServiceDocs.size());
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.error("벡터 서비스 검색 실패", e);
             }
-            
-            
+
             List<Document> allDocuments = new ArrayList<>();
             if (ragDocuments != null) {
                 allDocuments.addAll(ragDocuments);
             }
             allDocuments.addAll(vectorServiceDocs);
 
-            
             String comprehensiveContext = buildComprehensiveContext(
                     context, permissionMatrix, userAnalysis, roleAnalysis, groupAnalysis, 
                     anomalyResult, governanceScore, allDocuments);
-
-            log.info("권한 거버넌스 분석 완료: {} 사용자, {} 역할, {} 이상 징후 발견", 
-                    userAnalysis.getTotalUsers(), 
-                    roleAnalysis.getTotalRoles(), 
-                    anomalyResult.getTotalAnomalies());
 
             return comprehensiveContext;
 
@@ -227,13 +195,10 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private PermissionMatrix collectPermissionMatrix(AccessGovernanceContext context) {
-        log.debug("권한 매트릭스 수집 시작");
-
+        
         PermissionMatrix matrix = new PermissionMatrix();
 
-        
         List<Users> users = userRepository.findAll();
         for (Users user : users) {
             Map<String, Object> userPermissions = new HashMap<>();
@@ -248,7 +213,6 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             matrix.getUserMatrix().put(user.getId().toString(), userPermissions);
         }
 
-        
         List<Role> roles = roleRepository.findAll();
         for (Role role : roles) {
             Map<String, Object> rolePermissions = new HashMap<>();
@@ -261,7 +225,6 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             matrix.getRoleMatrix().put(role.getId().toString(), rolePermissions);
         }
 
-        
         List<Permission> permissions = permissionRepository.findAll();
         for (Permission permission : permissions) {
             Map<String, Object> permissionDetails = new HashMap<>();
@@ -289,18 +252,11 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             matrix.getPermissionMatrix().put(permission.getId().toString(), permissionDetails);
         }
 
-        log.debug("권한 매트릭스 수집 완료: {} 사용자, {} 역할, {} 권한", 
-                matrix.getUserMatrix().size(), 
-                matrix.getRoleMatrix().size(), 
-                matrix.getPermissionMatrix().size());
-
         return matrix;
     }
 
-    
     private UserPermissionAnalysis analyzeUserPermissions(AccessGovernanceContext context, PermissionMatrix matrix) {
-        log.debug("👥 사용자별 권한 분석 시작");
-
+        
         UserPermissionAnalysis analysis = new UserPermissionAnalysis();
         analysis.setTotalUsers(matrix.getUserMatrix().size());
 
@@ -310,37 +266,28 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             
             List<String> permissions = (List<String>) userData.get("permissions");
             List<String> roles = (List<String>) userData.get("roles");
-            
-            
+
             int permissionCount = permissions != null ? permissions.size() : 0;
             int roleCount = roles != null ? roles.size() : 0;
             
             analysis.getUserPermissionCounts().put(userId, permissionCount);
             analysis.getUserRoleCounts().put(userId, roleCount);
-            
-            
+
             if (permissionCount > EXCESSIVE_PERMISSION_THRESHOLD) {
                 analysis.getExcessivePermissionUsers().add(userId);
             }
-            
-            
+
             LocalDateTime lastLoginTime = (LocalDateTime) userData.get("lastLoginTime");
             if (lastLoginTime != null && lastLoginTime.isBefore(LocalDateTime.now().minusDays((long) DORMANT_PERMISSION_THRESHOLD))) {
                 analysis.getDormantUsers().add(userId);
             }
         }
 
-        log.debug("👥 사용자별 권한 분석 완료: {} 과도한 권한 사용자, {} 미사용 사용자", 
-                analysis.getExcessivePermissionUsers().size(), 
-                analysis.getDormantUsers().size());
-
         return analysis;
     }
 
-    
     private RolePermissionAnalysis analyzeRolePermissions(AccessGovernanceContext context, PermissionMatrix matrix) {
-        log.debug("역할별 권한 분석 시작");
-
+        
         RolePermissionAnalysis analysis = new RolePermissionAnalysis();
         analysis.setTotalRoles(matrix.getRoleMatrix().size());
 
@@ -352,39 +299,29 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             List<String> permissions = (List<String>) roleData.get("permissions");
             @SuppressWarnings("unchecked")
             List<String> users = (List<String>) roleData.get("users");
-            
-            
+
             int permissionCount = permissions != null ? permissions.size() : 0;
             int userCount = users != null ? users.size() : 0;
             
             analysis.getRolePermissionCounts().put(roleId, permissionCount);
             analysis.getRoleUserCounts().put(roleId, userCount);
-            
-            
+
             if (userCount == 0) {
                 analysis.getUnusedRoles().add(roleId);
             }
-            
-            
+
             if (permissionCount > EXCESSIVE_PERMISSION_THRESHOLD) {
                 analysis.getExcessivePermissionRoles().add(roleId);
             }
         }
 
-        log.debug("역할별 권한 분석 완료: {} 미사용 역할, {} 과도한 권한 역할", 
-                analysis.getUnusedRoles().size(), 
-                analysis.getExcessivePermissionRoles().size());
-
         return analysis;
     }
 
-    
     private GroupPermissionAnalysis analyzeGroupPermissions(AccessGovernanceContext context, PermissionMatrix matrix) {
-        log.debug("👥 그룹별 권한 분석 시작");
-
+        
         GroupPermissionAnalysis analysis = new GroupPermissionAnalysis();
-        
-        
+
         List<Group> groups = groupRepository.findAll();
         analysis.setTotalGroups(groups.size());
 
@@ -392,57 +329,41 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             
             int userCount = group.getUserGroups().size();
             analysis.getGroupUserCounts().put(group.getId().toString(), userCount);
-            
-            
+
             if (userCount == 0) {
                 analysis.getEmptyGroups().add(group.getId().toString());
             }
         }
 
-        log.debug("👥 그룹별 권한 분석 완료: {} 그룹, {} 빈 그룹", 
-                analysis.getTotalGroups(), 
-                analysis.getEmptyGroups().size());
-
         return analysis;
     }
 
-    
     private AnomalyDetectionResult detectAnomalies(AccessGovernanceContext context, PermissionMatrix matrix,
                                                   UserPermissionAnalysis userAnalysis, 
                                                   RolePermissionAnalysis roleAnalysis,
                                                   GroupPermissionAnalysis groupAnalysis) {
-        log.debug("이상 징후 탐지 시작");
-
+        
         AnomalyDetectionResult result = new AnomalyDetectionResult();
 
-        
         result.setDormantPermissions(userAnalysis.getDormantUsers().size());
 
-        
         result.setExcessivePermissions(userAnalysis.getExcessivePermissionUsers().size() + 
                                      roleAnalysis.getExcessivePermissionRoles().size());
 
-        
         result.setUnusedRoles(roleAnalysis.getUnusedRoles().size());
 
-        
         result.setEmptyGroups(groupAnalysis.getEmptyGroups().size());
 
-        
         result.setSodViolations(detectSodViolations(matrix));
 
         result.setTotalAnomalies(result.getDormantPermissions() + result.getExcessivePermissions() + 
                                result.getUnusedRoles() + result.getEmptyGroups() + result.getSodViolations());
 
-        log.debug("이상 징후 탐지 완료: {} 총 이상 징후", result.getTotalAnomalies());
-
         return result;
     }
 
-    
     private int detectSodViolations(PermissionMatrix matrix) {
-        
-        
+
         int highPrivilegeUsers = 0;
         
         for (Map<String, Object> userData : matrix.getUserMatrix().values()) {
@@ -456,16 +377,12 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         return highPrivilegeUsers;
     }
 
-    
     private GovernanceScore calculateGovernanceScore(AnomalyDetectionResult anomalyResult) {
-        log.debug("권한 거버넌스 점수 계산 시작");
-
+        
         GovernanceScore score = new GovernanceScore();
 
-        
         double baseScore = 100.0;
-        
-        
+
         double deduction = anomalyResult.getDormantPermissions() * 2.0 +
                           anomalyResult.getExcessivePermissions() * 3.0 +
                           anomalyResult.getUnusedRoles() * 1.5 +
@@ -473,8 +390,7 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
                           anomalyResult.getSodViolations() * 5.0;
 
         score.setOverallScore(Math.max(0, baseScore - deduction));
-        
-        
+
         if (score.getOverallScore() >= 80) {
             score.setRiskLevel("LOW");
         } else if (score.getOverallScore() >= 60) {
@@ -485,13 +401,9 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             score.setRiskLevel("CRITICAL");
         }
 
-        log.debug("권한 거버넌스 점수 계산 완료: {}점, 위험도: {}", 
-                score.getOverallScore(), score.getRiskLevel());
-
         return score;
     }
 
-    
     private String buildComprehensiveContext(AccessGovernanceContext context, PermissionMatrix matrix,
                                            UserPermissionAnalysis userAnalysis, 
                                            RolePermissionAnalysis roleAnalysis,
@@ -504,21 +416,18 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         
         contextBuilder.append("권한 거버넌스 분석 컨텍스트\n");
         contextBuilder.append("=".repeat(50)).append("\n\n");
-        
-        
+
         contextBuilder.append("분석 기본 정보:\n");
         contextBuilder.append("- 분석 범위: ").append(context.getAuditScope()).append("\n");
         contextBuilder.append("- 분석 유형: ").append(context.getAnalysisType()).append("\n");
         contextBuilder.append("- 분석 시간: ").append(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))).append("\n\n");
-        
-        
+
         contextBuilder.append("시스템 현황:\n");
         contextBuilder.append("- 총 사용자 수: ").append(userAnalysis.getTotalUsers()).append("\n");
         contextBuilder.append("- 총 역할 수: ").append(roleAnalysis.getTotalRoles()).append("\n");
         contextBuilder.append("- 총 그룹 수: ").append(groupAnalysis.getTotalGroups()).append("\n");
         contextBuilder.append("- 총 권한 수: ").append(matrix.getPermissionMatrix().size()).append("\n\n");
-        
-        
+
         contextBuilder.append("이상 징후 요약:\n");
         contextBuilder.append("- 미사용 권한: ").append(anomalyResult.getDormantPermissions()).append("건\n");
         contextBuilder.append("- 과도한 권한: ").append(anomalyResult.getExcessivePermissions()).append("건\n");
@@ -526,19 +435,16 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         contextBuilder.append("- 빈 그룹: ").append(anomalyResult.getEmptyGroups()).append("건\n");
         contextBuilder.append("- 업무 분리 위반: ").append(anomalyResult.getSodViolations()).append("건\n");
         contextBuilder.append("- 총 이상 징후: ").append(anomalyResult.getTotalAnomalies()).append("건\n\n");
-        
-        
+
         contextBuilder.append("권한 거버넌스 점수:\n");
         contextBuilder.append("- 전체 점수: ").append(String.format("%.1f", governanceScore.getOverallScore())).append("/100점\n");
         contextBuilder.append("- 위험도: ").append(governanceScore.getRiskLevel()).append("\n\n");
-        
-        
+
         contextBuilder.append("권한 매트릭스 요약:\n");
         contextBuilder.append("- 사용자별 권한 분포: ").append(matrix.getUserMatrix().size()).append("명\n");
         contextBuilder.append("- 역할별 권한 분포: ").append(matrix.getRoleMatrix().size()).append("개\n");
         contextBuilder.append("- 권한별 상세 정보: ").append(matrix.getPermissionMatrix().size()).append("개\n\n");
-        
-        
+
         contextBuilder.append("💡 권장사항:\n");
         if (anomalyResult.getDormantPermissions() > 0) {
             contextBuilder.append("- 미사용 권한 정리 필요\n");
@@ -552,8 +458,7 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         if (anomalyResult.getSodViolations() > 0) {
             contextBuilder.append("- 업무 분리 위반 조치 필요\n");
         }
-        
-        
+
         if (ragDocuments != null && !ragDocuments.isEmpty()) {
             contextBuilder.append("\n관련 거버넌스 문서 (RAG):\n");
             for (int i = 0; i < Math.min(3, ragDocuments.size()); i++) {
@@ -568,8 +473,7 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         
         return contextBuilder.toString();
     }
-    
-    
+
     private static class GovernanceQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         
@@ -606,7 +510,6 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String getDefaultContext() {
         return """
             권한 거버넌스 분석 컨텍스트
@@ -640,7 +543,6 @@ public class AccessGovernanceContextRetriever extends ContextRetriever {
             """.formatted(LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
     }
 
-    
     private static class PermissionMatrix {
         private final Map<String, Map<String, Object>> userMatrix = new HashMap<>();
         private final Map<String, Map<String, Object>> roleMatrix = new HashMap<>();

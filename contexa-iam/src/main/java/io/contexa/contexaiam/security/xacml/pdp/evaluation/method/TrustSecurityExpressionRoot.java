@@ -15,21 +15,17 @@ import org.springframework.security.core.Authentication;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
-
 @Slf4j
 public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoot {
 
     private final RedisTemplate<String, Double> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;  
-    
-    
+
     private static final Cache<String, Double> localCache = Caffeine.newBuilder()
             .maximumSize(10000)
             .expireAfterWrite(1, TimeUnit.SECONDS)
             .build();
-    
 
-    
     private static final String THREAT_SCORE_PREFIX = "threat_score:";
     private static final String THREAT_DETAIL_PREFIX = "threat_detail:";
     private static final String THREAT_PATTERN_PREFIX = "threat_pattern:";
@@ -46,40 +42,30 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
         this.redisTemplate = redisTemplate;
         this.stringRedisTemplate = stringRedisTemplate;
-        log.debug("TrustSecurityExpressionRoot 초기화 완료 - Hot Path 모드");
-    }
+            }
 
-    
     private double getThreatScore(String userId) {
         String cacheKey = THREAT_SCORE_PREFIX + userId;
-        
-        
+
         Double cachedScore = localCache.getIfPresent(cacheKey);
         if (cachedScore != null) {
-            log.trace("로컬 캐시 히트 - userId: {}, score: {}", userId, cachedScore);
-            return cachedScore;
+                        return cachedScore;
         }
-        
-        
+
         try {
             Double redisScore = redisTemplate.opsForValue().get(cacheKey);
             if (redisScore != null) {
-                log.trace("Redis 조회 성공 - userId: {}, score: {}", userId, redisScore);
-                localCache.put(cacheKey, redisScore);
+                                localCache.put(cacheKey, redisScore);
                 return redisScore;
             } else {
-                
-                
-                log.debug("Redis에 위협 점수 없음 - userId: {}, Zero Trust 기본값 사용: 0.5", userId);
-                return 0.5; 
+
+                                return 0.5; 
             }
         } catch (Exception e) {
             log.error("Redis 조회 실패 - userId: {}, 기본값 사용: 0.5", userId, e);
             return 0.5; 
         }
     }
-
-    
 
     @Override
     protected String getCurrentActivityDescription() {
@@ -94,15 +80,13 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         }
         return "unknown activity";
     }
-    
-    
+
     public boolean hasResourceAccess(String resourceId, double threshold) {
         String userId = extractUserId();
         if (userId == null || resourceId == null) {
             return false;
         }
-        
-        
+
         String resourceKey = THREAT_SCORE_PREFIX + userId + ":" + resourceId;
         try {
             Double resourceScore = redisTemplate.opsForValue().get(resourceKey);
@@ -112,17 +96,14 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
             }
             
             boolean hasAccess = resourceScore <= threshold;
-            log.debug("hasResourceAccess - userId: {}, resourceId: {}, score: {}, threshold: {}, access: {}",
-                     userId, resourceId, resourceScore, threshold, hasAccess);
-            
+                        
             return hasAccess;
         } catch (Exception e) {
             log.error("리소스 접근 평가 실패 - userId: {}, resourceId: {}", userId, resourceId, e);
             return false;
         }
     }
-    
-    
+
     public boolean hasTemporaryPermission(String permissionType) {
         String userId = extractUserId();
         if (userId == null) {
@@ -132,9 +113,7 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         String tempPermKey = "temp_permission:" + userId + ":" + permissionType;
         try {
             Boolean hasPermission = redisTemplate.hasKey(tempPermKey);
-            log.debug("hasTemporaryPermission - userId: {}, type: {}, granted: {}", 
-                     userId, permissionType, hasPermission);
-            return Boolean.TRUE.equals(hasPermission);
+                        return Boolean.TRUE.equals(hasPermission);
         } catch (Exception e) {
             log.error("임시 권한 확인 실패 - userId: {}, type: {}", userId, permissionType, e);
             return false;
@@ -153,11 +132,6 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         return calculateContextHashFromAuthorizationContext();
     }
 
-    
-    
-    
-
-    
     @Override
     protected String getCurrentAction() {
         String userId = extractUserId();
@@ -166,19 +140,15 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
             return "PENDING_ANALYSIS";
         }
 
-        
         String actionCacheKey = "action:" + userId;
         String cachedAction = getActionFromLocalCache(actionCacheKey);
         if (cachedAction != null) {
-            log.trace("getCurrentAction: 로컬 캐시 히트 - userId: {}, action: {}", userId, cachedAction);
-            return cachedAction;
+                        return cachedAction;
         }
 
-        
         String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
         String action = getActionFromRedisHash(userId, redisKey, stringRedisTemplate);
 
-        
         if (!"PENDING_ANALYSIS".equals(action)) {
             putActionToLocalCache(actionCacheKey, action);
         }
@@ -186,7 +156,6 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         return action;
     }
 
-    
     private static final Cache<String, String> actionLocalCache = Caffeine.newBuilder()
             .maximumSize(10000)
             .expireAfterWrite(1, TimeUnit.SECONDS)

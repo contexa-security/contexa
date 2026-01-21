@@ -41,9 +41,7 @@ public class DefaultPolicyService implements PolicyService {
     private final IntegrationEventBus eventBus;
     private final PermissionRepository permissionRepository;
 
-    
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
-
 
     @Override
     @Transactional(readOnly = true)
@@ -64,12 +62,10 @@ public class DefaultPolicyService implements PolicyService {
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
         Policy savedPolicy = policyRepository.save(policy);
 
-        
         publishPolicyChangedEvent(savedPolicy);
 
         reloadAuthorizationSystem();
-        log.info("Policy created and authorization system reloaded. Policy Name: {}", savedPolicy.getName());
-        return savedPolicy;
+                return savedPolicy;
     }
 
     @Override
@@ -79,12 +75,10 @@ public class DefaultPolicyService implements PolicyService {
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
         Policy updatedPolicy = policyRepository.save(existingPolicy);
 
-        
         publishPolicyChangedEvent(updatedPolicy);
 
         reloadAuthorizationSystem();
-        log.info("Policy updated and authorization system reloaded. Policy ID: {}", updatedPolicy.getId());
-    }
+            }
 
     private void publishPolicyChangedEvent(Policy policy) {
         Set<String> permissionNames = new HashSet<>();
@@ -117,7 +111,6 @@ public class DefaultPolicyService implements PolicyService {
         String policyName = "AUTO_POLICY_FOR_PERM_" + permission.getName();
         String expression = String.format("hasAuthority('%s')", permission.getName());
 
-        
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
                 .description(String.format("'%s' 권한에 대한 자동 생성 정책", permission.getFriendlyName()))
@@ -134,10 +127,8 @@ public class DefaultPolicyService implements PolicyService {
                 )))
                 .build();
 
-        
         policyRepository.findByName(policyName).ifPresent(p -> policyDto.setId(p.getId()));
 
-        
         if (policyDto.getId() != null) {
             this.updatePolicy(policyDto);
         } else {
@@ -151,17 +142,14 @@ public class DefaultPolicyService implements PolicyService {
         
         eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
         reloadAuthorizationSystem();
-        log.info("Policy deleted and authorization system reloaded. Policy ID: {}", id);
-    }
+            }
 
-    
     private void reloadAuthorizationSystem() {
         policyRetrievalPoint.clearUrlPoliciesCache();
         policyRetrievalPoint.clearMethodPoliciesCache(); 
         authorizationManager.reload();
     }
 
-    
     private Policy convertDtoToEntity(PolicyDto dto) {
         Policy policy = Policy.builder()
                 .name(dto.getName())
@@ -170,7 +158,6 @@ public class DefaultPolicyService implements PolicyService {
                 .priority(dto.getPriority())
                 .build();
 
-        
         if (dto.getTargets() != null) {
             Set<PolicyTarget> targets = dto.getTargets().stream().map(targetDto ->
                     PolicyTarget.builder()
@@ -183,12 +170,10 @@ public class DefaultPolicyService implements PolicyService {
             policy.setTargets(targets);
         }
 
-        
         if (dto.getRules() != null) {
             Set<PolicyRule> policyRules = dto.getRules().stream().map(ruleDto -> {
                 PolicyRule rule = PolicyRule.builder().policy(policy).description(ruleDto.getDescription()).build();
 
-                
                 Set<PolicyCondition> conditions = ruleDto.getConditions().stream()
                         .map(condDto -> PolicyCondition.builder()
                                 .rule(rule)
@@ -212,11 +197,9 @@ public class DefaultPolicyService implements PolicyService {
         policy.setEffect(dto.getEffect());
         policy.setPriority(dto.getPriority());
 
-        
         policy.getTargets().clear();
         policy.getRules().clear();
 
-        
         if (dto.getTargets() != null) {
             dto.getTargets().forEach(targetDto -> {
                 policy.getTargets().add(PolicyTarget.builder()
@@ -228,7 +211,6 @@ public class DefaultPolicyService implements PolicyService {
             });
         }
 
-        
         if (dto.getRules() != null) {
             dto.getRules().forEach(ruleDto -> {
                 PolicyRule rule = PolicyRule.builder()

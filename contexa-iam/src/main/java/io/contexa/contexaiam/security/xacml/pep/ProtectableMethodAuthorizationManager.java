@@ -27,7 +27,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ProtectableMethodAuthorizationManager {
@@ -38,53 +37,38 @@ public class ProtectableMethodAuthorizationManager {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ZeroTrustResponseInterceptor zeroTrustResponseInterceptor;
 
-    
     private static final long POLLING_INTERVAL_MS = 100;
 
-    
     private static final Duration ANALYSIS_CACHE_TTL = Duration.ofSeconds(30);
 
-    
     private static final Duration ANALYSIS_LOCK_TTL = Duration.ofSeconds(30);
 
-    
     private static final Set<String> ALLOWED_ACTIONS = Set.of("ALLOW");
 
-    
     public void protectable(Supplier<Authentication> authentication, MethodInvocation mi) {
         
         Protectable protectable = findProtectableAnnotation(mi);
 
-        
         if (protectable != null) {
             String userId = extractUserId(authentication.get());
             String resourceId = getResourceId(mi);
 
-            
             handleAnalysisRequirement(protectable, userId, resourceId);
 
-            
             if (protectable.enableRuntimeInterception()) {
                 enableRuntimeInterception();
             }
         }
 
-        
-        
         EvaluationContext ctx = expressionHandler.createEvaluationContext(authentication, mi);
 
-        
         Object protectableRuleObj = ctx.lookupVariable("protectableRule");
         if (protectableRuleObj instanceof Expression protectableRule) {
             boolean result = ExpressionUtils.evaluateAsBoolean(protectableRule, ctx);
             if (!result) {
-                log.debug("[ZeroTrust] preAuthorize 거부 - preAuthorizeRule 평가 결과: false, 메서드: {}",
-                    getResourceId(mi));
-                throw new AccessDeniedException("Access is denied");
+                                throw new AccessDeniedException("Access is denied");
             }
-            log.debug("[ZeroTrust] preAuthorize 허용 - preAuthorizeRule 평가 결과: true, 메서드: {}",
-                getResourceId(mi));
-        } else {
+                    } else {
             
             log.warn("[ZeroTrust] preAuthorize - preAuthorizeRule 변수가 없거나 Expression 타입이 아님: {}",
                     protectableRuleObj != null ? protectableRuleObj.getClass().getSimpleName() : "null");
@@ -92,44 +76,31 @@ public class ProtectableMethodAuthorizationManager {
         }
     }
 
-    
-    
-    
-
-    
     private Protectable findProtectableAnnotation(MethodInvocation mi) {
         Method method = mi.getMethod();
 
-        
         Protectable protectable = method.getAnnotation(Protectable.class);
         if (protectable != null) {
             return protectable;
         }
 
-        
         return method.getDeclaringClass().getAnnotation(Protectable.class);
     }
 
-    
     private void handleAnalysisRequirement(Protectable protectable, String userId, String resourceId) {
         AnalysisRequirement requirement = protectable.analysisRequirement();
-
-        log.debug("[ZeroTrust] analysisRequirement 처리 - userId: {}, requirement: {}, resourceId: {}",
-            userId, requirement, resourceId);
 
         switch (requirement) {
             case NOT_REQUIRED -> {
                 
-                log.debug("[ZeroTrust] NOT_REQUIRED - 분석 대기 없이 통과");
-            }
+                            }
 
             case PREFERRED -> {
                 
                 String action = getCurrentAction(userId);
                 if ("PENDING_ANALYSIS".equals(action)) {
                     String defaultAction = protectable.defaultAction();
-                    log.debug("[ZeroTrust] PREFERRED - 분석 미완료, defaultAction 사용: {}", defaultAction);
-                    
+                                        
                     if ("BLOCK".equalsIgnoreCase(defaultAction)) {
                         throw ZeroTrustAccessDeniedException.blocked(resourceId, 0.5);
                     }
@@ -145,7 +116,6 @@ public class ProtectableMethodAuthorizationManager {
                 long timeoutMs = protectable.analysisTimeout();
                 waitForAnalysis(userId, resourceId, timeoutMs);
 
-                
                 String action = getCurrentAction(userId);
                 validateAction(action, resourceId);
             }
@@ -155,7 +125,6 @@ public class ProtectableMethodAuthorizationManager {
                 long timeoutMs = protectable.analysisTimeout();
                 waitForAnalysis(userId, resourceId, timeoutMs);
 
-                
                 String action = getCurrentAction(userId);
                 if (!"ALLOW".equalsIgnoreCase(action)) {
                     log.warn("[ZeroTrust] STRICT 리소스에서 ALLOW가 아닌 action: {} - 거부", action);
@@ -170,25 +139,20 @@ public class ProtectableMethodAuthorizationManager {
         }
     }
 
-    
     private void waitForAnalysis(String userId, String resourceId, long timeoutMs) {
         long startTime = System.currentTimeMillis();
 
         while (true) {
             String action = getCurrentAction(userId);
             if (!"PENDING_ANALYSIS".equals(action)) {
-                log.debug("[ZeroTrust] 분석 완료 - userId: {}, action: {}, 대기시간: {}ms",
-                    userId, action, System.currentTimeMillis() - startTime);
-                return;
+                                return;
             }
 
-            
             if (System.currentTimeMillis() - startTime > timeoutMs) {
                 log.warn("[ZeroTrust] 분석 타임아웃 - userId: {}, timeout: {}ms", userId, timeoutMs);
                 throw ZeroTrustAccessDeniedException.analysisTimeout(resourceId, timeoutMs);
             }
 
-            
             try {
                 Thread.sleep(POLLING_INTERVAL_MS);
             } catch (InterruptedException e) {
@@ -203,7 +167,6 @@ public class ProtectableMethodAuthorizationManager {
         }
     }
 
-    
     private void validateAction(String action, String resourceId) {
         if (action == null || ALLOWED_ACTIONS.contains(action.toUpperCase())) {
             return; 
@@ -225,7 +188,6 @@ public class ProtectableMethodAuthorizationManager {
         }
     }
 
-    
     private String getCurrentAction(String userId) {
         if (userId == null || userId.isEmpty()) {
             return "PENDING_ANALYSIS";
@@ -239,7 +201,6 @@ public class ProtectableMethodAuthorizationManager {
                 return action.toString();
             }
 
-            
             return "PENDING_ANALYSIS";
 
         } catch (Exception e) {
@@ -248,7 +209,6 @@ public class ProtectableMethodAuthorizationManager {
         }
     }
 
-    
     private String getResourceId(MethodInvocation mi) {
         Method method = mi.getMethod();
         String paramTypes = Arrays.stream(method.getParameterTypes())
@@ -257,7 +217,6 @@ public class ProtectableMethodAuthorizationManager {
         return method.getDeclaringClass().getName() + "." + method.getName() + "(" + paramTypes + ")";
     }
 
-    
     private String extractUserId(Authentication authentication) {
         if (authentication == null || authentication.getPrincipal() == null) {
             return "anonymous";
@@ -265,20 +224,13 @@ public class ProtectableMethodAuthorizationManager {
         return authentication.getName();
     }
 
-    
-    
-    
-
-    
     private void enableRuntimeInterception() {
         String requestId = getCurrentRequestId();
         if (requestId != null && zeroTrustResponseInterceptor != null) {
             zeroTrustResponseInterceptor.enableRuntimeInterception(requestId);
-            log.debug("[ZeroTrust] 실시간 응답 차단 활성화 - requestId: {}", requestId);
-        }
+                    }
     }
 
-    
     private String getCurrentRequestId() {
         try {
             ServletRequestAttributes attrs =
@@ -289,8 +241,7 @@ public class ProtectableMethodAuthorizationManager {
                 return requestId != null ? requestId.toString() : null;
             }
         } catch (Exception e) {
-            log.debug("[ZeroTrust] 요청 ID 조회 실패", e);
-        }
+                    }
         return null;
     }
 }

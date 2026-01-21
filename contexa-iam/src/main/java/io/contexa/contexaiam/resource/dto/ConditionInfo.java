@@ -3,7 +3,6 @@ package io.contexa.contexaiam.resource.dto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.resource.service.CompatibilityResult;
 
-
 public class ConditionInfo {
     public final Long id;
     public final String name;

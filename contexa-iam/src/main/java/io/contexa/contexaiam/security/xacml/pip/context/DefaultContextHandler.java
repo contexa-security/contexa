@@ -15,26 +15,21 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class DefaultContextHandler implements ContextHandler {
 
     private final UserRepository userRepository;
 
-    
     @Override
     public AuthorizationContext create(Authentication authentication, HttpServletRequest request) {
         
         Users subjectEntity = getSubjectEntity(authentication);
 
-        
         ResourceDetails resourceDetails = new ResourceDetails("URL", request.getRequestURI());
 
-        
         EnvironmentDetails environmentDetails = new EnvironmentDetails(request.getRemoteAddr(), LocalDateTime.now(), request);
 
-        
         Map<String, Object> attributes = createAttributesForSubject(subjectEntity);
 
         return new AuthorizationContext(
@@ -47,13 +42,11 @@ public class DefaultContextHandler implements ContextHandler {
         );
     }
 
-    
     @Override
     public AuthorizationContext create(Authentication authentication, MethodInvocation invocation) {
         
         Users subjectEntity = getSubjectEntity(authentication);
 
-        
         Method method = invocation.getMethod();
         String params = Arrays.stream(method.getParameterTypes())
                 .map(Class::getSimpleName)
@@ -61,10 +54,8 @@ public class DefaultContextHandler implements ContextHandler {
         String resourceIdentifier = String.format("%s.%s(%s)", method.getDeclaringClass().getName(), method.getName(), params);
         ResourceDetails resourceDetails = new ResourceDetails("METHOD", resourceIdentifier);
 
-        
         EnvironmentDetails environmentDetails = new EnvironmentDetails(null, LocalDateTime.now(), null);
 
-        
         Map<String, Object> attributes = createAttributesForSubject(subjectEntity);
 
         return new AuthorizationContext(
@@ -77,7 +68,6 @@ public class DefaultContextHandler implements ContextHandler {
         );
     }
 
-    
     private Users getSubjectEntity(Authentication authentication) {
         if (authentication == null) {
             return null;
@@ -97,22 +87,18 @@ public class DefaultContextHandler implements ContextHandler {
         return null;
     }
 
-    
     private Map<String, Object> createAttributesForSubject(Users subject) {
         if (subject == null) {
             return new HashMap<>();
         }
 
-        
         Users userWithDetails = userRepository.findByIdWithGroupsRolesAndPermissions(subject.getId())
                 .orElse(subject);
 
         Map<String, Object> attributes = new HashMap<>();
 
-        
         attributes.put("userRoles", userWithDetails.getRoleNames());
 
-        
         List<String> groupNames = userWithDetails.getUserGroups().stream()
                 .map(UserGroup::getGroup)
                 .map(group -> group != null ? group.getName() : null)

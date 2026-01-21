@@ -7,66 +7,46 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
-
 @Getter
 @Setter
 public class SecurityCopilotResponse extends IAMResponse {
-    
-    
+
     private String analysisId;
-    
-    
+
     private String originalQuery;
-    
-    
+
     private Object structureAnalysis;
-    
-    
+
     private Object riskAnalysis;
-    
-    
+
     private Object actionPlan;
-    
-    
+
     private double overallSecurityScore;
-    
-    
+
     private String riskLevel;
-    
-    
+
     private Map<String, Double> categoryScores;
-    
-    
+
     private Map<String, Object> complianceData;
-    
-    
+
     private long executionTimeMs;
-    
-    
+
     private Map<String, String> errors;
-    
-    
+
     private Map<String, Object> metadata;
-    
-    
+
     private List<Object> criticalFindings;
-    
-    
+
     private List<Object> recommendations;
-    
-    
+
     private String complianceStatus;
-    
-    
+
     private ThreatAnalysis threatAnalysis;
-    
-    
+
     private VulnerabilityAssessment vulnerabilityAssessment;
-    
-    
+
     private Map<String, Object> individualResults;
-    
-    
+
     @Getter
     @Setter
     public static class ThreatAnalysis {
@@ -74,8 +54,7 @@ public class SecurityCopilotResponse extends IAMResponse {
         private String threatLevel;
         private List<String> attackVectors;
     }
-    
-    
+
     @Getter
     @Setter
     public static class VulnerabilityAssessment {
@@ -95,30 +74,21 @@ public class SecurityCopilotResponse extends IAMResponse {
             return patchableCount;
         }
     }
-    
-    
+
     private Map<String, Object> relationshipAnalysis;
-    
-    
+
     private Map<String, Object> integratedVisualizationData;
-    
-    
+
     private Map<String, Object> multiPerspectiveInsights;
-    
-    
+
     private List<Map<String, Object>> actionPriorities;
-    
-    
+
     private Map<String, Object> predictiveAnalysis;
-    
-    
+
     private java.time.LocalDateTime completedAt;
-    
-    
+
     private String recommendationSummary;
-    
-    
-    
+
     public SecurityCopilotResponse() {
         super("default", ExecutionStatus.SUCCESS);
     }
@@ -131,9 +101,7 @@ public class SecurityCopilotResponse extends IAMResponse {
         super(requestId, status);
         this.recommendationSummary = recommendationSummary;
     }
-    
-    
-    
+
     @Override
     public Object getData() {
         
@@ -144,9 +112,7 @@ public class SecurityCopilotResponse extends IAMResponse {
     public String getResponseType() {
         return "SECURITY_COPILOT";
     }
-    
-    
-    
+
     public static SecurityCopilotResponseBuilder builder() {
         return new SecurityCopilotResponseBuilder();
     }
@@ -322,42 +288,34 @@ public class SecurityCopilotResponse extends IAMResponse {
             return response;
         }
     }
-    
-    
-    
-    
+
     public boolean isSuccessful() {
         ExecutionStatus status = getStatus();
         return status == ExecutionStatus.SUCCESS || status == ExecutionStatus.PARTIAL_SUCCESS;
     }
-    
-    
+
     public boolean hasErrors() {
         return errors != null && !errors.isEmpty();
     }
-    
-    
+
     public String getRiskLevel() {
         
         if (riskLevel != null) {
             return riskLevel;
         }
-        
-        
+
         if (overallSecurityScore >= 80) return "LOW";
         if (overallSecurityScore >= 60) return "MEDIUM";
         if (overallSecurityScore >= 40) return "HIGH";
         return "CRITICAL";
     }
-    
-    
+
     public Map<String, Double> getCategoryScores() {
         
         if (categoryScores != null) {
             return categoryScores;
         }
-        
-        
+
         if (metadata != null && metadata.containsKey("categoryScores")) {
             @SuppressWarnings("unchecked")
             Map<String, Double> metadataScores = (Map<String, Double>) metadata.get("categoryScores");
@@ -366,15 +324,13 @@ public class SecurityCopilotResponse extends IAMResponse {
         
         return new java.util.HashMap<>();
     }
-    
-    
+
     public Map<String, Object> getComplianceData() {
         
         if (complianceData != null) {
             return complianceData;
         }
-        
-        
+
         if (metadata != null && metadata.containsKey("complianceStatus")) {
             @SuppressWarnings("unchecked")
             Map<String, Object> metadataCompliance = (Map<String, Object>) metadata.get("complianceStatus");

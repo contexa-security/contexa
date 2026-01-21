@@ -40,27 +40,27 @@ public class BehavioralAnalysisController {
     private final BehaviorProfileService profileService;
     private final RealTimeBehaviorMonitor realtimeMonitor;
 
-    
+
     @PostMapping(value = "/analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> analyzeUserBehavior(@RequestBody BehavioralAnalysisItem request, HttpServletRequest httpRequest,
                                                              @AuthenticationPrincipal Principal principal) {
 
-        
+
         BehavioralAnalysisContext context = buildContext(httpRequest, principal.getName());
 
-        
+
         AIRequest<BehavioralAnalysisContext> aiRequest = BehavioralAnalysisRequest
                 .create(context, "behavioralAnalysisStreaming")
                 .withParameter("naturalLanguageQuery", request.getQuery());
 
-        
+
         realtimeMonitor.startMonitoring(context.getUserId());
 
         SentenceBuffer sentenceBuffer = new SentenceBuffer();
-        StringBuilder allData = new StringBuilder(); 
+        StringBuilder allData = new StringBuilder();
         AtomicBoolean jsonSent = new AtomicBoolean(false);
-        AtomicBoolean finalResponseStarted = new AtomicBoolean(false); 
-        StringBuilder markerBuffer = new StringBuilder(); 
+        AtomicBoolean finalResponseStarted = new AtomicBoolean(false);
+        StringBuilder markerBuffer = new StringBuilder();
 
         return aiNativeProcessor.processStream(aiRequest)
                 .flatMap(chunk -> {
@@ -70,32 +70,32 @@ public class BehavioralAnalysisController {
                             chunkStr.length(),
                             chunkStr.length() > 50 ? chunkStr.substring(0, 50) + "..." : chunkStr);
 
-                    
+
                     allData.append(chunkStr);
 
-                    
+
                     if (!finalResponseStarted.get()) {
                         markerBuffer.append(chunkStr);
 
-                        
+
                         if (markerBuffer.length() > 50) {
                             markerBuffer.delete(0, markerBuffer.length() - 50);
                         }
                         log.warn("markerBuffer: {}", markerBuffer);
-                        
+
                         if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
                             finalResponseStarted.set(true);
                             log.info("[FINAL-MODE] FINAL_RESPONSE 모드 시작 - 이후 청크들은 sentenceBuffer 처리 제외");
                         }
                     }
 
-                    
+
                     if (finalResponseStarted.get()) {
                         log.debug("[SKIP-SENTENCE] FINAL_RESPONSE 모드 - sentenceBuffer 처리 스킵");
-                        return Flux.empty(); 
+                        return Flux.empty();
                     }
 
-                    
+
                     return sentenceBuffer.processChunk(chunkStr)
                             .map(sentence -> ServerSentEvent.<String>builder()
                                     .data(sentence)
@@ -133,7 +133,7 @@ public class BehavioralAnalysisController {
                 .onErrorResume(error -> {
                     log.error("AI Studio 스트리밍 처리 중 오류", error);
 
-                    
+
                     String errorMessage;
                     if (error instanceof Throwable) {
                         errorMessage = ((Throwable) error).getMessage();
@@ -147,7 +147,7 @@ public class BehavioralAnalysisController {
                 });
     }
 
-    
+
     @PostMapping(value = "/analyze/json", produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<BehavioralAnalysisResponse> analyzeUserBehaviorJson(@RequestBody BehavioralAnalysisItem request, HttpServletRequest httpRequest,
                                                                     @AuthenticationPrincipal Principal principal) {
@@ -160,7 +160,7 @@ public class BehavioralAnalysisController {
                 .cast(BehavioralAnalysisResponse.class);
     }
 
-    
+
     @GetMapping(value = "/monitor/realtime", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<String> monitorRealtimeBehaviors(Authentication authentication) {
 
@@ -172,7 +172,7 @@ public class BehavioralAnalysisController {
                 .map(this::formatMonitoringData);
     }
 
-    
+
     @GetMapping("/profile/{userId}")
     public ResponseEntity<Map<String, Object>> getUserBehaviorProfile(
             @PathVariable String userId,
@@ -182,20 +182,20 @@ public class BehavioralAnalysisController {
         return ResponseEntity.ok(profile);
     }
 
-    
+
     @PostMapping("/feedback")
     public ResponseEntity<Map<String, String>> submitFeedback(
             @RequestBody FeedbackRequest feedbackRequest,
             Authentication authentication) {
 
-        
+
         behavioralAnalysisLab.learnFromFeedback(
                 feedbackRequest.getAnalysisId(),
                 feedbackRequest.isCorrect(),
                 feedbackRequest.getFeedback()
         );
 
-        
+
         profileService.saveFeedback(
                 feedbackRequest.getAnalysisId(),
                 feedbackRequest.isCorrect(),
@@ -209,35 +209,35 @@ public class BehavioralAnalysisController {
         ));
     }
 
-    
+
     @GetMapping("/dashboard/stats")
     public ResponseEntity<DashboardStats> getDashboardStats(
             @RequestParam(defaultValue = "7") int days) {
 
         DashboardStats stats = new DashboardStats();
 
-        
+
         stats.setTotalUsers(profileService.getTotalUserCount());
 
-        
+
         stats.setActiveUsersToday(profileService.getActiveUserCount(LocalDateTime.now()));
 
-        
+
         stats.setAnomaliesDetected(profileService.getAnomalyCount(days));
 
-        
+
         stats.setRiskDistribution(profileService.getRiskLevelDistribution(days));
 
-        
+
         stats.setHourlyAnomalyTrend(profileService.getHourlyAnomalyTrend(days));
 
-        
+
         stats.setRecentHighRiskEvents(profileService.getRecentHighRiskEvents(10));
 
         return ResponseEntity.ok(stats);
     }
 
-    
+
     @GetMapping("/anomalies/{userId}")
     public ResponseEntity<List<AnomalyEvent>> getUserAnomalies(
             @PathVariable String userId,
@@ -249,13 +249,13 @@ public class BehavioralAnalysisController {
         return ResponseEntity.ok(anomalies);
     }
 
-    
+
     @PostMapping("/dynamic-permissions")
     public ResponseEntity<Map<String, String>> setDynamicPermission(
             @RequestBody DynamicPermissionRequest request,
             Authentication authentication) {
 
-        
+
         if (!hasAdminRole(authentication)) {
             return ResponseEntity.status(403).body(Map.of(
                     "error", "관리자 권한이 필요합니다"
@@ -276,19 +276,19 @@ public class BehavioralAnalysisController {
         ));
     }
 
-    
+
     @PostMapping("/batch-learning/trigger")
     public ResponseEntity<Map<String, String>> triggerBatchLearning(
             Authentication authentication) {
 
-        
+
         if (!hasAdminRole(authentication)) {
             return ResponseEntity.status(403).body(Map.of(
                     "error", "관리자 권한이 필요합니다"
             ));
         }
 
-        
+
         behavioralAnalysisLab.performBatchLearning()
                 .thenAccept(v -> log.info("배치 학습 완료"))
                 .exceptionally(e -> {
@@ -302,7 +302,7 @@ public class BehavioralAnalysisController {
         ));
     }
 
-    
+
 
     private BehavioralAnalysisContext buildContext(
             HttpServletRequest httpRequest,
@@ -337,7 +337,7 @@ public class BehavioralAnalysisController {
     }
 
     private String extractOrganizationId(Authentication authentication) {
-        
+
         return "default-org";
     }
 
@@ -350,7 +350,7 @@ public class BehavioralAnalysisController {
         return String.format("data: %s\n\n", data);
     }
 
-    
+
 
     @Data
     public static class FeedbackRequest {

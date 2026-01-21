@@ -17,7 +17,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 public class ConditionTemplateVectorService extends AbstractVectorLabService {
     
@@ -37,8 +36,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
     private boolean templateCaching;
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    
-    
+
     private static final Map<String, Pattern> SPEL_PATTERNS = Map.of(
         "METHOD_CALL", Pattern.compile("#\\w+\\.\\w+\\([^)]*\\)"),
         "VARIABLE_REF", Pattern.compile("#\\w+"),
@@ -49,8 +47,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         "COLLECTION", Pattern.compile("\\[|\\]|\\{|\\}"),
         "TERNARY", Pattern.compile("\\?.*:")
     );
-    
-    
+
     private static final Map<String, Pattern> CONDITION_CATEGORY_PATTERNS = Map.of(
         "TIME_BASED", Pattern.compile("time|hour|minute|date|day|시간|날짜", Pattern.CASE_INSENSITIVE),
         "ROLE_BASED", Pattern.compile("role|hasRole|authority|역할|권한", Pattern.CASE_INSENSITIVE),
@@ -61,8 +58,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         "PERMISSION", Pattern.compile("permission|hasPermission|allow|권한|허용", Pattern.CASE_INSENSITIVE),
         "CUSTOM", Pattern.compile("custom|specific|special|맞춤|특정", Pattern.CASE_INSENSITIVE)
     );
-    
-    
+
     private static final Map<String, Pattern> CONDITION_CLASSIFICATION_PATTERNS = Map.of(
         "UNIVERSAL", Pattern.compile("universal|general|common|범용|일반|공통", Pattern.CASE_INSENSITIVE),
         "SPECIFIC", Pattern.compile("specific|particular|exact|특정|구체적", Pattern.CASE_INSENSITIVE),
@@ -99,63 +95,53 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             metadata.put("hasMethodCalls", spelAnalysis.hasMethodCalls());
             metadata.put("hasVariableRefs", spelAnalysis.hasVariableRefs());
             metadata.put("operatorCount", spelAnalysis.getOperatorCount());
-            
-            
+
             Set<String> categories = classifyConditionCategories(document.getText());
             metadata.put("conditionCategories", new ArrayList<>(categories));
             metadata.put("isMultiCategory", categories.size() > 1);
-            
-            
+
             String classification = determineConditionClassification(document.getText());
             metadata.put("conditionClassification", classification);
-            
-            
+
             if (syntaxAnalysis) {
                 SyntaxValidation syntax = validateSpelSyntax(document.getText());
                 metadata.put("syntaxValid", syntax.isValid());
                 metadata.put("syntaxErrors", syntax.getErrors());
                 metadata.put("syntaxWarnings", syntax.getWarnings());
             }
-            
-            
+
             if (compatibilityCheck) {
                 CompatibilityAnalysis compatibility = analyzeCompatibility(document.getText(), metadata);
                 metadata.put("springCompatible", compatibility.isSpringCompatible());
                 metadata.put("frameworkCompatibility", compatibility.getFrameworks());
                 metadata.put("versionRequirements", compatibility.getVersionRequirements());
             }
-            
-            
+
             TemplateQuality quality = evaluateTemplateQuality(metadata);
             metadata.put("templateQualityScore", quality.getScore());
             metadata.put("qualityLevel", quality.getLevel());
             metadata.put("qualityFactors", quality.getFactors());
-            
-            
+
             ReusabilityAnalysis reusability = analyzeReusability(document.getText(), metadata);
             metadata.put("reusabilityScore", reusability.getScore());
             metadata.put("isReusable", reusability.isReusable());
             metadata.put("reusabilityFactors", reusability.getFactors());
-            
-            
+
             PerformanceEstimation performance = estimatePerformance(spelAnalysis);
             metadata.put("estimatedPerformance", performance.getLevel());
             metadata.put("performanceScore", performance.getScore());
             metadata.put("performanceWarnings", performance.getWarnings());
-            
-            
+
             if (templateLearning) {
                 TemplatePattern pattern = extractTemplatePattern(document.getText(), metadata);
                 metadata.put("templatePattern", pattern.getPattern());
                 metadata.put("patternFrequency", pattern.getFrequency());
                 metadata.put("isNewPattern", pattern.isNew());
             }
-            
-            
+
             String templateSignature = generateTemplateSignature(metadata);
             metadata.put("templateSignature", templateSignature);
-            
-            
+
             metadata.put("enrichmentVersion", "2.0");
             metadata.put("enrichedByService", "ConditionTemplateVectorService");
             metadata.put("analysisTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
@@ -172,22 +158,19 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
     @Override
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         if (!metadata.containsKey("templateName") && 
             !metadata.containsKey("spelTemplate") && 
             !metadata.containsKey("templateType")) {
             throw new IllegalArgumentException(
                 "Condition Template 문서는 templateName, spelTemplate, templateType 중 최소 하나는 포함해야 합니다");
         }
-        
-        
+
         String text = document.getText();
         if (text == null || text.trim().isEmpty()) {
             throw new IllegalArgumentException("조건 템플릿 내용이 비어있습니다");
         }
-        
-        
+
         if (text.length() > 1000) {
             throw new IllegalArgumentException("조건 템플릿이 너무 깁니다 (최대 1000자)");
         }
@@ -203,38 +186,31 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
                 if (templateCaching) {
                     Double qualityScore = (Double) metadata.get("templateQualityScore");
                     if (qualityScore != null && qualityScore >= 0.8) {
-                        log.info("💎 [ConditionTemplateVectorService] 고품질 템플릿 감지: 점수={}", qualityScore);
-                        metadata.put("highQualityTemplate", true);
+                                                metadata.put("highQualityTemplate", true);
                         cacheHighQualityTemplate(metadata);
                     }
                 }
-                
-                
+
                 if (Boolean.FALSE.equals(metadata.get("syntaxValid"))) {
                     log.warn("[ConditionTemplateVectorService] SpEL 문법 오류: {}", 
                             metadata.get("syntaxErrors"));
                     metadata.put("syntaxErrorAlert", true);
                 }
-                
-                
+
                 if (Boolean.FALSE.equals(metadata.get("springCompatible"))) {
                     log.warn("[ConditionTemplateVectorService] Spring 호환성 문제 감지");
                     metadata.put("compatibilityAlert", true);
                 }
-                
-                
+
                 String performanceLevel = (String) metadata.get("estimatedPerformance");
                 if ("POOR".equals(performanceLevel)) {
                     log.warn("🐌 [ConditionTemplateVectorService] 낮은 성능 예상: {}", 
                             metadata.get("performanceWarnings"));
                     metadata.put("performanceAlert", true);
                 }
-                
-                
+
                 if (Boolean.TRUE.equals(metadata.get("isNewPattern"))) {
-                    log.info("[ConditionTemplateVectorService] 새로운 템플릿 패턴 발견: {}", 
-                            metadata.get("templatePattern"));
-                    learnNewTemplatePattern(metadata);
+                                        learnNewTemplatePattern(metadata);
                 }
             }
             
@@ -264,8 +240,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return filters;
     }
-    
-    
+
     public void storeTemplateGenerationRequest(ConditionTemplateGenerationRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -285,17 +260,13 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             
             Document requestDoc = new Document(requestText, metadata);
             storeDocument(requestDoc);
-            
-            log.debug("[ConditionTemplateVectorService] 템플릿 생성 요청 저장 완료: 유형={}", 
-                    request.isUniversal() ? "범용" : "특정");
-            
+
         } catch (Exception e) {
             log.error("[ConditionTemplateVectorService] 템플릿 생성 요청 저장 실패", e);
             throw new VectorStoreException("템플릿 생성 요청 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeGeneratedTemplates(ConditionTemplateGenerationRequest request, 
                                        ConditionTemplateGenerationResponse response) {
         try {
@@ -306,8 +277,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             metadata.put("documentType", "generated_template");
             metadata.put("generationId", response.getRequestId());
             metadata.put("status", response.getStatus().toString());
-            
-            
+
             int templateCount = 0;
             if (response.getTemplateResult() != null && response.getTemplateResult().contains("[")) {
                 
@@ -325,17 +295,13 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             
             Document resultDoc = new Document(resultText, metadata);
             storeDocument(resultDoc);
-            
-            log.debug("[ConditionTemplateVectorService] 생성 템플릿 저장 완료: ID={}", 
-                    response.getRequestId());
-            
+
         } catch (Exception e) {
             log.error("[ConditionTemplateVectorService] 생성 템플릿 저장 실패", e);
             throw new VectorStoreException("생성 템플릿 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeTemplateFeedback(String templateId, boolean useful, String feedback) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -344,8 +310,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             metadata.put("feedbackText", feedback);
             metadata.put("feedbackTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "template_feedback");
-            
-            
+
             FeedbackAnalysis analysis = analyzeTemplateFeedback(feedback, useful);
             metadata.put("feedbackCategory", analysis.getCategory());
             metadata.put("improvementSuggestions", analysis.getSuggestions());
@@ -360,22 +325,17 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             
             Document feedbackDoc = new Document(feedbackText, metadata);
             storeDocument(feedbackDoc);
-            
-            
+
             if (templateLearning) {
                 updateTemplateLearning(metadata);
             }
-            
-            log.info("📚 [ConditionTemplateVectorService] 템플릿 피드백 저장 완료: ID={}, 유용={}", 
-                    templateId, useful);
-            
+
         } catch (Exception e) {
             log.error("[ConditionTemplateVectorService] 템플릿 피드백 저장 실패", e);
             throw new VectorStoreException("템플릿 피드백 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     private void storeIndividualTemplate(ConditionTemplate template, Map<String, Object> baseMetadata) {
         try {
             Map<String, Object> templateMetadata = new HashMap<>(baseMetadata);
@@ -384,8 +344,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             templateMetadata.put("spelTemplate", template.getSpelTemplate());
             templateMetadata.put("templateCategory", template.getCategory());
             templateMetadata.put("templateClassification", template.getClassification());
-            
-            
+
             templateMetadata.put("documentType", "individual_template");
             
             String templateText = String.format(
@@ -402,8 +361,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             log.error("개별 템플릿 저장 실패: {}", template.getName(), e);
         }
     }
-    
-    
+
     private SpelAnalysis analyzeSpelExpression(String content) {
         SpelAnalysis analysis = new SpelAnalysis();
         Map<String, Integer> components = new HashMap<>();
@@ -413,8 +371,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             analysis.setComponents(components);
             return analysis;
         }
-        
-        
+
         for (Map.Entry<String, Pattern> entry : SPEL_PATTERNS.entrySet()) {
             int count = (int) entry.getValue().matcher(content).results().count();
             if (count > 0) {
@@ -426,8 +383,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         analysis.setHasMethodCalls(components.containsKey("METHOD_CALL"));
         analysis.setHasVariableRefs(components.containsKey("VARIABLE_REF"));
         analysis.setOperatorCount(components.getOrDefault("OPERATOR", 0));
-        
-        
+
         int totalComponents = components.values().stream().mapToInt(Integer::intValue).sum();
         if (totalComponents > 10) analysis.setComplexity("HIGH");
         else if (totalComponents > 5) analysis.setComplexity("MEDIUM");
@@ -436,8 +392,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return analysis;
     }
-    
-    
+
     private Set<String> classifyConditionCategories(String content) {
         Set<String> categories = new HashSet<>();
         
@@ -455,8 +410,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return categories;
     }
-    
-    
+
     private String determineConditionClassification(String content) {
         if (content == null) return "UNKNOWN";
         
@@ -468,8 +422,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return "CONTEXT_DEPENDENT";
     }
-    
-    
+
     private SyntaxValidation validateSpelSyntax(String content) {
         SyntaxValidation validation = new SyntaxValidation();
         List<String> errors = new ArrayList<>();
@@ -482,8 +435,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             validation.setWarnings(warnings);
             return validation;
         }
-        
-        
+
         int openParens = content.length() - content.replace("(", "").length();
         int closeParens = content.length() - content.replace(")", "").length();
         if (openParens != closeParens) {
@@ -495,14 +447,12 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         if (openBrackets != closeBrackets) {
             errors.add("대괄호 불일치");
         }
-        
-        
+
         int singleQuotes = content.length() - content.replace("'", "").length();
         if (singleQuotes % 2 != 0) {
             errors.add("따옴표 불일치");
         }
-        
-        
+
         if (content.contains("==") && !content.contains("equals")) {
             warnings.add("== 대신 equals() 사용 권장");
         }
@@ -517,14 +467,12 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return validation;
     }
-    
-    
+
     private CompatibilityAnalysis analyzeCompatibility(String content, Map<String, Object> metadata) {
         CompatibilityAnalysis compatibility = new CompatibilityAnalysis();
         List<String> frameworks = new ArrayList<>();
         Map<String, String> versionRequirements = new HashMap<>();
-        
-        
+
         if (content != null) {
             if (content.contains("hasRole") || content.contains("hasAuthority")) {
                 frameworks.add("Spring Security");
@@ -548,26 +496,22 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return compatibility;
     }
-    
-    
+
     private TemplateQuality evaluateTemplateQuality(Map<String, Object> metadata) {
         TemplateQuality quality = new TemplateQuality();
         double score = 0.0;
         List<String> factors = new ArrayList<>();
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("syntaxValid"))) {
             score += 30.0;
             factors.add("유효한 문법");
         }
-        
-        
+
         if (Boolean.TRUE.equals(metadata.get("springCompatible"))) {
             score += 25.0;
             factors.add("Spring 호환");
         }
-        
-        
+
         String complexity = (String) metadata.get("spelComplexity");
         if ("MEDIUM".equals(complexity)) {
             score += 20.0;
@@ -575,15 +519,13 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         } else if ("LOW".equals(complexity)) {
             score += 15.0;
         }
-        
-        
+
         List<String> categories = (List<String>) metadata.get("conditionCategories");
         if (categories != null && !categories.isEmpty() && !categories.contains("GENERAL")) {
             score += 15.0;
             factors.add("명확한 카테고리");
         }
-        
-        
+
         Boolean reusable = (Boolean) metadata.get("isReusable");
         if (Boolean.TRUE.equals(reusable)) {
             score += 10.0;
@@ -600,34 +542,29 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return quality;
     }
-    
-    
+
     private ReusabilityAnalysis analyzeReusability(String content, Map<String, Object> metadata) {
         ReusabilityAnalysis reusability = new ReusabilityAnalysis();
         double score = 0.0;
         List<String> factors = new ArrayList<>();
-        
-        
+
         String classification = (String) metadata.get("conditionClassification");
         if ("UNIVERSAL".equals(classification)) {
             score += 0.4;
             factors.add("범용 템플릿");
         }
-        
-        
+
         if (content != null && !content.matches(".*'[a-zA-Z0-9_]{10,}'.*")) {
             score += 0.3;
             factors.add("하드코딩 없음");
         }
-        
-        
+
         Boolean hasVariableRefs = (Boolean) metadata.get("hasVariableRefs");
         if (Boolean.TRUE.equals(hasVariableRefs)) {
             score += 0.2;
             factors.add("파라미터화됨");
         }
-        
-        
+
         String complexity = (String) metadata.get("spelComplexity");
         if ("LOW".equals(complexity) || "MEDIUM".equals(complexity)) {
             score += 0.1;
@@ -640,14 +577,12 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return reusability;
     }
-    
-    
+
     private PerformanceEstimation estimatePerformance(SpelAnalysis spelAnalysis) {
         PerformanceEstimation performance = new PerformanceEstimation();
         double score = 1.0;
         List<String> warnings = new ArrayList<>();
-        
-        
+
         if (spelAnalysis.hasMethodCalls()) {
             score -= 0.2;
             Integer methodCount = spelAnalysis.getComponents().get("METHOD_CALL");
@@ -656,14 +591,12 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
                 warnings.add("과도한 메서드 호출");
             }
         }
-        
-        
+
         if ("HIGH".equals(spelAnalysis.getComplexity())) {
             score -= 0.3;
             warnings.add("높은 복잡도");
         }
-        
-        
+
         if (spelAnalysis.getOperatorCount() > 5) {
             score -= 0.1;
             warnings.add("많은 연산자");
@@ -679,8 +612,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return performance;
     }
-    
-    
+
     private TemplatePattern extractTemplatePattern(String content, Map<String, Object> metadata) {
         TemplatePattern pattern = new TemplatePattern();
         
@@ -695,8 +627,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return pattern;
     }
-    
-    
+
     private String generateTemplateSignature(Map<String, Object> metadata) {
         StringBuilder signature = new StringBuilder("TPL");
         
@@ -719,22 +650,17 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return signature.toString();
     }
-    
-    
+
     private void cacheHighQualityTemplate(Map<String, Object> metadata) {
-        log.info("💾 [ConditionTemplateVectorService] 고품질 템플릿 캐싱");
-        metadata.put("cachedAt", LocalDateTime.now().format(ISO_FORMATTER));
+                metadata.put("cachedAt", LocalDateTime.now().format(ISO_FORMATTER));
         metadata.put("cacheExpiry", LocalDateTime.now().plusDays(90).format(ISO_FORMATTER));
     }
-    
-    
+
     private void learnNewTemplatePattern(Map<String, Object> metadata) {
-        log.info("[ConditionTemplateVectorService] 새로운 템플릿 패턴 학습");
-        metadata.put("patternLearned", true);
+                metadata.put("patternLearned", true);
         metadata.put("learnedAt", LocalDateTime.now().format(ISO_FORMATTER));
     }
-    
-    
+
     private FeedbackAnalysis analyzeTemplateFeedback(String feedback, boolean useful) {
         FeedbackAnalysis analysis = new FeedbackAnalysis();
         List<String> suggestions = new ArrayList<>();
@@ -747,8 +673,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         }
         
         String lower = feedback.toLowerCase();
-        
-        
+
         if (lower.contains("syntax") || lower.contains("문법")) {
             analysis.setCategory("SYNTAX");
         } else if (lower.contains("performance") || lower.contains("성능")) {
@@ -758,8 +683,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         } else {
             analysis.setCategory("GENERAL");
         }
-        
-        
+
         if (lower.contains("simpl") || lower.contains("단순")) {
             suggestions.add("단순화 필요");
         }
@@ -771,8 +695,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         }
         
         analysis.setSuggestions(suggestions);
-        
-        
+
         if (useful) {
             if (lower.contains("perfect") || lower.contains("excellent") || lower.contains("완벽")) {
                 analysis.setUsabilityScore(1.0);
@@ -789,16 +712,12 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         
         return analysis;
     }
-    
-    
+
     private void updateTemplateLearning(Map<String, Object> metadata) {
-        log.info("📚 [ConditionTemplateVectorService] 템플릿 학습 모델 업데이트");
-        metadata.put("learningUpdated", true);
+                metadata.put("learningUpdated", true);
         metadata.put("updateTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
     }
-    
-    
-    
+
     private static class SpelAnalysis {
         private String complexity;
         private Map<String, Integer> components;
@@ -908,8 +827,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
         public double getUsabilityScore() { return usabilityScore; }
         public void setUsabilityScore(double usabilityScore) { this.usabilityScore = usabilityScore; }
     }
-    
-    
+
     public void storeConditionContext(ConditionTemplateContext context) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -924,13 +842,11 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             Document doc = new Document(text, metadata);
             storeDocument(doc);
             
-            log.debug("조건 템플릿 컨텍스트 저장 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("조건 템플릿 컨텍스트 저장 실패", e);
         }
     }
-    
-    
+
     public List<Document> findMethodConditions(String methodName, int topK) {
         try {
             Map<String, Object> filters = new HashMap<>();

@@ -11,50 +11,42 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 
-
 @Getter
 @Setter
 public class SecurityCopilotContext extends IAMContext {
-    
-    
+
     private String securityQuery;
     private String analysisScope; 
     private String priority; 
     private String queryLanguage = "ko";
     private Map<String, Object> securityMetadata;
-    
-    
+
     private List<String> targetUsers;
     private List<String> targetRoles;
     private List<String> targetResources;
     private List<String> targetPermissions;
     private Set<String> excludedEntities;
-    
-    
+
     private Map<String, Object> securityPolicies;
     private List<String> complianceRequirements;
     private Map<String, String> riskThresholds;
-    
-    
+
     private boolean enableStudioAnalysis = true;
     private boolean enableRiskAssessment = true;
     private boolean enablePolicyGeneration = true;
     private int maxExecutionTimeSeconds = 300;
     private String collaborationMode = "SEQUENTIAL"; 
-    
-    
+
     private String detailLevel = "COMPREHENSIVE"; 
     private boolean includeRecommendations = true;
     private boolean includeRiskScore = true;
     private boolean includeActionPlan = true;
     private int maxRecommendations = 10;
-    
-    
+
     private boolean includeSensitiveData = false;
     private Set<String> sensitiveFields;
     private String dataClassification = "INTERNAL"; 
-    
-    
+
     public enum AnalysisScope {
         COMPREHENSIVE("포괄적 보안 분석"),
         PERMISSION_AUDIT("권한 감사"),
@@ -73,8 +65,7 @@ public class SecurityCopilotContext extends IAMContext {
             return description;
         }
     }
-    
-    
+
     public enum CollaborationMode {
         SEQUENTIAL("순차 실행"),
         PARALLEL("병렬 실행"),
@@ -114,8 +105,7 @@ public class SecurityCopilotContext extends IAMContext {
         riskThresholds.put("HIGH_RISK_SCORE", "80");
         riskThresholds.put("MEDIUM_RISK_SCORE", "60");
         riskThresholds.put("EXCESSIVE_PERMISSIONS", "10");
-        
-        
+
         complianceRequirements = List.of(
             "ISMS_P",
             "ISO_27001", 
@@ -128,8 +118,7 @@ public class SecurityCopilotContext extends IAMContext {
     public String getIAMContextType() {
         return "SECURITY_COPILOT";
     }
-    
-    
+
     public static class Builder {
         private final SecurityLevel securityLevel;
         private final AuditRequirement auditRequirement;
@@ -184,8 +173,7 @@ public class SecurityCopilotContext extends IAMContext {
             return context;
         }
     }
-    
-    
+
     public AnalysisScope inferAnalysisScope() {
         if (securityQuery == null) {
             return AnalysisScope.COMPREHENSIVE;
@@ -207,15 +195,13 @@ public class SecurityCopilotContext extends IAMContext {
         
         return AnalysisScope.COMPREHENSIVE;
     }
-    
-    
+
     public boolean isComplete() {
         return securityQuery != null && !securityQuery.trim().isEmpty() &&
                analysisScope != null && 
                priority != null;
     }
-    
-    
+
     public int calculateAnalysisComplexity() {
         int complexity = 1;
         
@@ -227,16 +213,14 @@ public class SecurityCopilotContext extends IAMContext {
         
         return Math.min(complexity, 10);
     }
-    
-    
+
     public void addSecurityMetadata(String key, Object value) {
         if (securityMetadata == null) {
             securityMetadata = new HashMap<>();
         }
         securityMetadata.put(key, value);
     }
-    
-    
+
     @SuppressWarnings("unchecked")
     public <T> T getSecurityMetadata(String key, Class<T> type) {
         if (securityMetadata == null || !securityMetadata.containsKey(key)) {
@@ -245,16 +229,14 @@ public class SecurityCopilotContext extends IAMContext {
         Object value = securityMetadata.get(key);
         return type.isInstance(value) ? (T) value : null;
     }
-    
-    
+
     public String getCombinationKey() {
         return String.format("security-copilot:%s:%s:%s", 
                             analysisScope != null ? analysisScope : "unknown",
                             priority != null ? priority : "medium",
                             detailLevel);
     }
-    
-    
+
     public Map<String, Object> getContextData() {
         Map<String, Object> data = new HashMap<>();
         data.put("securityQuery", securityQuery);

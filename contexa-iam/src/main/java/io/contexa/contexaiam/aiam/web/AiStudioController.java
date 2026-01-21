@@ -23,7 +23,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
 @RequestMapping("/api/ai/studio")
 @RequiredArgsConstructor
 @Slf4j
@@ -34,7 +33,6 @@ public class AiStudioController {
     @PostMapping("/query")
     public Mono<ResponseEntity<StudioQueryResponse>> queryStudio(@RequestBody StudioQueryItem request) {
 
-        
         String validationError = validateStudioQueryRequest(request);
         if (validationError != null) {
             log.warn("요청 검증 실패: {}", validationError);
@@ -44,8 +42,6 @@ public class AiStudioController {
         }
 
         String query = request.getQuery();
-
-        log.info("AI Studio 비동기 질의 요청 - Master Brain 진입점 사용: {}", query);
 
         return Mono.fromCallable(() -> {
             
@@ -58,7 +54,6 @@ public class AiStudioController {
                     .withUserId(request.getUserId())
                     .build();
 
-            
             String orgId = context.getOrganizationId();
             if (orgId == null || orgId.trim().isEmpty()) {
                 orgId = "default-org"; 
@@ -76,15 +71,13 @@ public class AiStudioController {
             return aiNativeProcessor.process(aiRequest, AIResponse.class);
         })
         .map(response -> {
-            log.info("AI Studio 질의 완료 - 응답 생성");
-            return ResponseEntity.ok((StudioQueryResponse) response);
+                        return ResponseEntity.ok((StudioQueryResponse) response);
         })
         .onErrorResume(error -> {
             log.error("AI Studio 질의 실패", error);
             return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).<StudioQueryResponse>build());
         });
     }
-
 
     @PostMapping(value = "/query/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> queryStudioStream(@RequestBody StudioQueryItem request) {
@@ -98,8 +91,6 @@ public class AiStudioController {
         }
 
         String query = request.getQuery();
-
-        log.info("AI Studio 스트리밍 질의 요청: {}", query);
 
         try {
             StudioQueryContext context = new StudioQueryContext.Builder(
@@ -130,18 +121,11 @@ public class AiStudioController {
                     .flatMap(chunk -> {
                         String chunkStr = chunk != null ? chunk.toString() : "";
 
-                        log.debug("[RECEIVED] 청크 길이: {}, 내용: {}",
-                                chunkStr.length(),
-                                chunkStr.length() > 50 ? chunkStr.substring(0, 50) + "..." : chunkStr);
-
-                        
                         allData.append(chunkStr);
 
-                        
                         if (!finalResponseStarted.get()) {
                             markerBuffer.append(chunkStr);
-                            
-                            
+
                             if (markerBuffer.length() > 50) {
                                 markerBuffer.delete(0, markerBuffer.length() - 50);
                             }
@@ -149,17 +133,13 @@ public class AiStudioController {
                             
                             if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
                                 finalResponseStarted.set(true);
-                                log.info("[FINAL-MODE] FINAL_RESPONSE 모드 시작 - 이후 청크들은 sentenceBuffer 처리 제외");
-                            }
+                                                            }
                         }
 
-                        
                         if (finalResponseStarted.get()) {
-                            log.debug("[SKIP-SENTENCE] FINAL_RESPONSE 모드 - sentenceBuffer 처리 스킵");
-                            return Flux.empty(); 
+                                                        return Flux.empty(); 
                         }
 
-                        
                         return sentenceBuffer.processChunk(chunkStr)
                                 .map(sentence -> ServerSentEvent.<String>builder()
                                         .data(sentence)
@@ -197,7 +177,6 @@ public class AiStudioController {
                     .onErrorResume(error -> {
                         log.error("AI Studio 스트리밍 처리 중 오류", error);
 
-                        
                         String errorMessage;
                         if (error instanceof Throwable) {
                             errorMessage = ((Throwable) error).getMessage();
@@ -394,7 +373,6 @@ public class AiStudioController {
         }
     }
 
-    
     public record QueryHistoryResponse(
         String userId,
         java.util.List<QueryHistoryItem> queries,
@@ -402,7 +380,6 @@ public class AiStudioController {
         java.time.LocalDateTime lastUpdated
     ) {}
 
-    
     public record QueryHistoryItem(
         String query,
         String queryType,

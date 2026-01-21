@@ -10,27 +10,20 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class DynamicThreatResponseContext extends IAMContext {
-    
-    
+
     private ThreatInfo threatInfo;
-    
-    
+
     private ResponseInfo responseInfo;
-    
-    
+
     private PolicyGenerationHint hint;
-    
-    
+
     private Map<String, Object> additionalContext;
-    
-    
+
     private String eventId;
-    
-    
+
     private LocalDateTime createdAt;
     
     public DynamicThreatResponseContext() {
@@ -45,8 +38,7 @@ public class DynamicThreatResponseContext extends IAMContext {
         this.additionalContext = new HashMap<>();
         this.createdAt = LocalDateTime.now();
     }
-    
-    
+
     @Data
     public static class ThreatInfo {
         private String threatType;
@@ -61,8 +53,7 @@ public class DynamicThreatResponseContext extends IAMContext {
             this.additionalInfo = new HashMap<>();
         }
     }
-    
-    
+
     @Data
     public static class ResponseInfo {
         private String mitigationAction;
@@ -76,8 +67,7 @@ public class DynamicThreatResponseContext extends IAMContext {
             this.additionalInfo = new HashMap<>();
         }
     }
-    
-    
+
     @Data
     public static class PolicyGenerationHint {
         private String preferredPolicyType;  
@@ -86,8 +76,7 @@ public class DynamicThreatResponseContext extends IAMContext {
         private Boolean requiresApproval;      
         private String targetAudience;         
     }
-    
-    
+
     public DynamicThreatResponseContext withThreatInfo(ThreatInfo threatInfo) {
         this.threatInfo = threatInfo;
         return this;
@@ -115,12 +104,9 @@ public class DynamicThreatResponseContext extends IAMContext {
         this.additionalContext.put(key, value);
         return this;
     }
-    
-    
+
     public void adjustSecurityLevelBySeverity() {
-        
-        
-        
+
     }
     
     @Override

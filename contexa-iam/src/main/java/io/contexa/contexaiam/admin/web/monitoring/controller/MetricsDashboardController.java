@@ -7,14 +7,12 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-
 @Slf4j
 @RequestMapping("/admin")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class MetricsDashboardController {
 
-    
     @GetMapping("/executive-overview")
     public String executiveOverview(Model model) {
         model.addAttribute("pageTitle", "임원진 통합 보안 대시보드");
@@ -22,7 +20,6 @@ public class MetricsDashboardController {
         return "admin/executive-overview";
     }
 
-    
     @GetMapping("/zerotrust-monitoring")
     public String zerotrustMonitoring(Model model) {
         model.addAttribute("pageTitle", "제로트러스트 실시간 모니터링");
@@ -30,7 +27,6 @@ public class MetricsDashboardController {
         return "admin/zerotrust-monitoring";
     }
 
-    
     @GetMapping("/evolution-learning")
     public String evolutionLearning(Model model) {
         model.addAttribute("pageTitle", "Evolution & Learning 상세 메트릭");
@@ -38,7 +34,6 @@ public class MetricsDashboardController {
         return "admin/evolution-learning";
     }
 
-    
     @GetMapping("/vectorstore-metrics")
     public String vectorstoreMetrics(Model model) {
         model.addAttribute("pageTitle", "VectorStore 모니터링");
@@ -46,7 +41,6 @@ public class MetricsDashboardController {
         return "admin/vectorstore-metrics";
     }
 
-    
     @GetMapping("/tools-monitoring")
     public String toolsMonitoring(Model model) {
         model.addAttribute("pageTitle", "Tools 모니터링 (MCP + SOAR)");
@@ -54,7 +48,6 @@ public class MetricsDashboardController {
         return "admin/tools-monitoring";
     }
 
-    
     @GetMapping("/system-overview")
     public String systemOverview(Model model) {
         model.addAttribute("pageTitle", "시스템 개요");

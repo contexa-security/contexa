@@ -12,7 +12,6 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-
 @Slf4j
 @PromptTemplateConfig(
         key = "accessGovernance",
@@ -20,8 +19,7 @@ import java.time.format.DateTimeFormatter;
         description = "Spring AI Structured Output AccessGovernance Template"
 )
 public class AccessGovernanceTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<AccessGovernanceResponse> converter = 
         new BeanOutputConverter<>(AccessGovernanceResponse.class);
 
@@ -134,12 +132,10 @@ public class AccessGovernanceTemplate implements PromptTemplate {
                 context.getFullAccessMatrixData() : 
                 "No permission matrix data provided - perform general analysis"
         );
-        
-        
+
         return analysisRequest + "\n\n" + converter.getFormat();
     }
-    
-    
+
     public BeanOutputConverter<AccessGovernanceResponse> getConverter() {
         return converter;
     }

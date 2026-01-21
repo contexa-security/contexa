@@ -5,7 +5,6 @@ import lombok.Getter;
 
 import java.time.LocalDateTime;
 
-
 @Getter
 @Builder
 public class LabStreamEvent {
@@ -26,7 +25,6 @@ public class LabStreamEvent {
         ERROR       
     }
 
-    
     public String getFormattedMessage() {
         if (eventType == EventType.START) {
             return String.format("\n\n=== [%s] 분석 시작 ===\n", labDisplayName);
@@ -40,10 +38,8 @@ public class LabStreamEvent {
         }
     }
 
-    
     public long getSortWeight() {
-        
-        
+
         return (long) priority * 1000000L + sequence;
     }
 }

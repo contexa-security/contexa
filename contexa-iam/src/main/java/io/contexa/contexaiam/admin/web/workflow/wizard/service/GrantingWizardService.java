@@ -8,15 +8,11 @@ import io.contexa.contexaiam.admin.web.workflow.wizard.dto.WizardContext;
 
 public interface GrantingWizardService {
 
-    
     WizardInitiationDto beginManagementSession(InitiateManagementRequestDto request);
 
-    
     WizardContext getWizardProgress(String contextId);
 
-    
     SimulationResultDto simulateAssignmentChanges(String contextId, AssignmentChangeDto changes);
 
-    
     void commitAssignments(String contextId, AssignmentChangeDto finalAssignments);
 }

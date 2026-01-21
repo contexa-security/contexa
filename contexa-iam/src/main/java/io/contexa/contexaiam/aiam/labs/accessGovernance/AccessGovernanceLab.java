@@ -20,7 +20,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest, AccessGovernanceResponse> {
 
@@ -60,12 +59,8 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return processStreamingRequest(request);
     }
 
-    
     private Mono<AccessGovernanceResponse> performAccessGovernanceAnalysis(AIRequest<AccessGovernanceContext> request) {
-        log.info("[DIAGNOSIS] ===== 권한 거버넌스 분석 시작 ===== Scope: {}, Type: {}",
-                request.getContext().getAuditScope(),
-                request.getContext().getAnalysisType());
-
+        
         return Mono.fromCallable(() -> {
                 accessVectorService.storeAnalysisRequest(request.getContext());
                 PipelineConfiguration config = createPipelineConfig();
@@ -76,10 +71,7 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
                 .doOnSuccess(response -> {
                     AccessGovernanceResponse accessGovernanceResponse = (AccessGovernanceResponse)response;
                     accessVectorService.storeAnalysisResult(request.getContext(), accessGovernanceResponse);
-                    log.info("[DIAGNOSIS] ===== 권한 거버넌스 분석 완료 ===== 점수: {}, 위험도: {}",
-                            accessGovernanceResponse.getOverallGovernanceScore(), accessGovernanceResponse.getRiskLevel());
 
-                    
                     if (hasSignificantFindings(accessGovernanceResponse)) {
                         publishStaticAccessAnalysisEvent(request.getContext(), accessGovernanceResponse);
                     }
@@ -87,14 +79,12 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
                 .doOnError(error -> log.error("[DIAGNOSIS] ===== 권한 거버넌스 분석 실패 =====", error));
     }
 
-    
     private boolean hasSignificantFindings(AccessGovernanceResponse response) {
         
         if (response.getFindings() != null && !response.getFindings().isEmpty()) {
             return true;
         }
 
-        
         AccessGovernanceResponse.Statistics stats = response.getStatistics();
         if (stats != null) {
             return stats.getDormantPermissions() > 0 ||
@@ -105,22 +95,18 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return false;
     }
 
-    
     private void publishStaticAccessAnalysisEvent(AccessGovernanceContext context, AccessGovernanceResponse response) {
         try {
             
             StaticAccessAnalysisEvent.AnalysisType analysisType = determineAnalysisType(response);
 
-            
             List<StaticAccessAnalysisEvent.AccessFinding> findings = convertToAccessFindings(response);
 
-            
             AccessGovernanceResponse.Statistics stats = response.getStatistics();
             Integer totalPermissions = stats != null ? stats.getTotalPermissions() : null;
             Integer unusedPermissions = stats != null ? stats.getDormantPermissions() : null;
             Integer overPrivilegedCount = stats != null ? stats.getExcessivePermissions() : null;
 
-            
             Map<String, Object> recommendations = convertRecommendations(response);
 
             StaticAccessAnalysisEvent analysisEvent = StaticAccessAnalysisEvent.builder()
@@ -140,23 +126,17 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
 
             eventPublisher.publishEvent(analysisEvent);
 
-            log.info("StaticAccessAnalysisEvent published: analysisType={}, findingsCount={}, " +
-                     "unusedPermissions={}, overPrivilegedCount={}",
-                analysisType, findings.size(), unusedPermissions, overPrivilegedCount);
-
         } catch (Exception e) {
             log.error("Failed to publish StaticAccessAnalysisEvent", e);
         }
     }
 
-    
     private StaticAccessAnalysisEvent.AnalysisType determineAnalysisType(AccessGovernanceResponse response) {
         AccessGovernanceResponse.Statistics stats = response.getStatistics();
         if (stats == null) {
             return StaticAccessAnalysisEvent.AnalysisType.ACCESS_REVIEW;
         }
 
-        
         if (stats.getSodViolations() > 0) {
             return StaticAccessAnalysisEvent.AnalysisType.SEPARATION_OF_DUTIES;
         }
@@ -170,7 +150,6 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return StaticAccessAnalysisEvent.AnalysisType.ACCESS_REVIEW;
     }
 
-    
     private List<StaticAccessAnalysisEvent.AccessFinding> convertToAccessFindings(AccessGovernanceResponse response) {
         List<StaticAccessAnalysisEvent.AccessFinding> findings = new ArrayList<>();
 
@@ -196,14 +175,11 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return findings;
     }
 
-    
     private Integer mapSeverityToRiskScore(String severity) {
-        
-        
+
         return 50;
     }
 
-    
     private Map<String, Object> convertRecommendations(AccessGovernanceResponse response) {
         Map<String, Object> recommendations = new HashMap<>();
 
@@ -224,7 +200,6 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return recommendations;
     }
 
-    
     private Map<String, Object> buildAdditionalContext(AccessGovernanceContext context, AccessGovernanceResponse response) {
         Map<String, Object> additionalContext = new HashMap<>();
         additionalContext.put("organizationId", context.getOrganizationId());
@@ -235,12 +210,8 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
         return additionalContext;
     }
 
-    
     private Flux<String> processStreamingRequest(AccessGovernanceRequest request) {
-        log.info("[STREAMING] 권한 거버넌스 분석 스트리밍 시작 - Scope: {}, Type: {}", 
-                request.getContext().getAuditScope(), 
-                request.getContext().getAnalysisType());
-
+        
         AccessGovernanceContext context = request.getContext();
         accessVectorService.storeAnalysisRequest(context);
         PipelineConfiguration config = createStreamPipelineConfig();
@@ -250,12 +221,8 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
                 .doOnError(error -> log.error("[STREAMING] 권한 거버넌스 분석 스트리밍 오류", error));
     }
 
-    
-
-    
     public void learnFromFeedback(String reportId, boolean isCorrect, String feedback) {
-        log.info("피드백 학습: reportId={}, correct={}", reportId, isCorrect);
-        accessVectorService.storeFeedback(reportId, isCorrect, feedback);
+                accessVectorService.storeFeedback(reportId, isCorrect, feedback);
     }
 
     private AIRequest<AccessGovernanceContext> createAIRequest(AccessGovernanceContext context) {

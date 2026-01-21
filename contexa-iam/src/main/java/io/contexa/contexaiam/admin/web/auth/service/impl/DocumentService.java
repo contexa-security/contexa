@@ -17,7 +17,6 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
 
-    
     public boolean isUserOwnerOfDocument(Serializable documentId, String username) {
         if (documentId == null || username == null) {
             log.warn("Ownership check: documentId or username is null. Denying access.");
@@ -31,11 +30,9 @@ public class DocumentService {
                 Document document = documentOpt.get();
                 
                 if (document.getOwnerUsername() != null && document.getOwnerUsername().equals(username)) {
-                    log.debug("User '{}' is owner of document ID {}. Access granted by ownership check.", username, documentId);
-                    return true;
+                                        return true;
                 } else {
-                    log.debug("User '{}' is NOT owner of document ID {}. Document owner: '{}'. Access denied by ownership check.", username, documentId, document.getOwnerUsername());
-                    return false;
+                                        return false;
                 }
             } else {
                 log.warn("Document with ID {} not found for ownership check. Denying access.", documentId);
@@ -50,40 +47,31 @@ public class DocumentService {
         }
     }
 
-    
     @Transactional
     public Document createDocument(Document document) {
-        log.info("Creating new document with title: '{}' by owner: '{}'", document.getTitle(), document.getOwnerUsername());
-        document.setCreatedAt(LocalDateTime.now()); 
+                document.setCreatedAt(LocalDateTime.now()); 
         return documentRepository.save(document);
     }
 
-    
     public Optional<Document> getDocumentById(Long id) {
-        log.debug("Fetching document with ID: {}", id);
-        return documentRepository.findById(id);
+                return documentRepository.findById(id);
     }
 
-    
     public List<Document> getAllDocuments() {
         return documentRepository.findAll();
     }
 
-    
     @Transactional
     public Optional<Document> updateDocumentContent(Long id, String newContent) {
         return documentRepository.findById(id).map(document -> {
             document.setContent(newContent);
             document.setUpdatedAt(LocalDateTime.now()); 
-            log.info("Document ID {} content updated.", id);
-            return documentRepository.save(document);
+                        return documentRepository.save(document);
         });
     }
 
-    
     @Transactional
     public void deleteDocument(Long id) {
-        log.info("Deleting document with ID: {}", id);
-        documentRepository.deleteById(id);
+                documentRepository.deleteById(id);
     }
 }

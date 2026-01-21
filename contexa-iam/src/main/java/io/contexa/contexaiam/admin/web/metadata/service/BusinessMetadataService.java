@@ -9,7 +9,6 @@ import io.contexa.contexacommon.entity.business.BusinessAction;
 import java.util.List;
 import java.util.Map;
 
-
 public interface BusinessMetadataService {
 
     List<BusinessResourceDto> getAllBusinessResources();

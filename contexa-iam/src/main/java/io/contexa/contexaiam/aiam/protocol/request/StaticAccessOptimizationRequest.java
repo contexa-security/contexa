@@ -7,7 +7,6 @@ import lombok.Data;
 import java.util.List;
 import java.util.Map;
 
-
 @Data
 @Builder
 public class StaticAccessOptimizationRequest {
@@ -22,8 +21,7 @@ public class StaticAccessOptimizationRequest {
     private Map<String, Object> recommendations;
     private Map<String, Object> context;
     private String criticality;
-    
-    
+
     public static StaticAccessOptimizationRequest fromEvent(StaticAccessAnalysisEvent event) {
         return StaticAccessOptimizationRequest.builder()
                 .analysisType(event.getAnalysisType().toString())

@@ -18,7 +18,6 @@ public class StudioExplorerServiceImpl implements StudioExplorerService {
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
 
-
     @Override
     public Map<String, List<ExplorerItemDto>> getExplorerItems() {
         List<ExplorerItemDto> users = userRepository.findAll().stream()
@@ -38,8 +37,6 @@ public class StudioExplorerServiceImpl implements StudioExplorerService {
                         Optional.ofNullable(group.getDescription()).orElse("설명 없음")
                 ))
                 .toList();
-
-        
 
         return Map.of(
                 "users", users,

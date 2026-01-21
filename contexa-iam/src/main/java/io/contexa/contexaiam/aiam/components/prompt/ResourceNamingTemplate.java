@@ -13,7 +13,6 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import java.util.List;
 import java.util.stream.IntStream;
 
-
 @Slf4j
 @PromptTemplateConfig(
     key = "resource_naming_suggestion",
@@ -21,8 +20,7 @@ import java.util.stream.IntStream;
     description = "Spring AI Structured Output Resource Naming Template"
 )
 public class ResourceNamingTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<ResourceNamingSuggestionResponse> converter = 
         new BeanOutputConverter<>(ResourceNamingSuggestionResponse.class);
 
@@ -89,12 +87,10 @@ public class ResourceNamingTemplate implements PromptTemplate {
         }
 
         String namingRequest = buildUserPromptFromIdentifiers(identifiers, contextInfo);
-        
-        
+
         return namingRequest + "\n\n" + converter.getFormat();
     }
 
-    
     public PromptGenerationResult generatePrompt(ResourceNamingSuggestionRequest request, String context) {
         if (request.getResources() == null || request.getResources().isEmpty()) {
             log.warn("리소스 목록이 비어있습니다");
@@ -106,21 +102,17 @@ public class ResourceNamingTemplate implements PromptTemplate {
 
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(request.getResources(), context);
-        
-        log.debug("ResourceNaming 프롬프트 생성 완료 - 리소스 수: {}", request.getResources().size());
-        
+
         return PromptGenerationResult.builder()
                 .systemPrompt(systemPrompt)
                 .userPrompt(userPrompt)
                 .build();
     }
 
-    
     public BeanOutputConverter<ResourceNamingSuggestionResponse> getConverter() {
         return converter;
     }
-    
-    
+
     private String buildSystemPrompt() {
         return """
             당신은 소프트웨어의 기술적 용어를 일반 비즈니스 사용자가 이해하기 쉬운 이름과 설명으로 만드는 네이밍 전문가입니다.
@@ -161,18 +153,15 @@ public class ResourceNamingTemplate implements PromptTemplate {
             """;
     }
 
-    
     private String buildUserPrompt(List<ResourceNamingSuggestionRequest.ResourceItem> resources, String context) {
         StringBuilder userPrompt = new StringBuilder();
-        
-        
+
         if (context != null && !context.trim().isEmpty()) {
             userPrompt.append("**참고 컨텍스트:**\n")
                      .append(context)
                      .append("\n\n");
         }
-        
-        
+
         userPrompt.append("**필수 요구사항:** 다음 **정확히 ").append(resources.size()).append("개** 항목에 대해 **모두 예외 없이** 응답하세요!\n\n");
         userPrompt.append("**중요:** ").append(resources.size()).append("개 입력 → ").append(resources.size()).append("개 출력이 되어야 합니다. 누락 시 시스템 오류!\n\n");
         
@@ -190,18 +179,15 @@ public class ResourceNamingTemplate implements PromptTemplate {
         return userPrompt.toString();
     }
 
-    
     private String buildUserPromptFromIdentifiers(List<String> identifiers, String context) {
         StringBuilder userPrompt = new StringBuilder();
-        
-        
+
         if (context != null && !context.trim().isEmpty()) {
             userPrompt.append("**참고 컨텍스트:**\n")
                      .append(context)
                      .append("\n\n");
         }
-        
-        
+
         userPrompt.append("**필수 요구사항:** 다음 **정확히 ").append(identifiers.size()).append("개** 항목에 대해 **모두 예외 없이** 응답하세요!\n\n");
         userPrompt.append("**중요:** ").append(identifiers.size()).append("개 입력 → ").append(identifiers.size()).append("개 출력이 되어야 합니다. 누락 시 시스템 오류!\n\n");
         

@@ -17,7 +17,6 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class CustomPermissionEvaluator implements PermissionEvaluator {
@@ -26,35 +25,26 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
     private final GroupRepository groupRepository;
     private final ApplicationContext applicationContext;
 
-    
     @Override
     public boolean hasPermission(Authentication authentication, Serializable targetId, String targetType, Object permissionAction) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.debug("인증되지 않은 사용자");
-            return false;
+                        return false;
         }
 
         String username = ((UserDto)authentication.getPrincipal()).getUsername();
         String action = permissionAction.toString().toUpperCase();
-        
-        log.debug("권한 평가: 사용자={}, 대상={}#{}, 액션={}", username, targetType, targetId, action);
 
         try {
             
             Set<String> userPermissions = getUserPermissions(username);
-            
-            
-            String requiredPermission = buildPermissionName(targetType, action);
-            
-            
-            if (!userPermissions.contains(requiredPermission)) {
-                log.debug("권한 부족: {} 권한 없음", requiredPermission);
-                return false;
-            }
-            
 
-            log.debug("권한 승인: {}는 {}#{} 에 대한 {} 권한 보유", username, targetType, targetId, action);
-            return true;
+            String requiredPermission = buildPermissionName(targetType, action);
+
+            if (!userPermissions.contains(requiredPermission)) {
+                                return false;
+            }
+
+                        return true;
             
         } catch (Exception e) {
             log.error("권한 평가 중 오류 발생", e);
@@ -62,67 +52,51 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    
     @Override
     public boolean hasPermission(Authentication authentication, Object targetDomainObject, Object permission) {
-        log.debug("객체 기반 권한 확인 시작: 사용자={}, 대상={}, 권한={}",
-                ((UserDto)authentication.getPrincipal()).getUsername(),
-                 targetDomainObject.getClass().getSimpleName(), 
-                 permission);
-        
-        
+
         return checkBasicPermission(authentication, targetDomainObject, permission.toString());
     }
-    
-    
+
     private boolean checkBasicPermission(Authentication authentication, Object targetDomainObject, String permissionStr) {
         Serializable id = extractObjectId(targetDomainObject);
-        
-        
+
         if (permissionStr.contains("_")) {
             String[] parts = permissionStr.split("_", 2);
             String type = parts[0];
             String action = parts[1];
             
-            log.debug("타입_액션 파싱: {} → 타입={}, 액션={}", permissionStr, type, action);
-            return hasPermission(authentication, id, type, action);
+                        return hasPermission(authentication, id, type, action);
         } else {
             
             String type = targetDomainObject.getClass().getSimpleName().toUpperCase();
-            log.debug("클래스명 타입 추출: {} → 타입={}", targetDomainObject.getClass().getSimpleName(), type);
-            return hasPermission(authentication, id, type, permissionStr);
+                        return hasPermission(authentication, id, type, permissionStr);
         }
     }
-    
-    
+
     public boolean checkOwnership(Authentication authentication, Object targetDomainObject, String ownerField) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.debug("인증되지 않은 사용자 - 소유자 확인 실패");
-            return false;
+                        return false;
         }
         
         if (targetDomainObject == null || ownerField == null || ownerField.trim().isEmpty()) {
-            log.debug("소유자 확인 생략: 대상 객체 또는 ownerField 없음");
-            return true; 
+                        return true; 
         }
         
         try {
             String username = authentication.getName();
             Long currentUserId = getCurrentUserId(username);
             if (currentUserId == null) {
-                log.debug("현재 사용자 ID 조회 실패: {}", username);
-                return false;
+                                return false;
             }
             
             Long ownerUserId = getOwnerIdFromObject(targetDomainObject, ownerField);
             if (ownerUserId == null) {
-                log.debug("소유자 ID 추출 실패: 객체={}, 필드={}", targetDomainObject.getClass().getSimpleName(), ownerField);
-                return true; 
+                                return true; 
             }
             
             boolean isOwner = currentUserId.equals(ownerUserId);
-            log.debug("소유자 확인: 사용자={}(ID:{}), 소유자ID={}, 결과={}", username, currentUserId, ownerUserId, isOwner);
-            
+                        
             return isOwner;
             
         } catch (Exception e) {
@@ -130,8 +104,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             return false;
         }
     }
-    
-    
+
     private Long getOwnerIdFromObject(Object object, String ownerField) {
         try {
             
@@ -141,8 +114,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
                 Object value = field.get(object);
                 return convertToLong(value);
             }
-            
-            
+
             String getterName = "get" + ownerField.substring(0, 1).toUpperCase() + ownerField.substring(1);
             Method getter = object.getClass().getMethod(getterName);
             Object value = getter.invoke(object);
@@ -153,8 +125,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             return null;
         }
     }
-    
-    
+
     private Field findField(Class<?> clazz, String fieldName) {
         Class<?> currentClass = clazz;
         while (currentClass != null) {
@@ -166,8 +137,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
         return null;
     }
-    
-    
+
     private Long convertToLong(Object value) {
         if (value == null) return null;
         if (value instanceof Long) return (Long) value;
@@ -181,8 +151,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
         return null;
     }
-    
-    
+
     private Long getCurrentUserId(String username) {
         try {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
@@ -193,20 +162,17 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    
     private Set<String> getUserPermissions(String username) {
         try {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
             if (userOpt.isEmpty()) {
-                log.debug("사용자 없음: {}", username);
-                return Set.of();
+                                return Set.of();
             }
             
             Users user = userOpt.get();
             Set<String> permissions = new HashSet<>(user.getPermissionNames());
             
-            log.debug("👤 사용자 {} 권한 목록: {}", username, permissions);
-            return permissions;
+                        return permissions;
             
         } catch (Exception e) {
             log.error("사용자 권한 조회 실패: {}", username, e);
@@ -214,12 +180,10 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    
     private String buildPermissionName(String targetType, String action) {
         return String.format("%s_%s", targetType.toUpperCase(), action.toUpperCase());
     }
 
-    
     private Serializable extractObjectId(Object domainObject) {
         try {
             Method getIdMethod = domainObject.getClass().getMethod("getId");
@@ -231,9 +195,6 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    
-    
-    
     public boolean isOwner(Authentication authentication, Object targetObject, String ownerField) {
         return checkOwnership(authentication, targetObject, ownerField);
     }

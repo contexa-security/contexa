@@ -31,7 +31,6 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
 
         List<String> conditions = new ArrayList<>();
 
-        
         String subjectExpression = context.subjects().stream()
                 .map(subject -> String.format("hasAuthority('%s_%d')", subject.type(), subject.id()))
                 .collect(Collectors.joining(" or "));
@@ -40,7 +39,6 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
             conditions.add("(" + subjectExpression + ")");
         }
 
-        
         List<Permission> permissions = permissionRepository.findAllById(context.permissionIds());
         String permissionExpression = permissions.stream()
                 .map(Permission::getName)
@@ -51,7 +49,6 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
             conditions.add("(" + permissionExpression + ")");
         }
 
-        
         PolicyRule rule = PolicyRule.builder()
                 .policy(policy)
                 .description("Wizard-generated rule for: " + context.sessionDescription())
@@ -62,8 +59,6 @@ public class BusinessPolicyTranslatorImpl implements BusinessPolicyTranslator {
                 .collect(Collectors.toSet());
         rule.setConditions(policyConditions);
 
-        
-        
         Set<PolicyTarget> targets = permissions.stream()
                 .map(Permission::getManagedResource) 
                 .filter(Objects::nonNull) 

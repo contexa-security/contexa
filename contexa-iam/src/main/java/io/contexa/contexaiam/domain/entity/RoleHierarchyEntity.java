@@ -19,7 +19,6 @@ public class RoleHierarchyEntity implements Serializable {
     @Column(name = "hierarchy_id")
     private Long id;
 
-    
     @Column(name = "hierarchy_string", columnDefinition = "TEXT", nullable = false, unique = true)
     private String hierarchyString;
 

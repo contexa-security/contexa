@@ -15,7 +15,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 public class StaticAccessOptimizationService {
     
@@ -33,48 +32,35 @@ public class StaticAccessOptimizationService {
         this.policyGenerationLab = policyGenerationLab;
         this.dataCollectionService = dataCollectionService;
         this.meterRegistry = meterRegistry;
-        
-        
+
         this.processingTimer = Timer.builder("synthesis.static_access_optimization.duration")
                 .description("Static access optimization processing time")
                 .register(meterRegistry);
         
-        log.info("StaticAccessOptimizationService 초기화 완료 - AdvancedPolicyGenerationLab 연동 서비스");
-    }
-    
-    
+            }
+
     public StaticAccessOptimizationResponse process(StaticAccessOptimizationRequest request) {
         Timer.Sample sample = Timer.start(meterRegistry);
         
         try {
-            log.info("[정적 최적화] 처리 시작 - 요청 ID: {}", request.getRequestId());
-            
-            
+
             String naturalLanguagePolicy = createNaturalLanguagePolicy(request);
-            log.info("[정적 최적화] 자연어 정책 생성: {}", naturalLanguagePolicy);
-            
-            
+
             PolicyGenerationItem.AvailableItems availableItems = dataCollectionService.policyCollectData();
-            
-            
+
             PolicyGenerationRequest policyRequest = new PolicyGenerationRequest(
                     naturalLanguagePolicy,
                     availableItems
             );
-            
-            
-            log.info("[정적 최적화] AdvancedPolicyGenerationLab 호출 중...");
-            PolicyResponse policyResponse = policyGenerationLab.process(policyRequest);
+
+                        PolicyResponse policyResponse = policyGenerationLab.process(policyRequest);
             
             if (policyResponse == null) {
                 throw new RuntimeException("AdvancedPolicyGenerationLab에서 응답을 받지 못했습니다");
             }
-            
-            
+
             String spelExpression = policyResponse.getGeneratedPolicy();
-            log.info("[정적 최적화] SpEL 표현식 수신: {}", spelExpression);
-            
-            
+
             StaticAccessOptimizationResponse response = createSuccessResponse(
                     request,
                     naturalLanguagePolicy,
@@ -83,8 +69,7 @@ public class StaticAccessOptimizationService {
             );
             
             sample.stop(processingTimer);
-            log.info("[정적 최적화] 처리 완료 - SpEL: {}", spelExpression);
-            
+                        
             return response;
             
         } catch (Exception e) {
@@ -93,12 +78,10 @@ public class StaticAccessOptimizationService {
             return createErrorResponse(request, e);
         }
     }
-    
-    
+
     private String createNaturalLanguagePolicy(StaticAccessOptimizationRequest request) {
         StringBuilder policy = new StringBuilder();
-        
-        
+
         switch (request.getAnalysisType()) {
             case "UNUSED_PERMISSIONS":
                 policy.append("90일 이상 사용되지 않은 권한을 가진 사용자들의 접근을 제한합니다. ");
@@ -132,36 +115,30 @@ public class StaticAccessOptimizationService {
                 policy.append("표준 보안 정책에 따라 접근을 제어합니다. ");
                 policy.append("사용자 인증과 리소스 권한 검증을 수행합니다. ");
         }
-        
-        
+
         if (request.getAnalyzedResource() != null && !request.getAnalyzedResource().isEmpty()) {
             policy.append(String.format("대상 리소스: %s. ", request.getAnalyzedResource()));
             if (request.getAnalyzedResource().contains("CRITICAL")) {
                 policy.append("중요 리소스이므로 강화된 보안 정책을 적용합니다. ");
             }
         }
-        
-        
+
         if (request.getAnalyzedUser() != null && !request.getAnalyzedUser().isEmpty()) {
             policy.append(String.format("대상 사용자: %s에 대한 접근 제어를 수행합니다. ", 
                     request.getAnalyzedUser()));
         }
-        
-        
+
         policy.append("업무 시간 내 접근만 허용하고 비정상 시간대 접근은 추가 검증을 수행합니다.");
         
         return policy.toString();
     }
-    
-    
-    
+
     private StaticAccessOptimizationResponse createSuccessResponse(
             StaticAccessOptimizationRequest request,
             String naturalLanguagePolicy,
             String spelExpression,
             PolicyResponse policyResponse) {
-        
-        
+
         StaticAccessOptimizationResponse.PolicyProposal proposal = 
                 new StaticAccessOptimizationResponse.PolicyProposal();
         proposal.setProposalId("SP-" + UUID.randomUUID().toString());
@@ -177,16 +154,14 @@ public class StaticAccessOptimizationService {
         proposal.setPolicyType("ACCESS_CONTROL");
         proposal.setCreatedAt(LocalDateTime.now());
         proposal.setMetadata(createProposalMetadata(request, policyResponse));
-        
-        
+
         StaticAccessOptimizationResponse.OptimizationStrategy strategy = 
                 new StaticAccessOptimizationResponse.OptimizationStrategy();
         strategy.setType(mapAnalysisTypeToStrategy(request.getAnalysisType()));
         strategy.setPrinciple(getStrategyPrinciple(request.getAnalysisType()));
         strategy.setApproach(getStrategyApproach(request.getAnalysisType()));
         strategy.setPriority(determineStrategyPriority(request));
-        
-        
+
         StaticAccessOptimizationResponse.EffectPrediction prediction = 
                 new StaticAccessOptimizationResponse.EffectPrediction();
         prediction.setAccessReductionRate(calculateAccessReductionRate(request));
@@ -196,8 +171,7 @@ public class StaticAccessOptimizationService {
         prediction.setEstimatedRolloutTime(estimateRolloutTime(request));
         prediction.setRequiresUserTraining(requiresUserTraining(request));
         prediction.setConfidenceScore(0.85); 
-        
-        
+
         return StaticAccessOptimizationResponse.createSuccess(
                 request.getRequestId(),
                 proposal,
@@ -206,8 +180,7 @@ public class StaticAccessOptimizationService {
                 spelExpression
         );
     }
-    
-    
+
     private String determineRiskLevel(StaticAccessOptimizationRequest request) {
         if ("OVER_PRIVILEGED".equals(request.getAnalysisType())) {
             return "HIGH";
@@ -219,8 +192,7 @@ public class StaticAccessOptimizationService {
             return "LOW";
         }
     }
-    
-    
+
     private String mapAnalysisTypeToStrategy(String analysisType) {
         switch (analysisType) {
             case "UNUSED_PERMISSIONS":
@@ -235,8 +207,7 @@ public class StaticAccessOptimizationService {
                 return "GENERAL_OPTIMIZATION";
         }
     }
-    
-    
+
     private String getStrategyPrinciple(String analysisType) {
         switch (analysisType) {
             case "UNUSED_PERMISSIONS":
@@ -251,8 +222,7 @@ public class StaticAccessOptimizationService {
                 return "General access optimization";
         }
     }
-    
-    
+
     private String getStrategyApproach(String analysisType) {
         switch (analysisType) {
             case "UNUSED_PERMISSIONS":
@@ -267,8 +237,7 @@ public class StaticAccessOptimizationService {
                 return "Apply standard optimization rules";
         }
     }
-    
-    
+
     private String determineStrategyPriority(StaticAccessOptimizationRequest request) {
         if ("OVER_PRIVILEGED".equals(request.getAnalysisType())) {
             return "CRITICAL";
@@ -280,8 +249,7 @@ public class StaticAccessOptimizationService {
             return "LOW";
         }
     }
-    
-    
+
     private double calculateAccessReductionRate(StaticAccessOptimizationRequest request) {
         switch (request.getAnalysisType()) {
             case "UNUSED_PERMISSIONS":
@@ -296,8 +264,7 @@ public class StaticAccessOptimizationService {
                 return 0.15; 
         }
     }
-    
-    
+
     private double calculateSecurityImprovement(StaticAccessOptimizationRequest request) {
         switch (request.getAnalysisType()) {
             case "OVER_PRIVILEGED":
@@ -312,14 +279,12 @@ public class StaticAccessOptimizationService {
                 return 0.3; 
         }
     }
-    
-    
+
     private double calculateComplianceScore(StaticAccessOptimizationRequest request) {
         
         return 0.9; 
     }
-    
-    
+
     private String determineUserImpact(StaticAccessOptimizationRequest request) {
         switch (request.getAnalysisType()) {
             case "OVER_PRIVILEGED":
@@ -332,8 +297,7 @@ public class StaticAccessOptimizationService {
                 return "LOW";
         }
     }
-    
-    
+
     private String estimateRolloutTime(StaticAccessOptimizationRequest request) {
         switch (request.getAnalysisType()) {
             case "OVER_PRIVILEGED":
@@ -348,14 +312,12 @@ public class StaticAccessOptimizationService {
                 return "1-2 weeks";
         }
     }
-    
-    
+
     private boolean requiresUserTraining(StaticAccessOptimizationRequest request) {
         return "OVER_PRIVILEGED".equals(request.getAnalysisType()) || 
                "SEPARATION_OF_DUTIES".equals(request.getAnalysisType());
     }
-    
-    
+
     private Map<String, Object> createProposalMetadata(
             StaticAccessOptimizationRequest request,
             PolicyResponse policyResponse) {
@@ -372,8 +334,7 @@ public class StaticAccessOptimizationService {
         
         return metadata;
     }
-    
-    
+
     private StaticAccessOptimizationResponse createErrorResponse(
             StaticAccessOptimizationRequest request, 
             Exception e) {

@@ -47,19 +47,14 @@ public class FunctionCatalogService {
         catalog.setStatus(FunctionCatalog.CatalogStatus.ACTIVE);
         catalog.setFunctionGroup(group);
         functionCatalogRepository.save(catalog);
-        log.info("기능이 확인 및 등록되었습니다. [ID: {}, 이름: {}, 그룹: {}]", catalog.getId(), catalog.getFriendlyName(), group.getName());
-    }
+            }
 
-    
-
-    
     public List<FunctionCatalogDto> getManageableCatalogs() {
         return functionCatalogRepository.findAllByStatusNotWithDetails(FunctionCatalog.CatalogStatus.UNCONFIRMED).stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
     }
 
-    
     @Transactional
     public void updateCatalog(Long id, FunctionCatalogUpdateDto dto) {
         FunctionCatalog catalog = functionCatalogRepository.findById(id)
@@ -74,7 +69,6 @@ public class FunctionCatalogService {
         functionCatalogRepository.save(catalog);
     }
 
-    
     @Transactional
     public void updateSingleStatus(Long catalogId, String status) {
         FunctionCatalog catalog = functionCatalogRepository.findById(catalogId)
@@ -82,16 +76,13 @@ public class FunctionCatalogService {
         FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase());
         catalog.setStatus(newStatus);
         functionCatalogRepository.save(catalog);
-        log.info("카탈로그 ID {}의 상태가 {}로 변경되었습니다.", catalogId, newStatus);
-    }
+            }
 
-    
     public List<FunctionCatalog> findAllActiveFunctions() {
         
         return functionCatalogRepository.findFunctionsByStatusWithDetails(FunctionCatalog.CatalogStatus.ACTIVE);
     }
 
-    
     public GroupedFunctionCatalogDto getGroupedCatalogs() {
         List<FunctionCatalog> allCatalogs = functionCatalogRepository.findAllWithDetails();
 
@@ -102,7 +93,6 @@ public class FunctionCatalogService {
         return new GroupedFunctionCatalogDto(grouped);
     }
 
-    
     @Transactional
     public void confirmBatch(List<Map<String, Long>> payload) {
         for (Map<String, Long> item : payload) {
@@ -112,7 +102,6 @@ public class FunctionCatalogService {
         }
     }
 
-    
     @Transactional
     public void batchUpdateStatus(List<Long> ids, String status) {
         FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase());
@@ -128,13 +117,11 @@ public class FunctionCatalogService {
 
         FunctionCatalogDto dto = new FunctionCatalogDto();
 
-        
         dto.setId(catalog.getId());
         dto.setFriendlyName(catalog.getFriendlyName());
         dto.setDescription(catalog.getDescription());
         dto.setStatus(catalog.getStatus());
 
-        
         if (catalog.getManagedResource() != null) {
             dto.setResourceIdentifier(catalog.getManagedResource().getResourceIdentifier());
             dto.setResourceType(catalog.getManagedResource().getResourceType().name());
@@ -143,7 +130,6 @@ public class FunctionCatalogService {
             dto.setReturnType(catalog.getManagedResource().getReturnType());
         }
 
-        
         if (catalog.getFunctionGroup() != null) {
             dto.setFunctionGroupName(catalog.getFunctionGroup().getName());
         } else {
@@ -153,5 +139,4 @@ public class FunctionCatalogService {
         return dto;
     }
 
-    
 }

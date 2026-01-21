@@ -8,7 +8,6 @@ import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationR
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-
 @Slf4j
 @PromptTemplateConfig(
     key = "generateUniversalConditionTemplates",
@@ -16,8 +15,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
     description = "Spring AI Structured Output Universal Condition Template"
 )
 public class UniversalConditionTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter = 
         new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
     
@@ -106,12 +104,10 @@ public class UniversalConditionTemplate implements PromptTemplate {
         
         Generate complete ConditionTemplateGenerationResponse in JSON format.
         """);
-        
-        
+
         return conditionRequest + "\n\n" + converter.getFormat();
     }
-    
-    
+
     public BeanOutputConverter<ConditionTemplateGenerationResponse> getConverter() {
         return converter;
     }

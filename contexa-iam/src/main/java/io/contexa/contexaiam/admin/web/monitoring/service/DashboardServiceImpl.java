@@ -20,7 +20,6 @@ public class DashboardServiceImpl implements DashboardService {
     private final SecurityScoreCalculator securityScoreCalculator;
     private final PermissionMatrixService permissionMatrixService;
 
-    
     @Override
     @Transactional(readOnly = true)
     public DashboardDto getDashboardData() {

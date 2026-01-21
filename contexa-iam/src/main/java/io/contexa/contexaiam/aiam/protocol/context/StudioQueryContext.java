@@ -11,12 +11,10 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 
-
 @Getter
 @Setter
 public class StudioQueryContext extends IAMContext {
-    
-    
+
     private String naturalLanguageQuery;
     private String queryLanguage = "ko"; 
     private String queryType; 
@@ -24,32 +22,27 @@ public class StudioQueryContext extends IAMContext {
     private String[] extractedEntities; 
     private int confidenceScore; 
     private Map<String, Object> queryMetadata; 
-    
-    
+
     private String organizationStructure; 
     private List<String> availableTeams;
     private List<String> availableGroups;
     private Map<String, Object> businessContext;
-    
-    
+
     private List<String> availableRoles;
     private List<String> availablePermissions;
     private List<String> availableResources;
     private Map<String, Set<String>> rolePermissionMap;
     private Map<String, Set<String>> userRoleMap;
     private Map<String, Set<String>> groupMemberMap;
-    
-    
+
     private boolean includeVisualization = true;
     private boolean includeRecommendations = true;
     private int maxResultCount = 50;
     private String detailLevel = "DETAILED"; 
-    
-    
+
     private boolean sensitiveDataIncluded = false;
     private Set<String> excludedSensitiveFields;
-    
-    
+
     public enum QueryType {
         WHO_CAN("누가 ~할 수 있는가"),
         WHY_CANNOT("왜 ~할 수 없는가"),
@@ -68,8 +61,7 @@ public class StudioQueryContext extends IAMContext {
             return description;
         }
     }
-    
-    
+
     public enum QueryScope {
         USER("개별 사용자"),
         GROUP("그룹/팀"),
@@ -107,8 +99,7 @@ public class StudioQueryContext extends IAMContext {
     public String getIAMContextType() {
         return "STUDIO_QUERY";
     }
-    
-    
+
     public static class Builder {
         private final SecurityLevel securityLevel;
         private final AuditRequirement auditRequirement;
@@ -163,8 +154,7 @@ public class StudioQueryContext extends IAMContext {
             return context;
         }
     }
-    
-    
+
     public QueryType inferQueryType() {
         if (naturalLanguageQuery == null) {
             return null;
@@ -188,8 +178,7 @@ public class StudioQueryContext extends IAMContext {
         
         return QueryType.ANALYZE_PERMISSIONS; 
     }
-    
-    
+
     public QueryScope inferQueryScope() {
         if (naturalLanguageQuery == null) {
             return null;
@@ -211,15 +200,13 @@ public class StudioQueryContext extends IAMContext {
         
         return QueryScope.USER; 
     }
-    
-    
+
     public boolean isComplete() {
         return naturalLanguageQuery != null && 
                !naturalLanguageQuery.trim().isEmpty() &&
                getOrganizationId() != null;
     }
-    
-    
+
     public int calculateQueryComplexity() {
         int complexity = 1; 
         
@@ -237,28 +224,24 @@ public class StudioQueryContext extends IAMContext {
         
         return Math.min(complexity, 20); 
     }
-    
-    
+
     public void addQueryMetadata(String key, Object value) {
         this.queryMetadata.put(key, value);
     }
-    
-    
+
     @SuppressWarnings("unchecked")
     public <T> T getQueryMetadata(String key, Class<T> type) {
         Object value = queryMetadata.get(key);
         return type.isInstance(value) ? (T) value : null;
     }
-    
-    
+
     public String getCombinationKey() {
         if (queryType != null && entityType != null) {
             return queryType + "_" + entityType;
         }
         return "UNKNOWN";
     }
-    
-    
+
     public Map<String, Object> getContextData() {
         Map<String, Object> data = new HashMap<>();
         data.put("naturalLanguageQuery", naturalLanguageQuery);

@@ -23,7 +23,6 @@ import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 @RequestMapping("/auth/step-up")
 @RequiredArgsConstructor
@@ -42,7 +41,6 @@ public class StepUpAuthController {
     @Value("${security.stepup.lockout-duration:300}")
     private long lockoutDuration;
 
-    
     @GetMapping
     public String showStepUpForm(HttpServletRequest request, Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -51,14 +49,12 @@ public class StepUpAuthController {
             return "redirect:/login";
         }
 
-        
         String sessionId = extractSessionId(request);
         if (sessionId == null) {
             log.warn("[StepUpAuth] No session ID found for step-up authentication");
             return "redirect:/login";
         }
 
-        
         String gracePeriodKey = "session:threat:grace:" + sessionId;
         Map<Object, Object> graceData = redisTemplate.opsForHash().entries(gracePeriodKey);
 
@@ -68,14 +64,12 @@ public class StepUpAuthController {
             return "redirect:/";
         }
 
-        
         Long ttl = redisTemplate.getExpire(gracePeriodKey);
         if (ttl != null && ttl > 0) {
             model.addAttribute("remainingTime", ttl);
             model.addAttribute("remainingMinutes", ttl / 60);
         }
 
-        
         Object threatScore = graceData.get("threatScore");
         if (threatScore != null) {
             model.addAttribute("threatScore", threatScore);
@@ -87,7 +81,6 @@ public class StepUpAuthController {
         return "auth/step-up";
     }
 
-    
     @PostMapping
     public String processStepUp(
             @RequestParam String password,
@@ -108,7 +101,6 @@ public class StepUpAuthController {
                 return "redirect:/auth/step-up";
             }
 
-            
             String attemptKey = "stepup:attempts:" + username;
             Integer attempts = (Integer) redisTemplate.opsForValue().get(attemptKey);
 
@@ -119,7 +111,6 @@ public class StepUpAuthController {
                 return "redirect:/auth/step-up";
             }
 
-            
             UserDetails userDetails = userDetailsService.loadUserByUsername(username);
             boolean passwordValid = passwordEncoder.matches(password, userDetails.getPassword());
 
@@ -129,10 +120,8 @@ public class StepUpAuthController {
                 return "redirect:/auth/step-up";
             }
 
-            
             handleStepUpSuccess(username, sessionId);
 
-            
             if (isMfaEnabled(username)) {
                 return "redirect:/auth/step-up/mfa";
             }
@@ -140,7 +129,6 @@ public class StepUpAuthController {
             redirectAttributes.addFlashAttribute("success",
                 "재인증이 완료되었습니다. 안전하게 계속 사용하실 수 있습니다.");
 
-            
             String targetUrl = (String) request.getSession().getAttribute("stepup.target.url");
             if (targetUrl != null) {
                 request.getSession().removeAttribute("stepup.target.url");
@@ -156,7 +144,6 @@ public class StepUpAuthController {
         }
     }
 
-    
     @GetMapping("/mfa")
     public String showMfaForm(Model model, HttpServletRequest request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -171,14 +158,12 @@ public class StepUpAuthController {
         return "auth/step-up-mfa";
     }
 
-    
     @PostMapping("/mfa")
     public String processMfa(
             @RequestParam String mfaCode,
             HttpServletRequest request,
             RedirectAttributes redirectAttributes) {
 
-        
         boolean mfaValid = validateMfaCode(
             SecurityContextHolder.getContext().getAuthentication().getName(),
             mfaCode
@@ -195,19 +180,14 @@ public class StepUpAuthController {
         return "redirect:/";
     }
 
-    
     private void handleStepUpSuccess(String username, String sessionId) {
-        log.info("[StepUpAuth] Step-up authentication successful - user: {}", username);
 
-        
         String gracePeriodKey = "session:threat:grace:" + sessionId;
         redisTemplate.delete(gracePeriodKey);
 
-        
         String delayedKey = "session:threat:delayed:" + sessionId;
         redisTemplate.delete(delayedKey);
 
-        
         String monitoringKey = "session:threat:monitoring:" + sessionId;
         Map<String, Object> monitoringData = new HashMap<>();
         monitoringData.put("userId", username);
@@ -217,20 +197,16 @@ public class StepUpAuthController {
         redisTemplate.opsForHash().putAll(monitoringKey, monitoringData);
         redisTemplate.expire(monitoringKey, Duration.ofMinutes(30));
 
-        
         String attemptKey = "stepup:attempts:" + username;
         redisTemplate.delete(attemptKey);
 
-        
         logStepUpEvent(username, sessionId, "SUCCESS");
     }
 
-    
     private void handleStepUpFailure(String username, String sessionId,
                                      RedirectAttributes redirectAttributes) {
         log.warn("[StepUpAuth] Step-up authentication failed - user: {}", username);
 
-        
         String attemptKey = "stepup:attempts:" + username;
         Integer attempts = (Integer) redisTemplate.opsForValue().get(attemptKey);
 
@@ -249,18 +225,15 @@ public class StepUpAuthController {
             redirectAttributes.addFlashAttribute("error",
                 "재인증 시도 횟수를 초과했습니다. 5분 후 다시 시도해 주세요.");
 
-            
             shortenGracePeriod(sessionId);
         } else {
             redirectAttributes.addFlashAttribute("error",
                 String.format("비밀번호가 일치하지 않습니다. (남은 시도: %d회)", remainingAttempts));
         }
 
-        
         logStepUpEvent(username, sessionId, "FAILURE");
     }
 
-    
     private void shortenGracePeriod(String sessionId) {
         String gracePeriodKey = "session:threat:grace:" + sessionId;
         Long currentTtl = redisTemplate.getExpire(gracePeriodKey);
@@ -273,7 +246,6 @@ public class StepUpAuthController {
         }
     }
 
-    
     private boolean isMfaEnabled(String username) {
         
         String mfaKey = "user:mfa:enabled:" + username;
@@ -281,14 +253,11 @@ public class StepUpAuthController {
         return enabled != null && enabled;
     }
 
-    
     private boolean validateMfaCode(String username, String code) {
-        
-        
+
         return "123456".equals(code);
     }
 
-    
     private void logStepUpEvent(String username, String sessionId, String result) {
         try {
             Map<String, Object> eventData = new HashMap<>();
@@ -298,7 +267,6 @@ public class StepUpAuthController {
             eventData.put("result", result);
             eventData.put("timestamp", Instant.now().toString());
 
-            
             String eventKey = String.format("audit:stepup:%s:%d",
                 username, System.currentTimeMillis());
             redisTemplate.opsForValue().set(eventKey, eventData,
@@ -309,7 +277,6 @@ public class StepUpAuthController {
         }
     }
 
-    
     private String extractSessionId(HttpServletRequest request) {
         
         HttpSession session = request.getSession(false);
@@ -319,7 +286,6 @@ public class StepUpAuthController {
         return null;
     }
 
-    
     private String maskSessionId(String sessionId) {
         if (sessionId == null || sessionId.length() < 8) {
             return "***";

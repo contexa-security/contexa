@@ -57,7 +57,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     List<Policy> findByMethodIdentifierAndPhase(@Param("methodIdentifier") String methodIdentifier,
                                                 @Param("phase") PolicyCondition.AuthorizationPhase phase);
 
-
     @Query("SELECT DISTINCT p FROM Policy p " +
             "LEFT JOIN FETCH p.rules r " +
             "LEFT JOIN FETCH r.conditions " +
@@ -70,7 +69,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
             "WHERE p.friendlyDescription IS NULL")
     List<Policy> findByFriendlyDescriptionIsNull();
 
-    
     default List<Policy> findPoliciesMatchingUrl(String requestUrl) {
         AntPathMatcher pathMatcher = new AntPathMatcher();
         return findAllUrlPoliciesWithDetails().stream()
@@ -79,72 +77,57 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
                 .toList();
     }
 
-    
-
-    
     Page<Policy> findBySourceAndApprovalStatus(
         Policy.PolicySource source,
         Policy.ApprovalStatus status,
         Pageable pageable
     );
 
-    
     Page<Policy> findBySourceInAndApprovalStatus(
         List<Policy.PolicySource> sources,
         Policy.ApprovalStatus status,
         Pageable pageable
     );
 
-    
     Page<Policy> findBySource(Policy.PolicySource source, Pageable pageable);
 
-    
     Page<Policy> findBySourceIn(List<Policy.PolicySource> sources, Pageable pageable);
 
-    
     long countBySource(Policy.PolicySource source);
 
-    
     long countBySourceIn(List<Policy.PolicySource> sources);
 
-    
     long countBySourceInAndApprovalStatus(
         List<Policy.PolicySource> sources,
         Policy.ApprovalStatus status
     );
 
-    
     long countBySourceInAndApprovalStatusInAndUpdatedAtAfter(
         List<Policy.PolicySource> sources,
         List<Policy.ApprovalStatus> statuses,
         LocalDateTime since
     );
 
-    
     long countBySourceInAndApprovalStatusAndUpdatedAtAfter(
         List<Policy.PolicySource> sources,
         Policy.ApprovalStatus status,
         LocalDateTime since
     );
 
-    
     @Query("SELECT AVG(p.confidenceScore) FROM Policy p " +
            "WHERE p.source IN ('AI_GENERATED', 'AI_EVOLVED') AND p.confidenceScore IS NOT NULL")
     Double calculateAverageConfidenceScoreForAIPolicies();
 
-    
     @Query("SELECT p FROM Policy p " +
            "WHERE p.source IN ('AI_GENERATED', 'AI_EVOLVED') " +
            "AND p.isActive = true AND p.approvalStatus = 'APPROVED'")
     List<Policy> findActiveAIPolicies();
 
-    
     @Query("SELECT p FROM Policy p " +
            "WHERE p.source IN ('AI_GENERATED', 'AI_EVOLVED') " +
            "AND p.confidenceScore >= :minScore")
     List<Policy> findAIPoliciesWithMinConfidence(@Param("minScore") double minScore);
 
-    
     @Query("SELECT p FROM Policy p " +
            "WHERE p.source IN ('AI_GENERATED', 'AI_EVOLVED') " +
            "AND p.createdAt >= :since " +

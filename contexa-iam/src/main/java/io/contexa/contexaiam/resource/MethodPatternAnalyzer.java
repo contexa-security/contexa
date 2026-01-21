@@ -11,7 +11,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class MethodPatternAnalyzer {
 
-    
     @Data
     public static class MethodAnalysisResult {
         private String methodIdentifier;
@@ -30,7 +29,6 @@ public class MethodPatternAnalyzer {
         }
     }
 
-    
     @Data
     public static class ParameterInfo {
         private String name;
@@ -40,7 +38,6 @@ public class MethodPatternAnalyzer {
         private boolean isEntityType;
     }
 
-    
     public enum ConditionPattern {
         OBJECT_RETURN_PATTERN,    
         ID_PARAMETER_PATTERN,     
@@ -49,32 +46,23 @@ public class MethodPatternAnalyzer {
         UNSUPPORTED_PATTERN       
     }
 
-    
     public MethodAnalysisResult analyzeMethod(Method method, String resourceIdentifier) {
-        log.debug("메서드 분석 시작: {}.{}", method.getDeclaringClass().getSimpleName(), method.getName());
-        
+                
         MethodAnalysisResult result = new MethodAnalysisResult();
         result.setMethodIdentifier(generateMethodIdentifier(method, resourceIdentifier));
         result.setClassName(method.getDeclaringClass().getSimpleName());
         result.setMethodName(method.getName());
         result.setReturnType(method.getReturnType());
-        
-        
+
         analyzeParameters(method, result);
-        
-        
+
         detectConditionPattern(result);
-        
-        
+
         generateTemplates(result);
-        
-        log.debug("메서드 분석 완료: {} → 패턴: {}, 템플릿 수: {}",
-            result.getMethodIdentifier(), result.getDetectedPattern(), result.getGeneratedTemplates().size());
-        
+
         return result;
     }
 
-    
     private void analyzeParameters(Method method, MethodAnalysisResult result) {
         Parameter[] parameters = method.getParameters();
         
@@ -92,7 +80,6 @@ public class MethodPatternAnalyzer {
         }
     }
 
-    
     private void detectConditionPattern(MethodAnalysisResult result) {
         
         if (isEntityReturnType(result.getReturnType())) {
@@ -100,8 +87,7 @@ public class MethodPatternAnalyzer {
             result.getMetadata().put("canUseReturnObject", true);
             return;
         }
-        
-        
+
         Optional<ParameterInfo> idParam = result.getParameters().stream()
             .filter(ParameterInfo::isIdType)
             .findFirst();
@@ -110,18 +96,15 @@ public class MethodPatternAnalyzer {
             result.setDetectedPattern(ConditionPattern.ID_PARAMETER_PATTERN);
             result.getMetadata().put("idParameterIndex", idParam.get().getIndex());
             result.getMetadata().put("idParameterName", idParam.get().getName());
-            
-            
+
             String entityType = inferEntityTypeFromMethod(result);
             result.getMetadata().put("entityType", entityType);
             return;
         }
-        
-        
+
         result.setDetectedPattern(ConditionPattern.UNIVERSAL_PATTERN);
     }
 
-    
     private void generateTemplates(MethodAnalysisResult result) {
         switch (result.getDetectedPattern()) {
             case OBJECT_RETURN_PATTERN:
@@ -138,16 +121,13 @@ public class MethodPatternAnalyzer {
         }
     }
 
-    
     private void generateObjectReturnTemplates(MethodAnalysisResult result) {
         String entityType = result.getReturnType().getSimpleName();
-        
-        
+
         result.getGeneratedTemplates().add("hasPermission(#returnObject, 'READ')");
         result.getGeneratedTemplates().add("hasPermission(#returnObject, 'UPDATE')");
         result.getGeneratedTemplates().add("hasPermission(#returnObject, 'DELETE')");
-        
-        
+
         result.getGeneratedTemplates().add("#returnObject.owner == #authentication.name");
         result.getGeneratedTemplates().add("#returnObject.createdBy == #authentication.name");
         
@@ -155,16 +135,13 @@ public class MethodPatternAnalyzer {
         result.getMetadata().put("entityType", entityType);
     }
 
-    
     private void generateIdParameterTemplates(MethodAnalysisResult result) {
         String entityType = (String) result.getMetadata().get("entityType");
         String idParamName = (String) result.getMetadata().get("idParameterName");
-        
-        
+
         result.getGeneratedTemplates().add(String.format("hasPermission(#%s, '%s', 'UPDATE')", idParamName, entityType));
         result.getGeneratedTemplates().add(String.format("hasPermission(#%s, '%s', 'DELETE')", idParamName, entityType));
-        
-        
+
         if ("User".equals(entityType)) {
             result.getGeneratedTemplates().add(String.format("#%s == #authentication.id", idParamName));
         }
@@ -173,17 +150,14 @@ public class MethodPatternAnalyzer {
         result.getMetadata().put("entityType", entityType);
     }
 
-    
     private void generateUniversalTemplates(MethodAnalysisResult result) {
         
         result.getGeneratedTemplates().add("T(java.time.LocalTime).now().hour >= 9 and T(java.time.LocalTime).now().hour <= 18");
         result.getGeneratedTemplates().add("T(java.time.LocalDate).now().dayOfWeek.value <= 5");
-        
-        
+
         result.getGeneratedTemplates().add("#request.remoteAddr matches '^192\\\\.168\\\\..*'");
         result.getGeneratedTemplates().add("#request.remoteAddr matches '^10\\\\..*'");
-        
-        
+
         result.getGeneratedTemplates().add("hasRole('ADMIN')");
         result.getGeneratedTemplates().add("hasRole('MANAGER')");
         result.getGeneratedTemplates().add("hasAuthority('SYSTEM_ADMIN')");
@@ -191,7 +165,6 @@ public class MethodPatternAnalyzer {
         result.getMetadata().put("templateType", "universal");
     }
 
-    
     private String generateMethodIdentifier(Method method, String resourceIdentifier) {
         return String.format("%s_%s_%s", 
             resourceIdentifier,
@@ -199,21 +172,18 @@ public class MethodPatternAnalyzer {
             method.getName());
     }
 
-    
     private boolean isIdType(Class<?> type) {
         return type == Long.class || type == long.class ||
                type == Integer.class || type == int.class ||
                type == String.class;
     }
 
-    
     private boolean isEntityType(Class<?> type) {
         
         return type.getPackage() != null && 
                type.getPackage().getName().contains(".entity");
     }
 
-    
     private boolean isEntityReturnType(Class<?> returnType) {
         return !returnType.equals(void.class) && 
                !returnType.equals(Void.class) &&
@@ -222,37 +192,30 @@ public class MethodPatternAnalyzer {
                isEntityType(returnType);
     }
 
-    
     private String inferEntityTypeFromMethod(MethodAnalysisResult result) {
         String methodName = result.getMethodName();
-        
-        
+
         if (methodName.contains("User")) return "User";
         if (methodName.contains("Project")) return "Project";
         if (methodName.contains("Document")) return "Document";
         if (methodName.contains("Role")) return "Role";
         if (methodName.contains("Permission")) return "Permission";
-        
-        
+
         String className = result.getClassName();
         if (className.endsWith("Controller")) {
             String entityName = className.replace("Controller", "");
             return entityName;
         }
-        
-        
+
         return "Entity";
     }
 
-    
     public List<MethodAnalysisResult> analyzeMethods(List<Method> methods, String resourceIdentifier) {
-        log.info("메서드 일괄 분석 시작: {} 개 메서드", methods.size());
-        
+                
         List<MethodAnalysisResult> results = methods.stream()
             .map(method -> analyzeMethod(method, resourceIdentifier))
             .collect(Collectors.toList());
         
-        log.info("메서드 일괄 분석 완료: {} 개 결과", results.size());
-        return results;
+                return results;
     }
 } 

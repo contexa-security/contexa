@@ -22,7 +22,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQueryContext, StudioQueryResponse> {
 
@@ -108,9 +107,6 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
             queryType = "GENERAL";
         }
 
-        log.info("StudioQueryRequest 생성 - query={}, queryType={}, userId={}",
-                naturalLanguageQuery.length() > 50 ? naturalLanguageQuery.substring(0, 50) + "..." : naturalLanguageQuery, queryType, userId);
-
         StudioQueryRequest studioQueryRequest = new StudioQueryRequest();
         studioQueryRequest.setQuery(naturalLanguageQuery);
         studioQueryRequest.setUserId(userId);
@@ -126,8 +122,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
         AILab<StudioQueryRequest, StudioQueryResponse> studioQueryLab = (StudioQueryLab) lab;
         StudioQueryRequest studioQueryRequest = (StudioQueryRequest) labRequest;
 
-        log.info("Studio Query 요청: {}", studioQueryRequest.getQuery());
-        return studioQueryLab.process(studioQueryRequest);
+                return studioQueryLab.process(studioQueryRequest);
     }
 
     @Override
@@ -135,8 +130,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
         AILab<StudioQueryRequest, StudioQueryResponse> studioQueryLab = (StudioQueryLab) lab;
         StudioQueryRequest studioQueryRequest = (StudioQueryRequest) labRequest;
 
-        log.info("비동기 Studio Query 요청: {}", studioQueryRequest.getQuery());
-        return studioQueryLab.processAsync(studioQueryRequest);
+                return studioQueryLab.processAsync(studioQueryRequest);
     }
 
     @Override
@@ -144,18 +138,13 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
         AILab<StudioQueryRequest, StudioQueryResponse> studioQueryLab = (StudioQueryLab) lab;
         StudioQueryRequest studioQueryRequest = (StudioQueryRequest) labRequest;
 
-        log.info("실시간 스트리밍 Studio Query 요청: {}", studioQueryRequest.getQuery());
-
         return studioQueryLab.processStream(studioQueryRequest)
                 .doOnSubscribe(subscription -> {
-                    log.info("스트리밍 구독 시작 - 요청: {}", request.getRequestId());
-                })
+                                    })
                 .doOnNext(chunk -> {
-                    log.debug("스트리밍 청크 전달: {}", chunk.length() > 50 ? chunk.substring(0, 50) + "..." : chunk);
-                })
+                                    })
                 .doOnComplete(() -> {
-                    log.info("스트리밍 Studio Query 진단 전략 실행 완료 - 요청: {}", request.getRequestId());
-                })
+                                    })
                 .doOnError(error -> {
                     log.error("스트리밍 Studio Query 진단 전략 실행 실패 - 요청: {}", request.getRequestId(), error);
                 });

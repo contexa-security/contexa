@@ -63,7 +63,6 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         nodes.add(new GraphDataDto.Node(userNodeId, user.getName(), "USER", Map.of("email", user.getUsername())));
         String permNodeId = "perm_" + targetPermission.getId();
 
-        
         String permLabel = StringUtils.hasText(targetPermission.getDescription()) ? targetPermission.getDescription() : targetPermission.getName();
 
         for (UserGroup userGroup : user.getUserGroups()) {
@@ -112,7 +111,6 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         nodes.add(new GraphDataDto.Node(groupNodeId, group.getName(), "GROUP", Map.of("description", group.getDescription())));
         String permNodeId = "perm_" + targetPermission.getId();
 
-        
         String permLabel = StringUtils.hasText(targetPermission.getDescription()) ? targetPermission.getDescription() : targetPermission.getName();
 
         for (GroupRole groupRole : group.getGroupRoles()) {
@@ -172,10 +170,6 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         return details;
     }
 
-    
-    
-    
-
     @Override
     public AccessPathDto analyzeAccessPath(Long subjectId, String subjectType, Long permissionId) {
         Permission targetPermission = permissionRepository.findById(permissionId)
@@ -204,8 +198,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 Role role = groupRole.getRole();
                 for (RolePermission rolePermission : role.getRolePermissions()) {
                     if (rolePermission.getPermission().equals(targetPermission)) {
-                        log.debug("Access path found for user {} to permission {} via role {}", user.getUsername(), targetPermission.getName(), role.getRoleName());
-                        path.add(new AccessPathNode("그룹", group.getName(), group.getDescription()));
+                                                path.add(new AccessPathNode("그룹", group.getName(), group.getDescription()));
                         path.add(new AccessPathNode("역할", role.getRoleName(), role.getRoleDesc()));
                         path.add(new AccessPathNode("권한", targetPermission.getDescription(), targetPermission.getName()));
                         return new AccessPathDto(path, true, "접근 허용: 역할 '" + role.getRoleName() + "'을 통해 권한이 부여되었습니다.");
@@ -214,8 +207,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
             }
         }
 
-        log.debug("No access path found for user {} to permission {}", user.getUsername(), targetPermission.getName());
-        path.add(new AccessPathNode("권한", targetPermission.getDescription(), targetPermission.getName()));
+                path.add(new AccessPathNode("권한", targetPermission.getDescription(), targetPermission.getName()));
         return new AccessPathDto(path, false, "해당 권한을 부여하는 경로를 찾을 수 없습니다.");
     }
 
@@ -270,7 +262,6 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 .collect(Collectors.toList());
     }
 
-    
     @Override
     public List<EffectivePermissionDto> getEffectivePermissionsForSubject(VirtualSubject subject) {
         Map<String, String> permissionOrigins = new HashMap<>();

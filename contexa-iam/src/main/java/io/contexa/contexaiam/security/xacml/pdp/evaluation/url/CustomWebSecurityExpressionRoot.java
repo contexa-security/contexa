@@ -13,7 +13,6 @@ import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
 import java.util.List;
 
-
 @Slf4j
 public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressionRoot {
 
@@ -26,16 +25,12 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
         this.request = request;
 
-        log.info("CustomWebSecurityExpressionRoot 초기화 완료 - 템플릿 메서드 패턴 적용");
-    }
+            }
 
-    
     public boolean hasIpAddress(String ipAddress) {
         IpAddressMatcher matcher = new IpAddressMatcher(ipAddress);
         return matcher.matches(this.request);
     }
-
-    
 
     @Override
     protected ContextExtractionResult extractCurrentContext() {
@@ -73,8 +68,6 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
             return String.valueOf(System.currentTimeMillis() / 30000);
         }
     }
-
-    
 
     private String extractCurrentRequestIp() {
         try {
@@ -130,8 +123,6 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         }
     }
 
-    
-
     @Override
     protected String getRemoteIp() {
         
@@ -143,20 +134,16 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         return String.format("HTTP %s %s", request.getMethod(), request.getRequestURI());
     }
 
-    
     @Override
     public TrustAssessment assessContext() {
         try {
             TrustAssessment assessment = super.assessContext();
-            log.info("웹 보안 AI 평가 완료 - 점수: {}, 위험태그: {}",
-                     assessment.score(), assessment.riskTags());
-            
+                        
             return assessment;
             
         } catch (Exception e) {
             log.error("웹 보안 AI 신뢰도 평가 실패: {}", e.getMessage(), e);
-            
-            
+
             TrustAssessment fallback = createFallbackTrustAssessment();
             this.authorizationContext.attributes().put("ai_assessment", fallback);
             
@@ -164,7 +151,6 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         }
     }
 
-    
     public double getAiScore() {
         try {
             TrustAssessment assessment = assessContext();
@@ -175,7 +161,6 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
         }
     }
 
-    
     private TrustAssessment createFallbackTrustAssessment() {
         return new TrustAssessment(0.3, List.of("EVALUATION_FAILED", "LOW_TRUST"), "웹 보안 AI 평가 실패 - 보수적 정책 적용");
     }

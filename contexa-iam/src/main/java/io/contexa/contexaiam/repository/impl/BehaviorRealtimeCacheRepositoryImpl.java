@@ -6,7 +6,6 @@ import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
-
 @Repository
 @Transactional
 public class BehaviorRealtimeCacheRepositoryImpl {
@@ -14,12 +13,10 @@ public class BehaviorRealtimeCacheRepositoryImpl {
     @PersistenceContext
     private EntityManager entityManager;
 
-    
     public BehaviorRealtimeCache saveWithJsonHandling(BehaviorRealtimeCache cache) {
         String recentActivities = cache.getRecentActivities();
         String riskFactors = cache.getRiskFactors();
 
-        
         if (recentActivities == null || recentActivities.isEmpty()) {
             recentActivities = "[]";
         }

@@ -5,7 +5,6 @@ import io.contexa.contexacommon.entity.Users;
 import lombok.Getter;
 import java.util.Set;
 
-
 @Getter
 public class VirtualSubject {
     private final Users originalUser;

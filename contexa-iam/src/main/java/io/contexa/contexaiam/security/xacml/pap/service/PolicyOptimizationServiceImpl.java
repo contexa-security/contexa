@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PolicyOptimizationServiceImpl implements PolicyOptimizationService {
@@ -25,19 +24,16 @@ public class PolicyOptimizationServiceImpl implements PolicyOptimizationService 
     private final PolicyRepository policyRepository;
     private final ModelMapper modelMapper;
 
-    
     @Override
     public List<DuplicatePolicyDto> findDuplicatePolicies() {
         List<Policy> policies = policyRepository.findAllWithDetails();
 
-        
         Map<String, List<Long>> signatureMap = policies.stream()
                 .collect(Collectors.groupingBy(
                         this::createPolicySignature,
                         Collectors.mapping(Policy::getId, Collectors.toList())
                 ));
 
-        
         return signatureMap.entrySet().stream()
                 .filter(entry -> entry.getValue().size() > 1)
                 
@@ -45,18 +41,15 @@ public class PolicyOptimizationServiceImpl implements PolicyOptimizationService 
                 .collect(Collectors.toList());
     }
 
-    
     private String createPolicySignature(Policy policy) {
         
         String effect = policy.getEffect().name();
 
-        
         String targets = policy.getTargets().stream()
                 .map(t -> t.getTargetType() + ":" + t.getTargetIdentifier() + ":" + t.getHttpMethod())
                 .sorted()
                 .collect(Collectors.joining(","));
 
-        
         String conditions = policy.getRules().stream()
                 .flatMap(rule -> rule.getConditions().stream())
                 .map(PolicyCondition::getExpression)
@@ -66,7 +59,6 @@ public class PolicyOptimizationServiceImpl implements PolicyOptimizationService 
         return String.join("|", effect, targets, conditions);
     }
 
-    
     @Override
     public PolicyDto proposeMerge(List<Long> policyIds) {
         if (CollectionUtils.isEmpty(policyIds) || policyIds.size() < 2) {
@@ -95,20 +87,16 @@ public class PolicyOptimizationServiceImpl implements PolicyOptimizationService 
                 .distinct()
                 .collect(Collectors.joining(" or "));
 
-        
-        
         ConditionDto mergedConditionDto = ConditionDto.builder()
                 .expression(mergedCondition)
                 .authorizationPhase(PolicyCondition.AuthorizationPhase.PRE_AUTHORIZE)
                 .build();
 
-        
         RuleDto mergedRule = RuleDto.builder()
                 .description("ID " + policyIds + " 정책들로부터 병합됨")
                 .conditions(List.of(mergedConditionDto))
                 .build();
 
-        
         return PolicyDto.builder()
                 .name("Merged-Policy-" + String.join("-", policyIds.stream().map(String::valueOf).toList()))
                 .description("여러 정책이 하나로 병합되었습니다.")

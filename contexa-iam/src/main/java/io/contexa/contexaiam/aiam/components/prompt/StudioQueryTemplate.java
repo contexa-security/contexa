@@ -9,7 +9,6 @@ import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-
 @Slf4j
 @PromptTemplateConfig(
         key = "studioQuery",
@@ -17,8 +16,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
         description = "Spring AI Structured Output Authorization Studio Query Template"
 )
 public class StudioQueryTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<StudioQueryResponse> converter = 
         new BeanOutputConverter<>(StudioQueryResponse.class);
 
@@ -32,23 +30,13 @@ public class StudioQueryTemplate implements PromptTemplate {
         
         String naturalQuery = extractNaturalQuery(request);
 
-        
         String iamDataContext = request.getParameter("iamDataContext", String.class);
 
-        
-        log.info("파이프라인 contextInfo (첫 300자): {}",
-                contextInfo != null && contextInfo.length() > 300 ? contextInfo.substring(0, 300) + "..." : contextInfo);
-        log.info("우리가 전달한 iamDataContext (첫 300자): {}",
-                iamDataContext != null && iamDataContext.length() > 300 ? iamDataContext.substring(0, 300) + "..." : iamDataContext);
-        log.info("자연어 질의: {}", naturalQuery);
-
-        
         String actualContextInfo = iamDataContext != null ? iamDataContext : contextInfo;
 
         return buildStudioQueryUserPrompt(naturalQuery, actualContextInfo);
     }
 
-    
     private String buildStudioQuerySystemPrompt(String systemMetadata) {
         return String.format("""
               <role>
@@ -184,8 +172,7 @@ public class StudioQueryTemplate implements PromptTemplate {
 
         return "자연어 질의가 제공되지 않았습니다";
     }
-    
-    
+
     public BeanOutputConverter<StudioQueryResponse> getConverter() {
         return converter;
     }

@@ -23,7 +23,6 @@ public class VisualizationServiceImpl implements VisualizationService {
         List<GraphDataDto.Node> nodes = new ArrayList<>();
         List<GraphDataDto.Edge> edges = new ArrayList<>();
 
-        
         nodes.add(new GraphDataDto.Node("user_" + user.getId(), user.getName(), "USER", Map.of("email", user.getUsername())));
 
         for (UserGroup ug : user.getUserGroups()) {

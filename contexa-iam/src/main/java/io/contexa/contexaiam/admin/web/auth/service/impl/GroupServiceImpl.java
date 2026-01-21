@@ -46,7 +46,6 @@ public class GroupServiceImpl implements GroupService {
         return groupRepository.findByIdWithRoles(id);
     }
 
-    
     public List<Group> getAllGroups() {
         return groupRepository.findAllWithRolesAndUsers();
     }
@@ -66,7 +65,6 @@ public class GroupServiceImpl implements GroupService {
         existingGroup.setName(group.getName());
         existingGroup.setDescription(group.getDescription());
 
-        
         Set<Long> desiredRoleIds = selectedRoleIds != null ? new HashSet<>(selectedRoleIds) : new HashSet<>();
         Set<GroupRole> currentGroupRoles = existingGroup.getGroupRoles();
 
@@ -83,7 +81,6 @@ public class GroupServiceImpl implements GroupService {
                             .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + newRoleId));
                     currentGroupRoles.add(GroupRole.builder().group(existingGroup).role(role).build());
                 });
-        
 
         return existingGroup; 
     }

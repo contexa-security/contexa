@@ -8,7 +8,6 @@ import lombok.Data;
 
 import java.util.List;
 
-
 @Data
 public class IAMDataSet {
     
@@ -19,27 +18,23 @@ public class IAMDataSet {
     
     private String error;
     private boolean success = true;
-    
-    
+
     public void setError(String error) {
         this.error = error;
         this.success = false;
     }
-    
-    
+
     public boolean isSuccess() {
         return success && error == null;
     }
-    
-    
+
     public boolean hasData() {
         return (users != null && !users.isEmpty()) ||
                (groups != null && !groups.isEmpty()) ||
                (roles != null && !roles.isEmpty()) ||
                (permissions != null && !permissions.isEmpty());
     }
-    
-    
+
     public String getSummary() {
         if (!isSuccess()) {
             return "데이터 수집 실패: " + error;

@@ -28,7 +28,6 @@ import org.springframework.beans.factory.annotation.Value;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class StudioQueryContextRetriever extends ContextRetriever {
 
@@ -69,11 +68,9 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         this.vectorService = vectorService;
     }
 
-    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-        log.info("ApplicationContext refreshed. Initializing StudioQueryContextRetriever...");
-        registerSelf();
+                registerSelf();
     }
 
     private void registerSelf() {
@@ -83,46 +80,36 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         }
 
         registry.registerRetriever(StudioQueryContext.class, this);
-        log.info("StudioQueryContextRetriever 자동 등록 완료: StudioQueryContext → {}",
-                this.getClass().getSimpleName());
-    }
-    
-    
+            }
+
     private void createStudioAdvisor() {
         
         QueryTransformer studioQueryTransformer = new StudioQueryTransformer(chatClientBuilder);
-        
-        
+
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
             filterBuilder.in("documentType", "authorization", "query", "studio", "access"),
             filterBuilder.gte("relevanceScore", 0.6)
         ).build();
-        
-        
+
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(studioSimilarityThreshold)
             .topK(studioTopK)
             .filterExpression(filter)
             .build();
-        
-        
+
         studioAdvisor = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
             .queryTransformers(studioQueryTransformer)
             .build();
-        
-        
+
         registerDomainAdvisor(StudioQueryContext.class, studioAdvisor);
     }
 
-    
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<?> request) {
-        log.debug("StudioQueryContextRetriever.retrieveContext 호출됨");
 
-        
         if (request.getContext() instanceof StudioQueryContext) {
             String contextInfo = retrieveStudioQueryContext((AIRequest<StudioQueryContext>) request);
             return new ContextRetrievalResult(
@@ -132,64 +119,51 @@ public class StudioQueryContextRetriever extends ContextRetriever {
             );
         }
 
-        
         return super.retrieveContext(request);
     }
 
-    
     public String retrieveStudioQueryContext(AIRequest<StudioQueryContext> request) {
-        log.info("Studio Query 컨텍스트 검색 시작: {}", request.getRequestId());
-
+        
         try {
             StudioQueryContext context = request.getContext();
             StringBuilder contextBuilder = new StringBuilder();
 
-            
             String naturalQuery = context.getNaturalLanguageQuery();
             if (naturalQuery == null || naturalQuery.trim().isEmpty()) {
                 log.warn("자연어 질의가 비어있습니다");
                 return getDefaultStudioQueryContext();
             }
 
-            
             try {
                 vectorService.storeQuery(naturalQuery, context.inferQueryType().toString());
-                log.debug("💾 VectorService에 쿼리 저장 완료");
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("VectorService 쿼리 저장 실패: {}", e.getMessage());
             }
 
-            
             String similarQueryPatterns = searchSimilarQueryPatterns(naturalQuery);
             if (!similarQueryPatterns.isEmpty()) {
                 contextBuilder.append("## 📚 유사 질의 패턴 분석\n");
                 contextBuilder.append(similarQueryPatterns).append("\n\n");
             }
 
-            
             String authorizationStructure = buildAuthorizationStructure(context);
             contextBuilder.append("## 🏢 현재 권한 구조\n");
             contextBuilder.append(authorizationStructure).append("\n\n");
 
-            
             String mappingInfo = buildUserGroupRolePermissionMapping(context);
             contextBuilder.append("## 🔗 권한 매핑 정보\n");
             contextBuilder.append(mappingInfo).append("\n\n");
 
-            
             String analysisGuidelines = getQueryTypeGuidelines(context);
             contextBuilder.append("## 분석 가이드라인\n");
             contextBuilder.append(analysisGuidelines);
 
             String result = contextBuilder.toString();
-            log.info("Studio Query 컨텍스트 검색 완료 - 길이: {}", result.length());
-            
-            
+
             try {
                 String queryId = request.getRequestId();
                 vectorService.storeQueryResult(queryId, result);
-                log.debug("💾 VectorService에 쿼리 결과 저장 완료");
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("VectorService 결과 저장 실패: {}", e.getMessage());
             }
             
@@ -201,13 +175,11 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String searchSimilarQueryPatterns(String naturalQuery) {
         try {
             
             List<Document> similarQueries = vectorService.findSimilarQueries(naturalQuery, 5);
-            
-            
+
             String searchQuery = String.format("Authorization Studio 질의: %s", naturalQuery);
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(searchQuery)
@@ -215,12 +187,10 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                     .similarityThreshold(0.6)
                     .build();
             List<Document> vectorDocs = vectorStore.similaritySearch(searchRequest);
-            
-            
+
             List<Document> allDocs = new ArrayList<>();
             allDocs.addAll(similarQueries);
-            
-            
+
             for (Document doc : vectorDocs) {
                 boolean isDuplicate = allDocs.stream()
                     .anyMatch(existing -> existing.getText().equals(doc.getText()));
@@ -240,7 +210,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                 Document doc = allDocs.get(i);
                 patterns.append(String.format("%d. %s\n", i + 1, doc.getText()));
 
-                
                 if (doc.getMetadata().containsKey("queryType")) {
                     patterns.append("   - 질의 타입: ").append(doc.getMetadata().get("queryType")).append("\n");
                 }
@@ -260,7 +229,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String buildAuthorizationStructure(StudioQueryContext context) {
         StringBuilder structure = new StringBuilder();
 
@@ -269,19 +237,15 @@ public class StudioQueryContextRetriever extends ContextRetriever {
             long totalUsers = userRepository.count();
             structure.append(String.format("- 전체 사용자 수: %d명\n", totalUsers));
 
-            
             long totalGroups = groupRepository.count();
             structure.append(String.format("- 전체 그룹 수: %d개\n", totalGroups));
 
-            
             long totalRoles = roleRepository.count();
             structure.append(String.format("- 전체 역할 수: %d개\n", totalRoles));
 
-            
             long totalPermissions = permissionRepository.count();
             structure.append(String.format("- 전체 권한 수: %d개\n", totalPermissions));
 
-            
             List<Group> topGroups = groupRepository.findAll().stream()
                     .limit(10)
                     .collect(Collectors.toList());
@@ -294,7 +258,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                 structure.append("\n");
             }
 
-            
             List<Role> topRoles = roleRepository.findAll().stream()
                     .limit(10)
                     .collect(Collectors.toList());
@@ -307,7 +270,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                 structure.append("\n");
             }
 
-            
             List<Permission> topPermissions = permissionRepository.findAll().stream()
                     .limit(15)
                     .collect(Collectors.toList());
@@ -328,13 +290,11 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         return structure.toString();
     }
 
-    
     private String buildUserGroupRolePermissionMapping(StudioQueryContext context) {
         StringBuilder mapping = new StringBuilder();
 
         try {
-            
-            
+
             List<Users> sampleUsers = userRepository.findAllWithDetails().stream()
                     .limit(5)
                     .collect(Collectors.toList());
@@ -345,7 +305,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                 for (Users user : sampleUsers) {
                     mapping.append(String.format("\n#### %s (ID: %d):\n", user.getName(), user.getId()));
 
-                    
                     Set<UserGroup> userGroups = user.getUserGroups();
                     if (userGroups != null && !userGroups.isEmpty()) {
                         mapping.append("- 소속 그룹: ");
@@ -355,7 +314,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                         mapping.append(groupNames).append("\n");
                     }
 
-                    
                     Set<Role> userRoles = getUserRolesFromGroups(user);
                     if (!userRoles.isEmpty()) {
                         mapping.append("- 보유 역할: ");
@@ -365,7 +323,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                         mapping.append(roleNames).append("\n");
                     }
 
-                    
                     Set<Permission> userPermissions = getPermissionsFromRoles(userRoles);
                     if (!userPermissions.isEmpty()) {
                         mapping.append("- 보유 권한: ");
@@ -382,7 +339,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                 }
             }
 
-            
             mapping.append("\n### 그룹별 역할 매핑:\n");
             List<Group> sampleGroups = groupRepository.findAllWithRolesAndPermissions().stream()
                     .limit(5)
@@ -391,7 +347,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
             for (Group group : sampleGroups) {
                 mapping.append(String.format("- %s: ", group.getName()));
 
-                
                 Set<GroupRole> groupRoles = group.getGroupRoles();
                 if (groupRoles != null && !groupRoles.isEmpty()) {
                     String roleNames = groupRoles.stream()
@@ -412,7 +367,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         return mapping.toString();
     }
 
-    
     private Set<Role> getUserRolesFromGroups(Users user) {
         Set<Role> roles = new HashSet<>();
         if (user.getUserGroups() != null) {
@@ -430,7 +384,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         return roles;
     }
 
-    
     private Set<Permission> getPermissionsFromRoles(Set<Role> roles) {
         Set<Permission> permissions = new HashSet<>();
         for (Role role : roles) {
@@ -445,18 +398,15 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         return permissions;
     }
 
-    
     private String getQueryTypeGuidelines(StudioQueryContext context) {
         StudioQueryContext.QueryType queryType = context.inferQueryType();
         StudioQueryContext.QueryScope queryScope = context.inferQueryScope();
 
         StringBuilder guidelines = new StringBuilder();
 
-        
         guidelines.append("### 질의 타입: ").append(queryType != null ? queryType.getDescription() : "일반 분석").append("\n");
         guidelines.append("### 질의 범위: ").append(queryScope != null ? queryScope.getDescription() : "전체").append("\n\n");
 
-        
         guidelines.append("### 분석 지침:\n");
 
         if (queryType == StudioQueryContext.QueryType.WHO_CAN) {
@@ -492,7 +442,6 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         return guidelines.toString();
     }
 
-    
     private String getDefaultStudioQueryContext() {
         return """
         ## 기본 Authorization Studio 컨텍스트
@@ -516,8 +465,7 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         - 컴플라이언스 고려
         """;
     }
-    
-    
+
     private static class StudioQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

@@ -8,7 +8,6 @@ import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationR
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-
 @Slf4j
 @PromptTemplateConfig(
     key = "generateSpecificConditionTemplates",
@@ -16,8 +15,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
     description = "Spring AI Structured Output Specific Condition Template"
 )
 public class SpecificConditionTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter = 
         new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
     
@@ -129,12 +127,10 @@ public class SpecificConditionTemplate implements PromptTemplate {
             
             Generate complete ConditionTemplateGenerationResponse in JSON format.
             """, methodSignature);
-        
-        
+
         return conditionRequest + "\n\n" + converter.getFormat();
     }
-    
-    
+
     public BeanOutputConverter<ConditionTemplateGenerationResponse> getConverter() {
         return converter;
     }

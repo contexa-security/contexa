@@ -20,7 +20,6 @@ public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final FunctionCatalogRepository functionCatalogRepository;
 
-    
     @Transactional
     @Caching(
             evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)}, 
@@ -35,21 +34,18 @@ public class PermissionServiceImpl implements PermissionService {
         return permissionRepository.save(permission);
     }
 
-    
     @Cacheable(value = "permissions", key = "#id")
     @Override
     public Optional<Permission> getPermission(Long id) {
         return permissionRepository.findById(id);
     }
 
-    
     @Cacheable(value = "permissions", key = "'allPermissions'")
     @Override
     public List<Permission> getAllPermissions() {
         return permissionRepository.findAll();
     }
 
-    
     @Transactional
     @Caching(
             evict = {
@@ -63,7 +59,6 @@ public class PermissionServiceImpl implements PermissionService {
         permissionRepository.deleteById(id);
     }
 
-    
     @Caching(
             evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)}, 
             put = {@CachePut(value = "permissions", key = "#result.id")} 
@@ -84,7 +79,6 @@ public class PermissionServiceImpl implements PermissionService {
         return permissionRepository.save(permission);
     }
 
-    
     @Cacheable(value = "permissionsByName", key = "#name")
     @Override
     public Optional<Permission> findByName(String name) {

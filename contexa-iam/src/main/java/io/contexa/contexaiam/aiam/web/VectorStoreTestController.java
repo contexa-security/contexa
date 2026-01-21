@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequestMapping("/api/vectorstore/test")
 @RequiredArgsConstructor
@@ -22,25 +21,16 @@ public class VectorStoreTestController {
 
     private final StandardVectorStoreService vectorStoreService;
 
-    
     @PostMapping("/add")
     public ResponseEntity<?> addTestDocument(@RequestBody AddDocumentRequest request) {
         try {
-            log.info("=== VectorStore 테스트 문서 추가 시작 ===");
-            log.info("Content: {}", request.getContent());
-            log.info("Metadata: {}", request.getMetadata());
 
-            
             Document document = new Document(
                 request.getContent(),
                 request.getMetadata() != null ? request.getMetadata() : Map.of()
             );
 
-            
             vectorStoreService.addDocuments(List.of(document));
-
-            log.info("=== VectorStore 테스트 문서 추가 완료 ===");
-            log.info("메트릭이 생성되었습니다. /actuator/prometheus 에서 확인 가능합니다.");
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -58,25 +48,16 @@ public class VectorStoreTestController {
         }
     }
 
-    
     @PostMapping("/search")
     public ResponseEntity<?> searchTestDocuments(@RequestBody SearchRequestDto request) {
         try {
-            log.info("=== VectorStore 테스트 검색 시작 ===");
-            log.info("Query: {}", request.getQuery());
-            log.info("TopK: {}", request.getTopK());
 
-            
             SearchRequest searchRequest = SearchRequest.builder()
                 .query(request.getQuery())
                 .topK(request.getTopK() != null ? request.getTopK() : 5)
                 .build();
 
-            
             List<Document> results = vectorStoreService.similaritySearch(searchRequest);
-
-            log.info("=== VectorStore 테스트 검색 완료 ===");
-            log.info("메트릭이 생성되었습니다. 검색 결과: {} 건", results.size());
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -101,16 +82,13 @@ public class VectorStoreTestController {
         }
     }
 
-    
     @GetMapping("/generate-metrics")
     public ResponseEntity<?> generateMetrics() {
         try {
-            log.info("=== 메트릭 생성 시작 ===");
-
+            
             int addCount = 0;
             int searchCount = 0;
 
-            
             for (int i = 1; i <= 5; i++) {
                 try {
                     Document doc = new Document(
@@ -124,8 +102,7 @@ public class VectorStoreTestController {
 
                     vectorStoreService.addDocuments(List.of(doc));
                     addCount++;
-                    log.info("문서 #{} 추가 완료", i);
-
+                    
                 } catch (Exception e) {
                     log.warn("문서 #{} 추가 실패: {}", i, e.getMessage());
                 }
@@ -133,7 +110,6 @@ public class VectorStoreTestController {
                 Thread.sleep(100); 
             }
 
-            
             String[] queries = {
                 "테스트", "메트릭", "VectorStore", "샘플", "데이터",
                 "검색", "유사도", "문서", "임베딩", "벡터"
@@ -147,17 +123,13 @@ public class VectorStoreTestController {
                         .build();
                     vectorStoreService.similaritySearch(searchRequest);
                     searchCount++;
-                    log.info("검색 완료: {}", query);
-
+                    
                 } catch (Exception e) {
                     log.warn("검색 실패 ({}): {}", query, e.getMessage());
                 }
 
                 Thread.sleep(100); 
             }
-
-            log.info("=== 메트릭 생성 완료 ===");
-            log.info("추가: {} 건, 검색: {} 건", addCount, searchCount);
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -180,8 +152,6 @@ public class VectorStoreTestController {
             ));
         }
     }
-
-    
 
     @Data
     public static class AddDocumentRequest {

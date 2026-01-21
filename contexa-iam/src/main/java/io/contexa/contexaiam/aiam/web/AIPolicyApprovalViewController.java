@@ -7,18 +7,15 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-
 @Slf4j
 @RequestMapping("/admin/ai-policies")
 @RequiredArgsConstructor
 public class AIPolicyApprovalViewController {
 
-    
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_APPROVE')")
     public String aiPolicyApprovalPage(Model model) {
-        log.info("AI 정책 승인 관리 페이지 접근");
-
+        
         model.addAttribute("pageTitle", "AI 정책 승인 관리");
         model.addAttribute("activeMenu", "ai-policy");
 

@@ -11,30 +11,22 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class DynamicThreatResponseResponse extends IAMResponse {
-    
-    
+
     private PolicyProposal policyProposal;
-    
-    
+
     private String strategicPrinciple;
-    
-    
+
     private String spelExpression;
-    
-    
+
     private double aiConfidenceScore;
-    
-    
+
     private PolicyEffectPrediction effectPrediction;
-    
-    
+
     private ProcessingMetadata processingMetadata;
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -53,8 +45,7 @@ public class DynamicThreatResponseResponse extends IAMResponse {
         private Boolean requiresApproval;
         private String riskLevel;            
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -69,8 +60,7 @@ public class DynamicThreatResponseResponse extends IAMResponse {
         private LocalDateTime predictionTimestamp; 
         private String modelVersion;           
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -83,13 +73,11 @@ public class DynamicThreatResponseResponse extends IAMResponse {
         private Integer tokenUsage;
         private Map<String, Object> additionalInfo;
     }
-    
-    
+
     public DynamicThreatResponseResponse(String requestId, ExecutionStatus status) {
         super(requestId, status);
     }
-    
-    
+
     public DynamicThreatResponseResponse() {
         super("", ExecutionStatus.SUCCESS);
     }
@@ -108,8 +96,7 @@ public class DynamicThreatResponseResponse extends IAMResponse {
         data.put("effectPrediction", effectPrediction);
         return data;
     }
-    
-    
+
     public static DynamicThreatResponseResponse createSuccess(
             String requestId,
             PolicyProposal proposal,
@@ -129,8 +116,7 @@ public class DynamicThreatResponseResponse extends IAMResponse {
         
         return response;
     }
-    
-    
+
     public static DynamicThreatResponseResponse createFailure(
             String requestId,
             String errorMessage) {
@@ -139,21 +125,17 @@ public class DynamicThreatResponseResponse extends IAMResponse {
                 requestId, 
                 ExecutionStatus.FAILURE
         );
-        
-        
-        
+
         return response;
     }
-    
-    
+
     public boolean isValidProposal() {
         return policyProposal != null &&
                policyProposal.getTitle() != null &&
                policyProposal.getPolicyContent() != null &&
                getAiConfidenceScore() >= 0.5;
     }
-    
-    
+
     public boolean isHighRiskPolicy() {
         return policyProposal != null &&
                ("HIGH".equals(policyProposal.getRiskLevel()) || 

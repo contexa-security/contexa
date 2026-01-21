@@ -54,12 +54,9 @@ public class MvcResourceScanner implements ResourceScanner {
                 httpMethod = ManagedResource.HttpMethod.ANY;
             }
 
-            
             String friendlyName = handlerMethod.getMethod().getName();
             String description = String.format("URL: [%s] %s", httpMethodStr, urlPattern);
 
-            
-            
             String docsAnchor = String.format("%s_%s", beanType.getSimpleName().toLowerCase().replace("controller", ""), handlerMethod.getMethod().getName().toLowerCase());
             String apiDocsUrl = String.format("%s#%s", restDocsPath, docsAnchor);
 
@@ -75,7 +72,6 @@ public class MvcResourceScanner implements ResourceScanner {
                     .build());
         }
 
-        log.info("Successfully scanned and discovered {} URL resources for REST Docs.", resources.size());
-        return resources;
+                return resources;
     }
 }

@@ -35,7 +35,6 @@ import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurityExpressionHandler {
 
@@ -44,21 +43,17 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final DocumentRepository documentRepository;
     private final AttributeInformationPoint attributePIP;
     private final AuditLogService auditLogService;
-    
-    
+
     private final AINativeProcessor aINativeProcessor;
     private final AuditLogRepository auditLogRepository;
     private final ApplicationContext applicationContext;
-    
-    
+
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
-    
-    
+
     private final RedisTemplate<String, Double> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;  
 
-    
     private final String zeroTrustMode; 
 
     public CustomMethodSecurityExpressionHandler(
@@ -96,39 +91,32 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         super.setPermissionEvaluator(customPermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
 
-        log.info("CustomMethodSecurityExpressionHandler 초기화 완료 - Zero Trust 모드: {}", zeroTrustMode);
-    }
+            }
 
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, MethodInvocation mi) {
 
-        
         String ownerField = extractOwnerFieldFromMethod(mi.getMethod());
-        log.debug("🏠 @Protectable ownerField 추출: {}", ownerField);
 
-        
         Authentication auth = authentication.get();
         AuthorizationContext authorizationContext = contextHandler.create(auth, mi);
         
         AbstractAISecurityExpressionRoot root;
-        
-        
+
         switch (zeroTrustMode) {
             case "TRUST":
                 
                 root = new TrustSecurityExpressionRoot(
                     auth, attributePIP, aINativeProcessor, authorizationContext,
                     auditLogRepository, redisTemplate, stringRedisTemplate);
-                log.debug("Zero Trust TRUST 모드 - TrustSecurityExpressionRoot 사용 (Redis 조회)");
-                break;
+                                break;
                 
             case "REALTIME":
                 
                 root = new RealtimeAISecurityExpressionRoot(
                     auth, attributePIP, aINativeProcessor, authorizationContext, 
                     auditLogRepository);
-                log.debug("Zero Trust REALTIME 모드 - RealtimeAISecurityExpressionRoot 사용 (실시간 AI)");
-                break;
+                                break;
                 
             case "STANDARD":
             default:
@@ -138,8 +126,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 customRoot.setOwnerField(ownerField);
                 customRoot.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
                 root = customRoot;
-                log.debug("STANDARD 모드 - CustomMethodSecurityExpressionRoot 사용");
-                break;
+                                break;
         }
 
         root.setPermissionEvaluator(getPermissionEvaluator());
@@ -150,42 +137,33 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ((CustomMethodSecurityExpressionRoot) root).setThis(mi.getThis());
         }
 
-        
         MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(root, mi.getMethod(), mi.getArguments(), getParameterNameDiscoverer());
         ctx.setBeanResolver(getBeanResolver());
 
-        
         ctx.setVariable("ai", root);
         ctx.setVariable("trust", root);
-        log.debug("SpEL 변수 설정: #ai, #trust -> {} 인스턴스 (Zero Trust 모드: {})",
-            root.getClass().getSimpleName(), zeroTrustMode);
-
+        
         if (StringUtils.hasText(ownerField)) {
             ctx.setVariable("ownerField", ownerField);
-            log.debug("SpEL 변수 설정: #ownerField -> {}", ownerField);
-        }
+                    }
 
-        
         Method method = mi.getMethod();
         String params = Arrays.stream(method.getParameterTypes())
                 .map(Class::getSimpleName)
                 .collect(Collectors.joining(","));
         String methodIdentifier = String.format("%s.%s(%s)", method.getDeclaringClass().getName(), method.getName(), params);
 
-        
         List<Policy> protectablePolicies = policyRetrievalPoint.findMethodPolicies(methodIdentifier, "PROTECTABLE");
         String protectableExpression = buildExpressionFromPoliciesWithDefault(protectablePolicies);
         Expression protectableRule = getExpressionParser().parseExpression(protectableExpression);
         ctx.setVariable("protectableRule", protectableRule);
 
-        
         auditLogService.logDecision(auth.getName(), methodIdentifier, "METHOD_INVOCATION", "EVALUATING",
             "Evaluating with protectableRule: " + protectableExpression, null);
 
         return ctx;
     }
-    
-    
+
     private String extractOwnerFieldFromMethod(Method method) {
         Protectable protectable = method.getAnnotation(Protectable.class);
         if (protectable != null && StringUtils.hasText(protectable.ownerField())) {
@@ -194,7 +172,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         return null;
     }
 
-    
     private String buildExpressionFromPoliciesWithDefault(List<Policy> policies) {
         if (CollectionUtils.isEmpty(policies)) {
             return "denyAll";
@@ -202,7 +179,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         return buildExpressionFromPolicies(policies);
     }
 
-    
     private String buildExpressionFromPolicies(List<Policy> policies) {
         
         Policy policy = policies.getFirst();

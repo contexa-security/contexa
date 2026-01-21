@@ -5,20 +5,17 @@ import lombok.Builder;
 import java.io.Serializable;
 import java.util.Set;
 
-
 @Builder
 public record WizardContext(
         String contextId,
         String sessionTitle,
         String sessionDescription,
 
-        
         Subject targetSubject,
         Set<Long> initialAssignmentIds,
 
         Set<Long> permissionIds,
 
-        
         Set<Subject> subjects
 
 ) implements Serializable {

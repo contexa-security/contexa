@@ -9,11 +9,9 @@ public class DefaultRiskEngine implements RiskEngine {
 
     private final List<RiskFactorEvaluator> evaluators;
 
-    
     @Override
     public int calculateRiskScore(AuthorizationContext context) {
-        
-        
+
         return 0;
     }
 }

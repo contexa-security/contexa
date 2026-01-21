@@ -9,7 +9,6 @@ public class WorkflowRequest {
     private String policyDescription;
     private List<Long> selectedRoleIds; 
 
-    
     public InitiateGrantRequestDto getInitialRequest() { return initialRequest; }
     public void setInitialRequest(InitiateGrantRequestDto initialRequest) { this.initialRequest = initialRequest; }
     public String getPolicyName() { return policyName; }

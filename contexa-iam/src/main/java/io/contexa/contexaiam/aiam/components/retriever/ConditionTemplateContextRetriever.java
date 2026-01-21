@@ -24,7 +24,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public class ConditionTemplateContextRetriever extends ContextRetriever {
     
@@ -41,8 +40,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
     private int templateTopK;
     
     private RetrievalAugmentationAdvisor templateAdvisor;
-    
-    
+
     public static class MethodSignature {
         public final String methodName;
         public final String parameterInfo;
@@ -62,12 +60,10 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         this.registry = registry;
         this.vectorService = vectorService;
     }
-    
-    
+
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-        log.info("ApplicationContext refreshed. Initializing ConditionTemplateContextRetriever...");
-        registerSelf();
+                registerSelf();
     }
 
     private void registerSelf() {
@@ -77,45 +73,36 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         }
 
         registry.registerRetriever(ConditionTemplateContext.class, this);
-        log.info("ConditionTemplateContextRetriever 자동 등록 완료 (Spring AI RAG 지원)");
-    }
-    
-    
+            }
+
     private void createTemplateAdvisor() {
         
         QueryTransformer templateQueryTransformer = new TemplateQueryTransformer(chatClientBuilder);
-        
-        
+
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
             filterBuilder.in("documentType", "template", "condition", "spel", "expression"),
             filterBuilder.gte("relevanceScore", 0.75)
         ).build();
-        
-        
+
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
             .vectorStore(vectorStore)
             .similarityThreshold(templateSimilarityThreshold)
             .topK(templateTopK)
             .filterExpression(filter)
             .build();
-        
-        
+
         templateAdvisor = RetrievalAugmentationAdvisor.builder()
             .documentRetriever(retriever)
             .queryTransformers(templateQueryTransformer)
             .build();
-        
-        
+
         registerDomainAdvisor(ConditionTemplateContext.class, templateAdvisor);
     }
-    
-    
+
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<?> request) {
-        log.debug("ConditionTemplateContextRetriever.retrieveContext 호출됨");
-        
-        
+
         if (request.getContext() instanceof ConditionTemplateContext) {
             
             ContextRetrievalResult ragResult = null;
@@ -142,23 +129,18 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
                 metadata
             );
         }
-        
-        
+
         return super.retrieveContext(request);
     }
-    
-    
+
     public String retrieveConditionTemplateContext(AIRequest<ConditionTemplateContext> request, List<Document> ragDocuments) {
-        log.info("조건 템플릿 컨텍스트 검색 시작: {}", request.getRequestId());
-        
+                
         try {
             ConditionTemplateContext context = request.getContext();
-            
-            
+
             try {
                 vectorService.storeConditionContext(context);
-                log.debug("💾 VectorService에 조건 템플릿 컨텍스트 저장 완료");
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("VectorService 컨텍스트 저장 실패: {}", e.getMessage());
             }
             
@@ -177,11 +159,9 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return getDefaultContext();
         }
     }
-    
-    
+
     private String retrieveUniversalTemplateContext(ConditionTemplateContext context, List<Document> ragDocuments) {
-        log.debug("범용 조건 템플릿 컨텍스트 검색");
-        
+                
         StringBuilder contextBuilder = new StringBuilder();
         String baseContext = """
         ## 범용 조건 템플릿 컨텍스트
@@ -207,8 +187,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         """;
         
         contextBuilder.append(baseContext);
-        
-        
+
         if (ragDocuments != null && !ragDocuments.isEmpty()) {
             contextBuilder.append("\n\n### RAG 기반 템플릿 참조\n");
             for (int i = 0; i < Math.min(3, ragDocuments.size()); i++) {
@@ -223,28 +202,21 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         
         return contextBuilder.toString();
     }
-    
-    
-    private String generateMethodInfo(ConditionTemplateContext context, String resourceIdentifier, String methodInfo, List<Document> ragDocuments) {
-        log.info("AI 특화 조건 생성 methodInfo 생성: {}", resourceIdentifier);
 
-        
+    private String generateMethodInfo(ConditionTemplateContext context, String resourceIdentifier, String methodInfo, List<Document> ragDocuments) {
+
         MethodSignature signature = parseMethodSignature(resourceIdentifier);
 
-        
         log.warn("DEBUG - 파싱 결과: resourceIdentifier={}, methodName={}, parameterInfo='{}', resourceType={}", 
                  resourceIdentifier, signature.methodName, signature.parameterInfo, signature.resourceType);
-        
-        
+
         List<Document> methodConditions = List.of();
         try {
             methodConditions = vectorService.findMethodConditions(signature.methodName, 3);
-            log.debug("VectorService에서 {}개의 관련 메서드 조건 발견", methodConditions.size());
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.warn("VectorService 메서드 조건 검색 실패: {}", e.getMessage());
         }
 
-        
         if (signature.parameterInfo == null || signature.parameterInfo.trim().isEmpty()) {
             log.warn("파라미터 없는 메서드 감지 - 조건 생성 건너뛰기: {} - {}", signature.methodName, resourceIdentifier);
             
@@ -254,7 +226,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return "파라미터가 없는 메서드입니다.";
         }
 
-        
         boolean isObjectParam = signature.parameterInfo.contains("객체") ||
                 signature.parameterInfo.contains("#group") ||
                 signature.parameterInfo.contains("#userDto");
@@ -356,7 +327,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
                     getMethodContext(signature.methodName));
         }
 
-        
         if (ragDocuments != null && !ragDocuments.isEmpty()) {
             StringBuilder enrichedInfo = new StringBuilder(generatedMethodInfo);
             enrichedInfo.append("\n\n📚 RAG 기반 유사 템플릿 예시:\n");
@@ -371,11 +341,9 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             generatedMethodInfo = enrichedInfo.toString();
         }
         
-        log.debug("생성된 methodInfo: {}", generatedMethodInfo);
-        return generatedMethodInfo;
+                return generatedMethodInfo;
     }
-    
-    
+
     private String getDefaultContext() {
         return """
         ## 기본 조건 템플릿 컨텍스트
@@ -392,12 +360,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         - 리소스 접근: hasPermission(#param, 'ACTION')
         """;
     }
-    
-    
-    
-    
-    
-    
+
     private MethodSignature parseMethodSignature(String resourceIdentifier) {
         log.warn("DEBUG - 메서드 시그니처 파싱 시작: {}", resourceIdentifier);
 
@@ -412,7 +375,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             String methodPart = resourceIdentifier.substring(lastDotIndex + 1);
             log.warn("DEBUG - className: {}, methodPart: {}", className, methodPart);
 
-            
             String methodName;
             String paramTypes = "";
 
@@ -426,14 +388,9 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
                 log.warn("DEBUG - methodName: {} (괄호 없음)", methodName);
             }
 
-            
             String resourceType = determineResourceTypeFromClassName(className);
 
-            
             String parameterInfo = parseParameterInfo(methodName, paramTypes);
-
-            log.debug("파싱 결과 - 메서드: {}, 파라미터: {}, 리소스타입: {}",
-                    methodName, parameterInfo, resourceType);
 
             return new MethodSignature(methodName, parameterInfo, resourceType);
 
@@ -447,12 +404,10 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             );
         }
     }
-    
-    
+
     private String determineResourceTypeFromClassName(String className) {
         String simpleName = className.substring(className.lastIndexOf('.') + 1);
 
-        
         if (simpleName.contains("Group")) {
             return "GROUP";
         } else if (simpleName.contains("User")) {
@@ -471,8 +426,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return resourceName.toUpperCase();
         }
     }
-    
-    
+
     private String parseParameterInfo(String methodName, String paramTypes) {
         log.warn("DEBUG - parseParameterInfo: methodName={}, paramTypes='{}'", methodName, paramTypes);
         
@@ -481,25 +435,21 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return null; 
         }
 
-        
         String result = parseParameterTypesFromString(paramTypes);
         log.warn("DEBUG - parseParameterInfo 결과: '{}'", result);
         return result;
     }
-    
-    
+
     private String parseParameterTypesFromString(String paramTypes) {
         if (paramTypes == null || paramTypes.trim().isEmpty()) {
             return null; 
         }
 
-        
         String cleanTypes = paramTypes.replaceAll("[()]", "").trim();
         if (cleanTypes.isEmpty()) {
             return null; 
         }
 
-        
         String[] types = cleanTypes.split(",");
         List<String> parameterInfos = new ArrayList<>();
 
@@ -511,25 +461,21 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
 
         return String.join(", ", parameterInfos);
     }
-    
-    
+
     private String generateParameterInfo(String type, int index) {
         
         String baseType = type.contains("<") ? type.substring(0, type.indexOf("<")) : type;
 
-        
         if (baseType.contains(".")) {
             baseType = baseType.substring(baseType.lastIndexOf(".") + 1);
         }
 
-        
         String paramName = generateParameterName(baseType, index);
         String typeDescription = generateTypeDescription(type);
 
         return String.format("#%s (%s)", paramName, typeDescription);
     }
-    
-    
+
     private String generateParameterName(String type, int index) {
         
         if (type.startsWith("List<")) {
@@ -555,7 +501,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             case "boolean":
                 return index == 0 ? "flag" : "param" + index;
 
-            
             case "Group":
                 return "group";
             case "User":
@@ -571,7 +516,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             case "Document":
                 return "document";
 
-            
             case "List":
                 return "selectedRoleIds"; 
             case "Set":
@@ -579,15 +523,13 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             case "Map":
                 return index == 0 ? "map" : "map" + index;
 
-            
             default:
                 
                 String camelCase = type.substring(0, 1).toLowerCase() + type.substring(1);
                 return camelCase;
         }
     }
-    
-    
+
     private String generateTypeDescription(String fullType) {
         if (fullType.contains("<")) {
             
@@ -597,7 +539,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             String baseType = fullType.contains(".") ?
                     fullType.substring(fullType.lastIndexOf(".") + 1) : fullType;
 
-            
             switch (baseType) {
                 case "Long":
                 case "Integer":
@@ -612,33 +553,28 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             }
         }
     }
-    
-    
+
     private String getServiceName(String resourceType) {
         if (resourceType == null || resourceType.equals("UNKNOWN")) {
             return "Unknown Service";
         }
 
-        
         String serviceName = resourceType.toLowerCase();
         serviceName = serviceName.substring(0, 1).toUpperCase() + serviceName.substring(1);
         return serviceName + "Service";
     }
-    
-    
+
     private String getMethodContext(String methodName) {
         if (methodName == null) {
             return "메서드 정보가 없습니다.";
         }
 
-        
         String action = determineMethodAction(methodName);
         String entity = determineMethodEntity(methodName);
 
         return String.format("%s %s 메서드입니다.", entity, action);
     }
-    
-    
+
     private String determineMethodAction(String methodName) {
         String lowerName = methodName.toLowerCase();
 
@@ -669,8 +605,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return "처리하는";
         }
     }
-    
-    
+
     private String determineMethodEntity(String methodName) {
         String lowerName = methodName.toLowerCase();
 
@@ -690,13 +625,11 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return "리소스를";
         }
     }
-    
-    
+
     private String generateHasPermissionUsage(MethodSignature signature) {
         
         String paramInfo = signature.parameterInfo.toLowerCase();
-        
-        
+
         String action = extractActionFromMethod(signature.methodName).toUpperCase();
         String actionType = determineActionType(signature.methodName);
 
@@ -718,8 +651,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return "hasPermission() 형식을 정확히 사용하세요";
         }
     }
-    
-    
+
     private String determineActionType(String methodName) {
         if (methodName == null || methodName.trim().isEmpty()) {
             return "UPDATE";
@@ -749,8 +681,7 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return "UPDATE"; 
         }
     }
-    
-    
+
     private String extractParamName(String parameterInfo) {
         if (parameterInfo.contains("#group")) {
             return "#group";
@@ -764,22 +695,19 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             return "#param";
         }
     }
-    
-    
+
     private String extractMethodName(String resourceIdentifier) {
         if (resourceIdentifier == null || resourceIdentifier.trim().isEmpty()) {
             return "unknown";
         }
-        
-        
+
         int lastDotIndex = resourceIdentifier.lastIndexOf('.');
         if (lastDotIndex == -1) {
             return resourceIdentifier;
         }
         
         String methodPart = resourceIdentifier.substring(lastDotIndex + 1);
-        
-        
+
         if (methodPart.contains("(")) {
             return methodPart.substring(0, methodPart.indexOf("("));
         }
@@ -787,7 +715,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         return methodPart;
     }
 
-    
     private String extractMethodNameFromSignature(String methodSignature) {
         if (methodSignature == null || methodSignature.trim().isEmpty()) {
             return "unknown";
@@ -795,17 +722,14 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
 
         String trimmed = methodSignature.trim();
 
-        
         int parenIndex = trimmed.indexOf('(');
         if (parenIndex != -1) {
             return trimmed.substring(0, parenIndex).trim();
         }
 
-        
         return trimmed;
     }
 
-    
     private String extractActionFromMethod(String methodName) {
         if (methodName == null || methodName.trim().isEmpty()) {
             return "처리";
@@ -813,7 +737,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
 
         String lowerMethod = methodName.toLowerCase().trim();
 
-        
         if (lowerMethod.startsWith("create") || lowerMethod.startsWith("add") ||
                 lowerMethod.startsWith("insert") || lowerMethod.startsWith("new") ||
                 lowerMethod.startsWith("register") || lowerMethod.startsWith("build")) {
@@ -873,17 +796,14 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String getKoreanEntityName(String entityType) {
         if (entityType == null || entityType.trim().isEmpty()) {
             return "리소스";
         }
 
-        
         String normalizedType = entityType.trim();
         String lowerType = normalizedType.toLowerCase();
 
-        
         if (lowerType.contains("user")) {
             return "사용자";
         } else if (lowerType.contains("group")) {
@@ -920,7 +840,6 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
         }
     }
 
-    
     private String generateMethodSuffix(String methodId) {
         
         if (methodId == null) return "AUTO";
@@ -930,18 +849,15 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             String className = parts[parts.length - 2];
             String methodName = parts[parts.length - 1];
 
-            
             String classPrefix = className.length() > 0 ? className.substring(0, 1).toUpperCase() : "X";
             String methodPrefix = methodName.length() >= 3 ? methodName.substring(0, 3).toUpperCase() : methodName.toUpperCase();
 
             return classPrefix + methodPrefix;
         }
 
-        
         return String.valueOf(Math.abs(methodId.hashCode()) % 10000);
     }
-    
-    
+
     private static class TemplateQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
         

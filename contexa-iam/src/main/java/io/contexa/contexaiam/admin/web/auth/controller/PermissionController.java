@@ -14,7 +14,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
 
-
 @RequestMapping("/admin/permissions")
 @RequiredArgsConstructor
 @Slf4j
@@ -68,7 +67,6 @@ public class PermissionController {
         return "redirect:/admin/permissions";
     }
 
-    
     private void addCommonAttributesToModel(Model model) {
         List<FunctionCatalog> allActiveFunctions = functionCatalogService.findAllActiveFunctions();
         model.addAttribute("allFunctions", allActiveFunctions);

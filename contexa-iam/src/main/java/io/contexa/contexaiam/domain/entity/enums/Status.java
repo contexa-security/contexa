@@ -1,6 +1,5 @@
 package io.contexa.contexaiam.domain.entity.enums;
 
-
 public enum Status {
     ACTIVE("활성"),
     INACTIVE("비활성"),

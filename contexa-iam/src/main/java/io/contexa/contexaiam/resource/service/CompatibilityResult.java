@@ -5,7 +5,6 @@ import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import java.util.Collections;
 import java.util.Set;
 
-
 public class CompatibilityResult {
     private final boolean compatible;
     private final String reason;

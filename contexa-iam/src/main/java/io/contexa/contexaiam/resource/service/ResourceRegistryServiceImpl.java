@@ -46,21 +46,17 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     private final AutoConditionTemplateService autoConditionTemplateService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    
     @Async
     @Override
     @Transactional
     public void
     refreshAndSynchronizeResources() {
-        log.info("비동기 리소스 스캐닝 및 DB 동기화를 시작합니다...");
 
-        
         List<ManagedResource> discoveredResources = scanners.stream()
                 .flatMap(scanner -> scanner.scan().stream())
                 .filter(Objects::nonNull)
                 .toList();
 
-        
         Map<String, List<ManagedResource>> groupedByIdentifier = discoveredResources.stream()
                 .collect(Collectors.groupingBy(ManagedResource::getResourceIdentifier));
 
@@ -70,21 +66,16 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             }
         });
 
-        
         Map<String, ManagedResource> discoveredResourcesMap = groupedByIdentifier.entrySet().stream()
                 .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().get(0)));
-        log.info("모든 스캐너로부터 {}개의 고유한 리소스를 발견했습니다.", discoveredResourcesMap.size());
-
+        
         Map<String, ManagedResource> existingResourcesMap = managedResourceRepository.findAll().stream()
                 .collect(Collectors.toMap(ManagedResource::getResourceIdentifier, Function.identity()));
-        log.info("데이터베이스에서 {}개의 기존 리소스를 조회했습니다.", existingResourcesMap.size());
 
-        
         List<ManagedResource> newResources = discoveredResourcesMap.values().stream()
                 .filter(discovered -> !existingResourcesMap.containsKey(discovered.getResourceIdentifier()))
                 .toList();
 
-        
         List<ManagedResource> removedResources = existingResourcesMap.values().stream()
                 .filter(existing -> !discoveredResourcesMap.containsKey(existing.getResourceIdentifier()))
                 .toList();
@@ -94,34 +85,27 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             
         }
 
-        
         if (newResources.isEmpty()) {
-            log.info("새로 발견된 리소스가 없어 AI 추천을 건너뜁니다.");
-        } else if (newResources.size() == 1) {
+                    } else if (newResources.size() == 1) {
             
             processSingleResource(newResources.getFirst());
         } else {
             
             int batchSize = 10; 
             List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
-            log.info("{}개의 새로운 리소스를 {}개의 배치로 나누어 병렬 처리합니다...", newResources.size(), resourceBatches.size());
-
+            
             List<CompletableFuture<Void>> futures = resourceBatches.stream()
                     .map(batch -> CompletableFuture.runAsync(() -> processResourceBatch(batch)))
                     .toList();
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-            log.info("모든 AI 추천 배치 작업이 완료되었습니다.");
-        }
+                    }
         autoConditionTemplateService.generateConditionTemplates();
-        log.info("리소스 동기화 프로세스가 완료되었습니다.");
-    }
-    
-    
+            }
+
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processSingleResource(ManagedResource resource) {
-        log.info("1개의 새로운 리소스 '{}'에 대한 AI 추천을 요청합니다...", resource.getResourceIdentifier());
-        try {
+                try {
             
             List<Map<String, String>> singleResourceList = List.of(
                 Map.of("identifier", resource.getResourceIdentifier(), 
@@ -129,20 +113,17 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             );
             
             IAMRequest<ResourceNamingContext> request = createResourceNamingRequest(singleResourceList);
-            
-            
+
             Object rawResponse = aiNativeProcessor.process(request, ResourceNamingSuggestionResponse.class).block();
             ResourceNamingSuggestionResponse suggestionResponse = (ResourceNamingSuggestionResponse) rawResponse;
-            
-            
+
             Map<String, ResourceNameSuggestion> suggestions = suggestionResponse.toResourceNameSuggestionMap();
             ResourceNameSuggestion suggestion = suggestions.get(resource.getResourceIdentifier());
             
             if (suggestion != null) {
                 resource.setFriendlyName(suggestion.friendlyName());
                 resource.setDescription(suggestion.description());
-                log.info("AI 추천 적용 완료: '{}' -> '{}'", resource.getResourceIdentifier(), suggestion.friendlyName());
-            } else {
+                            } else {
                 
                 resource.setFriendlyName(generateFallbackFriendlyName(resource.getResourceIdentifier()));
                 resource.setDescription("AI 추천을 받지 못한 리소스입니다.");
@@ -159,19 +140,14 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         }
     }
 
-    
-    
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processResourceBatch(List<ManagedResource> batch) {
-        log.info("{}개 리소스 배치의 AI 추천 처리를 시작합니다.", batch.size());
 
-        
         if (batch == null || batch.isEmpty()) {
             log.warn("배치가 비어있어 처리를 건너뜁니다.");
             return;
         }
 
-        
         List<Map<String, String>> resourcesToSuggest = batch.stream()
                 .filter(Objects::nonNull)
                 .filter(r -> r.getResourceIdentifier() != null && !r.getResourceIdentifier().trim().isEmpty())
@@ -179,8 +155,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                     String identifier = r.getResourceIdentifier();
                     String owner = r.getServiceOwner() != null ? r.getServiceOwner() : "Unknown";
 
-                    log.debug("AI 요청 데이터 준비: identifier={}, owner={}", identifier, owner);
-                    return Map.of("identifier", identifier, "owner", owner);
+                                        return Map.of("identifier", identifier, "owner", owner);
                 })
                 .collect(Collectors.toList());
 
@@ -191,22 +166,15 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             return;
         }
 
-        log.info("{}개의 유효한 리소스에 대해 AI 추천을 요청합니다.", resourcesToSuggest.size());
-
         try {
             
             IAMRequest<ResourceNamingContext> request = createResourceNamingRequest(resourcesToSuggest);
-            
-            
+
             Object rawResponse = aiNativeProcessor.process(request, ResourceNamingSuggestionResponse.class).block();
             ResourceNamingSuggestionResponse suggestionResponse = (ResourceNamingSuggestionResponse) rawResponse;
-            
-            
+
             Map<String, ResourceNameSuggestion> suggestionsMap = suggestionResponse.toResourceNameSuggestionMap();
 
-            log.info("AI로부터 {}개의 추천을 받았습니다.", suggestionsMap.size());
-
-            
             int appliedCount = 0;
             int skippedCount = 0;
 
@@ -226,17 +194,11 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                     resource.setFriendlyName(suggestion.friendlyName());
                     resource.setDescription(suggestion.description());
 
-                    log.debug("AI 추천 적용: '{}' -> friendlyName='{}', description='{}'",
-                            resource.getResourceIdentifier(),
-                            suggestion.friendlyName(),
-                            suggestion.description());
-
                     appliedCount++;
                 } else {
                     log.warn("AI가 리소스 '{}'에 대한 추천을 반환하지 않았습니다. 기본값을 유지합니다.",
                             resource.getResourceIdentifier());
 
-                    
                     if (resource.getFriendlyName() == null || resource.getFriendlyName().trim().isEmpty()) {
                         resource.setFriendlyName(generateFallbackFriendlyName(resource.getResourceIdentifier()));
                     }
@@ -248,16 +210,11 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 }
             }
 
-            
             managedResourceRepository.saveAll(batch);
-
-            log.info("배치 처리 완료 - 전체: {}개, AI 적용: {}개, 기본값 사용: {}개",
-                    batch.size(), appliedCount, skippedCount);
 
         } catch (Exception e) {
             log.error("AI 추천 처리 중 오류 발생. 기본값으로 저장합니다.", e);
 
-            
             batch.forEach(resource -> {
                 if (resource.getFriendlyName() == null || resource.getFriendlyName().trim().isEmpty()) {
                     resource.setFriendlyName(generateFallbackFriendlyName(resource.getResourceIdentifier()));
@@ -268,17 +225,14 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             });
 
             managedResourceRepository.saveAll(batch);
-            log.info("{}개의 리소스가 기본값으로 저장되었습니다.", batch.size());
-        }
+                    }
     }
 
-    
     private String generateFallbackFriendlyName(String identifier) {
         if (identifier == null || identifier.isEmpty()) {
             return "알 수 없는 리소스";
         }
 
-        
         if (identifier.startsWith("/")) {
             String[] parts = identifier.split("/");
             for (int i = parts.length - 1; i >= 0; i--) {
@@ -288,7 +242,6 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             }
         }
 
-        
         if (identifier.contains(".")) {
             String[] parts = identifier.split("\\.");
             String lastPart = parts[parts.length - 1];
@@ -314,8 +267,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         resource.setStatus(ManagedResource.Status.PERMISSION_CREATED); 
 
         ManagedResource savedResource = managedResourceRepository.save(resource);
-        log.info("Resource (ID: {}) has been defined by admin. Status set to PERMISSION_CREATED.", resourceId);
-
+        
         return permissionCatalogService.synchronizePermissionFor(savedResource);
     }
 
@@ -335,8 +287,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     @Override
     @Transactional(readOnly = true)
     public Page<ManagedResource> findResources(ResourceSearchCriteria criteria, Pageable pageable) {
-        
-        
+
         return managedResourceRepository.findByCriteria(criteria, pageable);
     }
 
@@ -347,8 +298,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
         resource.setStatus(ManagedResource.Status.EXCLUDED);
         managedResourceRepository.save(resource);
-        log.info("Resource (ID: {}) has been excluded from management.", resourceId);
-    }
+            }
 
     @Override
     @Transactional
@@ -362,8 +312,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
         }
         managedResourceRepository.save(resource);
-        log.info("Resource (ID: {}) has been restored to management.", resourceId);
-    }
+            }
 
     @Override
     @Transactional(readOnly = true)
@@ -396,11 +345,8 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         }
 
         managedResourceRepository.saveAll(resourcesToUpdate);
-        log.info("Batch updated status for {} resources to {}", resourcesToUpdate.size(), status);
-    }
+            }
 
-    
-    
     private IAMRequest<ResourceNamingContext> createResourceNamingRequest(List<Map<String, String>> resources) {
         
         ResourceNamingContext context = new ResourceNamingContext.Builder(
@@ -408,15 +354,12 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             AuditRequirement.BASIC
         ).withResourceBatch(resources).build();
 
-        
         IAMRequest<ResourceNamingContext> request = new IAMRequest<>(context, "suggestResourceNames");
         request.withDiagnosisType(DiagnosisType.RESOURCE_NAMING);
         request.withParameter("resources", resources);
         request.withParameter("batchSize", resources.size());
         
-        log.debug("DiagnosisType 설정 확인: {}", request.getDiagnosisType());
-        return request;
+                return request;
     }
 
-    
 }

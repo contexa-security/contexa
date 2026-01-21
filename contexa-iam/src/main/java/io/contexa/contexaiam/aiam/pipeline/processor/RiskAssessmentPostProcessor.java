@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-
 @Slf4j
 public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
     
@@ -35,11 +34,9 @@ public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
         }
 
         String requestId = context.getExecutionId();
-        
-        
+
         RiskAssessmentResponse response = new RiskAssessmentResponse(requestId, trustAssessment);
-        
-        
+
         Long startTime = context.getMetadata("startTime", Long.class);
         if (startTime != null) {
             long processingTime = System.currentTimeMillis() - startTime;
@@ -57,8 +54,7 @@ public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
                 historyRecords != null ? historyRecords : 0
             );
         }
-        
-        
+
         String aiModel = context.getMetadata("aiModel", String.class);
         String templateKey = context.getMetadata("templateKey", String.class);
         
@@ -69,10 +65,7 @@ public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
             "timestamp", LocalDateTime.now().toString()
         );
         response.setAiProcessingDetails(aiDetails);
-        
-        log.debug("Wrapped TrustAssessment into RiskAssessmentResponse: requestId={}, trustScore={}", 
-                 requestId, trustAssessment.score());
-        
+
         return response;
     }
     

@@ -19,7 +19,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class AccessGovernanceDiagnosisStrategy extends AbstractAIStrategy<AccessGovernanceContext, AccessGovernanceResponse> {
 

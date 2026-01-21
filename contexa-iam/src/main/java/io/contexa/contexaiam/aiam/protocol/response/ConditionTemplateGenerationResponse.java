@@ -5,7 +5,6 @@ import lombok.Getter;
 
 import java.util.Map;
 
-
 @Getter
 public class ConditionTemplateGenerationResponse extends IAMResponse {
     
@@ -23,8 +22,7 @@ public class ConditionTemplateGenerationResponse extends IAMResponse {
         this.resourceIdentifier = resourceIdentifier;
         this.processingMetadata = processingMetadata != null ? processingMetadata : Map.of();
     }
-    
-    
+
     public static ConditionTemplateGenerationResponse success(String requestId, String templateResult, 
                                                             String templateType, String resourceIdentifier) {
         return new ConditionTemplateGenerationResponse(
@@ -36,8 +34,7 @@ public class ConditionTemplateGenerationResponse extends IAMResponse {
                 Map.of("generatedAt", System.currentTimeMillis())
         );
     }
-    
-    
+
     public static ConditionTemplateGenerationResponse failure(String requestId, String templateType, 
                                                             String resourceIdentifier, String errorMessage) {
         return new ConditionTemplateGenerationResponse(
@@ -66,8 +63,7 @@ public class ConditionTemplateGenerationResponse extends IAMResponse {
                 "requestId", getRequestId()
         );
     }
-    
-    
+
     public boolean hasTemplates() {
         return templateResult != null && 
                !templateResult.trim().isEmpty() && 

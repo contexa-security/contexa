@@ -7,8 +7,6 @@ import lombok.Getter;
 
 import java.util.Map;
 
-
-
 @Getter
 public class ConditionTemplateGenerationRequest extends IAMRequest<ConditionTemplateContext> {
     
@@ -43,24 +41,20 @@ public class ConditionTemplateGenerationRequest extends IAMRequest<ConditionTemp
         if (methodInfo != null) {
             this.withParameter("methodInfo", methodInfo);
         }
-        
-        
+
         if (additionalParameters != null) {
             additionalParameters.forEach(this.getContext()::putTemplateMetadata);
         }
     }
-    
-    
+
     public static ConditionTemplateGenerationRequest forUniversalTemplate() {
         return new ConditionTemplateGenerationRequest(true);
     }
-    
-    
+
     public static ConditionTemplateGenerationRequest forSpecificTemplate(String resourceIdentifier, String methodInfo) {
         return new ConditionTemplateGenerationRequest(true, "specific", resourceIdentifier, methodInfo);
     }
-    
-    
+
     private static ConditionTemplateContext createContext(String templateType, String resourceIdentifier, String methodInfo) {
         if ("universal".equals(templateType)) {
             return ConditionTemplateContext.forUniversalTemplate();

@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityCopilotController {
@@ -36,7 +35,6 @@ public class SecurityCopilotController {
     private final SecurityCopilotValidationService validationService;
     private final SecurityCopilotMessageProvider messageProvider;
 
-    
     @GetMapping("/admin/security-copilot")
     public String securityCopilot(Model model) {
         model.addAttribute("activePage", "security-copilot");
@@ -58,8 +56,7 @@ public class SecurityCopilotController {
     @GetMapping("/api/security-copilot/labs")
     @ResponseBody
     public ResponseEntity<List<Map<String, Object>>> getAvailableLabs() {
-        log.info("사용 가능한 Lab 정보 조회 요청");
-
+        
         try {
             
             List<Map<String, Object>> labs = java.util.Arrays.asList(
@@ -68,8 +65,7 @@ public class SecurityCopilotController {
                     createLabInfo("PolicyGeneration", "Policy Generation Lab", "정책 생성 및 최적화", "fas fa-file-contract", "#10b981")
             );
 
-            log.info("{} 개의 Lab 정보 반환", labs.size());
-            return ResponseEntity.ok(labs);
+                        return ResponseEntity.ok(labs);
 
         } catch (Exception e) {
             log.error("Lab 정보 조회 실패", e);
@@ -77,7 +73,6 @@ public class SecurityCopilotController {
         }
     }
 
-    
     private Map<String, Object> createLabInfo(String id, String name, String description, String icon, String color) {
         Map<String, Object> lab = new java.util.HashMap<>();
         lab.put("id", id);
@@ -86,7 +81,6 @@ public class SecurityCopilotController {
         lab.put("icon", icon);
         lab.put("color", color);
 
-        
         List<String> patterns = java.util.Arrays.asList(
                 id + " Lab 분석이 완료되었습니다",
                 id + " Lab 분석 완료",
@@ -97,7 +91,6 @@ public class SecurityCopilotController {
         return lab;
     }
 
-    
     @PostMapping(value = "/api/security-copilot/analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @ResponseBody
     public Flux<ServerSentEvent<String>> analyzeUnified(@RequestBody SecurityCopilotItem request) {
@@ -111,9 +104,6 @@ public class SecurityCopilotController {
                     .build());
         }
 
-        log.info("[일원화] {}", messageProvider.getStreamingStartMessage());
-        log.info("[일원화] {}", messageProvider.getAnalysisStartMessage(request.getSecurityQuery()));
-
         AIRequest<SecurityCopilotContext> aiRequest = createStreamingAIRequest(request);
         SentenceBuffer sentenceBuffer = new SentenceBuffer();
         StringBuilder allData = new StringBuilder(); 
@@ -121,41 +111,28 @@ public class SecurityCopilotController {
         AtomicBoolean finalResponseStarted = new AtomicBoolean(false); 
         StringBuilder markerBuffer = new StringBuilder(); 
 
-        
         return aiNativeProcessor.processStream(aiRequest)
                 .flatMap(chunk -> {
                     String chunkStr = chunk != null ? chunk.toString() : "";
 
-
-
-
-
-                    
                     allData.append(chunkStr);
 
-                    
                     if (!finalResponseStarted.get()) {
                         markerBuffer.append(chunkStr);
 
-                        
                         if (markerBuffer.length() > 50) {
                             markerBuffer.delete(0, markerBuffer.length() - 50);
                         }
 
-                        
                         if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
                             finalResponseStarted.set(true);
-                            log.info("[FINAL-MODE] FINAL_RESPONSE 모드 시작 - 이후 청크들은 sentenceBuffer 처리 제외");
-                        }
+                                                    }
                     }
 
-                    
                     if (finalResponseStarted.get()) {
-                        log.debug("[SKIP-SENTENCE] FINAL_RESPONSE 모드 - sentenceBuffer 처리 스킵");
-                        return Flux.empty(); 
+                                                return Flux.empty(); 
                     }
 
-                    
                     return sentenceBuffer.processChunk(chunkStr)
                             .map(sentence -> ServerSentEvent.<String>builder()
                                     .data(sentence)
@@ -191,8 +168,7 @@ public class SecurityCopilotController {
                                 .build())
                 )
                 .doOnComplete(() -> {
-                    log.info("[일원화] {}", messageProvider.getStreamingCompleteMessage());
-                })
+                                    })
                 .onErrorResume(error -> {
                     
                     Throwable throwable = (Throwable) error;
@@ -216,7 +192,6 @@ public class SecurityCopilotController {
         context.setAnalysisScope(request.getAnalysisScope() != null ? request.getAnalysisScope() : "COMPREHENSIVE");
         context.setOrganizationId(request.getOrganizationId());
 
-        
         String orgId = request.getOrganizationId();
         if (orgId == null || orgId.trim().isEmpty()) {
             orgId = "default-org";
@@ -234,7 +209,6 @@ public class SecurityCopilotController {
                 .withStreaming(true);
     }
 
-    
     private String extractSessionId(String chunk) {
         if (chunk.contains("SESSION_ID:")) {
             return chunk.substring(chunk.indexOf("SESSION_ID:") + 11).trim();

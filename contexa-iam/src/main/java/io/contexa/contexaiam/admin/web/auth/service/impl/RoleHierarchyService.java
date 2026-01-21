@@ -23,14 +23,11 @@ public class RoleHierarchyService {
     private final RoleRepository roleRepository;
     private final RoleHierarchyImpl roleHierarchy;
 
-    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-        log.info("ApplicationContext refreshed. Initializing RoleHierarchyService and setting initial RoleHierarchyImpl hierarchy...");
-        reloadRoleHierarchyBean();
+                reloadRoleHierarchyBean();
     }
 
-    
     public List<RoleHierarchyEntity> getAllRoleHierarchies() {
         return roleHierarchyRepository.findAll();
     }
@@ -39,7 +36,6 @@ public class RoleHierarchyService {
         return roleHierarchyRepository.findById(id);
     }
 
-    
     public String getActiveRoleHierarchyString() {
         return roleHierarchyRepository.findByIsActiveTrue()
                 .map(RoleHierarchyEntity::getHierarchyString)
@@ -50,16 +46,13 @@ public class RoleHierarchyService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
-            log.info("Creating new role hierarchy: {}", roleHierarchyEntity.getDescription());
-
+            
             if (roleHierarchyRepository.findByHierarchyString(roleHierarchyEntity.getHierarchyString()).isPresent()) {
                 throw new IllegalArgumentException("동일한 역할 계층 설정이 이미 존재합니다.");
             }
 
-            
             validateHierarchyString(roleHierarchyEntity.getHierarchyString());
 
-            
             validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
 
             RoleHierarchyEntity savedEntity = roleHierarchyRepository.save(roleHierarchyEntity);
@@ -68,8 +61,7 @@ public class RoleHierarchyService {
                 deactivateAllOtherHierarchies(savedEntity.getId());
                 reloadRoleHierarchyBean();
             }
-            log.info("Created RoleHierarchyEntity with ID: {}", savedEntity.getId());
-            return savedEntity;
+                        return savedEntity;
 
         } catch (Exception e) {
             log.error("Error creating role hierarchy: ", e);
@@ -81,34 +73,27 @@ public class RoleHierarchyService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public RoleHierarchyEntity updateRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
-            log.info("Updating role hierarchy with ID: {}", roleHierarchyEntity.getId());
-
+            
             RoleHierarchyEntity existingEntity = roleHierarchyRepository.findById(roleHierarchyEntity.getId())
                     .orElseThrow(() -> new IllegalArgumentException("RoleHierarchy not found with ID: " + roleHierarchyEntity.getId()));
 
-            log.info("Validating hierarchy string: {}", roleHierarchyEntity.getHierarchyString());
-            validateHierarchyString(roleHierarchyEntity.getHierarchyString());
+                        validateHierarchyString(roleHierarchyEntity.getHierarchyString());
 
-            log.info("Validating hierarchy logic");
-            validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
+                        validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
 
             existingEntity.setHierarchyString(roleHierarchyEntity.getHierarchyString());
             existingEntity.setDescription(roleHierarchyEntity.getDescription());
             existingEntity.setIsActive(roleHierarchyEntity.getIsActive());
 
             RoleHierarchyEntity updatedEntity = roleHierarchyRepository.save(existingEntity);
-            log.info("Saved updated entity with ID: {}", updatedEntity.getId());
-
+            
             if (updatedEntity.getIsActive()) {
-                log.info("Deactivating other hierarchies");
-                deactivateAllOtherHierarchies(updatedEntity.getId());
+                                deactivateAllOtherHierarchies(updatedEntity.getId());
             }
 
-            log.info("Reloading role hierarchy bean");
-            reloadRoleHierarchyBean();
+                        reloadRoleHierarchyBean();
 
-            log.info("Successfully updated RoleHierarchyEntity with ID: {}", updatedEntity.getId());
-            return updatedEntity;
+                        return updatedEntity;
 
         } catch (Exception e) {
             log.error("Error updating role hierarchy: ", e);
@@ -121,8 +106,7 @@ public class RoleHierarchyService {
     public void deleteRoleHierarchy(Long id) {
         roleHierarchyRepository.deleteById(id);
         reloadRoleHierarchyBean();
-        log.info("Deleted RoleHierarchyEntity with ID: {}", id);
-    }
+            }
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
@@ -133,22 +117,18 @@ public class RoleHierarchyService {
             roleHierarchyRepository.save(entity);
         }
         reloadRoleHierarchyBean();
-        log.info("Activated RoleHierarchyEntity with ID: {}", activeId);
-    }
+            }
 
     public void reloadRoleHierarchyBean() {
         try {
             String hierarchyString = getActiveRoleHierarchyString();
 
-            
             if (hierarchyString != null && hierarchyString.contains("\\n")) {
                 hierarchyString = hierarchyString.replace("\\n", "\n");
-                log.debug("Converted \\n to actual newline in hierarchy string");
-            }
+                            }
 
             roleHierarchy.setHierarchy(hierarchyString);
-            log.info("RoleHierarchyImpl bean reloaded with new hierarchy: \n{}", hierarchyString);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("Failed to reload RoleHierarchyImpl bean dynamically. Error: {}", e.getMessage(), e);
         }
     }
@@ -158,27 +138,20 @@ public class RoleHierarchyService {
             return;
         }
 
-        
         if (hierarchyString.contains("\\n")) {
             hierarchyString = hierarchyString.replace("\\n", "\n");
         }
 
-        
         Set<String> referencedRoleNames = Arrays.stream(hierarchyString.split("[\\r\\n]+"))
                 .flatMap(line -> Arrays.stream(line.split("\\s*>\\s*")))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
 
-        
         Set<String> existingRoleNames = roleRepository.findAll().stream()
                 .map(role -> role.getRoleName().toUpperCase())
                 .collect(Collectors.toSet());
 
-        log.debug("Referenced roles in hierarchy: {}", referencedRoleNames);
-        log.debug("Existing roles in database: {}", existingRoleNames);
-
-        
         for (String roleName : referencedRoleNames) {
             if (!existingRoleNames.contains(roleName.toUpperCase())) {
                 throw new IllegalArgumentException("계층 문자열에 존재하지 않는 역할이 포함되어 있습니다: " + roleName);
@@ -186,18 +159,15 @@ public class RoleHierarchyService {
         }
     }
 
-    
     private void validateHierarchyLogic(String hierarchyString) {
         if (hierarchyString == null || hierarchyString.trim().isEmpty()) {
             return;
         }
 
-        
         Map<String, Set<String>> graph = new HashMap<>();
         Set<String> allRoles = new HashSet<>();
         List<String[]> relations = new ArrayList<>();
 
-        
         Arrays.stream(hierarchyString.split("\\n"))
                 .map(String::trim)
                 .filter(s -> s.contains(">"))
@@ -215,7 +185,6 @@ public class RoleHierarchyService {
                     }
                 });
 
-        
         Set<String> seenRelations = new HashSet<>();
         for (String[] relation : relations) {
             String relationKey = relation[0] + ">" + relation[1];
@@ -224,7 +193,6 @@ public class RoleHierarchyService {
             }
         }
 
-        
         for (String[] relation : relations) {
             String reverseKey = relation[1] + ">" + relation[0];
             if (seenRelations.contains(reverseKey)) {
@@ -232,7 +200,6 @@ public class RoleHierarchyService {
             }
         }
 
-        
         for (String[] relation : relations) {
             if (isTransitivelyConnected(graph, relation[0], relation[1])) {
                 throw new IllegalArgumentException("불필요한 관계입니다: " + relation[0] + " > " + relation[1] +
@@ -240,7 +207,6 @@ public class RoleHierarchyService {
             }
         }
 
-        
         for (String role : allRoles) {
             if (hasCycle(graph, role, new HashSet<>(), new HashSet<>())) {
                 throw new IllegalArgumentException("순환 참조가 발견되었습니다. 역할: " + role);
@@ -248,7 +214,6 @@ public class RoleHierarchyService {
         }
     }
 
-    
     private boolean isTransitivelyConnected(Map<String, Set<String>> graph, String start, String end) {
         
         Map<String, Set<String>> tempGraph = new HashMap<>();
@@ -256,12 +221,10 @@ public class RoleHierarchyService {
             tempGraph.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
 
-        
         if (tempGraph.containsKey(start)) {
             tempGraph.get(start).remove(end);
         }
 
-        
         Queue<String> queue = new LinkedList<>();
         Set<String> visited = new HashSet<>();
         queue.offer(start);
@@ -285,7 +248,6 @@ public class RoleHierarchyService {
         return false;
     }
 
-    
     private boolean hasCycle(Map<String, Set<String>> graph, String node, Set<String> visited, Set<String> recursionStack) {
         visited.add(node);
         recursionStack.add(node);

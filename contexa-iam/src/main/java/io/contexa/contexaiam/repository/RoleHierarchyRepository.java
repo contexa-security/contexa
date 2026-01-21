@@ -11,6 +11,5 @@ public interface RoleHierarchyRepository extends JpaRepository<RoleHierarchyEnti
     
     Optional<RoleHierarchyEntity> findByIsActiveTrue();
 
-    
     Optional<RoleHierarchyEntity> findByHierarchyString(String hierarchyString);
 }

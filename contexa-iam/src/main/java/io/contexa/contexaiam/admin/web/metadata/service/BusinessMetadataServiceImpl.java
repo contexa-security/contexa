@@ -52,7 +52,6 @@ public class BusinessMetadataServiceImpl implements BusinessMetadataService {
 
         Optional<BusinessResource> resourceOptional = businessResourceRepository.findById(businessResourceId);
 
-        
         return resourceOptional.map(businessResource -> businessResource.getAvailableActions().stream()
                 .map(BusinessResourceAction::getBusinessAction)
                 .collect(Collectors.toList())).orElseGet(Collections::emptyList);
@@ -91,6 +90,5 @@ public class BusinessMetadataServiceImpl implements BusinessMetadataService {
                 .map(role -> modelMapper.map(role, RoleMetadataDto.class))
                 .collect(Collectors.toList());
     }
-
 
 }

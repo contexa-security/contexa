@@ -24,7 +24,6 @@ import java.util.stream.Collectors;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyService {
@@ -37,25 +36,18 @@ public class PolicyService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    
     @Transactional(readOnly = true)
     public Policy findById(Long id) {
         return policyRepository.findById(id).orElse(null);
     }
 
-    
     @Transactional
     public Policy save(Policy policy) {
         Policy savedPolicy = policyRepository.save(policy);
-        log.info("정책 저장: {}", savedPolicy.getName());
-
-        
-        
 
         return savedPolicy;
     }
 
-    
     @Transactional(readOnly = true)
     public Page<Policy> findPendingAIPolicies(Pageable pageable) {
         return policyRepository.findBySourceInAndApprovalStatus(
@@ -68,7 +60,6 @@ public class PolicyService {
         );
     }
 
-    
     @Transactional(readOnly = true)
     public Page<Policy> findAIPolicies(Policy.PolicySource source,
                                        Policy.ApprovalStatus status,
@@ -97,7 +88,6 @@ public class PolicyService {
         }
     }
 
-    
     @Transactional(readOnly = true)
     public long countAIPolicies() {
         return policyRepository.countBySourceIn(
@@ -108,7 +98,6 @@ public class PolicyService {
         );
     }
 
-    
     @Transactional(readOnly = true)
     public Map<String, Long> countAIPoliciesByStatus() {
         Map<String, Long> counts = new HashMap<>();
@@ -127,7 +116,6 @@ public class PolicyService {
         return counts;
     }
 
-    
     @Transactional(readOnly = true)
     public Map<String, Long> countAIPoliciesBySource() {
         Map<String, Long> counts = new HashMap<>();
@@ -140,7 +128,6 @@ public class PolicyService {
         return counts;
     }
 
-    
     @Transactional(readOnly = true)
     public double calculateApprovalRate(int days) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
@@ -173,39 +160,29 @@ public class PolicyService {
         return (double) approved / totalProcessed * 100;
     }
 
-    
     @Transactional(readOnly = true)
     public double calculateAverageConfidenceScore() {
         Double avg = policyRepository.calculateAverageConfidenceScoreForAIPolicies();
         return avg != null ? avg : 0.0;
     }
 
-    
     @Transactional
     public void recordRejectionReason(Long policyId, String reason) {
-        log.info("정책 거부 사유 기록 - policyId: {}, reason: {}", policyId, reason);
 
-        
-        
     }
 
-    
     @EventListener
     @Async
     @Transactional
     public void onPolicyApproved(PolicyApprovedEvent event) {
         try {
-            log.info("Received PolicyApprovedEvent: {} approved by {} for target {}",
-                event.getPolicyId(), event.getApprovedBy(), event.getTargetSystem());
 
-            
             Map<String, Object> policyRules = parsePolicyRules(event.getPolicyRules());
             if (!validatePolicyRules(policyRules)) {
                 log.error("Invalid policy rules in PolicyApprovedEvent: {}", event.getPolicyId());
                 return;
             }
 
-            
             Policy policy = Policy.builder()
                 .name(event.getPolicyName())
                 .description(event.getPolicyDescription())
@@ -222,27 +199,19 @@ public class PolicyService {
                 .aiModel("AutonomousLearningCoordinator")
                 .build();
 
-            
             String detailedDescription = event.getPolicyDescription() +
                 "\n[Evolution Metadata] Original Policy ID: " + event.getPolicyId() +
                 ", Confidence: " + event.getConfidenceScore() +
                 ", Target System: " + event.getTargetSystem();
             policy.setFriendlyDescription(detailedDescription);
 
-            
             createPolicyRulesAndTargets(policy, policyRules);
 
-            
             Policy savedPolicy = policyRepository.save(policy);
 
-            
             loadPolicyToXacmlEngine(savedPolicy);
 
-            
             validatePolicyApplication(savedPolicy);
-
-            log.info("PolicyApprovedEvent processed successfully: created policy ID {} from evolution proposal {}",
-                savedPolicy.getId(), event.getPolicyId());
 
         } catch (Exception e) {
             log.error("Failed to process PolicyApprovedEvent: {}", event, e);
@@ -250,7 +219,6 @@ public class PolicyService {
         }
     }
 
-    
     private Map<String, Object> parsePolicyRules(String policyRulesJson) {
         try {
             if (policyRulesJson == null || policyRulesJson.trim().isEmpty()) {
@@ -263,14 +231,12 @@ public class PolicyService {
         }
     }
 
-    
     private boolean validatePolicyRules(Map<String, Object> policyRules) {
         if (policyRules.isEmpty()) {
             log.warn("Empty policy rules detected");
             return false;
         }
 
-        
         if (!policyRules.containsKey("effect") || !policyRules.containsKey("targets")) {
             log.error("Missing required fields in policy rules: effect or targets");
             return false;
@@ -285,19 +251,16 @@ public class PolicyService {
         return true;
     }
 
-    
     private Policy.Effect determineEffectFromRules(Map<String, Object> policyRules) {
         String effect = (String) policyRules.getOrDefault("effect", "ALLOW");
         return "DENY".equals(effect) ? Policy.Effect.DENY : Policy.Effect.ALLOW;
     }
 
-    
     private int determinePriorityFromRules(Map<String, Object> policyRules) {
         Integer priority = (Integer) policyRules.get("priority");
         return priority != null ? priority : 100; 
     }
 
-    
     private void createPolicyRulesAndTargets(Policy policy, Map<String, Object> policyRules) {
         try {
             
@@ -314,7 +277,6 @@ public class PolicyService {
                 }
             }
 
-            
             @SuppressWarnings("unchecked")
             Map<String, Object> rules = (Map<String, Object>) policyRules.getOrDefault("rules", new HashMap<>());
             for (Map.Entry<String, Object> ruleEntry : rules.entrySet()) {
@@ -324,7 +286,6 @@ public class PolicyService {
                 policy.addRule(rule);
             }
 
-            
             if (policy.getRules().isEmpty()) {
                 PolicyRule defaultRule = PolicyRule.builder()
                     .description("AI evolved default policy - allows access based on evolution analysis")
@@ -337,18 +298,15 @@ public class PolicyService {
         }
     }
 
-    
     private void loadPolicyToXacmlEngine(Policy policy) {
         try {
             if (policyRetrievalPoint != null) {
                 
                 if ("URL".equals(getTargetType(policy))) {
                     policyRetrievalPoint.clearUrlPoliciesCache();
-                    log.info("Cleared URL policies cache for policy: {}", policy.getId());
-                } else {
+                                    } else {
                     policyRetrievalPoint.clearMethodPoliciesCache();
-                    log.info("Cleared method policies cache for policy: {}", policy.getId());
-                }
+                                    }
             } else {
                 log.warn("PolicyRetrievalPoint not available - policy will be loaded on next request");
             }
@@ -357,7 +315,6 @@ public class PolicyService {
         }
     }
 
-    
     private void validatePolicyApplication(Policy policy) {
         try {
             
@@ -365,7 +322,6 @@ public class PolicyService {
                 log.warn("Policy {} is not active after creation", policy.getId());
             }
 
-            
             if (policy.getRules().isEmpty()) {
                 log.error("Policy {} has no rules after creation", policy.getId());
             }
@@ -374,7 +330,6 @@ public class PolicyService {
                 log.warn("Policy {} has no targets after creation", policy.getId());
             }
 
-            
             List<Policy> existingPolicies = policyRepository.findAll().stream()
                 .filter(p -> p.getName().equals(policy.getName()) && p.getIsActive())
                 .toList();
@@ -382,14 +337,11 @@ public class PolicyService {
                 log.warn("Multiple active policies with same name: {}", policy.getName());
             }
 
-            log.info("Policy validation completed for policy: {}", policy.getId());
-
         } catch (Exception e) {
             log.error("Policy validation failed for policy: {}", policy.getId(), e);
         }
     }
 
-    
     private String getTargetType(Policy policy) {
         return policy.getTargets().stream()
             .findFirst()

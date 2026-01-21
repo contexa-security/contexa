@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 @PromptTemplateConfig(
         key = "studioQueryStreaming",
@@ -30,7 +29,6 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(naturalQuery, actualContextInfo, contextInfo);
     }
 
-    
     private String buildUnifiedSystemPrompt(String contextInfo) {
         
         return String.format("""

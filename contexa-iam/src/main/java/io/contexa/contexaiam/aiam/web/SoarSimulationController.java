@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequestMapping("/api/soar/simulation")
 public class SoarSimulationController {
@@ -33,16 +32,12 @@ public class SoarSimulationController {
         this.brokerTemplate = brokerTemplate;
     }
 
-    
     @PostMapping("/start")
     public Mono<ResponseEntity<SimulationStartResponse>> startSimulation(@RequestBody SimulationStartRequest request) {
-        log.info("SOAR 시뮬레이션 시작 요청: incidentId={}, threatType={}", 
-            request.getIncidentId(), request.getThreatType());
-        
+                
         return simulationService.startSimulation(request)
             .map(result -> {
-                
-                
+
                 return ResponseEntity.ok(SimulationStartResponse.builder()
                     .sessionId(result.getSessionId())
                     .conversationId(result.getConversationId())
@@ -70,12 +65,10 @@ public class SoarSimulationController {
                         .build()));
             });
     }
-    
-    
+
     @GetMapping("/session/{sessionId}")
     public ResponseEntity<SessionStatusResponse> getSessionStatus(@PathVariable String sessionId) {
-        log.debug("세션 상태 조회: sessionId={}", sessionId);
-        
+                
         return simulationService.getSessionStatus(sessionId)
             .map(status -> ResponseEntity.ok(SessionStatusResponse.builder()
                 .sessionId(sessionId)
@@ -89,21 +82,17 @@ public class SoarSimulationController {
                 .build()))
             .orElse(ResponseEntity.notFound().build());
     }
-    
-    
+
     @PostMapping("/approve")
     public ResponseEntity<ApprovalResponse> approveToolExecution(@RequestBody ApprovalRequest request) {
-        log.info("도구 실행 승인 요청: sessionId={}, toolName={}, approved={}",
-            request.getSessionId(), request.getToolName(), request.isApproved());
-        
+                
         simulationService.handleApproval(
             request.getSessionId(),
             request.getApprovalId(),
             request.isApproved(),
             request.getReason()
         );
-        
-        
+
         notifyApprovalResult(request);
         
         return ResponseEntity.ok(ApprovalResponse.builder()
@@ -113,8 +102,7 @@ public class SoarSimulationController {
             .timestamp(LocalDateTime.now())
             .build());
     }
-    
-    
+
     @GetMapping("/mcp-status")
     public ResponseEntity<McpStatusResponse> getMcpServerStatus() {
         Map<String, Boolean> mcpStatus = simulationService.getMcpServerStatus();
@@ -127,25 +115,17 @@ public class SoarSimulationController {
             .timestamp(LocalDateTime.now())
             .build());
     }
-    
-    
-    
-    
+
     @MessageMapping("/soar/pipeline/update")
     @SendTo("/topic/soar/pipeline")
     public PipelineUpdateMessage handlePipelineUpdate(@Payload PipelineUpdateMessage update) {
-        log.debug("파이프라인 업데이트: stage={}, progress={}", 
-            update.getStage(), update.getProgress());
-        return update;
+                return update;
     }
-    
-    
+
     @MessageMapping("/soar/tool/request")
     @SendTo("/topic/soar/tools")
     public ToolExecutionMessage handleToolRequest(@Payload ToolExecutionMessage request) {
-        log.info("도구 실행 요청: toolName={}, requiresApproval={}", 
-            request.getToolName(), request.isRequiresApproval());
-        return request;
+                return request;
     }
     
     private void notifySimulationStart(String sessionId, SimulationStartRequest request) {
@@ -175,9 +155,7 @@ public class SoarSimulationController {
 
         brokerTemplate.convertAndSend("/topic/soar/approvals", event);
     }
-    
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor

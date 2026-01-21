@@ -52,8 +52,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         config.setApplicationDestinationPrefixes("/app"); 
         config.enableSimpleBroker("/topic", "/queue");    
         config.setUserDestinationPrefix("/user");         
-        log.info("Broker: app=/app, broker=/topic|/queue, user=/user");
-    }
+            }
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
@@ -61,10 +60,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 .setAllowedOriginPatterns("*")
                 .setHandshakeHandler(handshakeHandler) 
                 .withSockJS();
-        log.info("STOMP endpoint: /ws-soar");
-    }
+            }
 
-    
     @Override
     public void configureClientInboundChannel(ChannelRegistration registration) {
         registration.taskExecutor()

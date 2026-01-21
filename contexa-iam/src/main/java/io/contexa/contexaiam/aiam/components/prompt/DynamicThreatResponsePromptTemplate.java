@@ -6,7 +6,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexaiam.aiam.protocol.request.DynamicThreatResponseRequest;
 
-
 @PromptTemplateConfig(
         key = "dynamicThreatResponse",
         aliases = {"threatResponse", "dynamicSecurity", "adaptiveDefense"},
@@ -27,7 +26,6 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(null, contextInfo);
     }
 
-    
     private String buildUnifiedSystemPrompt(String systemMetadata) {
         return String.format("""
             당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 동적 위협 대응 정책 생성 API입니다.
@@ -95,7 +93,6 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
             """, systemMetadata);
     }
 
-    
     private String buildUnifiedUserPrompt(DynamicThreatResponseRequest request, String contextInfo) {
         String threatDetails = (request != null && request.getContext() != null && request.getContext().getThreatInfo() != null) ?
                 String.format("""
@@ -151,7 +148,6 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
             """, threatDetails, responseDetails, contextInfo);
     }
 
-    
     public String generateStreamingPrompt(DynamicThreatResponseRequest request) {
         if (request == null || request.getContext() == null || request.getContext().getThreatInfo() == null) {
             return "위협 대응 경험을 바탕으로 전략적 보안 원칙을 도출하세요.";
@@ -162,7 +158,6 @@ public class DynamicThreatResponsePromptTemplate implements PromptTemplate {
                 request.getContext().getResponseInfo() != null ? request.getContext().getResponseInfo().getMitigationAction() : "대응");
     }
 
-    
     public String generatePolicyGenerationPrompt(String strategicPrinciple) {
         return String.format("""
             다음 전략적 보안 원칙을 Spring Security SpEL 표현식으로 변환해주세요:

@@ -19,7 +19,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDateTime;
 import java.util.*;
 
-
 @Slf4j
 public class DynamicThreatResponseContextRetriever extends ContextRetriever {
     
@@ -28,8 +27,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
     
     @Autowired(required = false)
     private JdbcTemplate jdbcTemplate;
-    
-    
+
     private static final Map<String, ThreatHistory> threatHistoryCache = new HashMap<>();
     private static final Map<String, PolicyEffectiveness> policyEffectivenessCache = new HashMap<>();
     
@@ -40,42 +38,32 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         super(vectorStore);
         this.contextRetrieverRegistry = contextRetrieverRegistry;
         this.auditLogRepository = auditLogRepository;
-        log.info("DynamicThreatResponseContextRetriever 초기화 완료");
-    }
-    
-    
+            }
+
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-        log.info("ApplicationContext refreshed. Initializing DynamicThreatResponseContextRetriever...");
-        registerSelf();
+                registerSelf();
     }
 
     private void registerSelf() {
         
         contextRetrieverRegistry.registerRetriever(DynamicThreatResponseContext.class, this);
-        log.info("DynamicThreatResponseContextRetriever 자동 등록 완료: DynamicThreatResponseRequest → {}",
-                this.getClass().getSimpleName());
-    }
+            }
     
     @Override
     public ContextRetriever.ContextRetrievalResult retrieveContext(AIRequest<? extends DomainContext> request) {
-        log.debug("DynamicThreatResponseContextRetriever.retrieveContext 호출됨");
-        
-        
+
         if (request instanceof DynamicThreatResponseRequest) {
             return retrieveDynamicThreatContext((DynamicThreatResponseRequest) request);
         }
-        
-        
+
         return super.retrieveContext(request);
     }
-    
-    
+
     private ContextRetriever.ContextRetrievalResult retrieveDynamicThreatContext(DynamicThreatResponseRequest request) {
         Map<String, Object> contextData = new HashMap<>();
         List<Document> documents = new ArrayList<>();
-        
-        
+
         String threatType = null;
         String attackVector = null;
         String targetResource = null;
@@ -85,28 +73,22 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             attackVector = request.getContext().getThreatInfo().getAttackVector();
             targetResource = request.getContext().getThreatInfo().getTargetResource();
         }
-        
-        
+
         List<ThreatHistory> similarThreats = findSimilarThreats(threatType, attackVector);
         contextData.put("similarThreats", similarThreats);
-        
-        
+
         PolicyEffectiveness effectiveness = analyzePastEffectiveness(threatType);
         contextData.put("policyEffectiveness", effectiveness);
-        
-        
+
         SecurityPosture currentPosture = getCurrentSecurityPosture();
         contextData.put("currentSecurityPosture", currentPosture);
-        
-        
+
         ResourceThreatStats resourceStats = getResourceThreatStats(targetResource);
         contextData.put("resourceThreatStats", resourceStats);
-        
-        
+
         TimeBasedPattern timePattern = analyzeTimePattern(threatType);
         contextData.put("timeBasedPattern", timePattern);
-        
-        
+
         if (threatType != null) {
             String query = String.format("위협 유형: %s, 공격 벡터: %s, 대상: %s", 
                     threatType, attackVector, targetResource);
@@ -119,13 +101,11 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             
             try {
                 documents = vectorStore.similaritySearch(searchRequest);
-                log.debug("Vector Store에서 {} 개의 관련 문서 발견", documents.size());
-            } catch (Exception e) {
+                            } catch (Exception e) {
                 log.warn("Vector Store 검색 실패: {}", e.getMessage());
             }
         }
-        
-        
+
         try {
             
             List<String> recentEvents = new ArrayList<>();
@@ -135,11 +115,9 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         } catch (Exception e) {
             log.warn("감사 로그 조회 실패: {}", e.getMessage());
         }
-        
-        
+
         String contextInfo = buildContextInfoString(contextData);
-        
-        
+
         Map<String, Object> metadata = Map.of(
                 "retrieverType", "DynamicThreatResponseContextRetriever",
                 "timestamp", System.currentTimeMillis(),
@@ -147,18 +125,14 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
                 "documentsFound", documents.size(),
                 "contextItemsCollected", contextData.size()
         );
-        
-        log.info("동적 위협 대응 컨텍스트 수집 완료: {} 항목", contextData.size());
-        
+
         return new ContextRetriever.ContextRetrievalResult(contextInfo, documents, metadata);
     }
-    
-    
+
     private String buildContextInfoString(Map<String, Object> contextData) {
         StringBuilder sb = new StringBuilder();
         sb.append("=== 동적 위협 대응 컨텍스트 ===\n\n");
-        
-        
+
         if (contextData.containsKey("similarThreats")) {
             List<ThreatHistory> threats = (List<ThreatHistory>) contextData.get("similarThreats");
             sb.append("## 유사 위협 이력:\n");
@@ -169,8 +143,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             }
             sb.append("\n");
         }
-        
-        
+
         if (contextData.containsKey("policyEffectiveness")) {
             PolicyEffectiveness pe = (PolicyEffectiveness) contextData.get("policyEffectiveness");
             sb.append("## 정책 효과성 분석:\n");
@@ -180,8 +153,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             sb.append(String.format("- 총 적용: %d건 (성공: %d건)\n", pe.totalApplications, pe.successfulBlocks));
             sb.append("\n");
         }
-        
-        
+
         if (contextData.containsKey("currentSecurityPosture")) {
             SecurityPosture sp = (SecurityPosture) contextData.get("currentSecurityPosture");
             sb.append("## 현재 보안 상태:\n");
@@ -190,8 +162,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             sb.append(String.format("- 활성 정책: %s\n", String.join(", ", sp.activePolicies)));
             sb.append("\n");
         }
-        
-        
+
         if (contextData.containsKey("resourceThreatStats")) {
             ResourceThreatStats rs = (ResourceThreatStats) contextData.get("resourceThreatStats");
             sb.append("## 리소스 위협 통계:\n");
@@ -201,8 +172,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             sb.append(String.format("- 위협 비율: %.1f%%\n", rs.threatRatio * 100));
             sb.append("\n");
         }
-        
-        
+
         if (contextData.containsKey("recentSecurityEvents")) {
             List<String> events = (List<String>) contextData.get("recentSecurityEvents");
             if (!events.isEmpty()) {
@@ -214,12 +184,10 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         
         return sb.toString();
     }
-    
-    
+
     private List<ThreatHistory> findSimilarThreats(String threatType, String attackVector) {
         List<ThreatHistory> similarThreats = new ArrayList<>();
-        
-        
+
         if (threatType != null) {
             
             threatHistoryCache.values().stream()
@@ -228,8 +196,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
                     .limit(5)
                     .forEach(similarThreats::add);
         }
-        
-        
+
         if (similarThreats.isEmpty()) {
             similarThreats.add(new ThreatHistory(
                     threatType != null ? threatType : "UNKNOWN",
@@ -240,19 +207,16 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             ));
         }
         
-        log.debug("유사 위협 {} 건 발견", similarThreats.size());
-        return similarThreats;
+                return similarThreats;
     }
-    
-    
+
     private PolicyEffectiveness analyzePastEffectiveness(String threatType) {
         
         PolicyEffectiveness cached = policyEffectivenessCache.get(threatType);
         if (cached != null) {
             return cached;
         }
-        
-        
+
         PolicyEffectiveness effectiveness = new PolicyEffectiveness(
                 threatType != null ? threatType : "UNKNOWN",
                 0.85,  
@@ -264,8 +228,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
         policyEffectivenessCache.put(threatType, effectiveness);
         return effectiveness;
     }
-    
-    
+
     private SecurityPosture getCurrentSecurityPosture() {
         return new SecurityPosture(
                 "ELEVATED",  
@@ -275,8 +238,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
                 getActivePolicies()
         );
     }
-    
-    
+
     private ResourceThreatStats getResourceThreatStats(String targetResource) {
         return new ResourceThreatStats(
                 targetResource != null ? targetResource : "UNKNOWN",
@@ -286,8 +248,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
                 0.3   
         );
     }
-    
-    
+
     private TimeBasedPattern analyzeTimePattern(String threatType) {
         Map<Integer, Integer> hourlyDistribution = new HashMap<>();
         
@@ -302,20 +263,15 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
                 "새벽과 오후에 집중"
         );
     }
-    
-    
+
     private List<String> getActiveThreats() {
         return Arrays.asList("BRUTE_FORCE", "SQL_INJECTION", "XSS");
     }
-    
-    
+
     private List<String> getActivePolicies() {
         return Arrays.asList("RATE_LIMITING", "IP_BLOCKING", "SESSION_TIMEOUT");
     }
-    
-    
-    
-    
+
     public static class ThreatHistory {
         public final String threatType;
         public final String attackVector;
@@ -332,8 +288,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             this.wasSuccessful = wasSuccessful;
         }
     }
-    
-    
+
     public static class PolicyEffectiveness {
         public final String threatType;
         public final double blockRate;
@@ -350,8 +305,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             this.successfulBlocks = successfulBlocks;
         }
     }
-    
-    
+
     public static class SecurityPosture {
         public final String level;
         public final int threatScore;
@@ -368,8 +322,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             this.activePolicies = activePolicies;
         }
     }
-    
-    
+
     public static class ResourceThreatStats {
         public final String resourceName;
         public final int threatsLast24h;
@@ -386,8 +339,7 @@ public class DynamicThreatResponseContextRetriever extends ContextRetriever {
             this.threatRatio = threatRatio;
         }
     }
-    
-    
+
     public static class TimeBasedPattern {
         public final String threatType;
         public final Map<Integer, Integer> hourlyDistribution;

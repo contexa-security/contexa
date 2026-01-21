@@ -20,5 +20,4 @@ public class GroupDto {
     private int userCount;
     private List<RoleDto> roles;
 
-
 }

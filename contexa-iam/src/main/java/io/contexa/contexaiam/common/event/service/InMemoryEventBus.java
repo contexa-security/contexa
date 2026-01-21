@@ -15,14 +15,12 @@ public class InMemoryEventBus implements IntegrationEventBus {
 
     @Override
     public void publish(DomainEvent event) {
-        log.info("Publishing event: {}", event.getClass().getSimpleName());
-        subscribers.getOrDefault(event.getClass(), Collections.emptyList())
+                subscribers.getOrDefault(event.getClass(), Collections.emptyList())
                 .forEach(handler -> handler.handle(event));
     }
 
     @Override
     public <T extends DomainEvent> void subscribe(Class<T> eventType, EventHandler<T> handler) {
         subscribers.computeIfAbsent(eventType, k -> new CopyOnWriteArrayList<>()).add(handler);
-        log.info("Handler {} subscribed to event {}", handler.getClass().getSimpleName(), eventType.getSimpleName());
-    }
+            }
 }

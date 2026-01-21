@@ -20,7 +20,6 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<PolicyContext, PolicyResponse> {
 
@@ -74,8 +73,7 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
         AILab<PolicyGenerationRequest, PolicyResponse> policyGenerationLab = (AdvancedPolicyGenerationLab) lab;
         PolicyGenerationRequest policyGenerationRequest = (PolicyGenerationRequest) labRequest;
 
-        log.info("정책 생성 요청: {}", policyGenerationRequest.getNaturalLanguageQuery());
-        return policyGenerationLab.process(policyGenerationRequest);
+                return policyGenerationLab.process(policyGenerationRequest);
     }
 
     @Override
@@ -83,8 +81,7 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
         AILab<PolicyGenerationRequest, PolicyResponse> policyGenerationLab = (AdvancedPolicyGenerationLab) lab;
         PolicyGenerationRequest data = (PolicyGenerationRequest) labRequest;
 
-        log.info("비동기 정책 생성 요청: {}", data.getNaturalLanguageQuery());
-        return policyGenerationLab.processAsync(data);
+                return policyGenerationLab.processAsync(data);
     }
 
     @Override
@@ -92,15 +89,12 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
         AILab<PolicyGenerationRequest, PolicyResponse> policyGenerationLab = (AdvancedPolicyGenerationLab) lab;
         PolicyGenerationRequest policyGenerationRequest = (PolicyGenerationRequest) labRequest;
 
-        log.info("실시간 스트리밍 정책 생성 요청: {}", policyGenerationRequest.getNaturalLanguageQuery());
-        if (policyGenerationRequest.getAvailableItems() != null) {
-            log.info("사용 가능한 항목들 포함");
-        }
+                if (policyGenerationRequest.getAvailableItems() != null) {
+                    }
 
         return policyGenerationLab.processStream(policyGenerationRequest);
     }
 
-    
     @Override
     protected PipelineConfig getPipelineConfig() {
         return PipelineConfig.fullPipeline();

@@ -63,7 +63,6 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         }
     }
 
-    
     private Object proceed(MethodInvocation mi) throws Throwable {
         try {
             return mi.proceed();
@@ -75,7 +74,6 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         }
     }
 
-    
     private Object handle(MethodInvocation mi, AuthorizationDeniedException denied) {
         if (authorizationManager instanceof MethodAuthorizationDeniedHandler handler) {
             return handler.handleDeniedInvocation(mi, denied);
@@ -107,8 +105,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     public void setMetricsCollector(EventPublishingMetrics metricsCollector) {
         this.metricsCollector = metricsCollector;
     }
-    
-    
+
     private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication,
                                           boolean granted, String denialReason) {
         if (zeroTrustEventPublisher == null) {
@@ -119,7 +116,6 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             
             long startTime = System.nanoTime();
 
-            
             zeroTrustEventPublisher.publishMethodAuthorization(
                 mi,
                 authentication,
@@ -135,9 +131,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             }
 
             String resource = mi.getMethod().getDeclaringClass().getSimpleName() + "." + mi.getMethod().getName();
-            log.debug("Published authorization event for @Protectable method: {} - granted: {}",
-                     resource, granted);
-
+            
         } catch (Exception e) {
             log.error("Failed to publish authorization event", e);
         }

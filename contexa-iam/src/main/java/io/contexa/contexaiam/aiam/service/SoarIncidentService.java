@@ -49,8 +49,6 @@ public class SoarIncidentService {
 
         SoarIncident savedIncident = incidentRepository.save(incident);
 
-        
-
         return savedIncident;
     }
 
@@ -63,13 +61,11 @@ public class SoarIncidentService {
         });
     }
 
-    
     @Transactional
     public void completeIncident(UUID incidentId, String resolvedBy, String resolutionMethod, boolean wasSuccessful) {
         SoarIncident incident = incidentRepository.findById(incidentId)
             .orElseThrow(() -> new IllegalArgumentException("Incident not found: " + incidentId));
 
-        
         SoarIncidentStatus finalStatus = wasSuccessful ?
             SoarIncidentStatus.COMPLETED : SoarIncidentStatus.FAILED;
 
@@ -79,8 +75,6 @@ public class SoarIncidentService {
 
         incidentRepository.save(incident);
 
-        
-        
         publishIncidentCompletedEvent(incident, resolvedBy, resolutionMethod, wasSuccessful);
     }
 
@@ -92,7 +86,5 @@ public class SoarIncidentService {
 
         eventPublisher.publishEvent(event);
 
-        log.info("IncidentCompletedEvent published: incident {} resolved by {} using {} (success: {})",
-            incident.getId(), resolvedBy, resolutionMethod, wasSuccessful);
-    }
+            }
 }

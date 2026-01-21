@@ -24,7 +24,6 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Optional;
 
-
 @Slf4j
 public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpressionRoot implements MethodSecurityExpressionOperations {
 
@@ -34,12 +33,10 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     private Object filterObject;
     private Object returnObject;
     private Object target;
-    
-    
+
     @Setter
     private String ownerField;
-    
-    
+
     private UserRepository userRepository;
     private GroupRepository groupRepository;
     private DocumentRepository documentRepository;
@@ -53,8 +50,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
         this.invocation = mi;
     }
-    
-    
+
     public void setRepositories(UserRepository userRepository, GroupRepository groupRepository, DocumentRepository documentRepository, ApplicationContext applicationContext) {
         this.userRepository = userRepository;
         this.groupRepository = groupRepository;
@@ -68,40 +64,32 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         if (!super.hasPermission(target, permission)) {
             return false;
         }
-        
-        
+
         if (StringUtils.hasText(ownerField) && target != null) {
             if (!checkOwnership(target)) {
                 return false;
             }
         }
-        
-        
+
         return true;
     }
 
     @Override
     public boolean hasPermission(Object targetId, String targetType, Object permission) {
-        
-        
-        
-        
+
         if (StringUtils.hasText(ownerField) && targetId != null) {
             if (!checkOwnershipById((Serializable) targetId, targetType)) {
                 return false;
             }
         }
-        
-        
+
         return true;
     }
 
-    
     private boolean checkOwnership(Object target) {
         try {
             String currentUsername = ((UserDto)getAuthentication().getPrincipal()).getUsername();
-            
-            
+
             Field field = target.getClass().getDeclaredField(ownerField);
             field.setAccessible(true);
             Object ownerValue = field.get(target);
@@ -109,8 +97,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             if (ownerValue == null) {
                 return false;
             }
-            
-            
+
             boolean isOwner = currentUsername.equals(ownerValue.toString());
             
             if (!isOwner) {
@@ -124,18 +111,15 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             return false;
         }
     }
-    
-    
+
     private boolean checkOwnershipById(Serializable targetId, String targetType) {
         try {
             
             Object entity = findEntityById(targetId, targetType);
             if (entity == null) {
-                log.debug("엔티티 조회 실패: targetId={}, targetType={}", targetId, targetType);
-                return false;
+                                return false;
             }
-            
-            
+
             return checkOwnership(entity);
             
         } catch (Exception e) {
@@ -143,8 +127,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             return false;
         }
     }
-    
-    
+
     private Object findEntityById(Serializable targetId, String targetType) {
         try {
             switch (targetType.toUpperCase()) {
@@ -153,8 +136,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
                 case "GROUP":
                     return groupRepository != null ? groupRepository.findById((Long) targetId).orElse(null) : null;
                 case "DOCUMENT":
-                    log.debug("DOCUMENT 타입은 아직 지원되지 않음");
-                    return documentRepository != null ? documentRepository.findById((Long) targetId).orElse(null) : null;
+                                        return documentRepository != null ? documentRepository.findById((Long) targetId).orElse(null) : null;
                 default:
                     
                     return findEntityByDynamicRepository(targetId, targetType);
@@ -164,8 +146,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             return null;
         }
     }
-    
-    
+
     private Object findEntityByDynamicRepository(Serializable targetId, String targetType) {
         if (applicationContext == null) {
             return null;
@@ -190,13 +171,10 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             return null;
             
         } catch (Exception e) {
-            log.debug("동적 Repository 조회 실패: {}", e.getMessage());
-            return null;
+                        return null;
         }
     }
 
-    
-    
     @Override
     public void setFilterObject(Object filterObject) {
         this.filterObject = filterObject;
@@ -225,8 +203,6 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     public Object getThis() {
         return this.target;
     }
-
-    
 
     @Override
     protected String getRemoteIp() {

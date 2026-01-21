@@ -6,7 +6,6 @@ import lombok.*;
 
 import java.util.Map;
 
-
 @Getter
 @Setter
 public class SecurityCopilotRequest extends IAMRequest<SecurityCopilotContext> {

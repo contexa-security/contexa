@@ -45,10 +45,6 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
         permission.setManagedResource(resource);
 
         Permission savedPermission = permissionRepository.save(permission);
-        log.info("Permission '{}' has been synchronized for resource '{}'.", savedPermission.getName(), resource.getResourceIdentifier());
-
-        
-
 
         return savedPermission;
     }
@@ -61,7 +57,6 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
                 .collect(Collectors.toList());
     }
 
-    
     private String generatePermissionName(ManagedResource resource) {
         String typePrefix = resource.getResourceType().name();
         String identifierPart;

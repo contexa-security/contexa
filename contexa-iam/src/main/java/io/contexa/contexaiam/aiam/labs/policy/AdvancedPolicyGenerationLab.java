@@ -25,14 +25,12 @@ import reactor.core.publisher.Mono;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
-
 @Slf4j
 public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGenerationRequest,PolicyResponse> {
 
     private final PipelineOrchestrator orchestrator;
     private final IAMDataCollectionService dataCollectionService;
     private final PolicyGenerationVectorService vectorService;
-
 
     public AdvancedPolicyGenerationLab(io.opentelemetry.api.trace.Tracer tracer,
                                        PipelineOrchestrator orchestrator,
@@ -43,8 +41,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         this.dataCollectionService = dataCollectionService;
         this.vectorService = vectorService;
 
-        log.info("AdvancedPolicyGenerationLab 초기화 완료 - PipelineOrchestrator 기반 with Vector Storage");
-    }
+            }
 
     @Override
     public boolean supportsStreaming() {
@@ -77,12 +74,9 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         );
     }
 
-    
     private Mono<AiGeneratedPolicyDraftDto> generatePolicyFromTextAsync(String naturalLanguageQuery,
                                                                        PolicyGenerationItem.AvailableItems availableItems) {
-        log.info("[DIAGNOSIS] AI 정책 진단 생성 시작: {} (일반 executor 사용)", naturalLanguageQuery);
-        
-        
+
         PolicyGenerationRequest request = null;
         try {
             request = new PolicyGenerationRequest(naturalLanguageQuery, availableItems);
@@ -94,8 +88,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         PolicyGenerationRequest finalRequest = request;
         return Mono.fromCallable(() -> createPolicyGenerationRequest(naturalLanguageQuery, availableItems))
                 .flatMap(aiRequest -> {
-                    log.info("[DIAGNOSIS] PipelineOrchestrator.execute() 호출 - Strategy 최적화 파이프라인 사용");
-                    return orchestrator.execute(aiRequest, PolicyResponse.class);
+                                        return orchestrator.execute(aiRequest, PolicyResponse.class);
                 })
                 .map(response -> {
                     if (response == null) {
@@ -104,9 +97,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                     }
 
                     PolicyResponse policyResponse = (PolicyResponse) response;
-                    log.info("[DIAGNOSIS] AI 정책 진단 생성 완료: JSON 응답 생성");
-                    
-                    
+
                     try {
                         AiGeneratedPolicyDraftDto policyDto = convertPolicyResponseToDto(policyResponse, naturalLanguageQuery);
                         vectorService.storeGeneratedPolicy(finalRequest, policyDto);
@@ -128,21 +119,16 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 });
     }
 
-    
     private Flux<String> generateRealPolicyFromTextStream(String naturalLanguageQuery,
                                                          PolicyGenerationItem.AvailableItems availableItems) {
-        log.info("[STREAMING] 실제 AI 스트리밍 정책 생성 시작: {} (StreamingUniversalPipelineExecutor 자동선택)", naturalLanguageQuery);
-
+        
         try {
             
             AIRequest<PolicyContext> aiRequest = createPolicyGenerationStreamingRequest(naturalLanguageQuery, availableItems);
 
-            log.info("[STREAMING] PipelineOrchestrator.executeStream() 호출 - Strategy 최적화 파이프라인 사용");
-
-            
             Flux<String> streamingFlux = orchestrator.executeStream(aiRequest);
             return streamingFlux
-                    .doOnSubscribe(subscription -> { log.info("[{}][{}] [구독]:", Thread.currentThread().threadId(),Thread.currentThread().getName());})
+                    .doOnSubscribe(subscription -> { })
                     .doOnNext(chunk -> {
                         String chunkStr = chunk != null ? chunk.toString() : "";
 
@@ -150,8 +136,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                     .map(this::cleanStreamingChunk)
                     .concatWith(Mono.just("[DONE]"))
                     .doOnComplete(() -> {
-                        log.info("[STREAMING] 실제 스트리밍 완료 (진단 결과도 함께 수집됨)");
-                    })
+                                            })
                     .doOnError(error -> {
                         log.error("실제 스트리밍 중 오류 발생", error);
                     })
@@ -166,7 +151,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    
     private AiGeneratedPolicyDraftDto generatePolicyFromTextSync(String naturalLanguageQuery,
                                                                  PolicyGenerationItem.AvailableItems availableItems) {
         try {
@@ -177,7 +161,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    
     private PolicyResponse convertDtoToPolicyResponse(AiGeneratedPolicyDraftDto dto, String requestId) {
         PolicyResponse response = new PolicyResponse(requestId, IAMResponse.ExecutionStatus.SUCCESS);
         response.setPolicyData(dto.policyData());
@@ -187,7 +170,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return response;
     }
 
-    
     private AIRequest<PolicyContext> createPolicyGenerationStreamingRequest(String naturalLanguageQuery,
                                                                             PolicyGenerationItem.AvailableItems availableItems) {
 
@@ -198,7 +180,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         PolicyContext context = new PolicyContext.Builder(SecurityLevel.STANDARD, AuditRequirement.BASIC)
                 .withNaturalLanguageQuery(naturalLanguageQuery).build();
 
-        
         String orgId = context.getOrganizationId();
         if (orgId == null || orgId.trim().isEmpty()) {
             orgId = "default-org";
@@ -206,7 +187,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
         AIRequest<PolicyContext> request = new AIRequest<>(context, "policyGenerationStreaming", orgId);
 
-        
         if (naturalLanguageQuery != null) {
             request.withParameter("naturalLanguageQuery", naturalLanguageQuery);
         }
@@ -219,11 +199,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
         if (availableItems != null) {
             request.withParameter("systemMetadata", buildSystemMetadataFromAvailableItems(availableItems));
-            log.info("사용 가능한 항목들 메타데이터 포함: 역할 {}개, 권한 {}개, 조건 {}개",
-                    availableItems.roles() != null ? availableItems.roles().size() : 0,
-                    availableItems.permissions() != null ? availableItems.permissions().size() : 0,
-                    availableItems.conditions() != null ? availableItems.conditions().size() : 0);
-        }
+                    }
 
         return request;
     }
@@ -232,7 +208,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         StringBuilder metadata = new StringBuilder();
         metadata.append("현재 사용 가능한 항목들 (반드시 이 ID들만 사용하세요):\n\n");
 
-        
         if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
             metadata.append("사용 가능한 역할:\n");
             availableItems.roles().forEach(role ->
@@ -242,7 +217,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             metadata.append("사용 가능한 역할: 없음\n");
         }
 
-        
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
             metadata.append("\n🔑 사용 가능한 권한:\n");
             availableItems.permissions().forEach(perm ->
@@ -252,7 +226,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             metadata.append("\n🔑 사용 가능한 권한: 없음\n");
         }
 
-        
         if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
             metadata.append("\n⏰ 사용 가능한 조건 템플릿:\n");
             availableItems.conditions().forEach(cond ->
@@ -269,7 +242,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return metadata.toString();
     }
 
-    
     private String cleanStreamingChunk(String chunk) {
         if (chunk == null || chunk.isEmpty()) {
             return "";
@@ -286,7 +258,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    
     private AIRequest<PolicyContext> createPolicyGenerationRequest(String naturalLanguageQuery,
                                                                    PolicyGenerationItem.AvailableItems availableItems) {
         PolicyContext context = new PolicyContext.Builder(
@@ -294,7 +265,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 AuditRequirement.BASIC
         ).withNaturalLanguageQuery(naturalLanguageQuery).build();
 
-        
         String orgId = context.getOrganizationId();
         if (orgId == null || orgId.trim().isEmpty()) {
             orgId = "default-org";
@@ -302,7 +272,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
         AIRequest<PolicyContext> request = new AIRequest<>(context, "policyGeneration", orgId);
 
-        
         if (naturalLanguageQuery != null) {
             request.withParameter("naturalLanguageQuery", naturalLanguageQuery);
         }
@@ -315,7 +284,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return request;
     }
 
-    
     private AiGeneratedPolicyDraftDto convertPolicyResponseToDto(PolicyResponse policyResponse, String naturalLanguageQuery) {
         if (policyResponse == null) {
             log.warn("PolicyResponse가 null, fallback 생성");
@@ -323,8 +291,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
 
         if (policyResponse.getPolicyData() != null) {
-            log.info("Pipeline 에서 완전히 처리된 정책 데이터 수신");
-            return new AiGeneratedPolicyDraftDto(
+                        return new AiGeneratedPolicyDraftDto(
                     policyResponse.getPolicyData(),
                     policyResponse.getRoleIdToNameMap(),
                     policyResponse.getPermissionIdToNameMap(),
@@ -333,15 +300,13 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
 
         if (policyResponse.getGeneratedPolicy() != null && !policyResponse.getGeneratedPolicy().trim().isEmpty()) {
-            log.info("Pipeline 에서 문자열 정책 데이터 수신, 파싱 시도");
-            return validateAndOptimizePolicyResult(policyResponse.getGeneratedPolicy(), naturalLanguageQuery);
+                        return validateAndOptimizePolicyResult(policyResponse.getGeneratedPolicy(), naturalLanguageQuery);
         }
 
         log.warn("PolicyResponse에 유효한 데이터가 없음, fallback 생성");
         return createFallbackPolicyData(naturalLanguageQuery);
     }
 
-    
     private AiGeneratedPolicyDraftDto validateAndOptimizePolicyResult(String jsonResponse, String naturalLanguageQuery) {
         if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
             log.warn("빈 JSON 응답, fallback 사용");
@@ -349,11 +314,9 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
 
         try {
-            log.info("부분적 JSON 응답 수신 - 길이: {}", jsonResponse.length());
-
+            
             if (jsonResponse.contains("{") && jsonResponse.contains("}")) {
-                log.info("유효한 JSON 형태 감지, 하지만 Pipeline 처리 결과 우선");
-            }
+                            }
 
             return createFallbackPolicyData(naturalLanguageQuery);
 
@@ -363,7 +326,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    
     private AiGeneratedPolicyDraftDto createFallbackPolicyData(String naturalLanguageQuery) {
         log.warn("Fallback 정책 데이터 생성: {}", naturalLanguageQuery);
 
@@ -379,7 +341,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         );
     }
 
-    
     private String convertToStreamingJson(AiGeneratedPolicyDraftDto result) {
         try {
             StringBuilder json = new StringBuilder();
@@ -400,7 +361,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    
     private AiGeneratedPolicyDraftDto parseFullRawResponseToDto(String jsonData, String naturalLanguageQuery) {
         if (jsonData == null || jsonData.trim().isEmpty()) {
             log.warn("빈 jsonData, fallback 생성");
@@ -408,16 +368,12 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
 
         try {
-            log.info("fullRawResponse JSON 파싱 시작 - 길이: {}", jsonData.length());
 
-            
             ObjectMapper mapper = new ObjectMapper();
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-            
-            
+
             Map<String, Object> responseMap = mapper.readValue(jsonData, Map.class);
-            
-            
+
             Map<String, Object> policyDataMap = (Map<String, Object>) responseMap.get("policyData");
             
             if (policyDataMap == null) {
@@ -425,12 +381,10 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 return createFallbackPolicyData(naturalLanguageQuery);
             }
 
-            
             BusinessPolicyDto policyData = new BusinessPolicyDto();
             policyData.setPolicyName((String) policyDataMap.get("policyName"));
             policyData.setDescription((String) policyDataMap.get("description"));
-            
-            
+
             Set<Long> roleIds = extractRoleIds(policyDataMap);
             Set<Long> permissionIds = extractPermissionIds(policyDataMap);
             
@@ -440,7 +394,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
             policyData.setConditional(true);
             policyData.setConditions(new HashMap<>());
 
-            
             Map<String, String> roleIdToNameMap = (Map<String, String>) responseMap.get("roleIdToNameMap");
             Map<String, String> permissionIdToNameMap = (Map<String, String>) responseMap.get("permissionIdToNameMap");
             Map<String, String> conditionIdToNameMap = (Map<String, String>) responseMap.get("conditionIdToNameMap");
@@ -458,7 +411,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    
     private Set<Long> extractRoleIds(Map<String, Object> policyDataMap) {
         Set<Long> roleIds = new HashSet<>();
         
@@ -484,11 +436,9 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return roleIds;
     }
 
-    
     private Set<Long> extractPermissionIds(Map<String, Object> policyDataMap) {
         Set<Long> permissionIds = new HashSet<>();
-        
-        
+
         Object rolesObj = policyDataMap.get("roles");
         if (rolesObj instanceof List) {
             List<Object> rolesList = (List<Object>) rolesObj;
@@ -510,20 +460,14 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         
         return permissionIds;
     }
-    
-    
+
     public void learnFromFeedback(PolicyGenerationRequest request, PolicyResponse response, String feedback) {
         try {
-            
-            
-            log.info("[AdvancedPolicyGenerationLab] 피드백 학습 시작: {}", feedback.substring(0, Math.min(50, feedback.length())));
-            
-            
+
             AiGeneratedPolicyDraftDto policyDto = convertPolicyResponseToDto(response, request.getNaturalLanguageQuery());
             vectorService.storeGeneratedPolicy(request, policyDto);
             
-            log.info("[AdvancedPolicyGenerationLab] 피드백 학습 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("[AdvancedPolicyGenerationLab] 피드백 학습 실패", e);
         }
     }

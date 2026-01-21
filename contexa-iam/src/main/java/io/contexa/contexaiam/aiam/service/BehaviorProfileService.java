@@ -18,7 +18,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class BehaviorProfileService {
@@ -28,25 +27,21 @@ public class BehaviorProfileService {
     private final BehaviorAnomalyEventRepository anomalyEventRepository;
     private final BehaviorBasedPermissionRepository permissionRepository;
 
-    
     public long getTotalUserCount() {
         return userRepository.count();
     }
 
-    
     public long getActiveUserCount(LocalDateTime date) {
         LocalDateTime startOfDay = date.toLocalDate().atStartOfDay();
         LocalDateTime endOfDay = startOfDay.plusDays(1);
         return anomalyEventRepository.countDistinctUsersByEventTimestampBetween(startOfDay, endOfDay);
     }
 
-    
     public long getAnomalyCount(int days) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         return anomalyEventRepository.countByEventTimestampAfter(since);
     }
 
-    
     public Map<String, Long> getRiskLevelDistribution(int days) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         List<BehaviorAnomalyEvent> events = anomalyEventRepository.findByEventTimestampAfter(since);
@@ -58,7 +53,6 @@ public class BehaviorProfileService {
                 ));
     }
 
-    
     public List<BehavioralAnalysisController.HourlyTrend> getHourlyAnomalyTrend(int days) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         List<BehaviorAnomalyEvent> events = anomalyEventRepository.findByEventTimestampAfter(since);
@@ -90,7 +84,6 @@ public class BehaviorProfileService {
         return trends;
     }
 
-    
     public List<BehavioralAnalysisController.HighRiskEvent> getRecentHighRiskEvents(int limit) {
         PageRequest pageRequest = PageRequest.of(0, limit, Sort.by(Sort.Direction.DESC, "eventTimestamp"));
         List<BehaviorAnomalyEvent> events = anomalyEventRepository.findByRiskLevelIn(
@@ -109,31 +102,25 @@ public class BehaviorProfileService {
         }).collect(Collectors.toList());
     }
 
-    
     public Map<String, Object> getUserProfile(String userId, int days) {
         Map<String, Object> profile = new HashMap<>();
 
-        
         profile.put("userId", userId);
         profile.put("analysisPeriodDays", days);
 
-        
         List<UserBehaviorProfile> profiles = behaviorProfileRepository.findByUserId(userId);
         profile.put("behaviorProfiles", profiles);
 
-        
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         List<BehaviorAnomalyEvent> anomalies = anomalyEventRepository.findByUserIdAndEventTimestampAfter(userId, since);
         profile.put("recentAnomalies", anomalies.size());
 
-        
         double avgRisk = anomalies.stream()
                 .mapToDouble(BehaviorAnomalyEvent::getAnomalyScore)
                 .average()
                 .orElse(0.0);
         profile.put("averageRiskScore", avgRisk);
 
-        
         Map<String, Long> riskDistribution = anomalies.stream()
                 .collect(Collectors.groupingBy(BehaviorAnomalyEvent::getRiskLevel, Collectors.counting()));
         profile.put("riskDistribution", riskDistribution);
@@ -141,7 +128,6 @@ public class BehaviorProfileService {
         return profile;
     }
 
-    
     public List<BehavioralAnalysisController.AnomalyEvent> getUserAnomalies(String userId, int days, int page, int size) {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "eventTimestamp"));
@@ -159,7 +145,6 @@ public class BehaviorProfileService {
             anomaly.setRiskScore(event.getAnomalyScore());
             anomaly.setRiskLevel(event.getRiskLevel());
 
-            
             if (event.getAnomalyFactors() != null) {
                 try {
                     @SuppressWarnings("unchecked")
@@ -176,7 +161,6 @@ public class BehaviorProfileService {
         }).collect(Collectors.toList());
     }
 
-    
     @Transactional
     public void saveFeedback(String analysisId, boolean isCorrect, String feedback, String adminUser) {
         anomalyEventRepository.findByAiAnalysisId(analysisId).ifPresent(event -> {
@@ -186,11 +170,9 @@ public class BehaviorProfileService {
             event.setFeedbackBy(adminUser);
             anomalyEventRepository.save(event);
 
-            log.info("피드백 저장 완료: analysisId={}, correct={}, by={}", analysisId, isCorrect, adminUser);
-        });
+                    });
     }
 
-    
     @Transactional
     public void createDynamicPermission(String conditionExpression, String applicableTo,
                                         String permissionAdjustment, String description, String createdBy) {
@@ -206,21 +188,17 @@ public class BehaviorProfileService {
 
         permissionRepository.save(permission);
 
-        log.info("동적 권한 규칙 생성: condition={}, adjustment={}", conditionExpression, permissionAdjustment);
-    }
+            }
 
-    
     public List<BehaviorBasedPermission> getActivePermissions() {
         return permissionRepository.findByActiveTrue(Sort.by(Sort.Direction.ASC, "priority"));
     }
 
-    
     @Transactional
     public void deactivatePermission(Long permissionId) {
         permissionRepository.findById(permissionId).ifPresent(permission -> {
             permission.setActive(false);
             permissionRepository.save(permission);
-            log.info("동적 권한 규칙 비활성화: id={}", permissionId);
-        });
+                    });
     }
 }

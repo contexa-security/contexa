@@ -7,8 +7,6 @@ import lombok.*;
 import java.util.List;
 import java.util.Map;
 
-
-
 @Getter
 @Setter
 public class ResourceNamingSuggestionRequest extends IAMRequest<ResourceNamingContext> {
@@ -25,7 +23,6 @@ public class ResourceNamingSuggestionRequest extends IAMRequest<ResourceNamingCo
         super(context, operation);
     }
 
-    
     @Data
     @Builder
     @NoArgsConstructor
@@ -33,14 +30,11 @@ public class ResourceNamingSuggestionRequest extends IAMRequest<ResourceNamingCo
     public static class ResourceItem {
         
         private String identifier;
-        
-        
+
         private String owner;
-        
-        
+
         private Map<String, String> metadata;
-        
-        
+
         public static ResourceItem fromMap(Map<String, String> resourceMap) {
             return ResourceItem.builder()
                     .identifier(resourceMap.get("identifier"))
@@ -48,8 +42,7 @@ public class ResourceNamingSuggestionRequest extends IAMRequest<ResourceNamingCo
                     .build();
         }
     }
-    
-    
+
     public static ResourceNamingSuggestionRequest fromMapList(List<Map<String, String>> resourceMaps) {
         List<ResourceItem> items = resourceMaps.stream()
                 .map(ResourceItem::fromMap)

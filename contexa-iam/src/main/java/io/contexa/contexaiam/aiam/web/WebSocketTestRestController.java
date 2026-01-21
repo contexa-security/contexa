@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Slf4j
 @RequestMapping("/api/test/websocket")
 public class WebSocketTestRestController {
@@ -32,12 +31,9 @@ public class WebSocketTestRestController {
         this.brokerTemplate = brokerTemplate;
     }
 
-    
     @PostMapping("/simple-broadcast")
     public ResponseEntity<?> testSimpleBroadcast(@RequestBody Map<String, String> request) {
         String message = request.getOrDefault("message", "Test Message " + System.currentTimeMillis());
-
-        log.info("🧪 간단한 WebSocket 브로드캐스트 테스트 시작: {}", message);
 
         try {
             
@@ -58,7 +54,6 @@ public class WebSocketTestRestController {
         }
     }
 
-    
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getWebSocketStatus() {
         Map<String, Object> status = new HashMap<>();
@@ -69,18 +64,14 @@ public class WebSocketTestRestController {
             status.put("activeSessionCount", webSocketApprovalHandler != null ?
                 webSocketApprovalHandler.getActiveSessionCount() : 0);
 
-            
             status.put("messagingTemplateAvailable", brokerTemplate != null);
 
-            
             status.put("notificationServiceAvailable", notificationService != null);
 
-            
             status.put("timestamp", LocalDateTime.now());
             status.put("status", "OK");
 
-            log.info("WebSocket status check: {}", status);
-            return ResponseEntity.ok(status);
+                        return ResponseEntity.ok(status);
 
         } catch (Exception e) {
             log.error("Error checking WebSocket status", e);
@@ -90,7 +81,6 @@ public class WebSocketTestRestController {
         }
     }
 
-    
     @PostMapping("/trigger-approval")
     public ResponseEntity<Map<String, Object>> triggerTestApproval(
             @RequestParam(defaultValue = "HIGH") String riskLevel,
@@ -104,42 +94,30 @@ public class WebSocketTestRestController {
             if (approvalId == null || approvalId.isBlank()) {
                 approvalId = "TEST-" + UUID.randomUUID().toString();
             }
-            log.info("승인 요청 ID: {} (클라이언트 제공: {}, sessionId: {})",
-                approvalId, approvalId.startsWith("TEST-") && approvalId.contains("-"), sessionId);
-
+            
             ApprovalRequest request = createTestApprovalRequest(approvalId, riskLevel, sessionId);
 
-            log.info("🔔 Triggering test approval request: {}", approvalId);
-
-            
             if (webSocketApprovalHandler != null) {
                 webSocketApprovalHandler.sendApprovalRequest(request);
-                log.info("Approval request sent via WebSocketApprovalHandler");
-            }
+                            }
 
-            
             if (notificationService != null) {
                 notificationService.sendApprovalRequest(request);
-                log.info("Approval request sent via NotificationService");
-            }
+                            }
 
-            
             String resultTopic = "/topic/soar/approval-results/" + approvalId;
             Map<String, Object> initMessage = new HashMap<>();
             initMessage.put("type", "TOPIC_INIT");
             initMessage.put("approvalId", approvalId);
             initMessage.put("timestamp", LocalDateTime.now());
             brokerTemplate.convertAndSend(resultTopic, initMessage);
-            log.info("토픽 사전 활성화: {}", resultTopic);
-            
-            
+
             try {
                 Thread.sleep(100);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
 
-            
             sendDirectStompMessage(request);
 
             response.put("success", true);
@@ -161,7 +139,6 @@ public class WebSocketTestRestController {
         }
     }
 
-    
     @PostMapping("/broadcast")
     public ResponseEntity<Map<String, Object>> broadcastTestMessage(
             @RequestBody Map<String, Object> message) {
@@ -171,8 +148,7 @@ public class WebSocketTestRestController {
         try {
             
             brokerTemplate.convertAndSend("/topic/soar/approvals", message);
-            log.info("Broadcast message sent to /topic/soar/approvals");
-
+            
             response.put("success", true);
             response.put("message", "Broadcast sent successfully");
             response.put("topic", "/topic/soar/approvals");
@@ -188,7 +164,6 @@ public class WebSocketTestRestController {
         }
     }
 
-    
     @GetMapping("/ping")
     public ResponseEntity<Map<String, Object>> sendPing() {
         Map<String, Object> pingMessage = new HashMap<>();
@@ -198,8 +173,7 @@ public class WebSocketTestRestController {
 
         try {
             brokerTemplate.convertAndSend("/topic/soar/approvals", pingMessage);
-            log.info("Ping message sent");
-
+            
             return ResponseEntity.ok(Map.of(
                 "success", true,
                 "message", "Ping sent",
@@ -215,7 +189,6 @@ public class WebSocketTestRestController {
         }
     }
 
-    
     private ApprovalRequest createTestApprovalRequest(String approvalId, String riskLevel, String sessionId) {
         ApprovalRequest request = new ApprovalRequest();
 
@@ -224,14 +197,12 @@ public class WebSocketTestRestController {
         request.setToolDescription("This is a test approval request for WebSocket communication verification");
         request.setActionDescription("Execute security vulnerability scan on production servers");
 
-        
         try {
             request.setRiskLevel(ApprovalRequest.RiskLevel.valueOf(riskLevel.toUpperCase()));
         } catch (IllegalArgumentException e) {
             request.setRiskLevel(ApprovalRequest.RiskLevel.HIGH);
         }
 
-        
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("scanType", "FULL_SCAN");
         parameters.put("targetServers", new String[]{"server1", "server2", "server3"});
@@ -239,7 +210,6 @@ public class WebSocketTestRestController {
         parameters.put("requiresDowntime", false);
         request.setParameters(parameters);
 
-        
         request.setRequestedBy("Test System");
         request.setRequestedAt(LocalDateTime.now());
         request.setOrganizationId("test-org");
@@ -255,7 +225,6 @@ public class WebSocketTestRestController {
         return request;
     }
 
-    
     private void sendDirectStompMessage(ApprovalRequest request) {
         try {
             Map<String, Object> message = new HashMap<>();
@@ -269,13 +238,10 @@ public class WebSocketTestRestController {
             message.put("timestamp", LocalDateTime.now());
             message.put("parameters", request.getParameters());
 
-            
             brokerTemplate.convertAndSend("/topic/soar/approvals", message);
-            log.info("Direct STOMP message sent to /topic/soar/approvals");
-
+            
             brokerTemplate.convertAndSend("/topic/soar/events", message);
-            log.info("Direct STOMP message sent to /topic/soar/events");
-
+            
         } catch (Exception e) {
             log.error("Failed to send direct STOMP message", e);
         }

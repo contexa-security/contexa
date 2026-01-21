@@ -21,7 +21,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyTranslator {
@@ -34,14 +33,11 @@ public class PolicyTranslator {
 
     private record AnalysisResult(List<String> subjectDescriptions, String subjectType, List<String> actionDescriptions, List<String> conditionDescriptions) {}
 
-
-    
     public String translatePolicyToString(Policy policy) {
         if (policy == null || policy.getRules() == null || policy.getRules().isEmpty()) {
             return "정의된 규칙이 없는 정책입니다.";
         }
 
-        
         String rulesDescription = policy.getRules().stream()
                 .map(this::translateRuleToString)
                 .collect(Collectors.joining(" 또는 "));
@@ -49,13 +45,11 @@ public class PolicyTranslator {
         return rulesDescription;
     }
 
-    
     private String translateRuleToString(PolicyRule rule) {
         if (rule.getConditions() == null || rule.getConditions().isEmpty()) {
             return "(정의된 조건 없음)";
         }
 
-        
         String conditionsDescription = rule.getConditions().stream()
                 .map(this::translateConditionToString)
                 .collect(Collectors.joining(" 그리고 "));
@@ -63,7 +57,6 @@ public class PolicyTranslator {
         return "(" + conditionsDescription + ")";
     }
 
-    
     private String translateConditionToString(PolicyCondition condition) {
         try {
             Expression expression = expressionParser.parseExpression(condition.getExpression());
@@ -75,7 +68,6 @@ public class PolicyTranslator {
         }
     }
 
-    
     private String walkAndDescribe(SpelNode node) {
         
         if (node instanceof OpAnd) {
@@ -88,7 +80,6 @@ public class PolicyTranslator {
             return String.format("NOT (%s)", walkAndDescribe(node.getChild(0)));
         }
 
-        
         if (node instanceof OpEQ) return String.format("%s가 %s와(과) 같음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
         if (node instanceof OpNE) return String.format("%s가 %s와(과) 다름", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
         if (node instanceof OpGT) return String.format("%s가 %s보다 큼", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
@@ -96,7 +87,6 @@ public class PolicyTranslator {
         if (node instanceof OpLT) return String.format("%s가 %s보다 작음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
         if (node instanceof OpLE) return String.format("%s가 %s보다 작거나 같음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
 
-        
         if (node instanceof MethodReference) {
             MethodReference methodRef = (MethodReference) node;
             String methodName = methodRef.getName();
@@ -108,18 +98,15 @@ public class PolicyTranslator {
             }
         }
 
-        
         if (node instanceof Identifier) {
             String identifier = ((Identifier) node).toString();
             if ("permitAll".equalsIgnoreCase(identifier)) return "모든 접근";
             if ("denyAll".equalsIgnoreCase(identifier)) return "모든 접근 거부";
         }
 
-        
         return node.toStringAST();
     }
 
-    
     public Stream<EntitlementDto> translate(Policy policy, String resourceName) {
         return policy.getRules().stream().map(rule -> {
             List<ExpressionNode> conditionNodes = rule.getConditions().stream()
@@ -127,7 +114,6 @@ public class PolicyTranslator {
                     .collect(Collectors.toList());
             ExpressionNode rootNode = (conditionNodes.size() == 1) ? conditionNodes.get(0) : new LogicalNode("AND", conditionNodes);
 
-            
             AnalysisResult analysis = analyzeNode(rootNode);
 
             return new EntitlementDto(
@@ -141,7 +127,6 @@ public class PolicyTranslator {
         });
     }
 
-    
     private AnalysisResult analyzeNode(ExpressionNode rootNode) {
         List<String> subjectDescs = new ArrayList<>();
         List<String> actionDescs = new ArrayList<>();
@@ -171,7 +156,6 @@ public class PolicyTranslator {
             }
         }
 
-        
         if (rootNode.requiresAuthentication() && subjectDescs.isEmpty()) {
             subjectDescs.add("인증된 사용자");
             subjectType = "인증 상태";
@@ -193,13 +177,11 @@ public class PolicyTranslator {
         }
     }
 
-    
     public ExpressionNode parsePolicy(Policy policy) {
         if (policy == null || policy.getRules() == null || policy.getRules().isEmpty()) {
             return new TerminalNode("정의된 규칙 없음");
         }
 
-        
         List<ExpressionNode> ruleNodes = policy.getRules().stream()
                 .map(this::parseRule)
                 .collect(Collectors.toList());
@@ -207,7 +189,6 @@ public class PolicyTranslator {
         return (ruleNodes.size() == 1) ? ruleNodes.getFirst() : new LogicalNode("OR", ruleNodes);
     }
 
-    
     private ExpressionNode parseRule(PolicyRule rule) {
         if (rule.getConditions() == null || rule.getConditions().isEmpty()) {
             return new TerminalNode("정의된 조건 없음");
@@ -225,13 +206,10 @@ public class PolicyTranslator {
         if (node instanceof OpOr) return new LogicalNode("OR", getChildren(node));
         if (node instanceof OperatorNot) return new LogicalNode("NOT", getChildren(node));
 
-        
         if (node instanceof MethodReference) {
             MethodReference methodRef = (MethodReference) node;
             String methodName = methodRef.getName();
 
-            
-            
             for (SpelFunctionTranslator translator : translators) {
                 if (translator.supports(methodName)) {
                     return translator.translate(methodName, methodRef);

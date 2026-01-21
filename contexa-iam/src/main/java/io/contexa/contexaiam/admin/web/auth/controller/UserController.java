@@ -23,7 +23,6 @@ public class UserController {
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
 
-
     @GetMapping("/register")
     public String registerPage(Model model) {
         return "register";

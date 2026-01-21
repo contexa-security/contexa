@@ -9,32 +9,23 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class ResourceEnhancementService {
 
     private final ResourceRegistryService resourceRegistryService;
 
-    
     @Transactional
     public void defineResource(Long id, ResourceMetadataDto metadataDto) {
-        log.info("Delegating resource definition for ID: {}", id);
-        resourceRegistryService.defineResourceAsPermission(id, metadataDto);
+                resourceRegistryService.defineResourceAsPermission(id, metadataDto);
     }
 
-    
     @Transactional
     public void batchUpdateStatus(List<Long> ids, ManagedResource.Status status) {
-        log.info("Batch updating status for {} resources to {}", ids.size(), status);
-        
-        
+
     }
 
-
-    
     public void refreshResources() {
-        log.info("Delegating resource refresh command.");
-        resourceRegistryService.refreshAndSynchronizeResources();
+                resourceRegistryService.refreshAndSynchronizeResources();
     }
 }

@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemplateGenerationRequest, ConditionTemplateGenerationResponse> {
 
@@ -39,8 +38,7 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
         this.objectMapper = objectMapper;
         this.vectorService = vectorService;
 
-        log.info("ConditionTemplateGenerationLab initialized - PipelineOrchestrator with Vector Storage");
-    }
+            }
 
     @Override
     protected ConditionTemplateGenerationResponse doProcess(ConditionTemplateGenerationRequest request) throws Exception {
@@ -67,8 +65,7 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
     }
 
     private Mono<ConditionTemplateGenerationResponse> generateUniversalConditionTemplatesAsync() {
-        
-        
+
         try {
             ConditionTemplateGenerationRequest request = new ConditionTemplateGenerationRequest(true);
             vectorService.storeTemplateGenerationRequest(request);
@@ -90,8 +87,7 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                                 "Pipeline returned null response"
                         );
                     }
-                    
-                    
+
                     try {
                         ConditionTemplateGenerationRequest request = new ConditionTemplateGenerationRequest(true);
                         vectorService.storeGeneratedTemplates(request, (ConditionTemplateGenerationResponse) response);
@@ -114,8 +110,7 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
     }
 
     private Mono<ConditionTemplateGenerationResponse> generateSpecificConditionTemplatesAsync(String resourceIdentifier, String methodInfo) {
-        
-        
+
         try {
             ConditionTemplateGenerationRequest request = ConditionTemplateGenerationRequest.forSpecificTemplate(resourceIdentifier, methodInfo);
             vectorService.storeTemplateGenerationRequest(request);
@@ -137,8 +132,7 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                                 "Pipeline returned null response"
                         );
                     }
-                    
-                    
+
                     try {
                         ConditionTemplateGenerationRequest request = new ConditionTemplateGenerationRequest(true);
                         vectorService.storeGeneratedTemplates(request, (ConditionTemplateGenerationResponse) response);
@@ -217,8 +211,7 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
         }
 
         try {
-            log.info("파이프라인에서 JSON 응답 수신 - 길이: {}", jsonResponse.length());
-
+            
             String cleanedJson = extractAndCleanJson(jsonResponse);
             if (cleanedJson.equals("[]")) {
                 log.warn("JSON 응답이 비어있음, 폴백 사용");
@@ -275,10 +268,8 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
             return "[]";
         }
 
-        
         String cleaned = aiResponse.replaceAll("```json\\s*", "").replaceAll("```\\s*", "");
 
-        
         int startIdx = cleaned.indexOf('[');
         int endIdx = cleaned.lastIndexOf(']');
 
@@ -286,7 +277,6 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
             return cleaned.substring(startIdx, endIdx + 1).trim();
         }
 
-        
         startIdx = cleaned.indexOf('{');
         endIdx = cleaned.lastIndexOf('}');
 
@@ -295,7 +285,6 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
             return "[" + jsonObject + "]";
         }
 
-        
         log.warn("AI 응답에서 유효한 JSON을 찾을 수 없음: {}", aiResponse.substring(0, Math.min(100, aiResponse.length())));
         return "[]";
     }
@@ -303,24 +292,16 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
     private List<ConditionTemplate> parseAITemplateResponse(String aiResponse, String sourceMethod) {
         List<ConditionTemplate> templates = new ArrayList<>();
 
-        log.info("AI 응답 파싱 시작 - 소스: {}", sourceMethod);
-        log.info("원본 AI 응답: {}", aiResponse);
-
         try {
             
             String cleanedJson = extractAndCleanJson(aiResponse);
-            log.info("정제된 JSON: {}", cleanedJson);
 
-            
             List<Map<String, Object>> rawTemplates = objectMapper.readValue(
                     cleanedJson, new TypeReference<List<Map<String, Object>>>() {});
 
-            log.info("파싱된 템플릿 개수: {} 개", rawTemplates.size());
-
             for (int i = 0; i < rawTemplates.size(); i++) {
                 Map<String, Object> raw = rawTemplates.get(i);
-                log.info("템플릿 {} 파싱: {}", i+1, raw);
-
+                
                 try {
                     ConditionTemplate template = ConditionTemplate.builder()
                             .name((String) raw.get("name"))
@@ -334,19 +315,15 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                             .createdAt(LocalDateTime.now())
                             .build();
 
-                    
                     if (template.getSpelTemplate() != null && !template.getSpelTemplate().trim().isEmpty()) {
                         templates.add(template);
-                        log.info("템플릿 추가됨: {} - {}", template.getName(), template.getSpelTemplate());
-                    } else {
+                                            } else {
                         log.warn("빈 SpEL 템플릿으로 인해 제외됨: {}", raw);
                     }
                 } catch (Exception itemError) {
                     log.error("템플릿 항목 파싱 실패: {}", raw, itemError);
                 }
             }
-
-            log.info("AI 응답 파싱 완료: {} 개 템플릿 최종 생성", templates.size());
 
         } catch (Exception e) {
             log.error("AI 응답 파싱 실패: {}", aiResponse, e);
@@ -407,19 +384,13 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
         ]
         """, resourceIdentifier, resourceIdentifier, resourceIdentifier);
     }
-    
-    
+
     public void learnFromFeedback(ConditionTemplateGenerationRequest request, ConditionTemplateGenerationResponse response, String feedback) {
         try {
-            
-            
-            log.info("[ConditionTemplateGenerationLab] 피드백 학습 시작: {}", feedback.substring(0, Math.min(50, feedback.length())));
-            
-            
+
             vectorService.storeGeneratedTemplates(request, response);
             
-            log.info("[ConditionTemplateGenerationLab] 피드백 학습 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("[ConditionTemplateGenerationLab] 피드백 학습 실패", e);
         }
     }

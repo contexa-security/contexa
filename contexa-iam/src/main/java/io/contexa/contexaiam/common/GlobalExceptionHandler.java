@@ -17,8 +17,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Throwable.class)
     public ResponseEntity<?> handleGeneralException(Throwable ex, HttpServletRequest request) {
-        
-        
+
         String acceptHeader = request.getHeader("Accept");
         if (acceptHeader != null && acceptHeader.contains("text/event-stream")) {
             

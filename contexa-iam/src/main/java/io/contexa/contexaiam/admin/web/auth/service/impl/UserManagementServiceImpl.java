@@ -44,15 +44,12 @@ public class UserManagementServiceImpl implements UserManagementService {
             users.setPassword(passwordEncoder.encode(userDto.getPassword()));
         }
 
-        
         Set<Long> desiredGroupIds = userDto.getSelectedGroupIds() != null
                 ? new HashSet<>(userDto.getSelectedGroupIds())
                 : new HashSet<>();
 
-        
         users.getUserGroups().clear();
 
-        
         for (Long groupId : desiredGroupIds) {
             Group group = groupRepository.findById(groupId)
                     .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + groupId));
@@ -63,12 +60,9 @@ public class UserManagementServiceImpl implements UserManagementService {
             users.getUserGroups().add(userGroup);
         }
 
-        
         userRepository.save(users);
 
-        log.info("User {} (ID: {}) modified successfully with {} groups.",
-                users.getUsername(), users.getId(), desiredGroupIds.size());
-    }
+            }
 
     @Transactional(readOnly = true)
     public UserDto getUser(Long id) {
@@ -88,10 +82,8 @@ public class UserManagementServiceImpl implements UserManagementService {
             userDto.setSelectedGroupIds(List.of());
         }
 
-        log.debug("Fetched user {} with roles: {} and permissions: {}", users.getUsername(), roles, permissions);
-        return userDto;
+                return userDto;
     }
-
 
     @Transactional(readOnly = true)
     public List<UserListDto> getUsers() {
@@ -111,6 +103,5 @@ public class UserManagementServiceImpl implements UserManagementService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
-        log.info("User ID {} deleted.", id);
-    }
+            }
 }

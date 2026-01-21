@@ -38,8 +38,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
                         Map<String, Object> metadata = createMetadata(policy);
                         Document document = new Document(content, metadata);
                         vectorStore.add(List.of(document));
-                        log.info("Policy #{} has been vectorized and indexed.", policy.getId());
-                    } catch (JsonProcessingException e) {
+                                            } catch (JsonProcessingException e) {
                         log.error("Failed to serialize policy #{}", policy.getId(), e);
                     }
                 });
@@ -52,8 +51,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
     @Async
     @Override
     public void initialIndexing() {
-        log.info("Starting initial data indexing for vector store...");
-        List<Document> documents = policyRepository.findAllWithDetails().stream()
+                List<Document> documents = policyRepository.findAllWithDetails().stream()
                 .map(policy -> {
                     try {
                         String content = objectMapper.writeValueAsString(policy);
@@ -69,10 +67,8 @@ public class DataIngestionServiceImpl implements DataIngestionService {
 
         if (!documents.isEmpty()) {
             vectorStore.add(documents);
-            log.info("Completed initial indexing of {} policies.", documents.size());
-        } else {
-            log.info("No data to index initially.");
-        }
+                    } else {
+                    }
     }
 
     private Map<String, Object> createMetadata(Object entity) {

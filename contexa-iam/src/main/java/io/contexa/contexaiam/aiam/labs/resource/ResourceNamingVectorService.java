@@ -16,7 +16,6 @@ import java.util.*;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class ResourceNamingVectorService extends AbstractVectorLabService {
     
@@ -36,8 +35,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
     private boolean batchLearning;
     
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-    
-    
+
     private static final Map<String, Pattern> NAMING_CONVENTION_PATTERNS = Map.of(
         "CAMEL_CASE", Pattern.compile("^[a-z][a-zA-Z0-9]*$"),
         "PASCAL_CASE", Pattern.compile("^[A-Z][a-zA-Z0-9]*$"),
@@ -48,8 +46,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         "DOT_NOTATION", Pattern.compile("^[a-z][a-z0-9]*(\\.[a-z][a-z0-9]*)*$"),
         "SLASH_PATH", Pattern.compile("^[a-z][a-z0-9]*(/[a-z][a-z0-9]*)*$")
     );
-    
-    
+
     private static final Map<String, Pattern> RESOURCE_TYPE_PATTERNS = Map.of(
         "API_ENDPOINT", Pattern.compile("api|endpoint|route|path|url", Pattern.CASE_INSENSITIVE),
         "DATABASE", Pattern.compile("database|table|column|schema|db", Pattern.CASE_INSENSITIVE),
@@ -60,8 +57,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         "UI_COMPONENT", Pattern.compile("button|form|dialog|page|view", Pattern.CASE_INSENSITIVE),
         "CONFIGURATION", Pattern.compile("config|setting|property|parameter", Pattern.CASE_INSENSITIVE)
     );
-    
-    
+
     private static final Map<String, Pattern> ANTI_PATTERNS = Map.of(
         "TOO_SHORT", Pattern.compile("^.{1,2}$"),
         "TOO_LONG", Pattern.compile("^.{51,}$"),
@@ -99,63 +95,53 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             metadata.put("detectedConvention", conventionAnalysis.getConvention());
             metadata.put("conventionScore", conventionAnalysis.getScore());
             metadata.put("conventionCompliant", conventionAnalysis.isCompliant());
-            
-            
+
             String resourceType = classifyResourceType(document.getText(), metadata);
             metadata.put("resourceType", resourceType);
-            
-            
+
             AntiPatternDetection antiPatterns = detectAntiPatterns(document.getText());
             metadata.put("antiPatterns", antiPatterns.getPatterns());
             metadata.put("hasAntiPatterns", !antiPatterns.getPatterns().isEmpty());
             metadata.put("antiPatternScore", antiPatterns.getScore());
-            
-            
+
             if (semanticAnalysis) {
                 SemanticAnalysis semantic = analyzeSemantics(document.getText());
                 metadata.put("semanticComponents", semantic.getComponents());
                 metadata.put("semanticClarity", semantic.getClarity());
                 metadata.put("semanticConsistency", semantic.getConsistency());
             }
-            
-            
+
             if (conflictDetection) {
                 ConflictAnalysis conflicts = detectNamingConflicts(document.getText(), metadata);
                 metadata.put("hasConflicts", conflicts.hasConflicts());
                 metadata.put("conflictTypes", conflicts.getTypes());
                 metadata.put("conflictSeverity", conflicts.getSeverity());
             }
-            
-            
+
             NamingQualityScore qualityScore = calculateNamingQuality(metadata);
             metadata.put("namingQualityScore", qualityScore.getScore());
             metadata.put("qualityLevel", qualityScore.getLevel());
             metadata.put("qualityFactors", qualityScore.getFactors());
-            
-            
+
             List<String> improvements = generateImprovementSuggestions(metadata);
             metadata.put("improvements", improvements);
             metadata.put("improvementCount", improvements.size());
-            
-            
+
             if (batchLearning) {
                 LearningPattern pattern = extractLearningPattern(document.getText(), metadata);
                 metadata.put("learningPattern", pattern.getPattern());
                 metadata.put("patternFrequency", pattern.getFrequency());
                 metadata.put("isNewPattern", pattern.isNew());
             }
-            
-            
+
             ContextInfo contextInfo = extractContextInfo(document.getText(), metadata);
             metadata.put("domainContext", contextInfo.getDomain());
             metadata.put("organizationalContext", contextInfo.getOrganization());
             metadata.put("teamContext", contextInfo.getTeam());
-            
-            
+
             String namingSignature = generateNamingSignature(metadata);
             metadata.put("namingSignature", namingSignature);
-            
-            
+
             metadata.put("enrichmentVersion", "2.0");
             metadata.put("enrichedByService", "ResourceNamingVectorService");
             metadata.put("analysisTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
@@ -172,22 +158,19 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
     @Override
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
-        
-        
+
         if (!metadata.containsKey("resourceCategory") && 
             !metadata.containsKey("resourcePath") && 
             !metadata.containsKey("organizationId")) {
             throw new IllegalArgumentException(
                 "Resource Naming 문서는 resourceCategory, resourcePath, organizationId 중 최소 하나는 포함해야 합니다");
         }
-        
-        
+
         String text = document.getText();
         if (text == null || text.trim().isEmpty()) {
             throw new IllegalArgumentException("리소스 네이밍 내용이 비어있습니다");
         }
-        
-        
+
         if (text.length() > 500) {
             throw new IllegalArgumentException("리소스 네이밍이 너무 깁니다 (최대 500자)");
         }
@@ -205,26 +188,21 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
                             metadata.get("antiPatterns"));
                     metadata.put("antiPatternAlert", true);
                 }
-                
-                
+
                 Double qualityScore = (Double) metadata.get("namingQualityScore");
                 if (qualityScore != null && qualityScore < 0.6) {
                     log.warn("📉 [ResourceNamingVectorService] 낮은 네이밍 품질: 점수={}", qualityScore);
                     metadata.put("lowQualityAlert", true);
                 }
-                
-                
+
                 if (Boolean.TRUE.equals(metadata.get("hasConflicts"))) {
                     log.warn("💥 [ResourceNamingVectorService] 네이밍 충돌 감지: {}", 
                             metadata.get("conflictTypes"));
                     metadata.put("conflictAlert", true);
                 }
-                
-                
+
                 if (Boolean.TRUE.equals(metadata.get("isNewPattern"))) {
-                    log.info("[ResourceNamingVectorService] 새로운 네이밍 패턴 학습: {}", 
-                            metadata.get("learningPattern"));
-                    learnNewPattern(metadata);
+                                        learnNewPattern(metadata);
                 }
             }
             
@@ -254,8 +232,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return filters;
     }
-    
-    
+
     public void storeNamingRequest(ResourceNamingSuggestionRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -266,8 +243,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "resource_naming_request");
             metadata.put("requestId", UUID.randomUUID().toString());
-            
-            
+
             Set<String> categories = new HashSet<>();
             Set<String> tags = new HashSet<>();
             for (ResourceNamingSuggestionRequest.ResourceItem item : request.getResources()) {
@@ -290,8 +266,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             if (!tags.isEmpty()) {
                 metadata.put("resourceTags", new ArrayList<>(tags));
             }
-            
-            
+
             List<String> identifiers = request.getResources().stream()
                 .map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier)
                 .collect(Collectors.toList());
@@ -306,16 +281,13 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             
             Document requestDoc = new Document(requestText, metadata);
             storeDocument(requestDoc);
-            
-            log.debug("[ResourceNamingVectorService] 네이밍 요청 저장 완료: 리소스 개수={}", request.getResources().size());
-            
+
         } catch (Exception e) {
             log.error("[ResourceNamingVectorService] 네이밍 요청 저장 실패", e);
             throw new VectorStoreException("네이밍 요청 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeNamingResult(ResourceNamingSuggestionRequest request, ResourceNamingSuggestionResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -324,20 +296,17 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "resource_naming_result");
             metadata.put("requestId", response.getRequestId());
-            
-            
+
             if (response.getStats() != null) {
                 metadata.put("totalRequested", response.getStats().getTotalRequested());
                 metadata.put("successfullyProcessed", response.getStats().getSuccessfullyProcessed());
                 metadata.put("failed", response.getStats().getFailed());
                 metadata.put("processingTimeMs", response.getStats().getProcessingTimeMs());
             }
-            
-            
+
             metadata.put("suggestionsCount", response.getSuggestions().size());
             metadata.put("failedCount", response.getFailedIdentifiers().size());
-            
-            
+
             if (!response.getSuggestions().isEmpty()) {
                 List<String> suggestedNames = response.getSuggestions().stream()
                     .map(ResourceNamingSuggestionResponse.ResourceNamingSuggestion::getFriendlyName)
@@ -354,16 +323,13 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             
             Document resultDoc = new Document(resultText, metadata);
             storeDocument(resultDoc);
-            
-            log.debug("[ResourceNamingVectorService] 네이밍 결과 저장 완료: ID={}", response.getRequestId());
-            
+
         } catch (Exception e) {
             log.error("[ResourceNamingVectorService] 네이밍 결과 저장 실패", e);
             throw new VectorStoreException("네이밍 결과 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     public void storeFeedback(String namingId, String selected, String feedback) {
         try {
             Map<String, Object> metadata = new HashMap<>();
@@ -372,8 +338,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             metadata.put("feedbackText", feedback);
             metadata.put("feedbackTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "resource_naming_feedback");
-            
-            
+
             FeedbackAnalysis analysis = analyzeFeedback(feedback, selected);
             metadata.put("feedbackSentiment", analysis.getSentiment());
             metadata.put("feedbackCategory", analysis.getCategory());
@@ -389,22 +354,17 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             
             Document feedbackDoc = new Document(feedbackText, metadata);
             storeDocument(feedbackDoc);
-            
-            
+
             if (batchLearning) {
                 updateLearningModel(metadata);
             }
-            
-            log.info("📚 [ResourceNamingVectorService] 피드백 저장 완료: ID={}, 선택={}", 
-                    namingId, selected);
-            
+
         } catch (Exception e) {
             log.error("[ResourceNamingVectorService] 피드백 저장 실패", e);
             throw new VectorStoreException("피드백 저장 실패: " + e.getMessage(), e);
         }
     }
-    
-    
+
     private NamingConventionAnalysis analyzeNamingConvention(String content) {
         NamingConventionAnalysis analysis = new NamingConventionAnalysis();
         
@@ -433,8 +393,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return analysis;
     }
-    
-    
+
     private String classifyResourceType(String content, Map<String, Object> metadata) {
         if (content == null) return "UNKNOWN";
         
@@ -452,8 +411,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return "GENERAL_RESOURCE";
     }
-    
-    
+
     private AntiPatternDetection detectAntiPatterns(String content) {
         AntiPatternDetection detection = new AntiPatternDetection();
         List<String> patterns = new ArrayList<>();
@@ -478,8 +436,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return detection;
     }
-    
-    
+
     private SemanticAnalysis analyzeSemantics(String content) {
         SemanticAnalysis analysis = new SemanticAnalysis();
         List<String> components = new ArrayList<>();
@@ -490,8 +447,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             analysis.setConsistency(0.0);
             return analysis;
         }
-        
-        
+
         String[] parts = content.split("[_\\-./]|(?=[A-Z])");
         for (String part : parts) {
             if (part != null && !part.trim().isEmpty()) {
@@ -500,27 +456,21 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         }
         
         analysis.setComponents(components);
-        
-        
+
         double clarity = components.stream()
             .filter(c -> c.length() > 2 && !c.matches("\\d+"))
             .count() / (double) Math.max(components.size(), 1);
         analysis.setClarity(clarity);
-        
-        
+
         analysis.setConsistency(0.8); 
         
         return analysis;
     }
-    
-    
+
     private ConflictAnalysis detectNamingConflicts(String content, Map<String, Object> metadata) {
         ConflictAnalysis conflicts = new ConflictAnalysis();
         List<String> types = new ArrayList<>();
-        
-        
-        
-        
+
         if (content != null && content.toLowerCase().contains("copy")) {
             types.add("DUPLICATE_SUFFIX");
         }
@@ -535,35 +485,30 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return conflicts;
     }
-    
-    
+
     private NamingQualityScore calculateNamingQuality(Map<String, Object> metadata) {
         NamingQualityScore qualityScore = new NamingQualityScore();
         double score = 0.0;
         List<String> factors = new ArrayList<>();
-        
-        
+
         Boolean conventionCompliant = (Boolean) metadata.get("conventionCompliant");
         if (Boolean.TRUE.equals(conventionCompliant)) {
             score += 30.0;
             factors.add("컨벤션 준수");
         }
-        
-        
+
         Boolean hasAntiPatterns = (Boolean) metadata.get("hasAntiPatterns");
         if (!Boolean.TRUE.equals(hasAntiPatterns)) {
             score += 30.0;
             factors.add("안티패턴 없음");
         }
-        
-        
+
         Double clarity = (Double) metadata.get("semanticClarity");
         if (clarity != null && clarity > 0.7) {
             score += 20.0;
             factors.add("명확한 의미");
         }
-        
-        
+
         Boolean hasConflicts = (Boolean) metadata.get("hasConflicts");
         if (!Boolean.TRUE.equals(hasConflicts)) {
             score += 20.0;
@@ -580,12 +525,10 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return qualityScore;
     }
-    
-    
+
     private List<String> generateImprovementSuggestions(Map<String, Object> metadata) {
         List<String> suggestions = new ArrayList<>();
-        
-        
+
         List<String> antiPatterns = (List<String>) metadata.get("antiPatterns");
         if (antiPatterns != null) {
             if (antiPatterns.contains("TOO_SHORT")) {
@@ -598,15 +541,13 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
                 suggestions.add("의미있는 비즈니스 용어 사용");
             }
         }
-        
-        
+
         Boolean conventionCompliant = (Boolean) metadata.get("conventionCompliant");
         if (!Boolean.TRUE.equals(conventionCompliant)) {
             String convention = (String) metadata.get("detectedConvention");
             suggestions.add("조직 네이밍 컨벤션 준수: " + convention);
         }
-        
-        
+
         Boolean hasConflicts = (Boolean) metadata.get("hasConflicts");
         if (Boolean.TRUE.equals(hasConflicts)) {
             suggestions.add("고유한 식별자 추가");
@@ -614,8 +555,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return suggestions;
     }
-    
-    
+
     private LearningPattern extractLearningPattern(String content, Map<String, Object> metadata) {
         LearningPattern pattern = new LearningPattern();
         
@@ -629,8 +569,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return pattern;
     }
-    
-    
+
     private ContextInfo extractContextInfo(String content, Map<String, Object> metadata) {
         ContextInfo context = new ContextInfo();
         
@@ -640,8 +579,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return context;
     }
-    
-    
+
     private String generateNamingSignature(Map<String, Object> metadata) {
         StringBuilder signature = new StringBuilder();
         
@@ -664,27 +602,21 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return signature.toString();
     }
-    
-    
+
     private void learnNewPattern(Map<String, Object> metadata) {
-        log.info("[ResourceNamingVectorService] 새로운 패턴 학습 시작");
-        
+                
         metadata.put("patternLearned", true);
         metadata.put("learnedAt", LocalDateTime.now().format(ISO_FORMATTER));
     }
-    
-    
+
     private double calculateBatchSuccessRate(List<?> batchResults) {
         if (batchResults == null || batchResults.isEmpty()) {
             return 0.0;
         }
-        
-        
-        
+
         return 0.95; 
     }
-    
-    
+
     private FeedbackAnalysis analyzeFeedback(String feedback, String selected) {
         FeedbackAnalysis analysis = new FeedbackAnalysis();
         
@@ -696,8 +628,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         }
         
         String lower = feedback.toLowerCase();
-        
-        
+
         if (lower.contains("good") || lower.contains("great") || lower.contains("perfect") || 
             lower.contains("좋") || lower.contains("훌륭") || lower.contains("완벽")) {
             analysis.setSentiment("POSITIVE");
@@ -710,8 +641,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             analysis.setSentiment("NEUTRAL");
             analysis.setPositive(false);
         }
-        
-        
+
         if (lower.contains("clear") || lower.contains("unclear") || lower.contains("명확")) {
             analysis.setCategory("CLARITY");
         } else if (lower.contains("convention") || lower.contains("standard") || lower.contains("규칙")) {
@@ -724,17 +654,13 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         
         return analysis;
     }
-    
-    
+
     private void updateLearningModel(Map<String, Object> metadata) {
-        log.info("📚 [ResourceNamingVectorService] 학습 모델 업데이트");
-        
+                
         metadata.put("modelUpdated", true);
         metadata.put("updateTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
     }
-    
-    
-    
+
     private static class NamingConventionAnalysis {
         private String convention;
         private double score;
@@ -835,8 +761,7 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
         public boolean isPositive() { return positive; }
         public void setPositive(boolean positive) { this.positive = positive; }
     }
-    
-    
+
     public List<Document> findSimilarNamings(String identifier, int topK) {
         Map<String, Object> filters = new HashMap<>();
         filters.put("documentType", "resource_naming");

@@ -2,7 +2,6 @@ package io.contexa.contexaiam.resource;
 
 import lombok.Data;
 
-
 @Data
 public class ParameterInfo {
     private String name;

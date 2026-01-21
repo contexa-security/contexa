@@ -11,7 +11,6 @@ import org.springframework.boot.ApplicationRunner;
 
 import java.util.List;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class WorkbenchInitializer implements ApplicationRunner {
@@ -22,27 +21,19 @@ public class WorkbenchInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        log.info("IAM Command Center: Starting resource synchronization on application startup...");
-        try {
-            
+                try {
 
-            log.info("IAM Command Center: Resource synchronization started (async).");
-
-            
             List<Policy> policiesToUpdate = policyRepository.findByFriendlyDescriptionIsNull();
 
             if (policiesToUpdate.isEmpty()) {
-                log.info("All policies have friendly descriptions. No updates needed.");
-                return;
+                                return;
             }
 
-            log.info("Found {} policies to enrich. Starting process...", policiesToUpdate.size());
-            for (Policy policy : policiesToUpdate) {
+                        for (Policy policy : policiesToUpdate) {
                 policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
                 policyRepository.save(policy);
             }
-            log.info("Policy enrichment process completed.");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("IAM Command Center: Failed to initialize resources on startup.", e);
         }
     }

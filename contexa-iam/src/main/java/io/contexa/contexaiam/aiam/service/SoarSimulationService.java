@@ -17,16 +17,12 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 @Slf4j
 public class SoarSimulationService {
     
     private final SoarToolCallingService soarToolCallingService;
     private final SimpMessagingTemplate brokerTemplate;
 
-
-    
-    
     private final Map<String, SimulationSession> activeSessions = new ConcurrentHashMap<>();
 
     public SoarSimulationService(SoarToolCallingService soarToolCallingService,
@@ -35,19 +31,13 @@ public class SoarSimulationService {
         this.brokerTemplate = brokerTemplate;
     }
 
-    
     public Mono<SimulationResult> startSimulation(SimulationStartRequest request) {
-        log.info("SOAR 시뮬레이션 시작: incidentId={}", 
-            request.getIncidentId() != null ? request.getIncidentId() : "null (자동 생성 예정)");
-        
-        
+
         SoarContext soarContext = createSoarContext(request);
-        
-        
+
         String sessionId = UUID.randomUUID().toString();
         String conversationId = UUID.randomUUID().toString();
-        
-        
+
         SimulationSession session = SimulationSession.builder()
             .sessionId(sessionId)
             .conversationId(conversationId)
@@ -62,14 +52,11 @@ public class SoarSimulationService {
             .build();
         
         activeSessions.put(sessionId, session);
-        
-        
+
         notifySimulationStarted(sessionId, request);
-        
-        
+
         startPipelineTracking(sessionId);
-        
-        
+
         return soarToolCallingService.executeWithApproval(
                 request.getUserQuery() != null ? request.getUserQuery() : buildDefaultQuery(request),
                 request.getIncidentId(),
@@ -81,8 +68,7 @@ public class SoarSimulationService {
                 session.setStatus("COMPLETED");
                 session.setProgress(100);
                 session.setEndTime(LocalDateTime.now());
-                
-                
+
                 notifySimulationComplete(sessionId, executionResult);
                 
                 return SimulationResult.builder()
@@ -107,8 +93,7 @@ public class SoarSimulationService {
                     log.warn("비정상 종료 감지, 완료 이벤트 강제 전송: sessionId={}, signal={}", sessionId, signal);
                     session.setStatus("COMPLETED");
                     session.setEndTime(LocalDateTime.now());
-                    
-                    
+
                     SoarToolCallingService.SoarExecutionResult fallbackResult = 
                         SoarToolCallingService.SoarExecutionResult.builder()
                             .conversationId(conversationId)
@@ -122,15 +107,13 @@ public class SoarSimulationService {
                 }
             });
     }
-    
-    
+
     public Optional<SessionStatus> getSessionStatus(String sessionId) {
         SimulationSession session = activeSessions.get(sessionId);
         if (session == null) {
             return Optional.empty();
         }
-        
-        
+
         Map<String, Boolean> mcpStatus = getMcpServerStatus();
         
         return Optional.of(SessionStatus.builder()
@@ -143,39 +126,29 @@ public class SoarSimulationService {
             .mcpServersStatus(mcpStatus)
             .build());
     }
-    
-    
+
     public void handleApproval(String sessionId, String approvalId, boolean approved, String reason) {
-        log.info("승인 처리: sessionId={}, approvalId={}, approved={}", 
-            sessionId, approvalId, approved);
-        
+                
         SimulationSession session = activeSessions.get(sessionId);
         if (session == null) {
             log.warn("세션을 찾을 수 없음: {}", sessionId);
             return;
         }
-        
-        
+
         session.getPendingApprovals().remove(approvalId);
-        
-        
+
         if (approved) {
             session.getSoarContext().approveTool(approvalId);
         }
-        
-        
+
         notifyApprovalProcessed(sessionId, approvalId, approved, reason);
-        
-        
+
         resumeWorkflow(sessionId);
     }
-    
-    
+
     public Map<String, Boolean> getMcpServerStatus() {
         Map<String, Boolean> status = new HashMap<>();
-        
-        
-        
+
         status.put("context7", true);    
         status.put("sequential", true);  
         status.put("magic", false);      
@@ -183,13 +156,10 @@ public class SoarSimulationService {
         
         return status;
     }
-    
-    
-    
+
     private SoarContext createSoarContext(SimulationStartRequest request) {
         SoarContext context = new SoarContext();
-        
-        
+
         String incidentId = request.getIncidentId();
         if (incidentId == null || incidentId.trim().isEmpty()) {
             incidentId = "INC-" + UUID.randomUUID().toString();
@@ -204,8 +174,7 @@ public class SoarSimulationService {
         context.setOrganizationId(request.getOrganizationId());
         context.setSessionState(SessionState.ACTIVE);
         context.setCreatedAt(LocalDateTime.now());
-        
-        
+
         context.setThreatLevel(mapSeverityToThreatLevel(request.getSeverity()));
         
         return context;
@@ -236,8 +205,7 @@ public class SoarSimulationService {
         Schedulers.boundedElastic().schedule(() -> {
             SimulationSession session = activeSessions.get(sessionId);
             if (session == null) return;
-            
-            
+
             String[] stages = {
                 "PREPROCESSING",
                 "CONTEXT_RETRIEVAL",
@@ -258,11 +226,9 @@ public class SoarSimulationService {
                 
                 session.setCurrentStage(stage);
                 session.setProgress(progress);
-                
-                
+
                 notifyPipelineProgress(sessionId, stage, progress);
-                
-                
+
                 try {
                     Thread.sleep(2000); 
                 } catch (InterruptedException e) {
@@ -277,15 +243,11 @@ public class SoarSimulationService {
         SimulationSession session = activeSessions.get(sessionId);
         if (session == null) return;
         
-        log.info("워크플로우 재개: sessionId={}", sessionId);
-        session.setStatus("ACTIVE");
-        
-        
+                session.setStatus("ACTIVE");
+
         startPipelineTracking(sessionId);
     }
-    
-    
-    
+
     private void notifySimulationStarted(String sessionId, SimulationStartRequest request) {
         Map<String, Object> eventData = new HashMap<>();
         eventData.put("incidentId", request.getIncidentId() != null ? request.getIncidentId() : "");
@@ -300,8 +262,7 @@ public class SoarSimulationService {
             .build();
         
         brokerTemplate.convertAndSend("/topic/soar/events", event);
-        log.info("시뮬레이션 시작 알림 전송: sessionId={}", sessionId);
-    }
+            }
     
     private void notifyPipelineProgress(String sessionId, String stage, int progress) {
         PipelineProgressEvent event = PipelineProgressEvent.builder()
@@ -326,9 +287,7 @@ public class SoarSimulationService {
             .build();
 
         brokerTemplate.convertAndSend("/topic/soar/complete", event);
-        log.info("SOAR 시뮬레이션 완료 알림 전송: sessionId={}, finalResponse length={}", 
-            sessionId, result.getFinalResponse() != null ? result.getFinalResponse().length() : 0);
-    }
+            }
     
     private void notifySimulationError(String sessionId, Throwable error) {
         SimulationErrorEvent event = SimulationErrorEvent.builder()
@@ -348,11 +307,9 @@ public class SoarSimulationService {
             .reason(reason)
             .timestamp(LocalDateTime.now())
             .build();
-        
-        
+
         brokerTemplate.convertAndSend("/topic/soar/approval-results/" + approvalId, event);
-        
-        
+
         brokerTemplate.convertAndSend("/topic/soar/approvals", event);
     }
     
@@ -367,9 +324,7 @@ public class SoarSimulationService {
             default -> stage;
         };
     }
-    
-    
-    
+
     @Data
     @Builder
     public static class SimulationSession {

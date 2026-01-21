@@ -44,8 +44,7 @@ public class GroupController {
         model.addAttribute("group", new GroupDto()); 
         model.addAttribute("roleList", roleService.getRoles()); 
         model.addAttribute("selectedRoleIds", new HashSet<Long>()); 
-        log.info("Displaying new group registration form.");
-        return "admin/groupdetails";
+                return "admin/groupdetails";
     }
 
     @PostMapping
@@ -57,8 +56,7 @@ public class GroupController {
             groupService.createGroup(group, selectedRoleIds); 
 
             ra.addFlashAttribute("message", "그룹 '" + group.getName() + "'이 성공적으로 생성되었습니다.");
-            log.info("Group created: {}", group.getName());
-        } catch (IllegalArgumentException e) {
+                    } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to create group: {}", e.getMessage());
         } catch (Exception e) {
@@ -74,7 +72,6 @@ public class GroupController {
         Group group = groupService.getGroup(id).orElseThrow(() -> new IllegalArgumentException("Invalid group ID: " + id));
         List<Role> roles = roleService.getRoles();
 
-        
         GroupDto groupDto = modelMapper.map(group, GroupDto.class);
         List<Long> selectedRoleIds = group.getGroupRoles().stream().map(gr -> gr.getRole().getId()).collect(Collectors.toList());
         groupDto.setSelectedRoleIds(selectedRoleIds);
@@ -99,8 +96,7 @@ public class GroupController {
             groupService.updateGroup(group, selectedRoleIds); 
 
             ra.addFlashAttribute("message", "그룹 '" + group.getName() + "'이 성공적으로 업데이트되었습니다!");
-            log.info("Group updated: {}", group.getName());
-        } catch (IllegalArgumentException e) {
+                    } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to update group: {}", e.getMessage());
         } catch (Exception e) {
@@ -115,8 +111,7 @@ public class GroupController {
         try {
             groupService.deleteGroup(id);
             ra.addFlashAttribute("message", "그룹 (ID: " + id + ")이 성공적으로 삭제되었습니다!");
-            log.info("Group deleted: ID {}", id);
-        } catch (Exception e) {
+                    } catch (Exception e) {
             ra.addFlashAttribute("errorMessage", "그룹 삭제 중 오류 발생: " + e.getMessage());
             log.error("Error deleting group ID: {}", id, e);
         }

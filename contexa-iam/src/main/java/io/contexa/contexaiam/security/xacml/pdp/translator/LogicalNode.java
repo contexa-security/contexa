@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-
 @Getter
 public class LogicalNode implements ExpressionNode {
 
@@ -25,7 +24,6 @@ public class LogicalNode implements ExpressionNode {
                 .collect(Collectors.toSet());
     }
 
-    
     @Override
     public boolean requiresAuthentication() {
         return children.stream().anyMatch(ExpressionNode::requiresAuthentication);

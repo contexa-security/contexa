@@ -22,7 +22,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Slf4j
 public class SecurityCopilotDiagnosisStrategy extends AbstractAIStrategy<SecurityCopilotContext, SecurityCopilotResponse> {
 
@@ -116,8 +115,7 @@ public class SecurityCopilotDiagnosisStrategy extends AbstractAIStrategy<Securit
         AILab<SecurityCopilotRequest, SecurityCopilotResponse> securityCopilotLab = (SecurityCopilotLab) lab;
         SecurityCopilotRequest securityCopilotRequest = (SecurityCopilotRequest) labRequest;
 
-        log.info("SecurityCopilot 요청: {}", securityCopilotRequest.getSecurityQuery());
-        return securityCopilotLab.process(securityCopilotRequest);
+                return securityCopilotLab.process(securityCopilotRequest);
     }
 
     @Override
@@ -125,8 +123,7 @@ public class SecurityCopilotDiagnosisStrategy extends AbstractAIStrategy<Securit
         AILab<SecurityCopilotRequest, SecurityCopilotResponse> securityCopilotLab = (SecurityCopilotLab) lab;
         SecurityCopilotRequest securityCopilotRequest = (SecurityCopilotRequest) labRequest;
 
-        log.info("비동기 SecurityCopilot 요청: {}", securityCopilotRequest.getSecurityQuery());
-        return securityCopilotLab.processAsync(securityCopilotRequest);
+                return securityCopilotLab.processAsync(securityCopilotRequest);
     }
 
     @Override
@@ -134,8 +131,7 @@ public class SecurityCopilotDiagnosisStrategy extends AbstractAIStrategy<Securit
         AILab<SecurityCopilotRequest, SecurityCopilotResponse> securityCopilotLab = (SecurityCopilotLab) lab;
         SecurityCopilotRequest securityCopilotRequest = (SecurityCopilotRequest) labRequest;
 
-        log.info("실시간 스트리밍 SecurityCopilot 요청: {}", securityCopilotRequest.getSecurityQuery());
-        return securityCopilotLab.processStream(securityCopilotRequest);
+                return securityCopilotLab.processStream(securityCopilotRequest);
     }
 
     @Override

@@ -19,7 +19,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class MethodResourceScanner implements ResourceScanner {
@@ -37,20 +36,15 @@ public class MethodResourceScanner implements ResourceScanner {
             try {
                 bean = applicationContext.getBean(beanName);
             } catch (Exception e) {
-                log.trace("빈 '{}'을 스캔하는 중 건너뜁니다: {}", beanName, e.getMessage());
-                continue;
+                                continue;
             }
 
-            
             Class<?> targetClass = AopUtils.getTargetClass(bean);
 
-            
             if (!targetClass.getPackageName().startsWith("io.contexa.contexaiam")) {
                 continue;
             }
 
-            
-            
             if (AnnotationUtils.findAnnotation(targetClass, Controller.class) != null ||
                     AnnotationUtils.findAnnotation(targetClass, RestController.class) != null) {
                 continue;
@@ -98,9 +92,7 @@ public class MethodResourceScanner implements ResourceScanner {
                 log.warn("빈 '{}'의 메서드를 스캔하는 중 오류 발생: {}", beanName, e.getMessage());
             }
         }
-        log.info("스캔을 통해 {}개의 보호 가능한 메서드 리소스를 발견했습니다.", resources.size());
-        return resources;
+                return resources;
     }
-
 
 }

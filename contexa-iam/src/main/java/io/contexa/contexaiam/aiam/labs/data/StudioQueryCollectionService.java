@@ -23,23 +23,17 @@ public class StudioQueryCollectionService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
 
-    
     @Transactional(readOnly = true)
     public IAMDataSet collectData(DataCollectionPlan plan) {
         Thread currentThread = Thread.currentThread();
-        log.info("IAM 데이터 수집 시작 - Thread: {} (Virtual: {})",
-                currentThread.getName(), currentThread.isVirtual());
 
-        
         if (!currentThread.isVirtual()) {
             return collectDataAsync(plan).block();
         }
 
-        
         return executeDataCollection(plan);
     }
 
-    
     public Mono<IAMDataSet> collectDataAsync(DataCollectionPlan plan) {
         return Mono.fromCallable(() -> executeDataCollection(plan))
                 .doOnSubscribe(sub ->
@@ -51,7 +45,6 @@ public class StudioQueryCollectionService {
                                 Thread.currentThread().isVirtual()));
     }
 
-    
     @Transactional(readOnly = true)
     public IAMDataSet executeDataCollection(DataCollectionPlan plan) {
         IAMDataSet dataSet = new IAMDataSet();
@@ -78,7 +71,6 @@ public class StudioQueryCollectionService {
                     Executors.newVirtualThreadPerTaskExecutor()
             );
 
-            
             CompletableFuture.allOf(
                     userCountFuture, groupCountFuture,
                     roleCountFuture, permissionCountFuture
@@ -89,68 +81,46 @@ public class StudioQueryCollectionService {
             int totalRoles = roleCountFuture.get();
             int totalPermissions = permissionCountFuture.get();
 
-            log.info("DB 상태: users={}, groups={}, roles={}, permissions={} - Thread: {} (Virtual: {})",
-                    totalUsers, totalGroups, totalRoles, totalPermissions,
-                    Thread.currentThread().getName(), Thread.currentThread().isVirtual());
-
             if (totalUsers == 0 && totalGroups == 0 && totalRoles == 0 && totalPermissions == 0) {
                 log.error("IAM 데이터 없음!");
                 dataSet.setError("시스템에 IAM 데이터가 없습니다. 테스트 데이터를 먼저 생성해주세요.");
                 return dataSet;
             }
 
-            
             CompletableFuture<Void> usersFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsUsers()) {
                     Thread t = Thread.currentThread();
-                    log.debug("👥 사용자 데이터 조회 시작 - Thread: {} (Virtual: {})",
-                            t.getName(), t.isVirtual());
-                    dataSet.setUsers(userRepository.findAllWithGroups());
-                    log.info("👥 사용자 데이터 수집 완료: {}명", dataSet.getUsers().size());
-                }
+                                        dataSet.setUsers(userRepository.findAllWithGroups());
+                                    }
             }, Executors.newVirtualThreadPerTaskExecutor());
 
             CompletableFuture<Void> groupsFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsGroups()) {
                     Thread t = Thread.currentThread();
-                    log.debug("👥 그룹 데이터 조회 시작 - Thread: {} (Virtual: {})",
-                            t.getName(), t.isVirtual());
-                    dataSet.setGroups(groupRepository.findAllWithRelations());
-                    log.info("👥 그룹 데이터 수집 완료: {}개", dataSet.getGroups().size());
-                }
+                                        dataSet.setGroups(groupRepository.findAllWithRelations());
+                                    }
             }, Executors.newVirtualThreadPerTaskExecutor());
 
             CompletableFuture<Void> rolesFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsRoles()) {
                     Thread t = Thread.currentThread();
-                    log.debug("역할 데이터 조회 시작 - Thread: {} (Virtual: {})",
-                            t.getName(), t.isVirtual());
-                    dataSet.setRoles(roleRepository.findAllWithPermissions());
-                    log.info("역할 데이터 수집 완료: {}개", dataSet.getRoles().size());
-                }
+                                        dataSet.setRoles(roleRepository.findAllWithPermissions());
+                                    }
             }, Executors.newVirtualThreadPerTaskExecutor());
 
             CompletableFuture<Void> permissionsFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsPermissions() || plan.needsBusinessResources() || plan.needsBusinessActions()) {
                     Thread t = Thread.currentThread();
-                    log.debug("권한 데이터 조회 시작 - Thread: {} (Virtual: {})",
-                            t.getName(), t.isVirtual());
-                    dataSet.setPermissions(permissionRepository.findAll());
-                    log.info("권한 데이터 수집 완료: {}개", dataSet.getPermissions().size());
-                }
+                                        dataSet.setPermissions(permissionRepository.findAll());
+                                    }
             }, Executors.newVirtualThreadPerTaskExecutor());
 
-            
             CompletableFuture.allOf(usersFuture, groupsFuture, rolesFuture, permissionsFuture)
                     .join();
 
-            
             if (plan.needsRelationships()) {
                 handleRelationships(plan, dataSet);
             }
-
-            log.info("IAM 데이터 수집 완료 - Thread: {} (Virtual: {})",
-                    Thread.currentThread().getName(), Thread.currentThread().isVirtual());
 
             return dataSet;
 
@@ -161,7 +131,6 @@ public class StudioQueryCollectionService {
         }
     }
 
-    
     @Transactional(readOnly = true)
     public void handleRelationships(DataCollectionPlan plan, IAMDataSet dataSet) {
         CompletableFuture<Void> userRelFuture = CompletableFuture.runAsync(() -> {
@@ -183,6 +152,5 @@ public class StudioQueryCollectionService {
         }, Executors.newVirtualThreadPerTaskExecutor());
 
         CompletableFuture.allOf(userRelFuture, groupRelFuture, roleRelFuture).join();
-        log.info("🔗 권한 체인 관계 데이터 수집 완료");
-    }
+            }
 }

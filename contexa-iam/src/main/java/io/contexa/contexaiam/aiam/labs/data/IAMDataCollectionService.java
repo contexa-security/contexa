@@ -14,7 +14,6 @@ public class IAMDataCollectionService {
     private final StudioQueryCollectionService studioQueryCollectionService;
     private final PolicyGenerationCollectionService policyGenerationCollectionService;
 
-    
     @Transactional(readOnly = true)
     public IAMDataSet studioCollectData(DataCollectionPlan plan) {
         return studioQueryCollectionService.collectData(plan);

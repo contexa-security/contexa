@@ -29,25 +29,20 @@ public class PolicySynchronizationService {
     private final RoleRepository roleRepository;
     private final PolicyService policyService;
 
-    
     @Async
     @EventListener
     @Transactional
     public void handleRolePermissionsChange(RolePermissionsChangedEvent event) {
-        log.info("역할(ID: {}) 변경 이벤트 수신. 정책 동기화를 시작합니다.", event.getRoleId());
 
-        
         Role role = roleRepository.findByIdWithPermissionsAndResources(event.getRoleId())
                 .orElseThrow(() -> new IllegalArgumentException("동기화할 역할을 찾을 수 없습니다: " + event.getRoleId()));
 
         synchronizePolicyForRole(role);
     }
 
-    
     private void synchronizePolicyForRole(Role role) {
         String policyName = "AUTO_POLICY_FOR_" + role.getRoleName();
 
-        
         List<TargetDto> targetDtos = role.getRolePermissions().stream()
                 .map(rp -> rp.getPermission().getManagedResource())
                 .filter(Objects::nonNull)
@@ -59,13 +54,11 @@ public class PolicySynchronizationService {
                 .distinct() 
                 .toList();
 
-        
         String permissionsExpression = role.getRolePermissions().stream()
                 .map(rp -> rp.getPermission().getName())
                 .map(permissionName -> String.format("hasAuthority('%s')", permissionName))
                 .collect(Collectors.joining(" or "));
 
-        
         String finalCondition = String.format("hasAuthority('%s') and (%s)",
                 role.getRoleName(),
                 StringUtils.hasText(permissionsExpression) ? permissionsExpression : "false" 
@@ -77,7 +70,6 @@ public class PolicySynchronizationService {
         RuleDto ruleDto = RuleDto.builder()
                 .description("Auto-sync rule for " + role.getRoleName()).conditions(List.of(conditionDto)).build();
 
-        
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
                 .description(String.format("'%s' 역할을 위한 자동 동기화 정책", role.getRoleDesc()))
@@ -87,18 +79,15 @@ public class PolicySynchronizationService {
                 .rules(List.of(ruleDto))
                 .build();
 
-        
         policyRepository.findByName(policyName)
                 .ifPresentOrElse(
                         existingPolicy -> {
                             policyDto.setId(existingPolicy.getId());
                             policyService.updatePolicy(policyDto);
-                            log.info("기존 자동 정책(ID: {})을 역할({}) 변경에 따라 업데이트했습니다.", existingPolicy.getId(), role.getRoleName());
-                        },
+                                                    },
                         () -> {
                             policyService.createPolicy(policyDto);
-                            log.info("역할({})에 대한 새로운 자동 정책을 생성했습니다.", role.getRoleName());
-                        }
+                                                    }
                 );
     }
 }

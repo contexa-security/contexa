@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-
 @Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
@@ -31,10 +30,8 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
         return cacheService.get(
             URL_POLICIES_KEY,
             () -> {
-                log.debug("URL 정책 DB 조회 (캐시 미스)");
-                List<Policy> policies = policyRepository.findByTargetTypeWithDetails("URL");
-                log.info("URL 정책 {} 건 조회 완료", policies.size());
-                return policies;
+                                List<Policy> policies = policyRepository.findByTargetTypeWithDetails("URL");
+                                return policies;
             },
             POLICY_LIST_TYPE,
             CACHE_DOMAIN
@@ -43,8 +40,7 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
 
     @Override
     public void clearUrlPoliciesCache() {
-        log.info("URL 정책 캐시 무효화: {}", URL_POLICIES_KEY);
-        cacheService.invalidate(URL_POLICIES_KEY);
+                cacheService.invalidate(URL_POLICIES_KEY);
     }
 
     @Override
@@ -54,8 +50,7 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
         return cacheService.get(
             cacheKey,
             () -> {
-                log.debug("메서드 정책 DB 조회 (캐시 미스): {}", methodIdentifier);
-                return policyRepository.findByMethodIdentifier(methodIdentifier);
+                                return policyRepository.findByMethodIdentifier(methodIdentifier);
             },
             POLICY_LIST_TYPE,
             CACHE_DOMAIN
@@ -69,8 +64,7 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
         return cacheService.get(
             cacheKey,
             () -> {
-                log.debug("메서드 정책 DB 조회 (캐시 미스): {} phase: {}", methodIdentifier, phase);
-                PolicyCondition.AuthorizationPhase authPhase = PolicyCondition.AuthorizationPhase.valueOf(phase);
+                                PolicyCondition.AuthorizationPhase authPhase = PolicyCondition.AuthorizationPhase.valueOf(phase);
                 return policyRepository.findByMethodIdentifierAndPhase(methodIdentifier, authPhase);
             },
             POLICY_LIST_TYPE,
@@ -80,7 +74,6 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
 
     @Override
     public void clearMethodPoliciesCache() {
-        log.info("메서드 정책 캐시 전체 무효화: {}*", METHOD_POLICIES_PREFIX);
-        cacheService.invalidate(METHOD_POLICIES_PREFIX + "*");
+                cacheService.invalidate(METHOD_POLICIES_PREFIX + "*");
     }
 }

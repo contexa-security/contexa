@@ -84,7 +84,6 @@ public class PolicyController {
             RuleDto ruleDto = new RuleDto();
             ruleDto.setDescription(rule.getDescription());
 
-            
             List<ConditionDto> conditionDtos = rule.getConditions().stream()
                     .map(condition -> new ConditionDto(condition.getExpression(), condition.getAuthorizationPhase()))
                     .collect(Collectors.toList());

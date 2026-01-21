@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import lombok.extern.slf4j.Slf4j;
 
-
 @Slf4j
 @PromptTemplateConfig(
         key = "policyGenerationStreaming",
@@ -29,7 +28,6 @@ public class PolicyGenerationStreamingTemplate implements PromptTemplate {
         return buildUnifiedUserPrompt(naturalQuery, availableItems, contextInfo);
     }
 
-    
     private String buildUnifiedSystemPrompt(String contextInfo) {
         
         return String.format("""
@@ -105,7 +103,6 @@ public class PolicyGenerationStreamingTemplate implements PromptTemplate {
             """, contextInfo);
     }
 
-    
     private String buildUnifiedUserPrompt(String naturalQuery, PolicyGenerationItem.AvailableItems availableItems, String contextInfo) {
         
         return String.format("""

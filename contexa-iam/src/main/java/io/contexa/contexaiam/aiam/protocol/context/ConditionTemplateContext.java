@@ -8,7 +8,6 @@ import lombok.Getter;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Getter
 public class ConditionTemplateContext extends IAMContext {
     
@@ -35,14 +34,12 @@ public class ConditionTemplateContext extends IAMContext {
         this.methodInfo = methodInfo;
         this.templateMetadata = new HashMap<>();
     }
-    
-    
+
     public static ConditionTemplateContext forUniversalTemplate() {
         return new ConditionTemplateContext(SecurityLevel.STANDARD, AuditRequirement.BASIC,
                 "universal", null, null);
     }
-    
-    
+
     public static ConditionTemplateContext forSpecificTemplate(String resourceIdentifier, String methodInfo) {
         return new ConditionTemplateContext(SecurityLevel.STANDARD, AuditRequirement.BASIC,
                 "specific", resourceIdentifier, methodInfo);
@@ -52,13 +49,11 @@ public class ConditionTemplateContext extends IAMContext {
     public String getIAMContextType() {
         return "CONDITION_TEMPLATE";
     }
-    
-    
+
     public void putTemplateMetadata(String key, Object value) {
         this.templateMetadata.put(key, value);
     }
-    
-    
+
     public Map<String, Object> getContextData() {
         Map<String, Object> data = new HashMap<>();
         data.put("templateType", templateType);

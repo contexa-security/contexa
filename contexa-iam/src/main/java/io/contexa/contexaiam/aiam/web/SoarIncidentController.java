@@ -41,7 +41,6 @@ public class SoarIncidentController {
         return ResponseEntity.ok(incidentService.getIncident(incidentId));
     }
 
-    
     @PostMapping("/start")
     public ResponseEntity<SoarResponse> startSoarProcess(@RequestBody StartSoarProcessRequest request) {
         
@@ -57,18 +56,15 @@ public class SoarIncidentController {
                 request.organizationId()
         );
 
-        
         SoarRequest soarRequest = new SoarRequest(soarContext, "startSoar", request.initialQuery());
         soarRequest.setMetadata(request.metadata());
 
-        
         SoarResponse response = (SoarResponse) aiNativeProcessor.process(soarRequest, SoarResponse.class).block();
         return ResponseEntity.ok(response);
     }
 
     public record CreateIncidentRequest(String title, String playbookId, Map<String, Object> eventData) {}
 
-    
     public record StartSoarProcessRequest(
             String initialQuery,
             String threatType,

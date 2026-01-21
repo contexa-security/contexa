@@ -15,7 +15,6 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
     private final UserDetailsService userDetailsService;
 
-
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
 
@@ -23,11 +22,6 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String password = (String) authentication.getCredentials();
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
-
-
-
-
-        
         UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
         UserDto userDto = customUserDetails.getAccount();
         return UsernamePasswordAuthenticationToken.authenticated(customUserDetails, null, customUserDetails.getAuthorities());

@@ -10,18 +10,15 @@ public class JsonExtractor {
 
         String searchText = rawText;
 
-        
         if (searchText.contains("###FINAL_RESPONSE###")) {
             searchText = searchText.substring(searchText.indexOf("###FINAL_RESPONSE###") + "###FINAL_RESPONSE###".length());
         }
 
         searchText = searchText.trim();
 
-        
         int startIndex = searchText.indexOf('{');
         if (startIndex == -1) return "{}";
 
-        
         int braceDepth = 0;
         int bracketDepth = 0;
         boolean inString = false;
@@ -31,7 +28,6 @@ public class JsonExtractor {
         for (int i = startIndex; i < searchText.length(); i++) {
             char c = searchText.charAt(i);
 
-            
             if (escaped) {
                 escaped = false;
                 continue;
@@ -42,7 +38,6 @@ public class JsonExtractor {
                 continue;
             }
 
-            
             if (c == '"' && !escaped) {
                 inString = !inString;
                 continue;

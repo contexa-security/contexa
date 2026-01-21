@@ -17,7 +17,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequestMapping("/api/ai/policies")
 @RequiredArgsConstructor
@@ -25,19 +24,16 @@ public class AIPolicyApprovalController {
 
     private final PolicyService policyService;
 
-    
     @GetMapping("/pending")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_APPROVE')")
     public ResponseEntity<Page<PolicyDTO>> getPendingAIPolicies(Pageable pageable) {
-        log.info("AI 생성 정책 목록 조회 (승인 대기)");
-
+        
         Page<Policy> pendingPolicies = policyService.findPendingAIPolicies(pageable);
         Page<PolicyDTO> policyDTOs = pendingPolicies.map(this::convertToDTO);
 
         return ResponseEntity.ok(policyDTOs);
     }
 
-    
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_VIEW')")
     public ResponseEntity<Page<PolicyDTO>> getAllAIPolicies(
@@ -45,20 +41,16 @@ public class AIPolicyApprovalController {
             @RequestParam(required = false) Policy.ApprovalStatus status,
             Pageable pageable) {
 
-        log.info("AI 생성 정책 목록 조회 - source: {}, status: {}", source, status);
-
         Page<Policy> policies = policyService.findAIPolicies(source, status, pageable);
         Page<PolicyDTO> policyDTOs = policies.map(this::convertToDTO);
 
         return ResponseEntity.ok(policyDTOs);
     }
 
-    
     @GetMapping("/{policyId}")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_VIEW')")
     public ResponseEntity<PolicyDetailDTO> getAIPolicy(@PathVariable Long policyId) {
-        log.info("AI 정책 상세 조회: {}", policyId);
-
+        
         Policy policy = policyService.findById(policyId);
         if (policy == null || !policy.isAIGenerated()) {
             return ResponseEntity.notFound().build();
@@ -68,15 +60,12 @@ public class AIPolicyApprovalController {
         return ResponseEntity.ok(detailDTO);
     }
 
-    
     @PostMapping("/{policyId}/approve")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_APPROVE')")
     public ResponseEntity<ApprovalResponseDTO> approvePolicy(
             @PathVariable Long policyId,
             @RequestBody(required = false) ApprovalRequestDTO request,
             Principal principal) {
-
-        log.info("AI 정책 승인 요청 - policyId: {}, approver: {}", policyId, principal.getName());
 
         try {
             Policy policy = policyService.findById(policyId);
@@ -89,7 +78,6 @@ public class AIPolicyApprovalController {
                     .body(new ApprovalResponseDTO(false, "정책이 이미 처리되었습니다."));
             }
 
-            
             policy.approve(principal.getName());
             if (request != null && request.isActivateImmediately()) {
                 policy.activate();
@@ -97,7 +85,6 @@ public class AIPolicyApprovalController {
 
             policyService.save(policy);
 
-            
             ApprovalResponseDTO response = new ApprovalResponseDTO(
                 true,
                 "정책이 성공적으로 승인되었습니다.",
@@ -108,8 +95,7 @@ public class AIPolicyApprovalController {
                 LocalDateTime.now()
             );
 
-            log.info("AI 정책 승인 완료 - policyId: {}", policyId);
-            return ResponseEntity.ok(response);
+                        return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             log.error("AI 정책 승인 실패 - policyId: {}", policyId, e);
@@ -118,15 +104,12 @@ public class AIPolicyApprovalController {
         }
     }
 
-    
     @PostMapping("/{policyId}/reject")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_APPROVE')")
     public ResponseEntity<ApprovalResponseDTO> rejectPolicy(
             @PathVariable Long policyId,
             @RequestBody RejectRequestDTO request,
             Principal principal) {
-
-        log.info("AI 정책 거부 요청 - policyId: {}, rejector: {}", policyId, principal.getName());
 
         try {
             Policy policy = policyService.findById(policyId);
@@ -139,16 +122,13 @@ public class AIPolicyApprovalController {
                     .body(new ApprovalResponseDTO(false, "정책이 이미 처리되었습니다."));
             }
 
-            
             policy.reject(principal.getName());
             policyService.save(policy);
 
-            
             if (request != null && request.getReason() != null) {
                 policyService.recordRejectionReason(policy.getId(), request.getReason());
             }
 
-            
             ApprovalResponseDTO response = new ApprovalResponseDTO(
                 true,
                 "정책이 거부되었습니다.",
@@ -159,8 +139,7 @@ public class AIPolicyApprovalController {
                 LocalDateTime.now()
             );
 
-            log.info("AI 정책 거부 완료 - policyId: {}, reason: {}", policyId, request.getReason());
-            return ResponseEntity.ok(response);
+                        return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             log.error("AI 정책 거부 실패 - policyId: {}", policyId, e);
@@ -169,46 +148,35 @@ public class AIPolicyApprovalController {
         }
     }
 
-    
     @GetMapping("/statistics")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('POLICY_VIEW')")
     public ResponseEntity<Map<String, Object>> getAIPolicyStatistics() {
-        log.info("AI 정책 통계 조회");
-
+        
         Map<String, Object> statistics = new HashMap<>();
 
-        
         long totalAIPolicies = policyService.countAIPolicies();
         statistics.put("total", totalAIPolicies);
 
-        
         Map<String, Long> statusCounts = policyService.countAIPoliciesByStatus();
         statistics.put("byStatus", statusCounts);
 
-        
         Map<String, Long> sourceCounts = policyService.countAIPoliciesBySource();
         statistics.put("bySource", sourceCounts);
 
-        
         double approvalRate = policyService.calculateApprovalRate(30);
         statistics.put("approvalRate", approvalRate);
 
-        
         double avgConfidenceScore = policyService.calculateAverageConfidenceScore();
         statistics.put("avgConfidenceScore", avgConfidenceScore);
 
         return ResponseEntity.ok(statistics);
     }
 
-    
     @PostMapping("/batch/approve")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<BatchApprovalResponseDTO> batchApprove(
             @RequestBody BatchApprovalRequestDTO request,
             Principal principal) {
-
-        log.info("AI 정책 일괄 승인 요청 - count: {}, approver: {}",
-                request.getPolicyIds().size(), principal.getName());
 
         BatchApprovalResponseDTO response = new BatchApprovalResponseDTO();
 
@@ -230,15 +198,9 @@ public class AIPolicyApprovalController {
             }
         }
 
-        log.info("AI 정책 일괄 승인 완료 - 성공: {}, 실패: {}, 건너뜀: {}",
-                response.getSuccessCount(), response.getFailedCount(), response.getSkippedCount());
-
         return ResponseEntity.ok(response);
     }
 
-    
-
-    
     public static class PolicyDTO {
         public Long id;
         public String name;
@@ -251,7 +213,6 @@ public class AIPolicyApprovalController {
         public boolean isActive;
     }
 
-    
     public static class PolicyDetailDTO extends PolicyDTO {
         public Policy.Effect effect;
         public int priority;
@@ -262,7 +223,6 @@ public class AIPolicyApprovalController {
         public List<String> rules;
     }
 
-    
     public static class ApprovalRequestDTO {
         private boolean activateImmediately = true;
         private String comment;
@@ -275,7 +235,6 @@ public class AIPolicyApprovalController {
         public void setComment(String comment) { this.comment = comment; }
     }
 
-    
     public static class RejectRequestDTO {
         private String reason;
         private String comment;
@@ -286,7 +245,6 @@ public class AIPolicyApprovalController {
         public void setComment(String comment) { this.comment = comment; }
     }
 
-    
     public static class ApprovalResponseDTO {
         private boolean success;
         private String message;
@@ -313,7 +271,6 @@ public class AIPolicyApprovalController {
             this.processedAt = processedAt;
         }
 
-        
         public boolean isSuccess() { return success; }
         public String getMessage() { return message; }
         public Long getPolicyId() { return policyId; }
@@ -323,7 +280,6 @@ public class AIPolicyApprovalController {
         public LocalDateTime getProcessedAt() { return processedAt; }
     }
 
-    
     public static class BatchApprovalRequestDTO {
         private List<Long> policyIds;
         private boolean activateImmediately = true;
@@ -336,7 +292,6 @@ public class AIPolicyApprovalController {
         }
     }
 
-    
     public static class BatchApprovalResponseDTO {
         private List<Long> successIds = new java.util.ArrayList<>();
         private Map<Long, String> failedIds = new HashMap<>();
@@ -354,8 +309,6 @@ public class AIPolicyApprovalController {
         public Map<Long, String> getFailedIds() { return failedIds; }
         public Map<Long, String> getSkippedIds() { return skippedIds; }
     }
-
-    
 
     private PolicyDTO convertToDTO(Policy policy) {
         PolicyDTO dto = new PolicyDTO();
@@ -388,7 +341,6 @@ public class AIPolicyApprovalController {
         dto.approvedAt = policy.getApprovedAt();
         dto.friendlyDescription = policy.getFriendlyDescription();
 
-        
         dto.targets = policy.getTargets().stream()
             .map(target -> target.toString())
             .collect(java.util.stream.Collectors.toList());

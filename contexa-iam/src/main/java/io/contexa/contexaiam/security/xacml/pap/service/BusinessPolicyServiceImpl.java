@@ -23,7 +23,6 @@ import org.springframework.util.StringUtils;
 import java.util.*;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @Transactional
 public class BusinessPolicyServiceImpl implements BusinessPolicyService {
@@ -36,7 +35,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private final PolicyEnrichmentService policyEnrichmentService;
     private final CustomDynamicAuthorizationManager authorizationManager;
 
-    
     public BusinessPolicyServiceImpl(PolicyRepository policyRepository,
                                      @Lazy RoleService roleService, 
                                      RoleRepository roleRepository,
@@ -59,10 +57,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             throw new IllegalArgumentException("정책을 생성하려면 최소 하나 이상의 역할과 권한이 선택되어야 합니다.");
         }
 
-        
         updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
-        log.info("'{}' 정책 생성을 위한 RBAC 관계 설정 완료. 대상 역할: {}, 대상 권한: {}", dto.getPolicyName(), dto.getRoleIds(), dto.getPermissionIds());
-
+        
         Policy policy = new Policy();
         translateAndApplyDtoToPolicy(policy, dto);
 
@@ -71,17 +67,14 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Policy savedPolicy = policyRepository.save(policy);
         authorizationManager.reload();
 
-        log.info("조건부 정책 '{}'(ID: {})이(가) 성공적으로 생성되었습니다.", savedPolicy.getName(), savedPolicy.getId());
-        return savedPolicy;
+                return savedPolicy;
     }
 
     @Override
     public Policy updatePolicyFromBusinessRule(Long policyId, BusinessPolicyDto dto) {
         Policy existingPolicy = policyRepository.findByIdWithDetails(policyId)
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found with id: " + policyId));
-        log.info("정책 '{}'(ID: {}) 업데이트 시작.", existingPolicy.getName(), policyId);
 
-        
         updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
 
         translateAndApplyDtoToPolicy(existingPolicy, dto);
@@ -90,8 +83,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Policy updatedPolicy = policyRepository.save(existingPolicy);
         authorizationManager.reload();
 
-        log.info("정책 '{}'(ID: {})이(가) 성공적으로 업데이트되었습니다.", updatedPolicy.getName(), updatedPolicy.getId());
-        return updatedPolicy;
+                return updatedPolicy;
     }
 
     private void translateAndApplyDtoToPolicy(Policy policy, BusinessPolicyDto dto) {
@@ -100,11 +92,9 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policy.setEffect(dto.getEffect());
         policy.setPriority(100);
 
-        
         policy.getTargets().clear();
         policy.getRules().clear();
 
-        
         Set<Permission> permissions = new HashSet<>(permissionRepository.findAllById(dto.getPermissionIds()));
         Set<PolicyTarget> targets = permissions.stream()
                 .map(Permission::getManagedResource)
@@ -118,7 +108,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         
         targets.forEach(policy::addTarget);
 
-        
         String spelCondition = buildSpelCondition(dto);
         if (StringUtils.hasText(spelCondition)) {
             PolicyRule rule = PolicyRule.builder()
@@ -134,7 +123,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         }
     }
 
-    
     private void updateRolePermissionMappings(Set<Long> roleIds, Set<Long> permissionIdsToAdd) {
         if (CollectionUtils.isEmpty(roleIds)) return;
 
@@ -194,33 +182,24 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         return getBusinessRuleForPolicy(policyId);
     }
 
-    
     private BusinessPolicyDto translatePolicyToBusinessRule(Policy policy) {
         BusinessPolicyDto dto = new BusinessPolicyDto();
 
-        
         dto.setPolicyName(policy.getName());
         dto.setDescription(policy.getDescription());
         dto.setEffect(policy.getEffect());
 
-        
         Set<Long> permissionIds = extractPermissionIds(policy);
         dto.setPermissionIds(permissionIds);
 
-        
         Set<Long> roleIds = extractRoleIds(policy);
         dto.setRoleIds(roleIds);
 
-        
         analyzeConditions(policy, dto);
-
-        log.info("Policy ID {} -> BusinessPolicyDto 변환 완료. 역할: {}, 권한: {}",
-                policy.getId(), roleIds.size(), permissionIds.size());
 
         return dto;
     }
 
-    
     private Set<Long> extractPermissionIds(Policy policy) {
         Set<Long> permissionIds = new HashSet<>();
 
@@ -247,7 +226,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         return permissionIds;
     }
 
-    
     private Set<Long> extractRoleIds(Policy policy) {
         Set<Long> roleIds = new HashSet<>();
 
@@ -258,7 +236,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                     
                     Set<String> roleNames = extractRoleNamesFromSpel(expression);
 
-                    
                     for (String roleName : roleNames) {
                         roleRepository.findByRoleName(roleName)
                             .ifPresent(role -> roleIds.add(role.getId()));
@@ -270,11 +247,9 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         return roleIds;
     }
 
-    
     private Set<String> extractRoleNamesFromSpel(String spelExpression) {
         Set<String> roleNames = new HashSet<>();
 
-        
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("hasAuthority\\('([^']+)'\\)");
         java.util.regex.Matcher matcher = pattern.matcher(spelExpression);
 
@@ -285,7 +260,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         return roleNames;
     }
 
-    
     private void analyzeConditions(Policy policy, BusinessPolicyDto dto) {
         for (PolicyRule rule : policy.getRules()) {
             for (PolicyCondition condition : rule.getConditions()) {
@@ -294,14 +268,12 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                     
                     analyzeAiRiskCondition(expression, dto);
 
-                    
                     extractCustomSpelCondition(expression, dto);
                 }
             }
         }
     }
 
-    
     private void analyzeAiRiskCondition(String expression, BusinessPolicyDto dto) {
         
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("#ai\\.assessContext\\(\\)\\.score >= ([0-9\\.]+)");
@@ -319,25 +291,20 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         }
     }
 
-    
     private void extractCustomSpelCondition(String expression, BusinessPolicyDto dto) {
         
         String cleaned = expression;
 
-        
         cleaned = cleaned.replaceAll("\\(hasAuthority\\('[^']++'\\)( or )?\\)+", "");
         cleaned = cleaned.replaceAll("hasAuthority\\('[^']++'\\)( or )?", "");
 
-        
         cleaned = cleaned.replaceAll("#ai\\.assessContext\\(\\)\\.score >= [0-9\\.]+", "");
 
-        
         cleaned = cleaned.replaceAll("\\s*and\\s+and\\s*", " and ");
         cleaned = cleaned.replaceAll("^\\s*and\\s*", "");
         cleaned = cleaned.replaceAll("\\s*and\\s*$", "");
         cleaned = cleaned.trim();
 
-        
         cleaned = cleaned.replaceAll("^\\((.*)\\)$", "$1");
 
         if (StringUtils.hasText(cleaned) && !cleaned.equals("()")) {

@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class DatabaseAttributePIP implements AttributeInformationPoint {
@@ -33,29 +32,20 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
         Map<String, Object> attributes = new HashMap<>();
         
         try {
-            log.debug("Starting comprehensive attribute collection");
-            
-            
+
             enrichBasicUserAttributes(context, attributes);
-            
-            
+
             enrichUserBehaviorMetrics(context, attributes);
-            
-            
+
             enrichResourceAccessPatterns(context, attributes);
-            
-            
+
             enrichTimeAndEnvironmentAttributes(context, attributes);
-            
-            
+
             enrichSecurityProfile(context, attributes);
             
             long processingTime = System.currentTimeMillis() - startTime;
             attributes.put("attributeCollectionTimeMs", processingTime);
-            
-            log.debug("Comprehensive attributes collected in {}ms - {} attributes", 
-                     processingTime, attributes.size());
-            
+
             return attributes;
             
         } catch (Exception e) {
@@ -64,8 +54,7 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
             return attributes;
         }
     }
-    
-    
+
     private void enrichBasicUserAttributes(AuthorizationContext context, Map<String, Object> attributes) {
         if (context.subject() != null) {
             try {
@@ -75,15 +64,13 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
                 Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
                 if (userOpt.isPresent()) {
                     Users user = userOpt.get();
-                    
-                    
+
                     attributes.put("userId", user.getId());
                     attributes.put("userEmail", user.getUsername());
                     attributes.put("userStatus", "ACTIVE");
                     attributes.put("createdAt", user.getCreatedAt());
                     attributes.put("updatedAt", user.getUpdatedAt());
-                    
-                    
+
                     if (user.getUserGroups() != null) {
                         List<String> groupNames = user.getUserGroups().stream()
                             .map(ug -> ug.getGroup().getName())
@@ -91,19 +78,16 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
                         attributes.put("userGroups", groupNames);
                         attributes.put("groupCount", groupNames.size());
                     }
-                    
-                    
+
                     attributes.put("mfaEnabled", user.isMfaEnabled());
                     
-                    log.debug("👤 Basic user attributes collected for: {}", username);
-                }
+                                    }
             } catch (Exception e) {
                 log.warn("Basic user attribute collection failed", e);
             }
         }
     }
-    
-    
+
     private void enrichUserBehaviorMetrics(AuthorizationContext context, Map<String, Object> attributes) {
         try {
             String username = (String) attributes.get("username");
@@ -113,18 +97,15 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
             LocalDateTime oneHourAgo = now.minusHours(1);
             LocalDateTime oneDayAgo = now.minusDays(1);
             LocalDateTime oneWeekAgo = now.minusWeeks(1);
-            
-            
+
             attributes.put("requestsInLastHour", auditLogRepository.countByPrincipalNameAndTimeRange(username, oneHourAgo, now));
             attributes.put("requestsInLastDay", auditLogRepository.countByPrincipalNameAndTimeRange(username, oneDayAgo, now));
             attributes.put("requestsInLastWeek", auditLogRepository.countByPrincipalNameAndTimeRange(username, oneWeekAgo, now));
-            
-            
+
             attributes.put("uniqueResourcesAccessed", auditLogRepository.countDistinctResourcesByPrincipalName(username));
             
             attributes.put("failedAttemptsToday", 0L);
-            
-            
+
             List<Object[]> hourData = auditLogRepository.findTypicalAccessHoursByPrincipalName(username);
             List<Integer> typicalHours = hourData.stream()
                 .map(row -> (Integer) row[0])
@@ -132,30 +113,24 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
                 .collect(Collectors.toList());
             attributes.put("typicalAccessHours", typicalHours);
             attributes.put("isCurrentHourTypical", typicalHours.contains(now.getHour()));
-            
-            
+
             attributes.put("accessVelocity", calculateAccessVelocity(username));
             attributes.put("averageSessionGap", calculateAverageSessionGap(username));
-            
-            log.debug("Behavior metrics collected for user: {}", username);
-            
+
         } catch (Exception e) {
             log.warn("Behavior metrics collection failed", e);
         }
     }
-    
-    
+
     private void enrichResourceAccessPatterns(AuthorizationContext context, Map<String, Object> attributes) {
         try {
             String resourceId = context.resource().identifier();
             if (resourceId == null) return;
-            
-            
+
             attributes.put("resourceTotalAccess", auditLogRepository.countByResourceIdentifier(resourceId));
             attributes.put("resourceUniqueUsers", auditLogRepository.countDistinctUsersByResourceIdentifier(resourceId));
             attributes.put("resourceRecentFailures", auditLogRepository.countFailedAttemptsSince(resourceId, LocalDateTime.now().minusHours(24)));
-            
-            
+
             Optional<BusinessResource> resourceInfo = resourceActionRepository.findByResourceIdentifier(resourceId);
             if (resourceInfo.isPresent()) {
                 attributes.put("resourceExists", true);
@@ -168,51 +143,41 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
                 attributes.put("resourceExists", false);
                 attributes.put("resourceSensitivityLevel", "UNKNOWN");
             }
-            
-            log.debug("Resource pattern analysis for: {}", resourceId);
-            
+
         } catch (Exception e) {
             log.warn("Resource pattern analysis failed", e);
         }
     }
-    
-    
+
     private void enrichTimeAndEnvironmentAttributes(AuthorizationContext context, Map<String, Object> attributes) {
         try {
             LocalDateTime now = LocalDateTime.now();
-            
-            
+
             attributes.put("currentHour", now.getHour());
             attributes.put("currentDayOfWeek", now.getDayOfWeek().name());
             attributes.put("isBusinessHours", isBusinessHours(now));
             attributes.put("isWeekend", now.getDayOfWeek().getValue() >= 6);
             attributes.put("accessTimestamp", now.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-            
-            
+
             if (context.environment() != null) {
                 attributes.put("remoteAddress", context.environment().remoteIp());
                 attributes.put("accessTime", context.environment().timestamp());
                 attributes.put("sessionId", "session-" + System.currentTimeMillis()); 
             }
-            
-            log.debug("⏰ Time and environment attributes collected");
-            
+
         } catch (Exception e) {
             log.warn("Time/environment analysis failed", e);
         }
     }
-    
-    
+
     private void enrichSecurityProfile(AuthorizationContext context, Map<String, Object> attributes) {
         try {
             String username = (String) attributes.get("username");
             if (username == null) return;
-            
-            
+
             double securityScore = calculateSecurityScore(attributes);
             attributes.put("userSecurityScore", securityScore);
-            
-            
+
             boolean hasRecentFailures = (Long) attributes.getOrDefault("failedAttemptsToday", 0L) > 0;
             boolean highVelocity = (Double) attributes.getOrDefault("accessVelocity", 0.0) > 10.0;
             boolean unusualTime = !(Boolean) attributes.getOrDefault("isCurrentHourTypical", true);
@@ -222,15 +187,12 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
             attributes.put("unusualAccessTime", unusualTime);
             attributes.put("riskIndicatorCount", 
                 (hasRecentFailures ? 1 : 0) + (highVelocity ? 1 : 0) + (unusualTime ? 1 : 0));
-            
-            log.debug("Security profile analysis completed - Score: {}", securityScore);
-            
+
         } catch (Exception e) {
             log.warn("Security profile analysis failed", e);
         }
     }
-    
-    
+
     private double calculateAccessVelocity(String username) {
         try {
             LocalDateTime oneHourAgo = LocalDateTime.now().minusHours(1);
@@ -240,36 +202,30 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
             return 0.0;
         }
     }
-    
-    
+
     private double calculateAverageSessionGap(String username) {
         
         return 30.0; 
     }
-    
-    
+
     private boolean isBusinessHours(LocalDateTime time) {
         int hour = time.getHour();
         int dayOfWeek = time.getDayOfWeek().getValue();
         return dayOfWeek <= 5 && hour >= 9 && hour <= 18; 
     }
-    
-    
+
     private double calculateSecurityScore(Map<String, Object> attributes) {
         double score = 1.0;
-        
-        
+
         if ((Boolean) attributes.getOrDefault("mfaEnabled", false)) {
             score += 0.2;
         }
-        
-        
+
         long failedAttempts = (Long) attributes.getOrDefault("failedAttemptsToday", 0L);
         if (failedAttempts > 0) {
             score -= Math.min(0.3, failedAttempts * 0.1);
         }
-        
-        
+
         Object createdAt = attributes.get("accountCreated");
         if (createdAt instanceof LocalDateTime) {
             long daysSinceCreation = java.time.temporal.ChronoUnit.DAYS.between((LocalDateTime) createdAt, LocalDateTime.now());
@@ -280,8 +236,7 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
         
         return Math.max(0.0, Math.min(2.0, score));
     }
-    
-    
+
     private String determineSensitivityLevel(String resourceType) {
         if (resourceType == null) return "STANDARD";
         

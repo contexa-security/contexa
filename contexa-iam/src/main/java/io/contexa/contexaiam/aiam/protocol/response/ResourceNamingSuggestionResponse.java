@@ -8,29 +8,23 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 @Getter
 @Setter
 public class ResourceNamingSuggestionResponse extends IAMResponse {
 
-    
     private List<ResourceNamingSuggestion> suggestions;
-    
-    
+
     private List<String> failedIdentifiers;
-    
-    
+
     private ProcessingStats stats;
-    
-    
+
     public ResourceNamingSuggestionResponse() {
         super("resource-naming-default", ExecutionStatus.SUCCESS);
         this.suggestions = List.of();
         this.failedIdentifiers = List.of();
         this.stats = new ProcessingStats();
     }
-    
-    
+
     public ResourceNamingSuggestionResponse(String requestId, List<ResourceNamingSuggestion> suggestions, 
                                           List<String> failedIdentifiers, ProcessingStats stats) {
         super(requestId, ExecutionStatus.SUCCESS);
@@ -54,7 +48,6 @@ public class ResourceNamingSuggestionResponse extends IAMResponse {
         );
     }
 
-    
     @Data
     @Builder
     @NoArgsConstructor
@@ -62,22 +55,17 @@ public class ResourceNamingSuggestionResponse extends IAMResponse {
     public static class ResourceNamingSuggestion {
         
         private String identifier;
-        
-        
+
         private String friendlyName;
-        
-        
+
         private String description;
-        
-        
+
         private double confidence;
-        
-        
+
         public ResourceNameSuggestion toResourceNameSuggestion() {
             return new ResourceNameSuggestion(friendlyName, description);
         }
-        
-        
+
         public static ResourceNamingSuggestion fromResourceNameSuggestion(String identifier, ResourceNameSuggestion suggestion) {
             return ResourceNamingSuggestion.builder()
                     .identifier(identifier)
@@ -87,8 +75,7 @@ public class ResourceNamingSuggestionResponse extends IAMResponse {
                     .build();
         }
     }
-    
-    
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -103,8 +90,7 @@ public class ResourceNamingSuggestionResponse extends IAMResponse {
             return totalRequested > 0 ? (double) successfullyProcessed / totalRequested : 0.0;
         }
     }
-    
-    
+
     public Map<String, ResourceNameSuggestion> toResourceNameSuggestionMap() {
         return suggestions.stream()
                 .collect(Collectors.toMap(
@@ -112,8 +98,7 @@ public class ResourceNamingSuggestionResponse extends IAMResponse {
                         ResourceNamingSuggestion::toResourceNameSuggestion
                 ));
     }
-    
-    
+
     public static ResourceNamingSuggestionResponse fromResourceNameSuggestionMap(Map<String, ResourceNameSuggestion> suggestionMap) {
         List<ResourceNamingSuggestion> suggestions = suggestionMap.entrySet().stream()
                 .map(entry -> ResourceNamingSuggestion.fromResourceNameSuggestion(entry.getKey(), entry.getValue()))

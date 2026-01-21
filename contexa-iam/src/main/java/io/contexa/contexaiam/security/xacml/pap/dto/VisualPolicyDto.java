@@ -5,7 +5,6 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import java.util.Map;
 import java.util.Set;
 
-
 public record VisualPolicyDto(
         String name,
         String description,

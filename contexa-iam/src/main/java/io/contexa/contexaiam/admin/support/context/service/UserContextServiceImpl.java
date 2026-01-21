@@ -31,14 +31,12 @@ public class UserContextServiceImpl implements UserContextService {
             String contextAsJson = objectMapper.writeValueAsString(context);
             WizardSession session = WizardSession.create(userSessionId, contextAsJson, ownerUserId, 60); 
             wizardSessionRepository.save(session);
-            log.info("Wizard progress saved to DB for session ID: {}", userSessionId);
-        } catch (JsonProcessingException e) {
+                    } catch (JsonProcessingException e) {
             log.error("Failed to serialize WizardContext for session: {}", userSessionId, e);
             throw new RuntimeException("마법사 진행 상태 저장에 실패했습니다.", e);
         }
     }
 
-    
     @Override
     @Transactional(readOnly = true)
     public WizardContext getWizardProgress(String userSessionId) {
@@ -53,17 +51,14 @@ public class UserContextServiceImpl implements UserContextService {
         }
     }
 
-    
     @Override
     @Transactional
     public void clearWizardProgress(String userSessionId) {
         if (wizardSessionRepository.existsById(userSessionId)) {
             wizardSessionRepository.deleteById(userSessionId);
-            log.info("Cleared wizard progress from DB for session ID: {}", userSessionId);
-        }
+                    }
     }
 
-    
     @Override
     @Transactional(readOnly = true)
     public List<RecentActivityDto> getRecentActivities(String username) {

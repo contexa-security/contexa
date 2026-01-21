@@ -8,11 +8,9 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-
 @Getter
 public class DataCollectionPlan {
-    
-    
+
     private static final Map<String, String> RESOURCE_KEYWORDS;
     static {
         RESOURCE_KEYWORDS = new HashMap<>();
@@ -36,8 +34,7 @@ public class DataCollectionPlan {
         this.requiredDataTypes = new HashSet<>();
         this.confidenceScore = 80;
         this.analysisContext = "AI 분석 기반 데이터 수집";
-        
-        
+
         QueryIntent queryIntent = queryIntentAnalyzer.analyzeIntent(originalQuery);
         
         if (queryIntent != null) {
@@ -51,8 +48,7 @@ public class DataCollectionPlan {
             createFallbackPlan(originalQuery);
         }
     }
-    
-    
+
     private boolean containsResourceKeywords(String query) {
         String lowerQuery = query.toLowerCase();
         return RESOURCE_KEYWORDS.keySet().stream()
@@ -85,8 +81,7 @@ public class DataCollectionPlan {
             requiredDataTypes.add("BUSINESS_ACTIONS");
             requiredDataTypes.add("RELATIONSHIPS");
         }
-        
-        
+
         if ("RESOURCE".equals(entityType)) {
             requiredDataTypes.add("BUSINESS_RESOURCES");
             requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -98,8 +93,7 @@ public class DataCollectionPlan {
         } else if ("PERMISSION".equals(entityType)) {
             requiredDataTypes.add("PERMISSIONS");
         }
-        
-        
+
         if (containsResourceKeywords(query)) {
             requiredDataTypes.add("BUSINESS_RESOURCES");
             requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -113,8 +107,7 @@ public class DataCollectionPlan {
         requiredDataTypes.add("ROLES");
         requiredDataTypes.add("PERMISSIONS");
         requiredDataTypes.add("RELATIONSHIPS");
-        
-        
+
         if (containsResourceKeywords(query)) {
             requiredDataTypes.add("BUSINESS_RESOURCES");
             requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -128,8 +121,7 @@ public class DataCollectionPlan {
         plan.requiredDataTypes.add("ROLES");
         plan.requiredDataTypes.add("PERMISSIONS");
         plan.requiredDataTypes.add("RELATIONSHIPS");
-        
-        
+
         if (plan.containsResourceKeywords(query)) {
             plan.requiredDataTypes.add("BUSINESS_RESOURCES");
             plan.requiredDataTypes.add("BUSINESS_ACTIONS");
@@ -143,8 +135,7 @@ public class DataCollectionPlan {
         this.analysisContext = "Fallback analysis";
         this.confidenceScore = 50;
     }
-    
-    
+
     public boolean needsUsers() { return requiredDataTypes.contains("USERS"); }
     public boolean needsGroups() { return requiredDataTypes.contains("GROUPS"); }
     public boolean needsRoles() { return requiredDataTypes.contains("ROLES"); }

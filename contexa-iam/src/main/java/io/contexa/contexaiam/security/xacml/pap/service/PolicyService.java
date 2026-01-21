@@ -6,7 +6,6 @@ import io.contexa.contexacommon.entity.Permission;
 
 import java.util.List;
 
-
 public interface PolicyService {
     List<Policy> getAllPolicies();
     Policy findById(Long id);

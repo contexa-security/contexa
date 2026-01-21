@@ -20,7 +20,6 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<ResourceNamingContext, ResourceNamingSuggestionResponse> {
 
@@ -70,8 +69,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
         AILab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> resourceNamingLab = (ResourceNamingLab) lab;
         ResourceNamingSuggestionRequest namingRequest = (ResourceNamingSuggestionRequest) labRequest;
         ResourceNamingSuggestionResponse namingResponse = resourceNamingLab.process(namingRequest);
-        log.debug("Lab 응답을 직접 반환: suggestions={}", namingResponse.getSuggestions().size());
-
+        
         return namingResponse;
     }
 
@@ -80,11 +78,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
         AILab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> resourceNamingLab = (ResourceNamingLab) lab;
         ResourceNamingSuggestionRequest namingRequest = (ResourceNamingSuggestionRequest) labRequest;
 
-        log.info("비동기 리소스 명명 요청 처리 시작");
-        return resourceNamingLab.processAsync(namingRequest);
+                return resourceNamingLab.processAsync(namingRequest);
     }
 
-    
-    
-    
 }

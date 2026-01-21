@@ -15,13 +15,10 @@ public interface ResourceRegistryService {
     
     void refreshAndSynchronizeResources();
 
-    
     Permission defineResourceAsPermission(Long resourceId, ResourceMetadataDto metadataDto);
 
-    
     Page<ManagedResource> findResources(ResourceSearchCriteria searchCriteria, Pageable pageable);
 
-    
     void updateResourceManagementStatus(Long resourceId, ResourceManagementDto managedDto); 
 
     void excludeResourceFromManagement(Long resourceId);

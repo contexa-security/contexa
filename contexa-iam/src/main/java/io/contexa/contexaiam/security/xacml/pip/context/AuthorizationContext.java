@@ -5,7 +5,6 @@ import org.springframework.security.core.Authentication;
 
 import java.util.Map;
 
-
 public record AuthorizationContext(
         Authentication subject,    
         Users subjectEntity,    

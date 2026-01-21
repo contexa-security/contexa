@@ -40,7 +40,6 @@ public class SoarActionParametersConverter implements AttributeConverter<Map<Str
         }
     }
 
-    
     public static String toJson(Map<String, Object> map) {
         if (map == null) {
             return null;

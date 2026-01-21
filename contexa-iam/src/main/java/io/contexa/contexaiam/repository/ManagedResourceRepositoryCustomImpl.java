@@ -15,7 +15,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
-
 @Repository
 @RequiredArgsConstructor
 public class ManagedResourceRepositoryCustomImpl implements ManagedResourceRepositoryCustom {
@@ -29,7 +28,6 @@ public class ManagedResourceRepositoryCustomImpl implements ManagedResourceRepos
 
         BooleanBuilder whereClause = createWhereClause(criteria, resource);
 
-        
         List<ManagedResource> content = queryFactory
                 .selectFrom(resource)
                 .leftJoin(resource.permission, permission).fetchJoin()
@@ -39,7 +37,6 @@ public class ManagedResourceRepositoryCustomImpl implements ManagedResourceRepos
                 .orderBy(resource.createdAt.desc()) 
                 .fetch();
 
-        
         Long total = queryFactory
                 .select(resource.count())
                 .from(resource)

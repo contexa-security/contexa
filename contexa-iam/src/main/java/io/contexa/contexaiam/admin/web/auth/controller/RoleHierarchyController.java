@@ -37,8 +37,7 @@ public class RoleHierarchyController {
             return modelMapper.map(roleHierarchy, RoleHierarchyDto.class);
         }).toList();
         model.addAttribute("hierarchies", roleHierarchyList);
-        log.info("Displaying role hierarchies list. Total: {}", roleHierarchyList.size());
-        return "admin/role-hierarchies";
+                return "admin/role-hierarchies";
     }
 
     @GetMapping("/register")
@@ -54,8 +53,7 @@ public class RoleHierarchyController {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.createRoleHierarchy(entity);
             ra.addFlashAttribute("message", "역할 계층이 성공적으로 생성되었습니다!");
-            log.info("Role hierarchy created: {}", entity.getHierarchyString());
-        } catch (IllegalArgumentException e) {
+                    } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/register";
         }
@@ -70,15 +68,11 @@ public class RoleHierarchyController {
 
             RoleHierarchyDto dto = modelMapper.map(entity, RoleHierarchyDto.class);
 
-            
             String hierarchyString = entity.getHierarchyString();
-            log.info("Raw hierarchy string from DB: [{}]", hierarchyString);
 
-            
             if (hierarchyString != null && hierarchyString.contains("\\n")) {
                 hierarchyString = hierarchyString.replace("\\n", "\n");
-                log.info("Converted hierarchy string: [{}]", hierarchyString);
-            }
+                            }
 
             List<RoleHierarchyDto.HierarchyPair> pairs = new ArrayList<>();
             if (hierarchyString != null && !hierarchyString.trim().isEmpty()) {
@@ -94,8 +88,7 @@ public class RoleHierarchyController {
                             String child = parts[1].trim();
 
                             pairs.add(new RoleHierarchyDto.HierarchyPair(parent, child));
-                            log.debug("Parsed pair: {} > {}", parent, child);
-                        }
+                                                    }
                     }
                 }
             }
@@ -103,8 +96,6 @@ public class RoleHierarchyController {
             dto.setHierarchyPairs(pairs);
             model.addAttribute("hierarchy", dto);
             prepareHierarchyFormModel(model, pairs);
-
-            log.info("Role hierarchy details loaded - ID: {}, Valid pairs: {}", id, pairs.size());
 
         } catch (Exception e) {
             log.error("Error loading role hierarchy details for ID: {}", id, e);
@@ -122,8 +113,7 @@ public class RoleHierarchyController {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.updateRoleHierarchy(entity);
             ra.addFlashAttribute("message", "역할 계층이 성공적으로 업데이트되었습니다!");
-            log.info("Role hierarchy updated: {}", entity.getHierarchyString());
-        } catch (IllegalArgumentException e) {
+                    } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/" + id;
         }
@@ -134,25 +124,21 @@ public class RoleHierarchyController {
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         roleHierarchyService.deleteRoleHierarchy(id);
         ra.addFlashAttribute("message", "역할 계층 (ID: " + id + ")이 성공적으로 삭제되었습니다!");
-        log.info("Role hierarchy deleted: ID {}", id);
-        return "redirect:/admin/role-hierarchies";
+                return "redirect:/admin/role-hierarchies";
     }
 
     @PostMapping("/{id}/activate")
     public String activateRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         roleHierarchyService.activateRoleHierarchy(id);
         ra.addFlashAttribute("message", "역할 계층 (ID: " + id + ")이 활성화되었습니다!");
-        log.info("Role hierarchy activated: ID {}", id);
-        return "redirect:/admin/role-hierarchies";
+                return "redirect:/admin/role-hierarchies";
     }
 
-    
     private void prepareHierarchyFormModel(Model model, List<RoleHierarchyDto.HierarchyPair> existingPairs) {
         try {
             
             List<Group> allGroups = groupService.getAllGroups();
 
-            
             List<GroupWithRolesDto> groupsWithRoles = allGroups.stream()
                     .map(group -> {
                         GroupWithRolesDto gwrDto = new GroupWithRolesDto();
@@ -169,7 +155,6 @@ public class RoleHierarchyController {
                                     rdDto.setRoleName(role.getRoleName());
                                     rdDto.setRoleDesc(role.getRoleDesc() != null ? role.getRoleDesc() : role.getRoleName());
 
-                                    
                                     List<String> permissions = role.getRolePermissions().stream()
                                             .filter(rp -> rp.getPermission() != null)
                                             .map(rp -> rp.getPermission().getFriendlyName())
@@ -188,7 +173,6 @@ public class RoleHierarchyController {
                     .filter(gwrDto -> !gwrDto.getRoles().isEmpty()) 
                     .collect(Collectors.toList());
 
-            
             List<RoleMetadataDto> ungroupedRoles = roleService.getRolesWithoutExpression().stream()
                     .filter(role -> allGroups.stream()
                             .noneMatch(group -> group.getGroupRoles().stream()
@@ -200,14 +184,10 @@ public class RoleHierarchyController {
             model.addAttribute("ungroupedRoles", ungroupedRoles);
             model.addAttribute("hierarchyPairs", existingPairs);
 
-            
             List<RoleMetadataDto> allRoles = roleService.getRolesWithoutExpression().stream()
                     .map(role -> modelMapper.map(role, RoleMetadataDto.class))
                     .collect(Collectors.toList());
             model.addAttribute("allRoles", allRoles);
-
-            log.debug("Prepared hierarchy form model - Groups: {}, Ungrouped roles: {}",
-                    groupsWithRoles.size(), ungroupedRoles.size());
 
         } catch (Exception e) {
             log.error("Error preparing hierarchy form model", e);

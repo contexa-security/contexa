@@ -1,6 +1,5 @@
 package io.contexa.contexaiam.security.xacml.pdp.translator;
 
-
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.expression.spel.ast.MethodReference;

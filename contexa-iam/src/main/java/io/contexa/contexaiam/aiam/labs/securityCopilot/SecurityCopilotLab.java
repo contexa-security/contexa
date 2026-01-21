@@ -37,7 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-
 @Slf4j
 public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, SecurityCopilotResponse> {
 
@@ -48,8 +47,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
     private final SecurityCopilotVectorService vectorService;
 
     private final ConcurrentHashMap<String, DiagnosisSession> activeSessions = new ConcurrentHashMap<>();
-
-
 
     public SecurityCopilotLab(io.opentelemetry.api.trace.Tracer tracer,
                               PipelineOrchestrator orchestrator, AILabFactory labFactory,
@@ -62,15 +59,12 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         this.monitor = monitor;
 
         this.vectorService = vectorService;
-        log.info("SecurityCopilotLab 3.0 초기화 - PipelineOrchestrator 기반 with Vector Storage");
-    }
+            }
 
     @Override
     public boolean supportsStreaming() {
         return true;
     }
-
-    
 
     @Override
     protected SecurityCopilotResponse doProcess(SecurityCopilotRequest request) throws Exception {
@@ -79,27 +73,18 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
     @Override
     protected Mono<SecurityCopilotResponse> doProcessAsync(SecurityCopilotRequest request) {
-        log.info("[DIAGNOSIS] SecurityCopilot 진단 처리 시작: {} (일반 executor 사용)", request.getSecurityQuery());
-        long startTime = System.currentTimeMillis();
-        
-        
+                long startTime = System.currentTimeMillis();
+
         try {
             vectorService.storeSecurityAnalysisRequest(request);
         } catch (Exception e) {
             log.error("벡터 저장소 요청 저장 실패", e);
         }
 
-        
-
-        log.info("[DIAGNOSIS] PipelineOrchestrator.execute() 호출 - Strategy 최적화 파이프라인 사용");
-
         return orchestrator.execute(request, SecurityCopilotResponse.class)
                 .doOnSuccess(response -> {
                     long endTime = System.currentTimeMillis();
-                    log.info("[DIAGNOSIS] SecurityCopilot 진단 처리 완료 ({}ms): JSON 응답 생성",
-                            endTime - startTime);
-                    
-                    
+
                     try {
                         vectorService.storeSecurityAnalysisResult(request, (SecurityCopilotResponse) response);
                     } catch (Exception e) {
@@ -113,8 +98,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
     @Override
     protected Flux<String> doProcessStream(SecurityCopilotRequest request) {
-        log.info("[STREAMING] 일원화 스트리밍 진단 시작: {} (StreamingUniversalPipelineExecutor 자동선택)", request.getSecurityQuery());
-
+        
         String sessionId = "unified-" + System.currentTimeMillis();
         DiagnosisSession session = new DiagnosisSession(sessionId, request);
         activeSessions.put(sessionId, session);
@@ -122,43 +106,30 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return executeUnifiedPipelineStream(session)
                 .doOnTerminate(() -> {
                     activeSessions.remove(sessionId);
-                    log.info("[STREAMING] 스트리밍 세션 종료", sessionId);
-                });
+                                    });
     }
-
-
-    
 
     private Flux<String> executeUnifiedPipelineStream(DiagnosisSession session) {
         String sessionId = session.getSessionId();
         SecurityCopilotRequest request = session.getRequest();
 
-        
         Flux<String> sessionStream = Flux.just("SESSION_ID:" + sessionId)
                 .doOnNext(msg -> log.info("[PARALLEL-{}] 세션 ID 전송: {}", sessionId, msg));
-
         
         Map<String, Flux<String>> labStreams = createLabStreams(request);
 
-        
         LabStreamMerger merger = new LabStreamMerger();
         LabStreamMerger.MergeResult mergeResult = merger.mergeLabStreams(labStreams);
 
-        
         Mono<SecurityAnalysisResult> analysisResultMono = mergeResult.waitForAllDiagnosis()
                 .doOnNext(diagnosisResults -> {
                     
-                    log.info("[waitForAllDiagnosis 직후] Map 크기: {}", diagnosisResults.size());
-                    diagnosisResults.forEach((lab, json) -> {
-                        log.info("[받은직후][{}] 길이: {}", lab, json.length());
-                    });
+                                        diagnosisResults.forEach((lab, json) -> {
+                                            });
                 })
                 .map(diagnosisResults -> {
-                    log.info("종합 분석 시작 - {} 개 진단 결과", diagnosisResults.size());
-                    diagnosisResults.forEach((lab, json) -> {
-                        log.info("[map내부][{}] 길이: {}, 유효JSON: {}", lab, json.length(), isValidJson(json));
+                                        diagnosisResults.forEach((lab, json) -> {
 
-                        
                         if (!isValidJson(json)) {
                             log.error("[{}] JSON이 잘렸습니다! 끝부분: {}",
                                     lab, json.length() > 100 ? json.substring(json.length() - 100) : json);
@@ -169,12 +140,10 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 })
                 .cache(); 
 
-        
         Flux<String> comprehensiveAnalysis = analysisResultMono.flatMapMany(analysisResult ->
                         executeComprehensiveAnalysisWithoutStreaming(analysisResult, request)
                 );
 
-        
         return Flux.concat(
                 sessionStream,
                 mergeResult.getMergedStream(),
@@ -184,7 +153,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         });
     }
 
-
     private boolean isValidJson(String json) {
         if (json == null || json.isEmpty()) return false;
         json = json.trim();
@@ -192,19 +160,15 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 (json.startsWith("[") && json.endsWith("]"));
     }
 
-    
     private Flux<String> executeComprehensiveAnalysisWithoutStreaming(SecurityAnalysisResult analysisResult, SecurityCopilotRequest originalRequest) {
         this.validateLabResults(analysisResult);
 
-        
         SecurityCopilotContext context = this.createComprehensiveAnalysisContext(
                 originalRequest, analysisResult);
 
-        
         AIRequest<SecurityCopilotContext> aiRequest = createComprehensiveAnalysisAIRequest(originalRequest, context, analysisResult);
         aiRequest.withStreaming(true);
 
-        
         AtomicReference<StringBuilder> markerBuffer = new AtomicReference<>(new StringBuilder());
         AtomicReference<StringBuilder> jsonBuffer = new AtomicReference<>(new StringBuilder());
         AtomicBoolean markerDetected = new AtomicBoolean(false);
@@ -212,7 +176,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         Flux<String> stringFlux = orchestrator.executeStream(aiRequest)
                 .map(obj -> obj != null ? obj.toString() : "");
 
-        
         return stringFlux
                 .handle((String chunkStr, SynchronousSink<String> sink) -> {
                     
@@ -222,22 +185,18 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                         return;
                     }
 
-                    
                     StringBuilder buffer = markerBuffer.get();
                     buffer.append(chunkStr);
 
-                    
                     int markerIndex = buffer.toString().indexOf("###FINAL_RESPONSE###");
                     if (markerIndex != -1) {
                         markerDetected.set(true);
 
-                        
                         if (markerIndex > 0) {
                             String beforeMarker = buffer.substring(0, markerIndex);
                             sink.next(beforeMarker);
                         }
 
-                        
                         if (markerIndex + 20 < buffer.length()) {
                             jsonBuffer.get().append(buffer.substring(markerIndex + 20));
                         }
@@ -246,13 +205,11 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                         return;
                     }
 
-                    
                     if (buffer.length() > 30) {
                         int sendLength = buffer.length() - 30;
                         String toSend = buffer.substring(0, sendLength);
                         buffer.delete(0, sendLength);
 
-                        
                         sink.next(toSend);
                     }
                 })
@@ -261,12 +218,10 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                             
                             List<String> finalItems = new ArrayList<>();
 
-                            
                             if (!markerDetected.get() && markerBuffer.get().length() > 0) {
                                 finalItems.add(markerBuffer.get().toString());
                             }
 
-                            
                             try {
                                 
                                 SecurityCopilotResponse aiResponse = null;
@@ -287,7 +242,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                                     }
                                 }
 
-                                
                                 SecurityCopilotResponse finalResponse = createFinalSecurityCopilotResponse(
                                         analysisResult,      
                                         aiResponse,          
@@ -300,7 +254,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                             } catch (Exception e) {
                                 log.error("최종 응답 생성 실패", e);
 
-                                
                                 try {
                                     SecurityCopilotResponse errorResponse = createErrorResponse(originalRequest, e);
                                     String errorJson = objectMapper.writeValueAsString(errorResponse);
@@ -315,9 +268,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 );
     }
 
-
-
-    
     private SecurityCopilotResponse createFinalSecurityCopilotResponse(
             SecurityAnalysisResult labAnalysisResult,
             SecurityCopilotResponse comprehensiveAIResponse,
@@ -339,7 +289,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         response.setActionPlan(policyGenerationResult != null ? policyGenerationResult : "정책 생성 결과 없음");
         response.setOriginalQuery(request.getSecurityQuery());
 
-        
         if (comprehensiveAIResponse != null) {
             response.setRecommendationSummary(comprehensiveAIResponse.getRecommendationSummary());
             response.setOverallSecurityScore(comprehensiveAIResponse.getOverallSecurityScore());
@@ -358,14 +307,12 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             response.setRiskLevel(calculateRiskLevel(riskAssessmentResult.riskScore()));
         }
 
-        
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("sessionId", sessionId);
         metadata.put("labResults", labAnalysisResult);
         metadata.put("comprehensiveAnalysisAvailable", comprehensiveAIResponse != null);
         response.setMetadata(metadata);
 
-        
         long executionTime = System.currentTimeMillis() -
                 Long.parseLong(sessionId.substring(sessionId.lastIndexOf("-") + 1));
         response.setExecutionTimeMs(executionTime);
@@ -373,7 +320,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return response;
     }
 
-    
     private SecurityCopilotResponse createDefaultResponse(
             SecurityAnalysisResult analysisResult,
             SecurityCopilotRequest request) {
@@ -381,7 +327,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return createFinalSecurityCopilotResponse(analysisResult, null, request);
     }
 
-    
     private SecurityCopilotResponse createErrorResponse(
             SecurityCopilotRequest request,
             Exception error) {
@@ -398,37 +343,23 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 .build();
     }
 
-    
     private void validateLabResults(SecurityAnalysisResult analysisResult) {
-        log.info("개별 Lab 결과 검증 시작");
-
+        
         Map<String, Object> labResults = analysisResult.getLabResults();
 
-        
         Object studioResult = labResults.get("StudioQuery");
         if (studioResult instanceof StudioQueryResponse studioResponse) {
-            log.info("StudioQuery 결과 검증 완료 - 시각화 데이터: {}, 권장사항: {}",
-                    studioResponse.getVisualizationData() != null,
-                    studioResponse.getRecommendations() != null ? studioResponse.getRecommendations().size() : 0);
-        }
+                    }
 
-        
         Object riskResult = labResults.get("RiskAssessment");
         if (riskResult instanceof RiskAssessmentResponse riskResponse) {
-            log.info("RiskAssessment 결과 검증 완료 - 위험점수: {}, 신뢰도: {}",
-                    riskResponse.riskScore(), riskResponse.trustScore());
-        }
+                    }
 
-        
         Object policyResult = labResults.get("PolicyGeneration");
         if (policyResult instanceof PolicyResponse policyResponse) {
-            log.info("PolicyGeneration 결과 검증 완료 - 정책 데이터: {}, 신뢰도: {}",
-                    policyResponse.getPolicyData() != null,
-                    policyResponse.getPolicyConfidenceScore());
-        }
+                    }
     }
 
-    
     private SecurityCopilotContext createComprehensiveAnalysisContext(
             SecurityCopilotRequest originalRequest,
             SecurityAnalysisResult analysisResult) {
@@ -445,25 +376,20 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
         context.setSecurityQuery(originalRequest.getSecurityQuery());
 
-        
         Map<String, Object> labResults = analysisResult.getLabResults();
 
-        
         Object studioResult = labResults.get("StudioQuery");
         if (studioResult instanceof StudioQueryResponse studioResponse) {
             context.addSecurityMetadata("permissionStructure", studioResponse);
 
-            
             if (studioResponse.getVisualizationData() != null) {
                 context.addSecurityMetadata("networkNodes", studioResponse.getVisualizationData().getNodes());
                 context.addSecurityMetadata("networkEdges", studioResponse.getVisualizationData().getEdges());
             }
 
-            
             context.addSecurityMetadata("analysisResults", studioResponse.getAnalysisResults());
         }
 
-        
         Object riskResult = labResults.get("RiskAssessment");
         if (riskResult instanceof RiskAssessmentResponse riskResponse) {
             context.addSecurityMetadata("riskAssessment", riskResponse);
@@ -471,7 +397,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             context.addSecurityMetadata("riskFactors", riskResponse.getAssessment());
         }
 
-        
         Object policyResult = labResults.get("PolicyGeneration");
         if (policyResult instanceof PolicyResponse policyResponse) {
             context.addSecurityMetadata("policyData", policyResponse);
@@ -479,12 +404,9 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             context.addSecurityMetadata("policyConfidence", policyResponse.getPolicyConfidenceScore());
         }
 
-        log.info("연관성 분석 컨텍스트 생성 완료 - 메타데이터: {}", context.getSecurityMetadata().size());
-
         return context;
     }
 
-    
     private String calculateRiskLevel(double score) {
         if (score >= 80) return "LOW";
         if (score >= 60) return "MEDIUM";
@@ -492,15 +414,10 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return "CRITICAL";
     }
 
-    
-
-    
     private Map<String, Flux<String>> createLabStreams(SecurityCopilotRequest request) {
         Map<String, Flux<String>> streams = new LinkedHashMap<>();
         String currentThread = Thread.currentThread().getName();
         long startTime = System.currentTimeMillis();
-
-        log.info("[PARALLEL-STREAMS] Lab 병렬 스트림 생성 시작 - 스레드: {}", currentThread);
 
         List<String> labNames = List.of("RiskAssessment", "StudioQuery", "PolicyGeneration");
         
@@ -512,11 +429,8 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             addLabStream(streams, labName, labStream, startTime);
         }
 
-        log.info("[PARALLEL-STREAMS] Lab 병렬 스트림 생성 완료 - {} 개 스트림", streams.size());
-        return streams;
+                return streams;
     }
-
-   
 
     private Flux<String> executeLabStream(SecurityCopilotRequest request, String labName) {
         return switch (labName) {
@@ -548,8 +462,7 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return labFactory.getLab(labClass)
                 .map(lab -> {
                     if (lab.supportsStreaming()) {
-                        log.info("[DELEGATE] {}.processStream() 직접 호출", labName);
-                        return lab.processStream(labRequest);
+                                                return lab.processStream(labRequest);
                     } else {
                         return lab.processAsync(labRequest)
                                 .flux()
@@ -608,8 +521,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return new RiskAssessmentRequest(context, null);
     }
 
-
-    
     private double calculateOverallScore(SecurityAnalysisResult labResults) {
         if (labResults.getLabResults().isEmpty()) {
             return 0.0;
@@ -618,7 +529,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         double totalScore = 0.0;
         int validLabCount = 0;
 
-        
         for (Map.Entry<String, Object> entry : labResults.getLabResults().entrySet()) {
             if (isLabResultSuccessful(entry.getValue())) {
                 validLabCount++;
@@ -629,7 +539,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return validLabCount > 0 ? totalScore / validLabCount : 0.0;
     }
 
-    
     private AIRequest<SecurityCopilotContext> createComprehensiveAnalysisAIRequest(
             SecurityCopilotRequest request,
             SecurityCopilotContext context,
@@ -641,14 +550,11 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 request.getOrganizationId()
         );
 
-        
         aiRequest.withParameter("securityQuery", request.getSecurityQuery());
-
 
         aiRequest.withParameter("requestType", "comprehensive_analysis");
         aiRequest.withParameter("outputFormat", "structured_json"); 
 
-        
         aiRequest.withParameter("requiredFields", Map.of(
                 "structureAnalysis", "권한 구조 분석 결과",
                 "riskAnalysis", "위험 평가 분석 결과",
@@ -667,7 +573,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 )
         ));
 
-        
         Map<String, Object> structuredLabResults = new HashMap<>();
         labResults.getLabResults().forEach((labName, result) -> {
             structuredLabResults.put(labName, Map.of(
@@ -678,12 +583,10 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         });
         aiRequest.withParameter("labResults", structuredLabResults);
 
-        
         aiRequest.withParameter("language", "korean");
         aiRequest.withParameter("responseLanguage", "korean");
 
-        log.info("[HYBRID] AI 종합분석 요청 생성 완료 - 구조화된 응답 요청");
-        return aiRequest;
+                return aiRequest;
     }
 
     private String cleanJsonString(String rawJson) {
@@ -691,12 +594,8 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             return rawJson;
         }
 
-        log.debug("종합 분석 원본 응답 (처음 200자): {}",
-                rawJson.length() > 200 ? rawJson.substring(0, 200) + "..." : rawJson);
-
         String cleaned = rawJson;
 
-        
         if (cleaned.contains("```")) {
             
             Pattern codeBlockPattern = Pattern.compile("```(?:json)?\\s*([\\s\\S]*?)```", Pattern.MULTILINE);
@@ -705,66 +604,50 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             if (matcher.find()) {
                 
                 cleaned = matcher.group(1).trim();
-                log.debug("마크다운 코드 블록 제거됨");
-            } else {
+                            } else {
                 
                 cleaned = cleaned.replaceAll("```(?:json)?", "").replaceAll("```", "");
             }
         }
 
-        
         cleaned = cleaned.replaceAll("`", "");
 
-        
         cleaned = cleaned.trim();
 
-        
         if (cleaned.length() > 0 && cleaned.charAt(0) == '\uFEFF') {
             cleaned = cleaned.substring(1);
         }
         cleaned = cleaned.replaceAll("[\\x00-\\x1F\\x7F]", " "); 
 
-        
         int jsonStart = findJsonStart(cleaned);
         if (jsonStart > 0) {
-            log.debug("JSON 이전 텍스트 제거: {} 문자", jsonStart);
-            cleaned = cleaned.substring(jsonStart);
+                        cleaned = cleaned.substring(jsonStart);
         }
 
-        
         int jsonEnd = findJsonEnd(cleaned);
         if (jsonEnd > 0 && jsonEnd < cleaned.length()) {
-            log.debug("JSON 이후 텍스트 제거: {} 문자", cleaned.length() - jsonEnd);
-            cleaned = cleaned.substring(0, jsonEnd);
+                        cleaned = cleaned.substring(0, jsonEnd);
         }
 
-        
-        
         cleaned = cleaned.replaceAll("\\\\\"", "\"");
 
-        
         if (!isValidJsonStructure(cleaned)) {
             log.error("종합 분석 JSON 정제 실패. 구조가 유효하지 않음");
-            log.debug("정제된 결과: {}", cleaned);
 
-            
             Pattern jsonObjectPattern = Pattern.compile("\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}", Pattern.DOTALL);
             Matcher objMatcher = jsonObjectPattern.matcher(rawJson);
 
             if (objMatcher.find()) {
                 cleaned = objMatcher.group();
-                log.info("정규식으로 JSON 객체 추출 성공");
-            } else {
+                            } else {
                 log.error("JSON 객체 추출 완전 실패");
                 return "";
             }
         }
 
-        log.debug("종합 분석 JSON 정제 완료 ({}자)", cleaned.length());
-        return cleaned;
+                return cleaned;
     }
 
-    
     private int findJsonStart(String text) {
         int braceIndex = text.indexOf('{');
         int bracketIndex = text.indexOf('[');
@@ -779,7 +662,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return Math.min(braceIndex, bracketIndex);
     }
 
-    
     private int findJsonEnd(String text) {
         int depth = 0;
         boolean inString = false;
@@ -819,7 +701,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
         json = json.trim();
 
-        
         boolean isObject = json.startsWith("{") && json.endsWith("}");
         boolean isArray = json.startsWith("[") && json.endsWith("]");
 
@@ -827,7 +708,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             return false;
         }
 
-        
         int depth = 0;
         boolean inString = false;
         char prevChar = 0;
@@ -855,8 +735,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return depth == 0;
     }
 
-
-    
     private double calculateCategoryScore(SecurityAnalysisResult labResults, String labName) {
         Object result = labResults.getLabResults().get(labName);
 
@@ -864,7 +742,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             
             double baseScore = 70.0;
 
-            
             String resultText = result.toString();
             if (resultText.length() > 500) {
                 baseScore += 10.0; 
@@ -879,11 +756,8 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
             return Math.min(Math.max(baseScore, 0), 100); 
         }
 
-        
         return 30.0;
     }
-
-
 
     private StudioQueryRequest convertToStudioQueryRequest(SecurityCopilotRequest request) {
         return StudioQueryRequest.quickQuery(
@@ -893,8 +767,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         );
     }
 
-
-
     private boolean isLabResultSuccessful(Object result) {
         if (result == null) return false;
         String resultStr = result.toString().toLowerCase();
@@ -902,9 +774,6 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                 !resultStr.contains("없음") && !resultStr.isEmpty();
     }
 
-    
-
-    
     @Getter
     private static class DiagnosisSession {
         private final String sessionId;
@@ -935,22 +804,17 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         }
     }
 
-
-    
     private SecurityAnalysisResult createAnalysisResultFromDiagnosis(
             Map<String, String> diagnosisResults, SecurityCopilotRequest request) {
 
         String sessionId = "analysis-" + System.currentTimeMillis();
         SecurityAnalysisResult analysisResult = new SecurityAnalysisResult(sessionId);
 
-        log.info("[DIAGNOSIS-ANALYSIS] 진단 결과 기반 분석 시작 - {} 개 Lab 결과", diagnosisResults.size());
-
         try {
             
             if (diagnosisResults.containsKey("StudioQuery")) {
                 String studioJson = diagnosisResults.get("StudioQuery");
 
-                
                 String cleanedJson = cleanLabDiagnosisJson(studioJson, "StudioQuery");
 
                 if (!cleanedJson.isEmpty()) {
@@ -958,15 +822,12 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                         StudioQueryResponse studioResponse = objectMapper.readValue(cleanedJson, StudioQueryResponse.class);
                         analysisResult.setStudioQueryCompleted(true);
                         analysisResult.setStudioQueryResult(studioResponse);
-                        log.info("[DIAGNOSIS-ANALYSIS] StudioQuery 진단 결과 파싱 완료");
-                    } catch (Exception e) {
+                                            } catch (Exception e) {
                         log.error("StudioQuery JSON 파싱 실패: {}", e.getMessage());
-                        log.debug("파싱 실패 JSON: {}", cleanedJson);
-                    }
+                                            }
                 }
             }
 
-            
             if (diagnosisResults.containsKey("RiskAssessment")) {
                 String riskJson = diagnosisResults.get("RiskAssessment");
                 String cleanedJson = cleanLabDiagnosisJson(riskJson, "RiskAssessment");
@@ -976,15 +837,12 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                         RiskAssessmentResponse riskResponse = objectMapper.readValue(cleanedJson, RiskAssessmentResponse.class);
                         analysisResult.setRiskAssessmentCompleted(true);
                         analysisResult.setRiskAssessmentResult(riskResponse);
-                        log.info("[DIAGNOSIS-ANALYSIS] RiskAssessment 진단 결과 파싱 완료");
-                    } catch (Exception e) {
+                                            } catch (Exception e) {
                         log.error("RiskAssessment JSON 파싱 실패: {}", e.getMessage());
-                        log.debug("파싱 실패 JSON: {}", cleanedJson);
-                    }
+                                            }
                 }
             }
 
-            
             if (diagnosisResults.containsKey("PolicyGeneration")) {
                 String policyJson = diagnosisResults.get("PolicyGeneration");
                 String cleanedJson = cleanLabDiagnosisJson(policyJson, "PolicyGeneration");
@@ -994,15 +852,11 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                         PolicyResponse policyResponse = objectMapper.readValue(cleanedJson, PolicyResponse.class);
                         analysisResult.setPolicyGenerationCompleted(true);
                         analysisResult.setPolicyGenerationResult(policyResponse);
-                        log.info("[DIAGNOSIS-ANALYSIS] PolicyGeneration 진단 결과 파싱 완료");
-                    } catch (Exception e) {
+                                            } catch (Exception e) {
                         log.error("PolicyGeneration JSON 파싱 실패: {}", e.getMessage());
-                        log.debug("파싱 실패 JSON: {}", cleanedJson);
-                    }
+                                            }
                 }
             }
-
-            log.info("🎉 [DIAGNOSIS-ANALYSIS] 진단 결과 파싱 완료");
 
         } catch (Exception e) {
             log.error("[DIAGNOSIS-ANALYSIS] 진단 결과 파싱 실패", e);
@@ -1012,13 +866,11 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
         return analysisResult;
     }
 
-    
     private String cleanLabDiagnosisJson(String rawJson, String labName) {
         if (rawJson == null || rawJson.isEmpty()) {
             return "";
         }
 
-        
         String cleaned = cleanJsonString(rawJson);
 
         if (cleaned.isEmpty()) {
@@ -1027,19 +879,13 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
         return cleaned;
     }
-    
-    
+
     public void learnFromFeedback(SecurityCopilotRequest request, SecurityCopilotResponse response, String feedback) {
         try {
-            
-            
-            log.info("[SecurityCopilotLab] 피드백 학습 시작: {}", feedback.substring(0, Math.min(50, feedback.length())));
-            
-            
+
             vectorService.storeSecurityAnalysisResult(request, response);
             
-            log.info("[SecurityCopilotLab] 피드백 학습 완료");
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("[SecurityCopilotLab] 피드백 학습 실패", e);
         }
     }

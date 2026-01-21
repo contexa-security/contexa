@@ -19,7 +19,6 @@ import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-
 @Slf4j
 public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<DomainContext, DynamicThreatResponseResponse> {
     
@@ -47,15 +46,13 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
         if (request == null) {
             throw new DiagnosisException("THREAT_RESPONSE", "NULL_REQUEST", "요청이 null입니다");
         }
-        
-        
+
         Object threatInfo = request.getParameter("threatInfo", Object.class);
         if (threatInfo == null) {
             throw new DiagnosisException("THREAT_RESPONSE", "MISSING_THREAT_INFO",
                     "threatInfo 파라미터가 필요합니다");
         }
-        
-        
+
         Object responseInfo = request.getParameter("responseInfo", Object.class);
         if (responseInfo == null) {
             throw new DiagnosisException("THREAT_RESPONSE", "MISSING_RESPONSE_INFO",
@@ -72,20 +69,17 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
     protected Object buildLabRequest(AIRequest<DomainContext> request) {
         
         DynamicThreatResponseContext context = new DynamicThreatResponseContext();
-        
-        
+
         if (request.getContext() != null) {
             context.setUserId(request.getContext().getUserId());
             context.setSessionId(request.getContext().getSessionId());
         }
-        
-        
+
         String eventId = request.getParameter("eventId", String.class);
         if (eventId != null) {
             context.setEventId(eventId);
         }
-        
-        
+
         return DynamicThreatResponseRequest.create(context);
     }
     
@@ -99,8 +93,7 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
                 (DynamicThreatResponseSynthesisLab) lab;
         DynamicThreatResponseRequest synthesisRequest = (DynamicThreatResponseRequest) labRequest;
         
-        log.info("동적 위협 대응 합성 요청: 이벤트 ID = {}", synthesisRequest.getEventId());
-        return synthesisLab.process(synthesisRequest);
+                return synthesisLab.process(synthesisRequest);
     }
     
     @Override
@@ -113,8 +106,7 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
                 (DynamicThreatResponseSynthesisLab) lab;
         DynamicThreatResponseRequest synthesisRequest = (DynamicThreatResponseRequest) labRequest;
         
-        log.info("비동기 동적 위협 대응 합성 요청: 이벤트 ID = {}", synthesisRequest.getEventId());
-        return synthesisLab.processAsync(synthesisRequest);
+                return synthesisLab.processAsync(synthesisRequest);
     }
     
     @Override
@@ -127,8 +119,7 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
                 (DynamicThreatResponseSynthesisLab) lab;
         DynamicThreatResponseRequest synthesisRequest = (DynamicThreatResponseRequest) labRequest;
         
-        log.info("스트리밍 동적 위협 대응 합성 요청: 이벤트 ID = {}", synthesisRequest.getEventId());
-        return synthesisLab.processStream(synthesisRequest);
+                return synthesisLab.processStream(synthesisRequest);
     }
     
     @Override
@@ -140,12 +131,10 @@ public class DynamicThreatResponseSynthesisStrategy extends AbstractAIStrategy<D
     protected String getAsyncExecutionErrorMessage() {
         return "비동기 동적 위협 대응 합성 실행 실패: ";
     }
-    
-    
+
     public boolean canHandle(AIRequest<DomainContext> request) {
         if (request == null) return false;
 
-        
         return request.getParameter("threatInfo", Object.class) != null &&
                request.getParameter("responseInfo", Object.class) != null;
     }

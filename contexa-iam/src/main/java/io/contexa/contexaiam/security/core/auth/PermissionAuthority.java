@@ -7,7 +7,6 @@ import org.springframework.util.Assert;
 import java.io.Serializable;
 import java.util.Objects;
 
-
 public class PermissionAuthority implements GrantedAuthority, Serializable {
     private static final long serialVersionUID = 1L;
 

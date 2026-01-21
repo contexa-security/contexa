@@ -34,7 +34,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyBuilderServiceImpl implements PolicyBuilderService {
@@ -48,7 +47,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     private final ObjectMapper objectMapper;
     private final SpelExpressionParser expressionParser = new SpelExpressionParser();
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
-
 
     @Override
     @Transactional(readOnly = true)
@@ -72,7 +70,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
                 .collect(Collectors.joining(" or "));
         if (!subjectExpr.isEmpty()) conditions.add("(" + subjectExpr + ")");
 
-        
         Set<Long> permissionIds = dto.permissions().stream()
                 .map(VisualPolicyDto.PermissionIdentifier::id)
                 .collect(Collectors.toSet());
@@ -86,7 +83,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
                 .description("Visually built rule").build();
         rule.setConditions(conditions.stream().map(expr -> PolicyCondition.builder().expression(expr).rule(rule).build()).collect(Collectors.toSet()));
 
-        
         Set<PolicyTarget> targets = perms.stream()
                 .map(Permission::getManagedResource) 
                 .filter(Objects::nonNull) 
@@ -101,12 +97,10 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
         policy.setRules(Set.of(rule));
         policy.setTargets(targets);
 
-        
         PolicyDto policyDto = modelMapper.map(policy, PolicyDto.class);
         return policyService.createPolicy(policyDto);
     }
 
-    
     @Override
     @Transactional(readOnly = true)
     public SimulationResultDto simulatePolicy(Policy policyToSimulate, SimulationContext context) {
@@ -144,7 +138,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
             Set<String> lost = new HashSet<>(beforePermissions);
             lost.removeAll(afterPermissions);
 
-            
             lost.forEach(permName -> {
                 
                 Permission p = permissionRepository.findByName(permName).orElse(null);
@@ -165,7 +158,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
         return new SimulationResultDto(summary, allImpacts);
     }
 
-    
     @Override
     public List<PolicyConflictDto> detectConflicts(Policy newPolicy) {
         List<PolicyConflictDto> conflicts = new ArrayList<>();

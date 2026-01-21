@@ -7,7 +7,6 @@ import org.springframework.util.Assert;
 import java.io.Serializable;
 import java.util.Objects;
 
-
 public class RoleAuthority implements GrantedAuthority, Serializable {
     private static final long serialVersionUID = 1L;
     private static final String ROLE_PREFIX = "ROLE_";

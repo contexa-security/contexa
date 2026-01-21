@@ -8,7 +8,6 @@ import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-
 @Slf4j
 @PromptTemplateConfig(
     key = "generatePolicyFromText",
@@ -16,8 +15,7 @@ import org.springframework.ai.converter.BeanOutputConverter;
     description = "Spring AI Structured Output Policy Generation Template"
 )
 public class PolicyGenerationTemplate implements PromptTemplate {
-    
-    
+
     private final BeanOutputConverter<PolicyResponse> converter = 
         new BeanOutputConverter<>(PolicyResponse.class);
 
@@ -117,8 +115,7 @@ public class PolicyGenerationTemplate implements PromptTemplate {
             
             Generate complete PolicyResponse in JSON format.
             """, naturalLanguageQuery, contextInfo);
-        
-        
+
         return policyRequest + "\n\n" + converter.getFormat();
     }
 
@@ -129,15 +126,13 @@ public class PolicyGenerationTemplate implements PromptTemplate {
             return naturalLanguageQuery;
         }
 
-        
         if (request.getContext() != null) {
             return request.getContext().toString();
         }
 
         return "자연어 요구사항이 제공되지 않았습니다";
     }
-    
-    
+
     public BeanOutputConverter<PolicyResponse> getConverter() {
         return converter;
     }

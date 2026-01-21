@@ -2,7 +2,6 @@ package io.contexa.contexaiam.domain.dto;
 
 import lombok.Data;
 
-
 @Data
 public class ResourceMetadataDto {
     private String friendlyName;

@@ -31,7 +31,6 @@ public class UserManagementController {
 		return "admin/users";
 	}
 
-	
 	@GetMapping("/new")
 	public String showCreateForm(Model model) {
 		UserDto userDto = new UserDto();
@@ -46,7 +45,6 @@ public class UserManagementController {
 		return "admin/userdetails";
 	}
 
-	
 	@GetMapping("/{id}")
 	public String getUser(@PathVariable Long id, Model model) {
 		UserDto userDto = userManagementService.getUser(id);
@@ -66,7 +64,6 @@ public class UserManagementController {
 		return "admin/userdetails";
 	}
 
-	
 	@PutMapping("/{id}")
 	public String updateUser(@PathVariable Long id,
 							 @ModelAttribute("user") UserDto userDto,
@@ -77,8 +74,7 @@ public class UserManagementController {
 			userDto.setSelectedGroupIds(selectedGroupIds);
 			userManagementService.modifyUser(userDto);
 			ra.addFlashAttribute("message", "사용자 '" + userDto.getUsername() + "' 정보가 성공적으로 수정되었습니다!");
-			log.info("User {} modified.", userDto.getUsername());
-		} catch (Exception e) {
+					} catch (Exception e) {
 			log.error("Error modifying user: ", e);
 			ra.addFlashAttribute("errorMessage", "사용자 수정 중 오류가 발생했습니다: " + e.getMessage());
 			return "redirect:/admin/users/" + id;
@@ -86,7 +82,6 @@ public class UserManagementController {
 		return "redirect:/admin/users";
 	}
 
-	
 	@PostMapping("/{id}")
 	public String updateUserPost(@PathVariable Long id,
 								 @ModelAttribute("user") UserDto userDto,
@@ -95,21 +90,18 @@ public class UserManagementController {
 		return updateUser(id, userDto, selectedGroupIds, ra);
 	}
 
-	
 	@DeleteMapping("/{id}")
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			userManagementService.deleteUser(id);
 			ra.addFlashAttribute("message", "사용자 (ID: " + id + ")가 성공적으로 삭제되었습니다!");
-			log.info("User ID {} deleted.", id);
-		} catch (Exception e) {
+					} catch (Exception e) {
 			log.error("Error deleting user: ", e);
 			ra.addFlashAttribute("errorMessage", "사용자 삭제 중 오류가 발생했습니다: " + e.getMessage());
 		}
 		return "redirect:/admin/users";
 	}
 
-	
 	@GetMapping("/delete/{id}")
 	public String removeUserGet(@PathVariable Long id, RedirectAttributes ra) {
 		return removeUser(id, ra);

@@ -9,30 +9,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Getter
 @Setter
 public class StudioQueryResponse extends IAMResponse {
-    
-    
+
     private String naturalLanguageAnswer;
-    
-    
+
     private List<QueryResult> queryResults = new ArrayList<>();
-    
-    
+
     private List<AnalysisResult> analysisResults = new ArrayList<>();
-    
-    
+
     private VisualizationData visualizationData;
-    
-    
+
     private List<Recommendation> recommendations = new ArrayList<>();
-    
-    
+
     private long processingTimeMs;
-    
-    
+
     public void setConfidenceScore(int score) {
         this.withConfidenceScore(score / 100.0);
     }
@@ -45,7 +37,6 @@ public class StudioQueryResponse extends IAMResponse {
         super(requestId, status);
     }
 
-    
     public StudioQueryResponse() {
         super("default", ExecutionStatus.SUCCESS);
     }
@@ -67,13 +58,11 @@ public class StudioQueryResponse extends IAMResponse {
         data.put("processingTimeMs", processingTimeMs);
         return data;
     }
-    
-    
+
     public int getResultCount() {
         return queryResults != null ? queryResults.size() : 0;
     }
-    
-    
+
     @Getter
     @Setter
     public static class QueryResult {
@@ -83,8 +72,7 @@ public class StudioQueryResponse extends IAMResponse {
         private int relevanceScore;      
         private Map<String, Object> metadata = new HashMap<>();
     }
-    
-    
+
     @Getter
     @Setter
     public static class AnalysisResult {
@@ -96,8 +84,7 @@ public class StudioQueryResponse extends IAMResponse {
         private String description;      
         private Map<String, Object> metadata = new HashMap<>();
     }
-    
-    
+
     @Getter
     @Setter
     public static class VisualizationData {
@@ -137,8 +124,7 @@ public class StudioQueryResponse extends IAMResponse {
             private Map<String, Object> properties = new HashMap<>();
         }
     }
-    
-    
+
     @Getter
     @Setter
     public static class Recommendation {
@@ -156,8 +142,7 @@ public class StudioQueryResponse extends IAMResponse {
             this.category = type; 
         }
     }
-    
-    
+
     @Getter
     @Setter
     public static class ActionLink {
@@ -168,21 +153,18 @@ public class StudioQueryResponse extends IAMResponse {
         private boolean openInNewTab = false;  
         private Map<String, Object> metadata = new HashMap<>();
     }
-    
-    
+
     public static StudioQueryResponse success(String requestId, String answer) {
         StudioQueryResponse response = new StudioQueryResponse(requestId);
         response.setNaturalLanguageAnswer(answer);
         return response;
     }
-    
-    
+
     public static StudioQueryResponse failure(String requestId, String errorMessage) {
         StudioQueryResponse response = new StudioQueryResponse(requestId);
         return (StudioQueryResponse) response.withError(errorMessage);
     }
-    
-    
+
     public static StudioQueryResponse error(String requestId, String errorMessage) {
         StudioQueryResponse response = new StudioQueryResponse(requestId);
         return (StudioQueryResponse) response.withError(errorMessage);

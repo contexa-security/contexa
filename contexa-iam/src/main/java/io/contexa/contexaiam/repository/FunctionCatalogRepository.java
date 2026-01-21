@@ -15,14 +15,12 @@ public interface FunctionCatalogRepository extends JpaRepository<FunctionCatalog
 
     Optional<FunctionCatalog> findByManagedResource(ManagedResource managedResource);
 
-    
     @Query("SELECT fc FROM FunctionCatalog fc " +
             "JOIN FETCH fc.managedResource " +
             "WHERE fc.status = :status " +
             "ORDER BY fc.id ASC")
     List<FunctionCatalog> findFunctionsByStatusWithDetails(@Param("status") FunctionCatalog.CatalogStatus status);
 
-    
     @Query("SELECT fc FROM FunctionCatalog fc " +
             "JOIN FETCH fc.managedResource " +
             "LEFT JOIN FETCH fc.functionGroup " +

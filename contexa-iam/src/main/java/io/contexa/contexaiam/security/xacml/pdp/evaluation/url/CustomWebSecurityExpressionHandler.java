@@ -18,7 +18,6 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 
 import java.util.function.Supplier;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpressionHandler {
@@ -29,35 +28,26 @@ public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpre
     private final AuditLogRepository auditLogRepository;
     private final ApplicationContext applicationContext;
 
-    
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, RequestAuthorizationContext requestContext) {
 
-        
         Authentication auth = authentication.get();
         HttpServletRequest request = requestContext.getRequest();
 
-        
         AuthorizationContext authorizationContext = contextHandler.create(auth, request);
 
-        
         CustomWebSecurityExpressionRoot root = new CustomWebSecurityExpressionRoot(auth, request, attributePIP,aiNativeProcessor, authorizationContext, auditLogRepository);
 
-        
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(new AuthenticationTrustResolverImpl());
         root.setRoleHierarchy(getRoleHierarchy());
         root.setDefaultRolePrefix("ROLE_");
 
-        
         StandardEvaluationContext ctx = new StandardEvaluationContext(root);
         ctx.setBeanResolver(getBeanResolver());
 
-        
         ctx.setVariable("ai", root);
-        log.debug("웹 보안 SpEL 변수 설정 완료: #ai → CustomWebSecurityExpressionRoot 인스턴스");
 
-        
         requestContext.getVariables().forEach(ctx::setVariable);
 
         return ctx;

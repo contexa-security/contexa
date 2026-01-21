@@ -32,7 +32,6 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class CustomDynamicAuthorizationManager implements AuthorizationManager<RequestAuthorizationContext> {
@@ -47,26 +46,20 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final EventPublishingMetrics metricsCollector;
 
-
-    
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-        log.info("ApplicationContext refreshed. Initializing dynamic authorization mappings...");
-        initialize();
+                initialize();
     }
 
-    
     private void initialize() {
-        log.info("Loading dynamic authorization mappings from Policy model...");
-        this.mappings = new ArrayList<>();
+                this.mappings = new ArrayList<>();
 
         List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies();
 
         for (Policy policy : urlPolicies) {
             if (policy.isAIGenerated() &&
                 (policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED || !policy.getIsActive())) {
-                log.debug("Skipping AI policy '{}' - not approved or inactive", policy.getName());
-                continue;
+                                continue;
             }
 
             String expression = getExpressionFromPolicy(policy);
@@ -78,18 +71,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                     this.mappings.add(new RequestMatcherEntry<>(matcher, manager));
 
                     String policySource = policy.isAIGenerated() ? " [AI-" + policy.getSource() + "]" : "";
-                    log.debug("Policy mapping loaded - URL '{}' mapped to expression '{}' using {}{}",
-                            target.getTargetIdentifier(), expression, manager.getClass().getSimpleName(), policySource);
-                }
+                                    }
             }
         }
-        log.info("Initialization complete. {} URL policy mappings configured.", this.mappings.size());
-    }
+            }
 
     @Override
     public AuthorizationDecision check(Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context) {
-        log.trace("Checking authorization for request: {}", context.getRequest().getRequestURI());
-
+        
         final HttpServletRequest request = context.getRequest();
         final Authentication authentication = authenticationSupplier.get();
 
@@ -97,15 +86,13 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
             if (mapping.getRequestMatcher().matcher(context.getRequest()).isMatch()) {
-                log.debug("Request matched by '{}'. Delegating to its AuthorizationManager.", mapping.getRequestMatcher());
-
+                
                 AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
 
                 return manager.check(authenticationSupplier, context);
             }
         }
-        log.trace("No matching policy found for request. Allowing access by default.");
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
+                AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
         if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
@@ -119,13 +106,11 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 metricsCollector.recordAuthzDecision();
             }
 
-            log.debug("Authorization denied event published for: {}", request.getRequestURI());
-        }
+                    }
 
         return authorizationDecision;
     }
 
-    
     public String getExpressionFromPolicy(Policy policy) {
         List<String> conditionExpressions = policy.getRules().stream()
                 .flatMap(rule -> rule.getConditions().stream())
@@ -138,15 +123,12 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         String finalExpression;
 
-        
         if (conditionExpressions.size() == 1) {
             finalExpression = conditionExpressions.getFirst(); 
 
-            
         } else {
             boolean allAreSimpleAuthorities = conditionExpressions.stream().allMatch(expr -> AUTHORITY_PATTERN.matcher(expr).matches());
 
-            
             if (allAreSimpleAuthorities) {
                 finalExpression = "hasAnyAuthority(" +
                         conditionExpressions.stream().map(auth -> "'" + auth + "'").collect(Collectors.joining(",")) +
@@ -165,7 +147,6 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return finalExpression;
     }
 
-    
     private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context, AuthorizationDecision decision) {
 
         String principal = (authentication != null && authentication.getPrincipal() instanceof UserDto userDto) ? userDto.getName() : "anonymousUser";
@@ -191,9 +172,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     }
 
     public synchronized void reload() {
-        log.info("Reloading dynamic authorization mappings from data source...");
-        policyRetrievalPoint.clearUrlPoliciesCache();
+                policyRetrievalPoint.clearUrlPoliciesCache();
         initialize();
-        log.info("Dynamic authorization mappings reloaded successfully.");
-    }
+            }
 }

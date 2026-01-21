@@ -55,7 +55,6 @@ public class ResourceAdminController {
         return "redirect:/admin/workbench/resources";
     }
 
-    
     @PostMapping("/{id}/define")
     @ResponseBody 
     public ResponseEntity<Map<String, Object>> defineResourceAsPermissionApi(@PathVariable Long id, @ModelAttribute ResourceMetadataDto metadataDto) {
@@ -63,7 +62,6 @@ public class ResourceAdminController {
             
             Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, metadataDto);
 
-            
             Map<String, Object> response = Map.of(
                     "success", true,
                     "message", "리소스가 성공적으로 권한으로 정의되었습니다.",
@@ -77,8 +75,6 @@ public class ResourceAdminController {
             return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
         }
     }
-
-   
 
     @PostMapping("/{id}/exclude")
     public String excludeResource(@PathVariable Long id, RedirectAttributes ra) {

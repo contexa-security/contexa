@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-
 @Slf4j
 @RequestMapping("/api/policies") 
 @RequiredArgsConstructor
@@ -21,18 +20,14 @@ public class PolicyApiController {
     private final BusinessPolicyService businessPolicyService;
     private final ModelMapper modelMapper;
 
-    
     @PostMapping("/build-from-business-rule")
     public ResponseEntity<PolicyDto> buildPolicyFromBusinessRule(@RequestBody BusinessPolicyDto dto) {
         try {
-            log.info("Received request to build policy from business rule: {}", dto.getPolicyName());
-            
+                        
             Policy createdPolicy = businessPolicyService.createPolicyFromBusinessRule(dto);
 
-            
             PolicyDto responseDto = modelMapper.map(createdPolicy, PolicyDto.class);
 
-            
             return ResponseEntity.ok(responseDto);
 
         } catch (Exception e) {
@@ -42,7 +37,4 @@ public class PolicyApiController {
         }
     }
 
-    
-    
-    
 }

@@ -6,12 +6,9 @@ import io.contexa.contexacommon.entity.Permission;
 
 import java.util.List;
 
-
 public interface PermissionCatalogService {
 
-    
     Permission synchronizePermissionFor(ManagedResource definedResource);
 
-    
     List<PermissionDto> getAvailablePermissions();
 }

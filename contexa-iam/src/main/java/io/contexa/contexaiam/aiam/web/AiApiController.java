@@ -35,7 +35,6 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-
 @RequestMapping("/api/ai/policies")
 @RequiredArgsConstructor
 @Slf4j
@@ -46,7 +45,6 @@ public class AiApiController {
     private final ManagedResourceRepository managedResourceRepository;
     private final ConditionCompatibilityService conditionCompatibilityService;
 
-    
     @PostMapping(value = "/generate-from-text/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> generatePolicyFromTextStream(@RequestBody PolicyGenerationItem request) {
 
@@ -57,13 +55,8 @@ public class AiApiController {
                     .build());
         }
 
-        log.info("AI 스트리밍 정책 생성 요청 - Master Brain 단일 진입점 사용: {}", naturalLanguageQuery);
-        if (request.availableItems() != null) {
-            log.info("사용 가능한 항목들: 역할 {}개, 권한 {}개, 조건 {}개",
-                request.availableItems().roles() != null ? request.availableItems().roles().size() : 0,
-                request.availableItems().permissions() != null ? request.availableItems().permissions().size() : 0,
-                request.availableItems().conditions() != null ? request.availableItems().conditions().size() : 0);
-        }
+                if (request.availableItems() != null) {
+                    }
 
         try {
             
@@ -79,7 +72,6 @@ public class AiApiController {
                         .withParameter("naturalLanguageQuery", naturalLanguageQuery)
                         .withParameter("availableItems", request.availableItems());
 
-            
             SentenceBuffer sentenceBuffer = new SentenceBuffer();
             StringBuilder allData = new StringBuilder(); 
             AtomicBoolean jsonSent = new AtomicBoolean(false);
@@ -90,18 +82,11 @@ public class AiApiController {
                     .flatMap(chunk -> {
                         String chunkStr = chunk != null ? chunk.toString() : "";
 
-                        log.debug("[RECEIVED] 청크 길이: {}, 내용: {}",
-                                chunkStr.length(),
-                                chunkStr.length() > 50 ? chunkStr.substring(0, 50) + "..." : chunkStr);
-
-                        
                         allData.append(chunkStr);
 
-                        
                         if (!finalResponseStarted.get()) {
                             markerBuffer.append(chunkStr);
 
-                            
                             if (markerBuffer.length() > 50) {
                                 markerBuffer.delete(0, markerBuffer.length() - 50);
                             }
@@ -109,17 +94,13 @@ public class AiApiController {
                             
                             if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
                                 finalResponseStarted.set(true);
-                                log.info("[FINAL-MODE] FINAL_RESPONSE 모드 시작 - 이후 청크들은 sentenceBuffer 처리 제외");
-                            }
+                                                            }
                         }
 
-                        
                         if (finalResponseStarted.get()) {
-                            log.debug("[SKIP-SENTENCE] FINAL_RESPONSE 모드 - sentenceBuffer 처리 스킵");
-                            return Flux.empty(); 
+                                                        return Flux.empty(); 
                         }
 
-                        
                         return sentenceBuffer.processChunk(chunkStr)
                                 .map(sentence -> ServerSentEvent.<String>builder()
                                         .data(sentence)
@@ -170,7 +151,6 @@ public class AiApiController {
         }
     }
 
-    
     @PostMapping("/generate-from-text")
     public Mono<ResponseEntity<AiGeneratedPolicyDraftDto>> generatePolicyFromText(@RequestBody PolicyGenerationItem request) {
 
@@ -179,13 +159,8 @@ public class AiApiController {
             return Mono.just(ResponseEntity.badRequest().build());
         }
 
-        log.info("Controller: AI 정책 비동기 생성 요청을 Master Brain 단일 진입점에 위임 - {}", naturalLanguageQuery);
-        if (request.availableItems() != null) {
-            log.info("사용 가능한 항목들: 역할 {}개, 권한 {}개, 조건 {}개",
-                request.availableItems().roles() != null ? request.availableItems().roles().size() : 0,
-                request.availableItems().permissions() != null ? request.availableItems().permissions().size() : 0,
-                request.availableItems().conditions() != null ? request.availableItems().conditions().size() : 0);
-        }
+                if (request.availableItems() != null) {
+                    }
 
         return Mono.fromCallable(() -> {
             
@@ -212,7 +187,6 @@ public class AiApiController {
                 Map<String, String> permissionMap = policyResponse.getPermissionIdToNameMap();
                 Map<String, String> conditionMap = policyResponse.getConditionIdToNameMap();
 
-                
                 if (policyData == null) {
                     log.error("PolicyResponse 에서 policyData가 null 입니다");
                     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
@@ -227,36 +201,27 @@ public class AiApiController {
                         policyData, roleMap, permissionMap, conditionMap
                     );
 
-                log.info("비동기 정책 생성 성공: {}", policyData.getPolicyName());
-                return ResponseEntity.ok(result);
+                                return ResponseEntity.ok(result);
             }
 
-            
             log.error("예상하지 못한 응답 타입: {} (예상: PolicyResponse)", response.getClass().getSimpleName());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         });
     }
 
-
-
-    
     @PostMapping("/recommend-conditions")
     public Mono<ResponseEntity<Map<String, Object>>> recommendConditions(@RequestBody RecommendConditionsRequest request) {
-        log.info("조건 비동기 추천 요청: 리소스={}, 컨텍스트={}", request.resourceIdentifier(), request.context());
-
+        
         return Mono.fromCallable(() -> {
             
             ManagedResource resource = managedResourceRepository.findByResourceIdentifier(request.resourceIdentifier())
                     .orElseThrow(() -> new IllegalArgumentException("Resource not found: " + request.resourceIdentifier()));
 
-            
             List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
 
-            
             Map<Long, CompatibilityResult> compatibilityResults =
                 conditionCompatibilityService.checkBatchCompatibility(allConditions, resource);
 
-            
             Map<ConditionTemplate.ConditionClassification, List<RecommendedCondition>> recommendedByClass =
                 new EnumMap<>(ConditionTemplate.ConditionClassification.class);
 
@@ -283,7 +248,6 @@ public class AiApiController {
                 }
             }
 
-            
             recommendedByClass.values().forEach(list ->
                 list.sort((a, b) -> Double.compare(b.recommendationScore(), a.recommendationScore())));
 
@@ -295,9 +259,6 @@ public class AiApiController {
                 .mapToInt(List::size).sum());
             response.put("statistics", calculateRecommendationStatistics(recommendedByClass));
 
-            log.info("조건 비동기 추천 완료: {} 개 조건 추천",
-                recommendedByClass.values().stream().mapToInt(List::size).sum());
-
             return ResponseEntity.ok(response);
         })
         .onErrorResume(error -> {
@@ -307,18 +268,15 @@ public class AiApiController {
         });
     }
 
-    
     private double calculateRecommendationScore(ConditionTemplate condition, String context) {
         double score = 0.0;
 
-        
         switch (condition.getClassification()) {
             case UNIVERSAL -> score += 1.0;           
             case CONTEXT_DEPENDENT -> score += 0.7;   
             case CUSTOM_COMPLEX -> score += 0.4;      
         }
 
-        
         if (condition.getRiskLevel() != null) {
             switch (condition.getRiskLevel()) {
                 case LOW -> score += 0.3;
@@ -327,18 +285,15 @@ public class AiApiController {
             }
         }
 
-        
         if (condition.getComplexityScore() != null) {
             score += (10 - condition.getComplexityScore()) * 0.05;
         }
 
-        
         if (context != null && !context.trim().isEmpty()) {
             String lowerContext = context.toLowerCase();
             String lowerName = condition.getName().toLowerCase();
             String lowerDesc = condition.getDescription() != null ? condition.getDescription().toLowerCase() : "";
 
-            
             if (lowerName.contains("시간") && lowerContext.contains("time")) score += 0.5;
             if (lowerName.contains("ip") && lowerContext.contains("ip")) score += 0.5;
             if (lowerName.contains("본인") && lowerContext.contains("owner")) score += 0.5;
@@ -348,24 +303,19 @@ public class AiApiController {
         return Math.max(0.0, Math.min(2.0, score)); 
     }
 
-    
     @PostMapping("/smart-match-conditions")
     public Mono<ResponseEntity<Map<String, Object>>> smartMatchConditions(@RequestBody SmartMatchRequest request) {
-        log.info("스마트 조건 비동기 매칭 요청: 권한={}, 리소스={}", request.permissionName(), request.resourceIdentifier());
-
+        
         return Mono.fromCallable(() -> {
             
             ManagedResource resource = managedResourceRepository.findByResourceIdentifier(request.resourceIdentifier())
                     .orElseThrow(() -> new IllegalArgumentException("Resource not found: " + request.resourceIdentifier()));
 
-            
             List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
 
-            
             Map<Long, CompatibilityResult> compatibilityResults =
                 conditionCompatibilityService.checkBatchCompatibility(allConditions, resource);
 
-            
             List<SmartMatchedCondition> smartMatched = new ArrayList<>();
 
             for (ConditionTemplate condition : allConditions) {
@@ -390,7 +340,6 @@ public class AiApiController {
                 }
             }
 
-            
             smartMatched.sort((a, b) -> Double.compare(b.smartMatchingScore(), a.smartMatchingScore()));
 
             Map<String, Object> response = new HashMap<>();
@@ -403,10 +352,6 @@ public class AiApiController {
                 .filter(c -> c.smartMatchingScore() >= 3.0)
                 .collect(Collectors.toList()));
 
-            log.info("스마트 비동기 매칭 완료: {} 개 조건, 고점수: {} 개",
-                smartMatched.size(),
-                smartMatched.stream().mapToLong(c -> c.smartMatchingScore() >= 3.0 ? 1 : 0).sum());
-
             return ResponseEntity.ok(response);
         })
         .onErrorResume(error -> {
@@ -416,7 +361,6 @@ public class AiApiController {
         });
     }
 
-    
     private double calculateSmartMatchingScore(ConditionTemplate condition, String permissionName, String context) {
         double score = calculateRecommendationScore(condition, context);
 
@@ -427,9 +371,6 @@ public class AiApiController {
         String lowerPermission = permissionName.toLowerCase();
         String lowerCondition = condition.getName().toLowerCase();
 
-        
-
-        
         String cleanPermission = lowerPermission.replaceAll("[^가-힣a-z0-9]", "");
         String cleanCondition = lowerCondition.replaceAll("[^가-힣a-z0-9]", "");
 
@@ -437,7 +378,6 @@ public class AiApiController {
             score += 3.0; 
         }
 
-        
         String[] permissionWords = lowerPermission.split("\\s+");
         String[] conditionWords = lowerCondition.split("\\s+");
 
@@ -457,7 +397,6 @@ public class AiApiController {
             score += (double) matchedWords / permissionWords.length * 2.0;
         }
 
-        
         if (containsEntity(lowerPermission, "사용자") && containsEntity(lowerCondition, "사용자")) score += 1.0;
         if (containsEntity(lowerPermission, "문서") && containsEntity(lowerCondition, "문서")) score += 1.0;
         if (containsEntity(lowerPermission, "그룹") && containsEntity(lowerCondition, "그룹")) score += 1.0;
@@ -465,14 +404,12 @@ public class AiApiController {
         if (containsEntity(lowerPermission, "역할") && containsEntity(lowerCondition, "역할")) score += 1.0;
         if (containsEntity(lowerPermission, "정책") && containsEntity(lowerCondition, "정책")) score += 1.0;
 
-        
         if (containsAction(lowerPermission, "수정") && containsAction(lowerCondition, "수정")) score += 1.5;
         if (containsAction(lowerPermission, "삭제") && containsAction(lowerCondition, "삭제")) score += 1.5;
         if (containsAction(lowerPermission, "조회") && containsAction(lowerCondition, "조회")) score += 1.5;
         if (containsAction(lowerPermission, "생성") && containsAction(lowerCondition, "생성")) score += 1.5;
         if (containsAction(lowerPermission, "관리") && containsAction(lowerCondition, "관리")) score += 1.5;
 
-        
         if (lowerPermission.contains("본인") && lowerCondition.contains("본인")) score += 2.0;
         if (lowerPermission.contains("소유자") && lowerCondition.contains("소유자")) score += 2.0;
         if (lowerPermission.contains("관리자") && lowerCondition.contains("관리자")) score += 1.5;
@@ -480,7 +417,6 @@ public class AiApiController {
         return Math.max(0.0, Math.min(5.0, score)); 
     }
 
-    
     private String calculateMatchingReason(ConditionTemplate condition, String permissionName) {
         if (permissionName == null || condition.getName() == null) {
             return "기본 추천";
@@ -490,7 +426,6 @@ public class AiApiController {
         String lowerPermission = permissionName.toLowerCase();
         String lowerCondition = condition.getName().toLowerCase();
 
-        
         if (containsEntity(lowerPermission, "사용자") && containsEntity(lowerCondition, "사용자")) {
             reasons.add("사용자 엔티티 매칭");
         }
@@ -498,7 +433,6 @@ public class AiApiController {
             reasons.add("문서 엔티티 매칭");
         }
 
-        
         if (containsAction(lowerPermission, "수정") && containsAction(lowerCondition, "수정")) {
             reasons.add("수정 액션 매칭");
         }
@@ -509,7 +443,6 @@ public class AiApiController {
             reasons.add("조회 액션 매칭");
         }
 
-        
         if (lowerPermission.contains("본인") && lowerCondition.contains("본인")) {
             reasons.add("본인 확인 패턴");
         }
@@ -517,9 +450,7 @@ public class AiApiController {
         return reasons.isEmpty() ? "일반 호환성" : String.join(", ", reasons);
     }
 
-    
     private static final Map<String, String[]> ENTITY_MAPPING;
-    
 
     static {
         ENTITY_MAPPING = new HashMap<>();
@@ -530,15 +461,13 @@ public class AiApiController {
         ENTITY_MAPPING.put("게시물", new String[]{"post", "board", "게시판"});
         ENTITY_MAPPING.put("데이터", new String[]{"data", "정보", "info"});
     }
-    
-    
+
     private boolean containsEntity(String text, String entity) {
         
         if (text.contains(entity)) {
             return true;
         }
-        
-        
+
         String[] synonyms = ENTITY_MAPPING.get(entity);
         if (synonyms != null) {
             for (String synonym : synonyms) {
@@ -551,7 +480,6 @@ public class AiApiController {
         return false;
     }
 
-    
     private boolean containsAction(String text, String action) {
         switch (action) {
             case "수정":
@@ -567,7 +495,6 @@ public class AiApiController {
         }
     }
 
-    
     private Map<String, Object> calculateRecommendationStatistics(
             Map<ConditionTemplate.ConditionClassification, List<RecommendedCondition>> recommendedByClass) {
 
@@ -582,7 +509,6 @@ public class AiApiController {
         }
         stats.put("countByClassification", countByClass);
 
-        
         double avgScore = recommendedByClass.values().stream()
             .flatMap(List::stream)
             .mapToDouble(RecommendedCondition::recommendationScore)
@@ -593,13 +519,11 @@ public class AiApiController {
         return stats;
     }
 
-    
     public record RecommendConditionsRequest(
         String resourceIdentifier,
         String context  
     ) {}
 
-    
     public record RecommendedCondition(
         Long id,
         String name,
@@ -612,14 +536,12 @@ public class AiApiController {
         double recommendationScore
     ) {}
 
-    
     public record SmartMatchRequest(
         String permissionName,
         String resourceIdentifier,
         String context
     ) {}
 
-    
     public record SmartMatchedCondition(
         Long id,
         String name,
@@ -633,7 +555,6 @@ public class AiApiController {
         String matchingReason
     ) {}
 
-    
     private Flux<ServerSentEvent<String>> createStreamingFromText(String text) {
         if (text == null || text.isEmpty()) {
             return Flux.just(ServerSentEvent.<String>builder()
@@ -641,7 +562,6 @@ public class AiApiController {
                     .build());
         }
 
-        
         String[] words = text.split("\\s+");
         int chunkSize = Math.max(1, words.length / 20); 
 
@@ -665,7 +585,6 @@ public class AiApiController {
                 );
     }
 
-    
     private Flux<ServerSentEvent<String>> createFallbackStreamingFromRequest(String naturalLanguageQuery, PolicyGenerationItem.AvailableItems availableItems) {
         log.warn("Fallback 스트리밍 생성: {}", naturalLanguageQuery);
 
@@ -676,7 +595,6 @@ public class AiApiController {
                         .data("AI가 요청을 분석하고 있습니다...")
                         .build());
 
-                
                 Mono.delay(java.time.Duration.ofMillis(500))
                         .doOnNext(tick -> {
                             sink.next(ServerSentEvent.<String>builder()

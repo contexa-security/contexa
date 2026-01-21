@@ -9,7 +9,6 @@ import lombok.Setter;
 import java.util.List;
 import java.util.Map;
 
-
 @Getter
 @Setter
 public class ResourceNamingContext extends IAMContext {
@@ -36,13 +35,11 @@ public class ResourceNamingContext extends IAMContext {
     public String getIAMContextType() {
         return "RESOURCE_NAMING";
     }
-    
-    
+
     public boolean isComplete() {
         return resourceBatch != null && !resourceBatch.isEmpty();
     }
-    
-    
+
     public int calculateComplexity() {
         int complexity = 1;
         
@@ -64,8 +61,7 @@ public class ResourceNamingContext extends IAMContext {
         
         return Math.min(complexity, 10);
     }
-    
-    
+
     public static class Builder {
         private final ResourceNamingContext context;
         

@@ -3,7 +3,6 @@ package io.contexa.contexaiam.admin.web.monitoring.dto;
 import io.contexa.contexaiam.admin.support.context.dto.RecentActivityDto;
 import java.util.List;
 
-
 public record DashboardDto(
         long totalUserCount,
         long activeSessionCount,

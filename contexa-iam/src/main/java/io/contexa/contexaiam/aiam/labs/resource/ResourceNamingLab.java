@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-
 @Slf4j
 public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> {
 
@@ -31,8 +30,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
         super(tracer, "ResourceNaming", "1.0", LabSpecialization.RECOMMENDATION_SYSTEM);
         this.orchestrator = orchestrator;
         this.vectorService = vectorService;
-        log.info("ResourceNamingLab 초기화 완료 - PipelineOrchestrator 기반 with Vector Storage");
-    }
+            }
 
     @Override
     protected ResourceNamingSuggestionResponse doProcess(ResourceNamingSuggestionRequest request) throws Exception {
@@ -45,9 +43,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     }
 
     private Mono<ResourceNamingSuggestionResponse> processResourceNamingAsync(ResourceNamingSuggestionRequest request) {
-        log.info("ResourceNaming 비동기 진단 시작 - 리소스 수: {} (완전 비블로킹)", request.getResources().size());
-        
-        
+
         try {
             vectorService.storeNamingRequest(request);
         } catch (Exception e) {
@@ -71,8 +67,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     }
 
     private Mono<ResourceNamingSuggestionResponse> executePipelineAsync(ResourceNamingSuggestionRequest request) {
-        log.info("AI 리소스 네이밍 비동기 생성 시작 - 6단계 Pipeline 활용 (총 리소스: {})", request.getResources().size());
-
+        
         long startTime = System.currentTimeMillis();
         List<ResourceNamingSuggestionResponse.ResourceNamingSuggestion> allSuggestions = new ArrayList<>();
         List<String> failedIdentifiers = new ArrayList<>();
@@ -84,8 +79,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                         .stream()
                         .toList();
 
-        log.info("배치 분할 완료: 총 {}개 배치 (배치 크기: {})", batches.size(), DEFAULT_BATCH_SIZE);
-        return processBatchesSequentiallyAsync(batches, 0, allSuggestions, failedIdentifiers, startTime, request.getResources().size());
+                return processBatchesSequentiallyAsync(batches, 0, allSuggestions, failedIdentifiers, startTime, request.getResources().size());
     }
 
     private Mono<ResourceNamingSuggestionResponse> processBatchesSequentiallyAsync(
@@ -109,10 +103,6 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
             ResourceNamingSuggestionResponse finalResponse = new ResourceNamingSuggestionResponse(
                     "executePipelineAsync", allSuggestions, failedIdentifiers, stats);
 
-            log.info("비동기 6단계 파이프라인 실행 완료 - 성공: {}, 실패: {}, 처리시간: {}ms",
-                    allSuggestions.size(), failedIdentifiers.size(), processingTime);
-            
-            
             try {
                 
                 List<ResourceNamingSuggestionRequest.ResourceItem> allResources = batches.stream()
@@ -133,8 +123,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
             return Mono.just(finalResponse);
         }
         List<ResourceNamingSuggestionRequest.ResourceItem> currentBatch = batches.get(currentIndex);
-        log.info("배치 {} 비동기 처리 시작: {}개 항목", currentIndex + 1, currentBatch.size());
-
+        
         return processBatchAsync(currentBatch)
                 .flatMap(batchResponse -> {
                     allSuggestions.addAll(batchResponse.getSuggestions());
@@ -151,10 +140,8 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                 });
     }
 
-    
     private Mono<ResourceNamingSuggestionResponse> processBatchAsync(List<ResourceNamingSuggestionRequest.ResourceItem> batch) {
-        log.info("AI 리소스 네이밍 배치 비동기 생성 시작 - Pipeline 활용 (배치 크기: {})", batch.size());
-
+        
         return Mono.fromCallable(() -> createResourceNamingRequest(batch))
                 .flatMap(aiRequest -> {
                     PipelineConfiguration config = createResourceNamingPipelineConfig();
@@ -218,16 +205,14 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                 batch.stream().map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier).toList(),
                 fallbackStats);
     }
-    
-    
+
     public void learnFromFeedback(ResourceNamingSuggestionRequest request, ResourceNamingSuggestionResponse response, String feedback) {
         try {
             
             String namingId = response.getRequestId();
             String selected = response.getSuggestions().isEmpty() ? "" : response.getSuggestions().get(0).getFriendlyName();
             vectorService.storeFeedback(namingId, selected, feedback);
-            log.info("[ResourceNamingLab] 피드백 학습 완료: {}", feedback.substring(0, Math.min(50, feedback.length())));
-        } catch (Exception e) {
+                    } catch (Exception e) {
             log.error("[ResourceNamingLab] 피드백 학습 실패", e);
         }
     }

@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
-
 @Getter
 @Setter
 public class StaticAccessOptimizationResponse extends IAMResponse {
@@ -75,8 +74,7 @@ public class StaticAccessOptimizationResponse extends IAMResponse {
     public String getResponseType() {
         return "STATIC_ACCESS_OPTIMIZATION";
     }
-    
-    
+
     @Data
     public static class OptimizationStrategy {
         private String type;
@@ -85,8 +83,7 @@ public class StaticAccessOptimizationResponse extends IAMResponse {
         private String priority;
         private String description;
     }
-    
-    
+
     @Data
     public static class PolicyProposal {
         private String proposalId;
@@ -103,8 +100,7 @@ public class StaticAccessOptimizationResponse extends IAMResponse {
         private LocalDateTime createdAt;
         private Map<String, Object> metadata;
     }
-    
-    
+
     @Data
     public static class EffectPrediction {
         private double accessReductionRate;

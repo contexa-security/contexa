@@ -14,7 +14,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @RequestMapping("/admin/catalog")
 public class FunctionCatalogController {
@@ -69,13 +68,11 @@ public class FunctionCatalogController {
     @PostMapping("/refresh")
     public String refreshResources(RedirectAttributes ra) {
         try {
-            log.info("리소스 새로고침 요청");
-            
+                        
             resourceEnhancementService.refreshResources();
             
             ra.addFlashAttribute("message", "시스템의 모든 기능을 성공적으로 다시 스캔했습니다.");
-            log.info("리소스 새로고침 완료");
-            
+                        
         } catch (Exception e) {
             log.error("리소스 새로고침 실패", e);
             ra.addFlashAttribute("errorMessage", "리소스 새로고침 중 오류가 발생했습니다: " + e.getMessage());

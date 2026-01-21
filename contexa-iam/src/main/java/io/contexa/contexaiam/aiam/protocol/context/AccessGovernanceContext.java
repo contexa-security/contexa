@@ -11,57 +11,48 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
 
-
 @Getter
 @Setter
 public class AccessGovernanceContext extends IAMContext {
-    
-    
+
     private String auditScope;            
     private String analysisType;          
     private String priority;              
     private String queryLanguage = "ko";
     private Map<String, Object> governanceMetadata;
-    
-    
+
     private List<String> targetUsers;
     private List<String> targetRoles;
     private List<String> targetGroups;
     private List<String> targetResources;
     private List<String> targetPermissions;
     private Set<String> excludedEntities;
-    
-    
+
     private Map<String, Object> governancePolicies;
     private List<String> complianceRequirements;
     private Map<String, String> riskThresholds;
-    
-    
+
     private boolean enableDormantPermissionAnalysis = true;
     private boolean enableExcessivePermissionDetection = true;
     private boolean enableSodViolationCheck = true;
     private boolean enableRoleOptimization = true;
     private int maxExecutionTimeSeconds = 300;
     private String analysisMode = "COMPREHENSIVE"; 
-    
-    
+
     private boolean includeRecommendations = true;
     private boolean includeRiskScore = true;
     private boolean includeActionPlan = true;
     private int maxFindings = 20;
-    
-    
+
     private boolean includeSensitiveData = false;
     private Set<String> sensitiveFields;
     private String dataClassification = "INTERNAL"; 
-    
-    
+
     private String fullAccessMatrixData;
     private Map<String, Object> permissionMatrix;
     private Map<String, Object> roleMatrix;
     private Map<String, Object> userMatrix;
-    
-    
+
     public enum AnalysisType {
         COMPREHENSIVE("포괄적 권한 거버넌스 분석"),
         PERMISSION_AUDIT("권한 감사"),
@@ -80,8 +71,7 @@ public class AccessGovernanceContext extends IAMContext {
             return description;
         }
     }
-    
-    
+
     public enum AnalysisMode {
         SUMMARY("요약 분석"),
         DETAILED("상세 분석"),
@@ -125,18 +115,15 @@ public class AccessGovernanceContext extends IAMContext {
         this.riskThresholds.put("dormant_permission", "0.6");
         this.riskThresholds.put("sod_violation", "0.9");
     }
-    
-    
+
     public void addGovernanceMetadata(String key, Object value) {
         this.governanceMetadata.put(key, value);
     }
-    
-    
+
     public void addGovernancePolicy(String key, Object value) {
         this.governancePolicies.put(key, value);
     }
-    
-    
+
     public void setRiskThreshold(String riskType, String threshold) {
         this.riskThresholds.put(riskType, threshold);
     }

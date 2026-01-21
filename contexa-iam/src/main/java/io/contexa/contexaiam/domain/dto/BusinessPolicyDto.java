@@ -11,16 +11,12 @@ public class BusinessPolicyDto {
     private String policyName;
     private String description;
 
-    
     private Set<Long> roleIds;
 
-    
     private Set<Long> permissionIds;
 
-    
     private boolean conditional;
 
-    
     private Map<Long, List<String>> conditions; 
     private boolean aiRiskAssessmentEnabled; 
     private double requiredTrustScore; 

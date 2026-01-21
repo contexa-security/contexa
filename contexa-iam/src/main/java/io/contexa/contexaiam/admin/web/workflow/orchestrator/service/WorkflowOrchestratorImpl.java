@@ -14,33 +14,23 @@ public class WorkflowOrchestratorImpl implements WorkflowOrchestrator {
 
     private final PermissionWizardService permissionWizardService;
 
-    
     @Override
     @Transactional
     public WorkflowResult executePermissionGrantWorkflow(WorkflowRequest request) {
-        log.info("Executing permission grant workflow for roles: {}", request.getSelectedRoleIds());
 
-        
-        
         WizardContext context = permissionWizardService.beginCreation(
                 request.getInitialRequest(),
                 request.getPolicyName(),
                 request.getPolicyDescription()
         );
         String contextId = context.contextId();
-        log.info("Workflow context created with ID: {}", contextId);
 
-        
-        
         permissionWizardService.commitPolicy(
                 contextId,
                 request.getSelectedRoleIds(),
                 request.getInitialRequest().getPermissionIds() 
         );
-        log.info("Workflow completed. Role-permission assignments have been committed.");
 
-        
-        
         return new WorkflowResult(contextId, "SUCCESS", null);
     }
 }

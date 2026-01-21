@@ -12,13 +12,11 @@ import lombok.ToString;
 import java.util.ArrayList;
 import java.util.List;
 
-
 @Getter
 @Setter
 @ToString
 public class AccessGovernanceResponse extends AIResponse {
-    
-    
+
     @JsonProperty("analysisId")
     private String analysisId;
     
@@ -51,8 +49,7 @@ public class AccessGovernanceResponse extends AIResponse {
     
     @JsonProperty("statistics")
     private Statistics statistics;
-    
-    
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -75,8 +72,7 @@ public class AccessGovernanceResponse extends AIResponse {
         @JsonProperty("recommendation")
         private String recommendation;
     }
-    
-    
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -96,8 +92,7 @@ public class AccessGovernanceResponse extends AIResponse {
         @JsonProperty("implementationSteps")
         private List<String> implementationSteps = new ArrayList<>();
     }
-    
-    
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -120,8 +115,7 @@ public class AccessGovernanceResponse extends AIResponse {
         @JsonProperty("description")
         private String description;
     }
-    
-    
+
     @Data
     @NoArgsConstructor
     @AllArgsConstructor
@@ -198,8 +192,7 @@ public class AccessGovernanceResponse extends AIResponse {
         @JsonProperty("emptyGroups")
         private int emptyGroups;
     }
-    
-    
+
     public AccessGovernanceResponse(String requestId) {
         super(requestId, ExecutionStatus.SUCCESS);
         this.findings = new ArrayList<>();

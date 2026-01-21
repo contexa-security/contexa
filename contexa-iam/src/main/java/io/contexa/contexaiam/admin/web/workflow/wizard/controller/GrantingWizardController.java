@@ -34,11 +34,9 @@ public class GrantingWizardController {
         return ResponseEntity.ok(grantingWizardService.beginManagementSession(request));
     }
 
-    
     @PostMapping("/start/from-resource")
     public String startWizardFromResource(@RequestParam Long permissionId, RedirectAttributes ra) {
-        log.info("'리소스 워크벤치'로부터 권한 부여 마법사를 시작합니다. Permission ID: {}", permissionId);
-
+        
         InitiateManagementRequestDto request = new InitiateManagementRequestDto();
         
         request.setSubjectId(permissionId);
@@ -46,7 +44,6 @@ public class GrantingWizardController {
 
         WizardInitiationDto initiation = grantingWizardService.beginManagementSession(request);
 
-        
         return "redirect:" + initiation.wizardUrl();
     }
 

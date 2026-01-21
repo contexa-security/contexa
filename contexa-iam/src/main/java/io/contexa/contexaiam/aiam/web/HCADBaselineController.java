@@ -17,21 +17,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-
 @RequestMapping("/api/hcad")
 @CrossOrigin(origins = "*")
 @RequiredArgsConstructor
 @Slf4j
 public class HCADBaselineController {
 
-    
     private final RedisTemplate<String, Object> redisTemplate;
     private final HCADContextExtractor hcadContextExtractor;
 
-    
     private static final String BASELINE_VECTOR_KEY_PREFIX = "security:baseline:vector:";
 
-    
     @GetMapping("/current-user")
     public ResponseEntity<Map<String, String>> getCurrentUser(
             HttpServletRequest request,
@@ -44,9 +40,6 @@ public class HCADBaselineController {
             Map<String, String> response = new HashMap<>();
             response.put("userId", userId);
             response.put("isAnonymous", userId.startsWith("anonymous:") ? "true" : "false");
-
-            log.debug("[HCADBaselineController] Current user: userId={}, isAnonymous={}",
-                     userId, userId.startsWith("anonymous:"));
 
             return ResponseEntity.ok(response);
 
@@ -61,7 +54,6 @@ public class HCADBaselineController {
         }
     }
 
-    
     @GetMapping("/baseline/{userId}")
     public ResponseEntity<Map<String, Object>> getBaseline(@PathVariable String userId) {
         try {
@@ -91,8 +83,6 @@ public class HCADBaselineController {
                 errorResponse.put("userId", userId);
                 errorResponse.put("message", "새 사용자 또는 학습되지 않은 사용자입니다.");
 
-                log.info("[HCADBaselineController] Baseline 없음: userId={}", userId);
-
                 return ResponseEntity.status(404).body(errorResponse);
             }
         } catch (Exception e) {
@@ -106,7 +96,6 @@ public class HCADBaselineController {
         }
     }
 
-    
     @GetMapping("/baseline/all")
     public ResponseEntity<List<Map<String, Object>>> getAllBaselines() {
         try {
@@ -130,8 +119,6 @@ public class HCADBaselineController {
                 }
             }
 
-            log.info("[HCADBaselineController] 전체 Baseline 조회: {}개", baselines.size());
-
             return ResponseEntity.ok(baselines);
         } catch (Exception e) {
             log.error("[HCADBaselineController] 전체 Baseline 조회 실패", e);
@@ -139,7 +126,6 @@ public class HCADBaselineController {
         }
     }
 
-    
     @GetMapping("/baseline/keys")
     public ResponseEntity<Map<String, Object>> getBaselineKeys() {
         try {
@@ -160,7 +146,4 @@ public class HCADBaselineController {
         }
     }
 
-    
-    
-    
 }

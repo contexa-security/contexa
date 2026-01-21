@@ -8,16 +8,12 @@ import org.springframework.expression.spel.ast.StringLiteral;
 import java.util.ArrayList;
 import java.util.List;
 
-
 public interface SpelFunctionTranslator {
 
-    
     boolean supports(String functionName);
 
-    
     ExpressionNode translate(String functionName, MethodReference node);
 
-    
     default List<String> extractArguments(MethodReference node) {
         List<String> args = new ArrayList<>();
         for (int i = 0; i < node.getChildCount(); i++) {

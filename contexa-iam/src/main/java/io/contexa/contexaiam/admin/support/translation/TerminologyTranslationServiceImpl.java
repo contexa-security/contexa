@@ -11,7 +11,6 @@ public class TerminologyTranslationServiceImpl implements TerminologyTranslation
     private final PermissionRepository permissionRepository;
     private final PolicyTranslator policyTranslator;
 
-    
     @Override
     public String generatePermissionDescription(String permissionName) {
         return permissionRepository.findByName(permissionName)
@@ -19,7 +18,6 @@ public class TerminologyTranslationServiceImpl implements TerminologyTranslation
                 .orElse(permissionName);
     }
 
-    
     @Override
     public String summarizePolicy(Policy policy) {
         if (policy.getFriendlyDescription() != null && !policy.getFriendlyDescription().isEmpty()) {

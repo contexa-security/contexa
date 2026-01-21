@@ -14,23 +14,19 @@ import java.util.Map;
 public class SecurityAnalysisResult {
     private final String sessionId;
 
-    
     private boolean studioQueryCompleted = false;
     private boolean riskAssessmentCompleted = false;
     private boolean policyGenerationCompleted = false;
 
-    
     private StudioQueryResponse studioQueryResult;
     private RiskAssessmentResponse riskAssessmentResult;
     private PolicyResponse policyGenerationResult;
 
-    
     private List<Map<String, Object>> nodes = new ArrayList<>();
     private List<Map<String, Object>> edges = new ArrayList<>();
     private String riskLevel = "UNKNOWN";
     private String complianceStatus = "UNKNOWN";
 
-    
     private Map<String, Object> labResults = new HashMap<>();
     private Map<String, Exception> errors = new HashMap<>();
     private Exception error;
@@ -43,7 +39,6 @@ public class SecurityAnalysisResult {
         return studioQueryCompleted && riskAssessmentCompleted && policyGenerationCompleted;
     }
 
-    
     public String getAnalysisId() {
         return this.sessionId; 
     }

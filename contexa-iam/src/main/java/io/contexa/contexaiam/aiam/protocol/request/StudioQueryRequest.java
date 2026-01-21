@@ -8,7 +8,6 @@ import lombok.Setter;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-
 @Getter
 @Setter
 public class StudioQueryRequest  extends IAMRequest<StudioQueryContext> {
@@ -27,7 +26,6 @@ public class StudioQueryRequest  extends IAMRequest<StudioQueryContext> {
         super(context, operation);
     }
 
-    
     public static StudioQueryRequest quickQuery(String query, String queryType, String userId) {
         StudioQueryRequest request = new StudioQueryRequest();
         request.setQuery(query);
@@ -37,14 +35,12 @@ public class StudioQueryRequest  extends IAMRequest<StudioQueryContext> {
         request.setMetadata(new java.util.HashMap<>());
         return request;
     }
-    
-    
+
     public boolean isValid() {
         return query != null && !query.trim().isEmpty() && 
                userId != null && !userId.trim().isEmpty();
     }
-    
-    
+
     public String getRequestId() {
         if (metadata != null && metadata.containsKey("requestId")) {
             return (String) metadata.get("requestId");

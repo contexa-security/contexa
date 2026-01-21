@@ -27,7 +27,6 @@ public class PolicyGenerationCollectionService {
     private static final Pattern SPEL_VARIABLE_PATTERN = Pattern.compile("#(\\w+)");
     private static final Set<String> GLOBAL_CONTEXT_VARIABLES = Set.of("#authentication", "#request", "#ai");
 
-    
     @Transactional(readOnly = true)
     public PolicyGenerationItem.AvailableItems collectData() {
 
@@ -47,7 +46,6 @@ public class PolicyGenerationCollectionService {
                 this::addContextAwareConditionsToModel, Executors.newVirtualThreadPerTaskExecutor()
         );
 
-        
         CompletableFuture.allOf(roles, permissions, conditions).join();
         permissions.join();
 
@@ -59,7 +57,6 @@ public class PolicyGenerationCollectionService {
 
         List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
 
-        
         Map<ConditionTemplate.ConditionClassification, List<ConditionTemplate>> classifiedConditions =
                 allConditions.stream()
                         .collect(Collectors.groupingBy(
@@ -71,11 +68,6 @@ public class PolicyGenerationCollectionService {
                         .collect(Collectors.groupingBy(
                                 cond -> cond.getRiskLevel() != null ?
                                         cond.getRiskLevel() : ConditionTemplate.RiskLevel.LOW));
-
-        log.info("조건 템플릿 로드 (분류별): 범용 {} 개, 컨텍스트의존 {} 개, 복잡 {} 개",
-                classifiedConditions.getOrDefault(ConditionTemplate.ConditionClassification.UNIVERSAL, Collections.emptyList()).size(),
-                classifiedConditions.getOrDefault(ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT, Collections.emptyList()).size(),
-                classifiedConditions.getOrDefault(ConditionTemplate.ConditionClassification.CUSTOM_COMPLEX, Collections.emptyList()).size());
 
         return allConditions.stream().map(cond -> {
                     String enhancedDescription = enhanceConditionDescription(cond);
@@ -92,12 +84,10 @@ public class PolicyGenerationCollectionService {
     private String enhanceConditionDescription(ConditionTemplate cond) {
         StringBuilder desc = new StringBuilder();
 
-        
         if (StringUtils.hasText(cond.getDescription())) {
             desc.append(cond.getDescription());
         }
 
-        
         if (cond.getClassification() != null) {
             switch (cond.getClassification()) {
                 case UNIVERSAL -> desc.append(" 🟢 (즉시 사용 가능)");
@@ -106,12 +96,10 @@ public class PolicyGenerationCollectionService {
             }
         }
 
-        
         if (cond.getComplexityScore() != null) {
             desc.append(" [복잡도: ").append(cond.getComplexityScore()).append("/10]");
         }
 
-        
         if (Boolean.TRUE.equals(cond.getApprovalRequired())) {
             desc.append(" 승인필요");
         }
@@ -119,7 +107,6 @@ public class PolicyGenerationCollectionService {
         return desc.toString();
     }
 
-    
     private int getClassificationOrder(ConditionTemplate.ConditionClassification classification) {
         if (classification == null) return 2;
         return switch (classification) {

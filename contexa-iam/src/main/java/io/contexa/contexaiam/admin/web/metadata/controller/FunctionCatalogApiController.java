@@ -16,7 +16,6 @@ public class FunctionCatalogApiController {
 
     private final FunctionCatalogService functionCatalogService;
 
-    
     @PutMapping("/{catalogId}/status")
     public ResponseEntity<?> updateCatalogStatus(@PathVariable Long catalogId, @RequestBody Map<String, String> payload) {
         try {
@@ -29,7 +28,6 @@ public class FunctionCatalogApiController {
         }
     }
 
-    
     @PostMapping("/batch-status")
     public ResponseEntity<?> batchUpdateStatus(@RequestBody Map<String, Object> payload) {
         try {
@@ -44,7 +42,6 @@ public class FunctionCatalogApiController {
         }
     }
 
-    
     @PostMapping("/confirm-batch")
     public ResponseEntity<?> confirmBatch(@RequestBody List<Map<String, Long>> payload) {
         try {

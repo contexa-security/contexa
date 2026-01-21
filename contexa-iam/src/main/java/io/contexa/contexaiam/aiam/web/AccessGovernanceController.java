@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
 @Slf4j
 @RequestMapping("/api/ai/access-governance")
 @RequiredArgsConstructor
@@ -34,15 +33,12 @@ public class AccessGovernanceController {
 
     private final AICoreOperations<AccessGovernanceContext> aiNativeProcessor;
 
-    
     @PostMapping(value = "/analyze", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> analyzeAccessGovernance(@RequestBody AccessGovernanceAnalysisItem request, HttpServletRequest httpRequest,
                                                 Authentication authentication) {
 
-        
         AccessGovernanceContext context = buildContext(httpRequest, authentication.getName(), request);
 
-        
         AIRequest<AccessGovernanceContext> aiRequest = new AccessGovernanceRequest(context, "accessGovernanceStreaming")
                 .withParameter("naturalLanguageQuery", request.getQuery());
 
@@ -56,18 +52,11 @@ public class AccessGovernanceController {
                 .flatMap(chunk -> {
                     String chunkStr = chunk != null ? chunk.toString() : "";
 
-                    log.debug("[RECEIVED] 청크 길이: {}, 내용: {}",
-                            chunkStr.length(),
-                            chunkStr.length() > 50 ? chunkStr.substring(0, 50) + "..." : chunkStr);
-
-                    
                     allData.append(chunkStr);
 
-                    
                     if (!finalResponseStarted.get()) {
                         markerBuffer.append(chunkStr);
 
-                        
                         if (markerBuffer.length() > 50) {
                             markerBuffer.delete(0, markerBuffer.length() - 50);
                         }
@@ -75,17 +64,13 @@ public class AccessGovernanceController {
                         
                         if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
                             finalResponseStarted.set(true);
-                            log.info("[FINAL-MODE] FINAL_RESPONSE 모드 시작 - 이후 청크들은 sentenceBuffer 처리 제외");
-                        }
+                                                    }
                     }
 
-                    
                     if (finalResponseStarted.get()) {
-                        log.debug("[SKIP-SENTENCE] FINAL_RESPONSE 모드 - sentenceBuffer 처리 스킵");
-                        return Flux.empty(); 
+                                                return Flux.empty(); 
                     }
 
-                    
                     return sentenceBuffer.processChunk(chunkStr)
                             .map(sentence -> ServerSentEvent.<String>builder()
                                     .data(sentence)
@@ -123,7 +108,6 @@ public class AccessGovernanceController {
                 .onErrorResume(error -> {
                     log.error("권한 거버넌스 분석 스트리밍 처리 중 오류", error);
 
-                    
                     String errorMessage;
                     if (error != null) {
                         errorMessage = ((Throwable) error).getMessage();
@@ -137,7 +121,6 @@ public class AccessGovernanceController {
                 });
     }
 
-    
     @PostMapping(value = "/analyze/json", produces = MediaType.APPLICATION_JSON_VALUE)
     public Mono<AccessGovernanceResponse> analyzeAccessGovernanceJson(@RequestBody AccessGovernanceAnalysisItem request, HttpServletRequest httpRequest,
             @AuthenticationPrincipal Principal principal) {
@@ -150,11 +133,9 @@ public class AccessGovernanceController {
                 .cast(AccessGovernanceResponse.class);
     }
 
-    
     @GetMapping("/analysis-types")
     public ResponseEntity<List<Map<String, Object>>> getAnalysisTypes() {
-        log.info("사용 가능한 분석 유형 조회 요청");
-
+        
         try {
             List<Map<String, Object>> analysisTypes = List.of(
                     createAnalysisTypeInfo("COMPREHENSIVE", "종합 분석", "시스템 전체 권한 상태 종합 분석", "fas fa-search", "#3b82f6"),
@@ -164,8 +145,7 @@ public class AccessGovernanceController {
                     createAnalysisTypeInfo("ROLE_OPTIMIZATION", "역할 최적화 분석", "역할 구조 최적화 분석", "fas fa-cogs", "#10b981")
             );
 
-            log.info("{} 개의 분석 유형 반환", analysisTypes.size());
-            return ResponseEntity.ok(analysisTypes);
+                        return ResponseEntity.ok(analysisTypes);
 
         } catch (Exception e) {
             log.error("분석 유형 조회 실패", e);
@@ -173,18 +153,10 @@ public class AccessGovernanceController {
         }
     }
 
-    
     @PostMapping("/feedback")
     public ResponseEntity<Map<String, String>> submitFeedback(
             @RequestBody FeedbackRequest feedbackRequest,
             Authentication authentication) {
-
-        
-        
-        
-        
-        
-        
 
         return ResponseEntity.ok(Map.of(
                 "status", "success",
@@ -192,14 +164,12 @@ public class AccessGovernanceController {
         ));
     }
 
-    
     @GetMapping("/dashboard/stats")
     public ResponseEntity<DashboardStats> getDashboardStats(
             @RequestParam(defaultValue = "7") int days) {
 
         DashboardStats stats = new DashboardStats();
 
-        
         stats.setTotalAnalyses(100); 
         stats.setHighRiskFindings(15);
         stats.setAverageGovernanceScore(75.5);
@@ -212,8 +182,6 @@ public class AccessGovernanceController {
 
         return ResponseEntity.ok(stats);
     }
-
-    
 
     private AccessGovernanceContext buildContext(
             HttpServletRequest httpRequest,

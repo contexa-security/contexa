@@ -24,7 +24,6 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.Map;
 
-
 @Slf4j
 @RequestMapping("/admin/policy-wizard")
 @RequiredArgsConstructor
@@ -38,7 +37,6 @@ public class PolicyWizardController {
     private final RoleService roleService;
     private final ModelMapper modelMapper;
 
-    
     @PostMapping("/start")
     public String startWizard(@ModelAttribute InitiateGrantRequestDto request, RedirectAttributes ra) {
         String policyName = "신규 권한 할당 정책 - " + System.currentTimeMillis();
@@ -52,7 +50,6 @@ public class PolicyWizardController {
         return "redirect:/admin/policy-wizard/" + createdContext.contextId();
     }
 
-    
     @GetMapping("/{contextId}")
     public String getWizardPage(
         @PathVariable String contextId,
@@ -65,18 +62,15 @@ public class PolicyWizardController {
         
         if (model.containsAttribute("wizardContext")) {
             context = (WizardContext) model.asMap().get("wizardContext");
-            log.info("Retrieved WizardContext from Flash Attributes for ID: {}", contextId);
-        } else {
+                    } else {
             
-            log.info("No Flash Attribute found. Retrieving WizardContext from DB for ID: {}", contextId);
-            context = wizardService.getWizardProgress(contextId);
+                        context = wizardService.getWizardProgress(contextId);
         }
 
         if (context == null) {
             throw new IllegalStateException("유효하지 않거나 만료된 마법사 세션입니다.");
         }
 
-        
         if (model.containsAttribute("fromWorkbench") && !CollectionUtils.isEmpty(context.permissionIds())) {
             Long preselectedPermissionId = context.permissionIds().iterator().next();
             permissionService.getPermission(preselectedPermissionId)
@@ -90,30 +84,24 @@ public class PolicyWizardController {
 
         model.addAttribute("wizardContext", context);
 
-
         model.addAttribute("allRoles", roleService.getRoles());
         model.addAttribute("allPermissions", permissionCatalogService.getAvailablePermissions());
         model.addAttribute("activePage", "policy-wizard");
         return "admin/policy-wizard";
     }
 
-    
     @PostMapping("/{contextId}/subjects")
     public ResponseEntity<WizardContext> saveSubjects(@PathVariable String contextId, @RequestBody SaveSubjectsRequest request) {
-        log.debug("API: Saving subjects for contextId: {}", contextId);
-        WizardContext updatedContext = wizardService.updateSubjects(contextId, request);
+                WizardContext updatedContext = wizardService.updateSubjects(contextId, request);
         return ResponseEntity.ok(updatedContext);
     }
 
-    
     @PostMapping("/{contextId}/permissions")
     public ResponseEntity<WizardContext> savePermissions(@PathVariable String contextId, @RequestBody SavePermissionsRequest request) {
-        log.debug("API: Saving permissions for contextId: {}", contextId);
-        WizardContext updatedContext = wizardService.updatePermissions(contextId, request);
+                WizardContext updatedContext = wizardService.updatePermissions(contextId, request);
         return ResponseEntity.ok(updatedContext);
     }
 
-    
     @PostMapping("/{contextId}/commit")
     public ResponseEntity<Map<String, Object>> commitPolicy(
             @PathVariable String contextId,

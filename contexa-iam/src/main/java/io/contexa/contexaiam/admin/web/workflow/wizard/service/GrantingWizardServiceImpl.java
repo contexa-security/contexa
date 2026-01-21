@@ -50,8 +50,7 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
         Assert.notNull(request.getSubjectType(), "Subject Type cannot be null.");
 
         String contextId = UUID.randomUUID().toString();
-        log.info("Beginning new granting wizard session for subject: {}/{}", request.getSubjectType(), request.getSubjectId());
-
+        
         WizardContext.Subject targetSubject = new WizardContext.Subject(request.getSubjectId(), request.getSubjectType());
         Set<Long> initialAssignmentIds = getInitialAssignmentIds(targetSubject);
         String subjectName = getSubjectName(targetSubject);
