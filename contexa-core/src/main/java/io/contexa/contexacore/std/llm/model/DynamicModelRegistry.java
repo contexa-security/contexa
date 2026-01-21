@@ -24,39 +24,20 @@ public class DynamicModelRegistry {
     private final ModelProviderProperties modelProviderProperties;
 
     private final Map<String, ModelProvider> providers = new ConcurrentHashMap<>();
-
     private final Map<String, ModelDescriptor> modelDescriptors = new ConcurrentHashMap<>();
-
     private final Map<String, ChatModel> modelInstances = new ConcurrentHashMap<>();
-
     private final Map<Integer, List<String>> tierModels = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void initialize() {
 
-        // 1. Spring AI가 자동 생성한 ChatModel 빈 검색
         discoverSpringAiModels();
-
-        // 2. 커스텀 ModelProvider 빈 검색
         discoverAndRegisterProviders();
-
-        // 3. 설정 파일의 모델 로드
         loadModelsFromConfiguration();
-
-        // 4. Tier 매핑 빌드
         buildTierMapping();
-
-        // 5. 헬스 체크
         performHealthCheck();
-
-        log.info("DynamicModelRegistry initialized. Providers: {}, Models: {}",
-                providers.size(), modelDescriptors.size());
     }
 
-    /**
-     * Spring AI가 자동 생성한 ChatModel 빈을 검색하여 등록합니다.
-     * Gemini, Mistral 등 Spring AI가 지원하는 모든 ChatModel을 자동 발견합니다.
-     */
     private void discoverSpringAiModels() {
         Map<String, ChatModel> chatModels = applicationContext.getBeansOfType(ChatModel.class);
 
@@ -65,13 +46,9 @@ public class DynamicModelRegistry {
             ChatModel model = entry.getValue();
             String provider = inferProviderFromModel(model);
 
-            // 이미 등록된 프로바이더는 건너뜀
             if (!providers.containsKey(provider)) {
-                // 자동 래퍼 프로바이더 생성
                 AutoDiscoveredModelProvider autoProvider = new AutoDiscoveredModelProvider(provider, model);
                 providers.put(provider, autoProvider);
-
-                // 모델 디스크립터도 등록
                 ModelDescriptor descriptor = autoProvider.getAvailableModels().stream()
                         .findFirst()
                         .orElse(null);
@@ -84,9 +61,6 @@ public class DynamicModelRegistry {
         }
     }
 
-    /**
-     * ChatModel 클래스명에서 프로바이더를 추론합니다.
-     */
     private String inferProviderFromModel(ChatModel model) {
         String className = model.getClass().getSimpleName().toLowerCase();
 
@@ -381,13 +355,6 @@ public class DynamicModelRegistry {
         return new ArrayList<>(modelDescriptors.values());
     }
 
-    /**
-     * 특정 프로바이더의 사용 가능한 모델 목록을 반환합니다.
-     * Priority 기반 모델 선택에 사용됩니다.
-     *
-     * @param provider 프로바이더 이름 (ollama, anthropic, openai, gemini 등)
-     * @return 해당 프로바이더의 사용 가능한 모델 목록
-     */
     public List<ModelDescriptor> getModelsByProvider(String provider) {
         if (provider == null || provider.trim().isEmpty()) {
             return Collections.emptyList();

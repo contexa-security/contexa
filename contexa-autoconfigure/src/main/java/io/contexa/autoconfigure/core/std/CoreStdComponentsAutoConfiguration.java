@@ -279,7 +279,6 @@ public class CoreStdComponentsAutoConfiguration {
         return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, aiModelManager);
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -287,7 +286,6 @@ public class CoreStdComponentsAutoConfiguration {
         return new DefaultRequestAnalyzer();
     }
 
-    
 
     @Bean
     @ConditionalOnMissingBean
