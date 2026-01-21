@@ -34,9 +34,6 @@ public class OpenAIModelProvider implements ModelProvider {
     private ModelProviderProperties modelProviderProperties;
 
     @Autowired(required = false)
-    private OpenAiChatModel defaultOpenAiChatModel;
-
-    @Autowired(required = false)
     private OpenAiApi openAiApi;
 
     private String baseUrl;

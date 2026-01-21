@@ -33,10 +33,7 @@ public class AnthropicModelProvider implements ModelProvider {
     @Autowired
     private ModelProviderProperties modelProviderProperties;
 
-    @Autowired
-    private AnthropicChatModel defaultAnthropicChatModel;
-
-    @Autowired
+    @Autowired(required = false)
     private AnthropicApi anthropicApi;
 
     private String baseUrl;

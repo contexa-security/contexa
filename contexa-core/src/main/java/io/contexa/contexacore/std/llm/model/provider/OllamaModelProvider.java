@@ -29,14 +29,10 @@ public class OllamaModelProvider implements ModelProvider {
     private ModelProviderProperties modelProviderProperties;
 
     @Autowired(required = false)
-    private OllamaChatModel defaultOllamaChatModel;
-
-    @Autowired(required = false)
     private OllamaApi ollamaApi;
 
     private String baseUrl;
     private RestTemplate restTemplate;
-    private ObjectMapper objectMapper;
     private final Map<String, ModelDescriptor> modelCache = new ConcurrentHashMap<>();
     private final Map<String, ChatModel> modelInstances = new ConcurrentHashMap<>();
     private final Map<String, OllamaModelDetails> discoveredModels = new ConcurrentHashMap<>();
@@ -269,7 +265,6 @@ public class OllamaModelProvider implements ModelProvider {
             }
 
             this.restTemplate = new RestTemplate();
-            this.objectMapper = new ObjectMapper();
 
             boolean modelsLoaded = loadModelsFromOllama();
 

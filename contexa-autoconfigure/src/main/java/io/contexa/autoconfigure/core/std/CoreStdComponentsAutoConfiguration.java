@@ -22,7 +22,6 @@ import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.model.provider.AnthropicModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OllamaModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OpenAIModelProvider;
-import io.contexa.contexacore.std.llm.model.provider.VLLMModelProvider;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
 import io.contexa.contexacore.std.pipeline.analyzer.DefaultRequestAnalyzer;
 import io.contexa.contexacore.std.pipeline.builder.CustomPipelineStepRegistry;
@@ -267,19 +266,6 @@ public class CoreStdComponentsAutoConfiguration {
     public OpenAIModelProvider openAIModelProvider() {
         return new OpenAIModelProvider();
     }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "spring.ai.providers.vllm",
-        name = "enabled",
-        havingValue = "true"
-    )
-    public VLLMModelProvider vllmModelProvider() {
-        return new VLLMModelProvider();
-    }
-
-    
 
     @Bean
     @ConditionalOnMissingBean

@@ -1,16 +1,16 @@
 package io.contexa.contexacore.config;
 
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
+import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
-import org.springframework.stereotype.Component;
 
-import jakarta.annotation.PostConstruct;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.List;
 
 @Slf4j
 @Data
@@ -19,6 +19,10 @@ public class TieredLLMProperties {
 
     public static final String DEFAULT_LAYER1_MODEL = "qwen2.5:14b";
     public static final String DEFAULT_LAYER2_MODEL = "exaone3.5:latest";
+    public static final String DEFAULT_PROVIDER_PRIORITY = "ollama,anthropic,openai";
+
+    @Value("${spring.ai.chat.model.priority:" + DEFAULT_PROVIDER_PRIORITY + "}")
+    private String providerPriority;
 
     @Autowired(required = false)
     private ModelProviderProperties modelProviderProperties;
@@ -210,6 +214,22 @@ public class TieredLLMProperties {
                modelName.startsWith("gpt") ||
                modelName.startsWith("anthropic") ||
                modelName.startsWith("openai");
+    }
+
+    /**
+     * Provider priority 설정을 List로 반환합니다.
+     * priority 설정에 따라 모델 선택 시 우선순위가 결정됩니다.
+     *
+     * @return 프로바이더 우선순위 목록
+     */
+    public List<String> getProviderPriorityList() {
+        if (providerPriority == null || providerPriority.trim().isEmpty()) {
+            return Arrays.asList(DEFAULT_PROVIDER_PRIORITY.split(","));
+        }
+        return Arrays.stream(providerPriority.split(","))
+            .map(String::trim)
+            .filter(s -> !s.isEmpty())
+            .toList();
     }
 
     private void validateTier(int tier) {

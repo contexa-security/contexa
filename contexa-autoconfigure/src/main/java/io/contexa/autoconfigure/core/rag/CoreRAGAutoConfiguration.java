@@ -43,8 +43,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
@@ -207,6 +209,7 @@ public class CoreRAGAutoConfiguration {
     
     @Bean
     @Primary
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "behaviorAnalysisRagAdvisor")
     public RetrievalAugmentationAdvisor behaviorAnalysisRagAdvisor(
             VectorStore vectorStore,
@@ -238,6 +241,7 @@ public class CoreRAGAutoConfiguration {
 
     
     @Bean
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
             VectorStore vectorStore,
@@ -265,6 +269,7 @@ public class CoreRAGAutoConfiguration {
 
     
     @Bean
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "policyGenerationRagAdvisor")
     public RetrievalAugmentationAdvisor policyGenerationRagAdvisor(
             VectorStore vectorStore,
@@ -289,6 +294,7 @@ public class CoreRAGAutoConfiguration {
 
     
     @Bean("behaviorQueryTransformer")
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "behaviorQueryTransformer")
     public QueryTransformer behaviorQueryTransformer(ChatClient.Builder chatClientBuilder) {
         return new QueryTransformer() {
@@ -326,6 +332,7 @@ public class CoreRAGAutoConfiguration {
 
     
     @Bean("riskQueryTransformer")
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "riskQueryTransformer")
     public QueryTransformer riskQueryTransformer(ChatClient.Builder chatClientBuilder) {
         return new QueryTransformer() {
@@ -363,6 +370,7 @@ public class CoreRAGAutoConfiguration {
 
     
     @Bean("policyQueryTransformer")
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "policyQueryTransformer")
     public QueryTransformer policyQueryTransformer(ChatClient.Builder chatClientBuilder) {
         return new QueryTransformer() {

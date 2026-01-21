@@ -38,8 +38,14 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         return Mono.fromCallable(() -> {
-            
+
             ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
+
+            if (selectedModel == null) {
+                throw new IllegalStateException(
+                    "LLM 모델이 설정되지 않았습니다. " +
+                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+            }
 
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
 
@@ -106,8 +112,14 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 
         return Flux.defer(() -> {
             try {
-                
+
                 ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
+
+                if (selectedModel == null) {
+                    return Flux.error(new IllegalStateException(
+                        "LLM 모델이 설정되지 않았습니다. " +
+                        "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요."));
+                }
 
                 ChatClient chatClient = ChatClient.builder(selectedModel).build();
 
@@ -142,8 +154,14 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         return Mono.fromCallable(() -> {
-            
+
             ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
+
+            if (selectedModel == null) {
+                throw new IllegalStateException(
+                    "LLM 모델이 설정되지 않았습니다. " +
+                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+            }
 
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
 
@@ -252,6 +270,13 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     .build();
 
             ChatModel model = modelSelectionStrategy.selectModel(context);
+
+            if (model == null) {
+                throw new IllegalStateException(
+                    "LLM 모델이 설정되지 않았습니다. " +
+                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+            }
+
             ChatClient client = ChatClient.builder(model).build();
 
             var promptSpec = client.prompt(prompt);
@@ -261,7 +286,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             if (toolProviders != null && !toolProviders.isEmpty()) {
                 promptSpec = promptSpec.tools(toolProviders.toArray());
             }
-            
+
             return promptSpec.call().chatResponse();
         });
     }
@@ -275,8 +300,15 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     .toolCallbacks(List.of(toolCallbacks))
                     .toolExecutionEnabled(true)
                     .build();
-            
+
             ChatModel model = modelSelectionStrategy.selectModel(context);
+
+            if (model == null) {
+                throw new IllegalStateException(
+                    "LLM 모델이 설정되지 않았습니다. " +
+                    "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+            }
+
             ChatClient client = ChatClient.builder(model).build();
 
             var promptSpec = client.prompt(prompt);
@@ -286,7 +318,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
             if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
                 promptSpec = promptSpec.tools(context.getToolProviders().toArray());
             }
-            
+
             return promptSpec.call().chatResponse();
         });
     }

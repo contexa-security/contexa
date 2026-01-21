@@ -22,6 +22,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
@@ -167,8 +168,9 @@ public class TieredSecurityLLMConfiguration {
             return firstEntry.getValue();
         }
 
-        log.error("  사용 가능한 ChatModel이 없습니다!");
-        throw new IllegalStateException("No ChatModel available. Please configure at least one AI provider.");
+        log.warn("No ChatModel available. LLM features will be disabled. " +
+            "Configure spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
+        return null;
     }
 
     @Bean
@@ -235,10 +237,13 @@ public class TieredSecurityLLMConfiguration {
             return firstEntry.getValue();
         }
 
-        throw new IllegalStateException("No EmbeddingModel available. Please configure at least one embedding provider.");
+        log.warn("No EmbeddingModel available. Embedding features will be disabled. " +
+            "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
+        return null;
     }
 
     @Bean
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(ChatClient.Builder.class)
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = true)
     public ChatClient.Builder chatClientBuilder(ChatModel primaryChatModel) {
@@ -246,6 +251,7 @@ public class TieredSecurityLLMConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "defaultChatClient")
     @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false")
     public ChatClient defaultChatClient(ChatClient.Builder builder) {

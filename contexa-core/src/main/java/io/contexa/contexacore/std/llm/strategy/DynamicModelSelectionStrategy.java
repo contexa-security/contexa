@@ -66,7 +66,11 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 return model;
             }
 
-            return selectDefaultModel();
+            ChatModel defaultModel = selectDefaultModel();
+            if (defaultModel == null) {
+                log.warn("모델 선택 불가 - RequestId: {}. LLM 기능이 비활성화됨.", context.getRequestId());
+            }
+            return defaultModel;
 
         } catch (Exception e) {
             log.error("모델 선택 실패 - RequestId: {}", context.getRequestId(), e);
@@ -89,19 +93,54 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     private ChatModel selectByTier(ExecutionContext context) {
         int tier = context.getTier();
 
+        // 1. layer 설정의 모델명 조회
         String primaryModelName = tieredLLMProperties.getModelNameForTier(tier);
         ChatModel model = tryGetModelWithFallback(primaryModelName, tier);
 
         if (model != null) {
-                        return model;
+            return model;
         }
 
+        // 2. Tier에 등록된 모델 중 검색
         List<ModelDescriptor> tierModels = modelRegistry.getModelsByTier(tier);
         for (ModelDescriptor descriptor : tierModels) {
             if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
                 model = tryGetModel(descriptor.getModelId());
                 if (model != null) {
-                                        return model;
+                    return model;
+                }
+            }
+        }
+
+        // 3. Priority 순서대로 해당 tier의 모델 검색 (신규 - 계획 Phase 7)
+        List<String> priorities = tieredLLMProperties.getProviderPriorityList();
+        for (String provider : priorities) {
+            List<ModelDescriptor> providerModels = modelRegistry.getModelsByProvider(provider);
+            for (ModelDescriptor desc : providerModels) {
+                Integer descTier = desc.getTier();
+                if (descTier != null && descTier == tier &&
+                    desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
+                    model = tryGetModel(desc.getModelId());
+                    if (model != null) {
+                        log.info("Priority 기반 모델 선택: {} (provider: {}, tier: {})",
+                            desc.getModelId(), provider, tier);
+                        return model;
+                    }
+                }
+            }
+        }
+
+        // 4. Priority 순서대로 아무 모델이나 검색 (tier 무관)
+        for (String provider : priorities) {
+            List<ModelDescriptor> providerModels = modelRegistry.getModelsByProvider(provider);
+            for (ModelDescriptor desc : providerModels) {
+                if (desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
+                    model = tryGetModel(desc.getModelId());
+                    if (model != null) {
+                        log.info("Priority 기반 폴백 모델 선택: {} (provider: {}, 요청 tier: {})",
+                            desc.getModelId(), provider, tier);
+                        return model;
+                    }
                 }
             }
         }
@@ -193,9 +232,9 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             }
         }
 
-        throw new ModelSelectionException(
-            "사용 가능한 모델이 없습니다. DynamicModelRegistry를 확인하세요. "
-            + "등록된 모델 수: " + allModels.size());
+        log.warn("사용 가능한 모델이 없습니다. LLM 기능이 비활성화됩니다. " +
+            "등록된 모델 수: {}. spring.ai.* 설정을 확인하세요.", allModels.size());
+        return null;
     }
 
     private ChatModel tryGetModel(String modelId) {
