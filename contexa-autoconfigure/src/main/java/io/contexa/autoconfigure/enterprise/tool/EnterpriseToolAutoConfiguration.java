@@ -215,7 +215,7 @@ public class EnterpriseToolAutoConfiguration {
         if (mcpClientProvider.isPresent() && mcpFunctionProvider.isPresent()) {
                         return new McpToolResolver(mcpClientProvider.get(), mcpFunctionProvider.get());
         } else {
-            log.warn("MCP 프로바이더를 찾을 수 없음. 빈 McpToolResolver 생성");
+            log.warn("MCP provider not found. Creating empty McpToolResolver");
             return new McpToolResolver(null, null);
         }
     }
@@ -352,7 +352,7 @@ public class EnterpriseToolAutoConfiguration {
             return mcpClient;
 
         } catch (Exception e) {
-            log.warn("Brave Search MCP 클라이언트 생성 실패: {}", e.getMessage());
+            log.warn("Failed to create Brave Search MCP client: {}", e.getMessage());
             
             return createFallbackMcpClient();
         }
@@ -378,13 +378,13 @@ public class EnterpriseToolAutoConfiguration {
             try {
                 var init = mcpClient.initialize();
                             } catch (Exception initEx) {
-                log.warn("contexa MCP 서버 초기화 실패 (서버가 아직 시작되지 않음): {}", initEx.getMessage());
+                log.warn("Failed to initialize contexa MCP server (server not started yet): {}", initEx.getMessage());
             }
 
                         return mcpClient;
 
         } catch (Exception e) {
-            log.warn("contexa MCP 클라이언트 생성 실패: {}", e.getMessage());
+            log.warn("Failed to create contexa MCP client: {}", e.getMessage());
             
             return createFallbackMcpClient();
         }
@@ -399,7 +399,7 @@ public class EnterpriseToolAutoConfiguration {
                     .requestTimeout(Duration.ofSeconds(5))
                     .build();
         } catch (Exception e) {
-            log.error("Fallback MCP 클라이언트 생성도 실패", e);
+            log.error("Failed to create Fallback MCP client as well", e);
             
             return null;
         }
@@ -443,7 +443,7 @@ public class EnterpriseToolAutoConfiguration {
         ChatClient.Builder builder = advisorBuilder != null ? advisorBuilder : basicBuilder;
 
         if (builder == null) {
-            log.error("ChatClient.Builder를 찾을 수 없습니다");
+            log.error("ChatClient.Builder not found");
             throw new IllegalStateException("ChatClient.Builder not found. Check LlmConfig and AdvisorAutoConfiguration.");
         }
 
@@ -461,15 +461,15 @@ public class EnterpriseToolAutoConfiguration {
                                                     }
                     }
                 } else {
-                    log.warn("사용 가능한 도구가 없습니다");
+                    log.warn("No tools available");
                 }
             } catch (Exception e) {
-                log.error("도구 통합 실패", e);
+                log.error("Tool integration failed", e);
                 
             }
         } else if (!toolsEnabled) {
                     } else {
-            log.warn("ChainedToolResolver를 찾을 수 없습니다");
+            log.warn("ChainedToolResolver not found");
         }
 
         
@@ -517,7 +517,7 @@ public class EnterpriseToolAutoConfiguration {
                 status = toolCount > 0 ? "active" : "no_tools";
             } catch (Exception e) {
                 status = "error";
-                log.error("도구 상태 확인 실패", e);
+                log.error("Failed to check tool status", e);
             }
         }
 

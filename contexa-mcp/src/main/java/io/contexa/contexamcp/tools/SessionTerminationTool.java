@@ -18,24 +18,24 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
-    name = "session_termination",
-    description = "Terminate all active sessions for a specific user",
-    riskLevel = SoarTool.RiskLevel.HIGH,
-    approval = SoarTool.ApprovalRequirement.REQUIRED,
-    auditRequired = true,
-    retryable = false,
-    maxRetries = 1,
-    timeoutMs = 10000,
-    requiredPermissions = {"session.terminate", "user.manage"},
-    allowedEnvironments = {"staging", "production"}
+        name = "session_termination",
+        description = "Terminate all active sessions for a specific user",
+        riskLevel = SoarTool.RiskLevel.HIGH,
+        approval = SoarTool.ApprovalRequirement.REQUIRED,
+        auditRequired = true,
+        retryable = false,
+        maxRetries = 1,
+        timeoutMs = 10000,
+        requiredPermissions = {"session.terminate", "user.manage"},
+        allowedEnvironments = {"staging", "production"}
 )
 public class SessionTerminationTool {
 
     private final UserSessionService userSessionService;
 
     @Tool(
-        name = "session_termination",
-        description = """
+            name = "session_termination",
+            description = """
             특정 사용자의 모든 활성 세션을 즉시 종료합니다.
             계정 탈취가 의심되거나 보안 위협이 감지된 경우 사용됩니다.
             종료된 사용자는 다시 로그인해야 시스템에 접근할 수 있습니다.
@@ -43,125 +43,125 @@ public class SessionTerminationTool {
             """
     )
     public Response terminateSession(
-        @ToolParam(description = "대상 사용자 ID", required = true)
-        String userId,
-        
-        @ToolParam(description = "종료 사유", required = true)
-        String reason,
-        
-        @ToolParam(description = "사용자에게 알림 전송 여부", required = false)
-        Boolean notifyUser,
-        
-        @ToolParam(description = "현재 세션 유지 여부 (관리자 세션 보호용)", required = false)
-        Boolean preserveCurrentSession
+            @ToolParam(description = "대상 사용자 ID", required = true)
+            String userId,
+
+            @ToolParam(description = "종료 사유", required = true)
+            String reason,
+
+            @ToolParam(description = "사용자에게 알림 전송 여부", required = false)
+            Boolean notifyUser,
+
+            @ToolParam(description = "현재 세션 유지 여부 (관리자 세션 보호용)", required = false)
+            Boolean preserveCurrentSession
     ) {
         long startTime = System.currentTimeMillis();
 
         try {
-            
+
             if (userId == null || userId.trim().isEmpty()) {
-                
+
                 log.warn("사용자 ID가 지정되지 않음 - SOAR 시스템 기본 처리");
-                userId = "admin@company.com"; 
-                            }
-            
+                userId = "admin@company.com";
+            }
+
             if (reason == null || reason.trim().isEmpty()) {
                 log.error("Reason is required for session termination");
                 return Response.builder()
-                    .success(false)
-                    .message("Reason is required for session termination")
-                    .userId(userId)
-                    .terminatedCount(0)
-                    .build();
+                        .success(false)
+                        .message("Reason is required for session termination")
+                        .userId(userId)
+                        .terminatedCount(0)
+                        .build();
             }
 
-            List<UserSessionService.SessionInfo> activeSessions = 
-                userSessionService.findActiveSessionsByUserId(userId);
-            
+            List<UserSessionService.SessionInfo> activeSessions =
+                    userSessionService.findActiveSessionsByUserId(userId);
+
             if (activeSessions.isEmpty()) {
-                                return Response.builder()
-                    .success(true)
-                    .message("No active sessions to terminate")
-                    .userId(userId)
-                    .terminatedCount(0)
-                    .build();
+                return Response.builder()
+                        .success(true)
+                        .message("No active sessions to terminate")
+                        .userId(userId)
+                        .terminatedCount(0)
+                        .build();
             }
 
             List<String> terminatedSessionIds = new ArrayList<>();
             int terminatedCount = 0;
-            
+
             for (UserSessionService.SessionInfo session : activeSessions) {
-                
-                if (Boolean.TRUE.equals(preserveCurrentSession) && 
-                    activeSessions.indexOf(session) == 0) {
-                                        continue;
+
+                if (Boolean.TRUE.equals(preserveCurrentSession) &&
+                        activeSessions.indexOf(session) == 0) {
+                    continue;
                 }
-                
+
                 boolean terminated = userSessionService.terminateSession(
-                    session.getSessionId()
+                        session.getSessionId()
                 );
-                
+
                 if (terminated) {
                     terminatedSessionIds.add(session.getSessionId());
                     terminatedCount++;
-                                    } else {
-                    log.error("Failed to terminate session: {}", 
-                        session.getSessionId());
+                } else {
+                    log.error("Failed to terminate session: {}",
+                            session.getSessionId());
                 }
             }
 
             if (Boolean.TRUE.equals(notifyUser) && terminatedCount > 0) {
-                
-                            }
+
+            }
 
             SecurityToolUtils.auditLog(
-                "session_termination",
-                "terminate",
-                "SOAR-System",
-                String.format("UserId=%s, Sessions=%d, Reason=%s", 
-                    userId, terminatedCount, reason),
-                terminatedCount > 0 ? "SUCCESS" : "NO_ACTION"
+                    "session_termination",
+                    "terminate",
+                    "SOAR-System",
+                    String.format("UserId=%s, Sessions=%d, Reason=%s",
+                            userId, terminatedCount, reason),
+                    terminatedCount > 0 ? "SUCCESS" : "NO_ACTION"
             );
 
             SecurityToolUtils.recordMetric("session_termination", "execution_count", 1);
             SecurityToolUtils.recordMetric("session_termination", "sessions_terminated", terminatedCount);
-            SecurityToolUtils.recordMetric("session_termination", "execution_time_ms", 
-                System.currentTimeMillis() - startTime);
+            SecurityToolUtils.recordMetric("session_termination", "execution_time_ms",
+                    System.currentTimeMillis() - startTime);
 
             List<SessionDetail> sessionDetails = activeSessions.stream()
-                .map(session -> SessionDetail.builder()
-                    .sessionId(session.getSessionId())
-                    .ipAddress(session.getIpAddress())
-                    .deviceInfo(session.getUserAgent())
-                    .loginTime(session.getCreatedAt().toString())
-                    .lastActivity(session.getLastAccessedAt().toString())
-                    .terminated(terminatedSessionIds.contains(session.getSessionId()))
-                    .build())
-                .collect(Collectors.toList());
-            
+                    .map(session -> SessionDetail.builder()
+                            .sessionId(session.getSessionId())
+                            .ipAddress(session.getIpAddress())
+                            .deviceInfo(session.getUserAgent())
+                            .loginTime(session.getCreatedAt().toString())
+                            .lastActivity(session.getLastAccessedAt().toString())
+                            .terminated(terminatedSessionIds.contains(session.getSessionId()))
+                            .build())
+                    .collect(Collectors.toList());
+
             return Response.builder()
-                .success(true)
-                .message(String.format("Successfully terminated %d sessions for user %s", 
-                    terminatedCount, userId))
-                .userId(userId)
-                .terminatedCount(terminatedCount)
-                .totalSessions(activeSessions.size())
-                .sessionDetails(sessionDetails)
-                .timestamp(Instant.now().toString())
-                .build();
-                
+                    .success(true)
+                    .message(String.format("Successfully terminated %d sessions for user %s",
+                            terminatedCount, userId))
+                    .userId(userId)
+                    .terminatedCount(terminatedCount)
+                    .totalSessions(activeSessions.size())
+                    .sessionDetails(sessionDetails)
+                    .timestamp(Instant.now().toString())
+                    .build();
+
         } catch (Exception e) {
             log.error("Failed to terminate sessions for user: {}", userId, e);
 
             SecurityToolUtils.recordMetric("session_termination", "error_count", 1);
-            
+
             return Response.builder()
-                .success(false)
-                .message("Failed to terminate sessions: " + e.getMessage())
-                .userId(userId)
-                .terminatedCount(0)
-                .error(e.getMessage())
-                .build();
+                    .success(false)
+                    .message("Failed to terminate sessions: " + e.getMessage())
+                    .userId(userId)
+                    .terminatedCount(0)
+                    .error(e.getMessage())
+                    .build();
         }
     }
 

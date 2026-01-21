@@ -48,7 +48,7 @@ public class ContexaCacheService {
                 try {
                                         return objectMapper.readValue(cachedJson, typeRef);
                 } catch (JsonProcessingException e) {
-                    log.warn("L1 캐시 역직렬화 실패: {}", key, e);
+                    log.warn("L1 cache deserialization failed: {}", key, e);
                     localCache.invalidate(key);
                 }
             }
@@ -68,7 +68,7 @@ public class ContexaCacheService {
                                         return value;
                 }
             } catch (Exception e) {
-                log.warn("L2 캐시 조회 실패: {}", key, e);
+                log.warn("L2 cache lookup failed: {}", key, e);
             }
         }
 
@@ -100,7 +100,7 @@ public class ContexaCacheService {
 
             
         } catch (JsonProcessingException e) {
-            log.error("캐시 직렬화 실패: {}", key, e);
+            log.error("Cache serialization failed: {}", key, e);
         }
     }
 
@@ -236,7 +236,7 @@ public class ContexaCacheService {
             Cache<String, String> localCache = getOrCreateDomainCache(domain);
             localCache.put(key, json);
                     } catch (Exception e) {
-            log.warn("L1 백필 실패: {}", key, e);
+            log.warn("L1 backfill failed: {}", key, e);
         }
     }
 
@@ -286,7 +286,7 @@ public class ContexaCacheService {
                     key
             );
         } catch (Exception e) {
-            log.error("Pub/Sub 무효화 이벤트 발행 실패: {}", key, e);
+            log.error("Pub/Sub invalidation event publish failed: {}", key, e);
         }
     }
 

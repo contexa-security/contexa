@@ -17,65 +17,65 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
-    name = "audit_log_query",
-    description = "Query and analyze audit logs for security threats",
-    riskLevel = SoarTool.RiskLevel.LOW,
-    approval = SoarTool.ApprovalRequirement.AUTO,
-    auditRequired = true,
-    retryable = true,
-    maxRetries = 3,
-    timeoutMs = 30000,
-    requiredPermissions = {"audit.read", "log.analyze"},
-    allowedEnvironments = {"development", "staging", "production"}
+        name = "audit_log_query",
+        description = "Query and analyze audit logs for security threats",
+        riskLevel = SoarTool.RiskLevel.LOW,
+        approval = SoarTool.ApprovalRequirement.AUTO,
+        auditRequired = true,
+        retryable = true,
+        maxRetries = 3,
+        timeoutMs = 30000,
+        requiredPermissions = {"audit.read", "log.analyze"},
+        allowedEnvironments = {"development", "staging", "production"}
 )
 public class AuditLogQueryTool {
 
     private final AuditLogService auditLogService;
 
     @Tool(
-        name = "queryAuditLogs",
-        description = """
+            name = "queryAuditLogs",
+            description = """
             감사 로그를 조회하여 보안 위협을 분석합니다.
             사용자 ID, IP 주소, 날짜 범위로 로그를 검색할 수 있습니다.
             자동으로 위협 레벨을 분석하여 제공합니다.
             """
     )
-    
+
     public Response queryAuditLogs(
-        @ToolParam(description = "조회할 사용자 ID", required = false) 
-        String userId,
-        
-        @ToolParam(description = "조회할 IP 주소", required = false) 
-        String ipAddress,
-        
-        @ToolParam(description = "조회 시작 날짜 (ISO-8601 형식, 예: 2024-01-01T00:00:00)", required = false) 
-        String dateFrom,
-        
-        @ToolParam(description = "조회 종료 날짜 (ISO-8601 형식, 예: 2024-01-31T23:59:59)", required = false) 
-        String dateTo,
-        
-        @ToolParam(description = "최대 결과 개수 (기본값: 100, 최대: 1000)", required = false) 
-        Integer limit
+            @ToolParam(description = "조회할 사용자 ID", required = false)
+            String userId,
+
+            @ToolParam(description = "조회할 IP 주소", required = false)
+            String ipAddress,
+
+            @ToolParam(description = "조회 시작 날짜 (ISO-8601 형식, 예: 2024-01-01T00:00:00)", required = false)
+            String dateFrom,
+
+            @ToolParam(description = "조회 종료 날짜 (ISO-8601 형식, 예: 2024-01-31T23:59:59)", required = false)
+            String dateTo,
+
+            @ToolParam(description = "최대 결과 개수 (기본값: 100, 최대: 1000)", required = false)
+            Integer limit
     ) {
         long startTime = System.currentTimeMillis();
 
         try {
-            
+
             if (!StringUtils.hasText(userId) && !StringUtils.hasText(ipAddress)) {
                 log.warn("No search criteria provided");
                 return Response.builder()
-                    .success(false)
-                    .message("At least one search criteria (userId or ipAddress) is required")
-                    .logs(Collections.emptyList())
-                    .totalCount(0)
-                    .build();
+                        .success(false)
+                        .message("At least one search criteria (userId or ipAddress) is required")
+                        .logs(Collections.emptyList())
+                        .totalCount(0)
+                        .build();
             }
 
             int effectiveLimit = (limit != null && limit > 0 && limit <= 1000) ? limit : 100;
 
             List<AuditLogService.AuditLog> logs;
             String searchCriteria;
-            
+
             if (StringUtils.hasText(userId)) {
                 logs = auditLogService.findByUserId(userId, effectiveLimit);
                 searchCriteria = "userId=" + userId;
@@ -91,39 +91,39 @@ public class AuditLogQueryTool {
             ThreatAnalysis analysis = performDetailedAnalysis(logs);
 
             SecurityToolUtils.auditLog(
-                "audit_log_query",
-                "query",
-                "SOAR-System",
-                String.format("Criteria=%s, Results=%d, ThreatLevel=%s", 
-                    searchCriteria, logs.size(), threatLevel),
-                "SUCCESS"
+                    "audit_log_query",
+                    "query",
+                    "SOAR-System",
+                    String.format("Criteria=%s, Results=%d, ThreatLevel=%s",
+                            searchCriteria, logs.size(), threatLevel),
+                    "SUCCESS"
             );
 
             SecurityToolUtils.recordMetric("audit_log_query", "execution_count", 1);
             SecurityToolUtils.recordMetric("audit_log_query", "results_count", logs.size());
-            SecurityToolUtils.recordMetric("audit_log_query", "execution_time_ms", 
-                System.currentTimeMillis() - startTime);
-            
+            SecurityToolUtils.recordMetric("audit_log_query", "execution_time_ms",
+                    System.currentTimeMillis() - startTime);
+
             return Response.builder()
-                .success(true)
-                .message(String.format("Successfully retrieved %d audit logs", logs.size()))
-                .logs(logs)
-                .totalCount(logs.size())
-                .threatLevel(threatLevel)
-                .threatAnalysis(analysis)
-                .build();
-                
+                    .success(true)
+                    .message(String.format("Successfully retrieved %d audit logs", logs.size()))
+                    .logs(logs)
+                    .totalCount(logs.size())
+                    .threatLevel(threatLevel)
+                    .threatAnalysis(analysis)
+                    .build();
+
         } catch (Exception e) {
             log.error("Failed to query audit logs", e);
 
             SecurityToolUtils.recordMetric("audit_log_query", "error_count", 1);
-            
+
             return Response.builder()
-                .success(false)
-                .message("Failed to query audit logs: " + e.getMessage())
-                .logs(Collections.emptyList())
-                .totalCount(0)
-                .build();
+                    .success(false)
+                    .message("Failed to query audit logs: " + e.getMessage())
+                    .logs(Collections.emptyList())
+                    .totalCount(0)
+                    .build();
         }
     }
 
@@ -133,12 +133,12 @@ public class AuditLogQueryTool {
         }
 
         long failedAttempts = logs.stream()
-            .filter(log -> "FAILURE".equals(log.getResult()))
-            .count();
+                .filter(log -> "FAILURE".equals(log.getResult()))
+                .count();
 
         long errorCount = logs.stream()
-            .filter(log -> log.getErrorMessage() != null)
-            .count();
+                .filter(log -> log.getErrorMessage() != null)
+                .count();
 
         if (failedAttempts > 10 || errorCount > 5) {
             return "HIGH";
@@ -147,56 +147,56 @@ public class AuditLogQueryTool {
         } else if (failedAttempts > 0 || errorCount > 0) {
             return "LOW";
         }
-        
+
         return "NONE";
     }
 
     private ThreatAnalysis performDetailedAnalysis(List<AuditLogService.AuditLog> logs) {
         if (logs.isEmpty()) {
             return ThreatAnalysis.builder()
-                .failedLoginAttempts(0)
-                .suspiciousActivities(0)
-                .privilegeEscalations(0)
-                .dataExfiltrationAttempts(0)
-                .riskScore(0.0)
-                .build();
+                    .failedLoginAttempts(0)
+                    .suspiciousActivities(0)
+                    .privilegeEscalations(0)
+                    .dataExfiltrationAttempts(0)
+                    .riskScore(0.0)
+                    .build();
         }
 
         long failedLogins = logs.stream()
-            .filter(log -> "LOGIN".equals(log.getAction()) && "FAILURE".equals(log.getResult()))
-            .count();
-            
-        long suspiciousActivities = logs.stream()
-            .filter(log -> log.getErrorMessage() != null && 
-                          (log.getErrorMessage().contains("suspicious") || 
-                           log.getErrorMessage().contains("anomaly")))
-            .count();
-            
-        long privilegeEscalations = logs.stream()
-            .filter(log -> log.getAction() != null && 
-                          (log.getAction().contains("PRIVILEGE") || 
-                           log.getAction().contains("ESCALATION")))
-            .count();
-            
-        long dataExfiltrations = logs.stream()
-            .filter(log -> log.getAction() != null && 
-                          (log.getAction().contains("EXPORT") || 
-                           log.getAction().contains("DOWNLOAD")))
-            .count();
+                .filter(log -> "LOGIN".equals(log.getAction()) && "FAILURE".equals(log.getResult()))
+                .count();
 
-        double riskScore = Math.min(1.0, 
-            (failedLogins * 0.1 + 
-             suspiciousActivities * 0.3 + 
-             privilegeEscalations * 0.4 + 
-             dataExfiltrations * 0.2) / 10.0);
-        
+        long suspiciousActivities = logs.stream()
+                .filter(log -> log.getErrorMessage() != null &&
+                        (log.getErrorMessage().contains("suspicious") ||
+                                log.getErrorMessage().contains("anomaly")))
+                .count();
+
+        long privilegeEscalations = logs.stream()
+                .filter(log -> log.getAction() != null &&
+                        (log.getAction().contains("PRIVILEGE") ||
+                                log.getAction().contains("ESCALATION")))
+                .count();
+
+        long dataExfiltrations = logs.stream()
+                .filter(log -> log.getAction() != null &&
+                        (log.getAction().contains("EXPORT") ||
+                                log.getAction().contains("DOWNLOAD")))
+                .count();
+
+        double riskScore = Math.min(1.0,
+                (failedLogins * 0.1 +
+                        suspiciousActivities * 0.3 +
+                        privilegeEscalations * 0.4 +
+                        dataExfiltrations * 0.2) / 10.0);
+
         return ThreatAnalysis.builder()
-            .failedLoginAttempts(failedLogins)
-            .suspiciousActivities(suspiciousActivities)
-            .privilegeEscalations(privilegeEscalations)
-            .dataExfiltrationAttempts(dataExfiltrations)
-            .riskScore(riskScore)
-            .build();
+                .failedLoginAttempts(failedLogins)
+                .suspiciousActivities(suspiciousActivities)
+                .privilegeEscalations(privilegeEscalations)
+                .dataExfiltrationAttempts(dataExfiltrations)
+                .riskScore(riskScore)
+                .build();
     }
 
     @Data

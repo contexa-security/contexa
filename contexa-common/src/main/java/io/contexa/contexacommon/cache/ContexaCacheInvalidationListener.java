@@ -25,7 +25,7 @@ public class ContexaCacheInvalidationListener {
                 cacheService.invalidateLocalOnly(message);
              }
         } catch (Exception e) {
-            log.error("분산 캐시 무효화 실패 - message: {}", message, e);
+            log.error("Distributed cache invalidation failed - message: {}", message, e);
         }
     }
 

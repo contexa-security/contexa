@@ -17,27 +17,27 @@ import java.util.Set;
 @Slf4j
 @RequiredArgsConstructor
 @SoarTool(
-    name = "process_kill",
-    description = "Terminate malicious processes and process trees",
-    riskLevel = SoarTool.RiskLevel.HIGH,
-    approval = SoarTool.ApprovalRequirement.REQUIRED,
-    auditRequired = true,
-    retryable = false,
-    maxRetries = 1,
-    timeoutMs = 30000,
-    requiredPermissions = {"process.kill", "system.admin"},
-    allowedEnvironments = {"staging", "production"}
+        name = "process_kill",
+        description = "Terminate malicious processes and process trees",
+        riskLevel = SoarTool.RiskLevel.HIGH,
+        approval = SoarTool.ApprovalRequirement.REQUIRED,
+        auditRequired = true,
+        retryable = false,
+        maxRetries = 1,
+        timeoutMs = 30000,
+        requiredPermissions = {"process.kill", "system.admin"},
+        allowedEnvironments = {"staging", "production"}
 )
 public class ProcessKillTool {
 
     private static final Set<String> PROTECTED_PROCESSES = Set.of(
-        "system", "kernel", "init", "systemd", "explorer.exe", "csrss.exe", 
-        "services.exe", "lsass.exe", "svchost.exe", "winlogon.exe"
+            "system", "kernel", "init", "systemd", "explorer.exe", "csrss.exe",
+            "services.exe", "lsass.exe", "svchost.exe", "winlogon.exe"
     );
 
     @Tool(
-        name = "process_kill",
-        description = """
+            name = "process_kill",
+            description = """
             프로세스 종료 도구. 악성 또는 의심스러운 프로세스를 종료시킵니다.
             프로세스 ID(PID) 또는 프로세스 이름으로 종료 가능하며,
             자식 프로세스를 포함한 프로세스 트리 전체를 종료할 수 있습니다.
@@ -46,39 +46,39 @@ public class ProcessKillTool {
             """
     )
     public Response killProcess(
-        @ToolParam(description = "작업 유형 (kill, terminate, suspend, isolate)", required = true)
-        String action,
-        
-        @ToolParam(description = "프로세스 ID (PID)", required = false)
-        Integer processId,
-        
-        @ToolParam(description = "프로세스 이름", required = false)
-        String processName,
-        
-        @ToolParam(description = "자식 프로세스 포함 여부", required = false)
-        Boolean includeChildren,
-        
-        @ToolParam(description = "강제 종료 여부 (보호된 프로세스에 필요)", required = false)
-        Boolean forceKill,
-        
-        @ToolParam(description = "격리 후 종료 여부", required = false)
-        Boolean isolateFirst,
-        
-        @ToolParam(description = "종료 사유", required = false)
-        String reason
+            @ToolParam(description = "작업 유형 (kill, terminate, suspend, isolate)", required = true)
+            String action,
+
+            @ToolParam(description = "프로세스 ID (PID)", required = false)
+            Integer processId,
+
+            @ToolParam(description = "프로세스 이름", required = false)
+            String processName,
+
+            @ToolParam(description = "자식 프로세스 포함 여부", required = false)
+            Boolean includeChildren,
+
+            @ToolParam(description = "강제 종료 여부 (보호된 프로세스에 필요)", required = false)
+            Boolean forceKill,
+
+            @ToolParam(description = "격리 후 종료 여부", required = false)
+            Boolean isolateFirst,
+
+            @ToolParam(description = "종료 사유", required = false)
+            String reason
     ) {
         long startTime = System.currentTimeMillis();
 
         if (processId == null && (processName == null || processName.trim().isEmpty())) {
             log.warn("프로세스 정보가 지정되지 않음 - SOAR 시스템 기본 처리");
-            processName = "cryptominer.exe"; 
-                    }
-        
-        log.warn("프로세스 종료 요청: pid={}, name={}, action={}", 
-            processId, processName, action);
-        
+            processName = "cryptominer.exe";
+        }
+
+        log.warn("프로세스 종료 요청: pid={}, name={}, action={}",
+                processId, processName, action);
+
         try {
-            
+
             validateRequest(action, processId, processName);
 
             if (!hasRequiredPermissions()) {
@@ -90,7 +90,7 @@ public class ProcessKillTool {
             if (isProtectedProcess(processInfo)) {
                 if (!Boolean.TRUE.equals(forceKill)) {
                     throw new SecurityException(
-                        "Cannot kill protected process without force flag: " + processInfo.name
+                            "Cannot kill protected process without force flag: " + processInfo.name
                     );
                 }
                 log.warn("보호된 프로세스 강제 종료 시도: {}", processInfo.name);
@@ -105,36 +105,36 @@ public class ProcessKillTool {
             };
 
             SecurityToolUtils.auditLog(
-                "process_kill",
-                action,
-                "SOAR-System",
-                String.format("PID=%d, Name=%s, Status=%s, Reason=%s", 
-                    processInfo.pid, processInfo.name, result.status, reason),
-                "SUCCESS"
+                    "process_kill",
+                    action,
+                    "SOAR-System",
+                    String.format("PID=%d, Name=%s, Status=%s, Reason=%s",
+                            processInfo.pid, processInfo.name, result.status, reason),
+                    "SUCCESS"
             );
 
             SecurityToolUtils.recordMetric("process_kill", "execution_count", 1);
             SecurityToolUtils.recordMetric("process_kill", action + "_count", 1);
             SecurityToolUtils.recordMetric("process_kill", "processes_killed", result.killedCount);
-            SecurityToolUtils.recordMetric("process_kill", "execution_time_ms", 
-                System.currentTimeMillis() - startTime);
+            SecurityToolUtils.recordMetric("process_kill", "execution_time_ms",
+                    System.currentTimeMillis() - startTime);
 
             return Response.builder()
-                .success(true)
-                .message(result.message)
-                .result(result)
-                .build();
-            
+                    .success(true)
+                    .message(result.message)
+                    .result(result)
+                    .build();
+
         } catch (Exception e) {
             log.error("프로세스 종료 실패", e);
 
             SecurityToolUtils.recordMetric("process_kill", "error_count", 1);
-            
+
             return Response.builder()
-                .success(false)
-                .message("Process operation failed: " + e.getMessage())
-                .error(e.getMessage())
-                .build();
+                    .success(false)
+                    .message("Process operation failed: " + e.getMessage())
+                    .error(e.getMessage())
+                    .build();
         }
     }
 
@@ -143,8 +143,8 @@ public class ProcessKillTool {
             throw new IllegalArgumentException("Action is required");
         }
 
-        if (processId == null && 
-            (processName == null || processName.trim().isEmpty())) {
+        if (processId == null &&
+                (processName == null || processName.trim().isEmpty())) {
             throw new IllegalArgumentException("Process ID or name is required");
         }
 
@@ -155,25 +155,25 @@ public class ProcessKillTool {
 
     private ProcessInfo getProcessInfo(Integer processId, String processName) {
         ProcessInfo info = new ProcessInfo();
-        
+
         if (processId != null) {
-            
+
             info.pid = processId;
             info.name = getProcessNameByPid(processId);
             info.ppid = getParentPid(processId);
         } else {
-            
+
             info.name = processName;
             info.pid = findProcessIdByName(processName);
             info.ppid = getParentPid(info.pid);
         }
-        
+
         info.user = "system";
         info.startTime = LocalDateTime.now().minusHours(2).toString();
         info.memoryUsage = "256MB";
         info.cpuUsage = "15%";
         info.childPids = getChildProcesses(info.pid);
-        
+
         return info;
     }
 
@@ -182,10 +182,10 @@ public class ProcessKillTool {
     }
 
     private KillResult performKill(ProcessInfo info, Boolean includeChildren, Boolean isolateFirst) {
-        
+
         if (Boolean.TRUE.equals(isolateFirst)) {
             performIsolate(info);
-                    }
+        }
 
         int killedCount = 1;
         List<String> killedProcesses = new ArrayList<>();
@@ -199,14 +199,14 @@ public class ProcessKillTool {
         }
 
         return KillResult.builder()
-            .status("killed")
-            .message(String.format("Process killed successfully: %s", info.name))
-            .pid(info.pid)
-            .processName(info.name)
-            .killedCount(killedCount)
-            .killedProcesses(killedProcesses)
-            .method("SIGKILL")
-            .build();
+                .status("killed")
+                .message(String.format("Process killed successfully: %s", info.name))
+                .pid(info.pid)
+                .processName(info.name)
+                .killedCount(killedCount)
+                .killedProcesses(killedProcesses)
+                .method("SIGKILL")
+                .build();
     }
 
     private KillResult performTerminate(ProcessInfo info, Boolean includeChildren) {
@@ -215,63 +215,63 @@ public class ProcessKillTool {
         if (Boolean.TRUE.equals(includeChildren)) {
             killedCount += info.childPids.size();
         }
-        
+
         return KillResult.builder()
-            .status("terminated")
-            .message(String.format("Process terminated gracefully: %s", info.name))
-            .pid(info.pid)
-            .processName(info.name)
-            .killedCount(killedCount)
-            .method("SIGTERM")
-            .build();
+                .status("terminated")
+                .message(String.format("Process terminated gracefully: %s", info.name))
+                .pid(info.pid)
+                .processName(info.name)
+                .killedCount(killedCount)
+                .method("SIGTERM")
+                .build();
     }
 
     private KillResult performSuspend(ProcessInfo info) {
-                
+
         return KillResult.builder()
-            .status("suspended")
-            .message(String.format("Process suspended: %s", info.name))
-            .pid(info.pid)
-            .processName(info.name)
-            .killedCount(0)
-            .method("SIGSTOP")
-            .build();
+                .status("suspended")
+                .message(String.format("Process suspended: %s", info.name))
+                .pid(info.pid)
+                .processName(info.name)
+                .killedCount(0)
+                .method("SIGSTOP")
+                .build();
     }
 
     private KillResult performIsolate(ProcessInfo info) {
 
         return KillResult.builder()
-            .status("isolated")
-            .message(String.format("Process isolated: %s", info.name))
-            .pid(info.pid)
-            .processName(info.name)
-            .killedCount(0)
-            .method("ISOLATION")
-            .build();
+                .status("isolated")
+                .message(String.format("Process isolated: %s", info.name))
+                .pid(info.pid)
+                .processName(info.name)
+                .killedCount(0)
+                .method("ISOLATION")
+                .build();
     }
 
     private boolean hasRequiredPermissions() {
-        
+
         return true;
     }
-    
+
     private String getProcessNameByPid(int pid) {
-        
+
         return "malware.exe";
     }
-    
+
     private int getParentPid(int pid) {
-        
+
         return pid > 1000 ? pid - 100 : 1;
     }
-    
+
     private int findProcessIdByName(String name) {
-        
+
         return (int)(Math.random() * 10000) + 1000;
     }
-    
+
     private List<Integer> getChildProcesses(int pid) {
-        
+
         List<Integer> children = new ArrayList<>();
         if (Math.random() > 0.5) {
             children.add(pid + 100);

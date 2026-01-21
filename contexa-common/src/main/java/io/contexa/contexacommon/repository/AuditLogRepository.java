@@ -78,7 +78,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
        AND a.timestamp      >= :since
        AND (EXTRACT(hour  FROM a.timestamp) <  9
             OR EXTRACT(hour FROM a.timestamp) >= 18
-            OR EXTRACT(isodow FROM a.timestamp) IN (6, 7))  -- 6=토, 7=일
+            OR EXTRACT(isodow FROM a.timestamp) IN (6, 7))  -- 6=Sat, 7=Sun
      ORDER BY a.timestamp DESC
     """, nativeQuery = true)
     List<AuditLog> findAfterHoursAccessByUser(@Param("userId") String userId,

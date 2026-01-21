@@ -50,7 +50,7 @@ public class SystemInfoResource {
                     );
                     
                 } catch (Exception e) {
-                    log.error("시스템 정보 리소스 읽기 실패", e);
+                    log.error("Failed to read system info resource", e);
                     throw new RuntimeException("Failed to read system info: " + e.getMessage(), e);
                 }
             }
@@ -116,7 +116,7 @@ public class SystemInfoResource {
             );
             
         } catch (Exception e) {
-            log.error("시스템 정보 수집 실패", e);
+            log.error("Failed to collect system info", e);
             return Map.of(
                 "error", "Failed to collect system info",
                 "message", e.getMessage(),
@@ -143,7 +143,7 @@ public class SystemInfoResource {
             return "UNKNOWN";
             
         } catch (Exception e) {
-            log.warn("방화벽 상태 확인 실패: {}", e.getMessage());
+            log.warn("Firewall status check failed: {}", e.getMessage());
             return "ERROR";
         }
     }
@@ -163,7 +163,7 @@ public class SystemInfoResource {
             return "UNKNOWN";
             
         } catch (Exception e) {
-            log.warn("안티바이러스 상태 확인 실패: {}", e.getMessage());
+            log.warn("Antivirus status check failed: {}", e.getMessage());
             return "ERROR";
         }
     }
@@ -178,7 +178,7 @@ public class SystemInfoResource {
             return Instant.now().minusSeconds(3600).toString();
             
         } catch (Exception e) {
-            log.warn("마지막 보안 스캔 시간 조회 실패: {}", e.getMessage());
+            log.warn("Last security scan time query failed: {}", e.getMessage());
             return Instant.now().minusSeconds(86400).toString(); 
         }
     }
@@ -204,7 +204,7 @@ public class SystemInfoResource {
             return 0;
             
         } catch (Exception e) {
-            log.warn("열린 포트 수 확인 실패: {}", e.getMessage());
+            log.warn("Open ports count check failed: {}", e.getMessage());
             return 0;
         }
     }
@@ -222,7 +222,7 @@ public class SystemInfoResource {
             return 0;
             
         } catch (Exception e) {
-            log.warn("활성 연결 수 확인 실패: {}", e.getMessage());
+            log.warn("Active connections count check failed: {}", e.getMessage());
             return 0;
         }
     }

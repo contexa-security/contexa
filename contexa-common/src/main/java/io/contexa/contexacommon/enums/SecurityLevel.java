@@ -3,19 +3,19 @@ package io.contexa.contexacommon.enums;
 
 public enum SecurityLevel {
     
-    MINIMAL(1, "최소 보안", "개발 및 테스트 환경에 적합한 기본 보안 수준"),
+    MINIMAL(1, "Minimal Security", "Basic security level suitable for dev/test environments"),
     
     
-    STANDARD(2, "표준 보안", "일반적인 운영 환경에 적합한 표준 보안 수준"),
+    STANDARD(2, "Standard Security", "Standard security level suitable for general operational environments"),
     
     
-    ENHANCED(3, "강화 보안", "중요한 시스템과 데이터를 위한 강화된 보안 수준"),
+    ENHANCED(3, "Enhanced Security", "Enhanced security level for critical systems and data"),
     
     
-    HIGH(4, "높은 보안", "핵심 데이터와 중요 작업을 위한 높은 보안 수준"),
+    HIGH(4, "High Security", "High security level for core data and critical operations"),
     
     
-    MAXIMUM(5, "최고 보안", "핵심 인프라와 극비 데이터를 위한 최고 보안 수준");
+    MAXIMUM(5, "Maximum Security", "Maximum security level for core infrastructure and top-secret data");
 
     private final int level;
     private final String displayName;

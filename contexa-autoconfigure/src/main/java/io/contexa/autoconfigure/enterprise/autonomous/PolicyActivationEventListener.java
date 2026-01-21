@@ -43,7 +43,7 @@ public class PolicyActivationEventListener {
             
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "PolicyEvolutionProposal을 찾을 수 없습니다: proposalId=" + proposalId));
+                            "PolicyEvolutionProposal not found: proposalId=" + proposalId));
 
             
             if (proposal.getPolicyId() != null) {
@@ -67,10 +67,10 @@ public class PolicyActivationEventListener {
             
             
         } catch (Exception e) {
-            log.error("AI 정책 활성화 실패: proposalId={}, error={}",
+            log.error("AI policy activation failed: proposalId={}, error={}",
                     proposalId, e.getMessage(), e);
             
-            throw new RuntimeException("AI 정책 활성화 실패: " + e.getMessage(), e);
+            throw new RuntimeException("AI policy activation failed: " + e.getMessage(), e);
         }
     }
 
@@ -88,17 +88,17 @@ public class PolicyActivationEventListener {
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "PolicyEvolutionProposal을 찾을 수 없습니다: proposalId=" + proposalId));
+                            "PolicyEvolutionProposal not found: proposalId=" + proposalId));
 
             if (proposal.getPolicyId() != null) {
                 
                 deactivatePolicy(proposal.getPolicyId());
              } else {
-                log.warn("연결된 Policy가 없습니다: proposalId={}", proposalId);
+                log.warn("No linked Policy found: proposalId={}", proposalId);
             }
 
         } catch (Exception e) {
-            log.error("AI 정책 비활성화 실패: proposalId={}, error={}",
+            log.error("AI policy deactivation failed: proposalId={}, error={}",
                     proposalId, e.getMessage(), e);
         }
     }
@@ -117,7 +117,7 @@ public class PolicyActivationEventListener {
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "PolicyEvolutionProposal을 찾을 수 없습니다: proposalId=" + proposalId));
+                            "PolicyEvolutionProposal not found: proposalId=" + proposalId));
 
             if (proposal.getPolicyId() != null) {
                 
@@ -127,11 +127,11 @@ public class PolicyActivationEventListener {
                 proposal.setPolicyId(null);
                 proposalRepository.save(proposal);
             } else {
-                log.warn("롤백할 Policy가 없습니다: proposalId={}", proposalId);
+                log.warn("No Policy to rollback: proposalId={}", proposalId);
             }
 
         } catch (Exception e) {
-            log.error("AI 정책 롤백 실패: proposalId={}, error={}",
+            log.error("AI policy rollback failed: proposalId={}, error={}",
                     proposalId, e.getMessage(), e);
         }
     }
@@ -150,7 +150,7 @@ public class PolicyActivationEventListener {
 
             
         } catch (Exception e) {
-            log.error("기존 정책 재활성화 실패: policyId={}, error={}",
+            log.error("Existing policy reactivation failed: policyId={}, error={}",
                     proposal.getPolicyId(), e.getMessage(), e);
         }
     }
@@ -202,7 +202,7 @@ public class PolicyActivationEventListener {
             reloadAuthorizationSystem();
 
         } catch (Exception e) {
-            log.error("정책 비활성화 중 오류: policyId={}", policyId, e);
+            log.error("Error deactivating policy: policyId={}", policyId, e);
         }
     }
 
@@ -213,7 +213,7 @@ public class PolicyActivationEventListener {
             policyRetrievalPoint.clearMethodPoliciesCache();
             authorizationManager.reload();
         } catch (Exception e) {
-            log.error("인가 시스템 재로드 실패", e);
+            log.error("Failed to reload authorization system", e);
         }
     }
 }

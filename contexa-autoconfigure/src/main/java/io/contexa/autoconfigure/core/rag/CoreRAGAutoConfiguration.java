@@ -295,17 +295,17 @@ public class CoreRAGAutoConfiguration {
                 }
 
                 String prompt = """
-                    사용자 행동 패턴 분석을 위해 다음 쿼리를 최적화하세요:
+                    Optimize the following query for user behavior pattern analysis:
 
-                    원본 쿼리: %s
+                    Original Query: %s
 
-                    최적화 지침:
-                    1. 시간적 컨텍스트를 포함시키세요 (최근 30일)
-                    2. 유사 행동 패턴을 검색할 수 있는 키워드를 추가하세요
-                    3. 이상 징후 관련 용어를 강화하세요
-                    4. 사용자 역할과 권한 컨텍스트를 고려하세요
+                    Optimization Guidelines:
+                    1. Include temporal context (last 30 days)
+                    2. Add keywords to search for similar behavior patterns
+                    3. Reinforce anomaly-related terms
+                    4. Consider user role and permission context
 
-                    최적화된 쿼리만 반환하세요.
+                    Return only the optimized query.
                     """.formatted(originalQuery.text());
 
                 String transformedText = chatClient.prompt()
@@ -332,17 +332,17 @@ public class CoreRAGAutoConfiguration {
                 }
 
                 String prompt = """
-                    보안 위험 평가를 위해 다음 쿼리를 최적화하세요:
+                    Optimize the following query for security risk assessment:
 
-                    원본 쿼리: %s
+                    Original Query: %s
 
-                    최적화 지침:
-                    1. 위협 지표(IOC)를 포함시키세요
-                    2. 과거 인시던트 패턴을 검색할 수 있도록 확장하세요
-                    3. 리스크 수준별 분류 키워드를 추가하세요
-                    4. MITRE ATT&CK 프레임워크 관련 용어를 포함하세요
+                    Optimization Guidelines:
+                    1. Include Threat Indicators (IOC)
+                    2. Expand to search for past incident patterns
+                    3. Add classification keywords by risk level
+                    4. Include MITRE ATT&CK framework related terms
 
-                    최적화된 쿼리만 반환하세요.
+                    Return only the optimized query.
                     """.formatted(originalQuery.text());
 
                 String transformedText = chatClient.prompt()
@@ -369,17 +369,17 @@ public class CoreRAGAutoConfiguration {
                 }
 
                 String prompt = """
-                    정책 생성을 위해 다음 쿼리를 최적화하세요:
+                    Optimize the following query for policy generation:
 
-                    원본 쿼리: %s
+                    Original Query: %s
 
-                    최적화 지침:
-                    1. 유사한 정책 템플릿을 찾을 수 있도록 확장하세요
-                    2. 역할 기반 접근 제어(RBAC) 관련 용어를 포함하세요
-                    3. 컴플라이언스 요구사항을 고려하세요
-                    4. 비즈니스 규칙과 조건을 포함하세요
+                    Optimization Guidelines:
+                    1. Expand to find similar policy templates
+                    2. Include Role-Based Access Control (RBAC) related terms
+                    3. Consider compliance requirements
+                    4. Include business rules and conditions
 
-                    최적화된 쿼리만 반환하세요.
+                    Return only the optimized query.
                     """.formatted(originalQuery.text());
 
                 String transformedText = chatClient.prompt()

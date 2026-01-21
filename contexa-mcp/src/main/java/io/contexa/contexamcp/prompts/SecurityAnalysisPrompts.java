@@ -79,7 +79,7 @@ public class SecurityAnalysisPrompts {
                     );
                     
                 } catch (Exception e) {
-                    log.error("로그 분석 프롬프트 생성 실패", e);
+                    log.error("Failed to create log analysis prompt", e);
                     throw new RuntimeException("Failed to create log analysis prompt", e);
                 }
             }
@@ -160,7 +160,7 @@ public class SecurityAnalysisPrompts {
                     );
                     
                 } catch (Exception e) {
-                    log.error("위협 평가 프롬프트 생성 실패", e);
+                    log.error("Failed to create threat assessment prompt", e);
                     throw new RuntimeException("Failed to create threat assessment prompt", e);
                 }
             }

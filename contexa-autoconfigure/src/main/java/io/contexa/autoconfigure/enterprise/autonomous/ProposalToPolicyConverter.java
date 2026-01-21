@@ -26,7 +26,7 @@ public class ProposalToPolicyConverter {
     
     public PolicyDto convert(PolicyEvolutionProposal proposal) {
         if (proposal == null) {
-            throw new IllegalArgumentException("PolicyEvolutionProposal은 null일 수 없습니다");
+            throw new IllegalArgumentException("PolicyEvolutionProposal cannot be null");
         }
 
         validateProposal(proposal);
@@ -45,14 +45,14 @@ public class ProposalToPolicyConverter {
     
     private void validateProposal(PolicyEvolutionProposal proposal) {
         if (!StringUtils.hasText(proposal.getTitle())) {
-            throw new IllegalArgumentException("정책 제안의 title은 필수입니다: proposalId=" + proposal.getId());
+            throw new IllegalArgumentException("Policy proposal title is required: proposalId=" + proposal.getId());
         }
 
         
         if (!StringUtils.hasText(proposal.getSpelExpression())
                 && !StringUtils.hasText(proposal.getPolicyContent())) {
             throw new IllegalArgumentException(
-                    "정책 제안에는 spelExpression 또는 policyContent가 필요합니다: proposalId=" + proposal.getId());
+                    "Policy proposal requires spelExpression or policyContent: proposalId=" + proposal.getId());
         }
     }
 
@@ -100,7 +100,7 @@ public class ProposalToPolicyConverter {
         StringBuilder description = new StringBuilder();
 
         
-        description.append("[AI 생성 정책] ");
+        description.append("[AI Generated Policy] ");
 
         if (StringUtils.hasText(proposal.getDescription())) {
             description.append(proposal.getDescription());
@@ -110,7 +110,7 @@ public class ProposalToPolicyConverter {
 
         
         if (StringUtils.hasText(proposal.getAiReasoning())) {
-            description.append("\n\n[AI 추론 근거]\n");
+            description.append("\n\n[AI Reasoning Basis]\n");
             String reasoning = proposal.getAiReasoning();
             
             if (reasoning.length() > 500) {
@@ -121,11 +121,11 @@ public class ProposalToPolicyConverter {
 
         
         if (proposal.getConfidenceScore() != null) {
-            description.append(String.format("\n\n[신뢰도: %.1f%%]", proposal.getConfidenceScore() * 100));
+            description.append(String.format("\n\n[Confidence: %.1f%%]", proposal.getConfidenceScore() * 100));
         }
 
         
-        description.append(String.format("\n\n[원본 제안 ID: %d]", proposal.getId()));
+        description.append(String.format("\n\n[Original Proposal ID: %d]", proposal.getId()));
 
         return description.toString();
     }
@@ -143,7 +143,7 @@ public class ProposalToPolicyConverter {
             try {
                 return Policy.Effect.valueOf(effectStr);
             } catch (IllegalArgumentException e) {
-                log.warn("잘못된 effect 값, 기본값 사용: {}", effectStr);
+                log.warn("Invalid effect value, using default: {}", effectStr);
             }
         }
 
@@ -237,7 +237,7 @@ public class ProposalToPolicyConverter {
 
         } else {
             
-            log.warn("Target 정보 없음, 기본 target 생성: proposalId={}", proposal.getId());
+            log.warn("No Target info, creating default target: proposalId={}", proposal.getId());
             TargetDto defaultTarget = TargetDto.builder()
                     .targetType("URL")
                     .targetIdentifier("/**")
@@ -260,7 +260,7 @@ public class ProposalToPolicyConverter {
         }
 
         if (!StringUtils.hasText(spelExpression)) {
-            log.warn("SpEL 표현식 없음, 기본 규칙 생성: proposalId={}", proposal.getId());
+            log.warn("No SpEL expression, creating default rule: proposalId={}", proposal.getId());
             spelExpression = "isAuthenticated()";
         }
 
@@ -289,18 +289,18 @@ public class ProposalToPolicyConverter {
     private String generateRuleDescription(PolicyEvolutionProposal proposal) {
         StringBuilder description = new StringBuilder();
 
-        description.append("AI 자동 생성 규칙");
+        description.append("AI Automatically Generated Rule");
 
         if (proposal.getProposalType() != null) {
-            description.append(" [유형: ").append(proposal.getProposalType().name()).append("]");
+            description.append(" [Type: ").append(proposal.getProposalType().name()).append("]");
         }
 
         if (proposal.getLearningType() != null) {
-            description.append(" [학습: ").append(proposal.getLearningType().name()).append("]");
+            description.append(" [Learning: ").append(proposal.getLearningType().name()).append("]");
         }
 
         if (proposal.getSourceEventId() != null) {
-            description.append(" [이벤트: ").append(proposal.getSourceEventId()).append("]");
+            description.append(" [Event: ").append(proposal.getSourceEventId()).append("]");
         }
 
         return description.toString();

@@ -60,7 +60,7 @@ public class SecurityLogResource {
                     );
                     
                 } catch (Exception e) {
-                    log.error("보안 로그 리소스 읽기 실패", e);
+                    log.error("Failed to read security log resource", e);
                     throw new RuntimeException("Failed to read security logs: " + e.getMessage(), e);
                 }
             }
@@ -113,7 +113,7 @@ public class SecurityLogResource {
             }
             
         } catch (Exception e) {
-            log.warn("로그 파일 읽기 실패, 샘플 데이터 사용: {}", e.getMessage());
+            log.warn("Failed to read log file, using sample data: {}", e.getMessage());
         }
         
         return String.join("\n", logs);

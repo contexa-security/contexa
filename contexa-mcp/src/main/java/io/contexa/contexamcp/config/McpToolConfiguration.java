@@ -88,7 +88,7 @@ public class McpToolConfiguration {
         var completionInfo = securityCommandCompletion.createCompletionSpecification();
         if (completionInfo != null) {
                     } else {
-            log.warn("  Completion 정보 생성 실패");
+            log.warn("  Failed to create completion info");
         }
 
         return completions;

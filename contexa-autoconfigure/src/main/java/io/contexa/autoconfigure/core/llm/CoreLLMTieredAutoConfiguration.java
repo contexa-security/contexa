@@ -65,7 +65,7 @@ public class CoreLLMTieredAutoConfiguration {
                         return ollamaChatModel;
         }
 
-        log.warn("Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
+        log.warn("Ollama ChatModel is not configured. Attempting fallback model");
 
         if (anthropicChatModel != null) {
                         return anthropicChatModel;
@@ -75,7 +75,7 @@ public class CoreLLMTieredAutoConfiguration {
                         return openAiChatModel;
         }
 
-        log.warn("모든 모델 제공자가 사용 불가능합니다. Layer 1 모델이 null로 설정됩니다");
+        log.warn("All model providers are unavailable. Layer 1 model will be set to null");
         return null;
     }
 
@@ -92,7 +92,7 @@ public class CoreLLMTieredAutoConfiguration {
                         return ollamaChatModel;
         }
 
-        log.warn("Ollama ChatModel이 구성되지 않았습니다. 폴백 모델로 시도");
+        log.warn("Ollama ChatModel is not configured. Attempting fallback model");
 
         if (anthropicChatModel != null) {
                         return anthropicChatModel;
@@ -102,7 +102,7 @@ public class CoreLLMTieredAutoConfiguration {
                         return openAiChatModel;
         }
 
-        log.warn("모든 모델 제공자가 사용 불가능합니다. Layer 2 모델이 null로 설정됩니다");
+        log.warn("All model providers are unavailable. Layer 2 model will be set to null");
         return null;
     }
 
@@ -118,7 +118,7 @@ public class CoreLLMTieredAutoConfiguration {
                         return anthropicChatModel;
         }
 
-        log.warn("  - Anthropic ChatModel을 찾을 수 없습니다. API 키 확인 필요");
+        log.warn("  - Anthropic ChatModel not found. Please check API key");
         return null;
     }
 
@@ -134,7 +134,7 @@ public class CoreLLMTieredAutoConfiguration {
                         return openAiChatModel;
         }
 
-        log.warn("OpenAI ChatModel을 찾을 수 없습니다. API 키 확인 필요");
+        log.warn("OpenAI ChatModel not found. Please check API key");
         return null;
     }
 
@@ -175,11 +175,11 @@ public class CoreLLMTieredAutoConfiguration {
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, ChatModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.warn("우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
+            log.warn("No priority model found. Using {} (fallback)", firstEntry.getKey());
             return firstEntry.getValue();
         }
 
-        log.error("  사용 가능한 ChatModel이 없습니다!");
+        log.error("  No available ChatModel found!");
         throw new IllegalStateException("No ChatModel available. Please configure at least one AI provider.");
     }
 
@@ -248,7 +248,7 @@ public class CoreLLMTieredAutoConfiguration {
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, EmbeddingModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.warn("우선순위 모델 없음. {} 사용 (fallback)", firstEntry.getKey());
+            log.warn("No priority model found. Using {} (fallback)", firstEntry.getKey());
             return firstEntry.getValue();
         }
 

@@ -5,11 +5,11 @@ import lombok.Getter;
 
 @Getter
 public enum RequestPriority {
-    LOW("낮음", 1),
-    NORMAL("보통", 2),
-    HIGH("높음", 3),
-    URGENT("긴급", 4),
-    CRITICAL("매우긴급", 5);
+    LOW("Low", 1),
+    NORMAL("Normal", 2),
+    HIGH("High", 3),
+    URGENT("Urgent", 4),
+    CRITICAL("Critical", 5);
     
     private final String displayName;
     private final int level;

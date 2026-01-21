@@ -5,14 +5,14 @@ import lombok.Getter;
 
 @Getter
 public enum ExecutionStatus {
-    PENDING("대기중", "요청이 대기 중입니다"),
-    PROCESSING("처리중", "요청을 처리하고 있습니다"),
-    SUCCESS("성공", "요청이 성공적으로 완료되었습니다"),
-    PARTIAL_SUCCESS("부분성공", "요청이 부분적으로 성공했습니다"),
-    COMPLETED("완료", "요청이 완료되었습니다"),
-    FAILED("실패", "요청 처리에 실패했습니다"),
-    TIMEOUT("시간초과", "요청 처리 시간이 초과되었습니다"),
-    CANCELLED("취소됨", "요청이 취소되었습니다");
+    PENDING("Pending", "Request is pending"),
+    PROCESSING("Processing", "Request is being processed"),
+    SUCCESS("Success", "Request completed successfully"),
+    PARTIAL_SUCCESS("Partial Success", "Request partially succeeded"),
+    COMPLETED("Completed", "Request completed"),
+    FAILED("Failed", "Request processing failed"),
+    TIMEOUT("Timeout", "Request processing timed out"),
+    CANCELLED("Cancelled", "Request was cancelled");
     
     private final String displayName;
     private final String description;
