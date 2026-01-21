@@ -1,17 +1,17 @@
 package io.contexa.autoconfigure.enterprise.mcp;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaEnterpriseProperties;
 import io.contexa.contexacoreenterprise.mcp.tool.execution.config.ToolExecutionProperties;
 import io.contexa.contexamcp.completions.SecurityCommandCompletion;
 import io.contexa.contexamcp.prompts.SecurityAnalysisPrompts;
 import io.contexa.contexamcp.resources.SecurityLogResource;
 import io.contexa.contexamcp.resources.SystemInfoResource;
-import io.contexa.contexamcp.tools.*;
 import io.contexa.contexamcp.service.AuditLogService;
 import io.contexa.contexamcp.service.IpBlockingService;
 import io.contexa.contexamcp.service.UserSessionService;
+import io.contexa.contexamcp.tools.*;
 import io.modelcontextprotocol.server.McpServerFeatures;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
@@ -21,11 +21,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-
 import java.util.ArrayList;
 import java.util.List;
-
-
 
 @Slf4j
 @AutoConfiguration
@@ -48,11 +45,6 @@ import java.util.List;
 })
 public class EnterpriseMcpAutoConfiguration {
 
-    
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public NetworkScanTool networkScanTool() {
@@ -116,10 +108,6 @@ public class EnterpriseMcpAutoConfiguration {
     }
 
     
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityLogResource securityLogResource(ObjectMapper objectMapper) {
@@ -134,10 +122,6 @@ public class EnterpriseMcpAutoConfiguration {
     }
 
     
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityAnalysisPrompts securityAnalysisPrompts() {
@@ -145,19 +129,11 @@ public class EnterpriseMcpAutoConfiguration {
     }
 
     
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityCommandCompletion securityCommandCompletion() {
         return new SecurityCommandCompletion();
     }
-
-    
-    
-    
 
     
     @Bean
@@ -188,11 +164,9 @@ public class EnterpriseMcpAutoConfiguration {
                 )
                 .build();
 
-        
         return provider;
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(name = "mcpResources")
     public List<McpServerFeatures.SyncResourceSpecification> mcpResources(
@@ -201,14 +175,9 @@ public class EnterpriseMcpAutoConfiguration {
 
         
         List<McpServerFeatures.SyncResourceSpecification> resources = new ArrayList<>();
-
-        
         resources.add(securityLogResource.createSpecification());
-        
-        
         resources.add(systemInfoResource.createSpecification());
-        
-        
+
         return resources;
     }
 
@@ -218,16 +187,10 @@ public class EnterpriseMcpAutoConfiguration {
     public List<McpServerFeatures.SyncPromptSpecification> mcpPrompts(
             SecurityAnalysisPrompts securityAnalysisPrompts) {
 
-        
         List<McpServerFeatures.SyncPromptSpecification> prompts = new ArrayList<>();
-
-        
         prompts.add(securityAnalysisPrompts.createLogAnalysisSpec());
-        
-        
         prompts.add(securityAnalysisPrompts.createThreatAssessmentSpec());
-        
-        
+
         return prompts;
     }
 
@@ -240,14 +203,12 @@ public class EnterpriseMcpAutoConfiguration {
         
         List<McpServerFeatures.SyncCompletionSpecification> completions = new ArrayList<>();
 
-        
         var completionInfo = securityCommandCompletion.createCompletionSpecification();
         if (completionInfo != null) {
                     } else {
             log.warn("  Failed to generate Completion info");
         }
 
-        
         return completions;
     }
 
@@ -258,7 +219,6 @@ public class EnterpriseMcpAutoConfiguration {
         return new McpServerInfoLogger();
     }
 
-    
     public static class McpServerInfoLogger {
 
         public McpServerInfoLogger() {
