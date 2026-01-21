@@ -30,11 +30,7 @@ public class ContexaCacheAutoConfiguration {
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper) {
 
-        log.info("ContexaCacheService 빈 등록 - type: {}, L1 maxSize: {}, L2 TTL: {}s",
-            properties.getType(),
-            properties.getLocal().getMaxSize(),
-            properties.getRedis().getDefaultTtlSeconds());
-
+        
         return new ContexaCacheService(properties, redisTemplate, objectMapper);
     }
 
@@ -46,9 +42,7 @@ public class ContexaCacheAutoConfiguration {
             ContexaCacheService cacheService,
             ContexaCacheProperties properties) {
 
-        log.info("ContexaCacheInvalidationListener 빈 등록 - channel: {}",
-            properties.getPubsub().getChannel());
-
+        
         return new ContexaCacheInvalidationListener(cacheService, properties);
     }
 
@@ -67,8 +61,7 @@ public class ContexaCacheAutoConfiguration {
         if (properties.getPubsub().isEnabled()) {
             ChannelTopic topic = new ChannelTopic(properties.getPubsub().getChannel());
             container.addMessageListener(contexaCacheListenerAdapter, topic);
-            log.info("Redis Pub/Sub 리스너 컨테이너 등록 - channel: {}", properties.getPubsub().getChannel());
-        }
+                    }
 
         return container;
     }

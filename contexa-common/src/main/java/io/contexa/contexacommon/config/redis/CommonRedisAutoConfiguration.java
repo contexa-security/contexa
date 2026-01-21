@@ -32,8 +32,7 @@ public class CommonRedisAutoConfiguration {
     @Primary
     @ConditionalOnMissingBean(name = "generalRedisTemplate")
     public RedisTemplate<String, Object> generalRedisTemplate(RedisConnectionFactory connectionFactory) {
-        log.info("Creating common generalRedisTemplate with JSON serialization");
-
+        
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
@@ -64,8 +63,7 @@ public class CommonRedisAutoConfiguration {
     @Bean(name = "eventRedisTemplate")
     @ConditionalOnMissingBean(name = "eventRedisTemplate")
     public RedisTemplate<String, Object> eventRedisTemplate(RedisConnectionFactory connectionFactory) {
-        log.info("Creating common eventRedisTemplate without type information");
-
+        
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
@@ -90,8 +88,7 @@ public class CommonRedisAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(StringRedisTemplate.class)
     public StringRedisTemplate stringRedisTemplate(RedisConnectionFactory connectionFactory) {
-        log.info("Creating common stringRedisTemplate");
-
+        
         StringRedisTemplate template = new StringRedisTemplate();
         template.setConnectionFactory(connectionFactory);
         template.setEnableTransactionSupport(false);
@@ -103,8 +100,7 @@ public class CommonRedisAutoConfiguration {
     @Bean(name = "trustScoreRedisTemplate")
     @ConditionalOnMissingBean(name = "trustScoreRedisTemplate")
     public RedisTemplate<String, Double> trustScoreRedisTemplate(RedisConnectionFactory connectionFactory) {
-        log.info("Creating common trustScoreRedisTemplate for Zero Trust security");
-
+        
         RedisTemplate<String, Double> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 

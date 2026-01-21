@@ -24,29 +24,23 @@ public class ContexaCacheService {
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
-    
+
     private final ConcurrentHashMap<String, Cache<String, String>> domainCaches = new ConcurrentHashMap<>();
 
-    
+
     private Cache<String, String> defaultLocalCache;
 
     @PostConstruct
     public void init() {
         if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
-            
+
             defaultLocalCache = buildLocalCache(properties.getLocal().getDefaultTtlSeconds());
-            log.info("ContexaCacheService 초기화 완료 - type: {}, L1 maxSize: {}, L1 TTL: {}s",
-                properties.getType(),
-                properties.getLocal().getMaxSize(),
-                properties.getLocal().getDefaultTtlSeconds());
-        } else {
-            log.info("ContexaCacheService 초기화 완료 - type: REDIS (L1 캐시 비활성화)");
         }
     }
 
-    
+
     public <T> T get(String key, Supplier<T> loader, TypeReference<T> typeRef, String domain) {
-        
+
         if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
             Cache<String, String> localCache = getOrCreateDomainCache(domain);
             String cachedJson = localCache.getIfPresent(key);
@@ -61,14 +55,14 @@ public class ContexaCacheService {
             }
         }
 
-        
+
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
             String redisKey = properties.getRedis().getKeyPrefix() + key;
             try {
                 String redisJson = redisTemplate.opsForValue().get(redisKey);
                 if (redisJson != null) {
                     T value = objectMapper.readValue(redisJson, typeRef);
-                    
+
                     if (properties.getType() == ContexaCacheProperties.CacheType.HYBRID) {
                         backfillToL1(key, redisJson, domain);
                     }
@@ -80,7 +74,7 @@ public class ContexaCacheService {
             }
         }
 
-        
+
         log.trace("캐시 미스, 데이터 로드: {}", key);
         T value = loader.get();
         if (value != null) {
@@ -89,18 +83,18 @@ public class ContexaCacheService {
         return value;
     }
 
-    
+
     public <T> void put(String key, T value, String domain) {
         try {
             String json = objectMapper.writeValueAsString(value);
 
-            
+
             if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
                 Cache<String, String> localCache = getOrCreateDomainCache(domain);
                 localCache.put(key, json);
             }
 
-            
+
             if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
                 String redisKey = properties.getRedis().getKeyPrefix() + key;
                 int ttlSeconds = getRedisTtl(domain);
@@ -114,27 +108,26 @@ public class ContexaCacheService {
         }
     }
 
-    
-    public void invalidate(String key) {
-        log.debug("캐시 무효화 요청: {}", key);
 
-        
+    public void invalidate(String key) {
+
+
         if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
             if (key.contains("*")) {
-                
+
                 String pattern = key.replace("*", "");
                 domainCaches.values().forEach(cache -> {
                     cache.asMap().keySet().stream()
-                        .filter(k -> k.startsWith(pattern))
-                        .forEach(cache::invalidate);
+                            .filter(k -> k.startsWith(pattern))
+                            .forEach(cache::invalidate);
                 });
                 if (defaultLocalCache != null) {
                     defaultLocalCache.asMap().keySet().stream()
-                        .filter(k -> k.startsWith(pattern))
-                        .forEach(defaultLocalCache::invalidate);
+                            .filter(k -> k.startsWith(pattern))
+                            .forEach(defaultLocalCache::invalidate);
                 }
             } else {
-                
+
                 domainCaches.values().forEach(cache -> cache.invalidate(key));
                 if (defaultLocalCache != null) {
                     defaultLocalCache.invalidate(key);
@@ -142,32 +135,30 @@ public class ContexaCacheService {
             }
         }
 
-        
+
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
             String redisPattern = properties.getRedis().getKeyPrefix() + key;
             if (key.contains("*")) {
                 Set<String> keys = redisTemplate.keys(redisPattern);
                 if (keys != null && !keys.isEmpty()) {
                     redisTemplate.delete(keys);
-                    log.debug("L2 캐시 무효화 완료: {} 키", keys.size());
                 }
             } else {
                 redisTemplate.delete(redisPattern);
             }
         }
 
-        
+
         if (properties.getType() == ContexaCacheProperties.CacheType.HYBRID
-            && properties.getPubsub().isEnabled()) {
+                && properties.getPubsub().isEnabled()) {
             publishInvalidationEvent(key);
         }
     }
 
-    
-    public void invalidateAll() {
-        log.info("전체 캐시 무효화 요청");
 
-        
+    public void invalidateAll() {
+
+
         if (properties.getType() != ContexaCacheProperties.CacheType.REDIS) {
             domainCaches.values().forEach(Cache::invalidateAll);
             if (defaultLocalCache != null) {
@@ -175,29 +166,27 @@ public class ContexaCacheService {
             }
         }
 
-        
+
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
             Set<String> keys = redisTemplate.keys(properties.getRedis().getKeyPrefix() + "*");
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);
-                log.info("L2 캐시 무효화 완료: {} 키", keys.size());
             }
         }
 
-        
+
         if (properties.getType() == ContexaCacheProperties.CacheType.HYBRID
-            && properties.getPubsub().isEnabled()) {
+                && properties.getPubsub().isEnabled()) {
             publishInvalidationEvent("*");
         }
     }
 
-    
+
     public void invalidateLocalOnly(String key) {
         if (properties.getType() == ContexaCacheProperties.CacheType.REDIS) {
             return;
         }
 
-        log.debug("L1 캐시만 무효화: {}", key);
 
         if ("*".equals(key)) {
             domainCaches.values().forEach(Cache::invalidateAll);
@@ -208,13 +197,13 @@ public class ContexaCacheService {
             String pattern = key.replace("*", "");
             domainCaches.values().forEach(cache -> {
                 cache.asMap().keySet().stream()
-                    .filter(k -> k.startsWith(pattern))
-                    .forEach(cache::invalidate);
+                        .filter(k -> k.startsWith(pattern))
+                        .forEach(cache::invalidate);
             });
             if (defaultLocalCache != null) {
                 defaultLocalCache.asMap().keySet().stream()
-                    .filter(k -> k.startsWith(pattern))
-                    .forEach(defaultLocalCache::invalidate);
+                        .filter(k -> k.startsWith(pattern))
+                        .forEach(defaultLocalCache::invalidate);
             }
         } else {
             domainCaches.values().forEach(cache -> cache.invalidate(key));
@@ -224,7 +213,7 @@ public class ContexaCacheService {
         }
     }
 
-    
+
     private Cache<String, String> getOrCreateDomainCache(String domain) {
         if (domain == null || domain.isEmpty()) {
             return defaultLocalCache;
@@ -236,16 +225,16 @@ public class ContexaCacheService {
         });
     }
 
-    
+
     private Cache<String, String> buildLocalCache(int ttlSeconds) {
         return Caffeine.newBuilder()
-            .maximumSize(properties.getLocal().getMaxSize())
-            .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
-            .recordStats()
-            .build();
+                .maximumSize(properties.getLocal().getMaxSize())
+                .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
+                .recordStats()
+                .build();
     }
 
-    
+
     private void backfillToL1(String key, String json, String domain) {
         try {
             Cache<String, String> localCache = getOrCreateDomainCache(domain);
@@ -256,7 +245,7 @@ public class ContexaCacheService {
         }
     }
 
-    
+
     private int getLocalTtl(String domain) {
         if (domain == null) {
             return properties.getLocal().getDefaultTtlSeconds();
@@ -275,7 +264,7 @@ public class ContexaCacheService {
         };
     }
 
-    
+
     private int getRedisTtl(String domain) {
         if (domain == null) {
             return properties.getRedis().getDefaultTtlSeconds();
@@ -294,20 +283,19 @@ public class ContexaCacheService {
         };
     }
 
-    
+
     private void publishInvalidationEvent(String key) {
         try {
             redisTemplate.convertAndSend(
-                properties.getPubsub().getChannel(),
-                key
+                    properties.getPubsub().getChannel(),
+                    key
             );
-            log.debug("Pub/Sub 무효화 이벤트 발행: {}", key);
         } catch (Exception e) {
             log.error("Pub/Sub 무효화 이벤트 발행 실패: {}", key, e);
         }
     }
 
-    
+
     public ContexaCacheProperties.CacheType getCacheType() {
         return properties.getType();
     }
