@@ -18,7 +18,7 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
     private final DynamicModelRegistry modelRegistry;
     private final TieredLLMProperties tieredLLMProperties;
-    private final ChatModel primaryChatModel;  // 자동 상속 방식: provider 기본 모델
+    private final ChatModel primaryChatModel;
 
     private final Map<String, ModelPerformanceMetric> modelPerformance = new ConcurrentHashMap<>();
 
@@ -37,38 +37,16 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     public ChatModel selectModel(ExecutionContext context) {
         // 자동 상속 방식: 모델 선택 우선순위
         // 1. tier (최우선) -> Layer 설정 모델 또는 primaryChatModel 자동 상속
-        // 2. analysisLevel -> tier 변환 후 선택
-        // 3. securityTaskType -> tier 변환 후 선택
-        // 4. preferredModel (특수 케이스)
-        // 5. performanceRequirements
-        // 6. defaultModel
+        // 2. preferredModel (특수 케이스)
+        // 3. defaultModel
 
         try {
-            // 1. tier 기반 선택 (최우선)
             if (context.getTier() != null) {
                 ChatModel model = selectByTier(context);
                 if (model != null) {
                     return model;
                 }
             }
-
-            // 2. AnalysisLevel -> tier 변환 후 선택
-            if (context.getAnalysisLevel() != null) {
-                ChatModel model = selectByAnalysisLevel(context);
-                if (model != null) {
-                    return model;
-                }
-            }
-
-            // 3. SecurityTaskType -> tier 변환 후 선택
-            if (context.getSecurityTaskType() != null) {
-                ChatModel model = selectBySecurityTaskType(context.getSecurityTaskType());
-                if (model != null) {
-                    return model;
-                }
-            }
-
-            // 4. preferredModel (특수 케이스: 명시적 모델 지정이 필요한 경우에만)
             if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
                 ChatModel model = tryGetModel(context.getPreferredModel());
                 if (model != null) {
@@ -78,13 +56,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 log.warn("Preferred model {} not available, falling back", context.getPreferredModel());
             }
 
-            // 5. 성능 요구사항 기반 선택
-            ChatModel model = selectByPerformanceRequirements(context);
-            if (model != null) {
-                return model;
-            }
-
-            // 6. 기본 모델
             ChatModel defaultModel = selectDefaultModel();
             if (defaultModel == null) {
                 log.warn("Model selection unavailable - RequestId: {}. LLM features disabled.", context.getRequestId());
@@ -95,18 +66,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             log.error("Model selection failed - RequestId: {}", context.getRequestId(), e);
             throw new ModelSelectionException("Error during model selection: " + e.getMessage(), e);
         }
-    }
-
-    private ChatModel selectByAnalysisLevel(ExecutionContext context) {
-        int tier = context.getAnalysisLevel().getDefaultTier();
-
-        String modelName = tieredLLMProperties.getModelNameForTier(tier);
-        ChatModel model = tryGetModelWithFallback(modelName, tier);
-
-        if (model != null) {
-        }
-
-        return model;
     }
 
     private ChatModel selectByTier(ExecutionContext context) {
@@ -165,7 +124,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             }
         }
 
-        // 5. 자동 상속: primaryChatModel 사용 (provider 기본 모델)
         if (primaryChatModel != null) {
             log.info("Tier {} using primaryChatModel (auto-inheritance): {}",
                     tier, primaryChatModel.getClass().getSimpleName());
@@ -176,74 +134,11 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         return null;
     }
 
-    private ChatModel selectBySecurityTaskType(ExecutionContext.SecurityTaskType taskType) {
-        int tier = taskType.getDefaultTier();
-        String modelName = tieredLLMProperties.getModelNameForTier(tier);
-
-        ChatModel model = tryGetModelWithFallback(modelName, tier);
-        if (model != null) {
-        }
-
-        return model;
-    }
-
-    private ChatModel selectByPerformanceRequirements(ExecutionContext context) {
-        Collection<ModelDescriptor> allModels = modelRegistry.getAllModels();
-
-        if (Boolean.TRUE.equals(context.getRequireFastResponse())) {
-            ModelDescriptor fastModel = allModels.stream()
-                    .filter(m -> m.isFastResponse())
-                    .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-                    .min(Comparator.comparing(m -> m.getPerformance().getLatency()))
-                    .orElse(null);
-
-            if (fastModel != null) {
-                ChatModel model = tryGetModel(fastModel.getModelId());
-                if (model != null) {
-                    return model;
-                }
-            }
-        }
-
-        if (Boolean.TRUE.equals(context.getPreferLocalModel())) {
-            ModelDescriptor localModel = allModels.stream()
-                    .filter(m -> "ollama".equals(m.getProvider()))
-                    .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-                    .findFirst()
-                    .orElse(null);
-
-            if (localModel != null) {
-                ChatModel model = tryGetModel(localModel.getModelId());
-                if (model != null) {
-                    return model;
-                }
-            }
-        }
-
-        if (Boolean.TRUE.equals(context.getPreferCloudModel())) {
-            ModelDescriptor cloudModel = allModels.stream()
-                    .filter(m -> !"ollama".equals(m.getProvider()))
-                    .filter(m -> m.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-                    .filter(m -> m.supportsAdvancedFeatures())
-                    .findFirst()
-                    .orElse(null);
-
-            if (cloudModel != null) {
-                ChatModel model = tryGetModel(cloudModel.getModelId());
-                if (model != null) {
-                    return model;
-                }
-            }
-        }
-
-        return null;
-    }
-
     private ChatModel selectDefaultModel() {
-        // 1. Tier 2 설정 모델 시도
-        String defaultModel = tieredLLMProperties.getModelNameForTier(2);
+
+        String defaultModel = tieredLLMProperties.getModelNameForTier(1);
         if (defaultModel != null) {
-            ChatModel model = tryGetModelWithFallback(defaultModel, 2);
+            ChatModel model = tryGetModelWithFallback(defaultModel, 1);
             if (model != null) {
                 return model;
             }

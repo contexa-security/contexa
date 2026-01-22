@@ -70,8 +70,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
             .build();
 
-    // 자동 상속 방식: @Value 제거 - tier 기반으로 DynamicModelSelectionStrategy에서 모델 선택
-
     @Value("${spring.ai.security.tiered.layer2.timeout-ms:30000}")
     private long timeoutMs;
 
@@ -147,8 +145,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
-                // 자동 상속 방식: preferredModel 제거 - tier(2) 기반으로 모델 자동 선택
-                // Layer 모델 미설정 시 provider 기본 모델(primaryChatModel) 사용
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(2)

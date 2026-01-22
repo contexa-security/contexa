@@ -1,6 +1,5 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
@@ -46,8 +45,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final TieredStrategyProperties tieredStrategyProperties;
     private final SecurityDecisionPostProcessor postProcessor;
     private final Cache<String, SessionContext> sessionContextCache;
-
-    // 자동 상속 방식: @Value 제거 - tier 기반으로 DynamicModelSelectionStrategy에서 모델 선택
 
     @Value("${spring.ai.security.tiered.layer1.vector-search-limit:10}")
     private int vectorSearchLimit;
@@ -124,8 +121,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
 
-                // 자동 상속 방식: preferredModel 제거 - tier(1) 기반으로 모델 자동 선택
-                // Layer 모델 미설정 시 provider 기본 모델(primaryChatModel) 사용
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(1)
