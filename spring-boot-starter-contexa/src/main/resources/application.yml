@@ -11,8 +11,7 @@ spring:
   ai:
     chat:
       model:
-        # When using vLLM: vllm,ollama,openai (vLLM server required)
-        priority: ollama,openai  # Anthropic removed (enabled: false)
+        priority: ollama,anthropic,openai
 
       embedding:
         model:
@@ -26,16 +25,16 @@ spring:
           model: claude-sonnet-4-20250514
           temperature: 0.3
 #
-#    ollama:
-#      base-url: http://127.0.0.1:11434
-#      embedding:
-#        enabled: true
-#        model: mxbai-embed-large
-#      chat:
-#        options:
-#          model: exaone3.5
-#          temperature: 0.3
-#          timeout: 10s
+    ollama:
+      base-url: http://127.0.0.1:11434
+      embedding:
+        enabled: true
+        model: mxbai-embed-large
+      chat:
+        options:
+          model: exaone3.5
+          temperature: 0.3
+          timeout: 10s
 #
     openai:
       api-key: ${OPENAI_API_KEY:sk-dummy-key}

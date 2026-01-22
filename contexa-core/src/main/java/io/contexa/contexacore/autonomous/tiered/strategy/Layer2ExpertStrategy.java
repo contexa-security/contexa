@@ -70,8 +70,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
             .build();
 
-    @Value("${spring.ai.security.layer2.model:llama3.1:8b}")
-    private String modelName;
+    // 자동 상속 방식: @Value 제거 - tier 기반으로 DynamicModelSelectionStrategy에서 모델 선택
 
     @Value("${spring.ai.security.tiered.layer2.timeout-ms:30000}")
     private long timeoutMs;
@@ -148,16 +147,16 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
-                
+                // 자동 상속 방식: preferredModel 제거 - tier(2) 기반으로 모델 자동 선택
+                // Layer 모델 미설정 시 provider 기본 모델(primaryChatModel) 사용
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(2)
-                        .preferredModel(modelName)
                         .securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
                         .timeoutMs((int)timeoutMs)
                         .requestId(event.getEventId())
                         .temperature(0.0)
-                        .topP(1.0)  
+                        .topP(1.0)
                         .build();
 
                 String jsonResponse = llmOrchestrator.execute(context)
@@ -678,7 +677,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .eventId(event != null ? event.getEventId() : "unknown")
                 .analysisTime(System.currentTimeMillis())
                 .processingLayer(2)
-                .llmModel(modelName)
+                .llmModel("tier-2-auto-selected")  // 자동 상속 방식: tier 기반 자동 선택
                 .build();
 
         if (response.getMitre() != null && !response.getMitre().isEmpty()) {

@@ -120,8 +120,7 @@ public class TieredLLMProperties {
         };
 
         if (modelName == null || modelName.trim().isEmpty()) {
-            log.warn("Model for Tier {} is not configured. Using runtime fallback strategy", tier);
-
+            log.debug("Model for Tier {} is not configured. Will use provider default model (auto-inheritance)", tier);
             return null;
         }
 
@@ -287,30 +286,26 @@ public class TieredLLMProperties {
     }
 
     private void applyDefaultModels() {
-
+        // 자동 상속 방식: 기본값을 적용하지 않음
+        // Layer 모델 미설정 시 provider 기본 모델(primaryChatModel)을 자동으로 사용
         if (layer1 == null) {
             layer1 = new LayerConfig();
-        }
-        if (layer1.getModel() == null || layer1.getModel().trim().isEmpty()) {
-            layer1.setModel(DEFAULT_LAYER1_MODEL);
         }
 
         if (layer2 == null) {
             layer2 = new LayerConfig();
         }
-        if (layer2.getModel() == null || layer2.getModel().trim().isEmpty()) {
-            layer2.setModel(DEFAULT_LAYER2_MODEL);
-        }
+        // 모델 미설정 시 null 유지 -> DynamicModelSelectionStrategy에서 primaryChatModel 사용
     }
 
     private void validateLayerConfig(int tier, LayerConfig config) {
         if (config == null) {
-            log.warn("Layer {} configuration missing. Using runtime fallback strategy", tier);
+            log.info("Layer {} configuration missing. Will use provider default model (auto-inheritance)", tier);
             return;
         }
 
         if (config.getModel() == null || config.getModel().trim().isEmpty()) {
-            log.warn("Layer {} model not configured. Using runtime fallback strategy", tier);
+            log.info("Layer {} model not configured. Will use provider default model (auto-inheritance)", tier);
             return;
         }
 

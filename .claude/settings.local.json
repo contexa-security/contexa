@@ -86,7 +86,8 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-mcp\\\\src\\\\main\\\\resources\\\\application.yml\")",
-      "Bash(.gradlew :contexa-core:compileJava --quiet)"
+      "Bash(.gradlew :contexa-core:compileJava --quiet)",
+      "Bash(taskkill:*)"
     ],
     "deny": [],
     "ask": []

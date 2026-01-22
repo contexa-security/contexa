@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.llm.core;
 
-import io.contexa.contexacore.std.llm.dynamic.AIModelManager;
 import lombok.Builder;
 import lombok.Data;
 import lombok.experimental.Accessors;
@@ -25,7 +24,7 @@ public class ExecutionContext {
     private String sessionId;
 
     private String preferredModel;  
-    private AIModelManager.TaskType taskType;  
+    private TaskType taskType;  
     private SecurityTaskType securityTaskType;  
     private Integer tier;  
     private AnalysisLevel analysisLevel;  

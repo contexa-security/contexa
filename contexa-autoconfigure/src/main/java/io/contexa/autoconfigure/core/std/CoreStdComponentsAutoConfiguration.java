@@ -61,7 +61,6 @@ import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.config.ModelProviderProperties;
 import io.contexa.contexacore.scheduler.ParallelExecutionMonitor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
-import io.contexa.contexacore.std.llm.dynamic.AIModelManager;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -75,6 +74,7 @@ import io.contexa.contexacore.std.pipeline.step.PipelineStep;
 import io.contexa.contexacore.std.components.prompt.PromptTemplate;
 import io.contexa.contexacommon.mcp.tool.ToolResolver;
 import io.opentelemetry.api.trace.Tracer;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -105,8 +105,6 @@ import java.util.Optional;
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreStdComponentsAutoConfiguration {
 
-    
-
     @Bean
     @ConditionalOnMissingBean
     public AdvisorRegistry advisorRegistry() {
@@ -124,8 +122,6 @@ public class CoreStdComponentsAutoConfiguration {
     public SecurityContextAdvisor securityContextAdvisor(Tracer tracer) {
         return new SecurityContextAdvisor(tracer);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -156,8 +152,6 @@ public class CoreStdComponentsAutoConfiguration {
     public RiskAssessmentTemplate riskAssessmentTemplate() {
         return new RiskAssessmentTemplate();
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -193,8 +187,6 @@ public class CoreStdComponentsAutoConfiguration {
             RiskAssessmentVectorService riskAssessmentVectorService) {
         return new RiskAssessmentContextRetriever(vectorStore, userRepository, auditLogRepository, businessResourceActionRepository, contextRetrieverRegistry, riskAssessmentVectorService);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -234,8 +226,6 @@ public class CoreStdComponentsAutoConfiguration {
         return new RiskContextEnricher(redisTemplate, userRepository, auditLogRepository, businessResourceActionRepository);
     }
 
-    
-
     @Bean
     @ConditionalOnMissingBean
     public ExecutionContextFactory executionContextFactory(
@@ -249,8 +239,6 @@ public class CoreStdComponentsAutoConfiguration {
     public DefaultStreamingHandler defaultStreamingHandler(TieredLLMProperties tieredLLMProperties) {
         return new DefaultStreamingHandler(tieredLLMProperties);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -275,17 +263,16 @@ public class CoreStdComponentsAutoConfiguration {
     public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
             DynamicModelRegistry dynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
-            AIModelManager aiModelManager) {
-        return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, aiModelManager);
+            @Autowired(required = false) @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
+        // 자동 상속 방식: Layer 모델 미설정 시 primaryChatModel 사용
+        return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
     }
-
 
     @Bean
     @ConditionalOnMissingBean
     public DefaultRequestAnalyzer defaultRequestAnalyzer() {
         return new DefaultRequestAnalyzer();
     }
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -299,8 +286,6 @@ public class CoreStdComponentsAutoConfiguration {
             CustomPipelineStepRegistry customPipelineStepRegistry) {
         return new DynamicPipelineConfigurationBuilder(customPipelineStepRegistry);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -331,8 +316,6 @@ public class CoreStdComponentsAutoConfiguration {
             PostprocessingStep postprocessingStep) {
         return new UniversalPipelineExecutor(tracer, contextRetrievalStep, preprocessingStep, promptGenerationStep, llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -445,7 +428,6 @@ public class CoreStdComponentsAutoConfiguration {
     public AIStrategyRegistry aiStrategyRegistry(List<AIStrategy<?, ?>> allStrategies) {
         return new AIStrategyRegistry(allStrategies);
     }
-
 
     @Bean
     @ConditionalOnMissingBean

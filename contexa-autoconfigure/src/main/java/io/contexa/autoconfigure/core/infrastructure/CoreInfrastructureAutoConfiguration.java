@@ -48,12 +48,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 })
 public class CoreInfrastructureAutoConfiguration {
 
-    
-    public CoreInfrastructureAutoConfiguration() {
-        
-    }
-
-    
+    public CoreInfrastructureAutoConfiguration() {}
 
     @Bean
     @ConditionalOnMissingBean

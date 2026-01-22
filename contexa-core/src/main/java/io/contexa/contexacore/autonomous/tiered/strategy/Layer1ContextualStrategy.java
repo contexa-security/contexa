@@ -46,10 +46,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final TieredStrategyProperties tieredStrategyProperties;
     private final SecurityDecisionPostProcessor postProcessor;
     private final Cache<String, SessionContext> sessionContextCache;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
-    @Value("${spring.ai.security.layer1.model:llama3.1:8b}")
-    private String modelName;
+    // 자동 상속 방식: @Value 제거 - tier 기반으로 DynamicModelSelectionStrategy에서 모델 선택
 
     @Value("${spring.ai.security.tiered.layer1.vector-search-limit:10}")
     private int vectorSearchLimit;
@@ -126,10 +124,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
 
+                // 자동 상속 방식: preferredModel 제거 - tier(1) 기반으로 모델 자동 선택
+                // Layer 모델 미설정 시 provider 기본 모델(primaryChatModel) 사용
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(1)
-                        .preferredModel(modelName)
                         .securityTaskType(ExecutionContext.SecurityTaskType.CONTEXTUAL_ANALYSIS)
                         .timeoutMs((int) llmTimeoutMs)
                         .requestId(event.getEventId())

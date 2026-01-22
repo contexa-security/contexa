@@ -5,13 +5,11 @@ import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
-import io.contexa.contexacore.std.rag.observation.SecurityVectorStoreObservationConvention;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
-import io.contexa.contexacore.std.llm.dynamic.AIModelManager;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.service.ModelDiscoveryService;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
@@ -19,18 +17,15 @@ import io.contexa.contexacore.std.operations.DistributedSessionManager;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
+import io.contexa.contexacore.std.rag.observation.SecurityVectorStoreObservationConvention;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.ollama.OllamaEmbeddingModel;
-import org.springframework.ai.openai.OpenAiChatModel;
-import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
@@ -46,9 +41,7 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -118,24 +111,6 @@ public class CoreRAGAutoConfiguration {
         );
     }
 
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AIModelManager aiModelManager(
-            ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
-            ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
-            ObjectProvider<OpenAiChatModel> openAiChatModelProvider,
-            ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,
-            ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {
-        return new AIModelManager(
-                anthropicChatModelProvider.getIfAvailable(),
-                ollamaChatModelProvider.getIfAvailable(),
-                openAiChatModelProvider.getIfAvailable(),
-                ollamaEmbeddingModelProvider.getIfAvailable(),
-                openAiEmbeddingModelProvider.getIfAvailable());
-    }
-
-    
     @Bean
     @ConditionalOnMissingBean
     public DistributedSessionManager distributedSessionManager(

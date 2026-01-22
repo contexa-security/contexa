@@ -2,51 +2,49 @@ package io.contexa.contexacore.std.llm.strategy;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
-import io.contexa.contexacore.std.llm.dynamic.AIModelManager;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import io.contexa.contexacore.std.llm.metrics.ModelPerformanceMetric;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.context.annotation.Primary;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
-@Primary
-@RequiredArgsConstructor
 public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
     private final DynamicModelRegistry modelRegistry;
     private final TieredLLMProperties tieredLLMProperties;
-    private final AIModelManager aiModelManager;
+    private final ChatModel primaryChatModel;  // 자동 상속 방식: provider 기본 모델
 
     private final Map<String, ModelPerformanceMetric> modelPerformance = new ConcurrentHashMap<>();
 
+    public DynamicModelSelectionStrategy(
+            DynamicModelRegistry modelRegistry,
+            TieredLLMProperties tieredLLMProperties,
+            ChatModel primaryChatModel) {
+        this.modelRegistry = modelRegistry;
+        this.tieredLLMProperties = tieredLLMProperties;
+        this.primaryChatModel = primaryChatModel;
+        log.info("DynamicModelSelectionStrategy initialized with primaryChatModel: {}",
+                primaryChatModel != null ? primaryChatModel.getClass().getSimpleName() : "null");
+    }
+
     @Override
     public ChatModel selectModel(ExecutionContext context) {
+        // 자동 상속 방식: 모델 선택 우선순위
+        // 1. tier (최우선) -> Layer 설정 모델 또는 primaryChatModel 자동 상속
+        // 2. analysisLevel -> tier 변환 후 선택
+        // 3. securityTaskType -> tier 변환 후 선택
+        // 4. preferredModel (특수 케이스)
+        // 5. performanceRequirements
+        // 6. defaultModel
 
         try {
-
-            if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
-                ChatModel model = tryGetModel(context.getPreferredModel());
-                if (model != null) {
-                    return model;
-                }
-            }
-
-            if (context.getAnalysisLevel() != null) {
-                ChatModel model = selectByAnalysisLevel(context);
-                if (model != null) {
-                    return model;
-                }
-            }
-
+            // 1. tier 기반 선택 (최우선)
             if (context.getTier() != null) {
                 ChatModel model = selectByTier(context);
                 if (model != null) {
@@ -54,6 +52,15 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
+            // 2. AnalysisLevel -> tier 변환 후 선택
+            if (context.getAnalysisLevel() != null) {
+                ChatModel model = selectByAnalysisLevel(context);
+                if (model != null) {
+                    return model;
+                }
+            }
+
+            // 3. SecurityTaskType -> tier 변환 후 선택
             if (context.getSecurityTaskType() != null) {
                 ChatModel model = selectBySecurityTaskType(context.getSecurityTaskType());
                 if (model != null) {
@@ -61,11 +68,23 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 }
             }
 
+            // 4. preferredModel (특수 케이스: 명시적 모델 지정이 필요한 경우에만)
+            if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
+                ChatModel model = tryGetModel(context.getPreferredModel());
+                if (model != null) {
+                    log.debug("Using explicitly preferred model: {}", context.getPreferredModel());
+                    return model;
+                }
+                log.warn("Preferred model {} not available, falling back", context.getPreferredModel());
+            }
+
+            // 5. 성능 요구사항 기반 선택
             ChatModel model = selectByPerformanceRequirements(context);
             if (model != null) {
                 return model;
             }
 
+            // 6. 기본 모델
             ChatModel defaultModel = selectDefaultModel();
             if (defaultModel == null) {
                 log.warn("Model selection unavailable - RequestId: {}. LLM features disabled.", context.getRequestId());
@@ -93,26 +112,29 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     private ChatModel selectByTier(ExecutionContext context) {
         int tier = context.getTier();
 
-        // 1. layer 설정의 모델명 조회
+        // 1. layer 설정의 모델명 조회 (spring.ai.security.layer1.model 등)
         String primaryModelName = tieredLLMProperties.getModelNameForTier(tier);
-        ChatModel model = tryGetModelWithFallback(primaryModelName, tier);
-
-        if (model != null) {
-            return model;
+        if (primaryModelName != null) {
+            ChatModel model = tryGetModelWithFallback(primaryModelName, tier);
+            if (model != null) {
+                log.debug("Tier {} using configured model: {}", tier, primaryModelName);
+                return model;
+            }
         }
 
         // 2. Tier에 등록된 모델 중 검색
         List<ModelDescriptor> tierModels = modelRegistry.getModelsByTier(tier);
         for (ModelDescriptor descriptor : tierModels) {
             if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                model = tryGetModel(descriptor.getModelId());
+                ChatModel model = tryGetModel(descriptor.getModelId());
                 if (model != null) {
+                    log.debug("Tier {} using registry model: {}", tier, descriptor.getModelId());
                     return model;
                 }
             }
         }
 
-        // 3. Priority 순서대로 해당 tier의 모델 검색 (신규 - 계획 Phase 7)
+        // 3. Priority 순서대로 해당 tier의 모델 검색
         List<String> priorities = tieredLLMProperties.getProviderPriorityList();
         for (String provider : priorities) {
             List<ModelDescriptor> providerModels = modelRegistry.getModelsByProvider(provider);
@@ -120,9 +142,9 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 Integer descTier = desc.getTier();
                 if (descTier != null && descTier == tier &&
                         desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                    model = tryGetModel(desc.getModelId());
+                    ChatModel model = tryGetModel(desc.getModelId());
                     if (model != null) {
-
+                        log.debug("Tier {} using priority provider model: {} ({})", tier, desc.getModelId(), provider);
                         return model;
                     }
                 }
@@ -134,16 +156,23 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             List<ModelDescriptor> providerModels = modelRegistry.getModelsByProvider(provider);
             for (ModelDescriptor desc : providerModels) {
                 if (desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                    model = tryGetModel(desc.getModelId());
+                    ChatModel model = tryGetModel(desc.getModelId());
                     if (model != null) {
-
+                        log.debug("Tier {} using any available provider model: {} ({})", tier, desc.getModelId(), provider);
                         return model;
                     }
                 }
             }
         }
 
-        log.warn("No available model for Tier {}", tier);
+        // 5. 자동 상속: primaryChatModel 사용 (provider 기본 모델)
+        if (primaryChatModel != null) {
+            log.info("Tier {} using primaryChatModel (auto-inheritance): {}",
+                    tier, primaryChatModel.getClass().getSimpleName());
+            return primaryChatModel;
+        }
+
+        log.warn("No available model for Tier {} and no primaryChatModel available", tier);
         return null;
     }
 
@@ -211,23 +240,32 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     }
 
     private ChatModel selectDefaultModel() {
-
+        // 1. Tier 2 설정 모델 시도
         String defaultModel = tieredLLMProperties.getModelNameForTier(2);
-        ChatModel model = tryGetModelWithFallback(defaultModel, 2);
-
-        if (model != null) {
-            return model;
+        if (defaultModel != null) {
+            ChatModel model = tryGetModelWithFallback(defaultModel, 2);
+            if (model != null) {
+                return model;
+            }
         }
 
+        // 2. 등록된 모델 중 사용 가능한 것 검색
         Collection<ModelDescriptor> allModels = modelRegistry.getAllModels();
         for (ModelDescriptor descriptor : allModels) {
             if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                model = tryGetModel(descriptor.getModelId());
+                ChatModel model = tryGetModel(descriptor.getModelId());
                 if (model != null) {
-                    log.warn("Final fallback model selected: {}", descriptor.getModelId());
+                    log.debug("Final fallback model selected: {}", descriptor.getModelId());
                     return model;
                 }
             }
+        }
+
+        // 3. 자동 상속: primaryChatModel 사용 (provider 기본 모델)
+        if (primaryChatModel != null) {
+            log.info("Using primaryChatModel as default (auto-inheritance): {}",
+                    primaryChatModel.getClass().getSimpleName());
+            return primaryChatModel;
         }
 
         log.warn("No available models. LLM features disabled. " +
