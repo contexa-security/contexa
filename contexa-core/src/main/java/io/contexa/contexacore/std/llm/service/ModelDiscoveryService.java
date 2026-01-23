@@ -162,7 +162,7 @@ public class ModelDiscoveryService {
                 successfulDiscoveries.incrementAndGet();
             } catch (Exception e) {
                 failedDiscoveries.incrementAndGet();
-                log.error("제공자 {} 에서 모델 발견 실패", provider.getProviderName(), e);
+                log.error("Failed to discover models from provider {}", provider.getProviderName(), e);
             }
         }
 
@@ -190,13 +190,13 @@ public class ModelDiscoveryService {
 
                     return models;
                 } catch (Exception e) {
-                    log.error("제공자 {} 에서 모델 발견 실패", providerName, e);
+                    log.error("Failed to discover models from provider {}", providerName, e);
                     return Collections.emptyList();
                 }
             }
         }
 
-        log.warn("제공자 {} 를 찾을 수 없음", providerName);
+        log.warn("Provider {} not found", providerName);
         return Collections.emptyList();
     }
 
@@ -233,10 +233,10 @@ public class ModelDiscoveryService {
             modelHealth.recordHealthCheck(health.isHealthy(), health.getMessage(), responseTime);
 
             if (!health.isHealthy()) {
-                log.warn("모델 {} 헬스 체크 실패: {}", modelId, health.getMessage());
+                log.warn("Health check failed for model {}: {}", modelId, health.getMessage());
 
                 if (modelHealth.getConsecutiveFailures() >= 3) {
-                    log.error("모델 {} 연속 실패로 비활성화", modelId);
+                    log.error("Model {} disabled due to consecutive failures", modelId);
                     modelRegistry.updateModelStatus(modelId, ModelDescriptor.ModelStatus.UNAVAILABLE);
 
                     ModelDiscoveryStatus discoveryStatus = this.discoveryStatus.get(modelId);
@@ -247,7 +247,7 @@ public class ModelDiscoveryService {
             } else {
                             }
         } catch (Exception e) {
-            log.error("모델 {} 헬스 체크 중 오류", modelId, e);
+            log.error("Error during health check for model {}", modelId, e);
 
             ModelHealthStatus modelHealth = healthStatus.computeIfAbsent(modelId,
                 k -> new ModelHealthStatus(modelId));
@@ -262,7 +262,7 @@ public class ModelDiscoveryService {
             ModelDiscoveryStatus status = entry.getValue();
 
             if (status.isAvailable() && status.getLastSeenAt().before(cutoffTime)) {
-                log.warn("모델 {} 가 오래되어 비활성화됨 (마지막 확인: {})",
+                log.warn("Model {} marked stale and disabled (last seen: {})",
                         status.getModelId(), status.getLastSeenAt());
 
                 status.updateStatus(false, "Not seen for over 1 hour");

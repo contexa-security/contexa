@@ -74,7 +74,7 @@ public abstract class BaseModelProvider implements ModelProvider {
             if (providerConfig != null && providerConfig.isEnabled()) {
                 this.baseUrl = providerConfig.getBaseUrl();
             } else {
-                log.warn("{}가 비활성화되어 있거나 설정이 없습니다", getProviderName());
+                log.warn("{} is disabled or not configured", getProviderName());
                 ready = false;
                 return;
             }
@@ -83,7 +83,7 @@ public abstract class BaseModelProvider implements ModelProvider {
             doInitialize(config);
             ready = true;
         } catch (Exception e) {
-            log.error("{}ModelProvider 초기화 실패", getProviderName(), e);
+            log.error("{}ModelProvider initialization failed", getProviderName(), e);
             ready = false;
         }
     }

@@ -64,13 +64,13 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 }
 
                 return responseFlux
-                        .doOnNext(chunk -> log.trace("스트리밍 청크 수신 - RequestId: {}, 길이: {}",
+                        .doOnNext(chunk -> log.trace("Streaming chunk received - RequestId: {}, length: {}",
                                 context.getRequestId(), chunk.length()))
-                        .doOnComplete(() -> log.debug("스트리밍 완료 - RequestId: {}", context.getRequestId()))
-                        .doOnError(error -> log.error("스트리밍 오류 - RequestId: {}", context.getRequestId(), error));
+                        .doOnComplete(() -> log.debug("Streaming completed - RequestId: {}", context.getRequestId()))
+                        .doOnError(error -> log.error("Streaming error - RequestId: {}", context.getRequestId(), error));
 
             } catch (Exception e) {
-                log.error("스트리밍 초기화 실패 - RequestId: {}", context.getRequestId(), e);
+                log.error("Streaming initialization failed - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
             }
         });
@@ -80,7 +80,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
     public Flux<String> handleStreamingWithTools(ChatClient chatClient, ExecutionContext context) {
                 
         if (!hasToolsEnabled(context)) {
-            log.warn("도구가 활성화되지 않았습니다. 일반 스트리밍으로 대체합니다.");
+            log.warn("Tools not enabled. Falling back to standard streaming.");
             return handleStreaming(chatClient, context);
         }
         
@@ -95,11 +95,11 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     return handleStreamingWithToolProviders(chatClient, context);
                 }
 
-                log.warn("도구 설정이 없습니다. 일반 스트리밍으로 처리합니다.");
+                log.warn("No tool configuration found. Processing with standard streaming.");
                 return handleStreaming(chatClient, context);
-                
+
             } catch (Exception e) {
-                log.error("도구 스트리밍 초기화 실패 - RequestId: {}", context.getRequestId(), e);
+                log.error("Tool streaming initialization failed - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
             }
         });
@@ -120,7 +120,6 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     .userId(context.getUserId())
                     .sessionId(context.getSessionId())
                     .preferredModel(context.getPreferredModel())
-                    .taskType(context.getTaskType())
                     .securityTaskType(context.getSecurityTaskType())
                     .tier(context.getTier())
                     .timeoutMs(context.getTimeoutMs())
@@ -140,7 +139,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 
                 return handleStreaming(chatClient, enhancedContext);
             })
-            .doOnError(error -> log.error("ToolCallback 스트리밍 실패", error));
+            .doOnError(error -> log.error("ToolCallback streaming failed", error));
     }
 
     private Flux<String> handleStreamingWithToolProviders(ChatClient chatClient, ExecutionContext context) {
@@ -161,7 +160,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
             return responseFlux;
             
         } catch (Exception e) {
-            log.error("도구 제공자 스트리밍 실패", e);
+            log.error("Tool provider streaming failed", e);
             return Flux.error(e);
         }
     }
@@ -177,7 +176,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 return Flux.just(formattedResult);
                 
             } catch (Exception e) {
-                log.error("ToolCallback 실행 실패: {}", callback.getToolDefinition().name(), e);
+                log.error("ToolCallback execution failed: {}", callback.getToolDefinition().name(), e);
                 String errorResult = String.format("[%s] Error: %s", callback.getToolDefinition().name(), e.getMessage());
                 return Flux.just(errorResult);
             }
@@ -212,7 +211,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     .flatMap(chunks -> Flux.fromIterable(chunks));
             }
             default -> {
-                log.warn("알 수 없는 tier: {}, 기본 스트리밍 사용", tier);
+                log.warn("Unknown tier: {}, using default streaming", tier);
                 yield responseFlux.timeout(Duration.ofMillis(1000));
             }
         };

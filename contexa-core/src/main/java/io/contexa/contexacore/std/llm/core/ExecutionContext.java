@@ -23,8 +23,7 @@ public class ExecutionContext {
     private String userId;
     private String sessionId;
 
-    private String preferredModel;  
-    private TaskType taskType;  
+    private String preferredModel;
     private SecurityTaskType securityTaskType;  
     private Integer tier;  
     private AnalysisLevel analysisLevel;  

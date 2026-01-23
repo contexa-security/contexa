@@ -43,8 +43,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (selectedModel == null) {
                 throw new IllegalStateException(
-                        "LLM 모델이 설정되지 않았습니다. " +
-                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "No LLM model configured. " +
+                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
@@ -159,8 +159,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (selectedModel == null) {
                 throw new IllegalStateException(
-                        "LLM 모델이 설정되지 않았습니다. " +
-                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "No LLM model configured. " +
+                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
             ChatClient chatClient = ChatClient.builder(selectedModel).build();
@@ -274,8 +274,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (model == null) {
                 throw new IllegalStateException(
-                        "LLM 모델이 설정되지 않았습니다. " +
-                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "No LLM model configured. " +
+                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
             ChatClient client = ChatClient.builder(model).build();
@@ -306,8 +306,8 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
             if (model == null) {
                 throw new IllegalStateException(
-                        "LLM 모델이 설정되지 않았습니다. " +
-                                "spring.ai.ollama.*, spring.ai.anthropic.*, 또는 spring.ai.openai.* 설정을 확인하세요.");
+                        "No LLM model configured. " +
+                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
             ChatClient client = ChatClient.builder(model).build();
@@ -378,9 +378,5 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         return execute(context);
-    }
-
-    public void recordMetrics(ExecutionContext context, long executionTime, boolean success) {
-
     }
 }

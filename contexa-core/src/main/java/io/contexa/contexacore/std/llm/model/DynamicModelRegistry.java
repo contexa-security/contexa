@@ -33,34 +33,34 @@ public class DynamicModelRegistry {
         try {
             discoverSpringAiModels();
         } catch (Exception e) {
-            log.warn("Spring AI 모델 검색 실패. LLM 기능이 제한될 수 있습니다: {}", e.getMessage());
+            log.warn("Failed to discover Spring AI models. LLM functionality may be limited: {}", e.getMessage());
         }
 
         try {
             discoverAndRegisterProviders();
         } catch (Exception e) {
-            log.warn("ModelProvider 검색 실패. LLM 기능이 제한될 수 있습니다: {}", e.getMessage());
+            log.warn("Failed to discover ModelProviders. LLM functionality may be limited: {}", e.getMessage());
         }
 
         try {
             loadModelsFromConfiguration();
         } catch (Exception e) {
-            log.warn("설정 파일에서 모델 로드 실패: {}", e.getMessage());
+            log.warn("Failed to load models from configuration: {}", e.getMessage());
         }
 
         try {
             buildTierMapping();
         } catch (Exception e) {
-            log.warn("Tier 매핑 빌드 실패: {}", e.getMessage());
+            log.warn("Failed to build tier mapping: {}", e.getMessage());
         }
 
         try {
             performHealthCheck();
         } catch (Exception e) {
-            log.warn("모델 헬스체크 실패: {}", e.getMessage());
+            log.warn("Failed to perform model health check: {}", e.getMessage());
         }
 
-        log.info("DynamicModelRegistry 초기화 완료. 등록된 모델 수: {}, 프로바이더 수: {}",
+        log.info("DynamicModelRegistry initialization complete. Registered models: {}, Providers: {}",
                 modelDescriptors.size(), providers.size());
     }
 
@@ -113,12 +113,25 @@ public class DynamicModelRegistry {
     }
 
     private void discoverAndRegisterProviders() {
-
         Map<String, ModelProvider> providerBeans = applicationContext.getBeansOfType(ModelProvider.class);
 
         for (Map.Entry<String, ModelProvider> entry : providerBeans.entrySet()) {
             ModelProvider provider = entry.getValue();
             String providerName = provider.getProviderName();
+
+            // Bug fix: Only register if not already registered, or if new provider has higher priority
+            ModelProvider existingProvider = providers.get(providerName);
+            if (existingProvider != null) {
+                // Prefer explicit ModelProvider beans over AutoDiscoveredModelProvider
+                if (existingProvider instanceof AutoDiscoveredModelProvider) {
+                    log.debug("Replacing AutoDiscoveredModelProvider with explicit provider: {}", providerName);
+                    // Remove orphaned descriptors and instances from AutoDiscoveredModelProvider
+                    removeOrphanedModelsFromProvider(existingProvider);
+                } else if (provider.getPriority() >= existingProvider.getPriority()) {
+                    log.debug("Skipping provider {} with lower or equal priority", providerName);
+                    continue;
+                }
+            }
 
             providers.put(providerName, provider);
 
@@ -133,7 +146,16 @@ public class DynamicModelRegistry {
                 log.error("ModelProvider initialization failed: {}", providerName, e);
             }
         }
+    }
 
+    private void removeOrphanedModelsFromProvider(ModelProvider provider) {
+        List<ModelDescriptor> orphanedModels = provider.getAvailableModels();
+        for (ModelDescriptor model : orphanedModels) {
+            String modelId = model.getModelId();
+            modelDescriptors.remove(modelId);
+            modelInstances.remove(modelId);
+            log.debug("Removed orphaned model: {}", modelId);
+        }
     }
 
     private void loadModelsFromConfiguration() {
@@ -157,7 +179,10 @@ public class DynamicModelRegistry {
 
         if (modelDescriptors.containsKey(modelName)) {
             ModelDescriptor existing = modelDescriptors.get(modelName);
-            if (existing.getTier() == null) {
+            // Bug fix: Configuration tier always takes precedence over provider-defined tier
+            if (existing.getTier() == null || !existing.getTier().equals(tier)) {
+                log.debug("Updating model {} tier from {} to {} (configuration takes precedence)",
+                        modelName, existing.getTier(), tier);
                 existing.setTier(tier);
             }
             return;
@@ -331,7 +356,41 @@ public class DynamicModelRegistry {
             return;
         }
 
-        modelDescriptors.put(descriptor.getModelId(), descriptor);
+        ModelDescriptor existing = modelDescriptors.get(descriptor.getModelId());
+        if (existing != null) {
+            // Bug fix: Merge new descriptor with existing one, preserving important fields
+            mergeDescriptors(existing, descriptor);
+            log.debug("Merged model descriptor: {}", descriptor.getModelId());
+        } else {
+            modelDescriptors.put(descriptor.getModelId(), descriptor);
+        }
+    }
+
+    private void mergeDescriptors(ModelDescriptor existing, ModelDescriptor newDescriptor) {
+        // Preserve tier if already set (configuration takes precedence)
+        if (existing.getTier() == null && newDescriptor.getTier() != null) {
+            existing.setTier(newDescriptor.getTier());
+        }
+
+        // Update status if new descriptor has more recent info
+        if (newDescriptor.getStatus() != null) {
+            existing.setStatus(newDescriptor.getStatus());
+        }
+
+        // Update capabilities if existing has none
+        if (existing.getCapabilities() == null && newDescriptor.getCapabilities() != null) {
+            existing.setCapabilities(newDescriptor.getCapabilities());
+        }
+
+        // Update performance if existing has none
+        if (existing.getPerformance() == null && newDescriptor.getPerformance() != null) {
+            existing.setPerformance(newDescriptor.getPerformance());
+        }
+
+        // Update options if existing has none
+        if (existing.getOptions() == null && newDescriptor.getOptions() != null) {
+            existing.setOptions(newDescriptor.getOptions());
+        }
     }
 
     public ChatModel getModel(String modelId) {
