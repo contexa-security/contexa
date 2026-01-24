@@ -32,7 +32,7 @@ spring:
         model: mxbai-embed-large
       chat:
         options:
-          model: exaone3.5
+          model: qwen2.5:14b
           temperature: 0.3
           timeout: 10s
 #
@@ -50,11 +50,11 @@ spring:
 #    # AI Native v6.7 2-Tier LLM System (2026-01 Refactoring)
 #    # - Layer 1: Lightweight local model (llama3.1:8b, 95% traffic)
 #    # - Layer 2: High-performance model (exaone3.5:latest, 5% traffic, ESCALATE)
-    security:
-      layer1:
-        model: qwen2.5:14b  # Layer 1: Lightweight local model
-      layer2:
-        model: exaone3.5:latest  # Layer 2: High-performance model
+#    security:
+#      layer1:
+#        model: qwen2.5:14b  # Layer 1: Lightweight local model
+#      layer2:
+#        model: exaone3.5:latest  # Layer 2: High-performance model
 #      tiered:
 #        enabled: true
 #        traffic-distribution:
