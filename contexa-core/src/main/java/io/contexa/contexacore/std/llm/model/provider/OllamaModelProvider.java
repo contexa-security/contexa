@@ -1,59 +1,36 @@
 package io.contexa.contexacore.std.llm.model.provider;
 
-import io.contexa.contexacore.config.ModelProviderProperties;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaOptions;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Ollama local model provider.
  * Extends BaseModelProvider to reuse common logic.
- * Includes functionality to dynamically discover models from the local Ollama
- * server.
+ * Creates models dynamically based on model ID.
  */
 @Slf4j
 public class OllamaModelProvider extends BaseModelProvider {
 
+    @Value("${spring.ai.ollama.base-url:http://localhost:11434}")
+    private String ollamaBaseUrl;
+
+    @Value("${spring.ai.ollama.enabled:true}")
+    private boolean ollamaEnabled;
+
     @Autowired(required = false)
     private OllamaApi ollamaApi;
-
-    private final Map<String, OllamaModelDetails> discoveredModels = new ConcurrentHashMap<>();
-
-    // ========== Inner Classes ==========
-
-    @Data
-    public static class OllamaTagsResponse {
-        private List<OllamaModel> models;
-    }
-
-    @Data
-    public static class OllamaModel {
-        private String name;
-        private String digest;
-        private Long size;
-        private String modified_at;
-        private OllamaModelDetails details;
-    }
-
-    @Data
-    public static class OllamaModelDetails {
-        private String format;
-        private String family;
-        private List<String> families;
-        private String parameter_size;
-        private String quantization_level;
-    }
 
     // ========== Abstract Method Implementation ==========
 
@@ -68,16 +45,18 @@ public class OllamaModelProvider extends BaseModelProvider {
     }
 
     @Override
-    protected ModelProviderProperties.BaseProviderConfig getProviderConfig() {
-        return modelProviderProperties.getOllama();
+    protected String getProviderBaseUrl() {
+        return ollamaBaseUrl;
+    }
+
+    @Override
+    protected boolean isProviderEnabled() {
+        return ollamaEnabled && ollamaApi != null;
     }
 
     @Override
     protected void doInitialize(Map<String, Object> config) {
-        boolean modelsLoaded = loadModelsFromOllama();
-        if (!modelsLoaded) {
-            log.warn("Failed to load models from Ollama server, using model definitions from configuration file");
-        }
+        // No additional initialization needed
     }
 
     @Override
@@ -164,13 +143,11 @@ public class OllamaModelProvider extends BaseModelProvider {
                 }
 
                 if (modelId != null && !modelId.isEmpty()) {
-                    boolean modelExists = discoveredModels.containsKey(modelId) ||
-                            (modelProviderProperties.getOllama() != null &&
-                                    modelProviderProperties.getOllama().getModels().containsKey(modelId));
-                    details.put("modelAvailable", modelExists);
+                    boolean modelCached = modelCache.containsKey(modelId);
+                    details.put("modelAvailable", modelCached || ready);
 
-                    if (!modelExists) {
-                        return new HealthStatus(true, "Ollama healthy but model not found", 0, details);
+                    if (!modelCached && !ready) {
+                        return new HealthStatus(true, "Ollama healthy but model not cached", 0, details);
                     }
                 }
 
@@ -188,60 +165,8 @@ public class OllamaModelProvider extends BaseModelProvider {
     // ========== Override Methods ==========
 
     @Override
-    public void shutdown() {
-        super.shutdown();
-        discoveredModels.clear();
-    }
-
-    @Override
-    public void refreshModels() {
-        loadModelsFromOllama();
-    }
-
-    @Override
-    public boolean supportsModel(String modelId) {
-        return super.supportsModel(modelId) || discoveredModels.containsKey(modelId);
-    }
-
-    @Override
-    protected List<ModelDescriptor> getDiscoveredModels() {
-        List<ModelDescriptor> models = new ArrayList<>();
-        for (Map.Entry<String, OllamaModelDetails> entry : discoveredModels.entrySet()) {
-            String modelId = entry.getKey();
-            if (!modelCache.containsKey(modelId)) {
-                ModelDescriptor descriptor = createModelDescriptorFromDiscovery(modelId, entry.getValue());
-                modelCache.put(modelId, descriptor);
-            }
-            models.add(modelCache.get(modelId));
-        }
-        return models;
-    }
-
-    @Override
-    protected ModelDescriptor findDiscoveredModel(String modelId) {
-        OllamaModelDetails details = discoveredModels.get(modelId);
-        if (details != null) {
-            ModelDescriptor descriptor = createModelDescriptorFromDiscovery(modelId, details);
-            modelCache.put(modelId, descriptor);
-            return descriptor;
-        }
-
-        loadModelsFromOllama();
-        details = discoveredModels.get(modelId);
-        if (details != null) {
-            ModelDescriptor descriptor = createModelDescriptorFromDiscovery(modelId, details);
-            modelCache.put(modelId, descriptor);
-            return descriptor;
-        }
-
-        return null;
-    }
-
-    @Override
     protected Map<String, Object> getAdditionalMetrics() {
-        return Map.of(
-                "discoveredModels", discoveredModels.size(),
-                "ollamaConnected", ready && baseUrl != null);
+        return Map.of("ollamaConnected", ready && baseUrl != null);
     }
 
     @Override
@@ -249,154 +174,7 @@ public class OllamaModelProvider extends BaseModelProvider {
         return ready ? ModelDescriptor.ModelStatus.AVAILABLE : ModelDescriptor.ModelStatus.UNAVAILABLE;
     }
 
-    @Override
-    protected Map<String, Object> getDefaultMetadata() {
-        return Map.of(
-                "local", true,
-                "requiresGPU", false);
-    }
-
     // ========== Private Methods ==========
-
-    private boolean loadModelsFromOllama() {
-        if (restTemplate == null || baseUrl == null) {
-            log.warn("RestTemplate or baseUrl not set, cannot load model list");
-            return false;
-        }
-
-        try {
-            String tagsUrl = baseUrl + "/api/tags";
-
-            ResponseEntity<OllamaTagsResponse> response = restTemplate.getForEntity(
-                    tagsUrl, OllamaTagsResponse.class);
-
-            if (response.getStatusCode() == HttpStatus.OK && response.getBody() != null) {
-                OllamaTagsResponse tagsResponse = response.getBody();
-
-                if (tagsResponse.getModels() != null) {
-                    discoveredModels.clear();
-
-                    for (OllamaModel model : tagsResponse.getModels()) {
-                        String modelName = model.getName();
-                        OllamaModelDetails details = model.getDetails();
-
-                        if (details == null) {
-                            details = new OllamaModelDetails();
-                            details.setParameter_size("unknown");
-                        }
-
-                        discoveredModels.put(modelName, details);
-                    }
-
-                    return true;
-                }
-            } else {
-                log.warn("Abnormal Ollama API response: {}", response.getStatusCode());
-            }
-        } catch (RestClientException e) {
-            log.warn("Ollama server connection failed (might be normal): {}", e.getMessage());
-        } catch (Exception e) {
-            log.error("Error loading Ollama model list", e);
-        }
-        return false;
-    }
-
-    private ModelDescriptor createModelDescriptorFromDiscovery(String modelId, OllamaModelDetails details) {
-        int tier = estimateTierFromSize(details.getParameter_size());
-
-        ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties.getTierDefaults(tier);
-
-        // TierDefaults가 없으면 최소 필수 정보만으로 ModelDescriptor 생성
-        // 상세 정보(capabilities, performance, cost, options)는 알 수 없으므로 설정하지 않음
-        if (tierDefaults == null) {
-            return ModelDescriptor.builder()
-                    .modelId(modelId)
-                    .displayName(modelId)
-                    .provider(getProviderName())
-                    .version(modelId.contains(":") ? modelId.split(":")[1] : "latest")
-                    .modelSize(details.getParameter_size() != null ? details.getParameter_size() : "unknown")
-                    .tier(tier)
-                    .status(ModelDescriptor.ModelStatus.AVAILABLE)
-                    .metadata(Map.of(
-                            "local", true,
-                            "dynamicallyDiscovered", true))
-                    .build();
-        }
-
-        return ModelDescriptor.builder()
-                .modelId(modelId)
-                .displayName(modelId)
-                .provider(getProviderName())
-                .version(modelId.contains(":") ? modelId.split(":")[1] : "latest")
-                .modelSize(details.getParameter_size() != null ? details.getParameter_size() : "unknown")
-                .tier(tier)
-                .capabilities(ModelDescriptor.ModelCapabilities.builder()
-                        .streaming(true)
-                        .toolCalling(false)
-                        .functionCalling(false)
-                        .vision(modelId.contains("vision"))
-                        .multiModal(false)
-                        .maxTokens(tierDefaults.getMaxTokens())
-                        .contextWindow(tierDefaults.getContextWindow())
-                        .supportsSystemMessage(true)
-                        .build())
-                .performance(ModelDescriptor.PerformanceProfile.builder()
-                        .latency(tierDefaults.getLatencyMs())
-                        .throughput(tier == 1 ? ModelDescriptor.ThroughputLevel.HIGH
-                                : tier == 2 ? ModelDescriptor.ThroughputLevel.MEDIUM
-                                        : ModelDescriptor.ThroughputLevel.LOW)
-                        .concurrency(tierDefaults.getConcurrency())
-                        .recommendedTimeout(tierDefaults.getTimeoutMs())
-                        .performanceScore(tierDefaults.getPerformanceScore())
-                        .build())
-                .options(ModelDescriptor.ModelOptions.builder()
-                        .temperature(tierDefaults.getTemperature())
-                        .build())
-                .status(ModelDescriptor.ModelStatus.AVAILABLE)
-                .metadata(Map.of(
-                        "local", true,
-                        "dynamicallyDiscovered", true,
-                        "requiresGPU", !modelId.contains("tiny")))
-                .build();
-    }
-
-    private int estimateTierFromSize(String parameterSize) {
-        if (parameterSize == null || parameterSize.equals("unknown")) {
-            return 2;
-        }
-
-        String sizeStr = parameterSize.toLowerCase()
-                .replace("b", "")
-                .replace("billion", "")
-                .replace("million", "")
-                .replace("m", "")
-                .trim();
-
-        try {
-            double size = Double.parseDouble(sizeStr);
-
-            if (parameterSize.toLowerCase().contains("m")) {
-                size = size / 1000.0;
-            }
-
-            // Tier 경계값 (Ollama 모델 크기 기준)
-            // 5B 미만 = Tier 1 (소형 모델)
-            // 20B 미만 = Tier 2 (중형 모델)
-            // 20B 이상 = Tier 3 (대형 모델)
-            double tier1Max = 5.0;
-            double tier2Max = 20.0;
-
-            if (size < tier1Max) {
-                return 1;
-            } else if (size < tier2Max) {
-                return 2;
-            } else {
-                return 3;
-            }
-        } catch (NumberFormatException e) {
-            return 2;
-        }
-    }
 
     private OllamaApi getOllamaApi() {
         if (ollamaApi == null) {

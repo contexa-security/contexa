@@ -10,8 +10,6 @@ import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
-import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
-import io.contexa.contexacore.std.llm.service.ModelDiscoveryService;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedSessionManager;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
@@ -97,17 +95,6 @@ public class CoreRAGAutoConfiguration {
             JdbcTemplate jdbcTemplate) {
         return new StandardVectorStoreService(
             properties, vectorStore, embeddingModel, jdbcTemplate
-        );
-    }
-
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public ModelDiscoveryService modelDiscoveryService(
-            ApplicationContext applicationContext,
-            DynamicModelRegistry modelRegistry) {
-        return new ModelDiscoveryService(
-            applicationContext, modelRegistry
         );
     }
 

@@ -9,7 +9,8 @@ import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 
-import java.util.*;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -35,32 +36,47 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
 
     @Override
     public ChatModel selectModel(ExecutionContext context) {
-        // 자동 상속 방식: 모델 선택 우선순위
-        // 1. tier (최우선) -> Layer 설정 모델 또는 primaryChatModel 자동 상속
-        // 2. preferredModel (특수 케이스)
-        // 3. defaultModel
-
         try {
+            // 1. Tier-based model selection
             if (context.getTier() != null) {
-                ChatModel model = selectByTier(context);
-                if (model != null) {
-                    return model;
+                String modelName = tieredLLMProperties.getModelNameForTier(context.getTier());
+                if (modelName != null) {
+                    ChatModel model = tryGetModel(modelName);
+                    if (model != null) {
+                        log.debug("Tier {} using configured model: {}", context.getTier(), modelName);
+                        return model;
+                    }
+
+                    // Try backup model
+                    String backupModel = tieredLLMProperties.getBackupModelNameForTier(context.getTier());
+                    if (backupModel != null) {
+                        model = tryGetModel(backupModel);
+                        if (model != null) {
+                            log.debug("Tier {} using backup model: {}", context.getTier(), backupModel);
+                            return model;
+                        }
+                    }
                 }
             }
+
+            // 2. Preferred model (if specified)
             if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
                 ChatModel model = tryGetModel(context.getPreferredModel());
                 if (model != null) {
-                    log.debug("Using explicitly preferred model: {}", context.getPreferredModel());
+                    log.debug("Using preferred model: {}", context.getPreferredModel());
                     return model;
                 }
                 log.warn("Preferred model {} not available, falling back", context.getPreferredModel());
             }
 
-            ChatModel defaultModel = selectDefaultModel();
-            if (defaultModel == null) {
-                log.warn("Model selection unavailable - RequestId: {}. LLM features disabled.", context.getRequestId());
+            // 3. primaryChatModel fallback (auto-inheritance)
+            if (primaryChatModel != null) {
+                log.debug("Using primaryChatModel fallback: {}", primaryChatModel.getClass().getSimpleName());
+                return primaryChatModel;
             }
-            return defaultModel;
+
+            log.warn("No model available - RequestId: {}. LLM features disabled.", context.getRequestId());
+            return null;
 
         } catch (Exception e) {
             log.error("Model selection failed - RequestId: {}", context.getRequestId(), e);
@@ -68,130 +84,13 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         }
     }
 
-    private ChatModel selectByTier(ExecutionContext context) {
-        int tier = context.getTier();
-
-        // 1. layer 설정의 모델명 조회 (spring.ai.security.layer1.model 등)
-        String primaryModelName = tieredLLMProperties.getModelNameForTier(tier);
-        if (primaryModelName != null) {
-            ChatModel model = tryGetModelWithFallback(primaryModelName, tier);
-            if (model != null) {
-                log.debug("Tier {} using configured model: {}", tier, primaryModelName);
-                return model;
-            }
-        }
-
-        // 2. Tier에 등록된 모델 중 검색
-        List<ModelDescriptor> tierModels = modelRegistry.getModelsByTier(tier);
-        for (ModelDescriptor descriptor : tierModels) {
-            if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                ChatModel model = tryGetModel(descriptor.getModelId());
-                if (model != null) {
-                    log.debug("Tier {} using registry model: {}", tier, descriptor.getModelId());
-                    return model;
-                }
-            }
-        }
-
-        // 3. Priority 순서대로 해당 tier의 모델 검색
-        List<String> priorities = tieredLLMProperties.getProviderPriorityList();
-        for (String provider : priorities) {
-            List<ModelDescriptor> providerModels = modelRegistry.getModelsByProvider(provider);
-            for (ModelDescriptor desc : providerModels) {
-                Integer descTier = desc.getTier();
-                if (descTier != null && descTier == tier &&
-                        desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                    ChatModel model = tryGetModel(desc.getModelId());
-                    if (model != null) {
-                        log.debug("Tier {} using priority provider model: {} ({})", tier, desc.getModelId(), provider);
-                        return model;
-                    }
-                }
-            }
-        }
-
-        // 4. Priority 순서대로 아무 모델이나 검색 (tier 무관)
-        for (String provider : priorities) {
-            List<ModelDescriptor> providerModels = modelRegistry.getModelsByProvider(provider);
-            for (ModelDescriptor desc : providerModels) {
-                if (desc.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                    ChatModel model = tryGetModel(desc.getModelId());
-                    if (model != null) {
-                        log.debug("Tier {} using any available provider model: {} ({})", tier, desc.getModelId(), provider);
-                        return model;
-                    }
-                }
-            }
-        }
-
-        if (primaryChatModel != null) {
-            log.info("Tier {} using primaryChatModel (auto-inheritance): {}",
-                    tier, primaryChatModel.getClass().getSimpleName());
-            return primaryChatModel;
-        }
-
-        log.warn("No available model for Tier {} and no primaryChatModel available", tier);
-        return null;
-    }
-
-    private ChatModel selectDefaultModel() {
-
-        String defaultModel = tieredLLMProperties.getModelNameForTier(1);
-        if (defaultModel != null) {
-            ChatModel model = tryGetModelWithFallback(defaultModel, 1);
-            if (model != null) {
-                return model;
-            }
-        }
-
-        // 2. 등록된 모델 중 사용 가능한 것 검색
-        Collection<ModelDescriptor> allModels = modelRegistry.getAllModels();
-        for (ModelDescriptor descriptor : allModels) {
-            if (descriptor.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE) {
-                ChatModel model = tryGetModel(descriptor.getModelId());
-                if (model != null) {
-                    log.debug("Final fallback model selected: {}", descriptor.getModelId());
-                    return model;
-                }
-            }
-        }
-
-        // 3. 자동 상속: primaryChatModel 사용 (provider 기본 모델)
-        if (primaryChatModel != null) {
-            log.info("Using primaryChatModel as default (auto-inheritance): {}",
-                    primaryChatModel.getClass().getSimpleName());
-            return primaryChatModel;
-        }
-
-        log.warn("No available models. LLM features disabled. " +
-                "Registered models: {}. Check spring.ai.* settings.", allModels.size());
-        return null;
-    }
-
     private ChatModel tryGetModel(String modelId) {
         try {
             return modelRegistry.getModel(modelId);
         } catch (Exception e) {
+            log.debug("Model {} not available: {}", modelId, e.getMessage());
             return null;
         }
-    }
-
-    private ChatModel tryGetModelWithFallback(String modelId, int tier) {
-
-        ChatModel model = tryGetModel(modelId);
-        if (model != null) {
-            return model;
-        }
-
-        String backupModelId = tieredLLMProperties.getBackupModelNameForTier(tier);
-        if (backupModelId != null && !backupModelId.equals(modelId)) {
-            model = tryGetModel(backupModelId);
-            if (model != null) {
-                return model;
-            }
-        }
-
-        return null;
     }
 
     @Override
@@ -223,11 +122,9 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                     modelName, metric.getSuccessRate() * 100);
             modelRegistry.updateModelStatus(modelName, ModelDescriptor.ModelStatus.UNAVAILABLE);
         }
-
     }
 
     public void refreshModels() {
         modelRegistry.refreshModels();
     }
-
 }

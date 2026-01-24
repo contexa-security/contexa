@@ -87,7 +87,9 @@
       "Bash(findstr:*)",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-mcp\\\\src\\\\main\\\\resources\\\\application.yml\")",
       "Bash(.gradlew :contexa-core:compileJava --quiet)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(.\\\\gradlew.bat clean build:*)",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\llm\\\\model\\\\AutoDiscoveredModelProvider.java\")"
     ],
     "deny": [],
     "ask": []

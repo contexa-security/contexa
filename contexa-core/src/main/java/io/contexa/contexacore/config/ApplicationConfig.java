@@ -20,7 +20,7 @@ import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @Slf4j
-@EnableConfigurationProperties({TieredLLMProperties.class, ModelProviderProperties.class, SecurityMappingProperties.class})
+@EnableConfigurationProperties({TieredLLMProperties.class, SecurityMappingProperties.class})
 @Configuration
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
 @EnableScheduling

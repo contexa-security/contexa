@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.llm.model.provider;
 
-import io.contexa.contexacore.config.ModelProviderProperties;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,6 +17,7 @@ import java.util.Map;
 /**
  * Anthropic Claude model provider.
  * Extends BaseModelProvider to reuse common logic.
+ * Creates models dynamically based on model ID.
  */
 @Slf4j
 public class AnthropicModelProvider extends BaseModelProvider {
@@ -25,10 +25,16 @@ public class AnthropicModelProvider extends BaseModelProvider {
     @Value("${spring.ai.anthropic.api-key:}")
     private String apiKey;
 
+    @Value("${spring.ai.anthropic.base-url:https://api.anthropic.com}")
+    private String anthropicBaseUrl;
+
+    @Value("${spring.ai.anthropic.enabled:true}")
+    private boolean anthropicEnabled;
+
     @Autowired(required = false)
     private AnthropicApi anthropicApi;
 
-    // ========== 추상 메서드 구현 ==========
+    // ========== Abstract Method Implementation ==========
 
     @Override
     public String getProviderName() {
@@ -41,8 +47,13 @@ public class AnthropicModelProvider extends BaseModelProvider {
     }
 
     @Override
-    protected ModelProviderProperties.BaseProviderConfig getProviderConfig() {
-        return modelProviderProperties.getAnthropic();
+    protected String getProviderBaseUrl() {
+        return anthropicBaseUrl;
+    }
+
+    @Override
+    protected boolean isProviderEnabled() {
+        return anthropicEnabled && apiKey != null && !apiKey.isEmpty();
     }
 
     @Override
@@ -76,20 +87,8 @@ public class AnthropicModelProvider extends BaseModelProvider {
         }
 
         try {
-            ModelProviderProperties.AnthropicConfig anthropicConfig = modelProviderProperties.getAnthropic();
-            ModelProviderProperties.ModelSpec modelSpec = null;
-
-            if (anthropicConfig != null && anthropicConfig.getModels() != null) {
-                modelSpec = anthropicConfig.getModels().get(modelId);
-            }
-
-            String apiModelId = modelId;
-            if (modelSpec != null && modelSpec.getVersion() != null) {
-                apiModelId = modelSpec.getVersion();
-            }
-
             AnthropicChatOptions.Builder optionsBuilder = AnthropicChatOptions.builder()
-                    .model(apiModelId);
+                    .model(modelId);
 
             if (descriptor.getOptions() != null) {
                 ModelDescriptor.ModelOptions options = descriptor.getOptions();
@@ -161,11 +160,8 @@ public class AnthropicModelProvider extends BaseModelProvider {
             details.put("apiKeyConfigured", true);
 
             if (modelId != null && !modelId.isEmpty()) {
-                ModelProviderProperties.AnthropicConfig configForModel = modelProviderProperties.getAnthropic();
-                boolean modelExists = configForModel != null &&
-                        configForModel.getModels() != null &&
-                        configForModel.getModels().containsKey(modelId);
-                details.put("modelAvailable", modelExists);
+                boolean modelCached = modelCache.containsKey(modelId);
+                details.put("modelAvailable", modelCached || ready);
             }
 
             return new HealthStatus(true, "Healthy", 0, details);
@@ -186,13 +182,6 @@ public class AnthropicModelProvider extends BaseModelProvider {
     protected ModelDescriptor.ModelStatus getModelStatus() {
         return apiKey != null && !apiKey.isEmpty() ? ModelDescriptor.ModelStatus.AVAILABLE
                 : ModelDescriptor.ModelStatus.UNAVAILABLE;
-    }
-
-    @Override
-    protected Map<String, Object> getDefaultMetadata() {
-        return Map.of(
-                "cloud", true,
-                "requiresApiKey", true);
     }
 
     // ========== Private Methods ==========

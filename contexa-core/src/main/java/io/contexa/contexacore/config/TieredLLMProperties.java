@@ -4,7 +4,6 @@ import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
@@ -23,9 +22,6 @@ public class TieredLLMProperties {
 
     @Value("${spring.ai.chat.model.priority:" + DEFAULT_PROVIDER_PRIORITY + "}")
     private String providerPriority;
-
-    @Autowired(required = false)
-    private ModelProviderProperties modelProviderProperties;
 
     @NestedConfigurationProperty
     private LayerConfig layer1 = new LayerConfig();
@@ -189,32 +185,27 @@ public class TieredLLMProperties {
         if (modelName == null)
             return false;
 
-        if (modelProviderProperties != null) {
-            String provider = modelProviderProperties.getProviderForModel(modelName);
-            return "ollama".equals(provider);
-        }
-
-        return modelName.contains(":") ||
-                modelName.startsWith("llama") ||
-                modelName.startsWith("tinyllama") ||
-                modelName.startsWith("mistral") ||
-                modelName.startsWith("phi") ||
-                modelName.startsWith("qwen");
+        String lowerName = modelName.toLowerCase();
+        return lowerName.contains(":") ||
+                lowerName.contains("llama") ||
+                lowerName.contains("qwen") ||
+                lowerName.contains("mistral") ||
+                lowerName.contains("phi") ||
+                lowerName.contains("gemma") ||
+                lowerName.contains("exaone") ||
+                lowerName.contains("deepseek");
     }
 
     public boolean isCloudModel(String modelName) {
         if (modelName == null)
             return false;
 
-        if (modelProviderProperties != null) {
-            String provider = modelProviderProperties.getProviderForModel(modelName);
-            return "anthropic".equals(provider) || "openai".equals(provider);
-        }
-
-        return modelName.startsWith("claude") ||
-                modelName.startsWith("gpt") ||
-                modelName.startsWith("anthropic") ||
-                modelName.startsWith("openai");
+        String lowerName = modelName.toLowerCase();
+        return lowerName.contains("claude") ||
+                lowerName.contains("gpt") ||
+                lowerName.contains("anthropic") ||
+                lowerName.contains("openai") ||
+                lowerName.contains("o1");
     }
 
     /**
@@ -240,15 +231,6 @@ public class TieredLLMProperties {
     }
 
     private Integer getDefaultTimeoutForTier(int tier) {
-
-        if (modelProviderProperties != null) {
-            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties
-                    .getTierDefaults(tier);
-            if (tierDefaults != null && tierDefaults.getTimeoutMs() != null) {
-                return tierDefaults.getTimeoutMs();
-            }
-        }
-
         return switch (tier) {
             case 1 -> 100;
             case 2 -> 5000;
@@ -257,15 +239,6 @@ public class TieredLLMProperties {
     }
 
     private Double getDefaultTemperatureForTier(int tier) {
-
-        if (modelProviderProperties != null) {
-            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties
-                    .getTierDefaults(tier);
-            if (tierDefaults != null && tierDefaults.getTemperature() != null) {
-                return tierDefaults.getTemperature();
-            }
-        }
-
         return switch (tier) {
             case 1 -> 0.3;
             case 2 -> 0.7;
@@ -275,19 +248,15 @@ public class TieredLLMProperties {
 
     @PostConstruct
     public void validateConfiguration() {
-
         applyDefaultModels();
-
         validateLayerConfig(1, layer1);
         validateLayerConfig(2, layer2);
-
         validateTrafficDistribution();
-
     }
 
     private void applyDefaultModels() {
-        // 자동 상속 방식: 기본값을 적용하지 않음
-        // Layer 모델 미설정 시 provider 기본 모델(primaryChatModel)을 자동으로 사용
+        // Auto-inheritance: Do not apply default values
+        // When layer model is not set, provider default model (primaryChatModel) will be used automatically
         if (layer1 == null) {
             layer1 = new LayerConfig();
         }
@@ -295,7 +264,7 @@ public class TieredLLMProperties {
         if (layer2 == null) {
             layer2 = new LayerConfig();
         }
-        // 모델 미설정 시 null 유지 -> DynamicModelSelectionStrategy에서 primaryChatModel 사용
+        // Keep null when model is not set -> DynamicModelSelectionStrategy will use primaryChatModel
     }
 
     private void validateLayerConfig(int tier, LayerConfig config) {
@@ -308,7 +277,6 @@ public class TieredLLMProperties {
             log.info("Layer {} model not configured. Will use provider default model (auto-inheritance)", tier);
             return;
         }
-
     }
 
     private void validateTrafficDistribution() {
@@ -323,6 +291,5 @@ public class TieredLLMProperties {
         if (Math.abs(total - 100.0) > 0.01) {
             log.warn("Traffic distribution total is not 100%: {}%", total);
         }
-
     }
 }

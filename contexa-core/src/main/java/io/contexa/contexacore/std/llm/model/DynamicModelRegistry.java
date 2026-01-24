@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.llm.model;
 
-import io.contexa.contexacore.config.ModelProviderProperties;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import jakarta.annotation.PostConstruct;
@@ -8,34 +7,29 @@ import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.context.ApplicationContext;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
+/**
+ * Dynamic model registry for managing LLM models across multiple providers.
+ * Discovers Spring AI models and ModelProvider beans automatically.
+ */
 @Slf4j
 @RequiredArgsConstructor
 public class DynamicModelRegistry {
 
     private final ApplicationContext applicationContext;
     private final TieredLLMProperties tieredLLMProperties;
-    private final ModelProviderProperties modelProviderProperties;
 
     private final Map<String, ModelProvider> providers = new ConcurrentHashMap<>();
     private final Map<String, ModelDescriptor> modelDescriptors = new ConcurrentHashMap<>();
     private final Map<String, ChatModel> modelInstances = new ConcurrentHashMap<>();
-    private final Map<Integer, List<String>> tierModels = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void initialize() {
-        try {
-            discoverSpringAiModels();
-        } catch (Exception e) {
-            log.warn("Failed to discover Spring AI models. LLM functionality may be limited: {}", e.getMessage());
-        }
-
         try {
             discoverAndRegisterProviders();
         } catch (Exception e) {
@@ -43,15 +37,15 @@ public class DynamicModelRegistry {
         }
 
         try {
-            loadModelsFromConfiguration();
+            discoverSpringAiModels();
         } catch (Exception e) {
-            log.warn("Failed to load models from configuration: {}", e.getMessage());
+            log.warn("Failed to discover Spring AI models. LLM functionality may be limited: {}", e.getMessage());
         }
 
         try {
-            buildTierMapping();
+            loadModelsFromConfiguration();
         } catch (Exception e) {
-            log.warn("Failed to build tier mapping: {}", e.getMessage());
+            log.warn("Failed to load models from configuration: {}", e.getMessage());
         }
 
         try {
@@ -68,23 +62,48 @@ public class DynamicModelRegistry {
         Map<String, ChatModel> chatModels = applicationContext.getBeansOfType(ChatModel.class);
 
         for (Map.Entry<String, ChatModel> entry : chatModels.entrySet()) {
+            ChatModel chatModel = entry.getValue();
+            String providerName = inferProviderFromModel(chatModel);
 
-            ChatModel model = entry.getValue();
-            String provider = inferProviderFromModel(model);
-
-            if (!providers.containsKey(provider)) {
-                AutoDiscoveredModelProvider autoProvider = new AutoDiscoveredModelProvider(provider, model);
-                providers.put(provider, autoProvider);
-                ModelDescriptor descriptor = autoProvider.getAvailableModels().stream()
-                        .findFirst()
-                        .orElse(null);
-                if (descriptor != null) {
-                    registerModel(descriptor);
-                    modelInstances.put(descriptor.getModelId(), model);
+            // Check if provider already exists
+            if (providers.containsKey(providerName)) {
+                ModelProvider existingProvider = providers.get(providerName);
+                // If existing provider has no models, use Spring AI model
+                if (existingProvider.getAvailableModels().isEmpty()) {
+                    registerSpringAiModel(providerName, chatModel);
                 }
-
+                continue;
             }
+
+            // Register Spring AI model directly without AutoDiscoveredModelProvider
+            registerSpringAiModel(providerName, chatModel);
         }
+    }
+
+    private void registerSpringAiModel(String providerName, ChatModel chatModel) {
+        String modelId = extractModelIdFromChatModel(chatModel);
+
+        ModelDescriptor descriptor = ModelDescriptor.builder()
+                .modelId(modelId)
+                .displayName(modelId)
+                .provider(providerName)
+                .status(ModelDescriptor.ModelStatus.AVAILABLE)
+                .capabilities(ModelDescriptor.ModelCapabilities.builder()
+                        .streaming(true)
+                        .supportsSystemMessage(true)
+                        .build())
+                .build();
+
+        registerModel(descriptor);
+        modelInstances.put(modelId, chatModel);
+    }
+
+    private String extractModelIdFromChatModel(ChatModel chatModel) {
+        ChatOptions options = chatModel.getDefaultOptions();
+        if (options != null && options.getModel() != null) {
+            return options.getModel();
+        }
+        return chatModel.getClass().getSimpleName();
     }
 
     private String inferProviderFromModel(ChatModel model) {
@@ -119,20 +138,6 @@ public class DynamicModelRegistry {
             ModelProvider provider = entry.getValue();
             String providerName = provider.getProviderName();
 
-            // Bug fix: Only register if not already registered, or if new provider has higher priority
-            ModelProvider existingProvider = providers.get(providerName);
-            if (existingProvider != null) {
-                // Prefer explicit ModelProvider beans over AutoDiscoveredModelProvider
-                if (existingProvider instanceof AutoDiscoveredModelProvider) {
-                    log.debug("Replacing AutoDiscoveredModelProvider with explicit provider: {}", providerName);
-                    // Remove orphaned descriptors and instances from AutoDiscoveredModelProvider
-                    removeOrphanedModelsFromProvider(existingProvider);
-                } else if (provider.getPriority() >= existingProvider.getPriority()) {
-                    log.debug("Skipping provider {} with lower or equal priority", providerName);
-                    continue;
-                }
-            }
-
             providers.put(providerName, provider);
 
             try {
@@ -148,18 +153,7 @@ public class DynamicModelRegistry {
         }
     }
 
-    private void removeOrphanedModelsFromProvider(ModelProvider provider) {
-        List<ModelDescriptor> orphanedModels = provider.getAvailableModels();
-        for (ModelDescriptor model : orphanedModels) {
-            String modelId = model.getModelId();
-            modelDescriptors.remove(modelId);
-            modelInstances.remove(modelId);
-            log.debug("Removed orphaned model: {}", modelId);
-        }
-    }
-
     private void loadModelsFromConfiguration() {
-
         registerModelFromConfig(1, tieredLLMProperties.getLayer1().getModel());
         if (tieredLLMProperties.getLayer1().hasBackupModel()) {
             registerModelFromConfig(1, tieredLLMProperties.getLayer1().getBackup().getModel());
@@ -169,7 +163,6 @@ public class DynamicModelRegistry {
         if (tieredLLMProperties.getLayer2().hasBackupModel()) {
             registerModelFromConfig(2, tieredLLMProperties.getLayer2().getBackup().getModel());
         }
-
     }
 
     private void registerModelFromConfig(int tier, String modelName) {
@@ -179,7 +172,7 @@ public class DynamicModelRegistry {
 
         if (modelDescriptors.containsKey(modelName)) {
             ModelDescriptor existing = modelDescriptors.get(modelName);
-            // Bug fix: Configuration tier always takes precedence over provider-defined tier
+            // Configuration tier always takes precedence over provider-defined tier
             if (existing.getTier() == null || !existing.getTier().equals(tier)) {
                 log.debug("Updating model {} tier from {} to {} (configuration takes precedence)",
                         modelName, existing.getTier(), tier);
@@ -188,146 +181,45 @@ public class DynamicModelRegistry {
             return;
         }
 
-        ModelDescriptor descriptor = createDescriptorFromConfig(modelName, tier);
-        registerModel(descriptor);
-    }
-
-    private ModelDescriptor createDescriptorFromConfig(String modelName, int tier) {
-        String provider = modelProviderProperties.getProviderForModel(modelName);
-        ModelProviderProperties.ModelSpec spec = modelProviderProperties.getModelSpec(provider, modelName);
-
-        if (spec != null) {
-            return createDescriptorFromSpec(modelName, spec, provider);
-        }
-
-        // ModelSpec이 없는 경우 TierDefaults 사용
-        ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults = modelProviderProperties
-                .getTierDefaults(tier);
-
-        // TierDefaults도 없으면 최소 필수 정보만으로 ModelDescriptor 생성
-        // 상세 정보(capabilities, performance, cost, options)는 알 수 없으므로 설정하지 않음
-        if (tierDefaults == null) {
-            return ModelDescriptor.builder()
-                    .modelId(modelName)
-                    .displayName(modelName)
-                    .provider(provider)
-                    .tier(tier)
-                    .status(ModelDescriptor.ModelStatus.AVAILABLE)
-                    .build();
-        }
-
-        return ModelDescriptor.builder()
+        // Create simple descriptor from model name
+        String provider = inferProviderFromModelName(modelName);
+        ModelDescriptor descriptor = ModelDescriptor.builder()
                 .modelId(modelName)
                 .displayName(modelName)
                 .provider(provider)
                 .tier(tier)
-                .capabilities(buildCapabilitiesFromDefaults(tierDefaults))
-                .performance(buildPerformanceFromDefaults(tierDefaults))
-                .options(ModelDescriptor.ModelOptions.builder()
-                        .temperature(tierDefaults.getTemperature())
-                        .build())
                 .status(ModelDescriptor.ModelStatus.AVAILABLE)
                 .build();
+
+        registerModel(descriptor);
     }
 
-    private ModelDescriptor createDescriptorFromSpec(String modelName, ModelProviderProperties.ModelSpec spec,
-            String provider) {
-        ModelDescriptor.ThroughputLevel throughput = ModelDescriptor.ThroughputLevel.valueOf(
-                spec.getPerformance().getThroughputLevel());
+    private String inferProviderFromModelName(String modelName) {
+        String lowerName = modelName.toLowerCase();
 
-        return ModelDescriptor.builder()
-                .modelId(modelName)
-                .displayName(spec.getDisplayName())
-                .provider(provider)
-                .version(spec.getVersion())
-                .modelSize(spec.getModelSize())
-                .tier(spec.getTier())
-                .capabilities(ModelDescriptor.ModelCapabilities.builder()
-                        .streaming(spec.getCapabilities().getStreaming())
-                        .toolCalling(spec.getCapabilities().getToolCalling())
-                        .functionCalling(spec.getCapabilities().getFunctionCalling())
-                        .vision(spec.getCapabilities().getVision())
-                        .multiModal(spec.getCapabilities().getMultiModal())
-                        .maxTokens(spec.getCapabilities().getMaxTokens())
-                        .contextWindow(spec.getCapabilities().getContextWindow())
-                        .supportsSystemMessage(spec.getCapabilities().getSupportsSystemMessage())
-                        .maxOutputTokens(spec.getCapabilities().getMaxOutputTokens())
-                        .build())
-                .performance(ModelDescriptor.PerformanceProfile.builder()
-                        .latency(spec.getPerformance().getLatencyMs())
-                        .throughput(throughput)
-                        .concurrency(spec.getPerformance().getConcurrency())
-                        .recommendedTimeout(spec.getPerformance().getRecommendedTimeoutMs())
-                        .performanceScore(spec.getPerformance().getPerformanceScore())
-                        .build())
-                .cost(ModelDescriptor.CostProfile.builder()
-                        .costPerInputToken(spec.getCost().getCostPerInputToken())
-                        .costPerOutputToken(spec.getCost().getCostPerOutputToken())
-                        .costEfficiency(spec.getCost().getCostEfficiency())
-                        .build())
-                .options(ModelDescriptor.ModelOptions.builder()
-                        .temperature(spec.getOptions().getTemperature())
-                        .topP(spec.getOptions().getTopP())
-                        .topK(spec.getOptions().getTopK())
-                        .repetitionPenalty(spec.getOptions().getRepetitionPenalty())
-                        .build())
-                .status(ModelDescriptor.ModelStatus.AVAILABLE)
-                .metadata(spec.getMetadata())
-                .build();
-    }
-
-    private ModelDescriptor.ModelCapabilities buildCapabilitiesFromDefaults(
-            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
-        // 알 수 없는 기능은 false로 설정 (임의 threshold 사용하지 않음)
-        return ModelDescriptor.ModelCapabilities.builder()
-                .streaming(true)
-                .toolCalling(false)
-                .functionCalling(false)
-                .vision(false)
-                .multiModal(false)
-                .maxTokens(tierDefaults.getMaxTokens())
-                .contextWindow(tierDefaults.getContextWindow())
-                .supportsSystemMessage(true)
-                .build();
-    }
-
-    private ModelDescriptor.PerformanceProfile buildPerformanceFromDefaults(
-            ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
-        int tier = inferTierFromDefaults(tierDefaults);
-
-        return ModelDescriptor.PerformanceProfile.builder()
-                .latency(tierDefaults.getLatencyMs())
-                .throughput(tier == 1 ? ModelDescriptor.ThroughputLevel.HIGH
-                        : tier == 2 ? ModelDescriptor.ThroughputLevel.MEDIUM : ModelDescriptor.ThroughputLevel.LOW)
-                .concurrency(tierDefaults.getConcurrency())
-                .recommendedTimeout(tierDefaults.getTimeoutMs())
-                .performanceScore(tierDefaults.getPerformanceScore())
-                .build();
-    }
-
-    private int inferTierFromDefaults(ModelProviderProperties.DefaultSpecs.TierDefaults tierDefaults) {
-
-        if (tierDefaults.getPerformanceScore() >= 90.0 && tierDefaults.getLatencyMs() <= 100) {
-            return 1;
-        } else {
-            return 2;
-        }
-    }
-
-    private void buildTierMapping() {
-        tierModels.clear();
-
-        for (ModelDescriptor descriptor : modelDescriptors.values()) {
-            if (descriptor.getTier() != null) {
-                tierModels.computeIfAbsent(descriptor.getTier(), k -> new ArrayList<>())
-                        .add(descriptor.getModelId());
-            }
+        // Ollama models
+        if (lowerName.contains("llama") || lowerName.contains("qwen") ||
+            lowerName.contains("gemma") || lowerName.contains("mistral") ||
+            lowerName.contains("phi") || lowerName.contains("exaone") ||
+            lowerName.contains("codellama") || lowerName.contains("deepseek")) {
+            return "ollama";
         }
 
+        // Anthropic models
+        if (lowerName.contains("claude")) {
+            return "anthropic";
+        }
+
+        // OpenAI models
+        if (lowerName.contains("gpt") || lowerName.contains("o1") || lowerName.contains("davinci")) {
+            return "openai";
+        }
+
+        // Default to unknown
+        return "unknown";
     }
 
     private void performHealthCheck() {
-
         for (Map.Entry<String, ModelProvider> entry : providers.entrySet()) {
             String providerName = entry.getKey();
             ModelProvider provider = entry.getValue();
@@ -358,7 +250,7 @@ public class DynamicModelRegistry {
 
         ModelDescriptor existing = modelDescriptors.get(descriptor.getModelId());
         if (existing != null) {
-            // Bug fix: Merge new descriptor with existing one, preserving important fields
+            // Merge new descriptor with existing one, preserving important fields
             mergeDescriptors(existing, descriptor);
             log.debug("Merged model descriptor: {}", descriptor.getModelId());
         } else {
@@ -382,11 +274,6 @@ public class DynamicModelRegistry {
             existing.setCapabilities(newDescriptor.getCapabilities());
         }
 
-        // Update performance if existing has none
-        if (existing.getPerformance() == null && newDescriptor.getPerformance() != null) {
-            existing.setPerformance(newDescriptor.getPerformance());
-        }
-
         // Update options if existing has none
         if (existing.getOptions() == null && newDescriptor.getOptions() != null) {
             existing.setOptions(newDescriptor.getOptions());
@@ -404,13 +291,35 @@ public class DynamicModelRegistry {
 
         ModelDescriptor descriptor = modelDescriptors.get(modelId);
         if (descriptor == null) {
-            throw new ModelSelectionException("Model not found: " + modelId, modelId);
+            // Try to find provider dynamically
+            ModelProvider provider = findProviderForModel(modelId);
+            if (provider != null) {
+                descriptor = ModelDescriptor.builder()
+                        .modelId(modelId)
+                        .displayName(modelId)
+                        .provider(provider.getProviderName())
+                        .status(ModelDescriptor.ModelStatus.AVAILABLE)
+                        .build();
+                registerModel(descriptor);
+            } else {
+                throw new ModelSelectionException("Model not found: " + modelId, modelId);
+            }
         }
 
-        ModelProvider provider = providers.get(descriptor.getProvider());
+        String providerName = descriptor.getProvider();
+        ModelProvider provider = providers.get(providerName);
+
+        if (provider == null) {
+            provider = findProviderForModel(modelId);
+            if (provider != null) {
+                descriptor.setProvider(provider.getProviderName());
+                log.debug("Dynamically resolved provider for model {}: {}", modelId, provider.getProviderName());
+            }
+        }
+
         if (provider == null) {
             throw new ModelSelectionException(
-                    "Model provider not found: " + descriptor.getProvider(), modelId);
+                    "No provider supports model: " + modelId, modelId);
         }
 
         try {
@@ -423,17 +332,31 @@ public class DynamicModelRegistry {
         }
     }
 
-    public List<ModelDescriptor> getModelsByTier(int tier) {
-        List<String> modelIds = tierModels.get(tier);
-        if (modelIds == null || modelIds.isEmpty()) {
-            return Collections.emptyList();
-        }
+    private ModelProvider findProviderForModel(String modelId) {
+        // Sort by priority (ascending) and filter ready providers that support the model
+        List<ModelProvider> sortedProviders = providers.values().stream()
+                .filter(ModelProvider::isReady)
+                .filter(p -> p.supportsModel(modelId))
+                .sorted(Comparator.comparingInt(ModelProvider::getPriority))
+                .toList();
 
-        return modelIds.stream()
-                .map(modelDescriptors::get)
-                .filter(Objects::nonNull)
-                .filter(d -> d.getStatus() == ModelDescriptor.ModelStatus.AVAILABLE)
-                .collect(Collectors.toList());
+        // Try each provider in priority order
+        for (ModelProvider provider : sortedProviders) {
+            try {
+                ModelDescriptor tempDesc = ModelDescriptor.builder()
+                        .modelId(modelId)
+                        .provider(provider.getProviderName())
+                        .build();
+                ChatModel model = provider.createModel(tempDesc);
+                if (model != null) {
+                    return provider;
+                }
+            } catch (Exception e) {
+                log.debug("Provider {} cannot create model {}: {}",
+                        provider.getProviderName(), modelId, e.getMessage());
+            }
+        }
+        return null;
     }
 
     public Collection<ModelDescriptor> getAllModels() {
@@ -460,7 +383,6 @@ public class DynamicModelRegistry {
     }
 
     public void refreshModels() {
-
         for (ModelProvider provider : providers.values()) {
             try {
                 provider.refreshModels();
@@ -474,14 +396,10 @@ public class DynamicModelRegistry {
                 log.error("Model refresh failed: {}", provider.getProviderName(), e);
             }
         }
-
-        buildTierMapping();
-
     }
 
     @PreDestroy
     public void shutdown() {
-
         for (ModelProvider provider : providers.values()) {
             try {
                 provider.shutdown();

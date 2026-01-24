@@ -58,7 +58,6 @@ import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
-import io.contexa.contexacore.config.ModelProviderProperties;
 import io.contexa.contexacore.scheduler.ParallelExecutionMonitor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
@@ -439,9 +438,8 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public DynamicModelRegistry dynamicModelRegistry(
             ApplicationContext applicationContext,
-            TieredLLMProperties tieredLLMProperties,
-            ModelProviderProperties modelProviderProperties) {
-        return new DynamicModelRegistry(applicationContext, tieredLLMProperties, modelProviderProperties);
+            TieredLLMProperties tieredLLMProperties) {
+        return new DynamicModelRegistry(applicationContext, tieredLLMProperties);
     }
 
     @Bean
