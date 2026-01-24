@@ -29,17 +29,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 @EnableConfigurationProperties({ContexaProperties.class, HcadProperties.class})
 public class CoreHCADAutoConfiguration {
 
-    public CoreHCADAutoConfiguration() {
-        
-    }
+    public CoreHCADAutoConfiguration() {}
 
-    
-
-    
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public HCADContextExtractor hcadContextExtractor(
@@ -47,10 +38,6 @@ public class CoreHCADAutoConfiguration {
         return new HCADContextExtractor(redisTemplate);
     }
 
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public BaselineLearningService baselineLearningService(
@@ -58,15 +45,7 @@ public class CoreHCADAutoConfiguration {
         return new BaselineLearningService(redisTemplate);
     }
 
-    
 
-    
-    
-    
-
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public HCADAnalysisService hcadAnalysisService(
@@ -74,9 +53,6 @@ public class CoreHCADAutoConfiguration {
         return new HCADAnalysisService(hcadContextExtractor);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public HCADFilter hcadFilter(HCADAnalysisService hcadAnalysisService) {

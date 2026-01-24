@@ -1,6 +1,6 @@
 package io.contexa.autoconfigure.core.advisor;
 
-import io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration;
+import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import io.contexa.contexacore.std.advisor.soar.EnhancedSoarApprovalAdvisor;

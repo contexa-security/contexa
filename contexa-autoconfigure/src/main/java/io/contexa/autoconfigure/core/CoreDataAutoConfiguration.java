@@ -2,8 +2,13 @@ package io.contexa.autoconfigure.core;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.jdbc.core.JdbcTemplate;
+
+import javax.sql.DataSource;
 
 
 @AutoConfiguration
@@ -18,13 +23,19 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
     "io.contexa.contexacore.domain.entity",
     "io.contexa.contexaiam.domain.entity"
 })
-public class CoreJpaAutoConfiguration {
+public class CoreDataAutoConfiguration {
 
-    public CoreJpaAutoConfiguration() {
-        
-        
-        
-        
-        
+    public CoreDataAutoConfiguration() {}
+
+    @Bean
+    @ConditionalOnMissingBean
+    public JdbcTemplate jdbcTemplate(DataSource dataSource) {
+        JdbcTemplate jdbcTemplate = new JdbcTemplate(dataSource);
+
+        jdbcTemplate.setQueryTimeout(30);
+        jdbcTemplate.setFetchSize(100);
+        jdbcTemplate.setMaxRows(1000);
+
+        return jdbcTemplate;
     }
 }

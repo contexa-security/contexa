@@ -1,7 +1,7 @@
 package io.contexa.autoconfigure.core.llm;
 
 import io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration;
-import io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration;
+import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.config.SecurityMappingProperties;

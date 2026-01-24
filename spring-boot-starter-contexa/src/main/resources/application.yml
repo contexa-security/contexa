@@ -55,36 +55,15 @@ spring:
 #        model: qwen2.5:14b  # Layer 1: Lightweight local model
 #      layer2:
 #        model: exaone3.5:latest  # Layer 2: High-performance model
-#      tiered:
-#        enabled: true
-#        traffic-distribution:
-#          layer1-percentage: 95.0  # Traffic percentage for Layer 1
-#          layer2-percentage: 5.0   # Traffic percentage for Layer 2
-#        layer1:
-#          enabled: true
-#          timeout-ms: 10000        # Layer 1: Context analysis (300ms~10s)
-#          context-window-minutes: 30
-#          vector-search-limit: 10
-#        layer2:
-#          enabled: true
-#          timeout-ms: 30000        # Layer 2: Expert analysis (1~5s)
-#          enable-soar: false
-#        adaptive:
-#          enabled: true
-#          learning-rate: 0.01
-#          peak-hours-start: 9
-#          peak-hours-end: 18
-#
-#
-#
-#    vectorstore:
-#      pgvector:
-#        table-name: vector_store
-#        index-type: HNSW
-#        distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
-#        dimensions: 1536
-#        initialize-schema: true
-#        max-document-batch-size: 10000
+
+    vectorstore:
+      pgvector:
+        table-name: vector_store
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
+        dimensions: 1536
+        initialize-schema: true
+        max-document-batch-size: 10000
 
   jpa:
     database: POSTGRESQL

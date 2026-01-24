@@ -24,7 +24,7 @@ import java.util.Arrays;
 
 @Slf4j
 @AutoConfiguration
-@AutoConfigureAfter(name = "io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration")
+@AutoConfigureAfter(name = "io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration")
 @RequiredArgsConstructor
 @EnableConfigurationProperties(AuthContextProperties.class)
 public class CoreSessionAutoConfiguration {

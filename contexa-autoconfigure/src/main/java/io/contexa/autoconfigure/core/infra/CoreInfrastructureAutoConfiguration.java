@@ -1,4 +1,4 @@
-package io.contexa.autoconfigure.core.infrastructure;
+package io.contexa.autoconfigure.core.infra;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;

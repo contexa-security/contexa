@@ -2,11 +2,11 @@
 # Spring Boot 3.x AutoConfiguration 등록
 
 # Core Infrastructure
-io.contexa.autoconfigure.core.infrastructure.CoreInfrastructureAutoConfiguration
+io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration
 io.contexa.autoconfigure.core.infra.CoreInfrastructureExtendedAutoConfiguration
 
 # Core JPA (Repository & Entity)
-io.contexa.autoconfigure.core.CoreJpaAutoConfiguration
+io.contexa.autoconfigure.core.CoreDataAutoConfiguration
 
 # Core Session Management
 io.contexa.autoconfigure.core.session.CoreSessionAutoConfiguration
