@@ -1,22 +1,13 @@
 dependencies {
-
     api project(':contexa-autoconfigure')
     api project(':contexa-core')
     api project(':contexa-common')
     api project(':contexa-identity')
     api project(':contexa-iam')
 
-    api 'org.springframework.boot:spring-boot-starter-security'
-    api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
-    api 'org.springframework.boot:spring-boot-starter-oauth2-client'
-    api 'org.springframework.security:spring-security-oauth2-authorization-server:1.2.3'
-    api 'org.springframework.statemachine:spring-statemachine-starter:4.0.0'
-
-    api 'org.springframework.boot:spring-boot-starter-web'
-    api 'org.springframework.boot:spring-boot-starter-thymeleaf'
-    api 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
-    api 'org.springframework.boot:spring-boot-starter-data-redis'
-
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 }
 
 bootJar.enabled = false

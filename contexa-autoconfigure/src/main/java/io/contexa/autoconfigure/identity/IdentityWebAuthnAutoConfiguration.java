@@ -1,7 +1,9 @@
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcOperations;
@@ -13,6 +15,7 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 
 @Slf4j
 @AutoConfiguration
+@ConditionalOnBean(PlatformConfig.class)
 public class IdentityWebAuthnAutoConfiguration {
 
     

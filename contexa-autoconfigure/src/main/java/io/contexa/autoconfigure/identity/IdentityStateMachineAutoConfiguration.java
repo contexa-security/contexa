@@ -28,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -52,6 +53,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 @AutoConfiguration
 @EnableAsync
 @EnableConfigurationProperties(StateMachineProperties.class)
+@ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(
     prefix = "contexa.identity.statemachine",
     name = "enabled",

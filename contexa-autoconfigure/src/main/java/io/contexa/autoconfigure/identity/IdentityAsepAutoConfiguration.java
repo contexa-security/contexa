@@ -13,9 +13,11 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.boot.autoconfigure.http.HttpMessageConverters;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
@@ -27,8 +29,9 @@ import java.util.*;
 
 @AutoConfiguration
 @AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
+@ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnClass({HttpSecurity.class}) 
+@ConditionalOnClass({HttpSecurity.class})
 @Slf4j
 public class IdentityAsepAutoConfiguration {
 

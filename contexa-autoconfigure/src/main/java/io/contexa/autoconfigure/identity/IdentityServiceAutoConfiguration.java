@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -21,6 +22,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 
 @AutoConfiguration
+@ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(
     prefix = "contexa.identity.service",
     name = "enabled",

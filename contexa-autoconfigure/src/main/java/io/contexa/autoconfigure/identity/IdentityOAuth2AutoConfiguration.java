@@ -29,7 +29,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
@@ -75,6 +77,7 @@ import java.util.UUID;
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
+@ConditionalOnBean(PlatformConfig.class)
 @RequiredArgsConstructor
 public class IdentityOAuth2AutoConfiguration {
 

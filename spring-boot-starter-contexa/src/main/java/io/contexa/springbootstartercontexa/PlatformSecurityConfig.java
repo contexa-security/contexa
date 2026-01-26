@@ -1,3 +1,4 @@
+/*
 package io.contexa.springbootstartercontexa;
 
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
@@ -49,7 +50,8 @@ public class PlatformSecurityConfig {
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
                         .securityContext(sc -> sc.securityContextRepository(aiReactiveSecurityContextRepository))
-                    /*.logout(logout -> logout
+                    */
+/*.logout(logout -> logout
                             .addLogoutHandler(applicationContext.getBean("oauth2LogoutHandler", LogoutHandler.class))
                             .logoutSuccessHandler((request, response, authentication) -> {
                                 response.setStatus(HttpServletResponse.SC_OK);
@@ -58,7 +60,8 @@ public class PlatformSecurityConfig {
                             })
                             .invalidateHttpSession(false)
                             .clearAuthentication(true)
-                    )*/
+                    )*//*
+
                 ;
         };
         return registry
@@ -68,11 +71,14 @@ public class PlatformSecurityConfig {
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
 
-                /*.form(form -> form.order(50)).oauth2(Customizer.withDefaults())
+                */
+/*.form(form -> form.order(50)).oauth2(Customizer.withDefaults())
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
-                .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
-                /*.mfa(mfa -> mfa
+                .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*//*
+
+                */
+/*.mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
@@ -82,7 +88,8 @@ public class PlatformSecurityConfig {
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
                                         .passkeyChallengePages("/custom/challenge/passkey"))
                         .order(60)
-                ).oauth2(Customizer.withDefaults())*/
+                ).oauth2(Customizer.withDefaults())*//*
+
                 .build();
     }
-}
+}*/

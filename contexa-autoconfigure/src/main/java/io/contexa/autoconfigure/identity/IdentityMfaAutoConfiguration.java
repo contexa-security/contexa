@@ -27,6 +27,7 @@ import java.util.List;
 
 
 @AutoConfiguration
+@ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(
     prefix = "contexa.identity.mfa",
     name = "enabled",

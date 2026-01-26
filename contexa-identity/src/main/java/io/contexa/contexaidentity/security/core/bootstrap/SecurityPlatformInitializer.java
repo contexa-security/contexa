@@ -19,8 +19,7 @@ public class SecurityPlatformInitializer implements SecurityPlatform {
     private final SecurityConfigurerOrchestrator securityConfigurerOrchestrator;
 
     @Override
-    public void prepareGlobal(PlatformConfig config, List<?> features) {
-            }
+    public void prepareGlobal(PlatformConfig config, List<?> features) {}
 
     @Override
     public void initialize() throws Exception {

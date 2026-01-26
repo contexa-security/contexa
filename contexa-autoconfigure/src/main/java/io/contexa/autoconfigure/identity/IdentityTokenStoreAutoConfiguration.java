@@ -17,9 +17,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -29,6 +31,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 
 @Slf4j
 @AutoConfiguration
+@ConditionalOnBean(PlatformConfig.class)
 @RequiredArgsConstructor
 public class IdentityTokenStoreAutoConfiguration {
 

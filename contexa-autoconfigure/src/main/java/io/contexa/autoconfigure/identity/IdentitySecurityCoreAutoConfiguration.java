@@ -71,6 +71,7 @@ import java.util.Map;
     havingValue = "true",
     matchIfMissing = true
 )
+@ConditionalOnBean(PlatformConfig.class)
 public class IdentitySecurityCoreAutoConfiguration {
 
     public IdentitySecurityCoreAutoConfiguration() {}

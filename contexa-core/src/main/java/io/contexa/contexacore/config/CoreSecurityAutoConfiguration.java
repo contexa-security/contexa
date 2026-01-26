@@ -3,8 +3,6 @@ package io.contexa.contexacore.config;
 import io.contexa.contexacore.security.UnifiedUserDetailsService;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.properties.SecurityTrustTierProperties;
-import io.contexa.contexacommon.properties.SecurityAnomalyDetectionProperties;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

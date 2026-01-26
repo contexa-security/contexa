@@ -8,12 +8,15 @@ import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.context.annotation.Bean;
 
 
 @AutoConfiguration
+@ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnProperty(
     prefix = "contexa.identity.handler",
     name = "enabled",
