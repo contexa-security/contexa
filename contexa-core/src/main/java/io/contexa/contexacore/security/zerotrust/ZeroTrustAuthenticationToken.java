@@ -14,7 +14,6 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
     private UserSecurityContext userContext;
     private LocalDateTime lastEvaluated;
     private String sessionId;
-    private ZeroTrustSecurityService.TrustTier trustTier;
 
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
@@ -72,18 +71,5 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
 
     public void setSessionId(String sessionId) {
         this.sessionId = sessionId;
-    }
-
-    @Override
-    public String toString() {
-        return "ZeroTrustAuthenticationToken{" +
-            "principal=" + getPrincipal() +
-            ", trustScore=" + trustScore +
-            ", threatScore=" + threatScore +
-            ", trustTier=" + trustTier +
-            ", lastEvaluated=" + lastEvaluated +
-            ", sessionId=" + sessionId +
-            ", authenticated=" + isAuthenticated() +
-            '}';
     }
 }

@@ -351,25 +351,6 @@ public class ZeroTrustSecurityService {
         return threatScoreOrchestrator.getThreatScore(userId);
     }
 
-    public enum TrustTier {
-        FULL("Full Trust", 1.0),
-        HIGH("High Trust", 0.8),
-        MEDIUM("Medium Trust", 0.6),
-        LOW("Low Trust", 0.4),
-        UNTRUSTED("Untrusted", 0.0);
-
-        private final String description;
-        private final double weight;
-
-        TrustTier(String description, double weight) {
-            this.description = description;
-            this.weight = weight;
-        }
-
-        public String getDescription() { return description; }
-        public double getWeight() { return weight; }
-    }
-
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {
         if (userId == null || userId.isBlank() || redisTemplate == null) {
             return;

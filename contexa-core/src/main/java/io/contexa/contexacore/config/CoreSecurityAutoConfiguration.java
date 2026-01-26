@@ -17,10 +17,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 
 @Slf4j
 @AutoConfiguration
-@EnableConfigurationProperties({
-    SecurityTrustTierProperties.class,
-    SecurityAnomalyDetectionProperties.class
-})
 @ConditionalOnProperty(
     prefix = "contexa.core.security",
     name = "enabled",
@@ -29,8 +25,7 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 )
 public class CoreSecurityAutoConfiguration {
 
-    public CoreSecurityAutoConfiguration() {
-            }
+    public CoreSecurityAutoConfiguration() {}
 
     @Bean
     @Primary
@@ -42,20 +37,10 @@ public class CoreSecurityAutoConfiguration {
     )
     @ConditionalOnMissingBean(UserDetailsService.class)
     public UnifiedUserDetailsService unifiedUserDetailsService(
-            UserRepository userRepository,
-            SecurityTrustTierProperties trustTierProperties,
-            SecurityAnomalyDetectionProperties anomalyDetectionProperties,
-            @Autowired(required = false) RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) NotificationService notificationService,
-            AuditLogRepository auditLogRepository) {
+            UserRepository userRepository) {
 
         return new UnifiedUserDetailsService(
-                userRepository,
-                trustTierProperties,
-                anomalyDetectionProperties,
-                redisTemplate,
-                notificationService,
-                auditLogRepository
+                userRepository
         );
     }
 }

@@ -1,29 +1,23 @@
 package io.contexa.contexacore.security;
 
 import io.contexa.contexacommon.dto.UserDto;
-import io.contexa.contexacommon.entity.*;
+import io.contexa.contexacommon.entity.GroupRole;
+import io.contexa.contexacommon.entity.RolePermission;
+import io.contexa.contexacommon.entity.UserGroup;
+import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.security.authority.RoleAuthority;
-import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
-import io.contexa.contexacommon.security.TrustTier;
-import io.contexa.contexacore.autonomous.notification.NotificationService;
-import io.contexa.contexacore.autonomous.exception.AnomalyDetectedException;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RequiredArgsConstructor
