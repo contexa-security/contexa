@@ -255,7 +255,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         MfaState currentState = stateMachine.getState() != null ? stateMachine.getState().getId() : null;
 
         int timeoutSeconds = properties.getMfa().getTransitionTimeoutSeconds() != null ?
-                properties.getMfa().getTransitionTimeoutSeconds() : 5;
+                properties.getMfa().getTransitionTimeoutSeconds() : 10;
 
         log.error("[SM Internal] sendEventInternal START - Event: {}, CurrentState: {}, Session: {}",
                 event, currentState, sessionId);
