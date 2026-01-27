@@ -47,26 +47,27 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final RequestCache requestCache = new HttpSessionRequestCache();
+    private final ZeroTrustEventPublisher zeroTrustEventPublisher;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final BaselineLearningService baselineLearningService;
 
-    @Autowired(required = false)
-    private ZeroTrustEventPublisher zeroTrustEventPublisher;
+    @Value("${contexa.hcad.enable-simulated-user-agent:false}")
+    private boolean enableSimulatedUserAgent;
 
-    private RedisTemplate<String, Object> redisTemplate;
-
-    private BaselineLearningService baselineLearningService;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
                                                       MfaSessionRepository sessionRepository,
                                                       MfaStateMachineIntegrator stateMachineIntegrator,
-                                                      AuthContextProperties authContextProperties) {
+                                                      AuthContextProperties authContextProperties,
+                                                      ZeroTrustEventPublisher zeroTrustEventPublisher,
+                                                      RedisTemplate<String, Object> redisTemplate,
+                                                      BaselineLearningService baselineLearningService) {
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
-    }
-
-    @Autowired(required = false)
-    public void setBaselineLearningService(BaselineLearningService baselineLearningService) {
+        this.zeroTrustEventPublisher = zeroTrustEventPublisher;
+        this.redisTemplate = redisTemplate;
         this.baselineLearningService = baselineLearningService;
     }
 
@@ -262,13 +263,23 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     userDto.getUsername(),
                     request.getSession(false) != null ? request.getSession().getId() : null,
                     extractClientIp(request),
-                    request.getHeader("User-Agent"),
+                    extractUserAgent(request),
                     payload
             );
 
         } catch (Exception e) {
             log.error("Failed to publish authentication success event", e);
         }
+    }
+
+    private String extractUserAgent(HttpServletRequest request) {
+        if (enableSimulatedUserAgent) {
+            String simulated = request.getHeader("X-Simulated-User-Agent");
+            if (simulated != null && !simulated.isEmpty()) {
+                return simulated;
+            }
+        }
+        return request.getHeader("User-Agent");
     }
 
     protected Map<String, Object> createProgressInfo(int currentStep, int totalSteps) {
@@ -345,13 +356,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         try {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
-            redisTemplate.opsForHash().put(analysisKey, "previousAction",
-                    previousAction != null ? previousAction.toString() : "NONE");
-
+            redisTemplate.opsForHash().put(analysisKey, "previousAction", previousAction != null ? previousAction.toString() : "NONE");
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
-
             redisTemplate.expire(analysisKey, Duration.ofHours(1));
 
             learnBaselineOnMfaSuccess(userId, request);

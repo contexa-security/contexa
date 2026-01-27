@@ -103,7 +103,7 @@ public class ZeroTrustSecurityService {
             invalidationRecord.put("timestamp", System.currentTimeMillis());
 
             redisTemplate.opsForValue().set(invalidKey, invalidationRecord,
-                Duration.ofHours(cacheTtlHours));
+                    Duration.ofHours(cacheTtlHours));
 
             if (sessionTrackingEnabled && userId != null) {
                 removeUserSession(userId, sessionId);
@@ -150,7 +150,7 @@ public class ZeroTrustSecurityService {
 
     private String getLatestAction(String userId) {
         try {
-            
+
             String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
             Boolean isBlocked = (Boolean) redisTemplate.opsForValue().get(blockKey);
             if (Boolean.TRUE.equals(isBlocked)) {
@@ -160,14 +160,14 @@ public class ZeroTrustSecurityService {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Object action = redisTemplate.opsForHash().get(analysisKey, "action");
             if (action != null) {
-                                return action.toString();
+                return action.toString();
             }
 
-                        return "PENDING_ANALYSIS";
+            return "PENDING_ANALYSIS";
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to get action for user: {}", userId, e);
-            
+
             return "PENDING_ANALYSIS";
         }
     }
@@ -179,7 +179,7 @@ public class ZeroTrustSecurityService {
         }
 
         Collection<? extends GrantedAuthority> currentAuthorities = auth.getAuthorities();
-        
+
         Set<GrantedAuthority> adjustedAuthorities = new HashSet<>();
 
         switch (action) {
@@ -187,7 +187,7 @@ public class ZeroTrustSecurityService {
                 Object principal = auth.getPrincipal();
                 if (principal instanceof UnifiedCustomUserDetails userDetails) {
                     adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
-                                    } else {
+                } else {
                     adjustedAuthorities.addAll(currentAuthorities);
                 }
             }
@@ -207,7 +207,7 @@ public class ZeroTrustSecurityService {
                     adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
                 }
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
-                            }
+            }
             default -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));
@@ -220,11 +220,11 @@ public class ZeroTrustSecurityService {
             double threatScore = threatScoreOrchestrator.getThreatScore(userId);
 
             Authentication adjustedAuth = new ZeroTrustAuthenticationToken(
-                auth.getPrincipal(),
-                auth.getCredentials(),
-                adjustedAuthorities,
-                trustScore,
-                threatScore
+                    auth.getPrincipal(),
+                    auth.getCredentials(),
+                    adjustedAuthorities,
+                    trustScore,
+                    threatScore
             );
             context.setAuthentication(adjustedAuth);
         }
@@ -267,27 +267,27 @@ public class ZeroTrustSecurityService {
 
     private UserSecurityContext createInitialUserContext(String userId, String sessionId) {
         UserSecurityContext context = UserSecurityContext.builder()
-            .userId(userId)
-            .currentThreatScore(initialThreatScore)
-            .createdAt(LocalDateTime.now())
-            .updatedAt(LocalDateTime.now())
-            .build();
+                .userId(userId)
+                .currentThreatScore(initialThreatScore)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
 
         if (sessionId != null) {
-            
+
             UserSecurityContext.SessionContext sessionContext = UserSecurityContext.SessionContext.builder()
-                .sessionId(sessionId)
-                .startTime(LocalDateTime.now())
-                .lastAccessTime(LocalDateTime.now())
-                .active(true)
-                .build();
+                    .sessionId(sessionId)
+                    .startTime(LocalDateTime.now())
+                    .lastAccessTime(LocalDateTime.now())
+                    .active(true)
+                    .build();
             context.addSession(sessionContext);
         }
 
         try {
             String contextKey = ZeroTrustRedisKeys.userContext(userId);
             redisTemplate.opsForValue().set(contextKey, context,
-                Duration.ofHours(cacheTtlHours));
+                    Duration.ofHours(cacheTtlHours));
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to save initial user context for: {}", userId, e);
         }
@@ -303,7 +303,7 @@ public class ZeroTrustSecurityService {
 
             String sessionUserKey = ZeroTrustRedisKeys.sessionUser(sessionId);
             redisTemplate.opsForValue().set(sessionUserKey, userId,
-                Duration.ofHours(cacheTtlHours));
+                    Duration.ofHours(cacheTtlHours));
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to track user session: {} -> {}", userId, sessionId, e);
@@ -330,8 +330,8 @@ public class ZeroTrustSecurityService {
 
             if (sessions != null) {
                 return sessions.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.toSet());
+                        .map(Object::toString)
+                        .collect(Collectors.toSet());
             }
 
         } catch (Exception e) {
@@ -370,13 +370,13 @@ public class ZeroTrustSecurityService {
 
     private void learnBaselineOnMfaSuccess(String userId, HttpServletRequest request) {
         if (baselineLearningService == null) {
-                        return;
+            return;
         }
         try {
             SecurityDecision decision = SecurityDecision.builder()
                     .action(SecurityDecision.Action.ALLOW)
-                    .confidence(1.0)  
-                    .riskScore(0.0)   
+                    .confidence(1.0)
+                    .riskScore(0.0)
                     .reasoning("MFA authentication completed successfully")
                     .build();
 
@@ -395,12 +395,12 @@ public class ZeroTrustSecurityService {
             boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
 
             if (learned) {
-                            } else {
-                            }
+            } else {
+            }
 
         } catch (Exception e) {
             log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
-            
+
         }
     }
 
@@ -408,7 +408,7 @@ public class ZeroTrustSecurityService {
                                                    Authentication authentication) {
         try {
             if (zeroTrustEventPublisher == null) {
-                                return;
+                return;
             }
 
             UnifiedCustomUserDetails userDto = (UnifiedCustomUserDetails) authentication.getPrincipal();
@@ -430,7 +430,7 @@ public class ZeroTrustSecurityService {
             log.error("Failed to publish authentication success event", e);
         }
     }
-    
+
     protected String extractClientIp(HttpServletRequest request) {
         String remoteAddr = request.getRemoteAddr();
 
@@ -444,20 +444,20 @@ public class ZeroTrustSecurityService {
         List<String> trustedProxies = security.getTrustedProxies();
 
         if (trustedProxies == null || trustedProxies.isEmpty()) {
-                        return remoteAddr;
+            return remoteAddr;
         }
 
         if (isTrustedProxy(remoteAddr, trustedProxies)) {
-            
+
             String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
                 String clientIp = xForwardedFor.split(",")[0].trim();
-                                return clientIp;
+                return clientIp;
             }
 
             String xRealIp = request.getHeader("X-Real-IP");
             if (xRealIp != null && !xRealIp.isEmpty()) {
-                                return xRealIp;
+                return xRealIp;
             }
         } else {
 
@@ -495,12 +495,12 @@ public class ZeroTrustSecurityService {
 
             try {
                 if (trusted.contains("/")) {
-                    
+
                     if (isIpInCidr(ip, trusted)) {
                         return true;
                     }
                 } else {
-                    
+
                     if (trusted.equals(ip)) {
                         return true;
                     }
@@ -551,7 +551,7 @@ public class ZeroTrustSecurityService {
 
             return true;
         } catch (Exception e) {
-                        return false;
+            return false;
         }
     }
 
@@ -559,7 +559,7 @@ public class ZeroTrustSecurityService {
         if (enableSimulatedUserAgent) {
             String simulated = request.getHeader("X-Simulated-User-Agent");
             if (simulated != null && !simulated.isEmpty()) {
-                                return simulated;
+                return simulated;
             }
         }
         return request.getHeader("User-Agent");

@@ -46,7 +46,10 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private final AuthUrlProvider authUrlProvider;
     private final ApplicationContext applicationContext;
 
-    public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, TokenService tokenService, AuthResponseWriter responseWriter, AuthContextProperties authContextProperties, ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator, MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider) {
+    public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, TokenService tokenService,
+                                               AuthResponseWriter responseWriter, AuthContextProperties authContextProperties,
+                                               ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator,
+                                               MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
