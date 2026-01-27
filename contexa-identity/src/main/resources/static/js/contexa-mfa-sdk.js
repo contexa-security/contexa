@@ -180,11 +180,13 @@
 
             // P1 수정: 서버 MfaStateMachineConfiguration과 완전히 일치
             // Legacy mfa-state-tracker.js:40-50 기반
+            // Synchronized with server MfaState.java and MfaStateMachineConfiguration.java
             this.validTransitions = {
                 'NONE': ['PRIMARY_AUTHENTICATION_COMPLETED'],
                 'PRIMARY_AUTHENTICATION_COMPLETED': [
                     'MFA_NOT_REQUIRED',
                     'AWAITING_FACTOR_SELECTION',
+                    'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION',  // INITIATE_CHALLENGE_AUTO
                     'MFA_SYSTEM_ERROR'
                 ],
                 'AWAITING_FACTOR_SELECTION': [
@@ -194,21 +196,19 @@
                     'MFA_SYSTEM_ERROR'
                 ],
                 'AWAITING_FACTOR_CHALLENGE_INITIATION': [
-                    'FACTOR_CHALLENGE_INITIATED',
                     'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION',
                     'MFA_CANCELLED',
-                    'MFA_SESSION_EXPIRED'
+                    'MFA_SESSION_EXPIRED',
+                    'MFA_SYSTEM_ERROR'
                 ],
                 'FACTOR_CHALLENGE_INITIATED': [
-                    'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION',
-                    'MFA_CANCELLED',
-                    'MFA_SESSION_EXPIRED'
+                    'MFA_SYSTEM_ERROR'
                 ],
                 'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION': [
                     'FACTOR_VERIFICATION_PENDING',
+                    'AWAITING_FACTOR_SELECTION',  // CHALLENGE_TIMEOUT
                     'MFA_CANCELLED',
-                    'MFA_SESSION_EXPIRED',
-                    'AWAITING_FACTOR_SELECTION'
+                    'MFA_SESSION_EXPIRED'
                 ],
                 'FACTOR_VERIFICATION_PENDING': [
                     'FACTOR_VERIFICATION_COMPLETED',
@@ -218,7 +218,9 @@
                 ],
                 'FACTOR_VERIFICATION_COMPLETED': [
                     'ALL_FACTORS_COMPLETED',
-                    'AWAITING_FACTOR_SELECTION'
+                    'AWAITING_FACTOR_SELECTION',
+                    'AWAITING_FACTOR_CHALLENGE_INITIATION',
+                    'FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION'  // INITIATE_CHALLENGE_AUTO
                 ],
                 'ALL_FACTORS_COMPLETED': ['MFA_SUCCESSFUL'],
                 'MFA_RETRY_LIMIT_EXCEEDED': ['MFA_FAILED_TERMINAL']
@@ -304,12 +306,12 @@
         /**
          * P2 추가: 처리 중 상태 확인
          * Legacy: mfa-state-tracker.js:78-83
-         * 서버 MfaState.isProcessing()과 일치
+         * Synchronized with server MfaState.isProcessing()
          */
         isProcessing() {
             return this.currentState === 'AWAITING_FACTOR_CHALLENGE_INITIATION' ||
-                this.currentState === 'FACTOR_VERIFICATION_PENDING' ||
-                this.currentState === 'PRIMARY_AUTHENTICATION_COMPLETED';
+                this.currentState === 'FACTOR_CHALLENGE_INITIATED' ||
+                this.currentState === 'FACTOR_VERIFICATION_PENDING';
         }
 
         /**

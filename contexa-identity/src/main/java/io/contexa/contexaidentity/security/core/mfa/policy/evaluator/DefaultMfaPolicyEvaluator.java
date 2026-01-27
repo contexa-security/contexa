@@ -94,36 +94,20 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
     }
 
     private boolean evaluateMfaRequirement(Users user, FactorContext context) {
-
         String flowType = context.getFlowTypeName();
         boolean isMfaFlow = isMfaFlowType(flowType);
 
         if (!user.isMfaEnabled()) {
-
             if (!isMfaFlow) {
                 return false;
             }
         }
+
         if (isMfaFlow) {
             return true;
         }
 
-        Boolean mfaRequiredFlag = (Boolean) context.getAttribute("mfaRequired");
-        if (Boolean.TRUE.equals(mfaRequiredFlag)) {
-            return true;
-        }
-
         if (isAdminUser(user)) {
-            return true;
-        }
-
-        Boolean stepUpRequired = (Boolean) context.getAttribute("stepUpRequired");
-        if (Boolean.TRUE.equals(stepUpRequired)) {
-            return true;
-        }
-
-        String securityLevel = (String) context.getAttribute("transactionSecurityLevel");
-        if ("HIGH".equalsIgnoreCase(securityLevel) || "CRITICAL".equalsIgnoreCase(securityLevel)) {
             return true;
         }
 

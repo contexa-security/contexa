@@ -83,11 +83,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
                 if (Boolean.TRUE.equals(isChallengeSession)) {
                     if (!existingContext.getCurrentState().isTerminal()) {
                         String mfaPageUrl = buildMfaPageUrl(existingContext, request);
-//                        if (isHtmlAccepted(request)) {
+                        if (isHtmlAccepted(request)) {
                             handleBrowserRequest(response, mfaPageUrl);
-//                        } else {
-//                            handleApiRequest(response, request, existingContext, mfaPageUrl);
-//                        }
+                        } else {
+                            handleApiRequest(response, request, existingContext, mfaPageUrl);
+                        }
                         return;
                     }
                     stateMachineIntegrator.cleanupSession(request, response);
@@ -104,11 +104,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
             String mfaPageUrl = buildMfaPageUrl(context, request);
 
-//            if (isHtmlAccepted(request)) {
+            if (isHtmlAccepted(request)) {
                 handleBrowserRequest(response, mfaPageUrl);
-//            } else {
-//                handleApiRequest(response, request, context, mfaPageUrl);
-//            }
+            } else {
+                handleApiRequest(response, request, context, mfaPageUrl);
+            }
 
         } catch (ChallengeMfaInitializer.ChallengeMfaInitializationException e) {
             log.error("Failed to initialize challenge MFA flow: {}", e.getMessage());

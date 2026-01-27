@@ -45,8 +45,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String requestUri = normalizeUri(request);
 
         if (isPrimaryAuthPage(requestUri)) {
-            handlePrimaryAuthPage(request, response);
-            return;
+            if ("GET".equalsIgnoreCase(request.getMethod())) {
+                handlePrimaryAuthPage(request, response);
+                return;
+            }
         }
 
         if (isSelectFactorPage(requestUri)) {

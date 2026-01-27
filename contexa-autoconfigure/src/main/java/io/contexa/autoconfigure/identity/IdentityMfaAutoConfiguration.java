@@ -16,6 +16,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.List;
 
@@ -40,8 +41,9 @@ public class IdentityMfaAutoConfiguration {
     @ConditionalOnMissingBean
     public ZeroTrustPolicyEvaluator zeroTrustPolicyEvaluator(
             UserRepository userRepository,
-            ApplicationContext applicationContext) {
-        return new ZeroTrustPolicyEvaluator(userRepository, applicationContext);
+            ApplicationContext applicationContext,
+            RedisTemplate<String, Object> redisTemplate) {
+        return new ZeroTrustPolicyEvaluator(userRepository, applicationContext, redisTemplate);
     }
 
     @Bean
