@@ -12,29 +12,25 @@ import org.springframework.security.web.webauthn.management.JdbcUserCredentialRe
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
 
-
 @Slf4j
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
 public class IdentityWebAuthnAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean(PublicKeyCredentialUserEntityRepository.class)
     public PublicKeyCredentialUserEntityRepository publicKeyCredentialUserEntityRepository(
             JdbcOperations jdbcOperations) {
-                return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
+        return new JdbcPublicKeyCredentialUserEntityRepository(jdbcOperations);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(UserCredentialRepository.class)
     public UserCredentialRepository userCredentialRepository(
             JdbcOperations jdbcOperations) {
-                return new JdbcUserCredentialRepository(jdbcOperations);
+        return new JdbcUserCredentialRepository(jdbcOperations);
     }
 
-    
     public IdentityWebAuthnAutoConfiguration() {
-                                    }
+    }
 }

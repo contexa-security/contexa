@@ -116,7 +116,7 @@ public class ChallengeMfaInitializer {
                 // Fallback: manually set availableFactors from MFA flow config
                 log.warn("Could not load updated context from state machine, setting availableFactors manually for session: {}", mfaSessionId);
                 AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();
-                if (mfaFlow != null && mfaFlow.getRegisteredFactorOptions() != null) {
+                if (mfaFlow != null) {
                     Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlow.getRegisteredFactorOptions().keySet());
                     context.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
                 }
@@ -150,8 +150,7 @@ public class ChallengeMfaInitializer {
 
         return MfaDecision.builder()
                 .required(true)
-                .factorCount(1)
-                .type(MfaDecision.DecisionType.AI_ADAPTIVE_MFA)
+                .type(MfaDecision.DecisionType.CHALLENGED)
                 .reason("Zero Trust CHALLENGE action requires additional verification")
                 .metadata(Map.of(
                         "challengeFlow", true,

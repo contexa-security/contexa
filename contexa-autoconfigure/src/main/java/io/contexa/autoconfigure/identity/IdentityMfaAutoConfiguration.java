@@ -5,15 +5,10 @@ import io.contexa.contexaidentity.security.core.bootstrap.configurer.MfaPageGene
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.AIAdaptiveMfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.DefaultMfaPolicyProvider;
-import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.*;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.service.MfaSupportService;
-import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacore.autonomous.notification.NotificationService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -21,7 +16,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.List;
 
@@ -43,21 +37,11 @@ public class IdentityMfaAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(AICoreOperations.class)
-    @ConditionalOnMissingBean
-    public AIAdaptivePolicyEvaluator aiAdaptivePolicyEvaluator(
-            AICoreOperations aiCoreOperations) {
-        return new AIAdaptivePolicyEvaluator(aiCoreOperations);
-    }
-
-    @Bean
-    @ConditionalOnBean(name = "trustScoreRedisTemplate")
     @ConditionalOnMissingBean
     public ZeroTrustPolicyEvaluator zeroTrustPolicyEvaluator(
-            @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
-            @Autowired(required = false) NotificationService notificationService,
-            AuditLogRepository auditLogRepository) {
-        return new ZeroTrustPolicyEvaluator(redisTemplate, notificationService, auditLogRepository);
+            UserRepository userRepository,
+            ApplicationContext applicationContext) {
+        return new ZeroTrustPolicyEvaluator(userRepository, applicationContext);
     }
 
     @Bean

@@ -68,7 +68,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!hasAuthority(auth, ROLE_MFA_REQUIRED)) {
+        if (!hasAuthority(auth)) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -83,11 +83,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
                 if (Boolean.TRUE.equals(isChallengeSession)) {
                     if (!existingContext.getCurrentState().isTerminal()) {
                         String mfaPageUrl = buildMfaPageUrl(existingContext, request);
-                        if (isHtmlAccepted(request)) {
+//                        if (isHtmlAccepted(request)) {
                             handleBrowserRequest(response, mfaPageUrl);
-                        } else {
-                            handleApiRequest(response, request, existingContext, mfaPageUrl);
-                        }
+//                        } else {
+//                            handleApiRequest(response, request, existingContext, mfaPageUrl);
+//                        }
                         return;
                     }
                     stateMachineIntegrator.cleanupSession(request, response);
@@ -104,11 +104,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
             String mfaPageUrl = buildMfaPageUrl(context, request);
 
-            if (isHtmlAccepted(request)) {
+//            if (isHtmlAccepted(request)) {
                 handleBrowserRequest(response, mfaPageUrl);
-            } else {
-                handleApiRequest(response, request, context, mfaPageUrl);
-            }
+//            } else {
+//                handleApiRequest(response, request, context, mfaPageUrl);
+//            }
 
         } catch (ChallengeMfaInitializer.ChallengeMfaInitializationException e) {
             log.error("Failed to initialize challenge MFA flow: {}", e.getMessage());
@@ -192,13 +192,13 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         );
     }
 
-    private boolean hasAuthority(Authentication auth, String authority) {
+    private boolean hasAuthority(Authentication auth) {
         if (auth.getAuthorities() == null) {
             return false;
         }
         return auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .anyMatch(authority::equals);
+                .anyMatch(ZeroTrustChallengeFilter.ROLE_MFA_REQUIRED::equals);
     }
 
     private boolean isHtmlAccepted(HttpServletRequest request) {

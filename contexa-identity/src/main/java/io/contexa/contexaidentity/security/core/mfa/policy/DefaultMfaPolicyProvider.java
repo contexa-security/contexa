@@ -72,16 +72,12 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
         String sessionId = ctx.getMfaSessionId();
 
-        MfaDecision decision = evaluatePolicy(ctx);
-
-        return decision;
+        return evaluatePolicy(ctx);
     }
 
     protected MfaDecision evaluatePolicy(FactorContext ctx) {
-        
-        MfaDecision decision = policyEvaluator.evaluatePolicy(ctx);
 
-        return decision;
+        return policyEvaluator.evaluatePolicy(ctx);
     }
 
     @Override

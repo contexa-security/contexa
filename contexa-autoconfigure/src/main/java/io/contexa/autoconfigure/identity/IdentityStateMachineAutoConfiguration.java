@@ -26,7 +26,6 @@ import io.contexa.contexaidentity.security.statemachine.monitoring.MfaStateMachi
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
-import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -35,7 +34,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
-import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.statemachine.config.StateMachineFactory;
@@ -48,109 +46,86 @@ import org.springframework.statemachine.persist.StateMachinePersister;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
-
 @Slf4j
 @AutoConfiguration
 @EnableAsync
 @EnableConfigurationProperties(StateMachineProperties.class)
 @ConditionalOnBean(PlatformConfig.class)
-@ConditionalOnProperty(
-    prefix = "contexa.identity.statemachine",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.identity.statemachine", name = "enabled", havingValue = "true", matchIfMissing = true)
 @Import({
-    MfaStateMachineConfiguration.class
+        MfaStateMachineConfiguration.class
 })
-public class IdentityStateMachineAutoConfiguration{
+public class IdentityStateMachineAutoConfiguration {
 
-    public IdentityStateMachineAutoConfiguration() {}
+    public IdentityStateMachineAutoConfiguration() {
+    }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public InitializeMfaAction initializeMfaAction(PlatformConfig platformConfig) {
         return new InitializeMfaAction(platformConfig);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SelectFactorAction selectFactorAction() {
         return new SelectFactorAction();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public InitiateChallengeAction initiateChallengeAction() {
         return new InitiateChallengeAction();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public VerifyFactorAction verifyFactorAction(PlatformConfig platformConfig) {
         return new VerifyFactorAction(platformConfig);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public DetermineNextFactorAction determineNextFactorAction(MfaPolicyProvider policyProvider) {
         return new DetermineNextFactorAction(policyProvider);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public HandleFailureAction handleFailureAction() {
         return new HandleFailureAction();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public CompleteMfaAction completeMfaAction() {
         return new CompleteMfaAction();
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public AllFactorsCompletedGuard allFactorsCompletedGuard(MfaPolicyProvider policyProvider) {
         return new AllFactorsCompletedGuard(policyProvider);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public BlockedUserGuard blockedUserGuard() {
         return new BlockedUserGuard();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public RetryLimitGuard retryLimitGuard() {
         return new RetryLimitGuard();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public FactorSelectionTimeoutGuard factorSelectionTimeoutGuard() {
         return new FactorSelectionTimeoutGuard();
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public MfaStateMachineService mfaStateMachineService(
@@ -159,13 +134,9 @@ public class IdentityStateMachineAutoConfiguration{
             RedissonClient redissonClient,
             StateMachineProperties properties) {
         return new MfaStateMachineServiceImpl(
-            stateMachineFactory, stateMachinePersister, redissonClient, properties
-        );
+                stateMachineFactory, stateMachinePersister, redissonClient, properties);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public MfaStateMachineMonitorService mfaStateMachineMonitorService(
@@ -174,22 +145,13 @@ public class IdentityStateMachineAutoConfiguration{
         return new MfaStateMachineMonitorServiceImpl(meterRegistry, eventPublisher);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.identity.statemachine",
-        name = "alert-enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.identity.statemachine", name = "alert-enabled", havingValue = "true", matchIfMissing = true)
     public AlertEventListener alertEventListener() {
         return new AlertEventListener();
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public MfaStateMachineIntegrator mfaStateMachineIntegrator(
@@ -199,80 +161,65 @@ public class IdentityStateMachineAutoConfiguration{
         return new MfaStateMachineIntegrator(mfaStateMachineService, mfaSessionRepository, authContextProperties);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public InMemoryStateMachinePersist inMemoryStateMachinePersist() {
         return new InMemoryStateMachinePersist();
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(
             RedisStateMachineRepository redisStateMachineRepository) {
-        MfaKryoStateMachineSerialisationService kryoStateMachineSerialisationService =
-                new MfaKryoStateMachineSerialisationService();
-                return new RedisRepositoryStateMachinePersist(redisStateMachineRepository, kryoStateMachineSerialisationService);
+        MfaKryoStateMachineSerialisationService kryoStateMachineSerialisationService = new MfaKryoStateMachineSerialisationService();
+        return new RedisRepositoryStateMachinePersist(redisStateMachineRepository,
+                kryoStateMachineSerialisationService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @SuppressWarnings({"rawtypes"})
+    @SuppressWarnings({ "rawtypes" })
     public StateMachinePersister<MfaState, MfaEvent, String> stateMachineRuntimePersister(
             RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist) {
-        RedisPersistingStateMachineInterceptor<MfaState, MfaEvent, Object> stateMachineInterceptor
-                = new RedisPersistingStateMachineInterceptor<>(stateMachinePersist);
-                return new DefaultStateMachinePersister(stateMachineInterceptor);
+        RedisPersistingStateMachineInterceptor<MfaState, MfaEvent, Object> stateMachineInterceptor = new RedisPersistingStateMachineInterceptor<>(
+                stateMachinePersist);
+        return new DefaultStateMachinePersister(stateMachineInterceptor);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public MfaEventPublisher mfaEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-                return new MfaEventPublisher(applicationEventPublisher);
+        return new MfaEventPublisher(applicationEventPublisher);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "spring.auth.mfa", name = "metrics-enabled", havingValue = "true", matchIfMissing = true)
     public MfaStateChangeListener mfaStateChangeListener() {
-                return new MfaStateChangeListener();
+        return new MfaStateChangeListener();
     }
 
-    
-
-    
     @Bean(name = "mfaEventExecutor")
     @ConditionalOnMissingBean(name = "mfaEventExecutor")
     public Executor mfaEventExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
 
-        
         executor.setCorePoolSize(10);
         executor.setMaxPoolSize(50);
         executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("mfa-event-");
 
-        
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
 
-        
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
 
         executor.initialize();
 
-        
         return executor;
     }
 
-    
     @Bean(name = "monitoringExecutor")
     @ConditionalOnMissingBean(name = "monitoringExecutor")
     public Executor monitoringExecutor() {
@@ -285,7 +232,6 @@ public class IdentityStateMachineAutoConfiguration{
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardPolicy());
         executor.initialize();
 
-        
         return executor;
     }
 }

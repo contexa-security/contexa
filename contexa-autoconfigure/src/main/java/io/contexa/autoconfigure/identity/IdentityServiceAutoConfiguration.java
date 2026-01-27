@@ -6,8 +6,6 @@ import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.InMemoryCodeStore;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
-import io.contexa.contexacommon.repository.UserRepository;
-import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -20,40 +18,26 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.authentication.ott.OneTimeTokenService;
 import org.springframework.transaction.support.TransactionTemplate;
 
-
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
-@ConditionalOnProperty(
-    prefix = "contexa.identity.service",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.identity.service", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IdentityServiceAutoConfiguration {
 
     public IdentityServiceAutoConfiguration() {
-        
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public AuthUrlProvider authUrlProvider(AuthContextProperties properties) {
         return new AuthUrlProvider(properties);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public EmailService emailService(@Autowired(required = false) JavaMailSender mailSender) {
         return new EmailService(mailSender);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(OneTimeTokenService.class)
     public OneTimeTokenService oneTimeTokenService(
@@ -62,21 +46,18 @@ public class IdentityServiceAutoConfiguration {
             TransactionTemplate transactionTemplate,
             AuthContextProperties authContextProperties) {
         return new EmailOneTimeTokenService(
-            emailService,
-            jdbcTemplate,
-            transactionTemplate,
-            authContextProperties
-        );
+                emailService,
+                jdbcTemplate,
+                transactionTemplate,
+                authContextProperties);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public MagicLinkHandler magicLinkHandler() {
         return new MagicLinkHandler();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public InMemoryCodeStore inMemoryCodeStore() {

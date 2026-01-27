@@ -8,16 +8,16 @@ import java.util.*;
 
 @Slf4j
 public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
-    
+
     private final List<MfaPolicyEvaluator> evaluators;
     private String lastUsedEvaluatorName = "None";
 
     public CompositeMfaPolicyEvaluator(List<MfaPolicyEvaluator> evaluators) {
-        
+
         this.evaluators = evaluators.stream()
-            .filter(e -> !(e instanceof CompositeMfaPolicyEvaluator))
-            .sorted(Comparator.comparingInt(MfaPolicyEvaluator::getPriority).reversed())
-            .toList();
+                .filter(e -> !(e instanceof CompositeMfaPolicyEvaluator))
+                .sorted(Comparator.comparingInt(MfaPolicyEvaluator::getPriority).reversed())
+                .toList();
 
         this.evaluators.forEach(e ->
                 log.info("  - {} (priority: {}, available: {})",
@@ -29,12 +29,12 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     public MfaDecision evaluatePolicy(FactorContext context) {
 
         Optional<MfaPolicyEvaluator> selectedEvaluator = findSuitableEvaluator(context);
-        
+
         if (selectedEvaluator.isPresent()) {
             MfaPolicyEvaluator evaluator = selectedEvaluator.get();
 
             lastUsedEvaluatorName = evaluator.getName();
-            
+
             try {
                 MfaDecision decision = evaluator.evaluatePolicy(context);
 
@@ -45,11 +45,11 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 updatedMetadata.put("evaluator", evaluator.getName());
 
                 return decision.toBuilder()
-                    .metadata(updatedMetadata)
-                    .build();
+                        .metadata(updatedMetadata)
+                        .build();
             } catch (Exception e) {
                 log.error("Error in evaluator {}: {}", evaluator.getName(), e.getMessage());
-                
+
                 return fallbackEvaluation(context, evaluator);
             }
         }
@@ -59,14 +59,13 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     private Optional<MfaPolicyEvaluator> findSuitableEvaluator(FactorContext context) {
-        
+
         for (MfaPolicyEvaluator evaluator : evaluators) {
             if (evaluator.supports(context)) {
-                                return Optional.of(evaluator);
-            } else {
-                            }
+                return Optional.of(evaluator);
+            }
         }
-        
+
         return Optional.empty();
     }
 
@@ -79,43 +78,43 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 skipNext = false;
                 continue;
             }
-            
+
             if (skipNext) {
                 continue;
             }
-            
+
             if (evaluator.supports(context)) {
                 try {
-                                        return evaluator.evaluatePolicy(context);
+                    return evaluator.evaluatePolicy(context);
                 } catch (Exception e) {
-                    log.error("Fallback evaluator {} also failed: {}", 
-                        evaluator.getName(), e.getMessage());
+                    log.error("Fallback evaluator {} also failed: {}",
+                            evaluator.getName(), e.getMessage());
                 }
             }
         }
 
         log.error("All evaluators failed, returning conservative decision");
-        return MfaDecision.standardMfa(2);
+        return MfaDecision.challenged("All evaluators failed, conservative MFA required");
     }
-    
+
     @Override
     public boolean supports(FactorContext context) {
-        
+
         return true;
     }
-    
+
     @Override
     public boolean isAvailable() {
-        
+
         return evaluators.stream().anyMatch(MfaPolicyEvaluator::isAvailable);
     }
-    
+
     @Override
     public int getPriority() {
-        
+
         return Integer.MAX_VALUE;
     }
-    
+
     @Override
     public String getName() {
         return "CompositeMfaPolicyEvaluator";
@@ -126,9 +125,9 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     public void logEvaluatorStatus() {
-                for (MfaPolicyEvaluator evaluator : evaluators) {
-                    }
-            }
+        for (MfaPolicyEvaluator evaluator : evaluators) {
+        }
+    }
 
     public String getLastUsedEvaluatorName() {
         return lastUsedEvaluatorName;

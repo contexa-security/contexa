@@ -47,23 +47,21 @@ public class MfaDecision implements Serializable {
     private final long decisionTime = System.currentTimeMillis();
 
     public enum DecisionType {
-        
+
         NO_MFA_REQUIRED("MFA not required"),
 
-        STANDARD_MFA("Standard MFA required"),
+        CHALLENGED("MFA challenge required"),
 
-        STRONG_MFA("Strong MFA required"),
+        BLOCKED("Access blocked"),
 
-        AI_ADAPTIVE_MFA("AI adaptive MFA"),
-
-        BLOCKED("Access blocked");
+        ESCALATED("Escalated - access blocked");
 
         private final String description;
-        
+
         DecisionType(String description) {
             this.description = description;
         }
-        
+
         public String getDescription() {
             return description;
         }
@@ -78,22 +76,22 @@ public class MfaDecision implements Serializable {
             .build();
     }
 
-    public static MfaDecision standardMfa(int factorCount) {
+    public static MfaDecision challenged(String reason) {
         return MfaDecision.builder()
             .required(true)
-            .factorCount(factorCount)
-            .type(DecisionType.STANDARD_MFA)
-            .reason("Standard MFA policy applied")
+            .factorCount(1)
+            .type(DecisionType.CHALLENGED)
+            .reason(Objects.requireNonNullElse(reason, "MFA challenge required"))
             .build();
     }
 
-    public static MfaDecision strongMfa(int factorCount, List<AuthType> requiredFactors) {
+    public static MfaDecision challenged(String reason, List<AuthType> requiredFactors) {
         return MfaDecision.builder()
             .required(true)
-            .factorCount(Math.max(2, factorCount))
-            .type(DecisionType.STRONG_MFA)
+            .factorCount(requiredFactors != null ? requiredFactors.size() : 1)
+            .type(DecisionType.CHALLENGED)
             .requiredFactors(requiredFactors != null ? List.copyOf(requiredFactors) : Collections.emptyList())
-            .reason("Strong MFA required due to elevated risk")
+            .reason(Objects.requireNonNullElse(reason, "MFA challenge required"))
             .build();
     }
 
@@ -110,38 +108,33 @@ public class MfaDecision implements Serializable {
             .build();
     }
 
-    public static MfaDecision fromAiAssessment(
-            boolean required,
-            int factorCount,
-            double riskScore,
-            Map<String, Object> aiMetadata) {
-        
-        DecisionType type;
-        if (!required) {
-            type = DecisionType.NO_MFA_REQUIRED;
-        } else if (riskScore > 0.9) {
-            type = DecisionType.BLOCKED;
-        } else if (riskScore > 0.7) {
-            type = DecisionType.STRONG_MFA;
-        } else {
-            type = DecisionType.AI_ADAPTIVE_MFA;
-        }
-        
+    public static MfaDecision escalated(String reason) {
         return MfaDecision.builder()
-            .required(required)
-            .factorCount(factorCount)
-            .type(type)
-            .metadata(aiMetadata)
-            .reason("AI risk assessment score: " + riskScore)
+            .required(false)
+            .factorCount(0)
+            .type(DecisionType.ESCALATED)
+            .reason(Objects.requireNonNullElse(reason, "Access escalated - blocked"))
+            .metadata(Map.of(
+                "escalated", true,
+                "blockReason", Objects.requireNonNullElse(reason, "Security escalation")
+            ))
             .build();
+    }
+
+    public boolean isAllowed() {
+        return type == DecisionType.NO_MFA_REQUIRED;
+    }
+
+    public boolean isChallenged() {
+        return type == DecisionType.CHALLENGED;
     }
 
     public boolean isBlocked() {
         return type == DecisionType.BLOCKED;
     }
 
-    public boolean isStrongMfaRequired() {
-        return type == DecisionType.STRONG_MFA || factorCount >= 2;
+    public boolean isEscalated() {
+        return type == DecisionType.ESCALATED;
     }
 
     @SuppressWarnings("unchecked")

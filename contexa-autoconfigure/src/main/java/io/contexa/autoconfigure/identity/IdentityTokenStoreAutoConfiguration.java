@@ -17,17 +17,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
-
 
 @Slf4j
 @AutoConfiguration
@@ -40,7 +39,6 @@ public class IdentityTokenStoreAutoConfiguration {
     @Value("${spring.auth.enhanced-security:false}")
     private boolean enhancedSecurityEnabled;
 
-    
     @Bean
     @ConditionalOnMissingBean(RefreshTokenStore.class)
     public RefreshTokenStore refreshTokenStore(
@@ -54,12 +52,10 @@ public class IdentityTokenStoreAutoConfiguration {
 
         TokenStoreType storeType = authContextProperties.getTokenStoreType();
 
-        
         if (storeType == TokenStoreType.MEMORY) {
-                        return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
+            return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
         }
 
-        
         if (storeType == TokenStoreType.REDIS) {
             if (redisTemplate == null) {
                 log.warn("REDIS token store is configured but Redis is not available. " +
@@ -70,16 +66,13 @@ public class IdentityTokenStoreAutoConfiguration {
             return new RedisRefreshTokenStore(
                     redisTemplate, jwtDecoder, authContextProperties,
                     lockService, eventPublisher,
-                    tokenChainManager, anomalyDetector, managementService
-            );
+                    tokenChainManager, anomalyDetector, managementService);
         }
 
-        
         log.warn("Unknown token store type: {}. Using default MEMORY store.", storeType);
         return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
     }
 
-    
     @Bean
     @ConditionalOnClass(RedisTemplate.class)
     @ConditionalOnMissingBean(RedisDistributedLockService.class)
@@ -92,7 +85,6 @@ public class IdentityTokenStoreAutoConfiguration {
         return null;
     }
 
-    
     @Bean
     @ConditionalOnProperty(name = "spring.auth.enhanced-security", havingValue = "true")
     @ConditionalOnMissingBean(TokenChainManager.class)
@@ -107,7 +99,6 @@ public class IdentityTokenStoreAutoConfiguration {
         return null;
     }
 
-    
     @Bean
     @ConditionalOnProperty(name = "spring.auth.enhanced-security", havingValue = "true")
     @ConditionalOnMissingBean(RefreshTokenAnomalyDetector.class)
@@ -123,7 +114,6 @@ public class IdentityTokenStoreAutoConfiguration {
         return null;
     }
 
-    
     @Bean
     @ConditionalOnProperty(name = "spring.auth.enhanced-security", havingValue = "true")
     @ConditionalOnMissingBean(RefreshTokenManagementService.class)
