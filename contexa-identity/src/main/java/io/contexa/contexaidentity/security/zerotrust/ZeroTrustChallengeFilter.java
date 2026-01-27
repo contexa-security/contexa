@@ -127,8 +127,8 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             AuthType currentFactor = context.getCurrentProcessingFactor();
             if (currentFactor != null) {
                 return switch (currentFactor) {
-                    case OTT -> contextPath + authUrlProvider.getOttRequestCodeUi();
-                    case PASSKEY -> contextPath + authUrlProvider.getPasskeyChallengeUi();
+                    case MFA_OTT -> contextPath + authUrlProvider.getOttRequestCodeUi();
+                    case MFA_PASSKEY -> contextPath + authUrlProvider.getPasskeyChallengeUi();
                     default -> contextPath + authUrlProvider.getMfaSelectFactor();
                 };
             }

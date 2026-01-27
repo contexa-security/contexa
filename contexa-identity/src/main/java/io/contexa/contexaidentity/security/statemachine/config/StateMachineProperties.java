@@ -109,7 +109,7 @@ public class StateMachineProperties {
 
         private Integer maxConcurrentSessions = 1000;
 
-        private Integer transitionTimeoutSeconds = 5;
+        private Integer transitionTimeoutSeconds = 20;
     }
 
     @Data

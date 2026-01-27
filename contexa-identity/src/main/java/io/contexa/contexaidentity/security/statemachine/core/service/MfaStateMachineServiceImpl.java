@@ -83,15 +83,20 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                     restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
 
             if (stateMachine.getState() == null || stateMachine.getState().getId() == null) {
-                log.warn("[MFA SM Service] [{}] 복원 후 SM 상태가 null. initialStateIfNotRestored({})로 업데이트 및 시작 시도.", machineId, initialStateIfNotRestored);
-                log.warn("[VERIFY-3] 복원 후 State는 null이지만 FactorContext는 [{}]: {}",
+                log.warn("[MFA SM Service] [{}] State is null after restore. Resetting to initialState: {}", machineId, initialStateIfNotRestored);
+                log.warn("[VERIFY-3] State is null but FactorContext [{}]: {}",
                         machineId, restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
                 updateAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
             } else {
-
+                // Ensure StateMachine is started after restore (restore does not auto-start)
+                try {
+                    stateMachine.startReactively().block();
+                } catch (Exception startEx) {
+                    log.warn("[MFA SM Service] [{}] StateMachine start after restore failed (may already be running): {}", machineId, startEx.getMessage());
+                }
             }
         } catch (Exception e) {
-            log.warn("[MFA SM Service] [{}] 상태 머신 복원 실패 또는 새 세션. 초기 상태({})로 설정. 오류: {}", machineId, initialStateIfNotRestored, e.getMessage());
+            log.warn("[MFA SM Service] [{}] StateMachine restore failed or new session. Setting initial state: {}. Error: {}", machineId, initialStateIfNotRestored, e.getMessage());
             updateAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
         }
         return stateMachine;
@@ -252,26 +257,38 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         int timeoutSeconds = properties.getMfa().getTransitionTimeoutSeconds() != null ?
                 properties.getMfa().getTransitionTimeoutSeconds() : 5;
 
-        Boolean accepted = stateMachine.sendEvent(Mono.just(message))
-                .doOnNext(result -> log.debug("[SM Internal] 이벤트 결과 수신 - ResultType: {}, Session: {}",
-                        result.getResultType(), sessionId))
-                .doOnError(error -> log.error("[SM Internal] 이벤트 처리 중 에러 발생 - Event: {}, Session: {}",
-                        event, sessionId, error))
-                .doOnComplete(() -> log.debug("[SM Internal] Reactive Stream 완료 - Event: {}, Session: {}",
-                        event, sessionId))
-                .map(result -> result.getResultType() == StateMachineEventResult.ResultType.ACCEPTED)
-                .timeout(Duration.ofSeconds(timeoutSeconds))
-                .doOnNext(isAccepted -> log.debug("[SM Internal] 이벤트 수락 여부: {} - Event: {}, Session: {}",
-                        isAccepted, event, sessionId))
-                .blockFirst(Duration.ofSeconds(timeoutSeconds + 1));
+        log.error("[SM Internal] sendEventInternal START - Event: {}, CurrentState: {}, Session: {}",
+                event, currentState, sessionId);
 
-        log.debug("[SM Internal] blockFirst() 반환 완료 - accepted: {}, Event: {}, Session: {}",
+        Boolean accepted = null;
+        try {
+            accepted = stateMachine.sendEvent(Mono.just(message))
+                    .doOnNext(result -> log.error("[SM Internal] Event result received - ResultType: {}, Session: {}",
+                            result.getResultType(), sessionId))
+                    .doOnError(error -> log.error("[SM Internal] Event processing error - Event: {}, Session: {}, Error: {}",
+                            event, sessionId, error.getMessage(), error))
+                    .doOnComplete(() -> log.error("[SM Internal] Reactive Stream completed - Event: {}, Session: {}",
+                            event, sessionId))
+                    .map(result -> result.getResultType() == StateMachineEventResult.ResultType.ACCEPTED)
+                    .timeout(Duration.ofSeconds(timeoutSeconds))
+                    .doOnNext(isAccepted -> log.error("[SM Internal] Event accepted: {} - Event: {}, Session: {}",
+                            isAccepted, event, sessionId))
+                    .blockFirst(Duration.ofSeconds(timeoutSeconds + 1));
+        } catch (Exception e) {
+            log.error("[SM Internal] Exception during sendEvent - Event: {}, State: {}, Session: {}, Exception: {}",
+                    event, currentState, sessionId, e.getMessage(), e);
+
+            MfaState fallbackState = stateMachine.getState() != null ? stateMachine.getState().getId() : originalExternalContext.getCurrentState();
+            FactorContext fallbackContext = StateContextHelper.getFactorContext(stateMachine);
+            return new Result(false, fallbackState, fallbackContext != null ? fallbackContext : originalExternalContext);
+        }
+
+        log.error("[SM Internal] blockFirst() returned - accepted: {}, Event: {}, Session: {}",
                 accepted, event, sessionId);
 
         if (accepted == null) {
-            log.error("[SM Internal] ⚠️ 이벤트 처리 타임아웃 발생 - Event: {}, State: {}, Session: {}, Timeout: {}초",
+            log.error("[SM Internal] Event processing timeout - Event: {}, State: {}, Session: {}, Timeout: {}s",
                     event, currentState, sessionId, timeoutSeconds);
-            log.error("[SM Internal] State Machine이 응답하지 않음. 이벤트 거부로 처리.");
 
             MfaState fallbackState = stateMachine.getState() != null ? stateMachine.getState().getId() : originalExternalContext.getCurrentState();
             FactorContext fallbackContext = StateContextHelper.getFactorContext(stateMachine);
@@ -283,11 +300,14 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         MfaState smStateAfterEvent = stateMachine.getState() != null ? stateMachine.getState().getId() : originalExternalContext.getCurrentState();
         FactorContext contextFromSmAfterEvent = StateContextHelper.getFactorContext(stateMachine);
 
+        log.error("[SM Internal] sendEventInternal END - EventAccepted: {}, StateAfter: {}, Session: {}",
+                eventAccepted, smStateAfterEvent, sessionId);
+
         if (contextFromSmAfterEvent != null) {
             Object factorsObj = contextFromSmAfterEvent.getAttribute("availableFactors");
 
             if (factorsObj == null) {
-                log.warn("[sendEventInternal] availableFactors is NULL in contextFromSm for session: {}",
+                log.error("[sendEventInternal] availableFactors is NULL in contextFromSm for session: {}",
                         originalExternalContext.getMfaSessionId());
             }
         } else {
