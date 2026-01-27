@@ -21,8 +21,8 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
         factorContext.setAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT, System.currentTimeMillis());
 
         switch (factorType) {
-            case "OTT":
-                
+            case "MFA_OTT":
+
                 String ottDeliveryMethod = (String) factorContext.getAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD);
                 if (ottDeliveryMethod == null) {
                     log.warn("[InitiateChallengeAction] ottDeliveryMethod not set, defaulting to EMAIL for session: {}", sessionId);
@@ -30,10 +30,10 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
                     factorContext.setAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD, ottDeliveryMethod);
                 }
 
-                                break;
+                break;
 
-            case "PASSKEY":
-                
+            case "MFA_PASSKEY":
+
                 String passkeyType = (String) factorContext.getAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE);
                 if (passkeyType == null) {
                     log.warn("[InitiateChallengeAction] passkeyType not set, defaulting to PLATFORM for session: {}", sessionId);
@@ -41,12 +41,12 @@ public class InitiateChallengeAction extends AbstractMfaStateAction {
                     factorContext.setAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE, passkeyType);
                 }
 
-                                break;
+                break;
 
             default:
                 log.warn("Unknown factor type for challenge: {}", factorType);
                 factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION, MfaEvent.CHALLENGE_INITIATION_FAILED);
                 throw new UnsupportedOperationException("Unsupported factor type: " + factorType);
         }
-            }
+    }
 }
