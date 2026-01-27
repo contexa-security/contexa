@@ -249,14 +249,92 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response,
                                         Authentication authentication) {
+        String dslDefaultSuccessUrl = getDslDefaultSuccessUrl();
+        boolean alwaysUseDslUrl = isDslAlwaysUseDefaultSuccessUrl();
+
+        if (alwaysUseDslUrl && dslDefaultSuccessUrl != null) {
+            return request.getContextPath() + dslDefaultSuccessUrl;
+        }
+
         SavedRequest savedRequest = this.requestCache.getRequest(request, response);
         if (savedRequest != null) {
             this.requestCache.removeRequest(request, response);
-            return savedRequest.getRedirectUrl();
+            String redirectUrl = savedRequest.getRedirectUrl();
+            if (isValidRedirectUrl(redirectUrl)) {
+                return redirectUrl;
+            }
         }
+
+        if (dslDefaultSuccessUrl != null) {
+            return request.getContextPath() + dslDefaultSuccessUrl;
+        }
+
         String defaultTargetUrl = authUrlProvider.getMfaSuccess();
-        String targetUrl = request.getContextPath() + defaultTargetUrl;
-        return targetUrl;
+        return request.getContextPath() + defaultTargetUrl;
+    }
+
+    private String getDslDefaultSuccessUrl() {
+        try {
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
+                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
+                var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
+                if (formOptions != null) {
+                    return formOptions.getDefaultSuccessUrl();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get DSL defaultSuccessUrl: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private boolean isDslAlwaysUseDefaultSuccessUrl() {
+        try {
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
+                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
+                var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
+                if (formOptions != null) {
+                    return formOptions.isAlwaysUseDefaultSuccessUrl();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get DSL alwaysUseDefaultSuccessUrl: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    private boolean isValidRedirectUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return false;
+        }
+
+        String[] invalidPatterns = {
+                "/.well-known/",
+                "/favicon.ico",
+                "chrome-extension://",
+                "about:",
+                "data:",
+                "blob:",
+                "javascript:"
+        };
+
+        for (String pattern : invalidPatterns) {
+            if (url.contains(pattern)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void handleAuthenticationBlocked(HttpServletRequest request,

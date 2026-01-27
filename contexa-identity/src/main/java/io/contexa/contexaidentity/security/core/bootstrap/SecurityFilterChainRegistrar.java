@@ -44,7 +44,7 @@ public class SecurityFilterChainRegistrar {
     public SecurityFilterChainRegistrar(ConfiguredFactorFilterProvider configuredFactorFilterProvider,
                                         Map<String, Class<? extends Filter>> stepFilterClasses, AdapterRegistry adapterRegistry) {
         this.configuredFactorFilterProvider = Objects.requireNonNull(configuredFactorFilterProvider, "ConfiguredFactorFilterProvider cannot be null.");
-        this.stepFilterClasses  = Objects.requireNonNull(stepFilterClasses, "stepFilterClasses cannot be null.");
+        this.stepFilterClasses = Objects.requireNonNull(stepFilterClasses, "stepFilterClasses cannot be null.");
         this.adapterRegistry = adapterRegistry;
     }
 
@@ -81,18 +81,18 @@ public class SecurityFilterChainRegistrar {
                     .setRole(BeanDefinition.ROLE_INFRASTRUCTURE)
                     .getBeanDefinition();
             registry.registerBeanDefinition(beanName, bd);
-                    }
-        
-        DefaultFactorChainProvider defaultProvider = new DefaultFactorChainProvider(context, this, adapterRegistry); 
+        }
+
+        DefaultFactorChainProvider defaultProvider = new DefaultFactorChainProvider(context, this, adapterRegistry);
 
     }
 
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {
         try {
             AuthenticationFlowConfig flowConfig = fc.flow();
-            
+
             DefaultSecurityFilterChain builtChain = fc.http().build();
-            
+
             replaceWebAuthnHandlersIfNeeded(builtChain, flowConfig, appContext);
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
@@ -108,7 +108,7 @@ public class SecurityFilterChainRegistrar {
                 }
 
                 if (AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName()) && step.getOrder() == 0) {
-                                        continue;
+                    continue;
                 }
 
                 Class<? extends Filter> filterClass = stepFilterClasses.get(pureFactorType);
@@ -129,7 +129,7 @@ public class SecurityFilterChainRegistrar {
                 }
 
                 Filter actualFilterInstance = foundFilterOptional.get();
-                
+
                 FactorIdentifier registrationKey = FactorIdentifier.of(flowConfig.getTypeName(), stepId);
 
                 configuredFactorFilterProvider.registerFilter(registrationKey, actualFilterInstance);
@@ -147,12 +147,12 @@ public class SecurityFilterChainRegistrar {
     }
 
     private void replaceWebAuthnHandlersIfNeeded(DefaultSecurityFilterChain builtChain,
-                                                  AuthenticationFlowConfig flowConfig,
-                                                  ApplicationContext appContext) {
-        
+                                                 AuthenticationFlowConfig flowConfig,
+                                                 ApplicationContext appContext) {
+
         AuthenticationStepConfig passkeyStep = flowConfig.getStepConfigs().stream()
                 .filter(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()) ||
-                               AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()))
+                        AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()))
                 .findFirst()
                 .orElse(null);
 
@@ -168,7 +168,7 @@ public class SecurityFilterChainRegistrar {
 
                 if (filterClassName.contains("WebAuthn")) {
                     try {
-                        
+
                         AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
                         StateType stateType = (flowConfig.getStateConfig() != null && flowConfig.getStateConfig().stateType() != null) ?
                                 flowConfig.getStateConfig().stateType() : authProps.getStateType();
@@ -177,26 +177,23 @@ public class SecurityFilterChainRegistrar {
                         PlatformAuthenticationFailureHandler customFailureHandler = null;
 
                         if (isMfaFlow) {
-                            
+
                             if (stateType == StateType.SESSION) {
                                 customSuccessHandler = appContext.getBean(SessionMfaSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(SessionMfaFailureHandler.class);
-                                                            } else {
-                                
+                            } else {
                                 customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-                                                            }
+                            }
                         } else {
-                            
+
                             if (stateType == StateType.SESSION) {
-                                
                                 customSuccessHandler = null;
                                 customFailureHandler = null;
-                                                            } else {
-                                
+                            } else {
                                 customSuccessHandler = appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
                                 customFailureHandler = appContext.getBean(OAuth2SingleAuthFailureHandler.class);
-                                                            }
+                            }
                         }
 
                         if (customSuccessHandler != null) {
@@ -211,7 +208,7 @@ public class SecurityFilterChainRegistrar {
                             if (customLoginProcessingUrl != null && !customLoginProcessingUrl.isEmpty()) {
                                 RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, customLoginProcessingUrl);
                                 authFilter.setRequiresAuthenticationRequestMatcher(customMatcher);
-                                                            }
+                            }
                         }
 
                         return;
@@ -224,7 +221,7 @@ public class SecurityFilterChainRegistrar {
         }
 
         log.warn("⚠️ WebAuthnAuthenticationFilter not found in filter chain for flow: {}. " +
-                "Passkey authentication may not work properly without custom handlers.",
+                        "Passkey authentication may not work properly without custom handlers.",
                 flowConfig.getTypeName());
     }
 }
