@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.controller.MfaConfigController;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
@@ -62,5 +63,12 @@ public class IdentityServiceAutoConfiguration {
     @ConditionalOnMissingBean
     public InMemoryCodeStore inMemoryCodeStore() {
         return new InMemoryCodeStore();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(AuthUrlProvider.class)
+    public MfaConfigController mfaConfigController(AuthUrlProvider authUrlProvider) {
+        return new MfaConfigController(authUrlProvider);
     }
 }
