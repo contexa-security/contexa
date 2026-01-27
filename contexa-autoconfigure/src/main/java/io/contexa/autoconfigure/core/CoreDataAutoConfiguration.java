@@ -10,22 +10,22 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
 
-
 @AutoConfiguration
 @ConditionalOnClass(name = "jakarta.persistence.EntityManager")
 @EnableJpaRepositories(basePackages = {
-    "io.contexa.contexacommon.repository",
-    "io.contexa.contexacore.repository",
-    "io.contexa.contexaiam.repository"
+        "io.contexa.contexacommon.repository",
+        "io.contexa.contexacore.repository",
+        "io.contexa.contexaiam.repository"
 })
 @EntityScan(basePackages = {
-    "io.contexa.contexacommon.entity",
-    "io.contexa.contexacore.domain.entity",
-    "io.contexa.contexaiam.domain.entity"
+        "io.contexa.contexacommon.entity",
+        "io.contexa.contexacore.domain.entity",
+        "io.contexa.contexaiam.domain.entity"
 })
 public class CoreDataAutoConfiguration {
 
-    public CoreDataAutoConfiguration() {}
+    public CoreDataAutoConfiguration() {
+    }
 
     @Bean
     @ConditionalOnMissingBean

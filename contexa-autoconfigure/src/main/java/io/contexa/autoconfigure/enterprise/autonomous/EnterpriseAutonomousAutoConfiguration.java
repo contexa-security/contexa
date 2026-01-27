@@ -74,33 +74,20 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
-
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
-@ConditionalOnProperty(
-    prefix = "contexa.enterprise",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = false
-)
-@EnableConfigurationProperties({ContexaProperties.class, SecurityAutonomousProperties.class, SecurityEvaluatorProperties.class})
+@ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
+@EnableConfigurationProperties({ ContexaProperties.class, SecurityAutonomousProperties.class,
+        SecurityEvaluatorProperties.class })
 public class EnterpriseAutonomousAutoConfiguration {
 
     public EnterpriseAutonomousAutoConfiguration() {
-        
+
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyApprovalService policyApprovalService(
             PolicyProposalRepository proposalRepository,
             ApplicationEventPublisher eventPublisher,
@@ -108,15 +95,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyApprovalService(proposalRepository, eventPublisher);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionEngine policyEvolutionEngine(
             ChatModel chatModel,
             UnifiedVectorService unifiedVectorService,
@@ -124,58 +105,32 @@ public class EnterpriseAutonomousAutoConfiguration {
             RedisTemplate<String, PolicyEvolutionProposal> policyEvolutionRedisTemplate,
             RedisTemplate<String, String> stringRedisTemplate) {
         return new PolicyEvolutionEngine(
-            chatModel, unifiedVectorService, tuningService,
-            policyEvolutionRedisTemplate, stringRedisTemplate
-        );
+                chatModel, unifiedVectorService, tuningService,
+                policyEvolutionRedisTemplate, stringRedisTemplate);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionGovernance policyEvolutionGovernance(
             PolicyProposalRepository proposalRepository,
             PolicyActivationService activationService,
             PolicyApprovalService approvalService,
             ApplicationEventPublisher eventPublisher) {
         return new PolicyEvolutionGovernance(
-            proposalRepository, activationService, approvalService, eventPublisher
-        );
+                proposalRepository, activationService, approvalService, eventPublisher);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean(PolicyActivationService.class)
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyActivationService policyActivationService() {
         return new PolicyActivationServiceImpl();
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AutonomousLearningCoordinator autonomousLearningCoordinator(
             ISecurityPlaneAgent securityPlaneAgent,
             PolicyEvolutionEngine evolutionEngine,
@@ -183,143 +138,85 @@ public class EnterpriseAutonomousAutoConfiguration {
             PolicyProposalRepository proposalRepository,
             ApplicationEventPublisher eventPublisher) {
         return new AutonomousLearningCoordinator(
-            securityPlaneAgent, evolutionEngine, tuningService,
-            proposalRepository, eventPublisher
-        );
+                securityPlaneAgent, evolutionEngine, tuningService,
+                proposalRepository, eventPublisher);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AITuningService aiTuningService(
             StandardVectorStoreService vectorStore,
             RedisTemplate<String, Object> redisTemplate) {
         return new AITuningService(vectorStore, redisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AccessGovernanceLabConnector accessGovernanceLabConnector() {
         return new AccessGovernanceLabConnector();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public BehavioralAnalysisLabConnector behavioralAnalysisLabConnector() {
         return new BehavioralAnalysisLabConnector();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public IntegratedThreatEvaluator integratedThreatEvaluator(
             RedisAtomicOperations redisAtomicOperations,
             RedisTemplate<String, Object> redisTemplate) {
         return new IntegratedThreatEvaluator(redisAtomicOperations, redisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionLabIntegration policyEvolutionLabIntegration(
             IPolicyProposalManagementService proposalManagementService,
             ApplicationEventPublisher eventPublisher) {
         return new PolicyEvolutionLabIntegration(proposalManagementService, eventPublisher);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionLab policyEvolutionLab(
             Tracer tracer,
             ChatModel chatModel,
             PolicyEvolutionHelper policyEvolutionHelper,
             LearningEngineHelper learningEngineHelper,
             MemorySystemHelper memorySystemHelper) {
-        return new PolicyEvolutionLab(tracer, chatModel, policyEvolutionHelper, learningEngineHelper, memorySystemHelper);
+        return new PolicyEvolutionLab(tracer, chatModel, policyEvolutionHelper, learningEngineHelper,
+                memorySystemHelper);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionHelper policyEvolutionHelper(
             UnifiedVectorService unifiedVectorService,
             AITuningService tuningService) {
         return new PolicyEvolutionHelper(unifiedVectorService, tuningService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public LearningEngineHelper learningEngineHelper(
             AITuningService tuningService,
             DistributedStateManager stateManager) {
         return new LearningEngineHelper(tuningService, stateManager);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public MemorySystemHelper memorySystemHelper(
             UnifiedVectorService unifiedVectorService,
             StandardVectorStoreService standardVectorStoreService,
@@ -328,132 +225,74 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new MemorySystemHelper(unifiedVectorService, standardVectorStoreService, stateManager, redisTemplate);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public XAIReportingService xaiReportingService(
             StandardVectorStoreService vectorStore,
             RedisTemplate<String, Object> redisTemplate) {
         return new XAIReportingService(vectorStore, redisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyAuditLogger policyAuditLogger(
             SynthesisPolicyRepository synthesisPolicyRepository) {
         return new PolicyAuditLogger(synthesisPolicyRepository);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyUsageMetricsService policyUsageMetricsService(
             PolicyProposalRepository proposalRepository,
             ContexaCacheService cacheService) {
         return new PolicyUsageMetricsService(proposalRepository, cacheService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SlackNotificationAdapter slackNotificationAdapter(
             ObjectMapper objectMapper) {
         return new SlackNotificationAdapter(objectMapper);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SmsNotificationAdapter smsNotificationAdapter(
             ObjectMapper objectMapper) {
         return new SmsNotificationAdapter(objectMapper);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public DefaultNotificationService defaultNotificationService() {
         return new DefaultNotificationService();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SoarNotifierImpl soarNotifierImpl() {
         return new SoarNotifierImpl();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AwaitApprovalStrategy awaitApprovalStrategy(
             RedisTemplate<String, Object> redisTemplate,
             ApplicationEventPublisher eventPublisher) {
         return new AwaitApprovalStrategy(redisTemplate, eventPublisher);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public UnifiedNotificationService unifiedNotificationService(
             SoarEmailService emailService,
             McpApprovalNotificationService websocketService,
@@ -463,15 +302,9 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new UnifiedNotificationService(emailService, websocketService, slackAdapter, smsAdapter, redisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(IPolicyProposalManagementService.class)
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public IPolicyProposalManagementService policyProposalManagementService(
             PolicyEvolutionProposalRepository proposalRepository,
             PolicyEvolutionGovernance governance,
@@ -480,32 +313,18 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new PolicyProposalManagementService(proposalRepository, governance, auditLogger, eventPublisher);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public ApprovalWorkflow approvalWorkflow(
             RedisTemplate<String, Object> redisTemplate,
             ToolAuthorizationService authService) {
         return new ApprovalWorkflow(redisTemplate, authService);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AsyncResultDeliveryService asyncResultDeliveryService(
             ToolExecutionContextRepository executionRepository,
             RedisEventPublisher eventPublisher,
@@ -514,43 +333,24 @@ public class EnterpriseAutonomousAutoConfiguration {
             SimpMessagingTemplate messagingTemplate,
             ObjectMapper objectMapper) {
         return new AsyncResultDeliveryService(
-            executionRepository, eventPublisher, notificationService,
-            redisTemplate, messagingTemplate, objectMapper
-        );
+                executionRepository, eventPublisher, notificationService,
+                redisTemplate, messagingTemplate, objectMapper);
     }
 
-    
-    
-    
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyChangeEventListener policyChangeEventListener(
             PolicyEvolutionEngine policyEvolutionEngine,
             PolicyApprovalService approvalService,
             NotificationService notificationService) {
         return new PolicyChangeEventListener(
-            policyEvolutionEngine, approvalService, notificationService
-        );
+                policyEvolutionEngine, approvalService, notificationService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public StaticAnalysisScheduler staticAnalysisScheduler(
             IPolicyProposalManagementService proposalManagementService,
             PolicyEvolutionProposalRepository proposalRepository,
@@ -559,22 +359,13 @@ public class EnterpriseAutonomousAutoConfiguration {
             PolicyProposalAnalytics proposalAnalytics,
             PolicyAuditLogger auditLogger) {
         return new StaticAnalysisScheduler(
-            proposalManagementService, proposalRepository, synthesisPolicyRepository,
-            effectivenessMonitor, proposalAnalytics, auditLogger
-        );
+                proposalManagementService, proposalRepository, synthesisPolicyRepository,
+                effectivenessMonitor, proposalAnalytics, auditLogger);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyWorkbenchController policyWorkbenchController(
             PolicyProposalRepository proposalRepository,
             PolicyActivationService activationService,
@@ -583,35 +374,20 @@ public class EnterpriseAutonomousAutoConfiguration {
             SynthesisPolicyRepository synthesisPolicyRepository,
             PolicyProposalAnalytics analyticsService) {
         return new PolicyWorkbenchController(
-            proposalRepository, activationService, approvalService,
-            governanceService, synthesisPolicyRepository, analyticsService
-        );
+                proposalRepository, activationService, approvalService,
+                governanceService, synthesisPolicyRepository, analyticsService);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public ProposalToPolicyConverter proposalToPolicyConverter() {
         return new ProposalToPolicyConverter();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     @ConditionalOnClass(name = "io.contexa.contexaiam.security.xacml.pap.service.PolicyService")
     public PolicyActivationEventListener policyActivationEventListener(
             PolicyProposalRepository proposalRepository,
@@ -620,23 +396,16 @@ public class EnterpriseAutonomousAutoConfiguration {
             PolicyRetrievalPoint policyRetrievalPoint,
             CustomDynamicAuthorizationManager authorizationManager) {
         return new PolicyActivationEventListener(
-            proposalRepository,
-            proposalToPolicyConverter,
-            policyService,
-            policyRetrievalPoint,
-            authorizationManager
-        );
+                proposalRepository,
+                proposalToPolicyConverter,
+                policyService,
+                policyRetrievalPoint,
+                authorizationManager);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnProperty(
-        prefix = "contexa.autonomous.policy-evolution",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SpelValidationService spelValidationService() {
         return new SpelValidationService();
     }

@@ -52,34 +52,27 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.List;
 
-
 @AutoConfiguration
 @AutoConfigureAfter(CoreHCADAutoConfiguration.class)
-@ConditionalOnProperty(
-    prefix = "contexa.autonomous",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
-    ContexaProperties.class,
-    SecurityPlaneProperties.class,
-    SecurityEventProperties.class,
-    SecurityZeroTrustProperties.class,
-    SecuritySessionProperties.class,
-    SecurityColdPathProperties.class,
-    SecurityKafkaProperties.class,
-    SecurityRedisProperties.class,
-    SecurityRouterProperties.class,
-    SecurityPipelineProperties.class
+        ContexaProperties.class,
+        SecurityPlaneProperties.class,
+        SecurityEventProperties.class,
+        SecurityZeroTrustProperties.class,
+        SecuritySessionProperties.class,
+        SecurityColdPathProperties.class,
+        SecurityKafkaProperties.class,
+        SecurityRedisProperties.class,
+        SecurityRouterProperties.class,
+        SecurityPipelineProperties.class
 })
 @Import({
-    SecurityPlaneConfiguration.class
+        SecurityPlaneConfiguration.class
 })
 public class CoreAutonomousAutoConfiguration {
 
     public CoreAutonomousAutoConfiguration() {
-        
     }
 
     @Bean
@@ -88,7 +81,6 @@ public class CoreAutonomousAutoConfiguration {
         return new SecurityEventEnricher();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public DynamicStrategySelector dynamicStrategySelector(
@@ -96,7 +88,6 @@ public class CoreAutonomousAutoConfiguration {
         return new DynamicStrategySelector(threatCorrelator);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public MaliciousPatternDetector maliciousPatternDetector(
@@ -104,14 +95,12 @@ public class CoreAutonomousAutoConfiguration {
         return new MaliciousPatternDetector(stringRedisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public TieredStrategyProperties tieredStrategyProperties() {
         return new TieredStrategyProperties();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public AdminOverrideRepository adminOverrideRepository(
@@ -119,17 +108,15 @@ public class CoreAutonomousAutoConfiguration {
         return new AdminOverrideRepository(redisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityPromptTemplate securityPromptTemplate(
             SecurityEventEnricher securityEventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
             BaselineLearningService baselineLearningService) {
-        return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties,baselineLearningService);
+        return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties, baselineLearningService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
@@ -151,7 +138,6 @@ public class CoreAutonomousAutoConfiguration {
         return new AuditingHandler();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public MetricsHandler metricsHandler(
@@ -159,21 +145,18 @@ public class CoreAutonomousAutoConfiguration {
         return new MetricsHandler(redisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public ThreatScoreOrchestrator threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate) {
         return new ThreatScoreOrchestrator(redisTemplate);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SoarContextProviderImpl soarContextProviderImpl() {
         return new SoarContextProviderImpl();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
@@ -183,12 +166,10 @@ public class CoreAutonomousAutoConfiguration {
             EventNormalizer eventNormalizer,
             EventDeduplicator eventDeduplicator) {
         return new SecurityMonitoringService(
-            kafkaCollector, securityIncidentRepository,
-            evaluationStrategies, eventNormalizer, eventDeduplicator
-        );
+                kafkaCollector, securityIncidentRepository,
+                evaluationStrategies, eventNormalizer, eventDeduplicator);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public Layer1ContextualStrategy contextualStrategy(
@@ -202,13 +183,11 @@ public class CoreAutonomousAutoConfiguration {
             SecurityDecisionPostProcessor securityDecisionPostProcessor,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
-            llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
-            securityPromptTemplate, behaviorVectorService, baselineLearningService,
-            securityDecisionPostProcessor, tieredStrategyProperties
-        );
+                llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
+                securityPromptTemplate, behaviorVectorService, baselineLearningService,
+                securityDecisionPostProcessor, tieredStrategyProperties);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public Layer2ExpertStrategy expertStrategy(
@@ -222,19 +201,17 @@ public class CoreAutonomousAutoConfiguration {
             BaselineLearningService baselineLearningService,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer2ExpertStrategy(
-            llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
-            securityPromptTemplate, unifiedVectorService, behaviorVectorService,
-            baselineLearningService, tieredStrategyProperties
-        );
+                llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
+                securityPromptTemplate, unifiedVectorService, behaviorVectorService,
+                baselineLearningService, tieredStrategyProperties);
     }
-    
+
     @Bean
     @ConditionalOnMissingBean
     public RoutingDecisionHandler routingDecisionHandler() {
         return new RoutingDecisionHandler();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityEventProcessingOrchestrator securityEventProcessingOrchestrator(
@@ -251,7 +228,6 @@ public class CoreAutonomousAutoConfiguration {
             SecurityPlaneAuditLogger auditLogger,
             SecurityEventProcessingOrchestrator processingOrchestrator) {
         return new SecurityPlaneAgent(
-            securityMonitor, redisTemplate, eventPublisher, auditLogger, processingOrchestrator
-        );
+                securityMonitor, redisTemplate, eventPublisher, auditLogger, processingOrchestrator);
     }
 }

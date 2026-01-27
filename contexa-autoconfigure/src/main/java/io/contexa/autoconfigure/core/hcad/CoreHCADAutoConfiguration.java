@@ -3,8 +3,6 @@ package io.contexa.autoconfigure.core.hcad;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.properties.HcadProperties;
 
-
-
 import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
@@ -17,19 +15,13 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
-
 @AutoConfiguration
-@ConditionalOnProperty(
-    prefix = "contexa.hcad",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
-
-@EnableConfigurationProperties({ContexaProperties.class, HcadProperties.class})
+@ConditionalOnProperty(prefix = "contexa.hcad", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties({ ContexaProperties.class, HcadProperties.class })
 public class CoreHCADAutoConfiguration {
 
-    public CoreHCADAutoConfiguration() {}
+    public CoreHCADAutoConfiguration() {
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -44,7 +36,6 @@ public class CoreHCADAutoConfiguration {
             @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
         return new BaselineLearningService(redisTemplate);
     }
-
 
     @Bean
     @ConditionalOnMissingBean

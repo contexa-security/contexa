@@ -62,21 +62,14 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.*;
 
-
 @Slf4j
 @AutoConfiguration
 @EnableAsync(proxyTargetClass = true)
 @EnableAspectJAutoProxy(proxyTargetClass = true, exposeProxy = true)
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl")
-@ConditionalOnProperty(
-        prefix = "contexa.enterprise",
-        name = "enabled",
-        havingValue = "true",
-        matchIfMissing = false
-)
+@ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties(ContexaProperties.class)
 public class EnterpriseToolAutoConfiguration {
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -96,13 +89,11 @@ public class EnterpriseToolAutoConfiguration {
         return null;
     }
 
-
     @Bean
     @ConditionalOnMissingBean(name = "defaultToolCallingManager")
     public DefaultToolCallingManager defaultToolCallingManager(
             ToolCallbackResolver chainedToolResolver,
             SoarToolExecutionExceptionProcessor toolExecutionExceptionProcessor) {
-
 
         return DefaultToolCallingManager.builder()
                 .toolCallbackResolver(chainedToolResolver)
@@ -112,12 +103,7 @@ public class EnterpriseToolAutoConfiguration {
 
     @Bean
     @Primary
-    @ConditionalOnProperty(
-            prefix = "spring.ai.soar.approval",
-            name = "enabled",
-            havingValue = "true",
-            matchIfMissing = true
-    )
+    @ConditionalOnProperty(prefix = "spring.ai.soar.approval", name = "enabled", havingValue = "true", matchIfMissing = true)
     public ToolCallingManager approvalAwareToolCallingManager(
             DefaultToolCallingManager defaultToolCallingManager,
             UnifiedApprovalService unifiedApprovalService,
@@ -128,7 +114,6 @@ public class EnterpriseToolAutoConfiguration {
             AsyncToolExecutionService asyncExecutionService,
             ObjectMapper objectMapper) {
 
-
         return new ApprovalAwareToolCallingManagerDecorator(
                 defaultToolCallingManager,
                 unifiedApprovalService,
@@ -137,17 +122,12 @@ public class EnterpriseToolAutoConfiguration {
                 notificationService,
                 contextRepository,
                 asyncExecutionService,
-                objectMapper
-        );
+                objectMapper);
     }
 
     @Bean
     @Primary
-    @ConditionalOnProperty(
-            prefix = "spring.ai.soar.approval",
-            name = "enabled",
-            havingValue = "false"
-    )
+    @ConditionalOnProperty(prefix = "spring.ai.soar.approval", name = "enabled", havingValue = "false")
     public ToolCallingManager standardToolCallingManager(
             DefaultToolCallingManager defaultToolCallingManager) {
 
@@ -158,7 +138,6 @@ public class EnterpriseToolAutoConfiguration {
     @ConditionalOnMissingBean(ToolCallbackResolver.class)
     public ToolCallbackResolver toolCallbackResolver(
             List<ToolCallbackResolver> resolvers) {
-
 
         return new DelegatingToolCallbackResolver(resolvers);
     }
@@ -172,21 +151,18 @@ public class EnterpriseToolAutoConfiguration {
             FallbackToolResolver fallbackToolResolver,
             MCPToolMetrics metricsCollector) {
 
-
         List<ToolCallbackResolver> resolvers = Arrays.asList(
                 mcpToolResolver,
                 springBeanResolver,
                 staticToolResolver,
-                fallbackToolResolver
-        );
+                fallbackToolResolver);
 
         ChainedToolResolver chainedResolver = new ChainedToolResolver(
                 metricsCollector,
                 springBeanResolver,
                 mcpToolResolver,
                 staticToolResolver,
-                fallbackToolResolver
-        );
+                fallbackToolResolver);
 
         return chainedResolver;
     }
@@ -242,24 +218,19 @@ public class EnterpriseToolAutoConfiguration {
             @jakarta.annotation.PostConstruct
             public void logToolInventory() {
 
-
                 if (chainedResolver.isPresent()) {
                     Set<String> toolNames = chainedResolver.get().getRegisteredToolNames();
                 }
 
-
                 if (mcpProvider.isPresent()) {
                     Map<String, Object> stats = mcpProvider.get().getMcpToolStatistics();
                 }
-
             }
         };
     }
 
     private interface ToolInventoryLogger {
-
     }
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -328,7 +299,6 @@ public class EnterpriseToolAutoConfiguration {
                     .args("-y", "@modelcontextprotocol/server-brave-search")
                     .build();
 
-
             var mcpClient = McpClient.sync(new StdioClientTransport(stdioParams, null))
                     .requestTimeout(Duration.ofSeconds(requestTimeoutSeconds))
                     .build();
@@ -359,7 +329,6 @@ public class EnterpriseToolAutoConfiguration {
             McpSyncClient mcpClient = McpClient.sync(transport)
                     .requestTimeout(Duration.ofSeconds(requestTimeoutSeconds))
                     .build();
-
 
             try {
                 var init = mcpClient.initialize();
@@ -399,16 +368,14 @@ public class EnterpriseToolAutoConfiguration {
                     "totalClients", 0,
                     "activeClients", 0,
                     "status", "no_clients",
-                    "timestamp", System.currentTimeMillis()
-            );
+                    "timestamp", System.currentTimeMillis());
         }
 
         return Map.of(
                 "totalClients", mcpSyncClients.size(),
                 "activeClients", mcpSyncClients.stream().filter(c -> c != null).count(),
                 "status", "configured",
-                "timestamp", System.currentTimeMillis()
-        );
+                "timestamp", System.currentTimeMillis());
     }
 
     @Bean
@@ -424,7 +391,8 @@ public class EnterpriseToolAutoConfiguration {
 
         if (builder == null) {
             log.error("ChatClient.Builder not found");
-            throw new IllegalStateException("ChatClient.Builder not found. Check LlmConfig and AdvisorAutoConfiguration.");
+            throw new IllegalStateException(
+                    "ChatClient.Builder not found. Check LlmConfig and AdvisorAutoConfiguration.");
         }
 
         if (toolsEnabled && toolResolver != null) {
@@ -433,7 +401,6 @@ public class EnterpriseToolAutoConfiguration {
 
                 if (tools.length > 0) {
                     builder = builder.defaultToolCallbacks(tools);
-
 
                     if (log.isDebugEnabled()) {
                         for (ToolCallback tool : tools) {
@@ -451,22 +418,21 @@ public class EnterpriseToolAutoConfiguration {
             log.warn("ChainedToolResolver not found");
         }
 
-
         if (toolsEnabled) {
             builder = builder.defaultSystem("""
                     You are an AI Assistant with access to integrated security tools.
-                    
+
                     🛠️ TOOL CAPABILITIES:
                     - SOAR Tools: Direct security response actions with risk-based approval
                     - MCP Tools: External services and search capabilities
                     - All tools are managed through a unified resolution system
-                    
+
                     TOOL USAGE GUIDELINES:
                     1. Tools are automatically available based on context
                     2. High-risk tools require approval before execution
                     3. Tool results should be used to provide evidence-based responses
                     4. Chain multiple tools for comprehensive analysis when needed
-                    
+
                     BEST PRACTICES:
                     - Use appropriate tools for the task at hand
                     - Respect approval workflows for sensitive operations
@@ -506,8 +472,7 @@ public class EnterpriseToolAutoConfiguration {
     public record ToolIntegrationStatus(
             boolean enabled,
             String status,
-            int toolCount
-    ) {
+            int toolCount) {
     }
 
     @Bean
@@ -533,12 +498,9 @@ public class EnterpriseToolAutoConfiguration {
         }
     }
 
-
     @Bean(name = "soarToolCallingManager")
     @ConditionalOnMissingBean
     public ToolCallingManager soarToolCallingManager() {
-
-
         return DefaultToolCallingManager.builder().build();
     }
 
@@ -568,8 +530,7 @@ public class EnterpriseToolAutoConfiguration {
                 toolCapableLLMClient,
                 approvalAwareToolCallingManager,
                 toolCallDetectionHelper,
-                chainedToolResolver
-        );
+                chainedToolResolver);
     }
 
     public EnterpriseToolAutoConfiguration() {

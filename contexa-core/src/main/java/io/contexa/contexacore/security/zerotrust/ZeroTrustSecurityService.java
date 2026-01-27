@@ -197,11 +197,11 @@ public class ZeroTrustSecurityService {
             }
             case "CHALLENGE" -> {
                 
-                resetActionOnMfaSuccess(userId, request);
-                publishAuthenticationSuccessEvent(request, SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication());
-                if (auth.getPrincipal() instanceof UnifiedCustomUserDetails userDetails) {
-                    adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
-                }
+//                resetActionOnMfaSuccess(userId, request);
+//                publishAuthenticationSuccessEvent(request, SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication());
+//                if (auth.getPrincipal() instanceof UnifiedCustomUserDetails userDetails) {
+//                    adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
+//                }
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
                             }
             case "ESCALATE" -> {

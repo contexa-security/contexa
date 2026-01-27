@@ -24,16 +24,10 @@ import org.springframework.context.event.EventListener;
 import jakarta.annotation.PostConstruct;
 import java.util.List;
 
-
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
-@ConditionalOnProperty(
-    prefix = "contexa.advisor",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(ContexaAdvisorProperties.class)
 public class CoreAdvisorAutoConfiguration {
 
@@ -41,7 +35,8 @@ public class CoreAdvisorAutoConfiguration {
     private String defaultChainProfile;
 
     @PostConstruct
-    public void init() {}
+    public void init() {
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -57,10 +52,10 @@ public class CoreAdvisorAutoConfiguration {
             ChatModel chatModel,
             List<BaseAdvisor> advisors,
             AdvisorRegistry advisorRegistry) {
-        
+
         advisors.forEach(advisor -> {
             advisorRegistry.register(advisor);
-                    });
+        });
 
         List<BaseAdvisor> activeAdvisors = advisorRegistry.getEnabled();
         ChatClient.Builder builder = ChatClient.builder(chatModel);
@@ -69,31 +64,31 @@ public class CoreAdvisorAutoConfiguration {
         }
 
         builder = builder.defaultSystem("""
-            You are an AI Security Assistant powered by the contexa unified platform.
+                You are an AI Security Assistant powered by the contexa unified platform.
 
-            🔗 ADVISOR-ENHANCED ECOSYSTEM:
-            You have access to a comprehensive advisor system that provides:
-            - Domain-specific policy enforcement (SOAR, IAM, Compliance, Threat)
-            - Automated approval workflows for high-risk operations
-            - Cross-domain context sharing and coordination
-            - Real-time metrics and audit logging
+                🔗 ADVISOR-ENHANCED ECOSYSTEM:
+                You have access to a comprehensive advisor system that provides:
+                - Domain-specific policy enforcement (SOAR, IAM, Compliance, Threat)
+                - Automated approval workflows for high-risk operations
+                - Cross-domain context sharing and coordination
+                - Real-time metrics and audit logging
 
-            SECURITY CAPABILITIES:
-            - Tool execution with risk-based approval
-            - Identity and access management integration
-            - Compliance validation and reporting
-            - Threat detection and mitigation
+                SECURITY CAPABILITIES:
+                - Tool execution with risk-based approval
+                - Identity and access management integration
+                - Compliance validation and reporting
+                - Threat detection and mitigation
 
-            OPERATIONAL APPROACH:
-            1. All requests are processed through the advisor chain
-            2. High-risk operations require explicit approval
-            3. All actions are audited and monitored
-            4. Cross-domain policies are enforced consistently
-            5. Context is shared across security domains
+                OPERATIONAL APPROACH:
+                1. All requests are processed through the advisor chain
+                2. High-risk operations require explicit approval
+                3. All actions are audited and monitored
+                4. Cross-domain policies are enforced consistently
+                5. Context is shared across security domains
 
-            This advisor-enhanced system ensures comprehensive security
-            and compliance across all operations.
-            """);
+                This advisor-enhanced system ensures comprehensive security
+                and compliance across all operations.
+                """);
 
         return builder;
     }
@@ -104,8 +99,8 @@ public class CoreAdvisorAutoConfiguration {
         List<Advisor> advisors = advisorRegistry.buildChain(AdvisorRegistry.ChainProfile.STANDARD);
 
         return ChatClient.builder(chatModel)
-            .defaultAdvisors(advisors.toArray(new Advisor[0]))
-            .build();
+                .defaultAdvisors(advisors.toArray(new Advisor[0]))
+                .build();
     }
 
     @Bean(name = "securityCriticalChatClient")
@@ -114,14 +109,14 @@ public class CoreAdvisorAutoConfiguration {
         List<Advisor> advisors = advisorRegistry.buildChain(AdvisorRegistry.ChainProfile.SECURITY_CRITICAL);
 
         return ChatClient.builder(chatModel)
-            .defaultAdvisors(advisors.toArray(new Advisor[0]))
-            .build();
+                .defaultAdvisors(advisors.toArray(new Advisor[0]))
+                .build();
     }
 
     @Bean
     @ConditionalOnProperty(prefix = "contexa.advisor.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public EnhancedSoarApprovalAdvisor soarApprovalAdvisor(Tracer tracer) {
-                return new EnhancedSoarApprovalAdvisor(tracer);
+        return new EnhancedSoarApprovalAdvisor(tracer);
     }
 
     @EventListener(ContextRefreshedEvent.class)
@@ -132,9 +127,7 @@ public class CoreAdvisorAutoConfiguration {
         log.info("  - Active Advisors: {}", advisorRegistry.getEnabled().size());
         log.info("  - Domains: {}", advisorRegistry.getDomains());
 
-        advisorRegistry.getEnabled().forEach(advisor ->
-                log.debug("  [OK] {} (domain: {}, order: {})",
-                        advisor.getName(), advisor.getDomain(), advisor.getOrder())
-        );
+        advisorRegistry.getEnabled().forEach(advisor -> log.debug("  [OK] {} (domain: {}, order: {})",
+                advisor.getName(), advisor.getDomain(), advisor.getOrder()));
     }
 }

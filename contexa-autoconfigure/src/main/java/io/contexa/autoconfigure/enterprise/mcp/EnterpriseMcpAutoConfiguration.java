@@ -27,21 +27,11 @@ import java.util.List;
 @Slf4j
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexamcp.tools.NetworkScanTool")
-@ConditionalOnProperty(
-    prefix = "contexa.enterprise",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = false
-)
-@ConditionalOnProperty(
-    prefix = "spring.ai.mcp.server",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
+@ConditionalOnProperty(prefix = "spring.ai.mcp.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
-    ContexaEnterpriseProperties.class,
-    ToolExecutionProperties.class
+        ContexaEnterpriseProperties.class,
+        ToolExecutionProperties.class
 })
 public class EnterpriseMcpAutoConfiguration {
 
@@ -51,91 +41,78 @@ public class EnterpriseMcpAutoConfiguration {
         return new NetworkScanTool();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public LogAnalysisTool logAnalysisTool() {
         return new LogAnalysisTool();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public ThreatIntelligenceTool threatIntelligenceTool() {
         return new ThreatIntelligenceTool();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public FileQuarantineTool fileQuarantineTool() {
         return new FileQuarantineTool();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public ProcessKillTool processKillTool() {
         return new ProcessKillTool();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public NetworkIsolationTool networkIsolationTool() {
         return new NetworkIsolationTool();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public AuditLogQueryTool auditLogQueryTool(AuditLogService auditLogService) {
         return new AuditLogQueryTool(auditLogService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public IpBlockingTool ipBlockingTool(IpBlockingService ipBlockingService) {
         return new IpBlockingTool(ipBlockingService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SessionTerminationTool sessionTerminationTool(UserSessionService userSessionService) {
         return new SessionTerminationTool(userSessionService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityLogResource securityLogResource(ObjectMapper objectMapper) {
         return new SecurityLogResource(objectMapper);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SystemInfoResource systemInfoResource(ObjectMapper objectMapper) {
         return new SystemInfoResource(objectMapper);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityAnalysisPrompts securityAnalysisPrompts() {
         return new SecurityAnalysisPrompts();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityCommandCompletion securityCommandCompletion() {
         return new SecurityCommandCompletion();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public ToolCallbackProvider mcpToolProvider(
@@ -149,7 +126,6 @@ public class EnterpriseMcpAutoConfiguration {
             IpBlockingTool ipBlockingTool,
             SessionTerminationTool sessionTerminationTool) {
 
-        
         ToolCallbackProvider provider = MethodToolCallbackProvider.builder()
                 .toolObjects(
                         networkScanTool,
@@ -160,8 +136,7 @@ public class EnterpriseMcpAutoConfiguration {
                         networkIsolationTool,
                         auditLogQueryTool,
                         ipBlockingTool,
-                        sessionTerminationTool
-                )
+                        sessionTerminationTool)
                 .build();
 
         return provider;
@@ -173,7 +148,6 @@ public class EnterpriseMcpAutoConfiguration {
             SecurityLogResource securityLogResource,
             SystemInfoResource systemInfoResource) {
 
-        
         List<McpServerFeatures.SyncResourceSpecification> resources = new ArrayList<>();
         resources.add(securityLogResource.createSpecification());
         resources.add(systemInfoResource.createSpecification());
@@ -181,7 +155,6 @@ public class EnterpriseMcpAutoConfiguration {
         return resources;
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(name = "mcpPrompts")
     public List<McpServerFeatures.SyncPromptSpecification> mcpPrompts(
@@ -194,25 +167,22 @@ public class EnterpriseMcpAutoConfiguration {
         return prompts;
     }
 
-    
     @Bean
     @ConditionalOnMissingBean(name = "mcpCompletions")
     public List<McpServerFeatures.SyncCompletionSpecification> mcpCompletions(
             SecurityCommandCompletion securityCommandCompletion) {
 
-        
         List<McpServerFeatures.SyncCompletionSpecification> completions = new ArrayList<>();
 
         var completionInfo = securityCommandCompletion.createCompletionSpecification();
         if (completionInfo != null) {
-                    } else {
+        } else {
             log.warn("  Failed to generate Completion info");
         }
 
         return completions;
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public McpServerInfoLogger mcpServerInfoLogger() {
@@ -220,8 +190,7 @@ public class EnterpriseMcpAutoConfiguration {
     }
 
     public static class McpServerInfoLogger {
-
         public McpServerInfoLogger() {
-                                                                                                                                                                                                                                                                                                                                }
+        }
     }
 }

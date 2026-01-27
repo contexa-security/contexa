@@ -2,7 +2,6 @@ package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
-import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
@@ -12,20 +11,14 @@ import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.UserRepository;
-import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
 @AutoConfiguration
 public class IamSecurityCoreAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustSecurityService zeroTrustSecurityService(
@@ -37,7 +30,8 @@ public class IamSecurityCoreAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             TieredStrategyProperties tieredStrategyProperties) {
         return new ZeroTrustSecurityService(redisTemplate,
-                threatScoreOrchestrator, objectMapper, baselineLearningService, zeroTrustEventPublisher, tieredStrategyProperties);
+                threatScoreOrchestrator, objectMapper, baselineLearningService, zeroTrustEventPublisher,
+                tieredStrategyProperties);
     }
 
     @Bean

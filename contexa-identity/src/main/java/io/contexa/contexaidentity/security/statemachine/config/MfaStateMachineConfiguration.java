@@ -79,6 +79,13 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .and()
 
                 .withExternal()
+                .source(MfaState.NONE)
+                .target(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
+                .event(MfaEvent.ADAPTIVE_MFA_REQUIRED)
+                .action(initializeMfaAction)
+                .and()
+
+                .withExternal()
                 .source(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
                 .target(MfaState.MFA_NOT_REQUIRED)
                 .event(MfaEvent.MFA_NOT_REQUIRED)

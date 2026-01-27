@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.statemachine.config.kyro;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.enums.AuthType;
@@ -59,10 +60,12 @@ public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSer
         kryo.register(CopyOnWriteArrayList.class); 
         kryo.register(AtomicReference.class, new AtomicReferenceSerializer());
         kryo.register(AtomicInteger.class, new AtomicIntegerSerializer()); 
-        kryo.register(Authentication.class); 
-        kryo.register(AuthType.class); 
-        kryo.register(Instant.class); 
-        kryo.register(UsernamePasswordAuthenticationToken.class); 
+        kryo.register(AuthType.class);
+        kryo.register(Instant.class);
+        MinimalAuthenticationSerializer minimalAuthenticationSerializer = new MinimalAuthenticationSerializer();
+        kryo.register(Authentication.class, minimalAuthenticationSerializer);
+        kryo.register(UsernamePasswordAuthenticationToken.class, minimalAuthenticationSerializer);
+        kryo.register(ZeroTrustAuthenticationToken.class, minimalAuthenticationSerializer);
         try {
             Class<?> unmodifiableListClass = Collections.unmodifiableList(new ArrayList<>()).getClass();
             kryo.register(unmodifiableListClass, new UnmodifiableListSerializer());

@@ -40,7 +40,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -48,17 +47,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration.class)
-@ConditionalOnProperty(
-    prefix = "contexa.rag",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
-@EnableConfigurationProperties({ContexaProperties.class, PgVectorStoreProperties.class})
+@ConditionalOnProperty(prefix = "contexa.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties({ ContexaProperties.class, PgVectorStoreProperties.class })
 public class CoreRAGAutoConfiguration {
 
     @Value("${spring.ai.rag.similarity-threshold:0.75}")
@@ -76,16 +69,15 @@ public class CoreRAGAutoConfiguration {
     @Value("${spring.ai.rag.risk.top-k:50}")
     private int riskTopK;
 
-    public CoreRAGAutoConfiguration() {}
+    public CoreRAGAutoConfiguration() {
+    }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public VectorStoreObservationConvention securityVectorStoreObservationConvention() {
-                        return new SecurityVectorStoreObservationConvention();
+        return new SecurityVectorStoreObservationConvention();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public StandardVectorStoreService standardVectorStoreService(
@@ -94,8 +86,7 @@ public class CoreRAGAutoConfiguration {
             EmbeddingModel embeddingModel,
             JdbcTemplate jdbcTemplate) {
         return new StandardVectorStoreService(
-            properties, vectorStore, embeddingModel, jdbcTemplate
-        );
+                properties, vectorStore, embeddingModel, jdbcTemplate);
     }
 
     @Bean
@@ -104,11 +95,9 @@ public class CoreRAGAutoConfiguration {
             RedisEventPublisher eventPublisher,
             AuditLogger auditLogger) {
         return new DistributedSessionManager(
-            eventPublisher, auditLogger
-        );
+                eventPublisher, auditLogger);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
@@ -117,19 +106,16 @@ public class CoreRAGAutoConfiguration {
             BehaviorETLPipeline behaviorETLPipeline,
             AuditLogRepository auditLogRepository) {
         return new BehaviorVectorService(
-            standardVectorStoreService, vectorStoreMetrics, behaviorETLPipeline, auditLogRepository
-        );
+                standardVectorStoreService, vectorStoreMetrics, behaviorETLPipeline, auditLogRepository);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public RiskAssessmentVectorService riskAssessmentVectorService(
             StandardVectorStoreService standardVectorStoreService,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new RiskAssessmentVectorService(
-            standardVectorStoreService, vectorStoreMetrics
-        );
+                standardVectorStoreService, vectorStoreMetrics);
     }
 
     @Bean
@@ -141,7 +127,6 @@ public class CoreRAGAutoConfiguration {
         return new DistributedStrategyExecutor(orchestrator, eventPublisher, strategyRegistry);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public UnifiedVectorService unifiedVectorService(
@@ -150,11 +135,9 @@ public class CoreRAGAutoConfiguration {
             BehaviorVectorService behaviorService,
             RiskAssessmentVectorService riskService) {
         return new UnifiedVectorService(
-            cacheLayer, standardService, behaviorService, riskService
-        );
+                cacheLayer, standardService, behaviorService, riskService);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public AINativeProcessor aiNativeProcessor(
@@ -162,13 +145,9 @@ public class CoreRAGAutoConfiguration {
             RedisDistributedLockService distributedLockService,
             DistributedStrategyExecutor distributedStrategyExecutor) {
         return new AINativeProcessor(
-            sessionManager, distributedLockService, distributedStrategyExecutor
-        );
+                sessionManager, distributedLockService, distributedStrategyExecutor);
     }
 
-    
-
-    
     @Bean
     @Primary
     @ConditionalOnBean(ChatModel.class)
@@ -179,56 +158,53 @@ public class CoreRAGAutoConfiguration {
             @Qualifier("behaviorQueryTransformer") QueryTransformer behaviorQueryTransformer) {
 
         String thirtyDaysAgo = LocalDateTime.now()
-            .minusDays(behaviorLookbackDays)
-            .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                .minusDays(behaviorLookbackDays)
+                .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
-            filterBuilder.gte("timestamp", thirtyDaysAgo),
-            filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue())
-        ).build();
+                filterBuilder.gte("timestamp", thirtyDaysAgo),
+                filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue())).build();
 
         VectorStoreDocumentRetriever documentRetriever = VectorStoreDocumentRetriever.builder()
-            .vectorStore(vectorStore)
-            .similarityThreshold(defaultSimilarityThreshold)
-            .topK(defaultTopK)
-            .filterExpression(filter)
-            .build();
+                .vectorStore(vectorStore)
+                .similarityThreshold(defaultSimilarityThreshold)
+                .topK(defaultTopK)
+                .filterExpression(filter)
+                .build();
 
         return RetrievalAugmentationAdvisor.builder()
-            .documentRetriever(documentRetriever)
-            .queryTransformers(behaviorQueryTransformer)
-            .build();
+                .documentRetriever(documentRetriever)
+                .queryTransformers(behaviorQueryTransformer)
+                .build();
     }
 
-    
     @Bean
     @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
             VectorStore vectorStore,
+            ChatClient.Builder chatClientBuilder,
             @Qualifier("riskQueryTransformer") QueryTransformer riskQueryTransformer) {
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
-            filterBuilder.eq("documentType", VectorDocumentType.RISK_ASSESSMENT.getValue()),
-            filterBuilder.gte("riskScore", 0.5)
-        ).build();
+                filterBuilder.eq("documentType", VectorDocumentType.RISK_ASSESSMENT.getValue()),
+                filterBuilder.gte("riskScore", 0.5)).build();
 
         VectorStoreDocumentRetriever documentRetriever = VectorStoreDocumentRetriever.builder()
-            .vectorStore(vectorStore)
-            .similarityThreshold(riskSimilarityThreshold)
-            .topK(riskTopK)
-            .filterExpression(filter)
-            .build();
+                .vectorStore(vectorStore)
+                .similarityThreshold(riskSimilarityThreshold)
+                .topK(riskTopK)
+                .filterExpression(filter)
+                .build();
 
         return RetrievalAugmentationAdvisor.builder()
-            .documentRetriever(documentRetriever)
-            .queryTransformers(riskQueryTransformer)
-            .build();
+                .documentRetriever(documentRetriever)
+                .queryTransformers(riskQueryTransformer)
+                .build();
     }
 
-    
     @Bean
     @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "policyGenerationRagAdvisor")
@@ -241,19 +217,18 @@ public class CoreRAGAutoConfiguration {
         var filter = filterBuilder.eq("documentType", VectorDocumentType.POLICY_EVOLUTION.getValue()).build();
 
         VectorStoreDocumentRetriever documentRetriever = VectorStoreDocumentRetriever.builder()
-            .vectorStore(vectorStore)
-            .similarityThreshold(0.7)
-            .topK(20)
-            .filterExpression(filter)
-            .build();
+                .vectorStore(vectorStore)
+                .similarityThreshold(0.7)
+                .topK(20)
+                .filterExpression(filter)
+                .build();
 
         return RetrievalAugmentationAdvisor.builder()
-            .documentRetriever(documentRetriever)
-            .queryTransformers(policyQueryTransformer)
-            .build();
+                .documentRetriever(documentRetriever)
+                .queryTransformers(policyQueryTransformer)
+                .build();
     }
 
-    
     @Bean("behaviorQueryTransformer")
     @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "behaviorQueryTransformer")
@@ -268,30 +243,29 @@ public class CoreRAGAutoConfiguration {
                 }
 
                 String prompt = """
-                    Optimize the following query for user behavior pattern analysis:
+                        Optimize the following query for user behavior pattern analysis:
 
-                    Original Query: %s
+                        Original Query: %s
 
-                    Optimization Guidelines:
-                    1. Include temporal context (last 30 days)
-                    2. Add keywords to search for similar behavior patterns
-                    3. Reinforce anomaly-related terms
-                    4. Consider user role and permission context
+                        Optimization Guidelines:
+                        1. Include temporal context (last 30 days)
+                        2. Add keywords to search for similar behavior patterns
+                        3. Reinforce anomaly-related terms
+                        4. Consider user role and permission context
 
-                    Return only the optimized query.
-                    """.formatted(originalQuery.text());
+                        Return only the optimized query.
+                        """.formatted(originalQuery.text());
 
                 String transformedText = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
+                        .user(prompt)
+                        .call()
+                        .content();
 
                 return new Query(transformedText);
             }
         };
     }
 
-    
     @Bean("riskQueryTransformer")
     @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "riskQueryTransformer")
@@ -306,30 +280,29 @@ public class CoreRAGAutoConfiguration {
                 }
 
                 String prompt = """
-                    Optimize the following query for security risk assessment:
+                        Optimize the following query for security risk assessment:
 
-                    Original Query: %s
+                        Original Query: %s
 
-                    Optimization Guidelines:
-                    1. Include Threat Indicators (IOC)
-                    2. Expand to search for past incident patterns
-                    3. Add classification keywords by risk level
-                    4. Include MITRE ATT&CK framework related terms
+                        Optimization Guidelines:
+                        1. Include Threat Indicators (IOC)
+                        2. Expand to search for past incident patterns
+                        3. Add classification keywords by risk level
+                        4. Include MITRE ATT&CK framework related terms
 
-                    Return only the optimized query.
-                    """.formatted(originalQuery.text());
+                        Return only the optimized query.
+                        """.formatted(originalQuery.text());
 
                 String transformedText = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
+                        .user(prompt)
+                        .call()
+                        .content();
 
                 return new Query(transformedText);
             }
         };
     }
 
-    
     @Bean("policyQueryTransformer")
     @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean(name = "policyQueryTransformer")
@@ -344,23 +317,23 @@ public class CoreRAGAutoConfiguration {
                 }
 
                 String prompt = """
-                    Optimize the following query for policy generation:
+                        Optimize the following query for policy generation:
 
-                    Original Query: %s
+                        Original Query: %s
 
-                    Optimization Guidelines:
-                    1. Expand to find similar policy templates
-                    2. Include Role-Based Access Control (RBAC) related terms
-                    3. Consider compliance requirements
-                    4. Include business rules and conditions
+                        Optimization Guidelines:
+                        1. Expand to find similar policy templates
+                        2. Include Role-Based Access Control (RBAC) related terms
+                        3. Consider compliance requirements
+                        4. Include business rules and conditions
 
-                    Return only the optimized query.
-                    """.formatted(originalQuery.text());
+                        Return only the optimized query.
+                        """.formatted(originalQuery.text());
 
                 String transformedText = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
+                        .user(prompt)
+                        .call()
+                        .content();
 
                 return new Query(transformedText);
             }

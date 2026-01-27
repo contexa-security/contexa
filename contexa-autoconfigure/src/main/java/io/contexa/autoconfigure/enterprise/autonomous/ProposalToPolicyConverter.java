@@ -14,7 +14,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 public class ProposalToPolicyConverter {
 
@@ -23,14 +22,12 @@ public class ProposalToPolicyConverter {
     private static final int MIN_PRIORITY = 100;
     private static final int MAX_PRIORITY = 900;
 
-    
     public PolicyDto convert(PolicyEvolutionProposal proposal) {
         if (proposal == null) {
             throw new IllegalArgumentException("PolicyEvolutionProposal cannot be null");
         }
 
         validateProposal(proposal);
-
 
         return PolicyDto.builder()
                 .name(generatePolicyName(proposal))
@@ -42,13 +39,11 @@ public class ProposalToPolicyConverter {
                 .build();
     }
 
-    
     private void validateProposal(PolicyEvolutionProposal proposal) {
         if (!StringUtils.hasText(proposal.getTitle())) {
             throw new IllegalArgumentException("Policy proposal title is required: proposalId=" + proposal.getId());
         }
 
-        
         if (!StringUtils.hasText(proposal.getSpelExpression())
                 && !StringUtils.hasText(proposal.getPolicyContent())) {
             throw new IllegalArgumentException(
@@ -56,13 +51,11 @@ public class ProposalToPolicyConverter {
         }
     }
 
-    
     private String generatePolicyName(PolicyEvolutionProposal proposal) {
         String typeSuffix = proposal.getProposalType() != null
                 ? proposal.getProposalType().name()
                 : "UNKNOWN";
 
-        
         String sanitizedTitle = sanitizeForPolicyName(proposal.getTitle());
 
         return String.format("%s%s_%d_%s",
@@ -72,22 +65,17 @@ public class ProposalToPolicyConverter {
                 sanitizedTitle);
     }
 
-    
     private String sanitizeForPolicyName(String input) {
         if (!StringUtils.hasText(input)) {
             return "UNNAMED";
         }
 
-        
         String sanitized = input.replaceAll("[^a-zA-Z0-9_가-힣]", "_");
 
-        
         sanitized = sanitized.replaceAll("_+", "_");
 
-        
         sanitized = sanitized.replaceAll("^_|_$", "");
 
-        
         if (sanitized.length() > 30) {
             sanitized = sanitized.substring(0, 30);
         }
@@ -95,11 +83,9 @@ public class ProposalToPolicyConverter {
         return sanitized.isEmpty() ? "UNNAMED" : sanitized;
     }
 
-    
     private String generateDescription(PolicyEvolutionProposal proposal) {
         StringBuilder description = new StringBuilder();
 
-        
         description.append("[AI Generated Policy] ");
 
         if (StringUtils.hasText(proposal.getDescription())) {
@@ -108,35 +94,30 @@ public class ProposalToPolicyConverter {
             description.append(proposal.getTitle());
         }
 
-        
         if (StringUtils.hasText(proposal.getAiReasoning())) {
             description.append("\n\n[AI Reasoning Basis]\n");
             String reasoning = proposal.getAiReasoning();
-            
+
             if (reasoning.length() > 500) {
                 reasoning = reasoning.substring(0, 497) + "...";
             }
             description.append(reasoning);
         }
 
-        
         if (proposal.getConfidenceScore() != null) {
             description.append(String.format("\n\n[Confidence: %.1f%%]", proposal.getConfidenceScore() * 100));
         }
 
-        
         description.append(String.format("\n\n[Original Proposal ID: %d]", proposal.getId()));
 
         return description.toString();
     }
 
-    
     private Policy.Effect determineEffect(PolicyEvolutionProposal proposal) {
         if (proposal.getProposalType() == null) {
             return Policy.Effect.ALLOW;
         }
 
-        
         Map<String, Object> metadata = proposal.getMetadata();
         if (metadata != null && metadata.containsKey("effect")) {
             String effectStr = String.valueOf(metadata.get("effect")).toUpperCase();
@@ -147,7 +128,6 @@ public class ProposalToPolicyConverter {
             }
         }
 
-        
         switch (proposal.getProposalType()) {
             case REVOKE_ACCESS:
             case DELETE_POLICY:
@@ -167,40 +147,34 @@ public class ProposalToPolicyConverter {
         }
     }
 
-    
     private int calculatePriority(PolicyEvolutionProposal proposal) {
         int priority = DEFAULT_PRIORITY;
 
-        
         if (proposal.getConfidenceScore() != null) {
-            
+
             double confidenceAdjustment = (1 - proposal.getConfidenceScore()) * 200 - 100;
             priority += (int) confidenceAdjustment;
         }
 
-        
         if (proposal.getRiskLevel() != null) {
             switch (proposal.getRiskLevel()) {
                 case CRITICAL:
-                    priority -= 100; 
+                    priority -= 100;
                     break;
                 case HIGH:
                     priority -= 50;
                     break;
                 case MEDIUM:
-                    
                     break;
                 case LOW:
-                    priority += 50; 
+                    priority += 50;
                     break;
             }
         }
 
-        
         return Math.max(MIN_PRIORITY, Math.min(MAX_PRIORITY, priority));
     }
 
-    
     private List<TargetDto> extractTargets(PolicyEvolutionProposal proposal) {
         List<TargetDto> targets = new ArrayList<>();
 
@@ -208,12 +182,10 @@ public class ProposalToPolicyConverter {
         Map<String, Object> actionPayload = proposal.getActionPayload();
         Map<String, Object> metadata = proposal.getMetadata();
 
-        
         String targetResource = extractStringValue(context, "targetResource", "targetUri", "resource");
         String httpMethod = extractStringValue(context, "requestMethod", "httpMethod", "method");
         String targetType = extractStringValue(context, "targetType", "resourceType");
 
-        
         if (targetResource == null) {
             targetResource = extractStringValue(actionPayload, "targetResource", "resource");
         }
@@ -221,12 +193,10 @@ public class ProposalToPolicyConverter {
             httpMethod = extractStringValue(actionPayload, "requestMethod", "httpMethod");
         }
 
-        
         if (targetResource == null) {
             targetResource = extractStringValue(metadata, "targetResource", "resource");
         }
 
-        
         if (StringUtils.hasText(targetResource)) {
             TargetDto target = TargetDto.builder()
                     .targetType(StringUtils.hasText(targetType) ? targetType : "URL")
@@ -236,7 +206,6 @@ public class ProposalToPolicyConverter {
             targets.add(target);
 
         } else {
-            
             log.warn("No Target info, creating default target: proposalId={}", proposal.getId());
             TargetDto defaultTarget = TargetDto.builder()
                     .targetType("URL")
@@ -249,11 +218,9 @@ public class ProposalToPolicyConverter {
         return targets;
     }
 
-    
     private List<RuleDto> extractRules(PolicyEvolutionProposal proposal) {
         List<RuleDto> rules = new ArrayList<>();
 
-        
         String spelExpression = proposal.getSpelExpression();
         if (!StringUtils.hasText(spelExpression)) {
             spelExpression = proposal.getPolicyContent();
@@ -264,7 +231,6 @@ public class ProposalToPolicyConverter {
             spelExpression = "isAuthenticated()";
         }
 
-        
         List<ConditionDto> conditions = new ArrayList<>();
         ConditionDto condition = ConditionDto.builder()
                 .expression(spelExpression)
@@ -272,10 +238,8 @@ public class ProposalToPolicyConverter {
                 .build();
         conditions.add(condition);
 
-        
         String ruleDescription = generateRuleDescription(proposal);
 
-        
         RuleDto rule = RuleDto.builder()
                 .description(ruleDescription)
                 .conditions(conditions)
@@ -285,7 +249,6 @@ public class ProposalToPolicyConverter {
         return rules;
     }
 
-    
     private String generateRuleDescription(PolicyEvolutionProposal proposal) {
         StringBuilder description = new StringBuilder();
 
@@ -306,7 +269,6 @@ public class ProposalToPolicyConverter {
         return description.toString();
     }
 
-    
     private String extractStringValue(Map<String, Object> map, String... keys) {
         if (map == null) {
             return null;
@@ -322,7 +284,6 @@ public class ProposalToPolicyConverter {
         return null;
     }
 
-    
     public PolicyDto convertForUpdate(PolicyEvolutionProposal proposal, Long existingPolicyId) {
         PolicyDto policyDto = convert(proposal);
         policyDto.setId(existingPolicyId);

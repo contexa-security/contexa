@@ -14,24 +14,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.context.annotation.Bean;
 
-
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
-@ConditionalOnProperty(
-    prefix = "contexa.identity.handler",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.identity.handler", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IdentityHandlerAutoConfiguration {
 
     public IdentityHandlerAutoConfiguration() {
-        
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public OneTimeTokenCreationSuccessHandler oneTimeTokenCreationSuccessHandler(
@@ -39,15 +29,11 @@ public class IdentityHandlerAutoConfiguration {
             AuthUrlProvider authUrlProvider,
             MfaSessionRepository sessionRepository) {
         return new OneTimeTokenCreationSuccessHandler(
-            mfaStateMachineIntegrator,
-            authUrlProvider,
-            sessionRepository
-        );
+                mfaStateMachineIntegrator,
+                authUrlProvider,
+                sessionRepository);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public SessionSingleAuthFailureHandler sessionSingleAuthFailureHandler(
@@ -56,7 +42,6 @@ public class IdentityHandlerAutoConfiguration {
         return new SessionSingleAuthFailureHandler(responseWriter, authContextProperties);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SessionSingleAuthSuccessHandler sessionSingleAuthSuccessHandler(
@@ -65,7 +50,6 @@ public class IdentityHandlerAutoConfiguration {
         return new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SessionMfaFailureHandler sessionMfaFailureHandler(
@@ -74,7 +58,6 @@ public class IdentityHandlerAutoConfiguration {
         return new SessionMfaFailureHandler(responseWriter, authContextProperties);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SessionMfaSuccessHandler sessionMfaSuccessHandler(
@@ -83,9 +66,6 @@ public class IdentityHandlerAutoConfiguration {
         return new SessionMfaSuccessHandler(responseWriter, authContextProperties);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public OAuth2SingleAuthSuccessHandler oauth2SingleAuthSuccessHandler(
@@ -95,7 +75,6 @@ public class IdentityHandlerAutoConfiguration {
         return new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter, authContextProperties);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public OAuth2SingleAuthFailureHandler oauth2SingleAuthFailureHandler(

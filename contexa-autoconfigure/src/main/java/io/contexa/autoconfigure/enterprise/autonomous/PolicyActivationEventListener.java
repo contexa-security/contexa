@@ -17,7 +17,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Map;
 
-
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyActivationEventListener {
@@ -28,7 +27,6 @@ public class PolicyActivationEventListener {
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final CustomDynamicAuthorizationManager authorizationManager;
 
-    
     @EventListener
     @Async
     @Transactional
@@ -38,43 +36,35 @@ public class PolicyActivationEventListener {
         }
 
         Long proposalId = event.getProposalId();
-        
+
         try {
-            
+
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                     .orElseThrow(() -> new IllegalArgumentException(
                             "PolicyEvolutionProposal not found: proposalId=" + proposalId));
 
-            
             if (proposal.getPolicyId() != null) {
-                                
+
                 reactivateExistingPolicy(proposal);
                 return;
             }
 
-            
             PolicyDto policyDto = proposalToPolicyConverter.convert(proposal);
-            
-            
+
             Policy savedPolicy = policyService.createPolicy(policyDto);
-            
-            
+
             updatePolicyForAIGenerated(savedPolicy, proposal);
 
-            
             linkProposalToPolicy(proposal, savedPolicy);
 
-            
-            
         } catch (Exception e) {
             log.error("AI policy activation failed: proposalId={}, error={}",
                     proposalId, e.getMessage(), e);
-            
+
             throw new RuntimeException("AI policy activation failed: " + e.getMessage(), e);
         }
     }
 
-    
     @EventListener
     @Async
     @Transactional
@@ -84,16 +74,16 @@ public class PolicyActivationEventListener {
         }
 
         Long proposalId = event.getProposalId();
-        
+
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                     .orElseThrow(() -> new IllegalArgumentException(
                             "PolicyEvolutionProposal not found: proposalId=" + proposalId));
 
             if (proposal.getPolicyId() != null) {
-                
+
                 deactivatePolicy(proposal.getPolicyId());
-             } else {
+            } else {
                 log.warn("No linked Policy found: proposalId={}", proposalId);
             }
 
@@ -103,7 +93,6 @@ public class PolicyActivationEventListener {
         }
     }
 
-    
     @EventListener
     @Async
     @Transactional
@@ -113,17 +102,16 @@ public class PolicyActivationEventListener {
         }
 
         Long proposalId = event.getProposalId();
-        
+
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                     .orElseThrow(() -> new IllegalArgumentException(
                             "PolicyEvolutionProposal not found: proposalId=" + proposalId));
 
             if (proposal.getPolicyId() != null) {
-                
+
                 policyService.deletePolicy(proposal.getPolicyId());
-                
-                
+
                 proposal.setPolicyId(null);
                 proposalRepository.save(proposal);
             } else {
@@ -136,69 +124,56 @@ public class PolicyActivationEventListener {
         }
     }
 
-    
     private void reactivateExistingPolicy(PolicyEvolutionProposal proposal) {
         try {
             Policy existingPolicy = policyService.findById(proposal.getPolicyId());
 
-            
             existingPolicy.setIsActive(true);
             existingPolicy.activate();
 
-            
             reloadAuthorizationSystem();
 
-            
         } catch (Exception e) {
             log.error("Existing policy reactivation failed: policyId={}, error={}",
                     proposal.getPolicyId(), e.getMessage(), e);
         }
     }
 
-    
     private void updatePolicyForAIGenerated(Policy policy, PolicyEvolutionProposal proposal) {
-        
+
         if (proposal.getParentProposalId() != null) {
             policy.setSource(Policy.PolicySource.AI_EVOLVED);
         } else {
             policy.setSource(Policy.PolicySource.AI_GENERATED);
         }
 
-        
         policy.setApprovalStatus(Policy.ApprovalStatus.APPROVED);
         policy.setApprovedBy(proposal.getApprovedBy());
         policy.setApprovedAt(LocalDateTime.now());
 
-        
         policy.setConfidenceScore(proposal.getConfidenceScore());
 
-        
         Map<String, Object> metadata = proposal.getMetadata();
         if (metadata != null && metadata.containsKey("aiModel")) {
             policy.setAiModel(String.valueOf(metadata.get("aiModel")));
         }
 
         policy.setUpdatedAt(LocalDateTime.now());
+    }
 
-            }
-
-    
     private void linkProposalToPolicy(PolicyEvolutionProposal proposal, Policy policy) {
         proposal.setPolicyId(policy.getId());
         proposal.addMetadata("linked_policy_name", policy.getName());
         proposal.addMetadata("linked_at", LocalDateTime.now().toString());
         proposalRepository.save(proposal);
+    }
 
-            }
-
-    
     private void deactivatePolicy(Long policyId) {
         try {
             Policy policy = policyService.findById(policyId);
             policy.setIsActive(false);
             policy.deactivate();
 
-            
             reloadAuthorizationSystem();
 
         } catch (Exception e) {
@@ -206,7 +181,6 @@ public class PolicyActivationEventListener {
         }
     }
 
-    
     private void reloadAuthorizationSystem() {
         try {
             policyRetrievalPoint.clearUrlPoliciesCache();

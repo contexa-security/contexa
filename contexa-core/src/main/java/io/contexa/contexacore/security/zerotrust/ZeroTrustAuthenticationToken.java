@@ -15,6 +15,10 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
     private LocalDateTime lastEvaluated;
     private String sessionId;
 
+    public ZeroTrustAuthenticationToken(){
+        super(null, null);
+    }
+
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
                                         double trustScore, double threatScore) {

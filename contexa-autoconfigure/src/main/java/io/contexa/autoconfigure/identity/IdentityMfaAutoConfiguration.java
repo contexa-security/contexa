@@ -25,24 +25,15 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.List;
 
-
 @AutoConfiguration
 @ConditionalOnBean(PlatformConfig.class)
-@ConditionalOnProperty(
-    prefix = "contexa.identity.mfa",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.identity.mfa", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class IdentityMfaAutoConfiguration {
 
     public IdentityMfaAutoConfiguration() {
-        
+
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public DefaultMfaPolicyEvaluator defaultMfaPolicyEvaluator(
@@ -51,7 +42,6 @@ public class IdentityMfaAutoConfiguration {
         return new DefaultMfaPolicyEvaluator(userRepository, applicationContext);
     }
 
-    
     @Bean
     @ConditionalOnBean(AICoreOperations.class)
     @ConditionalOnMissingBean
@@ -60,7 +50,6 @@ public class IdentityMfaAutoConfiguration {
         return new AIAdaptivePolicyEvaluator(aiCoreOperations);
     }
 
-    
     @Bean
     @ConditionalOnBean(name = "trustScoreRedisTemplate")
     @ConditionalOnMissingBean
@@ -71,7 +60,6 @@ public class IdentityMfaAutoConfiguration {
         return new ZeroTrustPolicyEvaluator(redisTemplate, notificationService, auditLogRepository);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public CompositeMfaPolicyEvaluator compositeMfaPolicyEvaluator(
@@ -79,9 +67,6 @@ public class IdentityMfaAutoConfiguration {
         return new CompositeMfaPolicyEvaluator(evaluators);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean(name = "defaultMfaPolicyProvider")
     public DefaultMfaPolicyProvider defaultMfaPolicyProvider(
@@ -91,15 +76,13 @@ public class IdentityMfaAutoConfiguration {
             CompositeMfaPolicyEvaluator policyEvaluator,
             PlatformConfig platformConfig) {
         return new DefaultMfaPolicyProvider(
-            userRepository,
-            applicationContext,
-            properties,
-            policyEvaluator,
-            platformConfig
-        );
+                userRepository,
+                applicationContext,
+                properties,
+                policyEvaluator,
+                platformConfig);
     }
 
-    
     @Bean
     @Primary
     @ConditionalOnBean(AICoreOperations.class)
@@ -112,25 +95,20 @@ public class IdentityMfaAutoConfiguration {
             PlatformConfig platformConfig,
             AICoreOperations aiCoreOperations) {
         return new AIAdaptiveMfaPolicyProvider(
-            userRepository,
-            applicationContext,
-            properties,
-            compositePolicyEvaluator,
-            platformConfig,
-            aiCoreOperations
-        );
+                userRepository,
+                applicationContext,
+                properties,
+                compositePolicyEvaluator,
+                platformConfig,
+                aiCoreOperations);
     }
 
-    
-
-    
     @Bean
     @ConditionalOnMissingBean
     public MfaSupportService mfaSupportService(UserRepository userRepository) {
         return new MfaSupportService(userRepository);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public MfaPageGeneratingConfigurer mfaPageGeneratingConfigurer(ApplicationContext applicationContext) {

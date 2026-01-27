@@ -12,14 +12,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 
-
 @AutoConfiguration
-@ConditionalOnProperty(
-    prefix = "contexa.infrastructure",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.infrastructure", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreInfrastructureExtendedAutoConfiguration {
 

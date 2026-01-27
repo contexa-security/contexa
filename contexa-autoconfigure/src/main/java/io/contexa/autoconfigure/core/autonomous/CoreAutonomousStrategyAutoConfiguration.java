@@ -23,20 +23,10 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
-
 @AutoConfiguration
-@ConditionalOnProperty(
-    prefix = "contexa.autonomous",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreAutonomousStrategyAutoConfiguration {
-
-    
-    
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -64,8 +54,6 @@ public class CoreAutonomousStrategyAutoConfiguration {
         return new VectorStoreEvaluationStrategy();
     }
 
-    
-
     @Bean
     @ConditionalOnMissingBean
     public PolicyEffectivenessMonitor policyEffectivenessMonitor(
@@ -80,8 +68,6 @@ public class CoreAutonomousStrategyAutoConfiguration {
             PolicyEffectivenessMonitor policyEffectivenessMonitor) {
         return new PolicyProposalAnalytics(policyEvolutionProposalRepository, policyEffectivenessMonitor);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean
@@ -101,8 +87,6 @@ public class CoreAutonomousStrategyAutoConfiguration {
         return new PolicyVersionManager();
     }
 
-    
-
     @Bean
     @ConditionalOnMissingBean
     public DistributedStateManager distributedStateManager(
@@ -111,8 +95,6 @@ public class CoreAutonomousStrategyAutoConfiguration {
             ObjectMapper objectMapper) {
         return new DistributedStateManager(redisTemplate, redisDistributedLockService, objectMapper);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean

@@ -22,11 +22,9 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 
-
 @AutoConfiguration
 public class IamSecurityAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean
     public MethodSecurityExpressionHandler methodSecurityExpressionHandler(
@@ -61,7 +59,6 @@ public class IamSecurityAutoConfiguration {
                 groupRepository,
                 documentRepository,
                 redisTemplate,
-                stringRedisTemplate
-        );
+                stringRedisTemplate);
     }
 }

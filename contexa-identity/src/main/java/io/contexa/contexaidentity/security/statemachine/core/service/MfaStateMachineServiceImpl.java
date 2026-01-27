@@ -32,7 +32,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
     private final StateMachineFactory<MfaState, MfaEvent> stateMachineFactory;
     private final StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister;
     private final RedissonClient redissonClient;
-    private final StateMachineProperties properties; 
+    private final StateMachineProperties properties;
 
     public MfaStateMachineServiceImpl(
             StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
@@ -47,7 +47,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
     private static final long LOCK_WAIT_TIME_SECONDS = 10;
     private static final long LOCK_LEASE_TIME_SECONDS = 30;
-    private static final MfaState FALLBACK_INITIAL_MFA_STATE = MfaState.NONE; 
+    private static final MfaState FALLBACK_INITIAL_MFA_STATE = MfaState.NONE;
+    private static final String REDIS_STATEMACHINE_KEY_PREFIX = "RedisRepositoryStateMachine:";
 
     private String getLockKey(String sessionId) {
         return "mfa_lock:session:" + sessionId;
@@ -55,18 +56,18 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
     private StateMachine<MfaState, MfaEvent> acquireStateMachine(String sessionId) {
         StateMachine<MfaState, MfaEvent> sm = stateMachineFactory.getStateMachine(sessionId);
-                return sm;
+        return sm;
     }
 
     private void releaseStateMachineInstance(StateMachine<MfaState, MfaEvent> sm, String sessionId) {
         if (sm != null) {
             try {
-                
+
                 sm.stopReactively().block(Duration.ofSeconds(5));
-                            } catch (Exception e) {
+            } catch (Exception e) {
                 log.warn("[MFA SM Service] [{}] StateMachine 정리 중 오류 (무시됨): {}", sessionId, e.getMessage());
             }
-            
+
         }
     }
 
@@ -78,13 +79,13 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             ExtendedState restoredExtendedState = stateMachine.getExtendedState();
             FactorContext restoredContext = StateContextHelper.getFactorContext(stateMachine);
             log.warn("[VERIFY-3] restore() 직후 [{}] - ExtendedState 변수 개수: {}, FactorContext: {}",
-                     machineId, restoredExtendedState.getVariables().size(),
-                     restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
+                    machineId, restoredExtendedState.getVariables().size(),
+                    restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
 
             if (stateMachine.getState() == null || stateMachine.getState().getId() == null) {
                 log.warn("[MFA SM Service] [{}] 복원 후 SM 상태가 null. initialStateIfNotRestored({})로 업데이트 및 시작 시도.", machineId, initialStateIfNotRestored);
                 log.warn("[VERIFY-3] 복원 후 State는 null이지만 FactorContext는 [{}]: {}",
-                         machineId, restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
+                        machineId, restoredContext != null ? "존재 (version " + restoredContext.getVersion() + ")" : "NULL");
                 updateAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
             } else {
 
@@ -99,50 +100,50 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
     private void updateAndStartStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String machineId, MfaState targetState, FactorContext factorContext) {
         if (stateMachine.getState() != null) {
             stateMachine.stopReactively().block();
-                    }
+        }
 
         ExtendedState extendedState = stateMachine.getExtendedState();
 
         if (factorContext != null) {
             StateContextHelper.setFactorContext(extendedState, factorContext);
-                    }
+        }
 
         StateMachineContext<MfaState, MfaEvent> newContext = new DefaultStateMachineContext<>(
                 targetState, null, null, extendedState, null, machineId
         );
         stateMachine.getStateMachineAccessor()
                 .doWithAllRegions(access -> access.resetStateMachineReactively(newContext).block());
-        
+
         stateMachine.startReactively().block();
 
         ExtendedState finalExtendedState = stateMachine.getExtendedState();
         FactorContext finalContext = StateContextHelper.getFactorContext(stateMachine);
-            }
+    }
 
     private void resetAndStartStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String machineId, MfaState targetState, FactorContext factorContext) {
-        if (stateMachine.getState() != null) { 
+        if (stateMachine.getState() != null) {
             stateMachine.stopReactively().block();
-                    }
+        }
 
         ExtendedState extendedState = stateMachine.getExtendedState();
         extendedState.getVariables().clear();
 
         if (factorContext != null) {
             StateContextHelper.setFactorContext(extendedState, factorContext);
-                    }
+        }
 
         StateMachineContext<MfaState, MfaEvent> newContext = new DefaultStateMachineContext<>(
                 targetState, null, null, extendedState, null, machineId
         );
         stateMachine.getStateMachineAccessor()
                 .doWithAllRegions(access -> access.resetStateMachineReactively(newContext).block());
-                stateMachine.startReactively().block(); 
+        stateMachine.startReactively().block();
 
         ExtendedState finalExtendedState = stateMachine.getExtendedState();
         FactorContext finalContext = StateContextHelper.getFactorContext(stateMachine);
         log.warn("[VERIFY-1] resetAndStartStateMachine 완료 후 [{}] - ExtendedState 변수 개수: {}, FactorContext: {}",
-                 machineId, finalExtendedState.getVariables().size(),
-                 finalContext != null ? "존재 (version " + finalContext.getVersion() + ")" : "NULL");
+                machineId, finalExtendedState.getVariables().size(),
+                finalContext != null ? "존재 (version " + finalContext.getVersion() + ")" : "NULL");
     }
 
     @Override
@@ -154,22 +155,22 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         StateMachine<MfaState, MfaEvent> stateMachine = null;
 
         try {
-                        lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
 
             if (!lockAcquired) {
                 log.warn("[MFA SM Service] [{}] SM 초기화 위한 락 획득 실패.", sessionId);
                 throw new MfaStateMachineException("Failed to acquire lock for State Machine initialization: " + sessionId);
             }
-            
+
             stateMachine = acquireStateMachine(sessionId);
 
             resetAndStartStateMachine(stateMachine, sessionId, context.getCurrentState(), context);
 
             context.incrementVersion();
-            StateContextHelper.setFactorContext(stateMachine, context); 
+            StateContextHelper.setFactorContext(stateMachine, context);
 
-            persistStateMachine(stateMachine, sessionId); 
-            
+            persistStateMachine(stateMachine, sessionId);
+
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.error("[MFA SM Service] [{}] SM 초기화 중 인터럽트 발생.", sessionId, e);
@@ -181,7 +182,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                            }
+            }
         }
     }
 
@@ -200,23 +201,23 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         Result eventProcessingResult;
 
         try {
-                        lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
             if (!lockAcquired) {
                 log.warn("[MFA SM Service] [{}] 이벤트 ({}) 처리 위한 락 획득 실패.", sessionId, event);
-                return false; 
+                return false;
             }
 
             stateMachine = getAndPrepareStateMachine(sessionId, context.getCurrentState(), context);
 
             context.incrementVersion();
-            StateContextHelper.setFactorContext(stateMachine, context); 
-            
+            StateContextHelper.setFactorContext(stateMachine, context);
+
             Message<MfaEvent> message = createEventMessage(event, context, request, additionalHeaders);
-            
+
             eventProcessingResult = sendEventInternal(stateMachine, message, context);
 
             if (eventProcessingResult.eventAccepted()) {
-                            } else {
+            } else {
                 log.warn("[MFA SM Service] [{}] 이벤트 ({})가 현재 SM 상태 ({})에서 수락되지 않음.", sessionId, event, eventProcessingResult.smCurrentStateAfterEvent());
             }
 
@@ -224,8 +225,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
             StateContextHelper.setFactorContext(stateMachine, context);
 
-            persistStateMachine(stateMachine, sessionId); 
-            
+            persistStateMachine(stateMachine, sessionId);
+
             return eventProcessingResult.eventAccepted();
 
         } catch (InterruptedException e) {
@@ -239,7 +240,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                            }
+            }
         }
     }
 
@@ -249,7 +250,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         MfaState currentState = stateMachine.getState() != null ? stateMachine.getState().getId() : null;
 
         int timeoutSeconds = properties.getMfa().getTransitionTimeoutSeconds() != null ?
-            properties.getMfa().getTransitionTimeoutSeconds() : 5;
+                properties.getMfa().getTransitionTimeoutSeconds() : 5;
 
         Boolean accepted = stateMachine.sendEvent(Mono.just(message))
                 .doOnNext(result -> log.debug("[SM Internal] 이벤트 결과 수신 - ResultType: {}, Session: {}",
@@ -269,7 +270,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
         if (accepted == null) {
             log.error("[SM Internal] ⚠️ 이벤트 처리 타임아웃 발생 - Event: {}, State: {}, Session: {}, Timeout: {}초",
-                     event, currentState, sessionId, timeoutSeconds);
+                    event, currentState, sessionId, timeoutSeconds);
             log.error("[SM Internal] State Machine이 응답하지 않음. 이벤트 거부로 처리.");
 
             MfaState fallbackState = stateMachine.getState() != null ? stateMachine.getState().getId() : originalExternalContext.getCurrentState();
@@ -284,14 +285,14 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
         if (contextFromSmAfterEvent != null) {
             Object factorsObj = contextFromSmAfterEvent.getAttribute("availableFactors");
-            
+
             if (factorsObj == null) {
                 log.warn("[sendEventInternal] availableFactors is NULL in contextFromSm for session: {}",
                         originalExternalContext.getMfaSessionId());
             }
         } else {
             log.error("[sendEventInternal] contextFromSm is NULL for session: {}",
-                     originalExternalContext.getMfaSessionId());
+                    originalExternalContext.getMfaSessionId());
         }
 
         return new Result(eventAccepted, smStateAfterEvent, contextFromSmAfterEvent);
@@ -304,16 +305,16 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         }
 
         if (contextFromSm != null) {
-            externalContext.changeState(smActualState); 
-            externalContext.setVersion(contextFromSm.getVersion()); 
+            externalContext.changeState(smActualState);
+            externalContext.setVersion(contextFromSm.getVersion());
 
             if (contextFromSm.getAttributes() != null) {
-                                contextFromSm.getAttributes().forEach((key, value) -> {
-                    
+                contextFromSm.getAttributes().forEach((key, value) -> {
+
                     Object copiedValue = deepCopyIfNeeded(key, value);
                     externalContext.setAttribute(key, copiedValue);
                     if ("availableFactors".equals(key)) {
-                                            }
+                    }
                 });
             }
 
@@ -327,7 +328,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 externalContext.updateLastActivityTimestamp();
             }
         } else {
-            
+
             log.warn("[MFA SM Service] [{}] SM 내부에서 FactorContext를 찾을 수 없음. 외부 context의 상태만 SM 실제 상태로 업데이트.", externalContext.getMfaSessionId());
             externalContext.changeState(smActualState);
         }
@@ -335,7 +336,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
     private void persistStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String sessionId) throws Exception {
         stateMachinePersister.persist(stateMachine, sessionId);
-            }
+    }
 
     @Override
     public FactorContext getFactorContext(String sessionId) {
@@ -344,7 +345,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         boolean lockAcquired = false;
         StateMachine<MfaState, MfaEvent> stateMachine = null;
         try {
-                        lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS / 2, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS / 2, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
             if (!lockAcquired) {
                 log.warn("[MFA SM Service] [{}] FactorContext 조회 위한 락 획득 실패. null 반환.", sessionId);
                 return null;
@@ -354,8 +355,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             FactorContext factorContext = StateContextHelper.getFactorContext(stateMachine);
 
             if (factorContext == null) {
-                            } else {
-                            }
+            } else {
+            }
             return factorContext;
 
         } catch (InterruptedException e) {
@@ -369,7 +370,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                            }
+            }
         }
     }
 
@@ -382,26 +383,26 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         StateMachine<MfaState, MfaEvent> stateMachine = null;
 
         try {
-                        lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
             if (!lockAcquired) {
                 log.warn("[MFA SM Service] [{}] FactorContext 저장 위한 락 획득 실패.", sessionId);
                 throw new MfaStateMachineException("Failed to acquire lock for saving FactorContext: " + sessionId);
             }
 
-            String redisKey = "spring:statemachine:context:" + sessionId;
+            String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
             long keyExists = redissonClient.getKeys().countExists(redisKey);
 
             if (keyExists == 0) {
-                                return; 
+                log.warn("[MFA SM Service] [{}] StateMachine not found in Redis, proceeding with initialization", sessionId);
             }
-            
+
             stateMachine = acquireStateMachine(sessionId);
 
             boolean restored = false;
             try {
                 stateMachinePersister.restore(stateMachine, sessionId);
                 if (stateMachine.getState() != null && stateMachine.getState().getId() != null) {
-                                        restored = true;
+                    restored = true;
                 } else {
                     log.warn("[MFA SM Service] [{}] SM 복원 후 상태가 null. 새로 시작.", sessionId);
                 }
@@ -411,14 +412,14 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
             if (!restored) {
                 stateMachine.startReactively().block();
-                            }
+            }
 
             context.incrementVersion();
             StateContextHelper.setFactorContext(stateMachine, context);
 
             FactorContext beforePersist = StateContextHelper.getFactorContext(stateMachine);
             log.warn("[VERIFY-2] persistStateMachine 호출 전 [{}] - FactorContext: {}",
-                     sessionId, beforePersist != null ? "존재 (version " + beforePersist.getVersion() + ")" : "NULL");
+                    sessionId, beforePersist != null ? "존재 (version " + beforePersist.getVersion() + ")" : "NULL");
 
             persistStateMachine(stateMachine, sessionId);
 
@@ -428,7 +429,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                     stateMachinePersister.restore(testMachine, sessionId);
                     FactorContext afterPersist = StateContextHelper.getFactorContext(testMachine);
                     log.warn("[VERIFY-2] persistStateMachine 호출 후 복원 [{}] - FactorContext: {}",
-                             sessionId, afterPersist != null ? "존재 (version " + afterPersist.getVersion() + ")" : "NULL");
+                            sessionId, afterPersist != null ? "존재 (version " + afterPersist.getVersion() + ")" : "NULL");
                 } finally {
                     releaseStateMachineInstance(testMachine, sessionId);
                 }
@@ -447,7 +448,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                            }
+            }
         }
     }
 
@@ -469,28 +470,28 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         StateMachine<MfaState, MfaEvent> stateMachine = null;
 
         try {
-                        lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
             if (!lockAcquired) {
                 log.warn("[MFA SM Service] [{}] 상태만 업데이트 위한 락 획득 실패.", sessionId);
                 return false;
             }
 
-            stateMachine = getAndPrepareStateMachine(sessionId, newState, null );
+            stateMachine = getAndPrepareStateMachine(sessionId, newState, null);
             FactorContext factorContext = StateContextHelper.getFactorContext(stateMachine);
 
             if (factorContext == null) {
                 log.warn("[MFA SM Service] [{}] 상태만 업데이트 실패: FactorContext 없음. 새 FactorContext 생성 및 상태 설정.", sessionId);
 
-                Authentication currentAuth = stateMachine.getExtendedState().get("authentication", Authentication.class); 
-                factorContext = new FactorContext(sessionId, currentAuth, newState, null );
+                Authentication currentAuth = stateMachine.getExtendedState().get("authentication", Authentication.class);
+                factorContext = new FactorContext(sessionId, currentAuth, newState, null);
             }
 
-            factorContext.changeState(newState); 
+            factorContext.changeState(newState);
 
-            updateAndStartStateMachine(stateMachine, sessionId, newState, factorContext); 
+            updateAndStartStateMachine(stateMachine, sessionId, newState, factorContext);
 
-            persistStateMachine(stateMachine, sessionId); 
-                        return true;
+            persistStateMachine(stateMachine, sessionId);
+            return true;
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -503,7 +504,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             releaseStateMachineInstance(stateMachine, sessionId);
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                            }
+            }
         }
     }
 
@@ -514,19 +515,19 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         boolean lockAcquired = false;
 
         try {
-                        lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
+            lockAcquired = lock.tryLock(LOCK_WAIT_TIME_SECONDS, LOCK_LEASE_TIME_SECONDS, TimeUnit.SECONDS);
 
             if (!lockAcquired) {
                 log.warn("[MFA SM Service] [{}] SM 해제 위한 락 획득 실패. 타임아웃.", sessionId);
                 return;
             }
 
-            String redisKey = "spring:statemachine:context:" + sessionId;
+            String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
             long deletedCount = redissonClient.getKeys().delete(redisKey);
 
             if (deletedCount > 0) {
-                            } else {
-                            }
+            } else {
+            }
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -536,7 +537,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         } finally {
             if (lockAcquired && lock.isHeldByCurrentThread()) {
                 lock.unlock();
-                            }
+            }
         }
     }
 
@@ -552,7 +553,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             if (context.getPrimaryAuthentication() != null && context.getPrimaryAuthentication().getName() != null) {
                 headers.put("username", context.getPrimaryAuthentication().getName());
             }
-            headers.put("version", context.getVersion()); 
+            headers.put("version", context.getVersion());
             headers.put("stateHash", context.calculateStateHash());
             if (context.getPrimaryAuthentication() != null) {
                 headers.put("authentication", context.getPrimaryAuthentication());
@@ -588,7 +589,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         }
 
         try {
-            
+
             if (value instanceof java.util.Set) {
                 java.util.Set<?> original = (java.util.Set<?>) value;
                 java.util.Set<Object> deepCopy = new java.util.HashSet<>();
@@ -612,8 +613,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 java.util.Map<Object, Object> deepCopy = new java.util.HashMap<>();
                 for (java.util.Map.Entry<?, ?> entry : original.entrySet()) {
                     deepCopy.put(
-                        deepCopyItem(entry.getKey()),
-                        deepCopyItem(entry.getValue())
+                            deepCopyItem(entry.getKey()),
+                            deepCopyItem(entry.getValue())
                     );
                 }
                 return deepCopy;
@@ -624,12 +625,12 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
 
             log.warn("[MFA SM Service] deepCopyIfNeeded - 복사 불가능한 타입 ({}): {}. 원본 참조 반환.",
-                     value.getClass().getName(), key);
+                    value.getClass().getName(), key);
             return value;
 
         } catch (Exception e) {
             log.error("[MFA SM Service] deepCopyIfNeeded - Deep copy 실패 (key: {}). 원본 참조 반환.", key, e);
-            return value; 
+            return value;
         }
     }
 
@@ -653,28 +654,35 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
     private boolean isImmutableType(Object value) {
         return value instanceof String
-            || value instanceof Integer
-            || value instanceof Long
-            || value instanceof Double
-            || value instanceof Float
-            || value instanceof Boolean
-            || value instanceof Character
-            || value instanceof Byte
-            || value instanceof Short
-            || value instanceof java.math.BigDecimal
-            || value instanceof java.math.BigInteger
-            || value instanceof java.time.LocalDate
-            || value instanceof java.time.LocalDateTime
-            || value instanceof java.time.ZonedDateTime
-            || value instanceof java.time.Instant
-            || value instanceof java.util.UUID
-            || value.getClass().isEnum();
+                || value instanceof Integer
+                || value instanceof Long
+                || value instanceof Double
+                || value instanceof Float
+                || value instanceof Boolean
+                || value instanceof Character
+                || value instanceof Byte
+                || value instanceof Short
+                || value instanceof java.math.BigDecimal
+                || value instanceof java.math.BigInteger
+                || value instanceof java.time.LocalDate
+                || value instanceof java.time.LocalDateTime
+                || value instanceof java.time.ZonedDateTime
+                || value instanceof java.time.Instant
+                || value instanceof java.util.UUID
+                || value.getClass().isEnum();
     }
 
-    private record Result(boolean eventAccepted, MfaState smCurrentStateAfterEvent, FactorContext contextFromSmAfterEvent) {}
+    private record Result(boolean eventAccepted, MfaState smCurrentStateAfterEvent,
+                          FactorContext contextFromSmAfterEvent) {
+    }
 
     public static class MfaStateMachineException extends RuntimeException {
-        public MfaStateMachineException(String message) { super(message); }
-        public MfaStateMachineException(String message, Throwable cause) { super(message, cause); }
+        public MfaStateMachineException(String message) {
+            super(message);
+        }
+
+        public MfaStateMachineException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

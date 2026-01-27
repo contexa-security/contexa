@@ -43,7 +43,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              MfaSessionRepository sessionRepository,
                                              TokenService tokenService,
                                              AuthUrlProvider authUrlProvider) {
-        super(tokenService,responseWriter,sessionRepository,mfaStateMachineIntegrator,authContextProperties);
+        super(tokenService, responseWriter, sessionRepository, mfaStateMachineIntegrator, authContextProperties);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;
@@ -57,40 +57,37 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         Authentication converterAuthentication = replaceWithSerializableAuthentication(authentication);
         if (converterAuthentication != null) {
             SecurityContextHolder.getContext().setAuthentication(converterAuthentication);
-                    }
+        }
 
         FactorContext factorContext = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
 
         if (factorContext == null) {
-                        factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
+            factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
         } else {
-                    }
+        }
 
         String username = getPrincipalUsername(converterAuthentication);
         if (factorContext == null || !Objects.equals(factorContext.getUsername(), username)) {
-            handleInvalidContext(response, request,
-                    converterAuthentication);
+            handleInvalidContext(response, request, converterAuthentication);
             return;
         }
 
-        if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) { 
+        if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) {
             log.warn("MFA session {} not found in {} repository during factor processing success",
                     factorContext.getMfaSessionId(), sessionRepository.getRepositoryType());
             handleSessionNotFound(response, request, factorContext);
             return;
         }
 
-        boolean eventAccepted = stateMachineIntegrator.sendEvent(
-                MfaEvent.FACTOR_VERIFIED_SUCCESS, factorContext, request);
+        boolean eventAccepted = stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_VERIFIED_SUCCESS, factorContext, request);
 
         if (!eventAccepted) {
-            
             handleStateTransitionError(response, request, factorContext);
             return;
         }
 
         MfaState currentState = factorContext.getCurrentState();
-        
+
         if (currentState == MfaState.FACTOR_VERIFICATION_COMPLETED) {
 
             boolean determined = stateMachineIntegrator.sendEvent(MfaEvent.DETERMINE_NEXT_FACTOR, factorContext, request);
@@ -106,15 +103,13 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
                 boolean eventSent;
                 if (nextEvent == MfaEvent.FACTOR_SELECTED && factorContext.getCurrentProcessingFactor() != null) {
-                    
+
                     Map<String, Object> headers = new HashMap<>();
                     headers.put("selectedFactor", factorContext.getCurrentProcessingFactor().name());
-                                        eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request, headers);
+                    eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request, headers);
                 } else if (nextEvent == MfaEvent.INITIATE_CHALLENGE_AUTO) {
-
-                                        eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
+                    eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
                 } else {
-                    
                     eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request);
                 }
 
@@ -125,24 +120,22 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 }
 
                 factorContext.removeAttribute("nextEventRecommendation");
-                            }
+            }
 
         }
 
         currentState = factorContext.getCurrentState();
 
         if (currentState == MfaState.ALL_FACTORS_COMPLETED || currentState == MfaState.MFA_SUCCESSFUL) {
-            
-                        handleFinalAuthenticationSuccess(request, response,
-                    factorContext.getPrimaryAuthentication(), factorContext);
+            handleFinalAuthenticationSuccess(request, response, converterAuthentication, factorContext);
 
         } else if (currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION &&
                 factorContext.getCurrentProcessingFactor() != null) {
-            
+
             AuthType nextFactor = factorContext.getCurrentProcessingFactor();
-            
+
             String nextUrl = determineNextFactorUrl(nextFactor, request);
-            
+
             int currentStep = (nextFactor == AuthType.OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "다음 인증 단계로 진행합니다: " + nextFactor.name(),
@@ -158,9 +151,9 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         } else if (currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION &&
                 factorContext.getCurrentProcessingFactor() != null) {
-            
+
             AuthType nextFactor = factorContext.getCurrentProcessingFactor();
-            
+
             String nextUrl = determineNextFactorUrl(nextFactor, request);
             int currentStep = (nextFactor == AuthType.OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
@@ -179,9 +172,9 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     "인증 수단을 선택해주세요.",
                     factorContext,
                     request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
-                    2  
+                    2
             );
-            
+
             java.util.List<Map<String, Object>> factorDetails = factorContext.getAvailableFactors().stream()
                     .map(authType -> createFactorDetail(authType.name()))
                     .toList();
@@ -195,7 +188,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             }
 
         } else {
-            
+
             log.error("Unexpected state {} after factor verification", currentState);
             handleGenericError(response, request, factorContext,
                     "예상치 못한 상태: " + currentState);
@@ -206,11 +199,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("status", "MFA_CONTINUE");
         responseBody.put("message", message);
-        responseBody.put("authenticated", false); 
+        responseBody.put("authenticated", false);
         responseBody.put("nextStepUrl", nextStepUrl);
-        responseBody.put("nextStepId", factorContext.getCurrentStepId()); 
+        responseBody.put("nextStepId", factorContext.getCurrentStepId());
         responseBody.put("mfaSessionId", factorContext.getMfaSessionId());
-        responseBody.put("progress", createProgressInfo(currentStep, 3)); 
+        responseBody.put("progress", createProgressInfo(currentStep, 3));
 
         return responseBody;
     }
@@ -236,7 +229,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                       @Nullable Authentication authentication) throws IOException {
         log.warn("MFA Factor Processing Success using {} repository: Invalid FactorContext. Message: {}. User from auth: {}",
                 sessionRepository.getRepositoryType(), "MFA 팩터 처리 성공 후 컨텍스트를 찾을 수 없거나 사용자가 일치하지 않습니다.",
-                (authentication != null ? authentication.getName(): "UnknownUser"));
+                (authentication != null ? authentication.getName() : "UnknownUser"));
 
         String oldSessionId = sessionRepository.getSessionId(request);
         if (oldSessionId != null) {
@@ -329,7 +322,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
             } catch (Exception e) {
                 log.error("Failed to replace Authentication with serializable version. " +
-                         "UnifiedCustomUserDetails will remain in SecurityContext (may cause Redis serialization error)", e);
+                        "UnifiedCustomUserDetails will remain in SecurityContext (may cause Redis serialization error)", e);
                 return null;
             }
         }

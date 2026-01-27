@@ -36,7 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
@@ -50,7 +49,86 @@ public class CoreLLMTieredAutoConfiguration {
     @Value("${spring.ai.embedding.model.priority:ollama,openai}")
     private String embeddingModelPriority;
 
-    private final TieredLLMProperties tieredLLMProperties;
+    @Autowired
+    private TieredLLMProperties tieredLLMProperties;
+
+    @Bean(name = "tinyLlamaChatModel")
+    @ConditionalOnMissingBean(name = "tinyLlamaChatModel")
+    public ChatModel tinyLlamaChatModel(
+            @Autowired(required = false) OllamaChatModel ollamaChatModel,
+            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
+            @Autowired(required = false) OpenAiChatModel openAiChatModel) {
+
+        if (ollamaChatModel != null) {
+            return ollamaChatModel;
+        }
+
+        log.warn("Ollama ChatModel is not configured. Attempting fallback model");
+
+        if (anthropicChatModel != null) {
+            return anthropicChatModel;
+        }
+
+        if (openAiChatModel != null) {
+            return openAiChatModel;
+        }
+
+        log.warn("All model providers are unavailable. Layer 1 model will be set to null");
+        return null;
+    }
+
+    @Bean(name = "llama31ChatModel")
+    @ConditionalOnMissingBean(name = "llama31ChatModel")
+    public ChatModel llama31ChatModel(
+            @Autowired(required = false) OllamaChatModel ollamaChatModel,
+            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
+            @Autowired(required = false) OpenAiChatModel openAiChatModel) {
+
+        if (ollamaChatModel != null) {
+            return ollamaChatModel;
+        }
+
+        log.warn("Ollama ChatModel is not configured. Attempting fallback model");
+
+        if (anthropicChatModel != null) {
+            return anthropicChatModel;
+        }
+
+        if (openAiChatModel != null) {
+            return openAiChatModel;
+        }
+
+        log.warn("All model providers are unavailable. Layer 2 model will be set to null");
+        return null;
+    }
+
+    @Bean(name = "claudeOpusChatModel")
+    @ConditionalOnMissingBean(name = "claudeOpusChatModel")
+    public ChatModel claudeOpusChatModel(
+            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
+            @Value("${spring.ai.security.layer2.backup.model:claude-3-5-sonnet-20241022}") String modelName) {
+
+        if (anthropicChatModel != null) {
+            return anthropicChatModel;
+        }
+
+        log.warn("  - Anthropic ChatModel not found. Please check API key");
+        return null;
+    }
+
+    @Bean(name = "gpt4ChatModel")
+    @ConditionalOnMissingBean(name = "gpt4ChatModel")
+    public ChatModel gpt4ChatModel(
+            @Autowired(required = false) OpenAiChatModel openAiChatModel,
+            @Value("${spring.ai.security.layer2.backup.model:gpt-4o}") String modelName) {
+
+        if (openAiChatModel != null) {
+            return openAiChatModel;
+        }
+
+        log.warn("OpenAI ChatModel not found. Please check API key");
+        return null;
+    }
 
     @Bean
     @Primary
@@ -58,7 +136,6 @@ public class CoreLLMTieredAutoConfiguration {
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
             ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
             ObjectProvider<OpenAiChatModel> openAiChatModelProvider) {
-
 
         Map<String, ChatModel> availableModels = new HashMap<>();
 
@@ -97,20 +174,17 @@ public class CoreLLMTieredAutoConfiguration {
         return null;
     }
 
-
     @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
     public StreamingHandler streamingHandler() {
         return new DefaultStreamingHandler(tieredLLMProperties);
     }
 
-
     @Bean
     @Primary
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ModelSelectionStrategy modelSelectionStrategy,
             StreamingHandler streamingHandler) {
-
 
         return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties);
     }
@@ -130,14 +204,12 @@ public class CoreLLMTieredAutoConfiguration {
         return unifiedLLMOrchestrator;
     }
 
-
     @Bean(name = "primaryEmbeddingModel")
     @Primary
     @ConditionalOnMissingBean(name = "primaryEmbeddingModel")
     public EmbeddingModel primaryEmbeddingModel(
             ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,
             ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {
-
 
         Map<String, EmbeddingModel> availableModels = new HashMap<>();
 

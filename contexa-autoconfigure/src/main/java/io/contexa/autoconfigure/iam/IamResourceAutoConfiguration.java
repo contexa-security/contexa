@@ -27,7 +27,6 @@ import java.util.List;
 @AutoConfiguration
 public class IamResourceAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean
     public ResourceRegistryService resourceRegistryService(

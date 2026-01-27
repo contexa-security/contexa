@@ -25,30 +25,25 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 
-
 @AutoConfiguration
-@ConditionalOnProperty(
-    prefix = "contexa",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(ContexaProperties.class)
 @Import({
-    ApplicationConfig.class,
-    AsyncConfig.class,
-    VirtualThreadConfiguration.class,
-    UnifiedRedisConfiguration.class,
-    RedisAsyncEventConfiguration.class,
-    RedisCacheConfiguration.class,
-    RedissonConfiguration.class,
-    KafkaConfiguration.class,
-    KafkaTopicConfiguration.class,
-    OpenTelemetryConfiguration.class
+        ApplicationConfig.class,
+        AsyncConfig.class,
+        VirtualThreadConfiguration.class,
+        UnifiedRedisConfiguration.class,
+        RedisAsyncEventConfiguration.class,
+        RedisCacheConfiguration.class,
+        RedissonConfiguration.class,
+        KafkaConfiguration.class,
+        KafkaTopicConfiguration.class,
+        OpenTelemetryConfiguration.class
 })
 public class CoreInfrastructureAutoConfiguration {
 
-    public CoreInfrastructureAutoConfiguration() {}
+    public CoreInfrastructureAutoConfiguration() {
+    }
 
     @Bean
     @ConditionalOnMissingBean

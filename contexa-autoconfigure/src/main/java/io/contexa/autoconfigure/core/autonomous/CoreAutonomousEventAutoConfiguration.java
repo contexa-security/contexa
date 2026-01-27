@@ -44,13 +44,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 import java.util.List;
 
 @AutoConfiguration
-@ConditionalOnProperty(
-    prefix = "contexa.autonomous",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
-@EnableConfigurationProperties({ContexaProperties.class, SecurityPlaneProperties.class})
+@ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
+@EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class })
 public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
@@ -74,7 +69,7 @@ public class CoreAutonomousEventAutoConfiguration {
             KafkaTemplate<String, Object> kafkaTemplate) {
         return new KafkaSecurityEventPublisher(kafkaTemplate);
     }
-    
+
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustEventPublisher zeroTrustEventPublisher(
@@ -82,7 +77,6 @@ public class CoreAutonomousEventAutoConfiguration {
             TieredStrategyProperties tieredStrategyProperties) {
         return new ZeroTrustEventPublisher(applicationEventPublisher, tieredStrategyProperties);
     }
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -99,7 +93,6 @@ public class CoreAutonomousEventAutoConfiguration {
             MeterRegistry meterRegistry) {
         return new RedisMemoryMonitor(redisTemplate, meterRegistry);
     }
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -121,7 +114,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new EventNormalizer();
     }
 
-
     @Bean
     @ConditionalOnMissingBean
     public ProcessingExecutionHandler processingExecutionHandler(
@@ -130,20 +122,17 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ProcessingExecutionHandler(processingStrategies, applicationEventPublisher);
     }
 
-
     @Bean
     @ConditionalOnMissingBean
     public SecurityPlaneEventListener securityPlaneEventListener(ISecurityPlaneAgent securityPlaneAgent) {
         return new SecurityPlaneEventListener(securityPlaneAgent);
     }
 
-
     @Bean
     @ConditionalOnMissingBean
     public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
         return new ColdPathStrategy(coldPathEventProcessor);
     }
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -157,7 +146,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new SoarOrchestrationStrategy();
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public ColdPathEventProcessor coldPathEventProcessor(
@@ -167,7 +155,6 @@ public class CoreAutonomousEventAutoConfiguration {
         return new ColdPathEventProcessor(redisTemplate, contextualStrategy, expertStrategy);
     }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
@@ -175,8 +162,6 @@ public class CoreAutonomousEventAutoConfiguration {
             UnifiedVectorService unifiedVectorService) {
         return new SecurityDecisionPostProcessor(redisTemplate, unifiedVectorService);
     }
-
-    
 
     @Bean
     @ConditionalOnMissingBean

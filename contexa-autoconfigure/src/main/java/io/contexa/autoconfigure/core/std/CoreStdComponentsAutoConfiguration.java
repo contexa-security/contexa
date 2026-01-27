@@ -79,10 +79,8 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -92,15 +90,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import java.util.List;
 import java.util.Optional;
 
-
 @AutoConfiguration
-@AutoConfigureAfter(CoreRAGAutoConfiguration.class)
-@ConditionalOnProperty(
-    prefix = "contexa.std",
-    name = "enabled",
-    havingValue = "true",
-    matchIfMissing = true
-)
+@ConditionalOnProperty(prefix = "contexa.std", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreStdComponentsAutoConfiguration {
 
@@ -160,7 +151,8 @@ public class CoreStdComponentsAutoConfiguration {
             AuditLogRepository auditLogRepository,
             UserRepository userRepository,
             BehaviorVectorService behaviorVectorService) {
-        return new BehavioralAnalysisContextRetriever(vectorStore, contextRetrieverRegistry, auditLogRepository, userRepository, behaviorVectorService);
+        return new BehavioralAnalysisContextRetriever(vectorStore, contextRetrieverRegistry, auditLogRepository,
+                userRepository, behaviorVectorService);
     }
 
     @Bean
@@ -184,7 +176,8 @@ public class CoreStdComponentsAutoConfiguration {
             BusinessResourceActionRepository businessResourceActionRepository,
             ContextRetrieverRegistry contextRetrieverRegistry,
             RiskAssessmentVectorService riskAssessmentVectorService) {
-        return new RiskAssessmentContextRetriever(vectorStore, userRepository, auditLogRepository, businessResourceActionRepository, contextRetrieverRegistry, riskAssessmentVectorService);
+        return new RiskAssessmentContextRetriever(vectorStore, userRepository, auditLogRepository,
+                businessResourceActionRepository, contextRetrieverRegistry, riskAssessmentVectorService);
     }
 
     @Bean
@@ -195,7 +188,8 @@ public class CoreStdComponentsAutoConfiguration {
             PipelineOrchestrator pipelineOrchestrator,
             BehavioralAnalysisContextRetriever behavioralAnalysisContextRetriever,
             BehaviorVectorService behaviorVectorService) {
-        return new BehavioralAnalysisLab(tracer, aiNativeProcessor, pipelineOrchestrator, behavioralAnalysisContextRetriever, behaviorVectorService);
+        return new BehavioralAnalysisLab(tracer, aiNativeProcessor, pipelineOrchestrator,
+                behavioralAnalysisContextRetriever, behaviorVectorService);
     }
 
     @Bean
@@ -212,7 +206,8 @@ public class CoreStdComponentsAutoConfiguration {
             PipelineOrchestrator pipelineOrchestrator,
             RiskContextEnricher riskContextEnricher,
             RiskAssessmentVectorService riskAssessmentVectorService) {
-        return new RiskAssessmentLab(tracer, aiNativeProcessor, pipelineOrchestrator, riskContextEnricher, riskAssessmentVectorService);
+        return new RiskAssessmentLab(tracer, aiNativeProcessor, pipelineOrchestrator, riskContextEnricher,
+                riskAssessmentVectorService);
     }
 
     @Bean
@@ -222,7 +217,8 @@ public class CoreStdComponentsAutoConfiguration {
             UserRepository userRepository,
             AuditLogRepository auditLogRepository,
             BusinessResourceActionRepository businessResourceActionRepository) {
-        return new RiskContextEnricher(redisTemplate, userRepository, auditLogRepository, businessResourceActionRepository);
+        return new RiskContextEnricher(redisTemplate, userRepository, auditLogRepository,
+                businessResourceActionRepository);
     }
 
     @Bean
@@ -262,8 +258,7 @@ public class CoreStdComponentsAutoConfiguration {
     public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
             DynamicModelRegistry dynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
-            @Autowired(required = false) @Qualifier("primaryChatModel") ChatModel primaryChatModel) {
-        // 자동 상속 방식: Layer 모델 미설정 시 primaryChatModel 사용
+            ChatModel primaryChatModel) {
         return new DynamicModelSelectionStrategy(dynamicModelRegistry, tieredLLMProperties, primaryChatModel);
     }
 
@@ -299,7 +294,9 @@ public class CoreStdComponentsAutoConfiguration {
             PostprocessingStep postprocessingStep,
             StreamingLLMExecutionStep streamingLLMExecutionStep,
             ObjectMapper objectMapper) {
-        return new StreamingUniversalPipelineExecutor(tracer, contextRetrievalStep, preprocessingStep, promptGenerationStep, llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep, streamingLLMExecutionStep, objectMapper);
+        return new StreamingUniversalPipelineExecutor(tracer, contextRetrievalStep, preprocessingStep,
+                promptGenerationStep, llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep,
+                streamingLLMExecutionStep, objectMapper);
     }
 
     @Bean
@@ -313,7 +310,8 @@ public class CoreStdComponentsAutoConfiguration {
             @Qualifier("pipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep pipelineStep,
             ResponseParsingStep responseParsingStep,
             PostprocessingStep postprocessingStep) {
-        return new UniversalPipelineExecutor(tracer, contextRetrievalStep, preprocessingStep, promptGenerationStep, llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep);
+        return new UniversalPipelineExecutor(tracer, contextRetrievalStep, preprocessingStep, promptGenerationStep,
+                llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep);
     }
 
     @Bean
@@ -378,7 +376,6 @@ public class CoreStdComponentsAutoConfiguration {
         return new BehaviorMetadataEnricher();
     }
 
-
     @Bean
     @ConditionalOnMissingBean
     public AnomalyScoreRanker anomalyScoreRanker() {
@@ -408,7 +405,6 @@ public class CoreStdComponentsAutoConfiguration {
     public ThreatCorrelator threatCorrelator() {
         return new ThreatCorrelator();
     }
-
 
     @Bean
     @ConditionalOnMissingBean

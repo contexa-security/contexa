@@ -31,24 +31,24 @@ import java.util.*;
 @AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
 @ConditionalOnBean(PlatformConfig.class)
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
-@ConditionalOnClass({HttpSecurity.class})
+@ConditionalOnClass({ HttpSecurity.class })
 @Slf4j
 public class IdentityAsepAutoConfiguration {
 
     private final HttpMessageConverters httpMessageConverters;
     private final ConversionService conversionService;
 
-    
     public IdentityAsepAutoConfiguration(ObjectProvider<HttpMessageConverters> httpMessageConvertersProvider,
-                                 ObjectProvider<ConversionService> conversionServiceProvider) {
-        this.httpMessageConverters = httpMessageConvertersProvider.getIfAvailable(() -> new HttpMessageConverters(Collections.emptyList()));
+            ObjectProvider<ConversionService> conversionServiceProvider) {
+        this.httpMessageConverters = httpMessageConvertersProvider
+                .getIfAvailable(() -> new HttpMessageConverters(Collections.emptyList()));
         this.conversionService = conversionServiceProvider.getIfAvailable(FormattingConversionService::new);
-            }
+    }
 
     @Bean
     @ConditionalOnMissingBean
     public SecurityExceptionHandlerMethodRegistry securityExceptionHandlerMethodRegistry() {
-                return new SecurityExceptionHandlerMethodRegistry();
+        return new SecurityExceptionHandlerMethodRegistry();
     }
 
     @Bean
@@ -64,15 +64,16 @@ public class IdentityAsepAutoConfiguration {
         resolvers.add(new SecurityCookieValueArgumentResolver(this.conversionService));
         resolvers.add(new SecurityRequestAttributeArgumentResolver());
         resolvers.add(new SecuritySessionAttributeArgumentResolver());
-        
+
         if (this.httpMessageConverters != null && !this.httpMessageConverters.getConverters().isEmpty()) {
             resolvers.add(new SecurityRequestBodyArgumentResolver(this.httpMessageConverters.getConverters()));
         } else {
-            log.warn("ASEP: HttpMessageConverters bean not available or empty. SecurityRequestBodyArgumentResolver will not be fully functional.");
-            resolvers.add(new SecurityRequestBodyArgumentResolver(Collections.emptyList())); 
+            log.warn(
+                    "ASEP: HttpMessageConverters bean not available or empty. SecurityRequestBodyArgumentResolver will not be fully functional.");
+            resolvers.add(new SecurityRequestBodyArgumentResolver(Collections.emptyList()));
         }
         AnnotationAwareOrderComparator.sort(resolvers);
-                return Collections.unmodifiableList(resolvers);
+        return Collections.unmodifiableList(resolvers);
     }
 
     @Bean
@@ -83,29 +84,28 @@ public class IdentityAsepAutoConfiguration {
             handlers.add(new ResponseEntityReturnValueHandler(this.httpMessageConverters.getConverters()));
             handlers.add(new SecurityResponseBodyReturnValueHandler(this.httpMessageConverters.getConverters()));
         } else {
-            log.warn("ASEP: HttpMessageConverters bean not available or empty. ResponseEntityReturnValueHandler and SecurityResponseBodyReturnValueHandler will not be fully functional.");
+            log.warn(
+                    "ASEP: HttpMessageConverters bean not available or empty. ResponseEntityReturnValueHandler and SecurityResponseBodyReturnValueHandler will not be fully functional.");
             handlers.add(new ResponseEntityReturnValueHandler(Collections.emptyList()));
             handlers.add(new SecurityResponseBodyReturnValueHandler(Collections.emptyList()));
         }
         handlers.add(new RedirectReturnValueHandler());
         AnnotationAwareOrderComparator.sort(handlers);
-                return Collections.unmodifiableList(handlers);
+        return Collections.unmodifiableList(handlers);
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "asepDslAttributesMapping")
     public Map<String, Class<? extends BaseAsepAttributes>> asepDslAttributesMapping() {
         Map<String, Class<? extends BaseAsepAttributes>> mapping = new HashMap<>();
-        
+
         mapping.put("form", FormAsepAttributes.class);
         mapping.put("rest", RestAsepAttributes.class);
         mapping.put("ott", OttAsepAttributes.class);
         mapping.put("passkey", PasskeyAsepAttributes.class);
-        mapping.put("mfa", MfaAsepAttributes.class); 
-        
-        
-        
-                return Collections.unmodifiableMap(mapping);
+        mapping.put("mfa", MfaAsepAttributes.class);
+
+        return Collections.unmodifiableMap(mapping);
     }
 
     @Bean
@@ -114,15 +114,14 @@ public class IdentityAsepAutoConfiguration {
             SecurityExceptionHandlerMethodRegistry methodRegistry,
             @Qualifier("asepDefaultArgumentResolvers") List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers,
             @Qualifier("asepDefaultReturnValueHandlers") List<SecurityHandlerMethodReturnValueHandler> defaultReturnValueHandlers,
-            HttpMessageConverters httpMessageConverters, 
-            @Qualifier("asepDslAttributesMapping") Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) { 
+            HttpMessageConverters httpMessageConverters,
+            @Qualifier("asepDslAttributesMapping") Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) {
         AsepConfigurer configurer = new AsepConfigurer(
                 methodRegistry,
                 defaultArgumentResolvers,
                 defaultReturnValueHandlers,
-                httpMessageConverters, 
-                dslAttributesMapping 
-        );
-                return configurer;
+                httpMessageConverters,
+                dslAttributesMapping);
+        return configurer;
     }
 }

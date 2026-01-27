@@ -73,7 +73,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(IdentitySecurityCoreAutoConfiguration.class)
@@ -83,28 +82,24 @@ public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
 
-    
     @Bean
     public OAuth2StateAdapter oauth2StateAdapter() {
-                return new OAuth2StateAdapter();
+        return new OAuth2StateAdapter();
     }
 
-    
     @Bean
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
-                return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
+        return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
     }
 
-    
     @Bean
     public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
-                return new NimbusJwtEncoder(jwkSource);
+        return new NimbusJwtEncoder(jwkSource);
     }
 
-    
     @Bean
     public JWKSource<SecurityContext> jwkSource() {
-                KeyPair keyPair = generateRsaKey();
+        KeyPair keyPair = generateRsaKey();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
         RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
 
@@ -117,7 +112,6 @@ public class IdentityOAuth2AutoConfiguration {
         return new ImmutableJWKSet<>(jwkSet);
     }
 
-    
     private static KeyPair generateRsaKey() {
         try {
             KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
@@ -128,35 +122,32 @@ public class IdentityOAuth2AutoConfiguration {
         }
     }
 
-    
     @Bean
     public OAuth2AuthorizationService authorizationService(
             JdbcTemplate jdbcTemplate,
             RegisteredClientRepository registeredClientRepository) {
 
-                return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+        return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
     }
 
-    
     @Bean
     public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
-        
+
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
-        
         RegisteredClient existingClient = repository.findByClientId("aidc-client");
 
         if (existingClient == null) {
-            
+
             RegisteredClient defaultClient = RegisteredClient.withId(UUID.randomUUID().toString())
                     .clientId("aidc-client")
-                    .clientSecret("{noop}secret") 
+                    .clientSecret("{noop}secret")
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                     .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                     .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                    
+
                     .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
                     .redirectUri("http://localhost:8080/login/oauth2/code/aidc-client")
                     .redirectUri("http://localhost:8080/authorized")
@@ -179,21 +170,19 @@ public class IdentityOAuth2AutoConfiguration {
             transactionTemplate.executeWithoutResult(status -> {
                 repository.save(defaultClient);
                 if (log.isDebugEnabled()) {
-                                    }
+                }
             });
 
-                    } else {
-                    }
+        } else {
+        }
 
         return repository;
     }
 
-    
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
-        String issuerUri = "http://localhost:8080"; 
+        String issuerUri = "http://localhost:8080";
 
-        
         return AuthorizationServerSettings.builder()
                 .issuer(issuerUri)
                 .authorizationEndpoint("/oauth2/authorize")
@@ -206,13 +195,11 @@ public class IdentityOAuth2AutoConfiguration {
                 .build();
     }
 
-    
     @Bean
     public OAuth2TokenGenerator<?> tokenGenerator(
             JwtEncoder jwtEncoder,
             OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer) {
 
-        
         JwtGenerator jwtGenerator = new JwtGenerator(jwtEncoder);
         jwtGenerator.setJwtCustomizer(tokenCustomizer);
 
@@ -221,18 +208,16 @@ public class IdentityOAuth2AutoConfiguration {
         return new DelegatingOAuth2TokenGenerator(jwtGenerator, refreshTokenGenerator);
     }
 
-    
     @Bean
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
-        
+
         return context -> {
-            
+
             Object deviceId = context.get("device_id");
             if (deviceId != null) {
                 context.getClaims().claim("device_id", deviceId);
-                            }
+            }
 
-            
             if (context.getPrincipal() != null) {
                 var authorities = context.getPrincipal().getAuthorities();
                 if (authorities != null && !authorities.isEmpty()) {
@@ -240,12 +225,11 @@ public class IdentityOAuth2AutoConfiguration {
                             .map(grantedAuthority -> grantedAuthority.getAuthority())
                             .toList();
                     context.getClaims().claim("roles", roles);
-                                    }
+                }
             }
         };
     }
 
-    
     @Bean
     public TokenValidator oauth2TokenValidator(
             JwtDecoder jwtDecoder,
@@ -253,21 +237,15 @@ public class IdentityOAuth2AutoConfiguration {
             OAuth2AuthorizationService authorizationService,
             AuthContextProperties authContextProperties) {
 
-        
-        
-        
         long rotateThresholdMillis = authContextProperties.getRefreshTokenValidity() / 2;
 
         return new OAuth2TokenValidator(
                 jwtDecoder,
                 refreshTokenStore,
                 authorizationService,
-                rotateThresholdMillis
-        );
+                rotateThresholdMillis);
     }
 
-
-    
     @Bean
     public TokenService oauth2TokenService(
             OAuth2AuthorizedClientManager authorizedClientManager,
@@ -279,7 +257,6 @@ public class IdentityOAuth2AutoConfiguration {
             AuthContextProperties authContextProperties,
             ObjectMapper objectMapper) {
 
-        
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
 
         return new OAuth2TokenService(
@@ -291,34 +268,27 @@ public class IdentityOAuth2AutoConfiguration {
                 jwtDecoder,
                 authContextProperties,
                 objectMapper,
-                transport
-        );
+                transport);
     }
 
-    
     @Bean("oauth2TokenSuccessHandler")
     public AuthenticationSuccessHandler oauth2TokenSuccessHandler() {
-                return new OAuth2TokenSuccessHandler();
+        return new OAuth2TokenSuccessHandler();
     }
 
-    
     @Bean("oauth2LogoutHandler")
     public LogoutHandler oauth2LogoutHandler(
             OAuth2TokenService tokenService,
             AuthResponseWriter responseWriter) {
 
-                return new OAuth2LogoutHandler(tokenService, responseWriter);
+        return new OAuth2LogoutHandler(tokenService, responseWriter);
     }
 
-    
     @Bean("oauth2LogoutSuccessHandler")
     public LogoutSuccessHandler oauth2LogoutSuccessHandler(ObjectMapper objectMapper) {
-                return new OAuth2LogoutSuccessHandler(objectMapper);
+        return new OAuth2LogoutSuccessHandler(objectMapper);
     }
 
-    
-
-    
     @Bean
     public ClientRegistrationRepository clientRegistrationRepository() {
         String registrationId = "aidc-internal";
@@ -326,30 +296,27 @@ public class IdentityOAuth2AutoConfiguration {
         String clientSecret = "secret";
         String tokenUri = "http://localhost:8081/oauth2/token";
 
-        
         ClientRegistration registration = ClientRegistration
                 .withRegistrationId(registrationId)
                 .clientId(clientId)
                 .clientSecret(clientSecret)
-                
+
                 .authorizationGrantType(
                         new AuthorizationGrantType("urn:ietf:params:oauth:grant-type:authenticated-user"))
-                
+
                 .tokenUri(tokenUri)
-                
+
                 .scope("read", "write", "admin")
                 .build();
 
         return new InMemoryClientRegistrationRepository(registration);
     }
 
-    
     @Bean
     public OAuth2AuthorizedClientRepository authorizedClientRepository() {
-                return new HttpSessionOAuth2AuthorizedClientRepository();
+        return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 
-    
     @Bean
     public OAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository clientRegistrationRepository,
@@ -358,50 +325,36 @@ public class IdentityOAuth2AutoConfiguration {
             RegisteredClientRepository registeredClientRepository,
             OAuth2AuthorizationService authorizationService) {
 
-        
-        
-        
-        RestClientAuthenticatedUserTokenResponseClient tokenResponseClient =
-                new RestClientAuthenticatedUserTokenResponseClient();
+        RestClientAuthenticatedUserTokenResponseClient tokenResponseClient = new RestClientAuthenticatedUserTokenResponseClient();
         tokenResponseClient.setFilterChainProxyProvider(filterChainProxyProvider);
 
-        
         tokenResponseClient.setClientSecretBasicConverter(
                 new org.springframework.security.oauth2.server.authorization.web.authentication.ClientSecretBasicAuthenticationConverter());
 
-        
         tokenResponseClient.setClientSecretAuthenticationProvider(
                 new org.springframework.security.oauth2.server.authorization.authentication.ClientSecretAuthenticationProvider(
                         registeredClientRepository,
-                        authorizationService
-                ));
+                        authorizationService));
 
-        
-        AuthenticatedUserOAuth2AuthorizedClientProvider authenticatedUserProvider =
-                new AuthenticatedUserOAuth2AuthorizedClientProvider();
+        AuthenticatedUserOAuth2AuthorizedClientProvider authenticatedUserProvider = new AuthenticatedUserOAuth2AuthorizedClientProvider();
         authenticatedUserProvider.setAccessTokenResponseClient(tokenResponseClient);
 
-        
-        OAuth2AuthorizedClientProvider authorizedClientProvider =
-                OAuth2AuthorizedClientProviderBuilder.builder()
-                        
-                        .provider(authenticatedUserProvider)
-                        
-                        .refreshToken()
-                        .build();
+        OAuth2AuthorizedClientProvider authorizedClientProvider = OAuth2AuthorizedClientProviderBuilder.builder()
 
-        DefaultOAuth2AuthorizedClientManager authorizedClientManager =
-                new DefaultOAuth2AuthorizedClientManager(
-                        clientRegistrationRepository,
-                        authorizedClientRepository);
+                .provider(authenticatedUserProvider)
+
+                .refreshToken()
+                .build();
+
+        DefaultOAuth2AuthorizedClientManager authorizedClientManager = new DefaultOAuth2AuthorizedClientManager(
+                clientRegistrationRepository,
+                authorizedClientRepository);
 
         authorizedClientManager.setAuthorizedClientProvider(authorizedClientProvider);
 
-        
         authorizedClientManager.setContextAttributesMapper(authorizeRequest -> {
             Map<String, Object> contextAttributes = new HashMap<>();
 
-            
             Object request = authorizeRequest.getAttribute(HttpServletRequest.class.getName());
             Object response = authorizeRequest.getAttribute(HttpServletResponse.class.getName());
 
@@ -412,7 +365,6 @@ public class IdentityOAuth2AutoConfiguration {
                 contextAttributes.put(HttpServletResponse.class.getName(), response);
             }
 
-            
             Object deviceId = authorizeRequest.getAttribute("device_id");
             if (deviceId != null) {
                 contextAttributes.put("device_id", deviceId);
@@ -421,8 +373,6 @@ public class IdentityOAuth2AutoConfiguration {
             return contextAttributes;
         });
 
-        
         return authorizedClientManager;
     }
-
 }

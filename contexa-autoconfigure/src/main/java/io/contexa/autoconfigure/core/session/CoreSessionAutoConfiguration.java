@@ -21,7 +21,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Arrays;
 
-
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(name = "io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration")
@@ -34,30 +33,28 @@ public class CoreSessionAutoConfiguration {
     private final StringRedisTemplate redisTemplate;
 
     @PostConstruct
-    public void initialize() {}
+    public void initialize() {
+    }
 
-    
     @Bean
     @Primary
     @ConditionalOnMissingBean(MfaSessionRepository.class)
     public MfaSessionRepository mfaSessionRepository() {
-        
+
         try {
-            
+
             redisTemplate.opsForValue().get("__health_check__");
 
             RedisMfaRepository repository = new RedisMfaRepository(
                     redisTemplate,
-                    new RedisSessionIdGenerator(redisTemplate)
-            );
+                    new RedisSessionIdGenerator(redisTemplate));
             repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
 
-                        return repository;
+            return repository;
 
         } catch (Exception e) {
             log.error("Failed to create primary MFA repository, falling back to HttpSession", e);
 
-            
             HttpSessionMfaRepository fallback = new HttpSessionMfaRepository(new HttpSessionIdGenerator());
             fallback.setSessionTimeout(properties.getMfa().getSessionTimeout());
             return fallback;
@@ -67,10 +64,9 @@ public class CoreSessionAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SessionIdGenerator sessionIdGenerator() {
-            return new HttpSessionIdGenerator();
+        return new HttpSessionIdGenerator();
     }
 
-    
     private String detectEnvironmentType() {
         if (isClusterEnvironment()) {
             return "CLUSTER";
@@ -81,7 +77,6 @@ public class CoreSessionAutoConfiguration {
         }
     }
 
-    
     private boolean isClusterEnvironment() {
         boolean hasSpringCloud = environment.containsProperty("spring.cloud.kubernetes.enabled") ||
                 environment.containsProperty("spring.cloud.consul.enabled") ||
@@ -95,7 +90,6 @@ public class CoreSessionAutoConfiguration {
         return hasSpringCloud || (hasRedis && hasLoadBalancer);
     }
 
-    
     private boolean isDevelopmentEnvironment() {
         String[] activeProfiles = environment.getActiveProfiles();
         return Arrays.stream(activeProfiles)
