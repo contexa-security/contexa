@@ -1,6 +1,8 @@
 package io.contexa.contexaidentity.security.handler;
 
 import com.webauthn4j.data.PublicKeyCredentialUserEntity;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -19,6 +21,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -42,8 +45,13 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              AuthContextProperties authContextProperties,
                                              MfaSessionRepository sessionRepository,
                                              TokenService tokenService,
-                                             AuthUrlProvider authUrlProvider) {
-        super(tokenService, responseWriter, sessionRepository, mfaStateMachineIntegrator, authContextProperties);
+                                             AuthUrlProvider authUrlProvider,
+                                             ZeroTrustEventPublisher zeroTrustEventPublisher,
+                                             RedisTemplate<String, Object> redisTemplate,
+                                             BaselineLearningService baselineLearningService) {
+        super(tokenService, responseWriter, sessionRepository,
+              mfaStateMachineIntegrator, authContextProperties,
+              zeroTrustEventPublisher, redisTemplate, baselineLearningService);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;

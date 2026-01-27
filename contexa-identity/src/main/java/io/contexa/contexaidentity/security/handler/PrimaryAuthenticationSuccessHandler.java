@@ -1,5 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -19,6 +21,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -49,8 +52,13 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, TokenService tokenService,
                                                AuthResponseWriter responseWriter, AuthContextProperties authContextProperties,
                                                ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator,
-                                               MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider) {
-        super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties);
+                                               MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider,
+                                               ZeroTrustEventPublisher zeroTrustEventPublisher,
+                                               RedisTemplate<String, Object> redisTemplate,
+                                               BaselineLearningService baselineLearningService) {
+        super(tokenService, responseWriter, sessionRepository,
+                stateMachineIntegrator, authContextProperties,
+                zeroTrustEventPublisher, redisTemplate, baselineLearningService);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = stateMachineIntegrator;
