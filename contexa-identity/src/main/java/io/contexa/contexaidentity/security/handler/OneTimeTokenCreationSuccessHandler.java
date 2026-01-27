@@ -45,7 +45,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
         if (factorContext != null &&
                 AuthType.MFA.name().equalsIgnoreCase(factorContext.getFlowTypeName()) &&
                 Objects.equals(factorContext.getUsername(), usernameFromToken) &&
-                factorContext.getCurrentProcessingFactor() == AuthType.OTT) {
+                factorContext.getCurrentProcessingFactor() == AuthType.MFA_OTT) {
 
             if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) {
                 log.warn("MFA session {} not found in {} repository during OTT generation",

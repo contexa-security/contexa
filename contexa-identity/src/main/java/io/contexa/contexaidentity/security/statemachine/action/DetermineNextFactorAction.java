@@ -59,7 +59,7 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
         String sessionId = factorContext.getMfaSessionId();
 
         switch (factorType) {
-            case OTT:
+            case MFA_OTT:
                 
                 String ottMethod = (String) factorContext.getAttribute(
                     FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE);
@@ -71,7 +71,7 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
                     ottMethod);
                                 break;
 
-            case PASSKEY:
+            case MFA_PASSKEY:
                 
                 String userAgent = (String) factorContext.getAttribute(
                     FactorContextAttributes.DeviceAndSession.USER_AGENT);

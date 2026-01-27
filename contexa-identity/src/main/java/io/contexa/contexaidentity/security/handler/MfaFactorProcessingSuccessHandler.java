@@ -136,7 +136,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
             String nextUrl = determineNextFactorUrl(nextFactor, request);
 
-            int currentStep = (nextFactor == AuthType.OTT) ? 2 : 3;
+            int currentStep = (nextFactor == AuthType.MFA_OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "다음 인증 단계로 진행합니다: " + nextFactor.name(),
                     factorContext, nextUrl, currentStep);
@@ -155,7 +155,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             AuthType nextFactor = factorContext.getCurrentProcessingFactor();
 
             String nextUrl = determineNextFactorUrl(nextFactor, request);
-            int currentStep = (nextFactor == AuthType.OTT) ? 2 : 3;
+            int currentStep = (nextFactor == AuthType.MFA_OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "챌린지가 준비되었습니다: " + nextFactor.name(),
                     factorContext, nextUrl, currentStep);
@@ -254,9 +254,9 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
     private String determineNextFactorUrl(AuthType factorType, HttpServletRequest request) {
         return switch (factorType) {
-            case OTT -> request.getContextPath() +
+            case MFA_OTT -> request.getContextPath() +
                     authUrlProvider.getOttRequestCodeUi();
-            case PASSKEY -> request.getContextPath() +
+            case MFA_PASSKEY -> request.getContextPath() +
                     authUrlProvider.getPasskeyChallengeUi();
             default -> {
                 log.error("Unsupported MFA factor type: {}", factorType);

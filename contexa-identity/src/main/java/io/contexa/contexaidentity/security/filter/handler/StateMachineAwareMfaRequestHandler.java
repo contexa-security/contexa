@@ -440,9 +440,9 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         }
 
         return switch (context.getCurrentProcessingFactor()) {
-            case OTT -> request.getContextPath() +
+            case MFA_OTT -> request.getContextPath() +
                     authUrlProvider.getOttRequestCodeUi();
-            case PASSKEY -> request.getContextPath() +
+            case MFA_PASSKEY -> request.getContextPath() +
                     authUrlProvider.getPasskeyChallengeUi();
             default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         };

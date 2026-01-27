@@ -284,19 +284,19 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         detail.put("type", factorType);
 
         switch (factorType.toUpperCase()) {
-            case "OTT":
+            case "MFA_OTT":
                 detail.put("displayName", "이메일 인증 코드");
                 detail.put("icon", "email");
                 break;
-            case "PASSKEY":
+            case "MFA_PASSKEY":
                 detail.put("displayName", "Passkey 생체 인증");
                 detail.put("icon", "fingerprint");
                 break;
-            case "TOTP":
+            case "MFA_TOTP":
                 detail.put("displayName", "인증 앱 (TOTP)");
                 detail.put("icon", "app");
                 break;
-            case "SMS":
+            case "MFA_SMS":
                 detail.put("displayName", "SMS 인증");
                 detail.put("icon", "phone");
                 break;

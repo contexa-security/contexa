@@ -53,13 +53,13 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         factorContext.setAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT, selectionTime);
 
         switch (authType) {
-            case OTT:
+            case MFA_OTT:
                 
                 String ottDeliveryMethod = determineOttDeliveryMethod(context, factorContext);
                 factorContext.setAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD, ottDeliveryMethod);
                                 break;
 
-            case PASSKEY:
+            case MFA_PASSKEY:
                 
                 String passkeyType = determinePasskeyType(context, factorContext);
                 factorContext.setAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE, passkeyType);

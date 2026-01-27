@@ -1661,8 +1661,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private String getFactorDisplayName(AuthType factorType) {
         return switch (factorType) {
-            case OTT -> "이메일 인증 코드 (OTT)";
-            case PASSKEY -> "Passkey 생체 인증";
+            case MFA_OTT -> "이메일 인증 코드 (OTT)";
+            case MFA_PASSKEY -> "Passkey 생체 인증";
             default -> factorType.name();
         };
     }

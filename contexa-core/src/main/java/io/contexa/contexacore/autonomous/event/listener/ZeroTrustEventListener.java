@@ -44,7 +44,7 @@ public class ZeroTrustEventListener {
 
         try {
             if (!zeroTrustEnabled) {
-                                return;
+                return;
             }
 
             switch (event.getCategory()) {
@@ -68,7 +68,7 @@ public class ZeroTrustEventListener {
             }
 
             long duration = System.currentTimeMillis() - startTime;
-            
+
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("[ZeroTrustEventListener] Failed to process event - category: {}, type: {}, duration: {}ms",
@@ -81,7 +81,6 @@ public class ZeroTrustEventListener {
 
         if (ZeroTrustSpringEvent.TYPE_AUTHENTICATION_SUCCESS.equals(event.getEventType())) {
             if (isLlmChallengeMfa(userId)) {
-                
                 processMfaCompletion(event);
                 return;
             }
@@ -94,14 +93,14 @@ public class ZeroTrustEventListener {
         String userId = event.getUserId();
 
         if (shouldSkipPublishing(userId)) {
-                        return;
+            return;
         }
 
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processSessionEvent(ZeroTrustSpringEvent event) {
-        
+
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
@@ -113,7 +112,7 @@ public class ZeroTrustEventListener {
     }
 
     private void processCustomEvent(ZeroTrustSpringEvent event) {
-        
+
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
@@ -131,17 +130,17 @@ public class ZeroTrustEventListener {
 
             if (isLlmAction) {
                 redisTemplate.opsForHash().delete(analysisKey, "previousAction");
-                            }
+            }
 
             return isLlmAction;
 
         } catch (Exception e) {
-                        return false;
+            return false;
         }
     }
 
     private void processMfaCompletion(ZeroTrustSpringEvent event) {
-        
+
         if (postProcessor != null) {
             SecurityEvent securityEvent = convertToSecurityEvent(event);
             SecurityDecision decision = createMfaSuccessDecision(event);
@@ -149,7 +148,7 @@ public class ZeroTrustEventListener {
             postProcessor.updateSessionContext(securityEvent, decision);
             postProcessor.storeInVectorDatabase(securityEvent, decision);
 
-                    }
+        }
     }
 
     private SecurityEvent convertToSecurityEvent(ZeroTrustSpringEvent event) {
@@ -194,14 +193,14 @@ public class ZeroTrustEventListener {
             if (Boolean.TRUE.equals(isAnalyzing)) {
                 Long ttl = redisTemplate.getExpire(analysisKey);
                 if (ttl != null && ttl > 0) {
-                                        return true;
+                    return true;
                 }
             }
 
             return false;
 
         } catch (Exception e) {
-                        return false;
+            return false;
         }
     }
 }

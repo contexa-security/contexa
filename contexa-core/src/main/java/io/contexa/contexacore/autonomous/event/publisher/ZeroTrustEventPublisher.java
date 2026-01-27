@@ -50,7 +50,7 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-            }
+    }
 
     public void publishAuthenticationFailure(
             String userId,
@@ -70,7 +70,7 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-            }
+    }
 
     public void publishWebAuthorization(
             Authentication authentication,
@@ -104,7 +104,7 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-            }
+    }
 
     public void publishMethodAuthorization(
             MethodInvocation methodInvocation,
@@ -142,7 +142,7 @@ public class ZeroTrustEventPublisher {
                 payload
         );
 
-            }
+    }
 
     public void publish(
             ZeroTrustEventCategory category,
@@ -178,7 +178,7 @@ public class ZeroTrustEventPublisher {
 
         eventPublisher.publishEvent(event);
 
-            }
+    }
 
     public void publishCustom(String customEventType, String userId, Map<String, Object> payload) {
         publish(ZeroTrustEventCategory.CUSTOM, customEventType, userId, payload);
@@ -224,7 +224,7 @@ public class ZeroTrustEventPublisher {
                 return RequestInfoExtractor.extract(request, getSecurity());
             }
         } catch (Exception e) {
-                    }
+        }
         return null;
     }
 }

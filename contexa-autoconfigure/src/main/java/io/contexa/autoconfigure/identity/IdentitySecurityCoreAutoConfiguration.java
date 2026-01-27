@@ -199,9 +199,7 @@ public class IdentitySecurityCoreAutoConfiguration {
                 Map.entry("mfa_ott", OneTimeTokenAuthenticationFilter.class),
                 Map.entry("passkey", WebAuthnAuthenticationFilter.class),
                 Map.entry("mfa_passkey", WebAuthnAuthenticationFilter.class));
-        return new SecurityFilterChainRegistrar(factorFilterProvider,
-                stepFilterClasses,
-                adapterRegistry);
+        return new SecurityFilterChainRegistrar(factorFilterProvider, stepFilterClasses);
     }
 
     @Bean

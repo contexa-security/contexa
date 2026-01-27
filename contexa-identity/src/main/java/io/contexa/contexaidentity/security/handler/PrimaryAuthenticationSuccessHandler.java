@@ -1,7 +1,6 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -182,7 +181,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private void handleDirectChallenge(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext factorContext) throws IOException {
         AuthType nextFactor = factorContext.getCurrentProcessingFactor();
-        String nextUiPageUrl = determineChalllengeUrl(factorContext, request);
+        String nextUiPageUrl = determineChallengeUrl(factorContext, request);
 
         Map<String, Object> responseBody = createMfaResponseBody(
                 "MFA_REQUIRED",
@@ -233,15 +232,15 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "MFA 세션 컨텍스트 오류: " + logMessage, request.getRequestURI(), errorResponse);
     }
 
-    private String determineChalllengeUrl(FactorContext ctx, HttpServletRequest request) {
+    private String determineChallengeUrl(FactorContext ctx, HttpServletRequest request) {
         if (ctx.getCurrentProcessingFactor() == null) {
             return request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         }
 
         return switch (ctx.getCurrentProcessingFactor()) {
-            case OTT -> request.getContextPath() +
+            case MFA_OTT -> request.getContextPath() +
                     authUrlProvider.getOttRequestCodeUi();
-            case PASSKEY -> request.getContextPath() +
+            case MFA_PASSKEY -> request.getContextPath() +
                     authUrlProvider.getPasskeyChallengeUi();
             default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         };

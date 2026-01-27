@@ -34,18 +34,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SecurityFilterChainRegistrar {
     private final ConfiguredFactorFilterProvider configuredFactorFilterProvider;
     private final Map<String, Class<? extends Filter>> stepFilterClasses;
-    private final AdapterRegistry adapterRegistry;
-
-    private static final Set<String> DEFAULT_FACTOR_TYPES = Set.of(
-            AuthType.OTT.name().toLowerCase(),
-            AuthType.PASSKEY.name().toLowerCase()
-    );
 
     public SecurityFilterChainRegistrar(ConfiguredFactorFilterProvider configuredFactorFilterProvider,
-                                        Map<String, Class<? extends Filter>> stepFilterClasses, AdapterRegistry adapterRegistry) {
+                                        Map<String, Class<? extends Filter>> stepFilterClasses) {
         this.configuredFactorFilterProvider = Objects.requireNonNull(configuredFactorFilterProvider, "ConfiguredFactorFilterProvider cannot be null.");
         this.stepFilterClasses = Objects.requireNonNull(stepFilterClasses, "stepFilterClasses cannot be null.");
-        this.adapterRegistry = adapterRegistry;
     }
 
     public void registerSecurityFilterChains(List<FlowContext> flows, ApplicationContext context) {
@@ -82,9 +75,6 @@ public class SecurityFilterChainRegistrar {
                     .getBeanDefinition();
             registry.registerBeanDefinition(beanName, bd);
         }
-
-        DefaultFactorChainProvider defaultProvider = new DefaultFactorChainProvider(context, this, adapterRegistry);
-
     }
 
     public OrderedSecurityFilterChain buildAndRegisterFilters(FlowContext fc, ApplicationContext appContext) {

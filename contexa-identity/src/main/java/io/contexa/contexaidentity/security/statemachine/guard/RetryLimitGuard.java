@@ -46,8 +46,8 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
     private int getFactorMaxRetries(String factorType) {
         
         return switch (factorType.toUpperCase()) {
-            case "OTT", "SMS" -> 5; 
-            case "TOTP", "FIDO", "PASSKEY" -> 3; 
+            case "MFA_OTT", "SMS" -> 5;
+            case "TOTP", "FIDO", "MFA_PASSKEY" -> 3;
             default -> getMaxRetries(); 
         };
     }
