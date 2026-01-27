@@ -81,7 +81,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         StateType stateType = determineStateType(factorContext);
-                
+
         TokenPair tokenPair;
         TokenTransportResult transportResult = null;
 
@@ -93,15 +93,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             transportResult = prepareTokenTransport(accessToken, refreshToken);
 
-                    } else {
-                    }
+        }
 
         if (factorContext != null && factorContext.getMfaSessionId() != null) {
             stateMachineIntegrator.releaseStateMachine(factorContext.getMfaSessionId());
             sessionRepository.removeSession(factorContext.getMfaSessionId(), request, response);
 
             request.setAttribute("mfaSessionReleased", true);
-                    }
+        }
 
         String userId = finalAuthentication.getName();
         resetActionOnMfaSuccess(userId, request);
@@ -133,12 +132,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                 HttpServletResponse response,
                                                 Authentication authentication,
                                                 TokenTransportResult transportResult) throws IOException {
-        
+
     }
 
     private void processDefaultResponse(HttpServletResponse response, TokenTransportResult result)
             throws IOException {
-        
+
         setCookies(response, result);
 
         writeJsonResponse(response, result.getBody());
@@ -167,13 +166,13 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         String[] invalidPatterns = {
-            "/.well-known/",
-            "/favicon.ico",
-            "chrome-extension://",
-            "about:",
-            "data:",
-            "blob:",
-            "javascript:"
+                "/.well-known/",
+                "/favicon.ico",
+                "chrome-extension://",
+                "about:",
+                "data:",
+                "blob:",
+                "javascript:"
         };
 
         for (String pattern : invalidPatterns) {
@@ -192,20 +191,20 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     @Override
     protected Map<String, Object> buildResponseData(TokenTransportResult transportResult,
-                                                     Authentication authentication,
-                                                     HttpServletRequest request) {
+                                                    Authentication authentication,
+                                                    HttpServletRequest request) {
 
         return new HashMap<>();
     }
 
     private StateType determineStateType(@Nullable FactorContext factorContext) {
-        
+
         if (factorContext != null && factorContext.getStateConfig() != null) {
             return factorContext.getStateConfig().stateType();
         }
 
         StateType globalDefault = authContextProperties.getStateType();
-                return globalDefault;
+        return globalDefault;
     }
 
     private Map<String, Object> buildResponseData(
@@ -223,7 +222,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
         }
 
-        responseData.put("authenticated", true);  
+        responseData.put("authenticated", true);
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "인증이 완료되었습니다.");
         responseData.put("redirectUrl", determineTargetUrl(request, response, authentication));
@@ -238,7 +237,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                    TokenTransportResult transportResult) {
         try {
             if (zeroTrustEventPublisher == null) {
-                                return;
+                return;
             }
 
             UserDto userDto = (UserDto) authentication.getPrincipal();
@@ -319,20 +318,20 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION);
 
         if (errorEvent != null) {
-            
+
             try {
                 boolean errorEventSent = stateMachineIntegrator.sendEvent(errorEvent, factorContext, request);
 
                 if (errorEventSent) {
-                    
+
                     factorContext.removeAttribute("errorEventRecommendation");
-                                        return true;
+                    return true;
                 } else {
                     log.error("Failed to send error event {} for session: {}", errorEvent, sessionId);
                 }
             } catch (Exception sendError) {
                 log.error("Failed to process error event recommendation for session: {}",
-                         sessionId, sendError);
+                        sessionId, sendError);
             }
         }
 
@@ -349,7 +348,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
             redisTemplate.opsForHash().put(analysisKey, "previousAction",
-                previousAction != null ? previousAction.toString() : "NONE");
+                    previousAction != null ? previousAction.toString() : "NONE");
 
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
 
@@ -364,39 +363,39 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private void learnBaselineOnMfaSuccess(String userId, HttpServletRequest request) {
         if (baselineLearningService == null) {
-                        return;
+            return;
         }
 
         try {
-            
+
             SecurityDecision decision = SecurityDecision.builder()
-                .action(SecurityDecision.Action.ALLOW)
-                .confidence(1.0)  
-                .riskScore(0.0)   
-                .reasoning("MFA authentication completed successfully")
-                .build();
+                    .action(SecurityDecision.Action.ALLOW)
+                    .confidence(1.0)
+                    .riskScore(0.0)
+                    .reasoning("MFA authentication completed successfully")
+                    .build();
 
             SecurityEvent event = SecurityEvent.builder()
-                .eventId(UUID.randomUUID().toString())
-                .source(SecurityEvent.EventSource.IAM)
-                .userId(userId)
-                .sourceIp(extractClientIp(request))
-                .sessionId(request.getSession(false) != null ?
-                    request.getSession(false).getId() : null)
-                .userAgent(request.getHeader("User-Agent"))
-                .timestamp(LocalDateTime.now())
-                .description("MFA authentication success - baseline learning")
-                .build();
+                    .eventId(UUID.randomUUID().toString())
+                    .source(SecurityEvent.EventSource.IAM)
+                    .userId(userId)
+                    .sourceIp(extractClientIp(request))
+                    .sessionId(request.getSession(false) != null ?
+                            request.getSession(false).getId() : null)
+                    .userAgent(request.getHeader("User-Agent"))
+                    .timestamp(LocalDateTime.now())
+                    .description("MFA authentication success - baseline learning")
+                    .build();
 
             boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
 
             if (learned) {
-                            } else {
-                            }
+            } else {
+            }
 
         } catch (Exception e) {
             log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
-            
+
         }
     }
 }

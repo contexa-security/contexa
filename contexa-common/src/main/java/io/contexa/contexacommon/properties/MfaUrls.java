@@ -15,7 +15,7 @@ public class MfaUrls {
     private String selectFactor = "/mfa/select-factor";
 
     
-    private String success = "/home";
+    private String success = "/";
 
     
     private String failure = "/mfa/failure";
