@@ -38,9 +38,8 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
 
     @Override
     protected MfaDecision evaluatePolicy(FactorContext ctx) {
-        MfaDecision decision = compositePolicyEvaluator.evaluatePolicy(ctx);
 
-        return decision;
+        return compositePolicyEvaluator.evaluatePolicy(ctx);
     }
 
     @Override
