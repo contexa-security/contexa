@@ -325,10 +325,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthResponseWriter responseWriter,
             AuthUrlProvider authUrlProvider,
             MfaSessionRepository sessionRepository,
-            MfaStateMachineIntegrator stateMachineIntegrator) {
+            MfaStateMachineIntegrator stateMachineIntegrator,
+            RedisDistributedLockService lockService) {
         return new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
-                sessionRepository, stateMachineIntegrator);
+                sessionRepository, stateMachineIntegrator, lockService);
     }
 
     @Bean

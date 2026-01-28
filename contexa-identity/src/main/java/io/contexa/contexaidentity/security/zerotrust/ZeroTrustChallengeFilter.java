@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
+import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -15,45 +16,63 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Filter that intercepts requests when Zero Trust security determines a CHALLENGE action.
  * Detects ROLE_MFA_REQUIRED authority and initializes MFA flow via ChallengeMfaInitializer.
  *
- * Supports content negotiation:
- * - Browser requests (Accept: text/html) -> HTTP 302 redirect to MFA page
- * - API requests (Accept: application/json) -> HTTP 403 with JSON response and special headers
+ * Key behaviors:
+ * - Redirects to MFA page only once per challenge session (tracks via challengeRedirected flag)
+ * - Uses Redis distributed lock to prevent concurrent initialization of the same user's MFA session
+ * - Subsequent requests after redirect are passed to filter chain (will be denied by security)
+ * - MFA page URLs are excluded via shouldNotFilter() to allow page rendering
  */
 @Slf4j
 public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
     public static final String ROLE_MFA_REQUIRED = "ROLE_MFA_REQUIRED";
-    public static final String HEADER_MFA_CHALLENGE_REQUIRED = "X-MFA-Challenge-Required";
-    public static final String HEADER_MFA_SESSION_ID = "X-MFA-Session-Id";
-    public static final String HEADER_MFA_REDIRECT_URL = "X-MFA-Redirect-Url";
+
+    private static final String LOCK_KEY_PREFIX = "mfa:challenge:init:";
+    private static final Duration LOCK_TIMEOUT = Duration.ofSeconds(30);
 
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthResponseWriter responseWriter;
     private final AuthUrlProvider authUrlProvider;
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
+    private final RedisDistributedLockService lockService;
 
     public ZeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
             AuthResponseWriter responseWriter,
             AuthUrlProvider authUrlProvider,
             MfaSessionRepository sessionRepository,
-            MfaStateMachineIntegrator stateMachineIntegrator) {
+            MfaStateMachineIntegrator stateMachineIntegrator,
+            RedisDistributedLockService lockService) {
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.responseWriter = responseWriter;
         this.authUrlProvider = authUrlProvider;
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
+        this.lockService = lockService;
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (StringUtils.hasText(contextPath)) {
+            requestUri = requestUri.substring(contextPath.length());
+        }
+        return authUrlProvider.getMfaPageUrls().contains(requestUri);
     }
 
     @Override
@@ -63,52 +82,31 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth == null || !auth.isAuthenticated()) {
+        if (auth == null || !auth.isAuthenticated() || !hasAuthority(auth)) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        if (!hasAuthority(auth)) {
-            filterChain.doFilter(request, response);
+        if (handleExistingSession(request, response, filterChain)) {
             return;
         }
 
-        String existingSessionId = sessionRepository.getSessionId(request);
-        if (existingSessionId != null && sessionRepository.existsSession(existingSessionId)) {
-            FactorContext existingContext = stateMachineIntegrator.loadFactorContext(existingSessionId);
+        String userId = extractUserId(auth);
+        String lockKey = LOCK_KEY_PREFIX + userId;
+        String lockOwner = Thread.currentThread().getName() + ":" + UUID.randomUUID();
 
-            if (existingContext != null) {
-                Boolean isChallengeSession = existingContext.getBooleanAttribute("challengeInitiated");
-
-                if (Boolean.TRUE.equals(isChallengeSession)) {
-                    if (!existingContext.getCurrentState().isTerminal()) {
-                        String mfaPageUrl = buildMfaPageUrl(existingContext, request);
-//                        if (isHtmlAccepted(request)) {
-                            handleBrowserRequest(response, mfaPageUrl);
-//                        } else {
-//                            handleApiRequest(response, request, existingContext, mfaPageUrl);
-//                        }
-                        return;
-                    }
-                    stateMachineIntegrator.cleanupSession(request, response);
-                } else {
-                    stateMachineIntegrator.cleanupSession(request, response);
-                }
-            } else {
-                sessionRepository.removeSession(existingSessionId, request, response);
-            }
+        if (!lockService.tryLock(lockKey, lockOwner, LOCK_TIMEOUT)) {
+            filterChain.doFilter(request, response);
+            return;
         }
 
         try {
+            if (handleExistingChallengeSession(request, response, filterChain)) {
+                return;
+            }
+
             FactorContext context = challengeMfaInitializer.initializeChallengeFlow(request, response, auth);
-
-            String mfaPageUrl = buildMfaPageUrl(context, request);
-
-//            if (isHtmlAccepted(request)) {
-                handleBrowserRequest(response, mfaPageUrl);
-//            } else {
-//                handleApiRequest(response, request, context, mfaPageUrl);
-//            }
+            redirectToMfaPage(context, request, response);
 
         } catch (ChallengeMfaInitializer.ChallengeMfaInitializationException e) {
             log.error("Failed to initialize challenge MFA flow: {}", e.getMessage());
@@ -116,7 +114,74 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         } catch (Exception e) {
             log.error("Unexpected error in ZeroTrustChallengeFilter", e);
             handleInitializationError(response, request, e);
+        } finally {
+            lockService.unlock(lockKey, lockOwner);
         }
+    }
+
+    private boolean handleExistingSession(HttpServletRequest request,
+                                          HttpServletResponse response,
+                                          FilterChain filterChain) throws ServletException, IOException {
+        String sessionId = sessionRepository.getSessionId(request);
+        if (sessionId == null || !sessionRepository.existsSession(sessionId)) {
+            return false;
+        }
+
+        FactorContext context = stateMachineIntegrator.loadFactorContext(sessionId);
+        if (context == null) {
+            sessionRepository.removeSession(sessionId, request, response);
+            return false;
+        }
+
+        if (!context.getBooleanAttribute("challengeInitiated")) {
+            stateMachineIntegrator.cleanupSession(request, response);
+            return false;
+        }
+
+        if (context.getCurrentState().isTerminal()) {
+            stateMachineIntegrator.cleanupSession(request, response);
+            return false;
+        }
+
+        if (context.getBooleanAttribute("challengeRedirected")) {
+            filterChain.doFilter(request, response);
+            return true;
+        }
+
+        redirectToMfaPage(context, request, response);
+        return true;
+    }
+
+    private boolean handleExistingChallengeSession(HttpServletRequest request,
+                                                   HttpServletResponse response,
+                                                   FilterChain filterChain) throws ServletException, IOException {
+        String sessionId = sessionRepository.getSessionId(request);
+        if (sessionId == null || !sessionRepository.existsSession(sessionId)) {
+            return false;
+        }
+
+        FactorContext context = stateMachineIntegrator.loadFactorContext(sessionId);
+        if (context == null || !context.getBooleanAttribute("challengeInitiated")) {
+            return false;
+        }
+
+        if (context.getBooleanAttribute("challengeRedirected")) {
+            filterChain.doFilter(request, response);
+            return true;
+        }
+
+        redirectToMfaPage(context, request, response);
+        return true;
+    }
+
+    private void redirectToMfaPage(FactorContext context,
+                                   HttpServletRequest request,
+                                   HttpServletResponse response) throws IOException {
+
+        context.setAttribute("challengeRedirected", true);
+        stateMachineIntegrator.saveFactorContext(context);
+        String mfaPageUrl = buildMfaPageUrl(context, request);
+        response.sendRedirect(mfaPageUrl);
     }
 
     private String buildMfaPageUrl(FactorContext context, HttpServletRequest request) {
@@ -140,40 +205,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         }
 
         return contextPath + authUrlProvider.getMfaSelectFactor();
-    }
-
-    private void handleBrowserRequest(HttpServletResponse response, String mfaPageUrl) throws IOException {
-        response.sendRedirect(mfaPageUrl);
-    }
-
-    private void handleApiRequest(HttpServletResponse response, HttpServletRequest request,
-                                   FactorContext context, String mfaPageUrl) throws IOException {
-        response.setHeader(HEADER_MFA_CHALLENGE_REQUIRED, "true");
-        response.setHeader(HEADER_MFA_SESSION_ID, context.getMfaSessionId());
-        response.setHeader(HEADER_MFA_REDIRECT_URL, mfaPageUrl);
-
-        Map<String, Object> responseBody = new HashMap<>();
-        responseBody.put("status", "MFA_CHALLENGE_REQUIRED");
-        responseBody.put("message", "Additional verification required due to security policy");
-        responseBody.put("mfaSessionId", context.getMfaSessionId());
-        responseBody.put("nextStepUrl", mfaPageUrl);
-        responseBody.put("challengeReason", "ZERO_TRUST_ADAPTIVE");
-        responseBody.put("currentState", context.getCurrentState().name());
-
-        AuthType nextFactor = context.getCurrentProcessingFactor();
-        if (nextFactor != null) {
-            responseBody.put("nextFactorType", nextFactor.name());
-            responseBody.put("nextStepId", context.getCurrentStepId());
-        }
-
-        responseWriter.writeErrorResponse(
-                response,
-                HttpServletResponse.SC_FORBIDDEN,
-                "MFA_CHALLENGE_REQUIRED",
-                "Additional verification required due to security policy",
-                request.getRequestURI(),
-                responseBody
-        );
     }
 
     private void handleInitializationError(HttpServletResponse response, HttpServletRequest request,
@@ -201,29 +232,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
                 .anyMatch(ZeroTrustChallengeFilter.ROLE_MFA_REQUIRED::equals);
     }
 
-    private boolean isHtmlAccepted(HttpServletRequest request) {
-        String accept = request.getHeader("Accept");
-        if (accept == null || accept.isEmpty()) {
-            return true;
+    private String extractUserId(Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return "unknown";
         }
-
-        boolean acceptsHtml = accept.contains("text/html");
-        boolean acceptsJson = accept.contains("application/json");
-
-        if (acceptsHtml && !acceptsJson) {
-            return true;
-        }
-
-        if (acceptsJson && !acceptsHtml) {
-            return false;
-        }
-
-        if (acceptsHtml && acceptsJson) {
-            int htmlIndex = accept.indexOf("text/html");
-            int jsonIndex = accept.indexOf("application/json");
-            return htmlIndex < jsonIndex;
-        }
-
-        return true;
+        return auth.getName();
     }
+
 }

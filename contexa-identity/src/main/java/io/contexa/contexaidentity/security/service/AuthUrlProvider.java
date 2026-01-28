@@ -366,6 +366,23 @@ public class AuthUrlProvider {
         );
     }
 
+    /**
+     * Returns all MFA UI page URLs that should bypass ZeroTrustChallengeFilter.
+     * These pages need to be rendered by DefaultMfaPageGeneratingFilter.
+     */
+    public Set<String> getMfaPageUrls() {
+        return Set.of(
+            getMfaSelectFactor(),
+            getMfaConfigure(),
+            getMfaFailure(),
+            getMfaSuccess(),
+            getOttRequestCodeUi(),
+            getOttChallengeUi(),
+            getPasskeyChallengeUi(),
+            getRecoveryCodeChallengeUi()
+        );
+    }
+
     public List<String> getAllMfaRequestUrls() {
         return List.of(
             getMfaInitiate(),

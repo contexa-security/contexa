@@ -27,32 +27,32 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-@ConditionalOnProperty(name = "spring.auth.mfa.session-storage-type", havingValue = "redis") 
+@ConditionalOnProperty(name = "spring.auth.mfa.session-storage-type", havingValue = "redis")
 public class RedisMfaRepository implements MfaSessionRepository {
 
     private final StringRedisTemplate redisTemplate;
     private final SessionIdGenerator sessionIdGenerator;
 
-    private static final String SESSION_PREFIX = "mfa:session:v2:"; 
-    private static final String COLLISION_COUNTER_KEY_PREFIX = "mfa:collision:counter:"; 
+    private static final String SESSION_PREFIX = "mfa:session:v2:";
+    private static final String COLLISION_COUNTER_KEY_PREFIX = "mfa:collision:counter:";
     private static final String SESSION_STATS_KEY = "mfa:stats:v2";
-    private static final String COOKIE_NAME = "MFA_SID"; 
-    private static final String TEMP_SESSION_ATTR = "_tempMfaSessionId_"; 
+    private static final String COOKIE_NAME = "MFA_SID";
+    private static final String TEMP_SESSION_ATTR = "_tempMfaSessionId_";
     private static final int MAX_COLLISION_RETRIES = 10;
-    private static final int MIN_SECURITY_SCORE_THRESHOLD = 75; 
+    private static final int MIN_SECURITY_SCORE_THRESHOLD = 75;
 
-    private Duration sessionTimeout; 
+    private Duration sessionTimeout;
 
-    @Value("${spring.auth.cookie-secure:true}") 
+    @Value("${spring.auth.cookie-secure:true}")
     private boolean cookieSecure;
 
     private final AtomicLong totalSessionsCreated = new AtomicLong(0);
-    private final AtomicLong sessionCollisionsResolved = new AtomicLong(0); 
+    private final AtomicLong sessionCollisionsResolved = new AtomicLong(0);
 
-    private static final String CREATE_SESSION_IF_NOT_EXISTS_SCRIPT = 
+    private static final String CREATE_SESSION_IF_NOT_EXISTS_SCRIPT =
             "local key_exists = redis.call('EXISTS', KEYS[1]) " +
                     "if key_exists == 0 then " +
-                    "    redis.call('PSETEX', KEYS[1], ARGV[2], ARGV[1]) " + 
+                    "    redis.call('PSETEX', KEYS[1], ARGV[2], ARGV[1]) " +
                     "    return 1 " +
                     "else " +
                     "    return 0 " +
@@ -71,23 +71,23 @@ public class RedisMfaRepository implements MfaSessionRepository {
         }
 
         String redisKey = SESSION_PREFIX + sessionId;
-        String sessionValue = createSessionValue(sessionId, request); 
+        String sessionValue = createSessionValue(sessionId, request);
 
         DefaultRedisScript<Long> script = new DefaultRedisScript<>(CREATE_SESSION_IF_NOT_EXISTS_SCRIPT, Long.class);
         Long result = redisTemplate.execute(script,
                 Collections.singletonList(redisKey),
-                sessionValue, 
+                sessionValue,
                 String.valueOf(sessionTimeout.toMillis()));
 
         if (result == 1) {
             totalSessionsCreated.incrementAndGet();
-            updateSessionStatsAsync(); 
+            updateSessionStatsAsync();
 
             if (response != null) {
-                setSessionCookie(response, sessionId, request.isSecure()); 
+                setSessionCookie(response, sessionId, request.isSecure());
             }
             request.setAttribute(TEMP_SESSION_ATTR, sessionId);
-                    } else {
+        } else {
 
             log.error("Failed to store session ID {} in Redis. It might already exist or script failed. Result: {}", sessionId, result);
             throw new SessionIdGenerationException("Failed to exclusively store session ID in Redis: " + sessionId);
@@ -98,17 +98,17 @@ public class RedisMfaRepository implements MfaSessionRepository {
     public String generateUniqueSessionId(@Nullable String baseId, HttpServletRequest request) {
         String repositoryTypeCollisionCounterKey = COLLISION_COUNTER_KEY_PREFIX + getRepositoryType();
         for (int attempt = 0; attempt < MAX_COLLISION_RETRIES; attempt++) {
-            String sessionId = sessionIdGenerator.generate(baseId, request); 
+            String sessionId = sessionIdGenerator.generate(baseId, request);
 
             if (isSessionIdUnique(sessionId)) {
-                                request.setAttribute(TEMP_SESSION_ATTR, sessionId);
+                request.setAttribute(TEMP_SESSION_ATTR, sessionId);
                 return sessionId;
             }
             log.warn("Generated session ID {} was not unique or secure enough for Redis (attempt: {}). Retrying.",
                     sessionId, attempt + 1);
 
             try {
-                Thread.sleep( (long) (Math.pow(2, attempt) * 10) ); 
+                Thread.sleep((long) (Math.pow(2, attempt) * 10));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new SessionIdGenerationException("Session ID generation interrupted during collision retry", e);
@@ -123,44 +123,43 @@ public class RedisMfaRepository implements MfaSessionRepository {
     public String getSessionId(HttpServletRequest request) {
         String sessionIdFromAttr = (String) request.getAttribute(TEMP_SESSION_ATTR);
         if (StringUtils.hasText(sessionIdFromAttr)) {
-
-                        return sessionIdFromAttr;
+            return sessionIdFromAttr;
         }
 
         String sessionIdFromCookie = getSessionIdFromCookie(request);
         if (!StringUtils.hasText(sessionIdFromCookie)) {
-                        return null;
+            return null;
         }
 
         if (!isValidSessionIdFormat(sessionIdFromCookie)) {
             log.warn("Invalid session ID format found in cookie: {}. Discarding.", sessionIdFromCookie);
-            
+
             return null;
         }
 
         String redisKey = SESSION_PREFIX + sessionIdFromCookie;
-        if (Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
-            request.setAttribute(TEMP_SESSION_ATTR, sessionIdFromCookie); 
+        if (redisTemplate.hasKey(redisKey)) {
+            request.setAttribute(TEMP_SESSION_ATTR, sessionIdFromCookie);
             return sessionIdFromCookie;
         }
 
-                return null;
+        return null;
     }
 
     @Override
     public boolean isSessionIdUnique(String sessionId) {
         if (!StringUtils.hasText(sessionId)) return false;
         String redisKey = SESSION_PREFIX + sessionId;
-        return Boolean.FALSE.equals(redisTemplate.hasKey(redisKey));
+        return !redisTemplate.hasKey(redisKey);
     }
 
     @Override
     public String resolveSessionIdCollision(String originalId, HttpServletRequest request, int maxAttempts) {
-        sessionCollisionsResolved.incrementAndGet(); 
+        sessionCollisionsResolved.incrementAndGet();
         for (int attempt = 0; attempt < maxAttempts; attempt++) {
             String newId = sessionIdGenerator.resolveCollision(originalId, attempt, request);
             if (isSessionIdUnique(newId)) {
-                                request.setAttribute(TEMP_SESSION_ATTR, newId);
+                request.setAttribute(TEMP_SESSION_ATTR, newId);
                 return newId;
             }
         }
@@ -175,21 +174,17 @@ public class RedisMfaRepository implements MfaSessionRepository {
 
     @Override
     public boolean supportsDistributedSync() {
-        return true; 
+        return true;
     }
 
     @Override
     public void removeSession(String sessionId, HttpServletRequest request, @Nullable HttpServletResponse response) {
         if (!StringUtils.hasText(sessionId)) return;
         String redisKey = SESSION_PREFIX + sessionId;
-        Boolean deleted = redisTemplate.delete(redisKey);
-        if (Boolean.TRUE.equals(deleted)) {
-                    } else {
-                    }
-
-        request.removeAttribute(TEMP_SESSION_ATTR); 
+        redisTemplate.delete(redisKey);
+        request.removeAttribute(TEMP_SESSION_ATTR);
         if (response != null) {
-            invalidateSessionCookie(response, request.isSecure()); 
+            invalidateSessionCookie(response, request.isSecure());
         }
     }
 
@@ -199,7 +194,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
         String redisKey = SESSION_PREFIX + sessionId;
         Boolean refreshed = redisTemplate.expire(redisKey, sessionTimeout);
         if (Boolean.TRUE.equals(refreshed)) {
-                    } else {
+        } else {
             log.warn("Attempted to refresh TTL for non-existent or already expired session in Redis: {}", sessionId);
         }
     }
@@ -210,30 +205,30 @@ public class RedisMfaRepository implements MfaSessionRepository {
             return false;
         }
         String redisKey = SESSION_PREFIX + sessionId;
-        return Boolean.TRUE.equals(redisTemplate.hasKey(redisKey));
+        return redisTemplate.hasKey(redisKey);
     }
 
     @Override
     public void setSessionTimeout(Duration timeout) {
         if (timeout != null && !timeout.isNegative() && !timeout.isZero()) {
             this.sessionTimeout = timeout;
-                    } else {
+        } else {
             log.warn("Invalid session timeout value provided: {}. Retaining current: {}", timeout, this.sessionTimeout);
         }
     }
 
     @Override
     public String getRepositoryType() {
-        return "REDIS"; 
+        return "REDIS";
     }
 
     @Override
     public SessionStats getSessionStats() {
         try {
             Set<String> keys = redisTemplate.keys(SESSION_PREFIX + "*");
-            long activeSessions = (keys != null) ? keys.size() : 0;
-            
-            double avgDurationApproximation = sessionTimeout.toSeconds() * 0.5; 
+            long activeSessions = keys.size();
+
+            double avgDurationApproximation = sessionTimeout.toSeconds() * 0.5;
 
             return new SessionStats(
                     activeSessions,
@@ -269,14 +264,14 @@ public class RedisMfaRepository implements MfaSessionRepository {
 
     private void setSessionCookie(HttpServletResponse response, String sessionId, boolean isSecureRequest) {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, sessionId)
-                .path("/") 
-                .maxAge(sessionTimeout) 
+                .path("/")
+                .maxAge(sessionTimeout)
                 .httpOnly(true)
-                .secure(cookieSecure && isSecureRequest) 
-                .sameSite("Lax") 
+                .secure(cookieSecure && isSecureRequest)
+                .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-            }
+    }
 
     private void invalidateSessionCookie(HttpServletResponse response, boolean isSecureRequest) {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, "")
@@ -287,7 +282,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
-            }
+    }
 
     private String getClientIpAddress(HttpServletRequest request) {
         String xfHeader = request.getHeader("X-Forwarded-For");
@@ -310,9 +305,9 @@ public class RedisMfaRepository implements MfaSessionRepository {
         CompletableFuture.runAsync(() -> {
             try {
                 redisTemplate.opsForHash().increment(SESSION_STATS_KEY, "totalCreated", 1);
-                redisTemplate.opsForHash().increment(SESSION_STATS_KEY, "collisionsResolved", sessionCollisionsResolved.get()); 
+                redisTemplate.opsForHash().increment(SESSION_STATS_KEY, "collisionsResolved", sessionCollisionsResolved.get());
                 redisTemplate.opsForHash().put(SESSION_STATS_KEY, "lastUpdate", String.valueOf(Instant.now().toEpochMilli()));
-                redisTemplate.expire(SESSION_STATS_KEY, 7, TimeUnit.DAYS); 
+                redisTemplate.expire(SESSION_STATS_KEY, 7, TimeUnit.DAYS);
             } catch (Exception e) {
                 log.warn("Failed to update session stats in Redis asynchronously", e);
             }
