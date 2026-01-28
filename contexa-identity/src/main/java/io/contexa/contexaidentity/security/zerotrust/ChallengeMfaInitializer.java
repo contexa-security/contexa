@@ -43,7 +43,7 @@ public class ChallengeMfaInitializer {
 
     private final BytesKeyGenerator sessionIdGenerator = KeyGenerators.secureRandom(32);
 
-    private static final String CHALLENGE_FLOW_TYPE_NAME = "mfa-challenge";
+    private static final String CHALLENGE_FLOW_TYPE_NAME = "mfa";
     private static final String CHALLENGE_REASON_ATTRIBUTE = "challengeReason";
     private static final String CHALLENGE_INITIATED_ATTRIBUTE = "challengeInitiated";
 

@@ -1038,11 +1038,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private boolean isConfigurePage(String requestUri) {
+        // Configure page is no longer supported
         MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
         if (pageConfig != null && StringUtils.hasText(pageConfig.getConfigurePageUrl())) {
             return requestUri.equals(pageConfig.getConfigurePageUrl());
         }
-        return requestUri.equals(authUrlProvider.getMfaConfigure());
+        return false;
     }
 
     private void handleConfigurePage(HttpServletRequest request, HttpServletResponse response)

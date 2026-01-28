@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
-import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.filter.BaseAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -8,26 +7,15 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.util.Assert;
-import org.springframework.util.StringUtils;
 
 public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder<H>>
         extends AbstractRestAuthenticationConfigurer<MfaRestAuthenticationConfigurer<H>, H> {
 
-    private String mfaInitiateUrl;
+    private String mfaInitiateUrl = "/mfa";
 
     @Override
     public void init(H http){
-        
-        PlatformContext platformContext = http.getSharedObject(PlatformContext.class);
-        if (platformContext != null) {
-            AuthContextProperties authProps = platformContext.getShared(AuthContextProperties.class);
-            if (authProps != null && authProps.getMfa() != null && StringUtils.hasText(authProps.getMfa().getUrls().getInitiate())) {
-                this.mfaInitiateUrl = authProps.getMfa().getUrls().getInitiate();
-            }
-        }
-        if (this.mfaInitiateUrl == null) {
-            this.mfaInitiateUrl = "/mfa"; 
-        }
+        // mfaInitiateUrl uses default value "/mfa"
     }
 
     @Override

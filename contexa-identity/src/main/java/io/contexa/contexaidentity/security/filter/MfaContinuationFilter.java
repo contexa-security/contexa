@@ -60,7 +60,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 authUrlProvider
         );
 
-            }
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -69,7 +69,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         if (!initialized) {
             log.error("🚨 MfaContinuationFilter not initialized. URL matchers must be initialized before processing requests.");
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
-                "MFA service is initializing. Please try again in a moment.");
+                    "MFA service is initializing. Please try again in a moment.");
             return;
         }
 
@@ -82,12 +82,12 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
 
         if (ctx != null) {
             request.setAttribute(FACTOR_CONTEXT_ATTR, ctx);
-                    }
+        }
 
         ValidationResult validation = MfaContextValidator.validateFactorSelectionContext(ctx, sessionRepository);
 
         request.setAttribute(VALIDATION_RESULT_ATTR, validation);
-        
+
         if (validation.hasErrors()) {
             log.warn("Invalid MFA context for request: {} - Errors: {}",
                     request.getRequestURI(), validation.getErrors());
@@ -115,7 +115,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
 
     private void handleInvalidContext(HttpServletRequest request, HttpServletResponse response,
                                       ValidationResult validation) throws IOException {
-        
+
         FactorContext ctx = (FactorContext) request.getAttribute(FACTOR_CONTEXT_ATTR);
         String oldSessionId = ctx != null ? ctx.getMfaSessionId() : sessionRepository.getSessionId(request);
 
@@ -123,11 +123,11 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
             try {
                 stateMachineIntegrator.releaseStateMachine(oldSessionId);
                 sessionRepository.removeSession(oldSessionId, request, response);
-                            } catch (Exception e) {
+            } catch (Exception e) {
                 log.warn("Failed to cleanup invalid session: {}", oldSessionId, e);
             }
         } else if (oldSessionId != null) {
-                    }
+        }
 
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "MFA_SESSION_INVALID");
@@ -144,6 +144,6 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
 
     public void initializeUrlMatchers() {
         urlMatcher.initializeMatchers();
-        initialized = true; 
-            }
+        initialized = true;
+    }
 }
