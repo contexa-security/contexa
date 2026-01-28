@@ -55,7 +55,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             }
 
             factorContext.setAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT,
-                                     System.currentTimeMillis());
+                    System.currentTimeMillis());
 
             sessionRepository.refreshSession(factorContext.getMfaSessionId());
 
@@ -67,12 +67,12 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                 log.warn("MFA OTT challengeUrl not configured, using default: {}", challengeUiUrl);
             }
             String redirectUrl = request.getContextPath() + challengeUiUrl;
-                        response.sendRedirect(redirectUrl);
+            response.sendRedirect(redirectUrl);
             return;
         }
 
         if ((factorContext == null || !AuthType.MFA.name().equalsIgnoreCase(factorContext.getFlowTypeName()))) {
-                        String email = URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8);
+            String email = URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8);
             String codeSentUrl = authUrlProvider.getOttCodeSent();
             if (!StringUtils.hasText(codeSentUrl)) {
                 codeSentUrl = "/ott/sent";
@@ -82,7 +82,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                     "?email=" + email +
                     "&type=code_sent" +
                     "&flow=ott_single" +
-                    "&repository=" + sessionRepository.getRepositoryType(); 
+                    "&repository=" + sessionRepository.getRepositoryType();
 
             response.sendRedirect(redirectUrl);
             return;

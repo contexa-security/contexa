@@ -74,12 +74,14 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             requestUri = requestUri.substring(contextPath.length());
         }
 
-        // MFA page URLs - allow rendering
         if (authUrlProvider.getMfaPageUrls().contains(requestUri)) {
             return true;
         }
 
-        // MFA API endpoints - allow SDK initialization
+        if (requestUri.startsWith("/mfa/challenge/")) {
+            return true;
+        }
+
         if (requestUri.startsWith("/api/mfa/")) {
             return true;
         }

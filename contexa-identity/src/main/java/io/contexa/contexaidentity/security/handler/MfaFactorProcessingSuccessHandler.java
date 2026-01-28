@@ -26,6 +26,7 @@ import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.webauthn.api.ImmutablePublicKeyCredentialUserEntity;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -319,7 +320,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
     private Authentication replaceWithSerializableAuthentication(Authentication authentication) {
         Object principal = authentication.getPrincipal();
-        if (principal instanceof PublicKeyCredentialUserEntity entity) {
+        if (principal instanceof ImmutablePublicKeyCredentialUserEntity entity) {
             try {
                 UserDto userDto = UserDto.builder()
                         .username(entity.getName())
