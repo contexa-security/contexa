@@ -432,85 +432,31 @@
         /**
          * 기본 엔드포인트 설정 (fallback)
          *
-         * ⚠️ 주의: 이 기본값들은 서버 설정과 정확히 일치해야 합니다.
          * 서버가 /api/mfa/config 엔드포인트를 통해 제공하는 구조와 동일한 형식을 유지합니다.
-         *
          * 서버 설정은 AuthContextProperties (application.yml)에서 관리됩니다.
          */
         _getDefaultEndpoints() {
             return {
                 primary: {
-                    formLoginPage: '/mfa/login',
-                    formLoginProcessing: '/mfa/login',
                     restLoginProcessing: '/api/auth/login',
-                    loginFailure: '/login?error',
-                    loginSuccess: '/home'
-                },
-                mfa: {
-                    initiate: '/mfa/initiate',
-                    configure: '/mfa/configure',
-                    selectFactor: '/mfa/select-factor',
-                    failure: '/mfa/failure',
-                    success: '/home', // AuthContextProperties 기본값
-                    cancel: '/api/mfa/cancel',
-                    status: '/api/mfa/status'
+                    formLoginProcessing: '/mfa/login'
                 },
                 ott: {
-                    requestCodeUi: '/mfa/ott/request-code-ui',
-                    codeGeneration: '/mfa/ott/generate-code',
-                    challengeUi: '/mfa/challenge/ott',
-                    loginProcessing: '/login/mfa-ott',
-                    codeSent: '/mfa/ott/code-sent',
-                    defaultFailure: '/mfa/challenge/ott?error=true',
-                    singleOttRequestEmail: '/loginOtt',
-                    singleOttCodeGeneration: '/ott/generate',
-                    singleOttChallenge: '/loginOttVerifyCode',
-                    singleOttSent: '/ott/sent'
+                    loginProcessing: '/login/mfa-ott'
                 },
                 passkey: {
-                    challengeUi: '/mfa/challenge/passkey',
-                    loginProcessing: '/login/mfa-webauthn',
-                    defaultFailure: '/mfa/challenge/passkey?error',
-                    registrationRequest: '/mfa/passkey/register-request',
-                    registrationProcessing: '/mfa/passkey/register'
+                    loginProcessing: '/login/mfa-webauthn'
                 },
                 api: {
                     selectFactor: '/mfa/select-factor',
-                    cancel: '/mfa/cancel',
-                    status: '/mfa/status',
                     requestOttCode: '/mfa/request-ott-code',
-                    context: '/api/mfa/context',  // MfaApiController 경로와 일치
-                    completeFactor: '/mfa/complete-factor',
-                    config: '/api/mfa/config' // SDK 초기화 전용, /api 유지
+                    config: '/api/mfa/config'
                 },
                 webauthn: {
                     assertionOptions: '/webauthn/authenticate/options',
                     assertionVerify: '/login/webauthn'
                 }
             };
-        },
-
-        /**
-         * FactorContext 조회
-         */
-        async getContext() {
-            await this.init();
-
-            const response = await fetch(this.endpoints.api.context, {
-                method: 'GET',
-                headers: ContexaMFAUtils.createHeaders()
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new MFAError(
-                    errorData.message || `Failed to get context: ${response.status}`,
-                    errorData,
-                    response.status
-                );
-            }
-
-            return await response.json();
         },
 
         /**
@@ -811,79 +757,6 @@
             }
 
             return await response.json();
-        },
-
-        /**
-         * ⭐ 새로 추가: Factor 완료 알림 (MFA State Machine 통합)
-         * Spring Security WebAuthn 인증 후 MFA State Machine에 완료 통보
-         */
-        async notifyFactorComplete(factorType = 'PASSKEY') {
-            await this.init();
-
-            const response = await fetch(this.endpoints.api.completeFactor, {
-                method: 'POST',
-                headers: {
-                    ...ContexaMFAUtils.createHeaders(),
-                    'X-Factor-Type': factorType
-                }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({ message: 'Factor completion notification failed' }));
-                throw new MFAError(
-                    errorData.message || `Factor completion failed: ${response.status}`,
-                    errorData,
-                    response.status
-                );
-            }
-
-            return await response.json();
-        },
-
-        /**
-         * MFA 상태 조회
-         */
-        async getStatus() {
-            await this.init();
-
-            const response = await fetch(this.endpoints.api.status, {
-                method: 'GET',
-                headers: ContexaMFAUtils.createHeaders()
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new MFAError(
-                    errorData.message || `Failed to get status: ${response.status}`,
-                    errorData,
-                    response.status
-                );
-            }
-
-            return await response.json();
-        },
-
-        /**
-         * MFA 취소
-         */
-        async cancel() {
-            await this.init();
-
-            const response = await fetch(this.endpoints.api.cancel, {
-                method: 'POST',
-                headers: ContexaMFAUtils.createHeaders()
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new MFAError(
-                    errorData.message || `Failed to cancel MFA: ${response.status}`,
-                    errorData,
-                    response.status
-                );
-            }
-
-            return await response.json();
         }
     };
 
@@ -902,7 +775,6 @@
             };
             this.context = null;
 
-            // P2 추가: 자동으로 세션 복원 시도
             if (this.options.autoInit) {
                 this.stateTracker.restoreFromSession();
             }
@@ -913,16 +785,7 @@
          */
         async init() {
             await this.apiClient.init();
-
-            try {
-                this.context = await this.apiClient.getContext();
-                this.stateTracker.updateFromServerResponse(this.context);
-                ContexaMFAUtils.log('MFA context loaded', 'info', this.context);
-                return this.context;
-            } catch (error) {
-                ContexaMFAUtils.log('Failed to load MFA context', 'error', error);
-                throw error;
-            }
+            ContexaMFAUtils.log('MFA SDK initialized', 'info');
         }
 
         /**
@@ -1189,39 +1052,6 @@
             // 최종 성공 시 세션 정리
             if (result.status === 'MFA_COMPLETED') {
                 this.stateTracker.reset();
-            }
-        }
-
-        /**
-         * 상태 조회
-         */
-        async getStatus() {
-            try {
-                const status = await this.apiClient.getStatus();
-                this.stateTracker.updateFromServerResponse(status);
-                return status;
-            } catch (error) {
-                ContexaMFAUtils.log('Failed to get status', 'error', error);
-                throw error;
-            }
-        }
-
-        /**
-         * MFA 취소
-         */
-        async cancel() {
-            try {
-                const result = await this.apiClient.cancel();
-                this.stateTracker.reset();
-
-                if (this.options.autoRedirect && result.redirectUrl) {
-                    window.location.href = result.redirectUrl;
-                }
-
-                return result;
-            } catch (error) {
-                ContexaMFAUtils.log('Failed to cancel MFA', 'error', error);
-                throw error;
             }
         }
 

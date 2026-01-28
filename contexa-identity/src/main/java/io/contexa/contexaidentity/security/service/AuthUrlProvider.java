@@ -175,17 +175,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getSingle().getPasskey().getRegistrationProcessing();
     }
 
-    public String getMfaInitiate() {
-        return properties.getUrls().getMfa().getInitiate();
-    }
-
-    public String getMfaConfigure() {
-        if (mfaPageConfig != null && mfaPageConfig.hasCustomConfigurePage()) {
-            return mfaPageConfig.getConfigurePageUrl();
-        }
-        return properties.getUrls().getMfa().getConfigure();
-    }
-
     public String getMfaSelectFactor() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomSelectFactorPage()) {
             return mfaPageConfig.getSelectFactorPageUrl();
@@ -208,16 +197,8 @@ public class AuthUrlProvider {
         return properties.getUrls().getMfa().getCancel();
     }
 
-    public String getMfaCancelRedirect() {
-        return properties.getUrls().getMfa().getCancelRedirect();
-    }
-
     public String getMfaStatus() {
         return properties.getUrls().getMfa().getStatus();
-    }
-
-    public String getMfaContext() {
-        return properties.getUrls().getMfa().getContext();
     }
 
     public String getMfaRequestOttCode() {
@@ -373,7 +354,6 @@ public class AuthUrlProvider {
     public Set<String> getMfaPageUrls() {
         return Set.of(
             getMfaSelectFactor(),
-            getMfaConfigure(),
             getMfaFailure(),
             getMfaSuccess(),
             getOttRequestCodeUi(),
@@ -385,7 +365,6 @@ public class AuthUrlProvider {
 
     public List<String> getAllMfaRequestUrls() {
         return List.of(
-            getMfaInitiate(),
             getMfaSelectFactor(),
             getOttCodeGeneration(),
             getOttLoginProcessing(),
@@ -405,8 +384,6 @@ public class AuthUrlProvider {
         ));
 
         urls.put("mfa", Map.of(
-            "initiate", getMfaInitiate(),
-            "configure", getMfaConfigure(),
             "selectFactor", getMfaSelectFactor(),
             "success", getMfaSuccess(),
             "failure", getMfaFailure(),
@@ -449,7 +426,6 @@ public class AuthUrlProvider {
             "cancel", getMfaCancel(),
             "status", getMfaStatus(),
             "requestOttCode", getMfaRequestOttCode(),
-            "context", getMfaContext(),
             "config", getMfaConfig()
         ));
 
@@ -468,8 +444,6 @@ public class AuthUrlProvider {
         addUrlWithContext(urlToContexts, getPrimaryLoginSuccess(), "Primary.loginSuccess");
         addUrlWithContext(urlToContexts, getLogoutPage(), "Primary.logoutPage");
 
-        addUrlWithContext(urlToContexts, getMfaInitiate(), "Mfa.initiate");
-        addUrlWithContext(urlToContexts, getMfaConfigure(), "Mfa.configure");
         addUrlWithContext(urlToContexts, getMfaSelectFactor(), "Mfa.selectFactor");
         addUrlWithContext(urlToContexts, getMfaSuccess(), "Mfa.success");
         addUrlWithContext(urlToContexts, getMfaFailure(), "Mfa.failure");
@@ -497,7 +471,6 @@ public class AuthUrlProvider {
         addUrlWithContext(urlToContexts, getRecoveryCodeChallengeUi(), "RecoveryCode.challengeUi");
 
         addUrlWithContext(urlToContexts, getMfaStatus(), "Mfa.status");
-        addUrlWithContext(urlToContexts, getMfaContext(), "Mfa.context");
         addUrlWithContext(urlToContexts, getMfaRequestOttCode(), "Mfa.requestOttCode");
         addUrlWithContext(urlToContexts, getMfaConfig(), "Mfa.config");
         addUrlWithContext(urlToContexts, getPasskeyAssertionOptions(), "Passkey.assertionOptions");
