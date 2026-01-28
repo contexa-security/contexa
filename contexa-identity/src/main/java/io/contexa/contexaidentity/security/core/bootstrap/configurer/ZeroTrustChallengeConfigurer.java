@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import io.contexa.contexaidentity.security.filter.DefaultMfaPageGeneratingFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
@@ -40,7 +41,7 @@ public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
             return;
         }
 
-        fc.http().addFilterBefore(zeroTrustChallengeFilter, LogoutFilter.class);
+        fc.http().addFilterAfter(zeroTrustChallengeFilter, DefaultMfaPageGeneratingFilter.class);
         log.debug("ZeroTrustChallengeFilter registered before LogoutFilter for flow: {}",
                 fc.flow().getTypeName());
     }

@@ -104,7 +104,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         String userId = finalAuthentication.getName();
-        resetActionOnMfaSuccess(userId, request);
+        if (factorContext != null && factorContext.isCompleted()) {
+            resetActionOnMfaSuccess(userId, request);
+        }
 
         Map<String, Object> responseData = buildResponseData(
                 stateType, transportResult, finalAuthentication, request, response);
@@ -126,7 +128,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             processDefaultResponse(response, finalResult);
         }
 
-        publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
+        if (factorContext != null && factorContext.isCompleted()) {
+            publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
+        }
     }
 
     protected void onFinalAuthenticationSuccess(HttpServletRequest request,
