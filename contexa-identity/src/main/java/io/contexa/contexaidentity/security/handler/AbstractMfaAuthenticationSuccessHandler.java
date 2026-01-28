@@ -363,7 +363,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
             redisTemplate.opsForHash().put(analysisKey, "previousAction", previousAction != null ? previousAction.toString() : "NONE");
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
-            redisTemplate.expire(analysisKey, Duration.ofHours(1));
+            redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
 
             learnBaselineOnMfaSuccess(userId, request);
 
