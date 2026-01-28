@@ -6,6 +6,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
+import io.contexa.contexaidentity.security.utils.WebUtil;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import io.contexa.contexacommon.enums.AuthType;
 import jakarta.servlet.FilterChain;
@@ -72,7 +73,18 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(contextPath)) {
             requestUri = requestUri.substring(contextPath.length());
         }
-        return authUrlProvider.getMfaPageUrls().contains(requestUri);
+
+        // MFA page URLs - allow rendering
+        if (authUrlProvider.getMfaPageUrls().contains(requestUri)) {
+            return true;
+        }
+
+        // MFA API endpoints - allow SDK initialization
+        if (requestUri.startsWith("/api/mfa/")) {
+            return true;
+        }
+
+        return false;
     }
 
     @Override
@@ -181,7 +193,38 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         context.setAttribute("challengeRedirected", true);
         stateMachineIntegrator.saveFactorContext(context);
         String mfaPageUrl = buildMfaPageUrl(context, request);
-        response.sendRedirect(mfaPageUrl);
+
+        if (WebUtil.isApiOrAjaxRequest(request)) {
+            writeMfaChallengeResponse(response, request, context, mfaPageUrl);
+        } else {
+            response.sendRedirect(mfaPageUrl);
+        }
+    }
+
+    private void writeMfaChallengeResponse(HttpServletResponse response,
+                                           HttpServletRequest request,
+                                           FactorContext context,
+                                           String mfaPageUrl) throws IOException {
+        Map<String, Object> responseBody = new HashMap<>();
+        responseBody.put("error", "MFA_CHALLENGE_REQUIRED");
+        responseBody.put("message", "MFA verification required");
+        responseBody.put("mfaUrl", mfaPageUrl);
+        responseBody.put("sessionId", context.getMfaSessionId());
+        responseBody.put("currentState", context.getCurrentState().name());
+
+        AuthType currentFactor = context.getCurrentProcessingFactor();
+        if (currentFactor != null) {
+            responseBody.put("currentFactor", currentFactor.name());
+        }
+
+        responseWriter.writeErrorResponse(
+                response,
+                HttpServletResponse.SC_UNAUTHORIZED,
+                "MFA_CHALLENGE_REQUIRED",
+                "MFA verification required",
+                request.getRequestURI(),
+                responseBody
+        );
     }
 
     private String buildMfaPageUrl(FactorContext context, HttpServletRequest request) {
