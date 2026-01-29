@@ -21,16 +21,6 @@ public interface ModelProvider {
         return createModel(descriptor, null);
     }
 
-    default ChatModel createModelById(String modelId, Map<String, Object> config) {
-        ModelDescriptor descriptor = getModelDescriptor(modelId);
-        if (descriptor == null) {
-            throw new IllegalArgumentException("Model not found: " + modelId);
-        }
-        return createModel(descriptor, config);
-    }
-
-    boolean supportsModelType(String modelType);
-
     boolean supportsModel(String modelId);
 
     HealthStatus checkHealth(String modelId);
@@ -85,13 +75,5 @@ public interface ModelProvider {
         public Map<String, Object> getDetails() {
             return details;
         }
-    }
-
-    interface ModelType {
-        String CHAT = "chat";
-        String EMBEDDING = "embedding";
-        String COMPLETION = "completion";
-        String IMAGE = "image";
-        String AUDIO = "audio";
     }
 }

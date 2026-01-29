@@ -1,9 +1,9 @@
 package io.contexa.autoconfigure.core.llm;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
-import io.contexa.contexacore.std.llm.core.LLMOperations;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
@@ -12,7 +12,6 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.anthropic.AnthropicChatModel;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration;
@@ -24,9 +23,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -51,84 +48,6 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
-
-    @Bean(name = "tinyLlamaChatModel")
-    @ConditionalOnMissingBean(name = "tinyLlamaChatModel")
-    public ChatModel tinyLlamaChatModel(
-            @Autowired(required = false) OllamaChatModel ollamaChatModel,
-            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
-            @Autowired(required = false) OpenAiChatModel openAiChatModel) {
-
-        if (ollamaChatModel != null) {
-            return ollamaChatModel;
-        }
-
-        log.warn("Ollama ChatModel is not configured. Attempting fallback model");
-
-        if (anthropicChatModel != null) {
-            return anthropicChatModel;
-        }
-
-        if (openAiChatModel != null) {
-            return openAiChatModel;
-        }
-
-        log.warn("All model providers are unavailable. Layer 1 model will be set to null");
-        return null;
-    }
-
-    @Bean(name = "llama31ChatModel")
-    @ConditionalOnMissingBean(name = "llama31ChatModel")
-    public ChatModel llama31ChatModel(
-            @Autowired(required = false) OllamaChatModel ollamaChatModel,
-            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
-            @Autowired(required = false) OpenAiChatModel openAiChatModel) {
-
-        if (ollamaChatModel != null) {
-            return ollamaChatModel;
-        }
-
-        log.warn("Ollama ChatModel is not configured. Attempting fallback model");
-
-        if (anthropicChatModel != null) {
-            return anthropicChatModel;
-        }
-
-        if (openAiChatModel != null) {
-            return openAiChatModel;
-        }
-
-        log.warn("All model providers are unavailable. Layer 2 model will be set to null");
-        return null;
-    }
-
-    @Bean(name = "claudeOpusChatModel")
-    @ConditionalOnMissingBean(name = "claudeOpusChatModel")
-    public ChatModel claudeOpusChatModel(
-            @Autowired(required = false) AnthropicChatModel anthropicChatModel,
-            @Value("${spring.ai.security.layer2.backup.model:claude-3-5-sonnet-20241022}") String modelName) {
-
-        if (anthropicChatModel != null) {
-            return anthropicChatModel;
-        }
-
-        log.warn("  - Anthropic ChatModel not found. Please check API key");
-        return null;
-    }
-
-    @Bean(name = "gpt4ChatModel")
-    @ConditionalOnMissingBean(name = "gpt4ChatModel")
-    public ChatModel gpt4ChatModel(
-            @Autowired(required = false) OpenAiChatModel openAiChatModel,
-            @Value("${spring.ai.security.layer2.backup.model:gpt-4o}") String modelName) {
-
-        if (openAiChatModel != null) {
-            return openAiChatModel;
-        }
-
-        log.warn("OpenAI ChatModel not found. Please check API key");
-        return null;
-    }
 
     @Bean
     @Primary
@@ -184,14 +103,10 @@ public class CoreLLMTieredAutoConfiguration {
     @Primary
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ModelSelectionStrategy modelSelectionStrategy,
-            StreamingHandler streamingHandler) {
+            StreamingHandler streamingHandler,
+            AdvisorRegistry advisorRegistry) {
 
-        return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties);
-    }
-
-    @Bean
-    public LLMOperations llmOperations(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
-        return unifiedLLMOrchestrator;
+        return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties, advisorRegistry);
     }
 
     @Bean(name = "llmClient")
@@ -241,22 +156,6 @@ public class CoreLLMTieredAutoConfiguration {
         log.warn("No EmbeddingModel available. Embedding features will be disabled. " +
                 "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
         return null;
-    }
-
-    @Bean
-    @ConditionalOnBean(ChatModel.class)
-    @ConditionalOnMissingBean(ChatClient.Builder.class)
-    @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false", matchIfMissing = true)
-    public ChatClient.Builder chatClientBuilder(ChatModel primaryChatModel) {
-        return ChatClient.builder(primaryChatModel);
-    }
-
-    @Bean
-    @ConditionalOnBean(ChatModel.class)
-    @ConditionalOnMissingBean(name = "defaultChatClient")
-    @ConditionalOnProperty(prefix = "contexa.advisor", name = "enabled", havingValue = "false")
-    public ChatClient defaultChatClient(ChatClient.Builder builder) {
-        return builder.build();
     }
 
     @PostConstruct

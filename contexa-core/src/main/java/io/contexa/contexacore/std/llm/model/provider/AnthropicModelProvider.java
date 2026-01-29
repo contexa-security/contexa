@@ -69,11 +69,6 @@ public class AnthropicModelProvider extends BaseModelProvider {
     }
 
     @Override
-    public boolean supportsModelType(String modelType) {
-        return ModelType.CHAT.equals(modelType);
-    }
-
-    @Override
     public int getPriority() {
         return 20;
     }

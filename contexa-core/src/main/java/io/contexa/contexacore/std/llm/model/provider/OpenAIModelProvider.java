@@ -68,12 +68,6 @@ public class OpenAIModelProvider extends BaseModelProvider {
     }
 
     @Override
-    public boolean supportsModelType(String modelType) {
-        return ModelType.CHAT.equals(modelType) ||
-                ModelType.EMBEDDING.equals(modelType);
-    }
-
-    @Override
     public int getPriority() {
         return 25;
     }

@@ -1,12 +1,14 @@
 package io.contexa.contexacore.std.llm.core;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -26,6 +28,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
     private final ModelSelectionStrategy modelSelectionStrategy;
     private final StreamingHandler streamingHandler;
     private final TieredLLMProperties tieredLLMProperties;
+    private final AdvisorRegistry advisorRegistry;
 
     @Override
     public Mono<String> execute(ExecutionContext context) {
@@ -47,7 +50,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                 "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
-            ChatClient chatClient = ChatClient.builder(selectedModel).build();
+            ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
             var promptSpec = chatClient.prompt(context.getPrompt());
 
@@ -84,12 +87,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 }
             }
 
-            long startTime = System.currentTimeMillis();
             String response = promptSpec.call().content();
-            long executionTime = System.currentTimeMillis() - startTime;
-
-            String modelName = selectedModel.getClass().getSimpleName();
-            modelSelectionStrategy.recordModelPerformance(modelName, executionTime, response != null);
 
             if (response == null || response.isBlank()) {
                 log.warn("LLM response is null or empty - RequestId: {}", context.getRequestId());
@@ -121,21 +119,9 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                     "Check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings."));
                 }
 
-                ChatClient chatClient = ChatClient.builder(selectedModel).build();
+                ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
-                long startTime = System.currentTimeMillis();
-                return streamingHandler.handleStreaming(chatClient, context)
-                        .doOnComplete(() -> {
-                            long executionTime = System.currentTimeMillis() - startTime;
-                            String modelName = selectedModel.getClass().getSimpleName();
-                            modelSelectionStrategy.recordModelPerformance(modelName, executionTime, true);
-                        })
-                        .doOnError(error -> {
-                            long executionTime = System.currentTimeMillis() - startTime;
-                            String modelName = selectedModel.getClass().getSimpleName();
-                            modelSelectionStrategy.recordModelPerformance(modelName, executionTime, false);
-                            log.error("Streaming failed - model: {}, execution time: {}ms", modelName, executionTime);
-                        });
+                return streamingHandler.handleStreaming(chatClient, context);
             } catch (Exception e) {
                 log.error("LLM Streaming failed - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
@@ -163,7 +149,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                 "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
-            ChatClient chatClient = ChatClient.builder(selectedModel).build();
+            ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
             var promptSpec = chatClient.prompt(context.getPrompt());
 
@@ -171,12 +157,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 promptSpec = promptSpec.options(context.getChatOptions());
             }
 
-            long startTime = System.currentTimeMillis();
             T result = (T) promptSpec.call().entity(targetType);
-            long executionTime = System.currentTimeMillis() - startTime;
-
-            String modelName = selectedModel.getClass().getSimpleName();
-            modelSelectionStrategy.recordModelPerformance(modelName, executionTime, result != null);
 
             return result;
         })
@@ -278,7 +259,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                 "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
-            ChatClient client = ChatClient.builder(model).build();
+            ChatClient client = buildChatClientWithAdvisors(model);
 
             var promptSpec = client.prompt(prompt);
             if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
@@ -310,7 +291,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                                 "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
             }
 
-            ChatClient client = ChatClient.builder(model).build();
+            ChatClient client = buildChatClientWithAdvisors(model);
 
             var promptSpec = client.prompt(prompt);
             if (toolCallbacks != null && toolCallbacks.length > 0) {
@@ -348,5 +329,17 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                 .build();
 
         return stream(context);
+    }
+
+    private ChatClient buildChatClientWithAdvisors(ChatModel model) {
+        List<Advisor> enabledAdvisors = advisorRegistry.getEnabled();
+
+        ChatClient.Builder builder = ChatClient.builder(model);
+
+        if (!enabledAdvisors.isEmpty()) {
+            builder = builder.defaultAdvisors(enabledAdvisors.toArray(new Advisor[0]));
+        }
+
+        return builder.build();
     }
 }

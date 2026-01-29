@@ -14,7 +14,6 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 final public class AINativeProcessor<T extends DomainContext> implements AICoreOperations<T> {
@@ -22,9 +21,6 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
     private final DistributedSessionManager<T> sessionManager;
     private final RedisDistributedLockService distributedLockService;
     private final DistributedStrategyExecutor<T> distributedStrategyExecutor;
-    private final AtomicLong totalStrategicOperations = new AtomicLong(0);
-    private final AtomicLong successfulStrategicOperations = new AtomicLong(0);
-    private final AtomicLong failedStrategicOperations = new AtomicLong(0);
     private static final Duration STRATEGIC_LOCK_TIMEOUT = Duration.ofMinutes(30);
     private static final String STRATEGIC_LOCK_PREFIX = "ai:strategy:master:";
     private final String nodeId;
@@ -49,8 +45,6 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         String strategyId = generateStrategyId(request, responseType);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
-        totalStrategicOperations.incrementAndGet();
-
         return Mono.fromCallable(() -> {
                     if (!acquireStrategicLock(lockKey, strategyId)) {
                         throw new AIOperationException("Strategic operation conflict: " + strategyId);
@@ -65,13 +59,10 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                                         request, responseType, sessionId, auditId
                                 )
                                 .doOnSuccess(result -> {
-
                                     sessionManager.completeDistributedExecution(sessionId, auditId, request, result, true);
-                                    successfulStrategicOperations.incrementAndGet();
                                 })
                                 .doOnError(error -> {
                                     handleStrategicFailure(id, request, (Exception) error);
-                                    failedStrategicOperations.incrementAndGet();
                                 })
                                 .doFinally(signalType -> {
                                     releaseStrategicLock(lockKey, id);
@@ -79,7 +70,6 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
 
                     } catch (Exception e) {
                         handleStrategicFailure(id, request, e);
-                        failedStrategicOperations.incrementAndGet();
                         releaseStrategicLock(lockKey, id);
                         return Mono.error(new AIOperationException("Async strategic operation failed: " + id, e));
                     }
@@ -95,8 +85,6 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         String strategyId = generateStrategyId(request, responseType);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
-        totalStrategicOperations.incrementAndGet();
-
         if (!acquireStrategicLock(lockKey, strategyId)) {
             return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
         }
@@ -109,25 +97,17 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     request, responseType, sessionId, auditId
             ).doOnComplete(() -> {
                 sessionManager.completeDistributedExecution(sessionId, auditId, request, null, true);
-                successfulStrategicOperations.incrementAndGet();
             }).doOnError(error -> {
                 handleStrategicFailure(strategyId, request, (Exception) error);
-                failedStrategicOperations.incrementAndGet();
             }).doFinally(signalType -> {
                 releaseStrategicLock(lockKey, strategyId);
             });
 
         } catch (Exception e) {
             handleStrategicFailure(strategyId, request, e);
-            failedStrategicOperations.incrementAndGet();
             releaseStrategicLock(lockKey, strategyId);
             return Flux.error(new AIOperationException("Streaming strategic operation failed: " + strategyId, e));
         }
-    }
-
-    @Override
-    public <R extends AIResponse> Flux<R> executeStreamTyped(AIRequest<T> request, Class<R> responseType) {
-        return null;
     }
 
     @Override
@@ -137,12 +117,6 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                 .toList();
         return Flux.merge(asyncRequests)
                 .collectList();
-    }
-
-    @Override
-    public <T1 extends DomainContext, T2 extends DomainContext>
-    Mono<AIResponse> executeMixed(List<AIRequest<T1>> requests1, List<AIRequest<T2>> requests2) {
-        return Mono.error(new UnsupportedOperationException("Mixed requests not supported in IAM domain"));
     }
 
     private boolean acquireStrategicLock(String lockKey, String strategyId) {
@@ -158,7 +132,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         try {
             distributedLockService.unlock(lockKey, getNodeId());
         } catch (Exception e) {
-            log.warn("Failed to release strategic lock: {} - {}", strategyId, e.getMessage());
+            log.error("Failed to release strategic lock: {} - {}", strategyId, e.getMessage());
         }
     }
 

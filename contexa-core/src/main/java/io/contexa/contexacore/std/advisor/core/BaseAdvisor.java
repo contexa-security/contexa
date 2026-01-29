@@ -15,7 +15,6 @@ import org.springframework.ai.chat.client.advisor.api.StreamAdvisorChain;
 import reactor.core.publisher.Flux;
 
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Getter
@@ -30,8 +29,6 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
     protected final int order;
 
     protected boolean enabled = true;
-
-    private final Map<String, Long> metrics = new ConcurrentHashMap<>();
 
     protected BaseAdvisor(Tracer tracer, String domain, String name, int order) {
         this.tracer = tracer;
@@ -57,7 +54,6 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
         }
 
         long startTime = System.currentTimeMillis();
-        String advisorKey = getName() + ".call";
 
         Span span = tracer.spanBuilder("advisor.adviseCall")
                 .setAttribute("advisor.domain", domain)
@@ -77,9 +73,6 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             response = afterCall(response, request);
 
             long duration = System.currentTimeMillis() - startTime;
-            recordMetric(advisorKey + ".success", 1);
-            recordMetric(advisorKey + ".duration", duration);
-
             span.setAttribute("advisor.duration.ms", duration);
             span.setStatus(StatusCode.OK);
 
@@ -92,21 +85,17 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             span.recordException(e);
             span.setStatus(StatusCode.ERROR, e.getMessage());
 
-            log.error("[{}] Advisor 처리 중 오류: {}", getName(), e.getMessage());
-            recordMetric(advisorKey + ".error", 1);
+            log.error("[{}] Advisor error: {}", getName(), e.getMessage());
 
             if (e.isBlocking()) {
-
                 return handleBlockingError(e, request);
             } else {
-
                 return chain.nextCall(request);
             }
 
         } catch (Exception e) {
 
-            log.error("[{}] 예상치 못한 오류", getName(), e);
-            recordMetric(advisorKey + ".error", 1);
+            log.error("[{}] Unexpected error", getName(), e);
 
             request.context().put(getName() + ".error", e.getMessage());
             return chain.nextCall(request);
@@ -119,9 +108,6 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             return chain.nextStream(request);
         }
 
-        long startTime = System.currentTimeMillis();
-        String advisorKey = getName() + ".stream";
-
         try {
 
             ChatClientRequest finalRequest = beforeStream(request);
@@ -132,18 +118,10 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
             return responses
                     .doOnNext(response -> afterStream(response, finalRequest))
-                    .doOnComplete(() -> {
-                        recordMetric(advisorKey + ".success", 1);
-                        recordMetric(advisorKey + ".duration", System.currentTimeMillis() - startTime);
-                    })
-                    .doOnError(error -> {
-                        log.error("[{}] 스트림 오류", getName(), error);
-                        recordMetric(advisorKey + ".error", 1);
-                    });
+                    .doOnError(error -> log.error("[{}] Stream error", getName(), error));
 
         } catch (Exception e) {
-            log.error("[{}] 스트림 시작 오류", getName(), e);
-            recordMetric(advisorKey + ".error", 1);
+            log.error("[{}] Stream start error", getName(), e);
             return chain.nextStream(request);
         }
     }
@@ -153,12 +131,10 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
     protected abstract ChatClientResponse afterCall(ChatClientResponse response, ChatClientRequest request);
 
     protected ChatClientRequest beforeStream(ChatClientRequest request) {
-
         return beforeCall(request);
     }
 
     protected void afterStream(ChatClientResponse response, ChatClientRequest request) {
-
     }
 
     protected void enrichContext(Map<String, Object> context) {
@@ -168,21 +144,12 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
     }
 
     protected ChatClientResponse handleBlockingError(AdvisorException e, ChatClientRequest request) {
-
         request.context().put("advisor.error", true);
         request.context().put("advisor.error.message", e.getMessage());
         request.context().put("advisor.error.domain", domain);
         request.context().put("advisor.blocked.by", getName());
 
         throw e;
-    }
-
-    protected void recordMetric(String key, long value) {
-        metrics.merge(key, value, Long::sum);
-    }
-
-    public Map<String, Long> getMetrics() {
-        return new ConcurrentHashMap<>(metrics);
     }
 
     public void setEnabled(boolean enabled) {

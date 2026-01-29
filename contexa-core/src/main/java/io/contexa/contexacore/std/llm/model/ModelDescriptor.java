@@ -39,9 +39,6 @@ public class ModelDescriptor {
         private boolean functionCalling = false;
 
         @Builder.Default
-        private boolean vision = false;
-
-        @Builder.Default
         private boolean multiModal = false;
 
         @Builder.Default
@@ -49,9 +46,6 @@ public class ModelDescriptor {
 
         @Builder.Default
         private int contextWindow = 4096;
-
-        @Builder.Default
-        private boolean supportsSystemMessage = true;
 
         @Builder.Default
         private int maxOutputTokens = 4096;

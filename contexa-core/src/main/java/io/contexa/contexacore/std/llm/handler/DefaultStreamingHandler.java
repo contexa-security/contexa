@@ -123,18 +123,15 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     .securityTaskType(context.getSecurityTaskType())
                     .tier(context.getTier())
                     .timeoutMs(context.getTimeoutMs())
-                    .requireFastResponse(context.getRequireFastResponse())
-                    .preferLocalModel(context.getPreferLocalModel())
-                    .preferCloudModel(context.getPreferCloudModel())
                     .advisors(context.getAdvisors())
                     .chatOptions(context.getChatOptions())
                     .temperature(context.getTemperature())
                     .maxTokens(context.getMaxTokens())
                     .metadata(context.getMetadata())
                     .streamingMode(context.getStreamingMode())
-                    .toolExecutionEnabled(false)  
+                    .toolExecutionEnabled(false)
                     .advisorEnabled(context.getAdvisorEnabled())
-                    .analysisLevel(context.getAnalysisLevel())  
+                    .analysisLevel(context.getAnalysisLevel())
                     .build();
                 
                 return handleStreaming(chatClient, enhancedContext);

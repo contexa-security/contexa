@@ -54,22 +54,21 @@ public class AIStrategyRegistry {
             throws DiagnosisException {
 
         if (request.getDiagnosisType() == null) {
-            throw new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE", "요청에 진단 타입이 설정되지 않았습니다");
+            throw new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE", "Diagnosis type is not set in the request");
         }
 
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
 
         try {
             return strategy.executeAsync(request, responseType)
-                    .doOnSuccess(result -> log.debug("비동기 전략 실행 완료: {}", strategy.getClass().getSimpleName()))
-                    .doOnError(error -> log.error("비동기 전략 실행 실패: {}", strategy.getClass().getSimpleName(), error))
+                    .doOnError(error -> log.error("Async strategy execution failed: {}", strategy.getClass().getSimpleName(), error))
                     .block(Duration.ofMinutes(5));
         } catch (Exception e) {
-            log.error("전략 실행 중 예외 발생: {}", strategy.getClass().getSimpleName(), e);
+            log.error("Exception occurred during strategy execution: {}", strategy.getClass().getSimpleName(), e);
             throw new DiagnosisException(
                     request.getDiagnosisType().name(),
                     "STRATEGY_EXECUTION_ERROR",
-                    "전략 실행 중 오류가 발생했습니다: " + e.getMessage()
+                    "Error occurred during strategy execution: " + e.getMessage()
             );
         }
     }
@@ -79,7 +78,7 @@ public class AIStrategyRegistry {
 
         if (request.getDiagnosisType() == null) {
             return Mono.error(new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE",
-                    "요청에 진단 타입이 설정되지 않았습니다"));
+                    "Diagnosis type is not set in the request"));
         }
 
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
@@ -92,16 +91,12 @@ public class AIStrategyRegistry {
 
         if (request.getDiagnosisType() == null) {
             return Flux.error(new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE",
-                    "요청에 진단 타입이 설정되지 않았습니다"));
+                    "Diagnosis type is not set in the request"));
         }
 
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
 
         if (!strategy.supportsStreaming()) {
-
-            log.warn("전략 {}이 스트리밍을 지원하지 않아 비동기 처리 후 변환합니다",
-                    strategy.getClass().getSimpleName());
-
             return strategy.executeAsync(request, responseType)
                     .flatMapMany(result -> {
                         Object resultData = result.getData();
@@ -112,7 +107,7 @@ public class AIStrategyRegistry {
                         }
                     })
                     .onErrorResume(Exception.class, e -> {
-                        log.error("비동기 전략 실행 실패", e);
+                        log.error("Async strategy execution failed", e);
                         return Flux.error(e);
                     });
         }

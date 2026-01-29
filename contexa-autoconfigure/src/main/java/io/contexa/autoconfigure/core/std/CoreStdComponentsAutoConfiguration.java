@@ -10,7 +10,6 @@ import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.properties.SecurityMappingProperties;
 import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
-import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.components.prompt.*;
@@ -27,7 +26,6 @@ import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskContextEnricher;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
-import io.contexa.contexacore.std.llm.core.ExecutionContextFactory;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.provider.AnthropicModelProvider;
@@ -76,12 +74,6 @@ import java.util.Optional;
 @ConditionalOnProperty(prefix = "contexa.std", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(ContexaProperties.class)
 public class CoreStdComponentsAutoConfiguration {
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AdvisorRegistry advisorRegistry() {
-        return new AdvisorRegistry();
-    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -195,14 +187,6 @@ public class CoreStdComponentsAutoConfiguration {
             BusinessResourceActionRepository businessResourceActionRepository) {
         return new RiskContextEnricher(redisTemplate, userRepository, auditLogRepository,
                 businessResourceActionRepository);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ExecutionContextFactory executionContextFactory(
-            TieredLLMProperties tieredLLMProperties,
-            SecurityMappingProperties securityMappingProperties) {
-        return new ExecutionContextFactory(tieredLLMProperties, securityMappingProperties);
     }
 
     @Bean

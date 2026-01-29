@@ -3,15 +3,12 @@ package io.contexa.contexacore.std.llm.strategy;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
-import io.contexa.contexacore.std.llm.metrics.ModelPerformanceMetric;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -20,8 +17,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
     private final DynamicModelRegistry modelRegistry;
     private final TieredLLMProperties tieredLLMProperties;
     private final ChatModel primaryChatModel;
-
-    private final Map<String, ModelPerformanceMetric> modelPerformance = new ConcurrentHashMap<>();
 
     public DynamicModelSelectionStrategy(
             DynamicModelRegistry modelRegistry,
@@ -107,20 +102,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             return model != null;
         } catch (Exception e) {
             return false;
-        }
-    }
-
-    @Override
-    public void recordModelPerformance(String modelName, long responseTime, boolean success) {
-        ModelPerformanceMetric metric = modelPerformance.computeIfAbsent(modelName,
-                k -> new ModelPerformanceMetric());
-
-        metric.recordExecution(responseTime, success);
-
-        if (metric.getSuccessRate() < 0.3 && metric.getTotalExecutions() > 10) {
-            log.warn("Model {} disabled due to poor performance: success rate {}%",
-                    modelName, metric.getSuccessRate() * 100);
-            modelRegistry.updateModelStatus(modelName, ModelDescriptor.ModelStatus.UNAVAILABLE);
         }
     }
 

@@ -90,7 +90,6 @@ public class DynamicModelRegistry {
                 .status(ModelDescriptor.ModelStatus.AVAILABLE)
                 .capabilities(ModelDescriptor.ModelCapabilities.builder()
                         .streaming(true)
-                        .supportsSystemMessage(true)
                         .build())
                 .build();
 

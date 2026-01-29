@@ -91,7 +91,13 @@
       "Bash(.\\\\gradlew.bat clean build:*)",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\llm\\\\model\\\\AutoDiscoveredModelProvider.java\")",
       "Bash(.\\\\gradlew.bat compileJava:*)",
-      "Bash(.\\\\gradlew.bat:*)"
+      "Bash(.\\\\gradlew.bat:*)",
+      "Bash(./mvnw clean compile:*)",
+      "Bash(mvnw.cmd clean compile:*)",
+      "Bash(\"d:\\\\projects\\\\contexa\\\\mvnw.cmd\" clean compile -pl contexa-core)",
+      "Bash(gradle :contexa-core:compileJava:*)",
+      "Bash(gradlew clean build:*)",
+      "Bash(.gradlew.bat clean build:*)"
     ],
     "deny": [],
     "ask": []

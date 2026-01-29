@@ -10,6 +10,4 @@ public interface ModelSelectionStrategy {
     java.util.Set<String> getSupportedModels();
 
     boolean isModelAvailable(String modelName);
-
-    void recordModelPerformance(String modelName, long responseTime, boolean success);
 }

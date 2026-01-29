@@ -52,6 +52,7 @@ public class SecurityContextAdvisor extends BaseAdvisor {
         try {
             auth = SecurityContextHolder.getContext().getAuthentication();
         } catch (Exception e) {
+            log.error("Failed to get SecurityContext authentication", e);
         }
 
         HttpServletRequest httpRequest = null;
@@ -62,6 +63,7 @@ public class SecurityContextAdvisor extends BaseAdvisor {
                 httpRequest = attrs.getRequest();
             }
         } catch (Exception e) {
+            log.error("Failed to get HttpServletRequest from RequestContext", e);
         }
 
         String userId = extractUserId(auth, httpRequest);
@@ -80,23 +82,17 @@ public class SecurityContextAdvisor extends BaseAdvisor {
         }
 
         if (httpRequest != null) {
-            request.context().put("remote.address", httpRequest.getRemoteAddr());
+            String remoteAddr = extractTrustedRemoteAddress(httpRequest);
+            request.context().put("remote.address", remoteAddr);
             request.context().put("request.method", httpRequest.getMethod());
             request.context().put("request.uri", httpRequest.getRequestURI());
+            request.context().put("request.start.time", System.currentTimeMillis());
         }
 
         if (requireAuthentication && !isAuthenticated) {
             log.error("Authentication required but request is not authenticated");
             throw AdvisorException.blocking(DOMAIN_NAME, ADVISOR_NAME, "Authentication required");
         }
-
-        recordMetric("security.context.set", 1);
-        if (isAuthenticated) {
-            recordMetric("security.authenticated.requests", 1);
-        } else {
-            recordMetric("security.anonymous.requests", 1);
-        }
-
         return request;
     }
 
@@ -115,7 +111,7 @@ public class SecurityContextAdvisor extends BaseAdvisor {
 
             String apiUser = request.getHeader("X-API-User");
             if (apiUser != null && !apiUser.isEmpty()) {
-                return apiUser;
+                log.error("X-API-User header is not trusted without authentication. Ignoring header value: {}", apiUser);
             }
         }
 
@@ -130,19 +126,51 @@ public class SecurityContextAdvisor extends BaseAdvisor {
                     return request.getSession().getId();
                 }
             } catch (Exception e) {
+                log.error("Failed to get session ID from HttpServletRequest", e);
             }
 
             String apiSession = request.getHeader("X-Session-Id");
             if (apiSession != null && !apiSession.isEmpty()) {
-                return apiSession;
+                log.error("X-Session-Id header is not trusted. Ignoring untrusted session ID: {}", apiSession);
             }
         }
 
         return "session-" + UUID.randomUUID().toString();
     }
 
+    private String extractTrustedRemoteAddress(HttpServletRequest request) {
+        String xForwardedFor = request.getHeader("X-Forwarded-For");
+        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
+            log.error("X-Forwarded-For header detected but not trusted: {}. Using direct connection address.", xForwardedFor);
+        }
+
+        String xRealIp = request.getHeader("X-Real-IP");
+        if (xRealIp != null && !xRealIp.isEmpty()) {
+            log.error("X-Real-IP header detected but not trusted: {}. Using direct connection address.", xRealIp);
+        }
+
+        return request.getRemoteAddr();
+    }
+
     @Override
     protected ChatClientResponse afterCall(ChatClientResponse response, ChatClientRequest request) {
+        Object userId = request.context().get("user.id");
+        Object sessionId = request.context().get("session.id");
+        Object authenticated = request.context().get("authenticated");
+        Object remoteAddr = request.context().get("remote.address");
+        Object requestUri = request.context().get("request.uri");
+        Object startTime = request.context().get("request.start.time");
+
+        long executionTime = 0;
+        if (startTime instanceof Long) {
+            executionTime = System.currentTimeMillis() - (Long) startTime;
+        }
+
+        boolean hasResponse = response != null && response.chatResponse() != null;
+
+        log.error("LLM audit - userId: {}, sessionId: {}, authenticated: {}, remoteAddr: {}, uri: {}, executionTimeMs: {}, hasResponse: {}",
+                userId, sessionId, authenticated, remoteAddr, requestUri, executionTime, hasResponse);
+
         return response;
     }
 }

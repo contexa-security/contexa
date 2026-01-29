@@ -29,9 +29,6 @@ public class ExecutionContext {
     private AnalysisLevel analysisLevel;  
 
     private Integer timeoutMs;
-    private Boolean requireFastResponse;
-    private Boolean preferLocalModel;  
-    private Boolean preferCloudModel;   
 
     @Builder.Default
     private List<ToolCallback> toolCallbacks = new ArrayList<>();

@@ -37,9 +37,6 @@ public abstract class BaseModelProvider implements ModelProvider {
     public abstract HealthStatus checkHealth(String modelId);
 
     @Override
-    public abstract boolean supportsModelType(String modelType);
-
-    @Override
     public abstract int getPriority();
 
     /**
