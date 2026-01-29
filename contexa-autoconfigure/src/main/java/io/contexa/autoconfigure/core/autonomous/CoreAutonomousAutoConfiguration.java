@@ -17,7 +17,6 @@ import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
 import io.contexa.contexacore.autonomous.strategy.DynamicStrategySelector;
 import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
-import io.contexa.contexacore.autonomous.tiered.detection.MaliciousPatternDetector;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
@@ -75,13 +74,6 @@ public class CoreAutonomousAutoConfiguration {
     public DynamicStrategySelector dynamicStrategySelector(
             ThreatCorrelator threatCorrelator) {
         return new DynamicStrategySelector(threatCorrelator);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public MaliciousPatternDetector maliciousPatternDetector(
-            @Qualifier("stringRedisTemplate") RedisTemplate<String, String> stringRedisTemplate) {
-        return new MaliciousPatternDetector(stringRedisTemplate);
     }
 
     @Bean

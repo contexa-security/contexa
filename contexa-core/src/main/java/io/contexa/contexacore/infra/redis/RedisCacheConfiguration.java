@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.tiered.routing.AttackPattern;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,25 +15,6 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Configuration
 public class RedisCacheConfiguration {
-
-    @Bean
-    public RedisTemplate<String, AttackPattern> attackPatternRedisTemplate(
-            RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, AttackPattern> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-        ObjectMapper objectMapper = createObjectMapper();
-        GenericJackson2JsonRedisSerializer serializer = 
-            new GenericJackson2JsonRedisSerializer(objectMapper);
-
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(serializer);
-        template.setHashKeySerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(serializer);
-        
-        template.afterPropertiesSet();
-        return template;
-    }
 
     @Bean
     public RedisTemplate<String, PolicyEvolutionProposal> policyProposalRedisTemplate(
