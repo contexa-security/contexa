@@ -67,15 +67,6 @@ public class CoreAutonomousStrategyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DistributedStateManager distributedStateManager(
-            RedisTemplate<String, Object> redisTemplate,
-            RedisDistributedLockService redisDistributedLockService,
-            ObjectMapper objectMapper) {
-        return new DistributedStateManager(redisTemplate, redisDistributedLockService, objectMapper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public UserIdentificationService userIdentificationService() {
         return new UserIdentificationService();
     }
