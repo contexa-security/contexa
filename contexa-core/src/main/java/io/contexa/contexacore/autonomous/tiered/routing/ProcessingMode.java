@@ -29,13 +29,4 @@ public enum ProcessingMode {
     public boolean needsHumanIntervention() {
         return this == AWAIT_APPROVAL;
     }
-
-    public static ProcessingMode determineMode(double riskScore, double confidence) {
-        
-        if (riskScore >= 0.8 && confidence >= 0.8) {
-            return REALTIME_BLOCK;
-        }
-
-        return AI_ANALYSIS;
-    }
 }

@@ -349,8 +349,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
                 if (incident.getThreatLevel() != null &&
                         (incident.getThreatLevel() == SecurityIncident.ThreatLevel.CRITICAL ||
-                                incident.getThreatLevel() == SecurityIncident.ThreatLevel.HIGH ||
-                                (incident.getRiskScore() != null && incident.getRiskScore() >= threatThreshold))) {
+                                incident.getThreatLevel() == SecurityIncident.ThreatLevel.HIGH)) {
 
                     SoarContext context = contextProvider.createContextFromIncident(incident);
 
@@ -531,7 +530,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         SoarContext context = contextProvider.createContextFromEvents(List.of(event));
         context = contextProvider.enrichContext(context, additionalInfo);
 
-        if ("BLOCK".equals(assessment.getAction()) || assessment.getRiskScore() >= 0.9) {
+        if ("BLOCK".equals(assessment.getAction())) {
             if (soarLab != null) {
 
                 try {
@@ -816,7 +815,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
                 if (value instanceof ThreatAssessment) {
                     ThreatAssessment ta = (ThreatAssessment) value;
-                    if ("BLOCK".equals(ta.getAction()) || ta.getRiskScore() >= 0.9) {
+                    if ("BLOCK".equals(ta.getAction())) {
                         memorySystem.storeInSTM(key, valueToStore, metadata)
                                 .subscribe();
                     }

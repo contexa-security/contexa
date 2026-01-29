@@ -1,20 +1,18 @@
 package io.contexa.contexacoreenterprise.autonomous.helper;
 
 import io.contexa.contexacore.autonomous.MemorySystem;
-import io.contexa.contexacore.autonomous.state.DistributedStateManager;
 import io.contexa.contexacore.domain.VectorDocumentType;
-import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;

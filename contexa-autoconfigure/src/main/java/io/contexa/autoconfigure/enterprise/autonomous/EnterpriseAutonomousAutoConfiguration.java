@@ -1,67 +1,57 @@
 package io.contexa.autoconfigure.enterprise.autonomous;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.cache.ContexaCacheService;
-import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
-import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
+import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
-import io.contexa.contexacore.repository.PolicyProposalRepository;
-import io.contexa.contexacoreenterprise.autonomous.evolution.AutonomousLearningCoordinator;
-import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyActivationServiceImpl;
-import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyEvolutionEngine;
-import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
-import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
-import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
-import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
-import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
-import io.contexa.contexacore.autonomous.state.DistributedStateManager;
-import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
-import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
-import io.contexa.contexacoreenterprise.autonomous.evolution.AccessGovernanceLabConnector;
-import io.contexa.contexacoreenterprise.autonomous.evolution.BehavioralAnalysisLabConnector;
-import io.contexa.contexacoreenterprise.autonomous.evolution.IntegratedThreatEvaluator;
-import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyEvolutionLabIntegration;
-import io.contexa.contexacoreenterprise.autonomous.labs.PolicyEvolutionLab;
-import io.contexa.contexacoreenterprise.autonomous.helper.PolicyEvolutionHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.LearningEngineHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.MemorySystemHelper;
-import io.contexa.contexacoreenterprise.autonomous.intelligence.XAIReportingService;
-import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
 import io.contexa.contexacore.autonomous.monitor.PolicyEffectivenessMonitor;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
+import io.contexa.contexacore.autonomous.notification.NotificationService;
+import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
+import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
+import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
+import io.contexa.contexacore.infra.redis.RedisEventPublisher;
+import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
+import io.contexa.contexacore.repository.PolicyProposalRepository;
+import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
+import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
+import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
+import io.contexa.contexacoreenterprise.autonomous.evolution.*;
+import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
+import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
+import io.contexa.contexacoreenterprise.autonomous.helper.DistributedStateManager;
+import io.contexa.contexacoreenterprise.autonomous.helper.LearningEngineHelper;
+import io.contexa.contexacoreenterprise.autonomous.helper.MemorySystemHelper;
+import io.contexa.contexacoreenterprise.autonomous.helper.PolicyEvolutionHelper;
+import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
+import io.contexa.contexacoreenterprise.autonomous.intelligence.XAIReportingService;
+import io.contexa.contexacoreenterprise.autonomous.labs.PolicyEvolutionLab;
 import io.contexa.contexacoreenterprise.autonomous.metrics.PolicyUsageMetricsService;
+import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
+import io.contexa.contexacoreenterprise.autonomous.notification.DefaultNotificationService;
 import io.contexa.contexacoreenterprise.autonomous.notification.SlackNotificationAdapter;
 import io.contexa.contexacoreenterprise.autonomous.notification.SmsNotificationAdapter;
-import io.contexa.contexacoreenterprise.autonomous.notification.DefaultNotificationService;
 import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
-import io.contexa.contexacoreenterprise.autonomous.service.impl.SoarNotifierImpl;
-import io.contexa.contexacoreenterprise.autonomous.service.AsyncResultDeliveryService;
-import io.contexa.contexacoreenterprise.autonomous.orchestrator.strategy.AwaitApprovalStrategy;
-import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
-import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
-import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
-
-import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
 import io.contexa.contexacoreenterprise.autonomous.scheduler.StaticAnalysisScheduler;
-import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
-
-import io.contexa.contexacore.autonomous.notification.NotificationService;
-
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
-import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
-import io.contexa.contexacoreenterprise.soar.notification.SoarEmailService;
-import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
-import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
-import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
-
+import io.contexa.contexacoreenterprise.autonomous.service.AsyncResultDeliveryService;
+import io.contexa.contexacoreenterprise.autonomous.service.impl.SoarNotifierImpl;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
+import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
+import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
+import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
+import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
+import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
+import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
+import io.contexa.contexacoreenterprise.soar.notification.SoarEmailService;
+import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
+import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
+import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import io.opentelemetry.api.trace.Tracer;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -202,7 +192,7 @@ public class EnterpriseAutonomousAutoConfiguration {
     public PolicyEvolutionHelper policyEvolutionHelper(
             UnifiedVectorService unifiedVectorService,
             AITuningService tuningService) {
-        return new PolicyEvolutionHelper(unifiedVectorService, tuningService);
+        return new PolicyEvolutionHelper(unifiedVectorService);
     }
 
     @Bean
@@ -284,15 +274,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public AwaitApprovalStrategy awaitApprovalStrategy(
-            RedisTemplate<String, Object> redisTemplate,
-            ApplicationEventPublisher eventPublisher) {
-        return new AwaitApprovalStrategy(redisTemplate, eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public UnifiedNotificationService unifiedNotificationService(
             SoarEmailService emailService,
             McpApprovalNotificationService websocketService,
@@ -359,8 +340,7 @@ public class EnterpriseAutonomousAutoConfiguration {
             PolicyProposalAnalytics proposalAnalytics,
             PolicyAuditLogger auditLogger) {
         return new StaticAnalysisScheduler(
-                proposalManagementService, proposalRepository, synthesisPolicyRepository,
-                effectivenessMonitor, proposalAnalytics, auditLogger);
+                proposalManagementService, proposalRepository, synthesisPolicyRepository);
     }
 
     @Bean
@@ -408,5 +388,14 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SpelValidationService spelValidationService() {
         return new SpelValidationService();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DistributedStateManager distributedStateManager(
+            RedisTemplate<String, Object> redisTemplate,
+            RedisDistributedLockService redisDistributedLockService,
+            ObjectMapper objectMapper) {
+        return new DistributedStateManager(redisTemplate, redisDistributedLockService, objectMapper);
     }
 }

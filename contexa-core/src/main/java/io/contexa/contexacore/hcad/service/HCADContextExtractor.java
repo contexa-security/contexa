@@ -267,16 +267,11 @@ public class HCADContextExtractor {
                 context.setNewUser(false);
                             }
 
-            String trustScoreKey = "trust:score:" + userId;
-            Double trustScore = (Double) redisTemplate.opsForValue().get(trustScoreKey);
-            
-            context.setCurrentTrustScore(trustScore != null ? trustScore : Double.NaN);
+            context.setCurrentTrustScore(Double.NaN);
 
             context.setBaselineConfidence(Double.NaN);
 
-            String failedLoginKey = "security:failed:login:" + userId;
-            String failedCount = (String) redisTemplate.opsForValue().get(failedLoginKey);
-            context.setFailedLoginAttempts(failedCount != null ? Integer.parseInt(failedCount) : 0);
+            context.setFailedLoginAttempts(0);
 
             String authMethod = authentication.getAuthorities().stream()
                 .anyMatch(auth -> auth.getAuthority().contains("MFA")) ? "mfa" : "password";

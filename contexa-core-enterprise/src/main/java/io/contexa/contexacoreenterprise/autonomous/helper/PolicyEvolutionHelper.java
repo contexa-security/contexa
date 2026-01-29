@@ -29,7 +29,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PolicyEvolutionHelper implements PolicyEvolutionService {
 
     private final UnifiedVectorService unifiedVectorService;
-    private final AITuningService aiTuningService;
 
     @Autowired(required = false)
     private StandardVectorStoreService standardVectorStoreService;

@@ -2,20 +2,17 @@ package io.contexa.contexacoreenterprise.autonomous.helper;
 
 import io.contexa.contexacore.autonomous.LearningEngine;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
-import io.contexa.contexacore.autonomous.state.DistributedStateManager;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
-import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;

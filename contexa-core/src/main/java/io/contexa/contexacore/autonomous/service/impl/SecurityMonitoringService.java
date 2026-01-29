@@ -4,8 +4,6 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
-import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
-import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
@@ -36,8 +34,6 @@ public class SecurityMonitoringService {
     private final SecurityIncidentRepository securityIncidentRepository;
     private final List<ThreatEvaluationStrategy> evaluationStrategies;
     private final List<SecurityEventListener> eventListeners;
-    private final EventNormalizer eventNormalizer;
-    private final EventDeduplicator eventDeduplicator;
     private final Map<String, MonitoringSession> activeSessions;
     private final Map<String, SecurityIncident> activeIncidents;
     private final ScheduledExecutorService scheduler;
@@ -49,14 +45,10 @@ public class SecurityMonitoringService {
     public SecurityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
             SecurityIncidentRepository securityIncidentRepository,
-            List<ThreatEvaluationStrategy> evaluationStrategies,
-            EventNormalizer eventNormalizer,
-            EventDeduplicator eventDeduplicator) {
+            List<ThreatEvaluationStrategy> evaluationStrategies) {
         this.kafkaCollector = kafkaCollector;
         this.securityIncidentRepository = securityIncidentRepository;
         this.evaluationStrategies = evaluationStrategies;
-        this.eventNormalizer = eventNormalizer;
-        this.eventDeduplicator = eventDeduplicator;
         this.eventListeners = new CopyOnWriteArrayList<>();
         this.activeSessions = new ConcurrentHashMap<>();
         this.activeIncidents = new ConcurrentHashMap<>();
@@ -112,23 +104,11 @@ public class SecurityMonitoringService {
     }
 
     private SecurityEvent preprocessEvent(SecurityEvent event) {
-        try {
-            
-            SecurityEvent normalizedEvent = eventNormalizer.process(event);
-            if (normalizedEvent == null) {
-                return null;
-            }
-            SecurityEvent deduplicatedEvent = eventDeduplicator.process(normalizedEvent);
-            if (deduplicatedEvent == null) {
-                return null;
-            }
-            eventCounter.incrementAndGet();
-
-            return deduplicatedEvent;
-        } catch (Exception e) {
-            log.error("Error preprocessing event", e);
+        if (event == null) {
             return null;
         }
+        eventCounter.incrementAndGet();
+        return event;
     }
 
     public Map<String, Object> getMonitoringStatistics() {

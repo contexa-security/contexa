@@ -67,24 +67,6 @@ public class PolicyEffectivenessMonitor {
         updatePerformanceData(proposalId, metricType, value);
     }
 
-    public void recordSecurityEvent(Long proposalId, String eventType, boolean blocked) {
-        PolicyMetrics metrics = metricsStore.get(proposalId);
-        if (metrics == null) {
-            return;
-        }
-        
-        if (blocked) {
-            metrics.incrementBlockedThreats();
-            recordMetric(proposalId, MetricType.THREATS_BLOCKED, 1);
-        } else {
-            metrics.incrementDetectedThreats();
-            recordMetric(proposalId, MetricType.THREATS_DETECTED, 1);
-        }
-
-        double blockRate = calculateBlockRate(metrics);
-        recordMetric(proposalId, MetricType.BLOCK_RATE, blockRate);
-    }
-
     @Transactional
     public double calculateActualImpact(Long proposalId) {
                 

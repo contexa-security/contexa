@@ -67,7 +67,7 @@ public class ColdPathStrategy implements ProcessingStrategy {
         try {
             return ProcessingResult.IncidentSeverity.valueOf(severity);
         } catch (IllegalArgumentException e) {
-            log.warn("[ColdPathStrategy] Invalid incident severity: {}", severity);
+            log.error("[ColdPathStrategy] Invalid incident severity: {}", severity);
             return null;
         }
     }

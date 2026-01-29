@@ -42,8 +42,8 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
 
         if (mode == null) {
-            context.markAsFailed("No processing mode determined");
-            return false;
+            mode = ProcessingMode.AI_ANALYSIS;
+            context.addMetadata("processingMode", mode);
         }
 
         try {
@@ -76,23 +76,16 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     }
 
     private ProcessingStrategy selectStrategy(ProcessingMode mode) {
-        ProcessingStrategy cached = strategyCache.get(mode);
-        if (cached != null) {
-            return cached;
-        }
-
-        for (ProcessingStrategy strategy : strategies) {
-            if (strategy.supports(mode)) {
-                strategyCache.put(mode, strategy);
-                return strategy;
-            }
-        }
-
-        return null;
+        return strategyCache.computeIfAbsent(mode, m ->
+            strategies.stream()
+                .filter(s -> s.supports(m))
+                .findFirst()
+                .orElse(null)
+        );
     }
 
     private boolean handleNoStrategyAvailable(SecurityEventContext context, ProcessingMode mode) {
-        log.warn("[ProcessingExecutionHandler] No strategy available for mode: {}, using fallback", mode);
+        log.error("[ProcessingExecutionHandler] No strategy available for mode: {}, using fallback", mode);
 
         ProcessingResult fallbackResult = ProcessingResult.builder()
                 .success(true)
@@ -101,7 +94,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
                 .build();
 
         context.addMetadata("processingResult", fallbackResult);
-        context.addMetadata("fallbackUsed", true);
         context.addResponseAction("FALLBACK", "Event logged without specific processing");
 
         if (mode.needsEscalation()) {
@@ -114,12 +106,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     private void handleProcessingResult(SecurityEventContext context, ProcessingResult result, long executionTime) {
 
         context.addMetadata("processingResult", result);
-        context.addMetadata("processingSuccess", result.isSuccess());
-        context.addMetadata("processingPath", result.getProcessingPath());
-        context.addMetadata("processingExecutionTime", executionTime);
-
-        double riskScore = result.getRiskScore();
-        context.addMetadata("riskScore", riskScore);
 
         if (result.getExecutedActions() != null && !result.getExecutedActions().isEmpty()) {
             for (String action : result.getExecutedActions()) {
@@ -129,11 +115,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
 
         if (result.getMetadata() != null) {
             result.getMetadata().forEach(context::addMetadata);
-        }
-
-        if (result.getIncidentSeverity() != null) {
-            context.addMetadata("incidentCreated", true);
-            context.addMetadata("incidentSeverity", result.getIncidentSeverity());
         }
 
         if (result.isSuccess()) {
@@ -155,7 +136,7 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     private void createIncidentFromResult(SecurityEvent event, ProcessingResult result,
                                           SecurityEventContext context) {
         if (incidentRepository == null) {
-            log.warn("[ProcessingExecutionHandler] SecurityIncidentRepository not available, cannot create incident");
+            log.error("[ProcessingExecutionHandler] SecurityIncidentRepository not available, cannot create incident");
             return;
         }
 
@@ -191,9 +172,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             context.addMetadata("incidentCreated", true);
             context.addMetadata("incidentSeverity", severity.toString());
 
-            log.warn("[ProcessingExecutionHandler] Incident created: {} for event: {} - severity: {}",
-                    saved.getIncidentId(), event.getEventId(), severity);
-
         } catch (Exception e) {
             log.error("[ProcessingExecutionHandler] Failed to create incident for event: {}",
                     event.getEventId(), e);
@@ -220,54 +198,36 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
         }
 
-        String action = null;
-
-        if (result.getMetadata() != null) {
-            Object actionObj = result.getMetadata().get("action");
-            if (actionObj != null) {
-                action = actionObj.toString();
-            }
+        String action = extractActionFromMap(result.getMetadata());
+        if (action == null) {
+            action = extractActionFromMap(result.getAnalysisData());
         }
 
-        if (action == null && result.getAnalysisData() != null) {
-            Object actionObj = result.getAnalysisData().get("action");
-            if (actionObj != null) {
-                action = actionObj.toString();
-            }
-        }
-
-        if (action != null) {
-            switch (action.toUpperCase()) {
-                case "BLOCK":
-                case "B":
-                    return SecurityIncident.IncidentType.INTRUSION;
-                case "ESCALATE":
-                case "E":
-                    return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
-                case "CHALLENGE":
-                case "C":
-                    return SecurityIncident.IncidentType.POLICY_VIOLATION;
-                case "ALLOW":
-                case "A":
-                default:
-                    return SecurityIncident.IncidentType.OTHER;
-            }
-        }
-
-        double riskScore = result.getRiskScore();
-        if (riskScore >= 0.8) {
-            return SecurityIncident.IncidentType.INTRUSION;
-        } else if (riskScore >= 0.6) {
+        if (action == null) {
             return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
         }
 
-        return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+        switch (action.toUpperCase()) {
+            case "BLOCK":
+            case "B":
+                return SecurityIncident.IncidentType.INTRUSION;
+            case "ESCALATE":
+            case "E":
+                return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+            case "CHALLENGE":
+            case "C":
+                return SecurityIncident.IncidentType.POLICY_VIOLATION;
+            case "ALLOW":
+            case "A":
+            default:
+                return SecurityIncident.IncidentType.OTHER;
+        }
     }
 
-    @Deprecated(since = "4.1.0", forRemoval = true)
-    private SecurityIncident.IncidentType mapSeverityToIncidentType(SecurityEvent.Severity severity) {
-
-        return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+    private String extractActionFromMap(Map<String, Object> map) {
+        if (map == null) return null;
+        Object obj = map.get("action");
+        return obj != null ? obj.toString() : null;
     }
 
     private void publishProcessingCompletedEvent(SecurityEvent event, ProcessingResult result,

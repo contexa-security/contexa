@@ -18,10 +18,6 @@ import io.contexa.contexacore.autonomous.orchestrator.SecurityPlaneEventListener
 import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ProcessingStrategy;
-import io.contexa.contexacore.autonomous.orchestrator.strategy.RealtimeBlockStrategy;
-import io.contexa.contexacore.autonomous.orchestrator.strategy.SoarOrchestrationStrategy;
-import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
-import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -102,18 +98,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public EventDeduplicator eventDeduplicator(SecurityPlaneProperties securityPlaneProperties) {
-        return new EventDeduplicator(securityPlaneProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public EventNormalizer eventNormalizer() {
-        return new EventNormalizer();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ProcessingExecutionHandler processingExecutionHandler(
             List<ProcessingStrategy> processingStrategies,
             ApplicationEventPublisher applicationEventPublisher) {
@@ -130,18 +114,6 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
         return new ColdPathStrategy(coldPathEventProcessor);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RealtimeBlockStrategy realtimeBlockStrategy(RedisTemplate<String, Object> redisTemplate) {
-        return new RealtimeBlockStrategy(redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SoarOrchestrationStrategy soarOrchestrationStrategy() {
-        return new SoarOrchestrationStrategy();
     }
 
     @Bean

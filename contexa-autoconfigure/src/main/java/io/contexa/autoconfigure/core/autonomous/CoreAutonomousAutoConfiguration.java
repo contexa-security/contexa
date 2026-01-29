@@ -10,10 +10,6 @@ import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler;
-import io.contexa.contexacore.autonomous.orchestrator.handler.MetricsHandler;
-import io.contexa.contexacore.autonomous.orchestrator.handler.RoutingDecisionHandler;
-import io.contexa.contexacore.autonomous.processor.EventDeduplicator;
-import io.contexa.contexacore.autonomous.processor.EventNormalizer;
 import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
@@ -133,13 +129,6 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MetricsHandler metricsHandler(
-            RedisTemplate<String, Object> redisTemplate) {
-        return new MetricsHandler(redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ThreatScoreOrchestrator threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate) {
         return new ThreatScoreOrchestrator(redisTemplate);
     }
@@ -155,12 +144,9 @@ public class CoreAutonomousAutoConfiguration {
     public SecurityMonitoringService securityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
             SecurityIncidentRepository securityIncidentRepository,
-            List<ThreatEvaluationStrategy> evaluationStrategies,
-            EventNormalizer eventNormalizer,
-            EventDeduplicator eventDeduplicator) {
+            List<ThreatEvaluationStrategy> evaluationStrategies) {
         return new SecurityMonitoringService(
-                kafkaCollector, securityIncidentRepository,
-                evaluationStrategies, eventNormalizer, eventDeduplicator);
+                kafkaCollector, securityIncidentRepository, evaluationStrategies);
     }
 
     @Bean
@@ -197,12 +183,6 @@ public class CoreAutonomousAutoConfiguration {
                 llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
                 securityPromptTemplate, unifiedVectorService, behaviorVectorService,
                 baselineLearningService, tieredStrategyProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RoutingDecisionHandler routingDecisionHandler() {
-        return new RoutingDecisionHandler();
     }
 
     @Bean

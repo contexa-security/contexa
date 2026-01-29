@@ -71,7 +71,8 @@ public class AuditingHandler implements SecurityEventHandler {
                 return;
             }
             SecurityEvent event = context.getSecurityEvent();
-            String action = determineActionFromRiskScore(aiResult.getThreatLevel());
+            Object actionObj = context.getMetadata().get("action");
+            String action = actionObj != null ? actionObj.toString() : "ALLOW";
 
             ThreatAssessment assessment = ThreatAssessment.builder()
                     .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
@@ -110,8 +111,8 @@ public class AuditingHandler implements SecurityEventHandler {
             }
 
             SecurityEvent event = context.getSecurityEvent();
-            String router = "RoutingDecisionHandler";
-            String reason = (String) context.getMetadata().get("routingReason");
+            String router = "ProcessingExecutionHandler";
+            String reason = "AI Native - LLM analysis";
 
             Map<String, Object> decisionContext = Map.of(
                     "riskScore", context.getAiAnalysisResult() != null ?
@@ -127,10 +128,6 @@ public class AuditingHandler implements SecurityEventHandler {
         } catch (Exception e) {
             log.error("[AuditingHandler] Failed to audit processing decision", e);
         }
-    }
-
-    private String determineActionFromRiskScore(double riskScore) {
-        return "ESCALATE";
     }
 
     @Override

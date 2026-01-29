@@ -5,12 +5,8 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.monitor.PolicyEffectivenessMonitor;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
 import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
-import io.contexa.contexacore.autonomous.safety.EmergencyKillSwitch;
-import io.contexa.contexacore.autonomous.safety.PolicyConflictDetector;
-import io.contexa.contexacore.autonomous.safety.PolicyVersionManager;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
-import io.contexa.contexacore.autonomous.state.DistributedStateManager;
 import io.contexa.contexacore.autonomous.strategy.CompositeEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.DefaultThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.strategy.SessionThreatEvaluationStrategy;
@@ -67,24 +63,6 @@ public class CoreAutonomousStrategyAutoConfiguration {
             PolicyEvolutionProposalRepository policyEvolutionProposalRepository,
             PolicyEffectivenessMonitor policyEffectivenessMonitor) {
         return new PolicyProposalAnalytics(policyEvolutionProposalRepository, policyEffectivenessMonitor);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public EmergencyKillSwitch emergencyKillSwitch() {
-        return new EmergencyKillSwitch();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public PolicyConflictDetector policyConflictDetector() {
-        return new PolicyConflictDetector();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public PolicyVersionManager policyVersionManager() {
-        return new PolicyVersionManager();
     }
 
     @Bean
