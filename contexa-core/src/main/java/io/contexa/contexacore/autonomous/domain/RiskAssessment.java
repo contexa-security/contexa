@@ -1,5 +1,4 @@
-package io.contexa.contexacore.autonomous.authorization;
-import io.contexa.contexacommon.enums.RiskLevel;
+package io.contexa.contexacore.autonomous.domain;
 
 import io.contexa.contexacommon.annotation.SoarTool;
 import lombok.Builder;
@@ -8,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.observation.ToolCallingObservationContext;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalTime;
 import java.util.HashMap;

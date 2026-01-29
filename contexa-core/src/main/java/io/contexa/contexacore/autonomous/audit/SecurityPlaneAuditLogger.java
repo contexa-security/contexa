@@ -19,14 +19,11 @@ import java.util.Map;
 @Slf4j
 public class SecurityPlaneAuditLogger {
 
-    private final AuditLogger baseAuditLogger;
     private final AuditLogRepository auditLogRepository;
     private final ObjectMapper objectMapper;
 
-    public SecurityPlaneAuditLogger(AuditLogger baseAuditLogger,
-                                   AuditLogRepository auditLogRepository,
+    public SecurityPlaneAuditLogger(AuditLogRepository auditLogRepository,
                                    ObjectMapper objectMapper) {
-        this.baseAuditLogger = baseAuditLogger;
         this.auditLogRepository = auditLogRepository;
         this.objectMapper = objectMapper.copy();
         this.objectMapper.registerModule(new JavaTimeModule());

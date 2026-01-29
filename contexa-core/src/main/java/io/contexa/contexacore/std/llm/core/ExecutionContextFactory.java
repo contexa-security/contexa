@@ -1,10 +1,9 @@
 package io.contexa.contexacore.std.llm.core;
 
-import io.contexa.contexacore.config.SecurityMappingProperties;
+import io.contexa.contexacore.properties.SecurityMappingProperties;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.prompt.Prompt;
-import org.springframework.stereotype.Component;
 
 @RequiredArgsConstructor
 public class ExecutionContextFactory {

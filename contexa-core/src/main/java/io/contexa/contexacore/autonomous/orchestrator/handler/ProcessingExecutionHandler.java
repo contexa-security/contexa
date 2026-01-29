@@ -42,16 +42,16 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
 
         if (mode == null) {
-                        context.markAsFailed("No processing mode determined");
+            context.markAsFailed("No processing mode determined");
             return false;
         }
 
         try {
-            
+
             ProcessingStrategy strategy = selectStrategy(mode);
 
             if (strategy == null) {
-                                return handleNoStrategyAvailable(context, mode);
+                return handleNoStrategyAvailable(context, mode);
             }
 
             long startTime = System.currentTimeMillis();
@@ -66,7 +66,7 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
 
             publishProcessingCompletedEvent(event, result, mode, executionTime);
 
-            return result.isSuccess(); 
+            return result.isSuccess();
 
         } catch (Exception e) {
             log.error("[ProcessingExecutionHandler] Error executing processing for event: {}", event.getEventId(), e);
@@ -95,10 +95,10 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         log.warn("[ProcessingExecutionHandler] No strategy available for mode: {}, using fallback", mode);
 
         ProcessingResult fallbackResult = ProcessingResult.builder()
-            .success(true)
-            .processingPath(ProcessingResult.ProcessingPath.BYPASS)
-            .message("No specific strategy, event logged")
-            .build();
+                .success(true)
+                .processingPath(ProcessingResult.ProcessingPath.BYPASS)
+                .message("No specific strategy, event logged")
+                .build();
 
         context.addMetadata("processingResult", fallbackResult);
         context.addMetadata("fallbackUsed", true);
@@ -108,11 +108,11 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             context.updateProcessingStatus(SecurityEventContext.ProcessingStatus.AWAITING_APPROVAL);
         }
 
-        return true; 
+        return true;
     }
 
     private void handleProcessingResult(SecurityEventContext context, ProcessingResult result, long executionTime) {
-        
+
         context.addMetadata("processingResult", result);
         context.addMetadata("processingSuccess", result.isSuccess());
         context.addMetadata("processingPath", result.getProcessingPath());
@@ -153,37 +153,37 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     }
 
     private void createIncidentFromResult(SecurityEvent event, ProcessingResult result,
-                                         SecurityEventContext context) {
+                                          SecurityEventContext context) {
         if (incidentRepository == null) {
             log.warn("[ProcessingExecutionHandler] SecurityIncidentRepository not available, cannot create incident");
             return;
         }
 
         try {
-            
+
             String severityStr = result.getIncidentSeverity();
             ProcessingResult.IncidentSeverity severity = severityStr != null ?
-                ProcessingResult.IncidentSeverity.valueOf(severityStr) :
-                ProcessingResult.IncidentSeverity.MEDIUM;
+                    ProcessingResult.IncidentSeverity.valueOf(severityStr) :
+                    ProcessingResult.IncidentSeverity.MEDIUM;
             SecurityIncident.ThreatLevel threatLevel = mapSeverityToThreatLevel(severity);
 
             SecurityIncident incident = SecurityIncident.builder()
-                .incidentId("INC-" + result.getProcessingPath() + "-" + System.currentTimeMillis())
-                
-                .type(determineIncidentType(result))
-                .threatLevel(threatLevel)
-                .status(SecurityIncident.IncidentStatus.NEW)
-                .description(String.format("%s path detected %s threat",
-                    result.getProcessingPath(), severity))
-                .sourceIp(event.getSourceIp())
-                .affectedUser(event.getUserId())
-                .detectedBy(agentName)
-                .detectionSource(result.getProcessingPath() != null ?
-                    result.getProcessingPath().toString() : "PIPELINE")
-                .detectedAt(LocalDateTime.now())
-                .riskScore(result.getCurrentRiskLevel())
-                .autoResponseEnabled(severity == ProcessingResult.IncidentSeverity.CRITICAL)
-                .build();
+                    .incidentId("INC-" + result.getProcessingPath() + "-" + System.currentTimeMillis())
+
+                    .type(determineIncidentType(result))
+                    .threatLevel(threatLevel)
+                    .status(SecurityIncident.IncidentStatus.NEW)
+                    .description(String.format("%s path detected %s threat",
+                            result.getProcessingPath(), severity))
+                    .sourceIp(event.getSourceIp())
+                    .affectedUser(event.getUserId())
+                    .detectedBy(agentName)
+                    .detectionSource(result.getProcessingPath() != null ?
+                            result.getProcessingPath().toString() : "PIPELINE")
+                    .detectedAt(LocalDateTime.now())
+                    .riskScore(result.getCurrentRiskLevel())
+                    .autoResponseEnabled(severity == ProcessingResult.IncidentSeverity.CRITICAL)
+                    .build();
 
             SecurityIncident saved = incidentRepository.save(incident);
 
@@ -192,11 +192,11 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             context.addMetadata("incidentSeverity", severity.toString());
 
             log.warn("[ProcessingExecutionHandler] Incident created: {} for event: {} - severity: {}",
-                saved.getIncidentId(), event.getEventId(), severity);
+                    saved.getIncidentId(), event.getEventId(), severity);
 
         } catch (Exception e) {
             log.error("[ProcessingExecutionHandler] Failed to create incident for event: {}",
-                event.getEventId(), e);
+                    event.getEventId(), e);
         }
     }
 
@@ -266,41 +266,41 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
 
     @Deprecated(since = "4.1.0", forRemoval = true)
     private SecurityIncident.IncidentType mapSeverityToIncidentType(SecurityEvent.Severity severity) {
-        
+
         return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
     }
 
     private void publishProcessingCompletedEvent(SecurityEvent event, ProcessingResult result,
-                                                ProcessingMode mode, long processingTimeMs) {
+                                                 ProcessingMode mode, long processingTimeMs) {
         try {
-            
+
             ProcessingCompletedEvent.ProcessingLayer layer = ProcessingCompletedEvent.ProcessingLayer.UNKNOWN;
 
             if (result.isAiAnalysisPerformed()) {
                 int aiLevel = result.getAiAnalysisLevel();
                 layer = ProcessingCompletedEvent.ProcessingLayer.fromLevel(aiLevel);
             } else {
-                
+
                 if (mode == ProcessingMode.REALTIME_BLOCK) {
                     layer = ProcessingCompletedEvent.ProcessingLayer.LAYER1;
                 }
             }
 
             ProcessingCompletedEvent completedEvent = new ProcessingCompletedEvent(
-                this,
-                event,
-                result,
-                mode,
-                layer,
-                processingTimeMs
+                    this,
+                    event,
+                    result,
+                    mode,
+                    layer,
+                    processingTimeMs
             );
 
             eventPublisher.publishEvent(completedEvent);
 
         } catch (Exception e) {
-            
+
             log.error("[ProcessingExecutionHandler] Failed to publish ProcessingCompletedEvent for event: {}",
-                event.getEventId(), e);
+                    event.getEventId(), e);
         }
     }
 
@@ -311,6 +311,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
 
     @Override
     public int getOrder() {
-        return 50; 
+        return 50;
     }
 }

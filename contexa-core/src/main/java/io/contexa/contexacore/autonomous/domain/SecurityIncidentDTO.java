@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.dto;
+package io.contexa.contexacore.autonomous.domain;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,29 +1,25 @@
 package io.contexa.contexacore.security.zerotrust;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacommon.dto.UserDto;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
-import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
 
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
-import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.net.InetAddress;
 import java.time.Duration;

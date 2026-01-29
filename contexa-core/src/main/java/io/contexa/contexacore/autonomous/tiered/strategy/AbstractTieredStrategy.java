@@ -1,6 +1,5 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
-import io.contexa.contexacore.autonomous.config.FeedbackConstants;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -28,7 +27,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     protected String getUserId(SecurityEvent event) {
         return event.getUserId() != null ?
-            event.getUserId() : FeedbackConstants.DEFAULT_USER_ID;
+            event.getUserId() : "unknown";
     }
 
     protected abstract String getLayerName();

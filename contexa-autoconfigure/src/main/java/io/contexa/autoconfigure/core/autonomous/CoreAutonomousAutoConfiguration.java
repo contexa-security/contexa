@@ -4,8 +4,7 @@ import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
-import io.contexa.contexacore.autonomous.config.SecurityPlaneConfiguration;
-import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
@@ -31,7 +30,6 @@ import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
-import io.contexa.contexacore.repository.ThreatIndicatorRepository;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
@@ -39,7 +37,6 @@ import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -47,7 +44,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.util.List;
@@ -66,9 +62,6 @@ import java.util.List;
         SecurityRedisProperties.class,
         SecurityRouterProperties.class,
         SecurityPipelineProperties.class
-})
-@Import({
-        SecurityPlaneConfiguration.class
 })
 public class CoreAutonomousAutoConfiguration {
 

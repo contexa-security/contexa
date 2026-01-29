@@ -2,7 +2,7 @@ package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.*;
-import io.contexa.contexacore.autonomous.dto.SecurityIncidentDTO;
+import io.contexa.contexacore.autonomous.domain.SecurityIncidentDTO;
 import io.contexa.contexacore.autonomous.event.DynamicThreatResponseEvent;
 import io.contexa.contexacore.autonomous.event.IncidentResolvedEvent;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
@@ -12,16 +12,13 @@ import io.contexa.contexacore.autonomous.service.ISoarNotifier;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.entity.SoarIncident;
-import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.soar.SoarLab;
 import io.contexa.contexacore.soar.approval.ApprovalService;
-import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -32,8 +29,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;

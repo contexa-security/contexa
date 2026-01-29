@@ -47,7 +47,7 @@ import io.contexa.contexacore.std.strategy.BehavioralAnalysisDiagnosisStrategy;
 import io.contexa.contexacore.std.strategy.RiskAssessmentDiagnosisStrategy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.config.SecurityMappingProperties;
+import io.contexa.contexacore.properties.SecurityMappingProperties;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;

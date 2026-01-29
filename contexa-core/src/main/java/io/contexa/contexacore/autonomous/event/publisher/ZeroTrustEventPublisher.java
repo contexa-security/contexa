@@ -1,6 +1,6 @@
 package io.contexa.contexacore.autonomous.event.publisher;
 
-import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
@@ -11,7 +11,6 @@ import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 

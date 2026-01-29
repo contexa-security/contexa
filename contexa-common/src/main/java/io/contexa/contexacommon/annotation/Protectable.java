@@ -10,21 +10,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Protectable {
 
-    
+
     String ownerField() default "";
-
-    
-    
-
-    
     AnalysisRequirement analysisRequirement() default AnalysisRequirement.PREFERRED;
-
-    
     long analysisTimeout() default 5000;
-
-    
     String defaultAction() default "ALLOW";
-
-    
-    boolean enableRuntimeInterception() default false;
 }

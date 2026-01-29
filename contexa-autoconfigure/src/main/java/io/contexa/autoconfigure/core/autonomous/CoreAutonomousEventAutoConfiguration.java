@@ -5,8 +5,8 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
-import io.contexa.contexacore.autonomous.authorization.RiskAssessment;
-import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
+import io.contexa.contexacore.autonomous.domain.RiskAssessment;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
@@ -27,11 +27,9 @@ import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProc
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
-import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -166,10 +164,9 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityPlaneAuditLogger securityPlaneAuditLogger(
-            AuditLogger auditLogger,
             AuditLogRepository auditLogRepository,
             ObjectMapper objectMapper) {
-        return new SecurityPlaneAuditLogger(auditLogger, auditLogRepository, objectMapper);
+        return new SecurityPlaneAuditLogger(auditLogRepository, objectMapper);
     }
 
     @Bean

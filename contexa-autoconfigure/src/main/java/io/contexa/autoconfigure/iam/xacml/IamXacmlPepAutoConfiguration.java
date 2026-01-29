@@ -2,21 +2,19 @@ package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.interceptor.ZeroTrustResponseInterceptor;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.ExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.pep.ExpressionAuthorizationManagerResolver;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.ExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.expression.SecurityExpressionHandler;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
@@ -56,12 +54,7 @@ public class IamXacmlPepAutoConfiguration {
     @ConditionalOnMissingBean
     public ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager(
             @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler,
-            PolicyRetrievalPoint policyRetrievalPoint,
-            CustomDynamicAuthorizationManager dynamicAuthorizationManager,
-            RedisTemplate<String, Object> redisTemplate,
-            @Autowired(required = false) ZeroTrustResponseInterceptor zeroTrustResponseInterceptor) {
-        return new ProtectableMethodAuthorizationManager(
-                expressionHandler, policyRetrievalPoint, dynamicAuthorizationManager,
-                redisTemplate, zeroTrustResponseInterceptor);
+            RedisTemplate<String, Object> redisTemplate) {
+        return new ProtectableMethodAuthorizationManager(expressionHandler, redisTemplate);
     }
 }

@@ -4,7 +4,7 @@ import io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.config.SecurityMappingProperties;
+import io.contexa.contexacore.properties.SecurityMappingProperties;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;

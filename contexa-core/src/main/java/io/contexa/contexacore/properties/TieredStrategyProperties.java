@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.config;
+package io.contexa.contexacore.properties;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

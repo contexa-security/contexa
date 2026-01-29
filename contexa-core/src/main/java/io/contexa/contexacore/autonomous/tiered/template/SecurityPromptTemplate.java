@@ -1,7 +1,7 @@
 package io.contexa.contexacore.autonomous.tiered.template;
 
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
-import io.contexa.contexacore.autonomous.config.TieredStrategyProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
