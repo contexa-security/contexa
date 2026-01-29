@@ -1,13 +1,14 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.repository.SoarIncidentRepository;
-import io.contexa.contexacore.scheduler.ParallelExecutionMonitor;
+import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import io.contexa.contexacommon.repository.GroupRepository;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
-import io.contexa.contexacommon.metrics.VectorStoreMetrics;
-import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.components.retriever.AccessGovernanceContextRetriever;
@@ -209,10 +210,9 @@ public class IamAiamLabsAutoConfiguration {
             PipelineOrchestrator orchestrator,
             AILabFactory labFactory,
             ObjectMapper objectMapper,
-            ParallelExecutionMonitor monitor,
             SecurityCopilotVectorService vectorService) {
         return new SecurityCopilotLab(
-                tracer, orchestrator, labFactory, objectMapper, monitor, vectorService);
+                tracer, orchestrator, labFactory, objectMapper, vectorService);
     }
 
     @Bean

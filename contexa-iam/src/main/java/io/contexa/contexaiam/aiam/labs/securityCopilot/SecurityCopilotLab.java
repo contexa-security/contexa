@@ -1,15 +1,17 @@
 package io.contexa.contexaiam.aiam.labs.securityCopilot;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacore.std.labs.AbstractAILab;
-import io.contexa.contexacore.std.labs.risk.RiskAssessmentLab;
-import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
-import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacommon.domain.LabSpecialization;
 import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.scheduler.ParallelExecutionMonitor;
+import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
+import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
+import io.contexa.contexacommon.enums.AuditRequirement;
+import io.contexa.contexacommon.enums.SecurityLevel;
+import io.contexa.contexacore.std.labs.AILabFactory;
+import io.contexa.contexacore.std.labs.AbstractAILab;
+import io.contexa.contexacore.std.labs.risk.RiskAssessmentLab;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexaiam.aiam.labs.AbstractIAMLab;
 import io.contexa.contexaiam.aiam.labs.policy.AdvancedPolicyGenerationLab;
 import io.contexa.contexaiam.aiam.labs.securityCopilot.streaming.LabStreamMerger;
@@ -18,11 +20,10 @@ import io.contexa.contexaiam.aiam.protocol.context.SecurityCopilotContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.request.SecurityCopilotRequest;
 import io.contexa.contexaiam.aiam.protocol.request.StudioQueryRequest;
-import io.contexa.contexaiam.aiam.protocol.response.*;
-import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
-import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
-import io.contexa.contexacommon.enums.AuditRequirement;
-import io.contexa.contexacommon.enums.SecurityLevel;
+import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
+import io.contexa.contexaiam.aiam.protocol.response.SecurityAnalysisResult;
+import io.contexa.contexaiam.aiam.protocol.response.SecurityCopilotResponse;
+import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
@@ -43,21 +44,18 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
     private final PipelineOrchestrator orchestrator;
     private final AILabFactory labFactory;
     private final ObjectMapper objectMapper;
-    private final ParallelExecutionMonitor monitor;
     private final SecurityCopilotVectorService vectorService;
 
     private final ConcurrentHashMap<String, DiagnosisSession> activeSessions = new ConcurrentHashMap<>();
 
     public SecurityCopilotLab(io.opentelemetry.api.trace.Tracer tracer,
                               PipelineOrchestrator orchestrator, AILabFactory labFactory,
-                              ObjectMapper objectMapper, ParallelExecutionMonitor monitor,
+                              ObjectMapper objectMapper,
                               SecurityCopilotVectorService vectorService) {
         super(tracer, "SecurityCopilot", "3.0", LabSpecialization.SECURITY_INTELLIGENCE);
         this.orchestrator = orchestrator;
         this.labFactory = labFactory;
         this.objectMapper = objectMapper;
-        this.monitor = monitor;
-
         this.vectorService = vectorService;
             }
 
@@ -439,17 +437,17 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
                     labName,
                     convertToStudioQueryRequest(request)
             )
-                    .doOnComplete(() -> monitor.recordLabComplete(labName));
+                    .doOnComplete(() -> log.info("completed" + labName));
             case "RiskAssessment" -> executeLab(
                     RiskAssessmentLab.class,
                     labName,
                     createRiskAssessmentRequest(request)
-            ).doOnComplete(() -> monitor.recordLabComplete(labName));
+            ).doOnComplete(() -> log.info("completed" + labName));
             case "PolicyGeneration" -> executeLab(
                     AdvancedPolicyGenerationLab.class,
                     labName,
                     new PolicyGenerationRequest(request.getSecurityQuery(), null)
-            ).doOnComplete(() -> monitor.recordLabComplete(labName));
+            ).doOnComplete(() -> log.info("completed" + labName));
             default -> Flux.just("알 수 없는 Lab: " + labName);
         };
     }

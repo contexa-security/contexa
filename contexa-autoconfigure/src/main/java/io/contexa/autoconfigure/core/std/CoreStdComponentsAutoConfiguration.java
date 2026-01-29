@@ -1,81 +1,63 @@
 package io.contexa.autoconfigure.core.std;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacommon.mcp.tool.ToolResolver;
+import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
+import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.config.TieredLLMProperties;
+import io.contexa.contexacore.properties.SecurityMappingProperties;
+import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
+import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.advisor.core.SharedAdvisorContext;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
-import io.contexa.contexacore.std.components.prompt.BehavioralAnalysisStreamingTemplate;
-import io.contexa.contexacore.std.components.prompt.BehavioralAnalysisTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptGenerator;
-import io.contexa.contexacore.std.components.prompt.RiskAssessmentStreamingTemplate;
-import io.contexa.contexacore.std.components.prompt.RiskAssessmentTemplate;
+import io.contexa.contexacore.std.components.event.AuditLogger;
+import io.contexa.contexacore.std.components.prompt.*;
 import io.contexa.contexacore.std.components.retriever.BehavioralAnalysisContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacore.std.components.retriever.RiskAssessmentContextRetriever;
-import io.contexa.contexacore.std.labs.behavior.BehavioralAnalysisLab;
+import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.labs.DefaultAILabFactory;
+import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
+import io.contexa.contexacore.std.labs.behavior.BehavioralAnalysisLab;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentLab;
+import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskContextEnricher;
+import io.contexa.contexacore.std.llm.config.LLMClient;
+import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.core.ExecutionContextFactory;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
+import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.provider.AnthropicModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OllamaModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OpenAIModelProvider;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
-import io.contexa.contexacore.std.pipeline.analyzer.DefaultRequestAnalyzer;
-import io.contexa.contexacore.std.pipeline.builder.CustomPipelineStepRegistry;
-import io.contexa.contexacore.std.pipeline.builder.DynamicPipelineConfigurationBuilder;
-import io.contexa.contexacore.std.pipeline.executor.StreamingUniversalPipelineExecutor;
-import io.contexa.contexacore.std.pipeline.executor.UniversalPipelineExecutor;
-import io.contexa.contexacore.std.pipeline.step.ContextRetrievalStep;
-import io.contexa.contexacore.std.pipeline.step.LLMExecutionStep;
-import io.contexa.contexacore.std.pipeline.step.PostprocessingStep;
-import io.contexa.contexacore.std.pipeline.step.PreprocessingStep;
-import io.contexa.contexacore.std.pipeline.step.PromptGenerationStep;
-import io.contexa.contexacore.std.pipeline.step.ResponseParsingStep;
-import io.contexa.contexacore.std.pipeline.step.StreamingLLMExecutionStep;
-import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
-import io.contexa.contexacore.std.rag.debug.FilterDebugInterceptor;
-import io.contexa.contexacore.std.rag.etl.BehaviorMetadataEnricher;
-import io.contexa.contexacore.std.rag.processors.AnomalyScoreRanker;
-import io.contexa.contexacore.std.rag.processors.PolicyTemplateProcessor;
-import io.contexa.contexacore.std.rag.processors.RiskScoreAggregator;
-import io.contexa.contexacore.std.rag.processors.TemporalClusteringProcessor;
-import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
-import io.contexa.contexacore.std.strategy.BehavioralAnalysisDiagnosisStrategy;
-import io.contexa.contexacore.std.strategy.RiskAssessmentDiagnosisStrategy;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.properties.SecurityMappingProperties;
-import io.contexa.contexacore.config.TieredLLMProperties;
-import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
-import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacore.repository.ApprovalPolicyRepository;
-import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
-import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
-import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
-import io.contexa.contexacore.std.llm.config.LLMClient;
-import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
-import io.contexa.contexacore.scheduler.ParallelExecutionMonitor;
-import io.contexa.contexacore.std.components.event.AuditLogger;
-import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.std.pipeline.analyzer.DefaultRequestAnalyzer;
 import io.contexa.contexacore.std.pipeline.analyzer.RequestAnalyzer;
+import io.contexa.contexacore.std.pipeline.builder.CustomPipelineStepRegistry;
+import io.contexa.contexacore.std.pipeline.builder.DynamicPipelineConfigurationBuilder;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
+import io.contexa.contexacore.std.pipeline.executor.StreamingUniversalPipelineExecutor;
+import io.contexa.contexacore.std.pipeline.executor.UniversalPipelineExecutor;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
+import io.contexa.contexacore.std.pipeline.step.*;
+import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
+import io.contexa.contexacore.std.rag.debug.FilterDebugInterceptor;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
+import io.contexa.contexacore.std.rag.etl.BehaviorMetadataEnricher;
+import io.contexa.contexacore.std.rag.processors.*;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
-import io.contexa.contexacore.std.pipeline.step.PipelineStep;
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacommon.mcp.tool.ToolResolver;
+import io.contexa.contexacore.std.strategy.BehavioralAnalysisDiagnosisStrategy;
+import io.contexa.contexacore.std.strategy.RiskAssessmentDiagnosisStrategy;
 import io.opentelemetry.api.trace.Tracer;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -86,6 +68,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -454,12 +437,6 @@ public class CoreStdComponentsAutoConfiguration {
             JdbcTemplate jdbcTemplate,
             BehaviorMetadataEnricher metadataEnricher) {
         return new BehaviorETLPipeline(vectorStore, jdbcTemplate, metadataEnricher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ParallelExecutionMonitor parallelExecutionMonitor() {
-        return new ParallelExecutionMonitor();
     }
 
     @Bean

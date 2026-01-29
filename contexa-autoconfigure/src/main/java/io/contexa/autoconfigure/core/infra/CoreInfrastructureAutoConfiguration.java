@@ -15,7 +15,6 @@ import io.contexa.contexacore.infra.redis.RedisCacheConfiguration;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
-import io.contexa.contexacore.scheduler.VirtualThreadConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -31,7 +30,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 @Import({
         ApplicationConfig.class,
         AsyncConfig.class,
-        VirtualThreadConfiguration.class,
         UnifiedRedisConfiguration.class,
         RedisAsyncEventConfiguration.class,
         RedisCacheConfiguration.class,
