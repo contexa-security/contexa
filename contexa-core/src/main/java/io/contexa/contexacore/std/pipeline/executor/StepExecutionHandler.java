@@ -10,6 +10,7 @@ import reactor.core.publisher.Mono;
 
 public interface StepExecutionHandler {
     boolean canHandle(PipelineStep step);
+
     <T extends DomainContext, R extends AIResponse> Mono<PipelineExecutionContext> execute(
             PipelineStep step, AIRequest<T> request, PipelineConfiguration<T> configuration,
             PipelineExecutionContext context, Class<R> responseType);

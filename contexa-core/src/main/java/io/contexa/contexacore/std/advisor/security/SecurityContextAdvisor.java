@@ -1,6 +1,7 @@
 package io.contexa.contexacore.std.advisor.security;
 
 import io.opentelemetry.api.trace.Tracer;
+import io.contexa.contexacore.std.advisor.core.AdvisorException;
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -8,42 +9,42 @@ import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.UUID;
 
 @Slf4j
 public class SecurityContextAdvisor extends BaseAdvisor {
-    
+
     private static final String DOMAIN_NAME = "SECURITY";
     private static final String ADVISOR_NAME = "security-context";
-    
+
     @Value("${contexa.advisor.security.order:50}")
     private int advisorOrder;
-    
+
     @Value("${contexa.advisor.security.enabled:true}")
     private boolean advisorEnabled;
-    
+
     @Value("${contexa.advisor.security.require-authentication:false}")
     private boolean requireAuthentication;
 
     public SecurityContextAdvisor(Tracer tracer) {
         super(tracer, DOMAIN_NAME, ADVISOR_NAME, 50);
     }
-    
+
     @Override
     public int getOrder() {
         return advisorOrder;
     }
-    
+
     @Override
     public boolean isEnabled() {
         return advisorEnabled;
     }
-    
+
     @Override
     protected ChatClientRequest beforeCall(ChatClientRequest request) {
 
@@ -51,17 +52,17 @@ public class SecurityContextAdvisor extends BaseAdvisor {
         try {
             auth = SecurityContextHolder.getContext().getAuthentication();
         } catch (Exception e) {
-                    }
+        }
 
         HttpServletRequest httpRequest = null;
         try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes) 
-                RequestContextHolder.currentRequestAttributes();
+            ServletRequestAttributes attrs = (ServletRequestAttributes)
+                    RequestContextHolder.currentRequestAttributes();
             if (attrs != null) {
                 httpRequest = attrs.getRequest();
             }
         } catch (Exception e) {
-                    }
+        }
 
         String userId = extractUserId(auth, httpRequest);
         request.context().put("user.id", userId);
@@ -85,8 +86,8 @@ public class SecurityContextAdvisor extends BaseAdvisor {
         }
 
         if (requireAuthentication && !isAuthenticated) {
-            log.warn("인증되지 않은 요청 - 인증이 필요합니다");
-            
+            log.error("Authentication required but request is not authenticated");
+            throw AdvisorException.blocking(DOMAIN_NAME, ADVISOR_NAME, "Authentication required");
         }
 
         recordMetric("security.context.set", 1);
@@ -100,14 +101,14 @@ public class SecurityContextAdvisor extends BaseAdvisor {
     }
 
     private String extractUserId(Authentication auth, HttpServletRequest request) {
-        
-        if (auth != null && auth.isAuthenticated() && 
-            !auth.getName().equals("anonymousUser")) {
+
+        if (auth != null && auth.isAuthenticated() &&
+                !auth.getName().equals("anonymousUser")) {
             return auth.getName();
         }
 
         if (request != null) {
-            
+
             if (request.getUserPrincipal() != null) {
                 return request.getUserPrincipal().getName();
             }
@@ -122,14 +123,14 @@ public class SecurityContextAdvisor extends BaseAdvisor {
     }
 
     private String extractSessionId(HttpServletRequest request) {
-        
+
         if (request != null) {
             try {
                 if (request.getSession(false) != null) {
                     return request.getSession().getId();
                 }
             } catch (Exception e) {
-                            }
+            }
 
             String apiSession = request.getHeader("X-Session-Id");
             if (apiSession != null && !apiSession.isEmpty()) {
@@ -139,13 +140,9 @@ public class SecurityContextAdvisor extends BaseAdvisor {
 
         return "session-" + UUID.randomUUID().toString();
     }
-    
+
     @Override
     protected ChatClientResponse afterCall(ChatClientResponse response, ChatClientRequest request) {
-        
-        String userId = (String) request.context().get("user.id");
-        String sessionId = (String) request.context().get("session.id");
-
         return response;
     }
 }

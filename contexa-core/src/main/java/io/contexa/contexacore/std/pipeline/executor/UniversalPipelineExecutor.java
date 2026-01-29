@@ -60,7 +60,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
         this.responseBuilder = new FinalResponseBuilder();
 
-            }
+    }
 
     @Override
     public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
@@ -81,12 +81,12 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
         try (Scope scope = span.makeCurrent()) {
             return executeStepsSequentially(request, configuration, context, responseType)
-                    .map(ctx -> responseBuilder.build(request, ctx, responseType)) 
+                    .map(ctx -> responseBuilder.build(request, ctx, responseType))
                     .doOnSuccess(response -> {
                         long totalTime = System.currentTimeMillis() - pipelineStartTime;
                         span.setAttribute("duration.ms", totalTime);
                         span.setStatus(StatusCode.OK);
-                                            })
+                    })
                     .doOnError(error -> {
                         long totalTime = System.currentTimeMillis() - pipelineStartTime;
                         span.setAttribute("duration.ms", totalTime);
@@ -101,7 +101,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
     @Override
     public <T extends DomainContext> Flux<String> executeStream(AIRequest<T> request, PipelineConfiguration<T> configuration) {
-                PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
+        PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         return executePreStreamingSteps(request, configuration, context)
                 .flatMapMany(ctx -> {
                     if (configuration.hasStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)) {
@@ -125,15 +125,15 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             Class<R> responseType) {
 
         setCurrentContext(request.getContext());
-        
+
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
         for (PipelineStep step : steps) {
-            
+
             PipelineStep actualStep;
             if (step == llmExecutionStep && isSoarContext() && soarToolExecutionStep != null) {
                 actualStep = soarToolExecutionStep;
-                            } else {
+            } else {
                 actualStep = step;
             }
 
@@ -144,9 +144,9 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 final String stepName = actualStep.getStepName();
                 final int stepOrder = actualStep.getOrder();
                 pipeline = pipeline.flatMap(ctx -> {
-                    
+
                     if (!configuration.shouldExecuteStep(configStep, request, ctx)) {
-                                                return Mono.just(ctx);
+                        return Mono.just(ctx);
                     }
 
                     long stepStart = System.currentTimeMillis();
@@ -165,7 +165,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                                     long stepTime = System.currentTimeMillis() - stepStart;
                                     stepSpan.setAttribute("step.duration.ms", stepTime);
                                     stepSpan.setStatus(StatusCode.OK);
-                                                                    })
+                                })
                                 .doOnError(error -> {
                                     long stepTime = System.currentTimeMillis() - stepStart;
                                     stepSpan.setAttribute("step.duration.ms", stepTime);
@@ -178,7 +178,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                     }
                 });
             } else {
-                            }
+            }
         }
 
         return pipeline.doFinally(signal -> clearCurrentContext());
@@ -205,11 +205,11 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 final String stepName = step.getStepName();
 
                 pipeline = pipeline.flatMap(ctx -> {
-                    
+
                     StepExecutionHandler handler = findHandlerFor(step);
                     return handler.execute(step, request, configuration, ctx, null)
                             .doOnSuccess(c -> {
-                                                            })
+                            })
                             .doOnError(error -> {
                                 log.error("[PIPELINE] 스트리밍 전처리 단계 {} 실패: {}", stepName, error.getMessage());
                             });
@@ -218,15 +218,15 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         }
 
         return pipeline.doOnSuccess(ctx -> {
-                    });
+        });
     }
 
     private PipelineConfiguration.PipelineStep getConfigStepForStep(PipelineStep step) {
-        
+
         if (step.getStepName().equals("LLM_EXECUTION") && isSoarContext()) {
             return PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION;
         }
-        
+
         return switch (step.getStepName()) {
             case "CONTEXT_RETRIEVAL" -> PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL;
             case "PREPROCESSING" -> PipelineConfiguration.PipelineStep.PREPROCESSING;
@@ -248,7 +248,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     private void clearCurrentContext() {
         currentContext.remove();
     }
-    
+
     private boolean isSoarContext() {
         DomainContext context = currentContext.get();
         return context instanceof SoarContext;
@@ -273,6 +273,6 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
     @Override
     public int getPriority() {
-        return 100; 
+        return 100;
     }
 }

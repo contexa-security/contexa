@@ -11,7 +11,6 @@ import io.contexa.contexacore.properties.SecurityMappingProperties;
 import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
-import io.contexa.contexacore.std.advisor.core.SharedAdvisorContext;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.components.prompt.*;
@@ -82,12 +81,6 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public AdvisorRegistry advisorRegistry() {
         return new AdvisorRegistry();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SharedAdvisorContext sharedAdvisorContext() {
-        return new SharedAdvisorContext();
     }
 
     @Bean

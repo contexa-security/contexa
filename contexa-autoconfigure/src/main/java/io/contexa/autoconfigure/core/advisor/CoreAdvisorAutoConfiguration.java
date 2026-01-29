@@ -3,8 +3,6 @@ package io.contexa.autoconfigure.core.advisor;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
-import io.contexa.contexacore.std.advisor.soar.EnhancedSoarApprovalAdvisor;
-import io.opentelemetry.api.trace.Tracer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -53,9 +51,7 @@ public class CoreAdvisorAutoConfiguration {
             List<BaseAdvisor> advisors,
             AdvisorRegistry advisorRegistry) {
 
-        advisors.forEach(advisor -> {
-            advisorRegistry.register(advisor);
-        });
+        advisors.forEach(advisorRegistry::register);
 
         List<BaseAdvisor> activeAdvisors = advisorRegistry.getEnabled();
         ChatClient.Builder builder = ChatClient.builder(chatModel);
@@ -111,12 +107,6 @@ public class CoreAdvisorAutoConfiguration {
         return ChatClient.builder(chatModel)
                 .defaultAdvisors(advisors.toArray(new Advisor[0]))
                 .build();
-    }
-
-    @Bean
-    @ConditionalOnProperty(prefix = "contexa.advisor.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public EnhancedSoarApprovalAdvisor soarApprovalAdvisor(Tracer tracer) {
-        return new EnhancedSoarApprovalAdvisor(tracer);
     }
 
     @EventListener(ContextRefreshedEvent.class)

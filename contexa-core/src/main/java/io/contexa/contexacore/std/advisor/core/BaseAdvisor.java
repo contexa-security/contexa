@@ -53,7 +53,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
     @Override
     public ChatClientResponse adviseCall(ChatClientRequest request, CallAdvisorChain chain) {
         if (!enabled) {
-                        return chain.nextCall(request);
+            return chain.nextCall(request);
         }
 
         long startTime = System.currentTimeMillis();
@@ -67,8 +67,8 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
                 .startSpan();
 
         try (Scope scope = span.makeCurrent()) {
-            
-                        request = beforeCall(request);
+
+            request = beforeCall(request);
 
             enrichContext(request.context());
 
@@ -83,10 +83,10 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             span.setAttribute("advisor.duration.ms", duration);
             span.setStatus(StatusCode.OK);
 
-                        return response;
+            return response;
 
         } catch (AdvisorException e) {
-            
+
             long duration = System.currentTimeMillis() - startTime;
             span.setAttribute("advisor.duration.ms", duration);
             span.recordException(e);
@@ -96,15 +96,15 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             recordMetric(advisorKey + ".error", 1);
 
             if (e.isBlocking()) {
-                
+
                 return handleBlockingError(e, request);
             } else {
-                
+
                 return chain.nextCall(request);
             }
 
         } catch (Exception e) {
-            
+
             log.error("[{}] 예상치 못한 오류", getName(), e);
             recordMetric(advisorKey + ".error", 1);
 
@@ -116,31 +116,31 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
     @Override
     public Flux<ChatClientResponse> adviseStream(ChatClientRequest request, StreamAdvisorChain chain) {
         if (!enabled) {
-                        return chain.nextStream(request);
+            return chain.nextStream(request);
         }
-        
+
         long startTime = System.currentTimeMillis();
         String advisorKey = getName() + ".stream";
-        
+
         try {
-            
-                        ChatClientRequest finalRequest = beforeStream(request);
+
+            ChatClientRequest finalRequest = beforeStream(request);
 
             enrichContext(finalRequest.context());
 
             Flux<ChatClientResponse> responses = chain.nextStream(finalRequest);
 
             return responses
-                .doOnNext(response -> afterStream(response, finalRequest))
-                .doOnComplete(() -> {
-                    recordMetric(advisorKey + ".success", 1);
-                    recordMetric(advisorKey + ".duration", System.currentTimeMillis() - startTime);
-                                    })
-                .doOnError(error -> {
-                    log.error("[{}] 스트림 오류", getName(), error);
-                    recordMetric(advisorKey + ".error", 1);
-                });
-            
+                    .doOnNext(response -> afterStream(response, finalRequest))
+                    .doOnComplete(() -> {
+                        recordMetric(advisorKey + ".success", 1);
+                        recordMetric(advisorKey + ".duration", System.currentTimeMillis() - startTime);
+                    })
+                    .doOnError(error -> {
+                        log.error("[{}] 스트림 오류", getName(), error);
+                        recordMetric(advisorKey + ".error", 1);
+                    });
+
         } catch (Exception e) {
             log.error("[{}] 스트림 시작 오류", getName(), e);
             recordMetric(advisorKey + ".error", 1);
@@ -153,12 +153,12 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
     protected abstract ChatClientResponse afterCall(ChatClientResponse response, ChatClientRequest request);
 
     protected ChatClientRequest beforeStream(ChatClientRequest request) {
-        
+
         return beforeCall(request);
     }
 
     protected void afterStream(ChatClientResponse response, ChatClientRequest request) {
-        
+
     }
 
     protected void enrichContext(Map<String, Object> context) {
@@ -168,7 +168,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
     }
 
     protected ChatClientResponse handleBlockingError(AdvisorException e, ChatClientRequest request) {
-        
+
         request.context().put("advisor.error", true);
         request.context().put("advisor.error.message", e.getMessage());
         request.context().put("advisor.error.domain", domain);
@@ -187,7 +187,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-            }
+    }
 
     public boolean validate() {
         if (domain == null || domain.isEmpty()) {
@@ -200,7 +200,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
         }
         return true;
     }
-    
+
     @Override
     public String toString() {
         return String.format("Advisor[%s, order=%d, enabled=%s]", getName(), order, enabled);

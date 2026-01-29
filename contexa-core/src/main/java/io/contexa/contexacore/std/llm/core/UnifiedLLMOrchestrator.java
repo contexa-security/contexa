@@ -349,34 +349,4 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
         return stream(context);
     }
-
-    public Mono<String> executeSecurityTask(int tier, String prompt, String requestId) {
-
-        ExecutionContext context = ExecutionContext.forTier(tier, new Prompt(prompt))
-                .setRequestId(requestId)
-                .addMetadata("security.tier", tier)
-                .addMetadata("security.timestamp", System.currentTimeMillis());
-
-        return execute(context);
-    }
-
-    public Mono<String> executeSoarTask(ExecutionContext.SecurityTaskType taskType,
-            Prompt prompt,
-            List<ToolCallback> soarTools) {
-
-        ExecutionContext context = ExecutionContext.builder()
-                .prompt(prompt)
-                .securityTaskType(taskType)
-                .toolCallbacks(soarTools)
-                .toolExecutionEnabled(true)
-                .advisorEnabled(true)
-                .build();
-
-        if (taskType == ExecutionContext.SecurityTaskType.SOAR_AUTOMATION ||
-                taskType == ExecutionContext.SecurityTaskType.APPROVAL_WORKFLOW) {
-            context.setTier(3);
-        }
-
-        return execute(context);
-    }
 }
