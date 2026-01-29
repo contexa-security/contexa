@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -24,6 +23,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
     private static final Duration STRATEGIC_LOCK_TIMEOUT = Duration.ofMinutes(30);
     private static final String STRATEGIC_LOCK_PREFIX = "ai:strategy:master:";
     private final String nodeId;
+
 
     @Autowired
     public AINativeProcessor(DistributedSessionManager<T> sessionManager,
@@ -46,7 +46,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
         return Mono.fromCallable(() -> {
-                    if (!acquireStrategicLock(lockKey, strategyId)) {
+                    if (acquireStrategicLock(lockKey, strategyId)) {
                         throw new AIOperationException("Strategic operation conflict: " + strategyId);
                     }
                     return strategyId;
@@ -85,7 +85,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         String strategyId = generateStrategyId(request, responseType);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
-        if (!acquireStrategicLock(lockKey, strategyId)) {
+        if (acquireStrategicLock(lockKey, strategyId)) {
             return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
         }
 
@@ -121,10 +121,10 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
 
     private boolean acquireStrategicLock(String lockKey, String strategyId) {
         try {
-            return distributedLockService.tryLock(lockKey, getNodeId(), STRATEGIC_LOCK_TIMEOUT);
+            return !distributedLockService.tryLock(lockKey, getNodeId(), STRATEGIC_LOCK_TIMEOUT);
         } catch (Exception e) {
             log.error("Failed to acquire strategic lock: {} - {}", strategyId, e.getMessage());
-            return false;
+            return true;
         }
     }
 
