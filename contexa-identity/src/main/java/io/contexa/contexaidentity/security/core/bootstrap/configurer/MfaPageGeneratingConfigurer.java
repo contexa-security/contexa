@@ -38,13 +38,6 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
     @Override
     public void init(PlatformContext platformContext, PlatformConfig config) {
-
-        boolean hasMfaFlow = config.getFlows().stream()
-                .anyMatch(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()));
-
-        if (hasMfaFlow) {
-                    } else {
-                    }
     }
 
     @Override
@@ -52,28 +45,25 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         AuthenticationFlowConfig flowConfig = flowContext.flow();
 
         if (!AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
-                        return;
+            return;
         }
 
         try {
-            
+
             MfaStateMachineIntegrator stateMachineIntegrator =
                     applicationContext.getBean(MfaStateMachineIntegrator.class);
             AuthUrlProvider authUrlProvider =
                     applicationContext.getBean(AuthUrlProvider.class);
 
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
-                    flowConfig,              
+                    flowConfig,
                     stateMachineIntegrator,
-                    authUrlProvider          
+                    authUrlProvider
             );
 
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
 
-            flowContext.http().addFilterBefore(
-                    mfaPageFilter,
-                    UsernamePasswordAuthenticationFilter.class
-            );
+            flowContext.http().addFilterBefore(mfaPageFilter, UsernamePasswordAuthenticationFilter.class);
 
             registerMfaAuthenticationEntryPoint(flowContext, flowConfig);
 
@@ -81,8 +71,8 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
             String selectFactorPage = extractSelectFactorUrl(flowConfig);
             String customPagesInfo = buildCustomPagesInfo(flowConfig);
 
-                                                if (StringUtils.hasText(customPagesInfo)) {
-                            }
+            if (StringUtils.hasText(customPagesInfo)) {
+            }
 
         } catch (Exception e) {
             log.error(" CRITICAL: Failed to register DefaultMfaPageGeneratingFilter for MFA flow", e);
@@ -92,7 +82,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
     @Override
     public int getOrder() {
-        
+
         return SecurityConfigurer.HIGHEST_PRECEDENCE + 150;
     }
 
@@ -101,25 +91,25 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
 
         if (entryPoint == null) {
             throw new IllegalStateException(
-                "MfaAuthenticationEntryPoint is required for MFA flow but was null in flowConfig [" +
-                flowConfig.getTypeName() + "]. " +
-                "This indicates a configuration error in MfaDslConfigurerImpl. " +
-                "Check that primaryAuthenticationOptions is properly configured and EntryPoint is created in build() method."
+                    "MfaAuthenticationEntryPoint is required for MFA flow but was null in flowConfig [" +
+                            flowConfig.getTypeName() + "]. " +
+                            "This indicates a configuration error in MfaDslConfigurerImpl. " +
+                            "Check that primaryAuthenticationOptions is properly configured and EntryPoint is created in build() method."
             );
         }
 
         try {
-            
+
             ExceptionHandlingConfigurer<HttpSecurity> exceptionHandling =
                     (ExceptionHandlingConfigurer<HttpSecurity>)
-                    flowContext.http().getConfigurer(ExceptionHandlingConfigurer.class);
+                            flowContext.http().getConfigurer(ExceptionHandlingConfigurer.class);
 
             if (exceptionHandling == null) {
                 throw new IllegalStateException(
-                    "ExceptionHandlingConfigurer not found in HttpSecurity for MFA flow [" +
-                    flowConfig.getTypeName() + "]. " +
-                    "This indicates a Spring Security configuration issue. " +
-                    "Ensure HttpSecurity is properly initialized with exception handling support."
+                        "ExceptionHandlingConfigurer not found in HttpSecurity for MFA flow [" +
+                                flowConfig.getTypeName() + "]. " +
+                                "This indicates a Spring Security configuration issue. " +
+                                "Ensure HttpSecurity is properly initialized with exception handling support."
                 );
             }
 
@@ -134,7 +124,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
     }
 
     private RequestMatcher createMfaEntryPointMatcher(FlowContext flowContext) {
-        
+
         ContentNegotiationStrategy contentNegotiationStrategy =
                 flowContext.http().getSharedObject(ContentNegotiationStrategy.class);
 
@@ -161,7 +151,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
     private String extractPrimaryLoginPage(AuthenticationFlowConfig flowConfig) {
         PrimaryAuthenticationOptions primaryOpts = flowConfig.getPrimaryAuthenticationOptions();
         if (primaryOpts != null) {
-            
+
             if (primaryOpts.isFormLogin()) {
                 FormOptions formOpts = primaryOpts.getFormOptions();
                 return StringUtils.hasText(formOpts.getLoginPage()) ?

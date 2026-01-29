@@ -133,8 +133,7 @@ public class TestSecurityService {
      * @return 대량 데이터 문자열
      */
     @Protectable(
-        analysisRequirement = AnalysisRequirement.PREFERRED,
-        enableRuntimeInterception = true
+        analysisRequirement = AnalysisRequirement.PREFERRED
     )
     public String getBulkData() {
         log.info("대량 데이터 조회 요청");
