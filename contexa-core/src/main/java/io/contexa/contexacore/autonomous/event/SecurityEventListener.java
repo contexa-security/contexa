@@ -49,25 +49,7 @@ public interface SecurityEventListener {
     }
 
     default void onAuthenticationEvent(SecurityEvent event) {
-        
-        onSecurityEvent(event);
-    }
 
-    @Deprecated(since = "4.0.0", forRemoval = true)
-    default void onMalwareEvent(SecurityEvent event) {
-        
-        onSecurityEvent(event);
-    }
-
-    @Deprecated(since = "4.0.0", forRemoval = true)
-    default void onAnomalyEvent(SecurityEvent event) {
-        
-        onSecurityEvent(event);
-    }
-
-    @Deprecated(since = "4.0.0", forRemoval = true)
-    default void onPolicyViolationEvent(SecurityEvent event) {
-        
         onSecurityEvent(event);
     }
 

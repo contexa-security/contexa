@@ -147,7 +147,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         if (autoStart) {
             start();
-        } else {
         }
     }
 
@@ -321,7 +320,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 relatedEvent.setUserId(incident.getAffectedUser());
                 relatedEvent.setSource(SecurityEvent.EventSource.IAM);
                 relatedEvent.setEventId(incident.getIncidentId());
-                relatedEvent.setSeverity(mapThreatLevelToSeverity(incident.getThreatLevel()));
+                relatedEvent.setSeverity(convertThreatLevelToSeverity(incident.getThreatLevel()));
                 relatedEvent.addMetadata("incidentType", "INCIDENT_CREATED");
 
                 String response = "INCIDENT_" + incident.getType();
@@ -340,7 +339,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         log.error("[SecurityPlaneAgent] Failed to learn from incident {}: {}",
                                 incident.getIncidentId(), e.getMessage(), e);
                     }
-                } else {
                 }
             }
 
@@ -367,7 +365,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                                     incident.getIncidentId(), result.getMessage());
                         }
                     });
-                } else {
                 }
             } else {
                 log.warn("SOAR integration not available for incident {}", incident.getIncidentId());
@@ -426,14 +423,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return false;
         }
 
-        int incidentSeverityRank = getSeverityRank(severity);
-        int minSeverityRank = getSeverityRank(dynamicResponseMinSeverity);
+        int incidentSeverityRank = convertSeverityToRank(severity);
+        int minSeverityRank = convertSeverityToRank(dynamicResponseMinSeverity);
 
         return incidentSeverityRank >= minSeverityRank;
     }
 
-    @Deprecated(since = "3.1.0", forRemoval = true)
-    private int getSeverityRank(String severity) {
+    private int convertSeverityToRank(String severity) {
         if (severity == null) {
             return 0;
         }
@@ -463,14 +459,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             DynamicThreatResponseEvent threatEvent = DynamicThreatResponseEvent.builder()
                     .eventSource(this)
                     .severity(soarIncident.getSeverity())
-                    .description("위협 대응 완료: " + resolutionMethod)
+                    .description("Threat response completed: " + resolutionMethod)
                     .threatType(soarIncident.getType())
                     .attackVector(attackVector)
                     .targetResource(extractTargetResource(soarIncident, securityEvent))
                     .attackerIdentity(securityEvent != null ? securityEvent.getSourceIp() : null)
                     .mitigationAction(resolutionMethod)
                     .responseSuccessful(true)
-                    .responseDescription("자동화된 위협 대응 성공")
+                    .responseDescription("Automated threat response successful")
                     .incidentId(parseIncidentIdToLong(soarIncident.getIncidentId()))
                     .soarWorkflowId(handler.getSoarRequestId())
                     .build();
@@ -578,14 +574,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                                         );
                                     },
                                     error -> {
-                                        log.error("SOAR 분석 실패 - Event: {}", event.getEventId(), error);
+                                        log.error("SOAR analysis failed - Event: {}", event.getEventId(), error);
                                     }
                             );
 
                 } catch (Exception e) {
                     log.error("Error invoking SOAR Lab for critical event", e);
                 }
-            } else {
             }
         }
     }
@@ -758,13 +753,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
                 policyEvolutionService.learnFromEvent(event, decision, outcome)
                         .subscribe(
-                                result -> log.debug("정책 학습 완료"),
-                                error -> log.error("정책 학습 실패", error)
+                                result -> log.debug("Policy learning completed"),
+                                error -> log.error("Policy learning failed", error)
                         );
             } catch (Exception e) {
-                log.error("정책 진화 중 오류 발생", e);
+                log.error("Error during policy evolution", e);
             }
-        } else {
         }
     }
 
@@ -780,12 +774,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
                                     applyLearningPrediction(event);
                                 },
-                                error -> log.error("학습 실패", error)
+                                error -> log.error("Learning failed", error)
                         );
             } catch (Exception e) {
-                log.error("학습 엔진 처리 중 오류", e);
+                log.error("Error processing learning engine", e);
             }
-        } else {
         }
     }
 
@@ -798,9 +791,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
                                 storeInMemory("prediction:" + event.getEventId(), prediction);
                             },
-                            error -> log.error("예측 적용 실패: {}", event.getEventId(), error)
+                            error -> log.error("Prediction application failed: {}", event.getEventId(), error)
                     );
-        } else {
         }
     }
 
@@ -818,8 +810,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
                 memorySystem.storeInWM(key, valueToStore, "security-plane")
                         .subscribe(
-                                result -> log.debug("메모리 저장 완료: {}", key),
-                                error -> log.error("메모리 저장 실패", error)
+                                result -> log.debug("Memory storage completed: {}", key),
+                                error -> log.error("Memory storage failed", error)
                         );
 
                 if (value instanceof ThreatAssessment) {
@@ -830,29 +822,22 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     }
                 }
             } catch (Exception e) {
-                log.error("메모리 저장 중 오류", e);
+                log.error("Error during memory storage", e);
             }
-        } else {
         }
     }
 
-    @Deprecated(since = "3.1.0")
-    private SecurityEvent.Severity mapThreatLevelToSeverity(SecurityIncident.ThreatLevel threatLevel) {
+    private SecurityEvent.Severity convertThreatLevelToSeverity(SecurityIncident.ThreatLevel threatLevel) {
         if (threatLevel == null) {
             return SecurityEvent.Severity.MEDIUM;
         }
-        switch (threatLevel) {
-            case CRITICAL:
-                return SecurityEvent.Severity.CRITICAL;
-            case HIGH:
-                return SecurityEvent.Severity.HIGH;
-            case MEDIUM:
-                return SecurityEvent.Severity.MEDIUM;
-            case LOW:
-                return SecurityEvent.Severity.LOW;
-            default:
-                return SecurityEvent.Severity.INFO;
-        }
+        return switch (threatLevel) {
+            case CRITICAL -> SecurityEvent.Severity.CRITICAL;
+            case HIGH -> SecurityEvent.Severity.HIGH;
+            case MEDIUM -> SecurityEvent.Severity.MEDIUM;
+            case LOW -> SecurityEvent.Severity.LOW;
+            default -> SecurityEvent.Severity.INFO;
+        };
     }
 
     @Autowired
@@ -937,11 +922,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             this.resolvedBy = resolvedBy;
             this.resolutionMethod = resolutionMethod;
             this.resolvedAt = LocalDateTime.now();
-        }
-
-        @Deprecated
-        public void resolveIncident() {
-            resolveIncident("system", "auto-resolved");
         }
 
         public SecurityEvent getSecurityEvent() {

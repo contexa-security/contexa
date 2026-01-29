@@ -90,7 +90,8 @@
       "Bash(taskkill:*)",
       "Bash(.\\\\gradlew.bat clean build:*)",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\llm\\\\model\\\\AutoDiscoveredModelProvider.java\")",
-      "Bash(.\\\\gradlew.bat compileJava:*)"
+      "Bash(.\\\\gradlew.bat compileJava:*)",
+      "Bash(.\\\\gradlew.bat:*)"
     ],
     "deny": [],
     "ask": []

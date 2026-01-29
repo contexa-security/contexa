@@ -129,11 +129,7 @@ public class EmergencyKillSwitch {
         if (isSafeMode.compareAndSet(false, true)) {
             logger.warn("System entering SAFE MODE");
 
-            disableAutomaticPolicies();
-
-            enableManualApprovalMode();
-
-            publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_ENTERED, null, 
+            publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_ENTERED, null,
                 "System protection activated");
         }
     }
@@ -142,9 +138,7 @@ public class EmergencyKillSwitch {
         if (isSafeMode.compareAndSet(true, false)) {
             logger.info("System exiting safe mode");
 
-            enableAutomaticPolicies();
-
-            publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_EXITED, null, 
+            publishKillSwitchEvent(KillSwitchEventType.SAFE_MODE_EXITED, null,
                 "Normal operation resumed");
         }
     }
@@ -280,21 +274,6 @@ public class EmergencyKillSwitch {
         } else {
             return SystemHealth.HEALTHY;
         }
-    }
-    
-    private void disableAutomaticPolicies() {
-        logger.info("Disabling automatic policy execution");
-        
-    }
-    
-    private void enableAutomaticPolicies() {
-        logger.info("Enabling automatic policy execution");
-        
-    }
-    
-    private void enableManualApprovalMode() {
-        logger.info("Enabling manual approval mode for all policies");
-        
     }
     
     private void recordActivation(Long proposalId, String reason) {

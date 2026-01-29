@@ -581,22 +581,13 @@ public class DynamicStrategySelector {
         private final boolean highPerformance;
     }
 
-    private static class DefaultThreatEvaluationStrategy implements ThreatEvaluationStrategy {
+    @RequiredArgsConstructor
+    private static class IntegratedThreatEvaluationStrategyAdapter implements ThreatEvaluationStrategy {
+        private final ThreatEvaluator threatEvaluator;
 
         @Override
         public ThreatAssessment evaluate(SecurityEvent event) {
-            
-            return ThreatAssessment.builder()
-                .eventId(event.getEventId())
-                .assessmentId("default-" + System.currentTimeMillis())
-                .assessedAt(LocalDateTime.now())
-                .evaluator("DEFAULT")
-                .riskScore(0.5)
-                .confidence(0.5)
-                .recommendedActions(List.of("ESCALATE", "LLM_ANALYSIS_REQUIRED"))
-                
-                .action("ESCALATE")  
-                .build();
+            return threatEvaluator.evaluateIntegrated(event);
         }
 
         @Override
@@ -606,61 +597,20 @@ public class DynamicStrategySelector {
 
         @Override
         public String getStrategyName() {
-            return "DEFAULT";
-        }
-
-        @Override
-        public List<String> getRecommendedActions(SecurityEvent event) {
-            return List.of("monitor", "log");
-        }
-
-        @Override
-        public double calculateRiskScore(List<ThreatIndicator> indicators) {
-            return 0.5; 
-        }
-
-        @Override
-        public boolean isEnabled() {
-            return true;
-        }
-
-        @Override
-        public int getPriority() {
-            return 1000; 
-        }
-    }
-
-    private static class IntegratedThreatEvaluationStrategyAdapter implements ThreatEvaluationStrategy {
-        private final ThreatEvaluator threatEvaluator;
-
-        public IntegratedThreatEvaluationStrategyAdapter(ThreatEvaluator threatEvaluator) {
-            this.threatEvaluator = threatEvaluator;
-        }
-
-        @Override
-        public ThreatAssessment evaluate(SecurityEvent event) {
-            
-            return threatEvaluator.evaluateIntegrated(event);
-        }
-
-        @Override
-        public List<ThreatIndicator> extractIndicators(SecurityEvent event) {
-            return Collections.emptyList(); 
-        }
-
-        @Override
-        public String getStrategyName() {
             return "INTEGRATED";
         }
 
         @Override
         public List<String> getRecommendedActions(SecurityEvent event) {
-            return List.of("comprehensive_analysis", "multi_strategy_evaluation");
+            ThreatAssessment assessment = evaluate(event);
+            return assessment.getRecommendedActions() != null
+                ? assessment.getRecommendedActions()
+                : List.of("comprehensive_analysis");
         }
 
         @Override
         public double calculateRiskScore(List<ThreatIndicator> indicators) {
-            return 0.8; 
+            return Double.NaN;
         }
 
         @Override
@@ -670,7 +620,7 @@ public class DynamicStrategySelector {
 
         @Override
         public int getPriority() {
-            return 10; 
+            return 10;
         }
     }
 }

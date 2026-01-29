@@ -110,7 +110,7 @@ public class PolicyEvolutionEngine {
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            log.error(" 정책 진화 실패 - EventId: {}", event.getEventId(), e);
+            log.error(" Policy evolution failed - EventId: {}", event.getEventId(), e);
 
             if (metricsCollector != null) {
                 metricsCollector.recordProposalCreation(
@@ -195,9 +195,9 @@ public class PolicyEvolutionEngine {
 
     public Mono<PolicyEvolutionProposal> evolvePolicyAsync(SecurityEvent event, LearningMetadata metadata) {
         return Mono.fromCallable(() -> evolvePolicy(event, metadata))
-                .doOnSubscribe(s -> log.info("🔄 비동기 정책 진화 시작"))
-                .doOnSuccess(p -> log.info("비동기 정책 진화 완료"))
-                .doOnError(e -> log.error(" 비동기 정책 진화 실패", e));
+                .doOnSubscribe(s -> log.info("🔄 Async policy evolution started"))
+                .doOnSuccess(p -> log.info("Async policy evolution completed"))
+                .doOnError(e -> log.error(" Async policy evolution failed", e));
     }
 
     private Map<String, Object> collectContext(SecurityEvent event, LearningMetadata metadata) {
@@ -240,7 +240,7 @@ public class PolicyEvolutionEngine {
                         return documents;
             
         } catch (Exception e) {
-            log.warn("유사 사례 검색 실패: {}", e.getMessage());
+            log.warn("Similar case search failed: {}", e.getMessage());
             return new ArrayList<>();
         }
     }
@@ -368,8 +368,8 @@ public class PolicyEvolutionEngine {
                 metricsCollector.recordEvent("ai_call_failure", eventMetadata);
             }
 
-            log.error("AI 호출 실패", e);
-            return "AI 분석 실패: " + e.getMessage();
+            log.error("AI call failed", e);
+            return "AI analysis failed: " + e.getMessage();
         }
     }
 
@@ -449,7 +449,7 @@ public class PolicyEvolutionEngine {
             }
 
         } catch (Exception e) {
-            log.warn("SpEL 표현식 추출 실패, 기본값 사용: {}", e.getMessage());
+            log.warn("SpEL expression extraction failed, 기본값 사용: {}", e.getMessage());
         }
 
         if (metricsCollector != null) {
@@ -490,7 +490,7 @@ public class PolicyEvolutionEngine {
         if (spelValidationService != null) {
             SpelValidationService.ValidationResult result = spelValidationService.validate(expression);
             if (!result.valid()) {
-                log.warn("AI 생성 SpEL 검증 실패: {}, 오류: {}", expression, result.errors());
+                log.warn("AI-generated SpEL validation failed: {}, 오류: {}", expression, result.errors());
                 return false;
             }
             if (!result.warnings().isEmpty()) {
@@ -619,7 +619,7 @@ public class PolicyEvolutionEngine {
             }
 
         } catch (Exception e) {
-            log.warn("영향도 추출 실패, 기본값 사용: {}", e.getMessage());
+            log.warn("Impact extraction failed, 기본값 사용: {}", e.getMessage());
         }
 
         return 0.7; 
@@ -1026,8 +1026,6 @@ public class PolicyEvolutionEngine {
             metadata.addPattern("rejection_reason", rejectionReason);
             metadata.addOutcome("learned", true);
 
-            updateSimilarPolicyConfidence(policy, -0.1);
-
         } catch (Exception e) {
             log.error("거부 학습 실패: {}", policy.getName(), e);
         }
@@ -1065,27 +1063,6 @@ public class PolicyEvolutionEngine {
 
         } catch (Exception e) {
             log.error("정책 진화 실패: {}", policy.getName(), e);
-        }
-    }
-
-    private void updateSimilarPolicyConfidence(PolicyDTO policy, double adjustment) {
-        try {
-            
-            SearchRequest searchRequest = SearchRequest.builder()
-                .query(policy.getName())
-                .topK(10)
-                .similarityThreshold(0.7)
-                .build();
-            List<Document> similarDocs = unifiedVectorService.searchSimilar(searchRequest);
-
-            for (Document doc : similarDocs) {
-                Object policyId = doc.getMetadata().get("policyId");
-                if (policyId != null && !policyId.equals(policy.getId())) {
-                    
-                                    }
-            }
-        } catch (Exception e) {
-            log.error("유사 정책 신뢰도 업데이트 실패", e);
         }
     }
 
