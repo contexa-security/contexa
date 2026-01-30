@@ -41,8 +41,8 @@ public class PipelineOrchestrator {
             strategyMap.put(strategy.getSupportedType(), strategy);
         }
 
-                for (PipelineExecutor executor : this.executors) {
-                    }
+        for (PipelineExecutor executor : this.executors) {
+        }
     }
 
     public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
@@ -57,7 +57,7 @@ public class PipelineOrchestrator {
             Class<R> responseType) {
 
         return Mono.fromCallable(() -> {
-                    
+
                     RequestCharacteristics characteristics = requestAnalyzer.analyze(request);
 
                     AIStrategy<T, R> strategy = getStrategyForRequest(request);
@@ -70,11 +70,11 @@ public class PipelineOrchestrator {
                     PipelineConfiguration<T> finalConfig;
                     if (optimizedConfig != null) {
                         finalConfig = optimizedConfig;
-                                            } else if (configuration != null) {
+                    } else if (configuration != null) {
                         finalConfig = configuration;
-                                            } else {
+                    } else {
                         finalConfig = createDefaultPipelineConfiguration();
-                                            }
+                    }
 
                     Map<String, Object> characteristicsMap = characteristics.toContextMap();
                     for (Map.Entry<String, Object> entry : characteristicsMap.entrySet()) {
@@ -85,7 +85,7 @@ public class PipelineOrchestrator {
                 })
                 .flatMap(finalConfig -> selectExecutor(request, finalConfig)
                         .map(executor -> {
-                                                        return executor;
+                            return executor;
                         })
                         .flatMap(executor -> executor.execute(request, finalConfig, responseType))
                 )
@@ -121,7 +121,7 @@ public class PipelineOrchestrator {
             if (strategy != null) {
                 PipelineConfiguration<T> optimizedConfig = strategy.suggestPipelineConfiguration(request, characteristics);
                 if (optimizedConfig != null) {
-                    
+
                     configuration = PipelineConfiguration.<T>builder()
                             .steps(optimizedConfig.getSteps())
                             .stepConditions(optimizedConfig.getStepConditions())
@@ -129,19 +129,19 @@ public class PipelineOrchestrator {
                             .timeoutSeconds(optimizedConfig.getTimeoutSeconds())
                             .enableStreaming(true)
                             .build();
-                                    }
+                }
             }
 
             if (configuration == null) {
                 configuration = createDefaultStreamingPipelineConfiguration();
-                            }
+            }
         }
 
         PipelineConfiguration<T> finalConfig = configuration;
 
         return selectExecutor(request, finalConfig)
                 .map(executor -> {
-                                        return executor;
+                    return executor;
                 })
                 .flatMapMany(executor -> executor.executeStream(request, finalConfig))
                 .doOnComplete(() ->
@@ -153,7 +153,7 @@ public class PipelineOrchestrator {
     }
 
     private <T extends DomainContext> Mono<PipelineExecutor> selectExecutor(
-            AIRequest<T> request, 
+            AIRequest<T> request,
             PipelineConfiguration<T> configuration) {
 
         String domainHint = extractDomainHint(request);
@@ -162,27 +162,27 @@ public class PipelineOrchestrator {
                 .filter(executor -> executor.supportsConfiguration(configuration))
                 .filter(executor -> isDomainMatch(executor, domainHint))
                 .findFirst();
-        
+
         if (selectedExecutor.isPresent()) {
             return Mono.just(selectedExecutor.get());
         }
-        
+
         Optional<PipelineExecutor> fallbackExecutor = executors.stream()
                 .filter(executor -> executor.supportsConfiguration(configuration))
                 .findFirst();
-        
+
         if (fallbackExecutor.isPresent()) {
-            log.warn("[Orchestrator] 도메인 매칭 실패, Fallback 실행자 사용: {}", 
+            log.warn("[Orchestrator] 도메인 매칭 실패, Fallback 실행자 사용: {}",
                     fallbackExecutor.get().getSupportedDomain());
             return Mono.just(fallbackExecutor.get());
         }
-        
+
         return Mono.error(new IllegalStateException(
-            "설정을 지원하는 PipelineExecutor를 찾을 수 없습니다: " + configuration.getSteps()));
+                "설정을 지원하는 PipelineExecutor를 찾을 수 없습니다: " + configuration.getSteps()));
     }
 
     private <T extends DomainContext> String extractDomainHint(AIRequest<T> request) {
-        
+
         String contextTypeName = request.getContext().getClass().getSimpleName();
         if (contextTypeName.toLowerCase().contains("iam")) {
             return "IAM";
@@ -197,13 +197,13 @@ public class PipelineOrchestrator {
         if (operation.contains("Streaming")) {
             return "STREAMING-UNIVERSAL";
         }
-        
+
         return "UNIVERSAL";
     }
 
     private boolean isDomainMatch(PipelineExecutor executor, String domainHint) {
         String executorDomain = executor.getSupportedDomain();
-        
+
         if (executorDomain.equalsIgnoreCase(domainHint)) {
             return true;
         }
@@ -218,62 +218,62 @@ public class PipelineOrchestrator {
             Throwable error) {
 
         log.error("[Orchestrator] Pipeline 실행 실패, Fallback 응답 생성: {} - {}",
-                 request.getRequestId(), error.getMessage(), error);
+                request.getRequestId(), error.getMessage(), error);
 
         try {
             R response;
 
             if (responseType.equals(SoarResponse.class)) {
                 SoarResponse soarResponse = new SoarResponse(
-                    request.getRequestId(),
-                    AIResponse.ExecutionStatus.FAILURE
+                        request.getRequestId(),
+                        AIResponse.ExecutionStatus.FAILURE
                 );
 
                 soarResponse.withError("Pipeline execution failed: " + error.getMessage())
-                    .withConfidenceScore(0.0)
-                    .withMetadata("errorType", error.getClass().getSimpleName())
-                    .withMetadata("timestamp", System.currentTimeMillis());
+                        .withConfidenceScore(0.0)
+                        .withMetadata("errorType", error.getClass().getSimpleName())
+                        .withMetadata("timestamp", System.currentTimeMillis());
 
                 soarResponse.setAnalysisResult("Failed to complete SOAR analysis due to pipeline error: " + error.getMessage());
                 soarResponse.setSummary("Pipeline execution failed");
                 soarResponse.setRecommendations(List.of(
-                    "Review pipeline configuration",
-                    "Check model availability and API keys",
-                    "Verify context retrieval settings",
-                    "Retry the operation"
+                        "Review pipeline configuration",
+                        "Check model availability and API keys",
+                        "Verify context retrieval settings",
+                        "Retry the operation"
                 ));
                 soarResponse.setSessionState(SessionState.ERROR);
                 soarResponse.setExecutedTools(List.of());
 
                 response = (R) soarResponse;
-                            } else {
-                
+            } else {
+
                 try {
-                    
+
                     response = responseType.getDeclaredConstructor().newInstance();
                     response.withError("Pipeline execution failed: " + error.getMessage())
-                        .withConfidenceScore(0.0)
-                        .withMetadata("errorType", error.getClass().getSimpleName());
-                                    } catch (NoSuchMethodException e) {
-                    
+                            .withConfidenceScore(0.0)
+                            .withMetadata("errorType", error.getClass().getSimpleName());
+                } catch (NoSuchMethodException e) {
+
                     try {
                         response = responseType.getDeclaredConstructor(String.class, AIResponse.ExecutionStatus.class)
-                            .newInstance(request.getRequestId(), AIResponse.ExecutionStatus.FAILURE);
+                                .newInstance(request.getRequestId(), AIResponse.ExecutionStatus.FAILURE);
                         response.withError("Pipeline execution failed: " + error.getMessage());
-                                            } catch (Exception ex) {
+                    } catch (Exception ex) {
                         log.error("[Orchestrator] Fallback 응답 생성 실패 - 적절한 생성자를 찾을 수 없음", ex);
                         return Mono.error(new RuntimeException(
-                            "Failed to create fallback response - no suitable constructor found for " + responseType.getSimpleName(), ex));
+                                "Failed to create fallback response - no suitable constructor found for " + responseType.getSimpleName(), ex));
                     }
                 }
             }
 
-                        return Mono.just(response);
+            return Mono.just(response);
 
         } catch (Exception e) {
             log.error("[Orchestrator] Fallback 응답 생성 중 예외 발생", e);
             return Mono.error(new RuntimeException(
-                "Failed to create fallback response for " + responseType.getSimpleName() + ": " + e.getMessage(), e));
+                    "Failed to create fallback response for " + responseType.getSimpleName() + ": " + e.getMessage(), e));
         }
     }
 
