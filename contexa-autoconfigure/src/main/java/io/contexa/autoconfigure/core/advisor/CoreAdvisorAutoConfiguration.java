@@ -1,23 +1,20 @@
 package io.contexa.autoconfigure.core.advisor;
 
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
+import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 
-import jakarta.annotation.PostConstruct;
 import java.util.List;
 
 @Slf4j
