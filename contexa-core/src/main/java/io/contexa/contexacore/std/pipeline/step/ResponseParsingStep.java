@@ -50,7 +50,7 @@ public class ResponseParsingStep implements PipelineStep {
             String llmResponse = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, String.class);
             
             if (llmResponse == null || llmResponse.trim().isEmpty()) {
-                log.warn("[{}] LLM 응답이 비어있음", getStepName());
+                log.error("[{}] LLM response is empty", getStepName());
                 return createFallbackResponse(request, context);
             }
             
@@ -90,12 +90,12 @@ public class ResponseParsingStep implements PipelineStep {
                             Object result = converter.convert(cleanJson);
                                                         return result;
                         } catch (Exception beanEx) {
-                            log.error("[{}] BeanOutputConverter 실패 ({}): {}",
+                            log.error("[{}] BeanOutputConverter failed ({}): {}",
                                     getStepName(), targetClass.getSimpleName(), beanEx.getMessage());
 
-                                                        MapOutputConverter mapConverter = new MapOutputConverter();
+                            MapOutputConverter mapConverter = new MapOutputConverter();
                             Map<String, Object> mapResult = mapConverter.convert(cleanJson);
-                            log.warn("[{}] Map으로 변환 성공 (Bean 변환 실패)", getStepName());
+                            log.error("[{}] Converted to Map successfully (Bean conversion failed)", getStepName());
                             return mapResult;
                         }
                     }
@@ -116,15 +116,15 @@ public class ResponseParsingStep implements PipelineStep {
             }
             
         } catch (Exception e) {
-            log.error("[{}] Spring AI 변환 실패: {}", getStepName(), e.getMessage());
-            log.error("[{}] 상세 오류 정보: ", getStepName(), e);
+            log.error("[{}] Spring AI conversion failed: {}", getStepName(), e.getMessage());
+            log.error("[{}] Detailed error: ", getStepName(), e);
 
             try {
                 String fallbackJson = extractJson(response);
-                log.warn("[{}] 폴백: JSON 문자열 그대로 반환 (변환 실패)", getStepName());
+                log.error("[{}] Fallback: Returning JSON string as-is (conversion failed)", getStepName());
                 return fallbackJson;
             } catch (Exception fallbackError) {
-                log.error("[{}] 최종 폴백 실패: {}", getStepName(), fallbackError.getMessage());
+                log.error("[{}] Final fallback failed: {}", getStepName(), fallbackError.getMessage());
                 return response;
             }
         }
@@ -143,7 +143,7 @@ public class ResponseParsingStep implements PipelineStep {
             cleaned.toLowerCase().contains("json structure") ||
             cleaned.toLowerCase().contains("json format")) {
             
-            log.warn("[{}] AI가 JSON을 설명하는 텍스트를 반환함. JSON 추출 시도...", getStepName());
+            log.error("[{}] AI returned text describing JSON. Attempting JSON extraction...", getStepName());
 
             int jsonStart = -1;
             int jsonEnd = -1;
@@ -305,7 +305,7 @@ public class ResponseParsingStep implements PipelineStep {
     }
 
     private Object createFallbackResponse(AIRequest<?> request, PipelineExecutionContext context) {
-        log.warn("[{}] Fallback 응답 생성", getStepName());
+        log.error("[{}] Creating fallback response", getStepName());
         
         DefaultAIResponse fallback = new DefaultAIResponse(
             request.getRequestId() != null ? request.getRequestId() : "unknown",
@@ -323,6 +323,11 @@ public class ResponseParsingStep implements PipelineStep {
     @Override
     public String getStepName() {
         return "RESPONSE_PARSING";
+    }
+
+    @Override
+    public PipelineConfiguration.PipelineStep getConfigStep() {
+        return PipelineConfiguration.PipelineStep.RESPONSE_PARSING;
     }
 
     @Override

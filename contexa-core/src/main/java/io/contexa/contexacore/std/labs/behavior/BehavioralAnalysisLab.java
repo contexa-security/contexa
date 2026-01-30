@@ -12,7 +12,6 @@ import io.contexa.contexacore.std.labs.AbstractAILab;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
-import io.opentelemetry.api.trace.Tracer;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -29,13 +28,12 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
     private final AINativeProcessor aiNativeProcessor; 
 
     public BehavioralAnalysisLab(
-            Tracer tracer,
-            AINativeProcessor aiNativeProcessor, 
+            AINativeProcessor aiNativeProcessor,
             PipelineOrchestrator orchestrator,
             BehavioralAnalysisContextRetriever contextRetriever,
             BehaviorVectorService behaviorVectorService) {
-        super("BehavioralAnalysis", tracer);
-        this.aiNativeProcessor = aiNativeProcessor; 
+        super("BehavioralAnalysis");
+        this.aiNativeProcessor = aiNativeProcessor;
         this.orchestrator = orchestrator;
         this.behaviorVectorService = behaviorVectorService;
     }

@@ -1,6 +1,5 @@
 package io.contexa.contexaiam.aiam.labs;
 
-import io.opentelemetry.api.trace.Tracer;
 import io.contexa.contexacore.std.labs.AbstractAILab;
 import io.contexa.contexacommon.domain.LabSpecialization;
 import lombok.extern.slf4j.Slf4j;
@@ -11,8 +10,8 @@ public abstract class AbstractIAMLab<Req,Res> extends AbstractAILab<Req, Res> im
     private final String labVersion;
     private final LabSpecialization specialization;
 
-    protected AbstractIAMLab(Tracer tracer, String labName, String labVersion, LabSpecialization specialization) {
-        super(labName, tracer);  
+    protected AbstractIAMLab(String labName, String labVersion, LabSpecialization specialization) {
+        super(labName);
         this.labVersion = labVersion;
         this.specialization = specialization;
     }

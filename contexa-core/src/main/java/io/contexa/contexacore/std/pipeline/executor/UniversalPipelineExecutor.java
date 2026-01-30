@@ -7,28 +7,40 @@ import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.step.*;
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Scope;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 
 @Slf4j
 public class UniversalPipelineExecutor implements PipelineExecutor {
 
-    private final Tracer tracer;
+    private static final Set<PipelineConfiguration.PipelineStep> PRE_STREAMING_STEPS = EnumSet.of(
+            PipelineConfiguration.PipelineStep.PREPROCESSING,
+            PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
+            PipelineConfiguration.PipelineStep.PROMPT_GENERATION
+    );
+
+    private static final Set<PipelineConfiguration.PipelineStep> SUPPORTED_STEPS = EnumSet.of(
+            PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
+            PipelineConfiguration.PipelineStep.PREPROCESSING,
+            PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
+            PipelineConfiguration.PipelineStep.LLM_EXECUTION,
+            PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION,
+            PipelineConfiguration.PipelineStep.RESPONSE_PARSING,
+            PipelineConfiguration.PipelineStep.POSTPROCESSING
+    );
+
     protected final List<PipelineStep> steps;
     private final LLMExecutionStep llmExecutionStep;
     private final PipelineStep soarToolExecutionStep;
     private final FinalResponseBuilder responseBuilder;
 
     public UniversalPipelineExecutor(
-            Tracer tracer,
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
             PromptGenerationStep promptGenerationStep,
@@ -37,7 +49,6 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             ResponseParsingStep responseParsingStep,
             PostprocessingStep postprocessingStep) {
 
-        this.tracer = tracer;
         this.llmExecutionStep = llmExecutionStep;
         this.soarToolExecutionStep = soarToolExecutionStep;
 
@@ -61,35 +72,14 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             PipelineConfiguration<T> configuration,
             Class<R> responseType) {
 
-        long pipelineStartTime = System.currentTimeMillis();
-
-        Span span = tracer.spanBuilder("pipeline.execute")
-                .setAttribute("request.id", request.getRequestId())
-                .setAttribute("domain", getSupportedDomain())
-                .setAttribute("response.type", responseType.getSimpleName())
-                .startSpan();
-
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         context.addMetadata("targetResponseType", responseType);
 
-        try (Scope scope = span.makeCurrent()) {
-            return executeStepsSequentially(request, configuration, context, responseType)
-                    .map(ctx -> responseBuilder.build(request, ctx, responseType))
-                    .doOnSuccess(response -> {
-                        long totalTime = System.currentTimeMillis() - pipelineStartTime;
-                        span.setAttribute("duration.ms", totalTime);
-                        span.setStatus(StatusCode.OK);
-                    })
-                    .doOnError(error -> {
-                        long totalTime = System.currentTimeMillis() - pipelineStartTime;
-                        span.setAttribute("duration.ms", totalTime);
-                        span.recordException(error);
-                        span.setStatus(StatusCode.ERROR, error.getMessage());
-                        log.error("[PIPELINE] Pipeline failed - Request: {} Duration: {}ms - {}",
-                                request.getRequestId(), totalTime, error.getMessage(), error);
-                    })
-                    .doFinally(signalType -> span.end());
-        }
+        return executeStepsSequentially(request, configuration, context, responseType)
+                .map(ctx -> responseBuilder.build(request, ctx, responseType))
+                .doOnError(error ->
+                        log.error("[PIPELINE] Pipeline failed - Request: {} - {}",
+                                request.getRequestId(), error.getMessage(), error));
     }
 
     @Override
@@ -135,30 +125,13 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 pipeline = pipeline.flatMap(ctx -> {
                     long stepStart = System.currentTimeMillis();
 
-                    Span stepSpan = tracer.spanBuilder("pipeline.step." + stepName)
-                            .setAttribute("step.name", stepName)
-                            .setAttribute("step.order", stepOrder)
-                            .setAttribute("request.id", request.getRequestId())
-                            .startSpan();
-
-                    try (Scope stepScope = stepSpan.makeCurrent()) {
-                        return actualStep.execute(request, ctx)
-                                .thenReturn(ctx)
-                                .doOnSuccess(c -> {
-                                    long stepTime = System.currentTimeMillis() - stepStart;
-                                    stepSpan.setAttribute("step.duration.ms", stepTime);
-                                    stepSpan.setStatus(StatusCode.OK);
-                                })
-                                .doOnError(error -> {
-                                    long stepTime = System.currentTimeMillis() - stepStart;
-                                    stepSpan.setAttribute("step.duration.ms", stepTime);
-                                    stepSpan.recordException(error);
-                                    stepSpan.setStatus(StatusCode.ERROR, error.getMessage());
-                                    log.error("[PIPELINE] STEP {} failed: {} ({}ms) - {}",
-                                            stepOrder, stepName, stepTime, error.getMessage());
-                                })
-                                .doFinally(signalType -> stepSpan.end());
-                    }
+                    return actualStep.execute(request, ctx)
+                            .thenReturn(ctx)
+                            .doOnError(error -> {
+                                long stepTime = System.currentTimeMillis() - stepStart;
+                                log.error("[PIPELINE] STEP {} failed: {} ({}ms) - {}",
+                                        stepOrder, stepName, stepTime, error.getMessage());
+                            });
                 });
             }
         }
@@ -174,8 +147,12 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
-        for (PipelineStep step : steps.subList(0, Math.min(3, steps.size()))) {
+        for (PipelineStep step : steps) {
             PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step, isSoar);
+
+            if (!PRE_STREAMING_STEPS.contains(configStep)) {
+                continue;
+            }
 
             if (configuration.hasStep(configStep) && step.canExecute(request)) {
                 final String stepName = step.getStepName();
@@ -193,20 +170,10 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     }
 
     protected PipelineConfiguration.PipelineStep getConfigStepForStep(PipelineStep step, boolean isSoar) {
-        if (step.getStepName().equals("LLM_EXECUTION") && isSoar) {
+        if (step.getConfigStep() == PipelineConfiguration.PipelineStep.LLM_EXECUTION && isSoar) {
             return PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION;
         }
-
-        return switch (step.getStepName()) {
-            case "CONTEXT_RETRIEVAL" -> PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL;
-            case "PREPROCESSING" -> PipelineConfiguration.PipelineStep.PREPROCESSING;
-            case "PROMPT_GENERATION" -> PipelineConfiguration.PipelineStep.PROMPT_GENERATION;
-            case "LLM_EXECUTION" -> PipelineConfiguration.PipelineStep.LLM_EXECUTION;
-            case "SOAR_TOOL_EXECUTION" -> PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION;
-            case "RESPONSE_PARSING" -> PipelineConfiguration.PipelineStep.RESPONSE_PARSING;
-            case "POSTPROCESSING" -> PipelineConfiguration.PipelineStep.POSTPROCESSING;
-            default -> throw new IllegalArgumentException("Unknown step: " + step.getStepName());
-        };
+        return step.getConfigStep();
     }
 
     @Override
@@ -216,14 +183,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
     @Override
     public <T extends DomainContext> boolean supportsConfiguration(PipelineConfiguration<T> configuration) {
-        return configuration.getSteps().stream()
-                .allMatch(step -> step == PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL ||
-                        step == PipelineConfiguration.PipelineStep.PREPROCESSING ||
-                        step == PipelineConfiguration.PipelineStep.PROMPT_GENERATION ||
-                        step == PipelineConfiguration.PipelineStep.LLM_EXECUTION ||
-                        step == PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION ||
-                        step == PipelineConfiguration.PipelineStep.RESPONSE_PARSING ||
-                        step == PipelineConfiguration.PipelineStep.POSTPROCESSING);
+        return SUPPORTED_STEPS.containsAll(configuration.getSteps());
     }
 
     @Override

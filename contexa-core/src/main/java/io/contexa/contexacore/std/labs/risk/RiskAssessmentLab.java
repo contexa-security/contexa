@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.labs.risk;
 
-import io.opentelemetry.api.trace.Tracer;
 import io.contexa.contexacore.std.labs.AbstractAILab;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
@@ -36,18 +35,16 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
     private static final double MIN_CONFIDENCE_THRESHOLD = 0.7;
 
     @Autowired
-    public RiskAssessmentLab(Tracer tracer,
-                             AINativeProcessor ainativeProcessor,
+    public RiskAssessmentLab(AINativeProcessor ainativeProcessor,
                              PipelineOrchestrator orchestrator,
                              RiskContextEnricher contextEnricher,
                              RiskAssessmentVectorService vectorService) {
-        super("RiskAssessment", tracer);
+        super("RiskAssessment");
 
         this.orchestrator = orchestrator;
         this.contextEnricher = contextEnricher;
         this.vectorService = vectorService;
-
-                                            }
+    }
 
     @Override
     public boolean supportsStreaming() {

@@ -19,54 +19,45 @@ import java.util.Optional;
 
 @Slf4j
 public class PostprocessingStep implements PipelineStep {
-    
+
     private final List<DomainResponseProcessor> domainProcessors;
-    
+
     @Autowired
     public PostprocessingStep(Optional<List<DomainResponseProcessor>> processors) {
         this.domainProcessors = processors
-            .orElse(List.of())
-            .stream()
-            .sorted(Comparator.comparingInt(DomainResponseProcessor::getOrder))
-            .toList();
-        
-            }
-    
+                .orElse(List.of())
+                .stream()
+                .sorted(Comparator.comparingInt(DomainResponseProcessor::getOrder))
+                .toList();
+
+    }
+
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
         return Mono.fromCallable(() -> {
 
             Class<?> targetResponseType = context.getMetadata("targetResponseType", Class.class);
             if (targetResponseType != null) {
-                            }
+            }
 
             Object parsedResponse = context.getStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, Object.class);
 
-            if (parsedResponse == null || 
-                (parsedResponse instanceof String && ((String)parsedResponse).trim().isEmpty())) {
-                log.warn("[{}] 응답이 비어있음, 향상된 기본 응답 생성", getStepName());
+            if (parsedResponse == null ||
+                    (parsedResponse instanceof String && ((String) parsedResponse).trim().isEmpty())) {
+                log.error("[{}] Response is empty, creating enhanced fallback response", getStepName());
                 return createEnhancedFallbackResponse(request, context);
             }
-
-            if (parsedResponse != null) {
-                
-                Object wrappedResponse = parsedResponse;
-
-                if (targetResponseType != null && targetResponseType.isInstance(parsedResponse)) {
-                                        
-                    wrappedResponse = parsedResponse;
-                } else {
-                    
-                    wrappedResponse = tryWrapWithDomainProcessor(parsedResponse, request, context);
-                }
-
-                enrichWithMetadata(wrappedResponse, request, context);
-                context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, wrappedResponse);
-                return wrappedResponse;
+            Object wrappedResponse;
+            if (targetResponseType != null && targetResponseType.isInstance(parsedResponse)) {
+                wrappedResponse = parsedResponse;
+            } else {
+                wrappedResponse = tryWrapWithDomainProcessor(parsedResponse, request, context);
             }
 
-            log.warn("[{}] 응답이 없음, 기본 응답 생성", getStepName());
-            return createMinimalFallbackResponse(request, context);
+            enrichWithMetadata(wrappedResponse, request, context);
+            context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, wrappedResponse);
+            return wrappedResponse;
+
         });
     }
 
@@ -76,37 +67,35 @@ public class PostprocessingStep implements PipelineStep {
         String templateKey = PromptGenerator.determineTemplateKey(request);
 
         if (templateKey == null) {
-                        return parsedResponse;
+            return parsedResponse;
         }
 
         for (DomainResponseProcessor processor : domainProcessors) {
-            if (processor.supports(templateKey) || 
-                processor.supportsType(parsedResponse.getClass())) {
-                
+            if (processor.supports(templateKey) ||
+                    processor.supportsType(parsedResponse.getClass())) {
+
                 try {
-                    Object wrappedResponse = processor.wrapResponse(
-                        parsedResponse, 
-                        context
+                    return processor.wrapResponse(
+                            parsedResponse,
+                            context
                     );
-                    
-                                        return wrappedResponse;
-                    
+
                 } catch (Exception e) {
-                    log.error("도메인 프로세서 실행 실패: {}", e.getMessage(), e);
+                    log.error("[{}] Domain processor execution failed: {}", getStepName(), e.getMessage(), e);
                 }
             }
         }
-        
-                return parsedResponse;
+
+        return parsedResponse;
     }
 
     private void enrichWithMetadata(Object response, AIRequest<?> request, PipelineExecutionContext context) {
-        
+
         Long startTime = context.getMetadata("startTime", Long.class);
         if (startTime != null) {
             long executionTime = System.currentTimeMillis() - startTime;
             context.addMetadata("executionTimeMs", executionTime);
-                    }
+        }
 
         context.addMetadata("status", "SUCCESS");
         context.addMetadata("completedAt", System.currentTimeMillis());
@@ -114,25 +103,25 @@ public class PostprocessingStep implements PipelineStep {
 
     private Object createMinimalFallbackResponse(AIRequest<?> request, PipelineExecutionContext context) {
         DefaultAIResponse fallback = new DefaultAIResponse(
-            request.getRequestId() != null ? request.getRequestId() : "unknown",
-            "{\"status\":\"no_response\"}"
+                request.getRequestId() != null ? request.getRequestId() : "unknown",
+                "{\"status\":\"no_response\"}"
         );
-        
+
         context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, fallback);
         context.addMetadata("status", "FALLBACK");
-        
+
         return fallback;
     }
 
     private Object createEnhancedFallbackResponse(AIRequest<?> request, PipelineExecutionContext context) {
-        
+
         String error = context.getMetadata("error", String.class);
         String lastStage = context.getMetadata("lastCompletedStage", String.class);
         Long startTime = context.getMetadata("startTime", Long.class);
 
-        String message = error != null ? error : "분석 결과를 생성할 수 없습니다";
+        String message = error != null ? error : "Unable to generate analysis result";
         if (lastStage != null) {
-            message += " (마지막 완료 단계: " + lastStage + ")";
+            message += " (Last completed stage: " + lastStage + ")";
         }
 
         Map<String, Object> fallbackData = new HashMap<>();
@@ -146,40 +135,45 @@ public class PostprocessingStep implements PipelineStep {
         if (startTime != null) {
             fallbackData.put("processingTimeMs", System.currentTimeMillis() - startTime);
         }
-        
+
         try {
-            
+
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             String jsonResponse = mapper.writeValueAsString(fallbackData);
-            
+
             DefaultAIResponse fallback = new DefaultAIResponse(
-                request.getRequestId() != null ? request.getRequestId() : "unknown",
-                jsonResponse
+                    request.getRequestId() != null ? request.getRequestId() : "unknown",
+                    jsonResponse
             );
-            
+
             context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, fallback);
             context.addMetadata("status", "FALLBACK");
-            
+
             return fallback;
         } catch (Exception e) {
-            log.error("Fallback 응답 생성 실패", e);
-            
+            log.error("[{}] Failed to create fallback response", getStepName(), e);
+
             return createMinimalFallbackResponse(request, context);
         }
     }
-    
+
     @Override
     public String getStepName() {
         return "POSTPROCESSING";
     }
-    
+
+    @Override
+    public PipelineConfiguration.PipelineStep getConfigStep() {
+        return PipelineConfiguration.PipelineStep.POSTPROCESSING;
+    }
+
     @Override
     public <T extends DomainContext> boolean canExecute(AIRequest<T> request) {
         return request != null;
     }
-    
+
     @Override
     public int getOrder() {
-        return 6; 
+        return 6;
     }
 }

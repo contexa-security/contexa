@@ -1,9 +1,5 @@
 package io.contexa.contexacore.std.advisor.core;
 
-import io.opentelemetry.api.trace.Span;
-import io.opentelemetry.api.trace.StatusCode;
-import io.opentelemetry.api.trace.Tracer;
-import io.opentelemetry.context.Scope;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
@@ -20,8 +16,6 @@ import java.util.Map;
 @Getter
 public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
-    protected final Tracer tracer;
-
     protected final String domain;
 
     protected final String name;
@@ -30,8 +24,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
     protected boolean enabled = true;
 
-    protected BaseAdvisor(Tracer tracer, String domain, String name, int order) {
-        this.tracer = tracer;
+    protected BaseAdvisor(String domain, String name, int order) {
         this.domain = domain;
         this.name = name;
         this.order = order;
@@ -55,15 +48,7 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
         long startTime = System.currentTimeMillis();
 
-        Span span = tracer.spanBuilder("advisor.adviseCall")
-                .setAttribute("advisor.domain", domain)
-                .setAttribute("advisor.name", name)
-                .setAttribute("advisor.order", order)
-                .setAttribute("advisor.fullname", getName())
-                .startSpan();
-
-        try (Scope scope = span.makeCurrent()) {
-
+        try {
             request = beforeCall(request);
 
             enrichContext(request.context());
@@ -72,20 +57,11 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
 
             response = afterCall(response, request);
 
-            long duration = System.currentTimeMillis() - startTime;
-            span.setAttribute("advisor.duration.ms", duration);
-            span.setStatus(StatusCode.OK);
-
             return response;
 
         } catch (AdvisorException e) {
-
             long duration = System.currentTimeMillis() - startTime;
-            span.setAttribute("advisor.duration.ms", duration);
-            span.recordException(e);
-            span.setStatus(StatusCode.ERROR, e.getMessage());
-
-            log.error("[{}] Advisor error: {}", getName(), e.getMessage());
+            log.error("[{}] Advisor error after {}ms: {}", getName(), duration, e.getMessage());
 
             if (e.isBlocking()) {
                 return handleBlockingError(e, request);
@@ -94,7 +70,6 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
             }
 
         } catch (Exception e) {
-
             log.error("[{}] Unexpected error", getName(), e);
 
             request.context().put(getName() + ".error", e.getMessage());
@@ -109,7 +84,6 @@ public abstract class BaseAdvisor implements CallAdvisor, StreamAdvisor {
         }
 
         try {
-
             ChatClientRequest finalRequest = beforeStream(request);
 
             enrichContext(finalRequest.context());

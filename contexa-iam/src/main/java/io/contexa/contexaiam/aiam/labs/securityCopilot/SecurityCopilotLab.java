@@ -48,16 +48,16 @@ public class SecurityCopilotLab extends AbstractIAMLab<SecurityCopilotRequest, S
 
     private final ConcurrentHashMap<String, DiagnosisSession> activeSessions = new ConcurrentHashMap<>();
 
-    public SecurityCopilotLab(io.opentelemetry.api.trace.Tracer tracer,
-                              PipelineOrchestrator orchestrator, AILabFactory labFactory,
+    public SecurityCopilotLab(PipelineOrchestrator orchestrator,
+                              AILabFactory labFactory,
                               ObjectMapper objectMapper,
                               SecurityCopilotVectorService vectorService) {
-        super(tracer, "SecurityCopilot", "3.0", LabSpecialization.SECURITY_INTELLIGENCE);
+        super("SecurityCopilot", "3.0", LabSpecialization.SECURITY_INTELLIGENCE);
         this.orchestrator = orchestrator;
         this.labFactory = labFactory;
         this.objectMapper = objectMapper;
         this.vectorService = vectorService;
-            }
+    }
 
     @Override
     public boolean supportsStreaming() {

@@ -32,16 +32,14 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
     private final IAMDataCollectionService dataCollectionService;
     private final PolicyGenerationVectorService vectorService;
 
-    public AdvancedPolicyGenerationLab(io.opentelemetry.api.trace.Tracer tracer,
-                                       PipelineOrchestrator orchestrator,
+    public AdvancedPolicyGenerationLab(PipelineOrchestrator orchestrator,
                                        IAMDataCollectionService dataCollectionService,
                                        PolicyGenerationVectorService vectorService) {
-        super(tracer, "AdvancedPolicyGenerationLab", "2.0.0", LabSpecialization.POLICY_GENERATION);
+        super("AdvancedPolicyGenerationLab", "2.0.0", LabSpecialization.POLICY_GENERATION);
         this.orchestrator = orchestrator;
         this.dataCollectionService = dataCollectionService;
         this.vectorService = vectorService;
-
-            }
+    }
 
     @Override
     public boolean supportsStreaming() {

@@ -28,12 +28,11 @@ public class AccessGovernanceLab extends AbstractIAMLab<AccessGovernanceRequest,
     private final ApplicationEventPublisher eventPublisher;
 
     public AccessGovernanceLab(
-            io.opentelemetry.api.trace.Tracer tracer,
             PipelineOrchestrator orchestrator,
             AccessGovernanceContextRetriever contextRetriever,
             AccessVectorService accessVectorService,
             ApplicationEventPublisher eventPublisher) {
-        super(tracer, "AccessGovernance", "1.0", LabSpecialization.SECURITY_ANALYSIS);
+        super("AccessGovernance", "1.0", LabSpecialization.SECURITY_ANALYSIS);
         this.orchestrator = orchestrator;
         this.accessVectorService = accessVectorService;
         this.eventPublisher = eventPublisher;

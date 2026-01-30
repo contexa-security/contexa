@@ -48,7 +48,6 @@ import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import io.contexa.contexacore.std.strategy.BehavioralAnalysisDiagnosisStrategy;
 import io.contexa.contexacore.std.strategy.RiskAssessmentDiagnosisStrategy;
-import io.opentelemetry.api.trace.Tracer;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -73,8 +72,8 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityContextAdvisor securityContextAdvisor(Tracer tracer) {
-        return new SecurityContextAdvisor(tracer);
+    public SecurityContextAdvisor securityContextAdvisor() {
+        return new SecurityContextAdvisor();
     }
 
     @Bean
@@ -147,12 +146,11 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public BehavioralAnalysisLab behavioralAnalysisLab(
-            Tracer tracer,
             AINativeProcessor aiNativeProcessor,
             PipelineOrchestrator pipelineOrchestrator,
             BehavioralAnalysisContextRetriever behavioralAnalysisContextRetriever,
             BehaviorVectorService behaviorVectorService) {
-        return new BehavioralAnalysisLab(tracer, aiNativeProcessor, pipelineOrchestrator,
+        return new BehavioralAnalysisLab(aiNativeProcessor, pipelineOrchestrator,
                 behavioralAnalysisContextRetriever, behaviorVectorService);
     }
 
@@ -165,12 +163,11 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public RiskAssessmentLab riskAssessmentLab(
-            Tracer tracer,
             AINativeProcessor aiNativeProcessor,
             PipelineOrchestrator pipelineOrchestrator,
             RiskContextEnricher riskContextEnricher,
             RiskAssessmentVectorService riskAssessmentVectorService) {
-        return new RiskAssessmentLab(tracer, aiNativeProcessor, pipelineOrchestrator, riskContextEnricher,
+        return new RiskAssessmentLab(aiNativeProcessor, pipelineOrchestrator, riskContextEnricher,
                 riskAssessmentVectorService);
     }
 
@@ -221,7 +218,6 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
-            Tracer tracer,
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
             PromptGenerationStep promptGenerationStep,
@@ -231,7 +227,7 @@ public class CoreStdComponentsAutoConfiguration {
             PostprocessingStep postprocessingStep,
             StreamingLLMExecutionStep streamingLLMExecutionStep,
             ObjectMapper objectMapper) {
-        return new StreamingUniversalPipelineExecutor(tracer, contextRetrievalStep, preprocessingStep,
+        return new StreamingUniversalPipelineExecutor(contextRetrievalStep, preprocessingStep,
                 promptGenerationStep, llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep,
                 streamingLLMExecutionStep, objectMapper);
     }
@@ -239,7 +235,6 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public UniversalPipelineExecutor universalPipelineExecutor(
-            Tracer tracer,
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
             PromptGenerationStep promptGenerationStep,
@@ -247,7 +242,7 @@ public class CoreStdComponentsAutoConfiguration {
             @Qualifier("pipelineSoarToolExecutionStep") @Autowired(required = false) PipelineStep pipelineStep,
             ResponseParsingStep responseParsingStep,
             PostprocessingStep postprocessingStep) {
-        return new UniversalPipelineExecutor(tracer, contextRetrievalStep, preprocessingStep, promptGenerationStep,
+        return new UniversalPipelineExecutor(contextRetrievalStep, preprocessingStep, promptGenerationStep,
                 llmExecutionStep, pipelineStep, responseParsingStep, postprocessingStep);
     }
 

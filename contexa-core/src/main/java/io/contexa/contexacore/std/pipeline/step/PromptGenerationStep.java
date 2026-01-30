@@ -77,7 +77,12 @@ public class PromptGenerationStep implements PipelineStep {
     public String getStepName() {
         return "PROMPT_GENERATION";
     }
-    
+
+    @Override
+    public PipelineConfiguration.PipelineStep getConfigStep() {
+        return PipelineConfiguration.PipelineStep.PROMPT_GENERATION;
+    }
+
     @Override
     public <T extends DomainContext> boolean canExecute(AIRequest<T> request) {
         return request != null && promptGenerator != null;

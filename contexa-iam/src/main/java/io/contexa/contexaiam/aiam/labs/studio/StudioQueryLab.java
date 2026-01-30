@@ -31,21 +31,18 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
     private final StudioQueryFormatter queryFormatter;
     private final StudioQueryVectorService vectorService;
 
-    public StudioQueryLab(io.opentelemetry.api.trace.Tracer tracer,
-                          PipelineOrchestrator orchestrator,
+    public StudioQueryLab(PipelineOrchestrator orchestrator,
                           QueryIntentAnalyzer queryIntentAnalyzer,
                           IAMDataCollectionService dataCollectionService,
                           StudioQueryFormatter queryFormatter,
                           StudioQueryVectorService vectorService) {
-        super(tracer, "StudioQuery", "1.0", LabSpecialization.STUDIO_QUERY);
-
+        super("StudioQuery", "1.0", LabSpecialization.STUDIO_QUERY);
         this.orchestrator = orchestrator;
         this.queryIntentAnalyzer = queryIntentAnalyzer;
         this.dataCollectionService = dataCollectionService;
         this.queryFormatter = queryFormatter;
         this.vectorService = vectorService;
-
-            }
+    }
 
     @Override
     public boolean supportsStreaming() {

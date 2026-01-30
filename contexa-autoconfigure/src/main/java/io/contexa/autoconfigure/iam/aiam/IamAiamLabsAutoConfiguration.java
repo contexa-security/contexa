@@ -34,7 +34,6 @@ import io.contexa.contexaiam.aiam.labs.studio.service.StudioQueryFormatter;
 import io.contexa.contexaiam.aiam.labs.synthesis.DynamicThreatResponseSynthesisLab;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.micrometer.core.instrument.MeterRegistry;
-import io.opentelemetry.api.trace.Tracer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -144,86 +143,73 @@ public class IamAiamLabsAutoConfiguration {
         return new LabStreamMerger();
     }
 
-    
+
     @Bean
     @ConditionalOnMissingBean
     public AdvancedPolicyGenerationLab advancedPolicyGenerationLab(
-            Tracer tracer,
             PipelineOrchestrator orchestrator,
             IAMDataCollectionService dataCollectionService,
             PolicyGenerationVectorService vectorService) {
-        return new AdvancedPolicyGenerationLab(
-                tracer, orchestrator, dataCollectionService, vectorService);
+        return new AdvancedPolicyGenerationLab(orchestrator, dataCollectionService, vectorService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public AccessGovernanceLab accessGovernanceLab(
-            Tracer tracer,
             PipelineOrchestrator orchestrator,
             AccessGovernanceContextRetriever contextRetriever,
             AccessVectorService accessVectorService,
             ApplicationEventPublisher eventPublisher) {
-        return new AccessGovernanceLab(
-                tracer, orchestrator, contextRetriever, accessVectorService, eventPublisher);
+        return new AccessGovernanceLab(orchestrator, contextRetriever, accessVectorService, eventPublisher);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public StudioQueryLab studioQueryLab(
-            Tracer tracer,
             PipelineOrchestrator orchestrator,
             QueryIntentAnalyzer queryIntentAnalyzer,
             IAMDataCollectionService dataCollectionService,
             StudioQueryFormatter queryFormatter,
             StudioQueryVectorService vectorService) {
-        return new StudioQueryLab(
-                tracer, orchestrator, queryIntentAnalyzer,
+        return new StudioQueryLab(orchestrator, queryIntentAnalyzer,
                 dataCollectionService, queryFormatter, vectorService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ResourceNamingLab resourceNamingLab(
-            Tracer tracer,
             PipelineOrchestrator orchestrator,
             ResourceNamingVectorService vectorService) {
-        return new ResourceNamingLab(tracer, orchestrator, vectorService);
+        return new ResourceNamingLab(orchestrator, vectorService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ConditionTemplateGenerationLab conditionTemplateGenerationLab(
-            Tracer tracer,
             PipelineOrchestrator orchestrator,
             ConditionTemplateContextRetriever contextRetriever,
             ObjectMapper objectMapper,
             ConditionTemplateVectorService vectorService) {
-        return new ConditionTemplateGenerationLab(
-                tracer, orchestrator, contextRetriever, objectMapper, vectorService);
+        return new ConditionTemplateGenerationLab(orchestrator, contextRetriever, objectMapper, vectorService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public SecurityCopilotLab securityCopilotLab(
-            Tracer tracer,
             PipelineOrchestrator orchestrator,
             AILabFactory labFactory,
             ObjectMapper objectMapper,
             SecurityCopilotVectorService vectorService) {
-        return new SecurityCopilotLab(
-                tracer, orchestrator, labFactory, objectMapper, vectorService);
+        return new SecurityCopilotLab(orchestrator, labFactory, objectMapper, vectorService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public DynamicThreatResponseSynthesisLab dynamicThreatResponseSynthesisLab(
-            Tracer tracer,
             PipelineOrchestrator orchestrator,
             AdvancedPolicyGenerationLab policyGenerationLab,
             IAMDataCollectionService dataCollectionService,
             MeterRegistry meterRegistry) {
-        return new DynamicThreatResponseSynthesisLab(
-                tracer, orchestrator, policyGenerationLab, dataCollectionService, meterRegistry);
+        return new DynamicThreatResponseSynthesisLab(orchestrator, policyGenerationLab, dataCollectionService, meterRegistry);
     }
 }

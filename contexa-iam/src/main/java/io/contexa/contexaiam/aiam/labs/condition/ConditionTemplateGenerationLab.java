@@ -27,18 +27,15 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
     private final ObjectMapper objectMapper;
     private final ConditionTemplateVectorService vectorService;
 
-    public ConditionTemplateGenerationLab(io.opentelemetry.api.trace.Tracer tracer,
-                                          PipelineOrchestrator orchestrator,
+    public ConditionTemplateGenerationLab(PipelineOrchestrator orchestrator,
                                           ConditionTemplateContextRetriever contextRetriever,
                                           ObjectMapper objectMapper,
                                           ConditionTemplateVectorService vectorService) {
-        super(tracer, "ConditionTemplateGeneration", "2.0", LabSpecialization.RECOMMENDATION_SYSTEM);
-
+        super("ConditionTemplateGeneration", "2.0", LabSpecialization.RECOMMENDATION_SYSTEM);
         this.orchestrator = orchestrator;
         this.objectMapper = objectMapper;
         this.vectorService = vectorService;
-
-            }
+    }
 
     @Override
     protected ConditionTemplateGenerationResponse doProcess(ConditionTemplateGenerationRequest request) throws Exception {

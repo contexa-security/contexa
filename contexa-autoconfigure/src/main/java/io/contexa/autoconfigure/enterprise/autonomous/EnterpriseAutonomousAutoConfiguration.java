@@ -51,7 +51,6 @@ import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationServ
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import io.opentelemetry.api.trace.Tracer;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -177,12 +176,11 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionLab policyEvolutionLab(
-            Tracer tracer,
             ChatModel chatModel,
             PolicyEvolutionHelper policyEvolutionHelper,
             LearningEngineHelper learningEngineHelper,
             MemorySystemHelper memorySystemHelper) {
-        return new PolicyEvolutionLab(tracer, chatModel, policyEvolutionHelper, learningEngineHelper,
+        return new PolicyEvolutionLab(chatModel, policyEvolutionHelper, learningEngineHelper,
                 memorySystemHelper);
     }
 

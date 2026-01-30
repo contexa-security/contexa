@@ -1,6 +1,5 @@
 package io.contexa.contexacoreenterprise.soar.lab;
 
-import io.opentelemetry.api.trace.Tracer;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.SoarResponse;
@@ -17,11 +16,10 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
     private final PipelineOrchestrator orchestrator;
 
-    public SoarLabImpl(Tracer tracer, PipelineOrchestrator orchestrator) {
-        super("SoarLab", tracer);
+    public SoarLabImpl(PipelineOrchestrator orchestrator) {
+        super("SoarLab");
         this.orchestrator = orchestrator;
-
-            }
+    }
 
     @Override
     protected SoarResponse doProcess(SoarRequest request) throws Exception {

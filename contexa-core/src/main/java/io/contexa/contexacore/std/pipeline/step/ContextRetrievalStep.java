@@ -25,11 +25,7 @@ public class ContextRetrievalStep implements PipelineStep {
             
             ContextRetriever contextRetriever = contextRetrieverRegistry.getRetriever(request.getContext());
             ContextRetriever.ContextRetrievalResult contextResult = contextRetriever.retrieveContext(request);
-
             context.addStepResult(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL, contextResult);
-
-            String debugContextInfo = contextResult != null ? contextResult.getContextInfo() : "null";
-            
             return contextResult;
         });
     }
@@ -37,6 +33,11 @@ public class ContextRetrievalStep implements PipelineStep {
     @Override
     public String getStepName() {
         return "CONTEXT_RETRIEVAL";
+    }
+
+    @Override
+    public PipelineConfiguration.PipelineStep getConfigStep() {
+        return PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL;
     }
 
     @Override

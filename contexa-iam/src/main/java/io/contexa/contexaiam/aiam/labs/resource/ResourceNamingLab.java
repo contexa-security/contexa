@@ -24,13 +24,12 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     private final ResourceNamingVectorService vectorService;
     private static final int DEFAULT_BATCH_SIZE = 5;
 
-    public ResourceNamingLab(io.opentelemetry.api.trace.Tracer tracer,
-                             PipelineOrchestrator orchestrator,
+    public ResourceNamingLab(PipelineOrchestrator orchestrator,
                              ResourceNamingVectorService vectorService) {
-        super(tracer, "ResourceNaming", "1.0", LabSpecialization.RECOMMENDATION_SYSTEM);
+        super("ResourceNaming", "1.0", LabSpecialization.RECOMMENDATION_SYSTEM);
         this.orchestrator = orchestrator;
         this.vectorService = vectorService;
-            }
+    }
 
     @Override
     protected ResourceNamingSuggestionResponse doProcess(ResourceNamingSuggestionRequest request) throws Exception {

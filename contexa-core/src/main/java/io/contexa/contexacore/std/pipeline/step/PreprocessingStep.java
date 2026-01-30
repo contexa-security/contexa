@@ -42,7 +42,12 @@ public class PreprocessingStep implements PipelineStep {
     public String getStepName() {
         return "PREPROCESSING";
     }
-    
+
+    @Override
+    public PipelineConfiguration.PipelineStep getConfigStep() {
+        return PipelineConfiguration.PipelineStep.PREPROCESSING;
+    }
+
     @Override
     public <T extends DomainContext> boolean canExecute(AIRequest<T> request) {
         return request != null && request.getRequestId() != null;

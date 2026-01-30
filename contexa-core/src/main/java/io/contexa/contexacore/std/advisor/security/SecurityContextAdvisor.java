@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.advisor.security;
 
-import io.opentelemetry.api.trace.Tracer;
 import io.contexa.contexacore.std.advisor.core.AdvisorException;
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,8 +30,8 @@ public class SecurityContextAdvisor extends BaseAdvisor {
     @Value("${contexa.advisor.security.require-authentication:false}")
     private boolean requireAuthentication;
 
-    public SecurityContextAdvisor(Tracer tracer) {
-        super(tracer, DOMAIN_NAME, ADVISOR_NAME, 50);
+    public SecurityContextAdvisor() {
+        super(DOMAIN_NAME, ADVISOR_NAME, 50);
     }
 
     @Override

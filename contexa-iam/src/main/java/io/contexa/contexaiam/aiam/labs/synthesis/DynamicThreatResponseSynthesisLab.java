@@ -43,17 +43,15 @@ public class DynamicThreatResponseSynthesisLab extends AbstractIAMLab<DynamicThr
 
     @Autowired
     public DynamicThreatResponseSynthesisLab(
-            io.opentelemetry.api.trace.Tracer tracer,
             PipelineOrchestrator orchestrator,
             AdvancedPolicyGenerationLab policyGenerationLab,
             IAMDataCollectionService dataCollectionService,
             MeterRegistry meterRegistry) {
-        super(tracer, "DynamicThreatResponseSynthesisLab", "1.0.0", LabSpecialization.POLICY_GENERATION);
+        super("DynamicThreatResponseSynthesisLab", "1.0.0", LabSpecialization.POLICY_GENERATION);
         this.orchestrator = orchestrator;
         this.policyGenerationLab = policyGenerationLab;
         this.dataCollectionService = dataCollectionService;
         this.meterRegistry = meterRegistry;
-
     }
 
     @Override

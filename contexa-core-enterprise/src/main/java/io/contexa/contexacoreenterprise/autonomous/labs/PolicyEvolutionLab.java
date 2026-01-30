@@ -4,7 +4,6 @@ import io.contexa.contexacore.std.labs.AbstractAILab;
 import io.contexa.contexacoreenterprise.autonomous.helper.PolicyEvolutionHelper;
 import io.contexa.contexacoreenterprise.autonomous.helper.LearningEngineHelper;
 import io.contexa.contexacoreenterprise.autonomous.helper.MemorySystemHelper;
-import io.opentelemetry.api.trace.Tracer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -28,19 +27,17 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
 
     @Autowired
     public PolicyEvolutionLab(
-            Tracer tracer,
             ChatModel chatModel,
             PolicyEvolutionHelper policyEvolutionHelper,
             LearningEngineHelper learningEngineHelper,
             MemorySystemHelper memorySystemHelper) {
 
-        super("PolicyEvolutionLab", tracer);
+        super("PolicyEvolutionLab");
         this.chatModel = chatModel;
         this.policyEvolutionHelper = policyEvolutionHelper;
         this.learningEngineHelper = learningEngineHelper;
         this.memorySystemHelper = memorySystemHelper;
-
-            }
+    }
 
     @Override
     public boolean supportsStreaming() {

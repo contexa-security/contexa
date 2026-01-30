@@ -47,8 +47,8 @@ public class LLMExecutionStep implements PipelineStep {
                     .cast(Object.class)
                     .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
                     .onErrorResume(error -> {
-                        log.warn("구조화된 출력 실행 오류. String 폴백 시도. Request: {}", request.getRequestId());
-                        
+                        log.error("[PIPELINE-STEP] Structured output execution failed. Attempting String fallback. Request: {}", request.getRequestId());
+
                         return preparePrompt(context)
                                 .flatMap(llmClient::call)
                                 .doOnSuccess(response -> {
@@ -68,8 +68,8 @@ public class LLMExecutionStep implements PipelineStep {
                 .cast(Object.class)
                 .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
                 .onErrorResume(error -> {
-                    log.warn("LLM 실행 오류 발생. 빈 문자열로 폴백합니다. Request: {}", request.getRequestId());
-                    return Mono.just(""); 
+                    log.error("[PIPELINE-STEP] LLM execution failed. Falling back to empty string. Request: {}", request.getRequestId());
+                    return Mono.just("");
                 });
     }
 
@@ -79,7 +79,7 @@ public class LLMExecutionStep implements PipelineStep {
                 .flatMapMany(prompt -> {
                                         return llmClient.stream(prompt);
                 })
-                .doOnError(error -> log.error("[PIPELINE-STEP] 스트리밍 처리 실패: {}", request.getRequestId(), error));
+                .doOnError(error -> log.error("[PIPELINE-STEP] Streaming execution failed. Request: {}", request.getRequestId(), error));
     }
 
     private Mono<Prompt> preparePrompt(PipelineExecutionContext context) {
@@ -92,8 +92,8 @@ public class LLMExecutionStep implements PipelineStep {
             }
                         return promptResult.getPrompt();
         }).onErrorResume(IllegalStateException.class, e -> {
-            log.warn("[PIPELINE-STEP] {}", e.getMessage());
-            return Mono.empty(); 
+            log.error("[PIPELINE-STEP] {}", e.getMessage());
+            return Mono.empty();
         });
     }
 
@@ -107,12 +107,19 @@ public class LLMExecutionStep implements PipelineStep {
 
     private void logError(String requestId, Throwable error, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
-        log.error("[PIPELINE-STEP] ===== LLM 실행 실패 ===== Request: {}, 총 시간: {}ms, 오류: {}",
+        log.error("[PIPELINE-STEP] LLM execution failed - Request: {}, Duration: {}ms, Error: {}",
                 requestId, totalTime, error.getMessage());
     }
 
     @Override
-    public String getStepName() { return "LLM_EXECUTION"; }
+    public String getStepName() {
+        return "LLM_EXECUTION";
+    }
+
+    @Override
+    public PipelineConfiguration.PipelineStep getConfigStep() {
+        return PipelineConfiguration.PipelineStep.LLM_EXECUTION;
+    }
 
     public LLMClient getLlmClient() {
         return llmClient;

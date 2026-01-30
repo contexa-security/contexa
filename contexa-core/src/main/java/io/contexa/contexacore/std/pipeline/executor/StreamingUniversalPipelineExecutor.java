@@ -1,11 +1,11 @@
 package io.contexa.contexacore.std.pipeline.executor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.opentelemetry.api.trace.Tracer;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.step.*;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingPipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
@@ -25,7 +25,6 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
     private final ObjectMapper objectMapper;
 
     public StreamingUniversalPipelineExecutor(
-            Tracer tracer,
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
             PromptGenerationStep promptGenerationStep,
@@ -36,7 +35,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
             StreamingLLMExecutionStep streamingLLMStep,
             ObjectMapper objectMapper) {
 
-        super(tracer, contextRetrievalStep, preprocessingStep, promptGenerationStep,
+        super(contextRetrievalStep, preprocessingStep, promptGenerationStep,
                 llmExecutionStep, soarToolExecutionStep, responseParsingStep, postprocessingStep);
 
         this.objectMapper = objectMapper;
@@ -82,7 +81,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
                     if (finalResponse != null) {
                         try {
                             String jsonResponse = objectMapper.writeValueAsString(finalResponse);
-                            sink.tryEmitNext("###FINAL_RESPONSE###" + jsonResponse);
+                            sink.tryEmitNext(StreamingProtocol.FINAL_RESPONSE_MARKER + jsonResponse);
                         } catch (Exception e) {
                             log.error("Failed to convert final response to JSON", e);
                         }

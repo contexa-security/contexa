@@ -44,7 +44,6 @@ import io.contexa.contexacore.repository.SoarApprovalRequestRepository;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
-import io.opentelemetry.api.trace.Tracer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -235,10 +234,8 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SoarLabImpl soarLabImpl(
-            Tracer tracer,
-            PipelineOrchestrator orchestrator) {
-        return new SoarLabImpl(tracer, orchestrator);
+    public SoarLabImpl soarLabImpl(PipelineOrchestrator orchestrator) {
+        return new SoarLabImpl(orchestrator);
     }
 
     @Bean
