@@ -2,13 +2,8 @@ package io.contexa.autoconfigure.enterprise.tool;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.autonomous.ThreatEvaluator;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
-import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.soar.SoarLab;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
-import io.contexa.contexacoreenterprise.autonomous.evolution.IntegratedThreatEvaluator;
 import io.contexa.contexacoreenterprise.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
 import io.contexa.contexacoreenterprise.mcp.cache.ToolResultCache;
@@ -45,7 +40,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -57,7 +51,6 @@ import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.EnableAsync;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.*;
@@ -76,15 +69,6 @@ public class EnterpriseToolAutoConfiguration {
     public SoarLab soarLab(@Autowired(required = false) SoarLabImpl impl) {
         if (impl != null) {
             return request -> impl.processAsync(request);
-        }
-        return null;
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ThreatEvaluator threatEvaluator(@Autowired(required = false) IntegratedThreatEvaluator evaluator) {
-        if (evaluator != null) {
-            return evaluator::evaluateIntegrated;
         }
         return null;
     }

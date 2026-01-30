@@ -31,11 +31,6 @@ public class ContextRetrievalStep implements PipelineStep {
     }
 
     @Override
-    public String getStepName() {
-        return "CONTEXT_RETRIEVAL";
-    }
-
-    @Override
     public PipelineConfiguration.PipelineStep getConfigStep() {
         return PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL;
     }

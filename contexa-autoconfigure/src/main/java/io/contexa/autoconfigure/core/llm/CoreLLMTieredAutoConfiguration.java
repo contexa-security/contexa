@@ -8,6 +8,7 @@ import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
 import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
+import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -84,19 +85,19 @@ public class CoreLLMTieredAutoConfiguration {
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, ChatModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.warn("No priority model found. Using {} (fallback)", firstEntry.getKey());
+            log.error("No priority model found. Using {} (fallback)", firstEntry.getKey());
             return firstEntry.getValue();
         }
 
-        log.warn("No ChatModel available. LLM features will be disabled. " +
+        log.error("No ChatModel available. LLM features will be disabled. " +
                 "Configure spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* to enable LLM.");
         return null;
     }
 
     @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
-    public StreamingHandler streamingHandler() {
-        return new DefaultStreamingHandler(tieredLLMProperties);
+    public StreamingHandler streamingHandler(JsonStreamingProcessor jsonStreamingProcessor) {
+        return new DefaultStreamingHandler(tieredLLMProperties, jsonStreamingProcessor);
     }
 
     @Bean
@@ -149,11 +150,11 @@ public class CoreLLMTieredAutoConfiguration {
 
         if (!availableModels.isEmpty()) {
             Map.Entry<String, EmbeddingModel> firstEntry = availableModels.entrySet().iterator().next();
-            log.warn("No priority model found. Using {} (fallback)", firstEntry.getKey());
+            log.error("No priority model found. Using {} (fallback)", firstEntry.getKey());
             return firstEntry.getValue();
         }
 
-        log.warn("No EmbeddingModel available. Embedding features will be disabled. " +
+        log.error("No EmbeddingModel available. Embedding features will be disabled. " +
                 "Configure spring.ai.ollama.* or spring.ai.openai.* to enable embedding.");
         return null;
     }

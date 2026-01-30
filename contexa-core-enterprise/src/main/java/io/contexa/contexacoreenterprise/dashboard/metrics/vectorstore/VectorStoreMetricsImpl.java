@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.dashboard.metrics.vectorstore;
 
+import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacoreenterprise.dashboard.api.DomainMetrics;
 import io.contexa.contexacoreenterprise.dashboard.api.EventRecorder;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
@@ -14,7 +15,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-public class VectorStoreMetrics implements io.contexa.contexacommon.metrics.VectorStoreMetrics, DomainMetrics, EventRecorder {
+public class VectorStoreMetricsImpl implements VectorStoreMetrics, DomainMetrics, EventRecorder {
     
     private final Map<String, LabMetrics> labMetrics = new ConcurrentHashMap<>();
     private final Map<String, List<ErrorRecord>> errorHistory = new ConcurrentHashMap<>();

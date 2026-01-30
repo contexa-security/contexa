@@ -1,11 +1,11 @@
 package io.contexa.contexaiam.aiam.web;
 
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -19,7 +19,7 @@ import java.util.Map;
 @PreAuthorize("hasRole('ADMIN')")
 public class VectorStoreTestController {
 
-    private final StandardVectorStoreService vectorStoreService;
+    private final VectorStore vectorStore;
 
     @PostMapping("/add")
     public ResponseEntity<?> addTestDocument(@RequestBody AddDocumentRequest request) {
@@ -30,7 +30,7 @@ public class VectorStoreTestController {
                 request.getMetadata() != null ? request.getMetadata() : Map.of()
             );
 
-            vectorStoreService.addDocuments(List.of(document));
+            vectorStore.add(List.of(document));
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -57,7 +57,7 @@ public class VectorStoreTestController {
                 .topK(request.getTopK() != null ? request.getTopK() : 5)
                 .build();
 
-            List<Document> results = vectorStoreService.similaritySearch(searchRequest);
+            List<Document> results = vectorStore.similaritySearch(searchRequest);
 
             return ResponseEntity.ok(Map.of(
                 "success", true,
@@ -100,7 +100,7 @@ public class VectorStoreTestController {
                         )
                     );
 
-                    vectorStoreService.addDocuments(List.of(doc));
+                    vectorStore.add(List.of(doc));
                     addCount++;
                     
                 } catch (Exception e) {
@@ -121,7 +121,7 @@ public class VectorStoreTestController {
                         .query(query)
                         .topK(3)
                         .build();
-                    vectorStoreService.similaritySearch(searchRequest);
+                    vectorStore.similaritySearch(searchRequest);
                     searchCount++;
                     
                 } catch (Exception e) {

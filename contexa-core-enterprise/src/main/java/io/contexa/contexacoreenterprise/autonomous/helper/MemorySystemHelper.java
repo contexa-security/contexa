@@ -2,12 +2,14 @@ package io.contexa.contexacoreenterprise.autonomous.helper;
 
 import io.contexa.contexacore.autonomous.MemorySystem;
 import io.contexa.contexacore.domain.VectorDocumentType;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Flux;
@@ -26,7 +28,6 @@ import java.util.stream.Collectors;
 public class MemorySystemHelper implements MemorySystem {
 
     private final UnifiedVectorService unifiedVectorService;
-    private final StandardVectorStoreService standardVectorStoreService;
     private final DistributedStateManager stateManager;
     private final RedisTemplate<String, Object> redisTemplate;
 
@@ -381,9 +382,18 @@ public class MemorySystemHelper implements MemorySystem {
     
     private Mono<MemoryItem> searchInLTM(String key) {
         return Mono.fromCallable(() -> {
-            Map<String, Object> filter = Map.of("key", key);
-            List<Document> results = standardVectorStoreService.searchWithFilter(key, filter);
-            
+            FilterExpressionBuilder builder = new FilterExpressionBuilder();
+            Filter.Expression filter = builder.eq("key", key).build();
+
+            SearchRequest searchRequest = SearchRequest.builder()
+                .query(key)
+                .topK(1)
+                .similarityThreshold(0.7)
+                .filterExpression(filter)
+                .build();
+
+            List<Document> results = unifiedVectorService.searchSimilar(searchRequest);
+
             if (!results.isEmpty()) {
                 totalMemoryReads.incrementAndGet();
                 return documentToMemoryItem(results.get(0));

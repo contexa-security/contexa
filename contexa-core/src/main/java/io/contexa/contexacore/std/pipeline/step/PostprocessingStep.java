@@ -35,11 +35,7 @@ public class PostprocessingStep implements PipelineStep {
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
         return Mono.fromCallable(() -> {
-
             Class<?> targetResponseType = context.getMetadata("targetResponseType", Class.class);
-            if (targetResponseType != null) {
-            }
-
             Object parsedResponse = context.getStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, Object.class);
 
             if (parsedResponse == null ||
@@ -158,18 +154,8 @@ public class PostprocessingStep implements PipelineStep {
     }
 
     @Override
-    public String getStepName() {
-        return "POSTPROCESSING";
-    }
-
-    @Override
     public PipelineConfiguration.PipelineStep getConfigStep() {
         return PipelineConfiguration.PipelineStep.POSTPROCESSING;
-    }
-
-    @Override
-    public <T extends DomainContext> boolean canExecute(AIRequest<T> request) {
-        return request != null;
     }
 
     @Override

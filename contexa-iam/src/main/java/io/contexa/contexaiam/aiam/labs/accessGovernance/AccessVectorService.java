@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.labs.accessGovernance;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexaiam.aiam.protocol.context.AccessGovernanceContext;
 import io.contexa.contexaiam.aiam.protocol.response.AccessGovernanceResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -61,9 +61,9 @@ public class AccessVectorService extends AbstractVectorLabService {
     );
     
     @Autowired
-    public AccessVectorService(StandardVectorStoreService standardVectorStoreService,
+    public AccessVectorService(VectorStore vectorStore,
                               @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        super(standardVectorStoreService, vectorStoreMetrics);
+        super(vectorStore, vectorStoreMetrics);
     }
     
     @Override

@@ -57,7 +57,7 @@ public class SecurityPlaneAuditLogger {
     }
 
     public void auditThreatAssessment(SecurityEvent event, ThreatAssessment assessment,
-                                    String evaluator, String strategy, long processingTimeMs) {
+                                    String evaluator, long processingTimeMs) {
         try {
             
             String action = assessment.getAction() != null ? assessment.getAction() : "ESCALATE";
@@ -68,14 +68,14 @@ public class SecurityPlaneAuditLogger {
                 .resourceIdentifier(event.getEventId())
                 .action("THREAT_ASSESSMENT")
                 .decision(action)  
-                .reason(String.format("Evaluated by %s using %s strategy", evaluator, strategy))
+                .reason(String.format("Evaluated by %s", evaluator))
                 .outcome(String.format("Risk: %.2f, Confidence: %.2f", assessment.getRiskScore(), assessment.getConfidence()))
                 .resourceUri(getResourceFromMetadata(event))
                 .clientIp(event.getSourceIp())
                 .sessionId(event.getSessionId())
                 .status(action)  
-                .parameters(createThreatAssessmentParams(assessment, evaluator, strategy, processingTimeMs))
-                .details(createThreatAssessmentDetails(assessment, evaluator, strategy, processingTimeMs))
+                .parameters(createThreatAssessmentParams(assessment, evaluator, processingTimeMs))
+                .details(createThreatAssessmentDetails(assessment, evaluator, processingTimeMs))
                 .build();
 
             auditLogRepository.save(auditLog);
@@ -225,19 +225,18 @@ public class SecurityPlaneAuditLogger {
     }
 
     private String createThreatAssessmentParams(ThreatAssessment assessment, String evaluator,
-                                              String strategy, long processingTimeMs) {
-        return String.format("evaluator=%s,strategy=%s,riskScore=%.2f,confidence=%.2f,processingTime=%dms",
-            evaluator, strategy, assessment.getRiskScore(), assessment.getConfidence(), processingTimeMs);
+                                              long processingTimeMs) {
+        return String.format("evaluator=%s,riskScore=%.2f,confidence=%.2f,processingTime=%dms",
+            evaluator, assessment.getRiskScore(), assessment.getConfidence(), processingTimeMs);
     }
 
     private String createThreatAssessmentDetails(ThreatAssessment assessment, String evaluator,
-                                               String strategy, long processingTimeMs) {
+                                               long processingTimeMs) {
         Map<String, Object> details = new HashMap<>();
         details.put("auditType", "THREAT_ASSESSMENT");
         details.put("assessmentId", assessment.getAssessmentId());
         details.put("evaluator", evaluator);
-        details.put("strategy", strategy);
-        
+
         details.put("action", assessment.getAction() != null ? assessment.getAction() : "ESCALATE");
         details.put("riskScore", assessment.getRiskScore());
         details.put("confidence", assessment.getConfidence());

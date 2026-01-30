@@ -442,52 +442,48 @@ public class SecurityPromptTemplate {
         meta.append("[Doc").append(docIndex);
 
         Map<String, Object> metadata = doc.getMetadata();
-        if (metadata != null) {
-            
-            Object scoreObj = metadata.get(VectorDocumentMetadata.SIMILARITY_SCORE);
-            if (scoreObj == null) {
-                scoreObj = metadata.get("score");
-            }
-            if (scoreObj instanceof Number) {
-                meta.append("|sim=").append(String.format("%.2f", ((Number) scoreObj).doubleValue()));
-            }
+        Object scoreObj = metadata.get(VectorDocumentMetadata.SIMILARITY_SCORE);
+        if (scoreObj == null) {
+            scoreObj = metadata.get("score");
+        }
+        if (scoreObj instanceof Number) {
+            meta.append("|sim=").append(String.format("%.2f", ((Number) scoreObj).doubleValue()));
+        }
 
-            Object typeObj = metadata.get("documentType");
-            if (typeObj == null) {
-                typeObj = metadata.get("type");
-            }
-            if (typeObj != null) {
-                meta.append("|type=").append(typeObj.toString());
-            }
+        Object typeObj = metadata.get("documentType");
+        if (typeObj == null) {
+            typeObj = metadata.get("type");
+        }
+        if (typeObj != null) {
+            meta.append("|type=").append(typeObj.toString());
+        }
 
-            Object userId = metadata.get("userId");
-            if (userId != null) {
-                meta.append("|user=").append(userId);
-            }
+        Object userId = metadata.get("userId");
+        if (userId != null) {
+            meta.append("|user=").append(userId);
+        }
 
-            Object sourceIp = metadata.get("sourceIp");
-            if (sourceIp != null) {
-                meta.append("|ip=").append(sourceIp);
-            }
+        Object sourceIp = metadata.get("sourceIp");
+        if (sourceIp != null) {
+            meta.append("|ip=").append(sourceIp);
+        }
 
-            Object hour = metadata.get("hour");
-            if (hour != null) {
-                meta.append("|hour=").append(hour);
-            } else {
-                Object timestamp = metadata.get("timestamp");
-                if (timestamp != null) {
-                    String timeStr = timestamp.toString();
-                    if (timeStr.contains("T") && timeStr.length() > 13) {
-                        meta.append("|hour=").append(timeStr.substring(11, 13));
-                    }
+        Object hour = metadata.get("hour");
+        if (hour != null) {
+            meta.append("|hour=").append(hour);
+        } else {
+            Object timestamp = metadata.get("timestamp");
+            if (timestamp != null) {
+                String timeStr = timestamp.toString();
+                if (timeStr.contains("T") && timeStr.length() > 13) {
+                    meta.append("|hour=").append(timeStr.substring(11, 13));
                 }
             }
+        }
 
-            Object requestUri = metadata.get("requestPath");
-            if (requestUri != null) {
-                meta.append("|path=").append(requestUri);
-            }
-
+        Object requestUri = metadata.get("requestPath");
+        if (requestUri != null) {
+            meta.append("|path=").append(requestUri);
         }
 
         meta.append("]");

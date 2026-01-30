@@ -8,7 +8,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
+import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.components.retriever.AccessGovernanceContextRetriever;
@@ -48,49 +48,49 @@ public class IamAiamLabsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public PolicyGenerationVectorService policyGenerationVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new PolicyGenerationVectorService(standardVectorStoreService, vectorStoreMetrics);
+        return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public AccessVectorService accessVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new AccessVectorService(standardVectorStoreService, vectorStoreMetrics);
+        return new AccessVectorService(vectorStore, vectorStoreMetrics);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public StudioQueryVectorService studioQueryVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new StudioQueryVectorService(standardVectorStoreService, vectorStoreMetrics);
+        return new StudioQueryVectorService(vectorStore, vectorStoreMetrics);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ResourceNamingVectorService resourceNamingVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new ResourceNamingVectorService(standardVectorStoreService, vectorStoreMetrics);
+        return new ResourceNamingVectorService(vectorStore, vectorStoreMetrics);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ConditionTemplateVectorService conditionTemplateVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new ConditionTemplateVectorService(standardVectorStoreService, vectorStoreMetrics);
+        return new ConditionTemplateVectorService(vectorStore, vectorStoreMetrics);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public SecurityCopilotVectorService securityCopilotVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new SecurityCopilotVectorService(standardVectorStoreService, vectorStoreMetrics);
+        return new SecurityCopilotVectorService(vectorStore, vectorStoreMetrics);
     }
 
     

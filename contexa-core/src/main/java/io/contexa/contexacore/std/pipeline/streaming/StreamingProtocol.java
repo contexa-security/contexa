@@ -13,20 +13,20 @@ public final class StreamingProtocol {
     public static final String FINAL_RESPONSE_MARKER = "###FINAL_RESPONSE###";
 
     /**
-     * Marker indicating an error occurred during streaming.
-     * Format: ###ERROR###error message
+     * Marker prefix for streaming chunks.
+     * Format: ###STREAMING###chunk content
      */
-    public static final String ERROR_MARKER = "###ERROR###";
+    public static final String STREAMING_MARKER = "###STREAMING###";
 
     /**
-     * Marker indicating streaming has started.
+     * Marker indicating JSON content starts in streaming response.
      */
-    public static final String STREAMING_START_MARKER = "###STREAMING_START###";
+    public static final String JSON_START_MARKER = "===JSON_START===";
 
     /**
-     * Marker indicating streaming has completed successfully.
+     * Marker indicating JSON content ends in streaming response.
      */
-    public static final String STREAMING_COMPLETE_MARKER = "###STREAMING_COMPLETE###";
+    public static final String JSON_END_MARKER = "===JSON_END===";
 
     private StreamingProtocol() {
         // Utility class - prevent instantiation

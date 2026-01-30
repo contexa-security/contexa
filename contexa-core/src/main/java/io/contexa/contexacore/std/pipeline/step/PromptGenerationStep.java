@@ -54,28 +54,8 @@ public class PromptGenerationStep implements PipelineStep {
 
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
-            ToolCallback[] availableTools = chainedToolResolver != null
-                ? chainedToolResolver.getAllToolCallbacks()
-                : new ToolCallback[0];
-            logPromptGenerationDetails(promptResult, availableTools);
-
             return promptResult;
         });
-    }
-
-    private void logPromptGenerationDetails(
-            PromptGenerator.PromptGenerationResult promptResult,
-            ToolCallback[] availableTools) {
-
-        if (log.isDebugEnabled()) {
-                        for (ToolCallback tool : availableTools) {
-                            }
-        }
-    }
-    
-    @Override
-    public String getStepName() {
-        return "PROMPT_GENERATION";
     }
 
     @Override

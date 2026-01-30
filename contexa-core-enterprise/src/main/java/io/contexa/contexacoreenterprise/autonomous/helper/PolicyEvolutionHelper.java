@@ -6,11 +6,12 @@ import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.filter.Filter;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -29,9 +30,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PolicyEvolutionHelper implements PolicyEvolutionService {
 
     private final UnifiedVectorService unifiedVectorService;
-
-    @Autowired(required = false)
-    private StandardVectorStoreService standardVectorStoreService;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -389,16 +387,27 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
     }
 
     private void loadExistingPolicies() {
-        
-        Map<String, Object> filterCriteria = Map.of("type", "evolving_policy");
-        List<Document> existingPolicies = standardVectorStoreService.searchWithFilter(
-            "policy", filterCriteria
-        );
-        
-        for (Document doc : existingPolicies) {
-            String policyId = doc.getMetadata().get("policyId").toString();
-            
-                    }
+        try {
+            FilterExpressionBuilder builder = new FilterExpressionBuilder();
+            Filter.Expression filter = builder.eq("type", "evolving_policy").build();
+
+            SearchRequest searchRequest = SearchRequest.builder()
+                .query("policy")
+                .topK(100)
+                .similarityThreshold(0.5)
+                .filterExpression(filter)
+                .build();
+
+            List<Document> existingPolicies = unifiedVectorService.searchSimilar(searchRequest);
+
+            for (Document doc : existingPolicies) {
+                if (doc.getMetadata().containsKey("policyId")) {
+                    String policyId = doc.getMetadata().get("policyId").toString();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[PolicyEvolutionHelper] Failed to load existing policies", e);
+        }
     }
 
     private boolean isPositive(String outcome) {

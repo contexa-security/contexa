@@ -11,12 +11,10 @@ public class StreamingPipelineExecutionContext extends PipelineExecutionContext
         implements StreamingPipelineContext {
 
     private boolean streamingMode = false;
-    private StreamingResponseCollector responseCollector;
     private Sinks.Many<String> streamSink;
 
     public StreamingPipelineExecutionContext(String requestId) {
         super(requestId);
-        this.responseCollector = new DefaultStreamingResponseCollector();
     }
 
     @Override
@@ -25,23 +23,8 @@ public class StreamingPipelineExecutionContext extends PipelineExecutionContext
     }
 
     @Override
-    public void disableStreamingMode() {
-        this.streamingMode = false;
-    }
-
-    @Override
     public boolean isStreamingMode() {
         return streamingMode;
-    }
-
-    @Override
-    public void setResponseCollector(StreamingResponseCollector collector) {
-        this.responseCollector = collector;
-    }
-
-    @Override
-    public StreamingResponseCollector getResponseCollector() {
-        return responseCollector;
     }
 
     @Override

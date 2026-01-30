@@ -118,7 +118,7 @@ public class PromptGenerator {
                         return domainType;
         }
 
-        log.warn("템플릿 매칭 실패 - default 사용. 사용 가능한 키들: {}", promptTemplates.keySet());
+        log.error("Template matching failed - using default. Available keys: {}", promptTemplates.keySet());
         return "default";
     }
 

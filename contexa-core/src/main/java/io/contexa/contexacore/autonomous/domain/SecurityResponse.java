@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.tiered.response;
+package io.contexa.contexacore.autonomous.domain;
 
 import lombok.Data;
 import lombok.NoArgsConstructor;

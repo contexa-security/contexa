@@ -7,13 +7,11 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
-import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
@@ -28,15 +26,7 @@ public class ContextRetriever {
     
     @Autowired(required = false)
     private ChatClient.Builder chatClientBuilder;
-    
-    @Autowired(required = false)
-    @Qualifier("temporalClusteringProcessor")
-    private DocumentPostProcessor temporalClusteringProcessor;
-    
-    @Autowired(required = false)
-    @Qualifier("anomalyScoreRanker")
-    private DocumentPostProcessor anomalyScoreRanker;
-    
+
     @Value("${spring.ai.rag.default.similarity-threshold:0.7}")
     private double defaultSimilarityThreshold;
     
@@ -141,17 +131,8 @@ public class ContextRetriever {
             .topK(defaultTopK)
             .similarityThreshold(defaultSimilarityThreshold)
             .build();
-        
-        List<Document> documents = vectorStore.similaritySearch(searchRequest);
 
-        if (temporalClusteringProcessor != null) {
-            documents = temporalClusteringProcessor.process(new Query(query), documents);
-        }
-        if (anomalyScoreRanker != null) {
-            documents = anomalyScoreRanker.process(new Query(query), documents);
-        }
-        
-        return documents;
+        return vectorStore.similaritySearch(searchRequest);
     }
 
     private void initializeDefaultRagAdvisor() {
@@ -175,28 +156,28 @@ public class ContextRetriever {
 
     private static class DefaultQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
-        
+
         public DefaultQueryTransformer(ChatClient.Builder chatClientBuilder) {
             this.chatClient = chatClientBuilder.build();
         }
-        
+
         @Override
         public Query transform(Query originalQuery) {
             if (originalQuery == null || originalQuery.text() == null || originalQuery.text().isEmpty()) {
                 return originalQuery;
             }
-            
+
             String prompt = String.format("""
-                다음 검색 쿼리를 최적화하세요:
-                원본: %s
-                최적화된 쿼리만 반환하세요.
+                Optimize the following search query:
+                Original: %s
+                Return only the optimized query.
                 """, originalQuery.text());
-            
+
             String transformedText = chatClient.prompt()
                 .user(prompt)
                 .call()
                 .content();
-            
+
             return new Query(transformedText);
         }
     }

@@ -30,19 +30,15 @@ public class LLMExecutionStep implements PipelineStep {
         if (targetType == null) {
             targetType = request.getParameter("responseType", Class.class);
         }
-        
+
         final Class<?> finalTargetType = targetType;
 
-        if (context.getMetadata("aiGenerationType", Class.class) != null) {
-                    }
-        
         if (finalTargetType != null) {
             return preparePrompt(context)
                     .flatMap(prompt -> llmClient.entity(prompt, finalTargetType))
                     .doOnSuccess(response -> {
                         context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response);
                         context.addMetadata("structuredOutputComplete", true);
-                        logStructuredResponseSuccess(request.getRequestId(), response, stepStartTime);
                     })
                     .cast(Object.class)
                     .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
@@ -53,7 +49,6 @@ public class LLMExecutionStep implements PipelineStep {
                                 .flatMap(llmClient::call)
                                 .doOnSuccess(response -> {
                                     context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response);
-                                    logResponseSuccess(request.getRequestId(), response, stepStartTime);
                                 })
                                 .cast(Object.class);
                     });
@@ -63,7 +58,6 @@ public class LLMExecutionStep implements PipelineStep {
                 .flatMap(llmClient::call)
                 .doOnSuccess(response -> {
                     context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response);
-                    logResponseSuccess(request.getRequestId(), response, stepStartTime);
                 })
                 .cast(Object.class)
                 .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
@@ -74,10 +68,10 @@ public class LLMExecutionStep implements PipelineStep {
     }
 
     public <T extends DomainContext> Flux<String> executeStreaming(AIRequest<T> request, PipelineExecutionContext context) {
-        
+
         return preparePrompt(context)
                 .flatMapMany(prompt -> {
-                                        return llmClient.stream(prompt);
+                    return llmClient.stream(prompt);
                 })
                 .doOnError(error -> log.error("[PIPELINE-STEP] Streaming execution failed. Request: {}", request.getRequestId(), error));
     }
@@ -90,30 +84,17 @@ public class LLMExecutionStep implements PipelineStep {
             if (promptResult == null || promptResult.getPrompt() == null) {
                 throw new IllegalStateException("Prompt not found in context. Skipping LLM execution.");
             }
-                        return promptResult.getPrompt();
+            return promptResult.getPrompt();
         }).onErrorResume(IllegalStateException.class, e -> {
             log.error("[PIPELINE-STEP] {}", e.getMessage());
             return Mono.empty();
         });
     }
 
-    private void logResponseSuccess(String requestId, String response, long startTime) {
-        long totalTime = System.currentTimeMillis() - startTime;
-            }
-    
-    private void logStructuredResponseSuccess(String requestId, Object response, long startTime) {
-        long totalTime = System.currentTimeMillis() - startTime;
-            }
-
     private void logError(String requestId, Throwable error, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
         log.error("[PIPELINE-STEP] LLM execution failed - Request: {}, Duration: {}ms, Error: {}",
                 requestId, totalTime, error.getMessage());
-    }
-
-    @Override
-    public String getStepName() {
-        return "LLM_EXECUTION";
     }
 
     @Override
@@ -126,7 +107,9 @@ public class LLMExecutionStep implements PipelineStep {
     }
 
     @Override
-    public int getOrder() { return 4; }
+    public int getOrder() {
+        return 4;
+    }
 
     @Override
     public <T extends DomainContext> boolean canExecute(AIRequest<T> request) {

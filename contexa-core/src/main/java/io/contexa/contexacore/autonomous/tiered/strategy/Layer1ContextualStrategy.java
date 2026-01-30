@@ -6,7 +6,7 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.response.SecurityResponse;
+import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -21,28 +21,18 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ScanOptions;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Slf4j
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
-    private final UnifiedLLMOrchestrator llmOrchestrator;
-    private final RedisTemplate<String, Object> redisTemplate;
-    private final SecurityEventEnricher eventEnricher;
-    private final SecurityPromptTemplate promptTemplate;
-    private final BehaviorVectorService behaviorVectorService;
-    private final UnifiedVectorService unifiedVectorService;
-    private final BaselineLearningService baselineLearningService;
-    private final TieredStrategyProperties tieredStrategyProperties;
+    // Layer1 only field
     private final SecurityDecisionPostProcessor postProcessor;
     private final Cache<String, SessionContext> sessionContextCache;
 
@@ -58,15 +48,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     BaselineLearningService baselineLearningService,
                                     SecurityDecisionPostProcessor postProcessor,
                                     TieredStrategyProperties tieredStrategyProperties) {
-        this.llmOrchestrator = llmOrchestrator;
-        this.unifiedVectorService = unifiedVectorService;
-        this.redisTemplate = redisTemplate;
-        this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.promptTemplate = promptTemplate != null ? promptTemplate : new SecurityPromptTemplate(eventEnricher, tieredStrategyProperties, baselineLearningService);
-        this.behaviorVectorService = behaviorVectorService;
-        this.baselineLearningService = baselineLearningService;
+        super(llmOrchestrator, redisTemplate, eventEnricher, promptTemplate,
+              behaviorVectorService, unifiedVectorService, baselineLearningService,
+              tieredStrategyProperties);
+
         this.postProcessor = postProcessor;
-        this.tieredStrategyProperties = tieredStrategyProperties;
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
@@ -74,8 +60,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .expireAfterAccess(cacheConfig.getTtlMinutes(), TimeUnit.MINUTES)
                 .recordStats()
                 .build();
-
-        TieredStrategyProperties.Layer1.Timeout timeout = tieredStrategyProperties.getLayer1().getTimeout();
     }
 
     @Override
@@ -106,9 +90,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SessionContext sessionContext = buildSessionContext(event);
 
-            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatterns(event);
-
             List<Document> relatedDocuments = searchRelatedContext(event);
+            List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
+            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
 
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
 
@@ -186,19 +170,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private SessionContext buildSessionContext(SecurityEvent event) {
         String sessionId = event.getSessionId();
 
+        // AI Native v12.0: Rule-based IP/UA change detection removed
+        // LLM analyzes IP/UA changes via SecurityPromptTemplate (SIGNAL COMPARISON section)
+        // Cache retained for session context reuse (performance optimization only)
         if (sessionId != null) {
             SessionContext cached = sessionContextCache.getIfPresent(sessionId);
             if (cached != null && cached.isValid()) {
-
-                if (isSessionContextChanged(cached, event)) {
-                    log.warn("[Layer1][Zero Trust] Context change detected: session={}, IP={}->{}",
-                            sessionId, cached.getIpAddress(), event.getSourceIp());
-                    sessionContextCache.invalidate(sessionId);
-
-                } else {
-                    cached.addEvent(event);
-                    return cached;
-                }
+                cached.addEvent(event);
+                return cached;
             }
         }
 
@@ -247,107 +226,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return context;
     }
 
-    @Override
-    protected List<String> findSimilarEventsForLayer(SecurityEvent event) {
-        return findSimilarEvents(event);
-    }
-
-    private BaseBehaviorAnalysis analyzeBehaviorPatterns(SecurityEvent event) {
-        return analyzeBehaviorPatternsBase(event, baselineLearningService);
-    }
-
-    private List<String> findSimilarEvents(SecurityEvent event) {
-        if (behaviorVectorService == null) {
-            return findSimilarEventsFallback(event);
-        }
-
-        String userId = event.getUserId();
-        if (userId == null) {
-            log.error("[Layer1][SYSTEM_ERROR] userId null in findSimilarEvents");
-            return Collections.emptyList();
-        }
-
-        final String currentIp = event.getSourceIp();
-
-        final String currentPath = event.getMetadata() != null ?
-                (String) event.getMetadata().get("requestPath") : null;
-
-        try {
-            List<Document> similarBehaviors = behaviorVectorService.findSimilarBehaviors(
-                    userId,
-                    currentIp,
-                    currentPath,
-                    5
-            );
-
-            return similarBehaviors.stream()
-                    .map(doc -> {
-                        Map<String, Object> meta = doc.getMetadata();
-
-                        double score = 0.0;
-                        Object scoreObj = meta.get("similarityScore");
-                        if (scoreObj instanceof Number) {
-                            score = ((Number) scoreObj).doubleValue();
-                        }
-                        int similarityPct = (int) (score * 100);
-
-                        return String.format("EventID:%s, Similarity:%d%%",
-                                meta.get("eventId"), similarityPct);
-                    })
-                    .collect(Collectors.toList());
-
-        } catch (Exception e) {
-            log.warn("Similar events search failed, using fallback", e);
-            return findSimilarEventsFallback(event);
-        }
-    }
-
-    private List<String> findSimilarEventsFallback(SecurityEvent event) {
-        List<String> similar = new ArrayList<>();
-        if (redisTemplate == null) {
-            return similar;
-        }
-
-        String userId = event.getUserId();
-        if (userId == null) {
-            log.error("[Layer1][SYSTEM_ERROR] userId null in findSimilarEventsFallback");
-            return similar;
-        }
-        String pattern = "event:similar:" + userId + ":*";
-        int limit = 5;
-        long redisTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getRedisMs();
-        long startTime = System.currentTimeMillis();
-
-        try {
-
-            ScanOptions scanOptions = ScanOptions.scanOptions()
-                    .match(pattern)
-                    .count(100)
-                    .build();
-
-            try (Cursor<String> cursor = redisTemplate.scan(scanOptions)) {
-                while (cursor.hasNext() && similar.size() < limit) {
-
-                    if (System.currentTimeMillis() - startTime > redisTimeoutMs) {
-                        log.warn("[Layer1][AI Native v4.3.0] Redis SCAN timeout ({}ms), returning {} events",
-                                redisTimeoutMs, similar.size());
-                        break;
-                    }
-                    String key = cursor.next();
-                    String eventId = key.substring(key.lastIndexOf(":") + 1);
-                    similar.add(eventId);
-                }
-            }
-        } catch (Exception e) {
-        }
-
-        return similar;
-    }
-
     private List<Document> searchRelatedContext(SecurityEvent event) {
         double similarityThreshold = tieredStrategyProperties.getLayer1().getRag().getSimilarityThreshold();
         int topK = Math.min(15, vectorSearchLimit * 2);
-        return searchRelatedContextBase(event, unifiedVectorService, eventEnricher, topK, similarityThreshold);
+        return searchRelatedContextBase(event, topK, similarityThreshold);
     }
 
     private SecurityPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
@@ -518,7 +400,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return "Layer1";
     }
 
-    @Override
     public List<String> getRecommendedActions(SecurityEvent event) {
         List<String> actions = new ArrayList<>();
         actions.add("ANALYZE_SESSION_CONTEXT");
@@ -526,9 +407,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return actions;
     }
 
-    @Override
     public double calculateRiskScore(List<ThreatIndicator> indicators) {
-        log.warn("[Layer1][AI Native] calculateRiskScore called without LLM analysis - returning NaN");
         return Double.NaN;
     }
 

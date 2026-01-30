@@ -4,7 +4,6 @@ import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
-import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
@@ -14,12 +13,10 @@ import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
-import io.contexa.contexacore.autonomous.strategy.DynamicStrategySelector;
-import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
-import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -28,10 +25,9 @@ import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
-import io.contexa.contexacore.std.rag.processors.ThreatCorrelator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -71,13 +67,6 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DynamicStrategySelector dynamicStrategySelector(
-            ThreatCorrelator threatCorrelator) {
-        return new DynamicStrategySelector(threatCorrelator);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public TieredStrategyProperties tieredStrategyProperties() {
         return new TieredStrategyProperties();
     }
@@ -109,8 +98,8 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public VectorStoreCacheLayer vectorStoreCacheLayer() {
-        return new VectorStoreCacheLayer();
+    public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore) {
+        return new VectorStoreCacheLayer(vectorStore);
     }
 
     @Bean
@@ -135,11 +124,8 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
-            SecurityIncidentRepository securityIncidentRepository,
-            List<ThreatEvaluationStrategy> evaluationStrategies) {
-        return new SecurityMonitoringService(
-                kafkaCollector, securityIncidentRepository, evaluationStrategies);
-    }
+            SecurityIncidentRepository securityIncidentRepository) {
+        return new SecurityMonitoringService(kafkaCollector, securityIncidentRepository);}
 
     @Bean
     @ConditionalOnMissingBean

@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.labs.condition;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
@@ -68,9 +68,9 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
     );
     
     @Autowired
-    public ConditionTemplateVectorService(StandardVectorStoreService standardVectorStoreService,
+    public ConditionTemplateVectorService(VectorStore vectorStore,
                                          @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        super(standardVectorStoreService, vectorStoreMetrics);
+        super(vectorStore, vectorStoreMetrics);
     }
     
     @Override

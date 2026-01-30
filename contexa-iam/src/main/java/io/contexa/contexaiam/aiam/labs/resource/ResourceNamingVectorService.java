@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.labs.resource;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ResourceNamingSuggestionResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -70,9 +70,9 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
     );
     
     @Autowired
-    public ResourceNamingVectorService(StandardVectorStoreService standardVectorStoreService,
+    public ResourceNamingVectorService(VectorStore vectorStore,
                                       @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        super(standardVectorStoreService, vectorStoreMetrics);
+        super(vectorStore, vectorStoreMetrics);
     }
     
     @Override

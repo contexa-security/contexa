@@ -4,7 +4,6 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
-import io.contexa.contexacore.autonomous.strategy.ThreatEvaluationStrategy;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import jakarta.annotation.PostConstruct;
@@ -32,7 +31,6 @@ public class SecurityMonitoringService {
 
     private final KafkaSecurityEventCollector kafkaCollector;
     private final SecurityIncidentRepository securityIncidentRepository;
-    private final List<ThreatEvaluationStrategy> evaluationStrategies;
     private final List<SecurityEventListener> eventListeners;
     private final Map<String, MonitoringSession> activeSessions;
     private final Map<String, SecurityIncident> activeIncidents;
@@ -44,11 +42,9 @@ public class SecurityMonitoringService {
 
     public SecurityMonitoringService(
             KafkaSecurityEventCollector kafkaCollector,
-            SecurityIncidentRepository securityIncidentRepository,
-            List<ThreatEvaluationStrategy> evaluationStrategies) {
+            SecurityIncidentRepository securityIncidentRepository) {
         this.kafkaCollector = kafkaCollector;
         this.securityIncidentRepository = securityIncidentRepository;
-        this.evaluationStrategies = evaluationStrategies;
         this.eventListeners = new CopyOnWriteArrayList<>();
         this.activeSessions = new ConcurrentHashMap<>();
         this.activeIncidents = new ConcurrentHashMap<>();
@@ -119,7 +115,6 @@ public class SecurityMonitoringService {
         stats.put("active_sessions", activeSessions.size());
         stats.put("active_incidents", activeIncidents.size());
         stats.put("event_listeners", eventListeners.size());
-        stats.put("evaluation_strategies", evaluationStrategies.size());
         stats.put("batch_processor_registered", batchProcessor != null);
         stats.put("kafka_stats", kafkaCollector.getStatistics());
 

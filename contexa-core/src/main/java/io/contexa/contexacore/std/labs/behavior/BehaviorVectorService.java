@@ -4,7 +4,7 @@ import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
+import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.entity.AuditLog;
@@ -40,11 +40,11 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     @Autowired
-    public BehaviorVectorService(StandardVectorStoreService standardVectorStoreService,
+    public BehaviorVectorService(VectorStore vectorStore,
                                 @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
                                 BehaviorETLPipeline behaviorETLPipeline,
                                 AuditLogRepository auditLogRepository) {
-        super(standardVectorStoreService, vectorStoreMetrics);
+        super(vectorStore, vectorStoreMetrics);
         this.behaviorETLPipeline = behaviorETLPipeline;
         this.auditLogRepository = auditLogRepository;
     }
@@ -72,7 +72,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             return new Document(document.getText(), metadata);
 
         } catch (Exception e) {
-            log.error("[BehaviorVectorService] 메타데이터 강화 실패", e);
+            log.error("[BehaviorVectorService] Metadata enrichment failed", e);
             return new Document(document.getText(), metadata);
         }
     }
@@ -101,20 +101,20 @@ public class BehaviorVectorService extends AbstractVectorLabService {
     protected void validateLabSpecificDocument(Document document) {
         Map<String, Object> metadata = document.getMetadata();
 
-        if (!metadata.containsKey("userId") && 
-            !metadata.containsKey("sessionId") && 
+        if (!metadata.containsKey("userId") &&
+            !metadata.containsKey("sessionId") &&
             !metadata.containsKey("ipAddress")) {
             throw new IllegalArgumentException(
-                "행동 분석 문서는 userId, sessionId, ipAddress 중 최소 하나는 포함해야 합니다");
+                "Behavior analysis document must contain at least one of userId, sessionId, or ipAddress");
         }
 
         String text = document.getText();
         if (text == null || text.trim().length() < 10) {
-            throw new IllegalArgumentException("행동 분석 문서 내용이 너무 짧습니다 (최소 10자 필요)");
+            throw new IllegalArgumentException("Behavior analysis document content too short (minimum 10 characters required)");
         }
 
         if (containsSensitiveInfo(text)) {
-            log.warn("[BehaviorVectorService] 문서에 민감 정보가 포함될 수 있습니다");
+            log.error("[BehaviorVectorService] Document may contain sensitive information");
         }
     }
 
@@ -131,7 +131,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             }
 
         } catch (Exception e) {
-            log.error("[BehaviorVectorService] 후처리 실패", e);
+            log.error("[BehaviorVectorService] Post-processing failed", e);
         }
     }
     
@@ -275,8 +275,8 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             storeDocument(behaviorDoc);
 
         } catch (Exception e) {
-            log.error("[BehaviorVectorService] 행동 패턴 저장 실패", e);
-            throw new VectorStoreException("행동 패턴 저장 실패: " + e.getMessage(), e);
+            log.error("[BehaviorVectorService] Behavior pattern storage failed", e);
+            throw new VectorStoreException("Behavior pattern storage failed: " + e.getMessage(), e);
         }
     }
 
@@ -323,7 +323,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             storeDocument(threatDoc);
 
         } catch (Exception e) {
-            log.error("[ThreatPattern] 위협 패턴 저장 실패: userId={}", context.getUserId(), e);
+            log.error("[ThreatPattern] Threat pattern storage failed: userId={}", context.getUserId(), e);
         }
     }
 
@@ -396,8 +396,8 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             storeDocument(analysisDoc);
 
         } catch (Exception e) {
-            log.error("[BehaviorVectorService] 분석 결과 저장 실패", e);
-            throw new VectorStoreException("분석 결과 저장 실패: " + e.getMessage(), e);
+            log.error("[BehaviorVectorService] Analysis result storage failed", e);
+            throw new VectorStoreException("Analysis result storage failed: " + e.getMessage(), e);
         }
     }
 
@@ -416,18 +416,18 @@ public class BehaviorVectorService extends AbstractVectorLabService {
             metadata.put("feedbackType", isCorrect ? "POSITIVE" : "NEGATIVE");
             
             String feedbackText = String.format(
-                "분석 %s에 대한 피드백: %s - %s",
+                "Feedback for analysis %s: %s - %s",
                 analysisId,
-                isCorrect ? "정확함" : "부정확함",
+                isCorrect ? "Correct" : "Incorrect",
                 feedback
             );
-            
+
             Document feedbackDoc = new Document(feedbackText, metadata);
             storeDocument(feedbackDoc);
 
         } catch (Exception e) {
-            log.error("[BehaviorVectorService] 피드백 저장 실패", e);
-            throw new VectorStoreException("피드백 저장 실패: " + e.getMessage(), e);
+            log.error("[BehaviorVectorService] Feedback storage failed", e);
+            throw new VectorStoreException("Feedback storage failed: " + e.getMessage(), e);
         }
     }
 
@@ -467,13 +467,13 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 }
 
             } catch (Exception e) {
-                log.error("[BehaviorVectorService] 배치 학습 실패", e);
-                throw new VectorStoreException("배치 학습 실패: " + e.getMessage(), e);
+                log.error("[BehaviorVectorService] Batch learning failed", e);
+                throw new VectorStoreException("Batch learning failed: " + e.getMessage(), e);
             }
         });
     }
 
-    public CompletableFuture<String> runETLPipeline(String dataSource, 
+    public CompletableFuture<String> runETLPipeline(String dataSource,
                                                   BehaviorETLPipeline.SourceType sourceType) {
         return behaviorETLPipeline.executePipeline(dataSource, sourceType);
     }
@@ -489,14 +489,14 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         metadata.put("isBatchLearning", true);
         
         String logText = String.format(
-            "배치 학습: 사용자 %s가 %s에서 %s 작업을 수행했습니다. 결과: %s, 시간: %s",
+            "Batch learning: User %s performed %s action from %s. Outcome: %s, Time: %s",
             auditLog.getPrincipalName(),
-            auditLog.getClientIp(),
             auditLog.getAction(),
+            auditLog.getClientIp(),
             auditLog.getOutcome(),
             auditLog.getTimestamp()
         );
-        
+
         return new Document(logText, metadata);
     }
 
@@ -534,7 +534,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
 
             return searchSimilar(query.toString(), filters);
         } catch (Exception e) {
-            log.error("[BehaviorVectorService] 유사 행동 패턴 검색 실패", e);
+            log.error("[BehaviorVectorService] Similar behavior pattern search failed", e);
             return List.of();
         }
     }

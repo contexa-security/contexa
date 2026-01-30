@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.labs.policy;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.domain.dto.AiGeneratedPolicyDraftDto;
@@ -67,9 +67,9 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
     );
     
     @Autowired
-    public PolicyGenerationVectorService(StandardVectorStoreService standardVectorStoreService,
+    public PolicyGenerationVectorService(VectorStore vectorStore,
                                         @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        super(standardVectorStoreService, vectorStoreMetrics);
+        super(vectorStore, vectorStoreMetrics);
     }
     
     @Override

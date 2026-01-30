@@ -15,9 +15,7 @@ import io.contexa.contexacore.std.operations.DistributedSessionManager;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
-import io.contexa.contexacore.std.rag.observation.SecurityVectorStoreObservationConvention;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -30,7 +28,6 @@ import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransfo
 import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import org.springframework.ai.vectorstore.observation.VectorStoreObservationConvention;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,23 +71,6 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public VectorStoreObservationConvention securityVectorStoreObservationConvention() {
-        return new SecurityVectorStoreObservationConvention();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public StandardVectorStoreService standardVectorStoreService(
-            PgVectorStoreProperties properties,
-            VectorStore vectorStore,
-            EmbeddingModel embeddingModel,
-            JdbcTemplate jdbcTemplate) {
-        return new StandardVectorStoreService(
-                properties, vectorStore, embeddingModel, jdbcTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public DistributedSessionManager distributedSessionManager(
             RedisEventPublisher eventPublisher,
             AuditLogger auditLogger) {
@@ -101,21 +81,21 @@ public class CoreRAGAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
             BehaviorETLPipeline behaviorETLPipeline,
             AuditLogRepository auditLogRepository) {
         return new BehaviorVectorService(
-                standardVectorStoreService, vectorStoreMetrics, behaviorETLPipeline, auditLogRepository);
+                vectorStore, vectorStoreMetrics, behaviorETLPipeline, auditLogRepository);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public RiskAssessmentVectorService riskAssessmentVectorService(
-            StandardVectorStoreService standardVectorStoreService,
+            VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new RiskAssessmentVectorService(
-                standardVectorStoreService, vectorStoreMetrics);
+                vectorStore, vectorStoreMetrics);
     }
 
     @Bean
@@ -129,13 +109,17 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore) {
+        return new VectorStoreCacheLayer(vectorStore);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public UnifiedVectorService unifiedVectorService(
+            PgVectorStoreProperties properties,
             VectorStoreCacheLayer cacheLayer,
-            StandardVectorStoreService standardService,
-            BehaviorVectorService behaviorService,
-            RiskAssessmentVectorService riskService) {
-        return new UnifiedVectorService(
-                cacheLayer, standardService, behaviorService, riskService);
+            VectorStore vectorStore) {
+        return new UnifiedVectorService(properties, cacheLayer, vectorStore);
     }
 
     @Bean

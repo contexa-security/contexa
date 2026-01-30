@@ -114,7 +114,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
             try {
                 vectorService.storeBehaviorContext(context);
             } catch (Exception e) {
-                log.error("벡터 저장소 컨텍스트 저장 실패", e);
+                log.error("Vector store context storage failed", e);
             }
 
             ContextRetrievalResult ragResult = null;
@@ -134,7 +134,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
                     10
                 );
             } catch (Exception e) {
-                log.error("벡터 서비스 검색 실패", e);
+                log.error("Vector service search failed", e);
             }
 
             List<Document> allDocuments = new ArrayList<>();
@@ -168,7 +168,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
     }
 
     public String retrieveBehavioralContext(AIRequest<BehavioralAnalysisContext> request, List<Document> ragDocuments) {
-        
+
         try {
             BehavioralAnalysisContext context = request.getContext();
 
@@ -180,7 +180,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
 
             BehaviorBaseline baseline = calculateBaseline(clusters, context);
 
-            AnomalyScore anomalyScore = calculateAnomalyScore(currentBehaviorVector, baseline, clusters);
+            List<String> anomalyFactors = detectAnomalyFactors(currentBehaviorVector, baseline, clusters);
 
             PeerGroupAnalysis peerAnalysis = analyzePeerGroup(context);
 
@@ -189,7 +189,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
             return buildComprehensiveContext(
                     context,
                     baseline,
-                    anomalyScore,
+                    anomalyFactors,
                     clusters,
                     peerAnalysis,
                     recentRiskEvents,
@@ -197,7 +197,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
             );
 
         } catch (Exception e) {
-            log.error("행동 패턴 분석 실패", e);
+            log.error("Behavioral pattern analysis failed", e);
             return getDefaultContext();
         }
     }
@@ -251,7 +251,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
             return results;
 
         } catch (Exception e) {
-            log.warn("Vector 검색 실패, 빈 리스트 반환", e);
+            log.error("Vector search failed, returning empty list", e);
             return new ArrayList<>();
         }
     }
@@ -317,42 +317,32 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         return baseline;
     }
 
-    private AnomalyScore calculateAnomalyScore(Document currentBehavior, BehaviorBaseline baseline, BehaviorClusters clusters) {
-        AnomalyScore score = new AnomalyScore();
-        double totalScore = 0.0;
+    private List<String> detectAnomalyFactors(Document currentBehavior, BehaviorBaseline baseline, BehaviorClusters clusters) {
         List<String> anomalyFactors = new ArrayList<>();
 
         String currentTimeCluster = getCurrentTimeCluster();
         List<Document> expectedBehaviors = clusters.getTimeBasedClusters().get(currentTimeCluster);
 
         if (expectedBehaviors == null || expectedBehaviors.isEmpty()) {
-            totalScore += 30.0;
-            anomalyFactors.add("이 시간대에 활동 기록이 없음");
+            anomalyFactors.add("No activity record in this time period");
         }
 
         String currentActivity = (String) currentBehavior.getMetadata().get("activityType");
         if (!baseline.getCommonActivities().containsKey(currentActivity)) {
-            totalScore += 25.0;
-            anomalyFactors.add("평소와 다른 활동 유형");
+            anomalyFactors.add("Unusual activity type");
         }
 
         String currentIpType = (String) currentBehavior.getMetadata().get("ipType");
         if (!baseline.getCommonIpTypes().containsKey(currentIpType)) {
-            totalScore += 25.0;
-            anomalyFactors.add("평소와 다른 네트워크 위치");
+            anomalyFactors.add("Unusual network location");
         }
 
         boolean isWeekend = (boolean) currentBehavior.getMetadata().get("isWeekend");
         if (isWeekend && currentTimeCluster.startsWith("WEEKDAY")) {
-            totalScore += 20.0;
-            anomalyFactors.add("주말에 평일 패턴 활동");
+            anomalyFactors.add("Weekend activity with weekday pattern");
         }
 
-        score.setScore(Math.min(totalScore, 100.0));
-        score.setAnomalyFactors(anomalyFactors);
-        score.setRiskLevel(determineRiskLevel(totalScore));
-
-        return score;
+        return anomalyFactors;
     }
 
     private PeerGroupAnalysis analyzePeerGroup(BehavioralAnalysisContext context) {
@@ -393,7 +383,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
             }
 
         } catch (Exception e) {
-            log.warn("Peer Group 분석 실패", e);
+            log.error("Peer group analysis failed", e);
         }
 
         return analysis;
@@ -403,33 +393,31 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         List<RiskEvent> riskEvents = new ArrayList<>();
 
         try {
-            
+
             List<AuditLog> recentFailures = auditLogRepository.findRecentFailedAttemptsByUser(
                     userId, LocalDateTime.now().minusDays(7));
 
-            recentFailures.forEach(log -> {
+            recentFailures.forEach(auditLog -> {
                 RiskEvent event = new RiskEvent();
-                event.setTimestamp(log.getTimestamp());
+                event.setTimestamp(auditLog.getTimestamp());
                 event.setEventType("FAILED_ATTEMPT");
-                event.setDescription(String.format("실패한 시도: %s", log.getAction()));
-                event.setRiskScore(calculateFailureRisk(log));
+                event.setDescription(String.format("Failed attempt: %s", auditLog.getAction()));
                 riskEvents.add(event);
             });
 
             List<AuditLog> afterHoursAccess = auditLogRepository.findAfterHoursAccessByUser(
                     userId, LocalDateTime.now().minusDays(7));
 
-            afterHoursAccess.forEach(log -> {
+            afterHoursAccess.forEach(auditLog -> {
                 RiskEvent event = new RiskEvent();
-                event.setTimestamp(log.getTimestamp());
+                event.setTimestamp(auditLog.getTimestamp());
                 event.setEventType("AFTER_HOURS_ACCESS");
-                event.setDescription(String.format("업무시간 외 접근: %s", log.getAction()));
-                event.setRiskScore(20.0);
+                event.setDescription(String.format("After hours access: %s", auditLog.getAction()));
                 riskEvents.add(event);
             });
 
         } catch (Exception e) {
-            log.warn("위험 이벤트 분석 실패", e);
+            log.error("Risk event analysis failed", e);
         }
 
         return riskEvents;
@@ -438,7 +426,7 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
     private String buildComprehensiveContext(
             BehavioralAnalysisContext context,
             BehaviorBaseline baseline,
-            AnomalyScore anomalyScore,
+            List<String> anomalyFactors,
             BehaviorClusters clusters,
             PeerGroupAnalysis peerAnalysis,
             List<RiskEvent> riskEvents,
@@ -446,71 +434,70 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
 
         StringBuilder contextBuilder = new StringBuilder();
 
-        contextBuilder.append("## 사용자 행동 분석 컨텍스트\n\n");
-        contextBuilder.append("### 1. 분석 대상 정보\n");
-        contextBuilder.append(String.format("- 사용자 ID: %s\n", context.getUserId()));
-        contextBuilder.append(String.format("- 현재 활동: %s\n", context.getCurrentActivity()));
-        contextBuilder.append(String.format("- 접속 IP: %s (%s)\n", context.getRemoteIp(), categorizeIp(context.getRemoteIp())));
-        contextBuilder.append(String.format("- 분석 시각: %s\n\n", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
+        contextBuilder.append("## User Behavior Analysis Context\n\n");
+        contextBuilder.append("### 1. Analysis Target Information\n");
+        contextBuilder.append(String.format("- User ID: %s\n", context.getUserId()));
+        contextBuilder.append(String.format("- Current Activity: %s\n", context.getCurrentActivity()));
+        contextBuilder.append(String.format("- Access IP: %s (%s)\n", context.getRemoteIp(), categorizeIp(context.getRemoteIp())));
+        contextBuilder.append(String.format("- Analysis Time: %s\n\n", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
 
-        contextBuilder.append("### 2. 정상 행동 패턴 (최근 30일 기준)\n");
-        contextBuilder.append(String.format("- 현재 시간대(%s) 활동 횟수: %d회\n",
+        contextBuilder.append("### 2. Normal Behavior Patterns (Last 30 Days)\n");
+        contextBuilder.append(String.format("- Activity count in current time period (%s): %d\n",
                 baseline.getTimeCluster(), baseline.getNormalBehaviorCount()));
 
         if (!baseline.getCommonActivities().isEmpty()) {
-            contextBuilder.append("- 주요 활동 유형:\n");
+            contextBuilder.append("- Major activity types:\n");
             baseline.getCommonActivities().entrySet().stream()
                     .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
                     .limit(5)
                     .forEach(entry -> contextBuilder.append(
-                            String.format("  * %s: %d회\n", entry.getKey(), entry.getValue())));
+                            String.format("  * %s: %d times\n", entry.getKey(), entry.getValue())));
         }
 
         if (!baseline.getCommonIpTypes().isEmpty()) {
-            contextBuilder.append("- 주요 접속 위치:\n");
+            contextBuilder.append("- Major access locations:\n");
             baseline.getCommonIpTypes().forEach((ipType, count) ->
-                    contextBuilder.append(String.format("  * %s: %d회\n", ipType, count)));
+                    contextBuilder.append(String.format("  * %s: %d times\n", ipType, count)));
         }
         contextBuilder.append("\n");
 
-        contextBuilder.append("### 3. 이상 행동 분석\n");
-        contextBuilder.append(String.format("- 종합 이상 점수: %.1f/100\n", anomalyScore.getScore()));
-        contextBuilder.append(String.format("- 위험 수준: %s\n", anomalyScore.getRiskLevel()));
-
-        if (!anomalyScore.getAnomalyFactors().isEmpty()) {
-            contextBuilder.append("- 이상 요인:\n");
-            anomalyScore.getAnomalyFactors().forEach(factor ->
+        contextBuilder.append("### 3. Anomaly Detection\n");
+        if (!anomalyFactors.isEmpty()) {
+            contextBuilder.append("- Detected anomaly factors:\n");
+            anomalyFactors.forEach(factor ->
                     contextBuilder.append(String.format("  * %s\n", factor)));
+        } else {
+            contextBuilder.append("- No anomaly factors detected\n");
         }
         contextBuilder.append("\n");
 
-        contextBuilder.append("### 4. 시간대별 행동 분포\n");
+        contextBuilder.append("### 4. Time-based Behavior Distribution\n");
         clusters.getTimeBasedClusters().forEach((timeCluster, behaviors) -> {
-            contextBuilder.append(String.format("- %s: %d회\n",
+            contextBuilder.append(String.format("- %s: %d times\n",
                     translateTimeCluster(timeCluster), behaviors.size()));
         });
         contextBuilder.append("\n");
 
-        contextBuilder.append("### 5. 동료 그룹 비교\n");
-        contextBuilder.append(String.format("- 동료 그룹 크기: %d명\n", peerAnalysis.getPeerGroupSize()));
-        contextBuilder.append(String.format("- 동료 평균 활동량: %.1f\n", peerAnalysis.getAveragePeerActivity()));
-        contextBuilder.append(String.format("- 현재 사용자 편차: %.1f%%\n\n", peerAnalysis.getCurrentUserDeviation()));
+        contextBuilder.append("### 5. Peer Group Comparison\n");
+        contextBuilder.append(String.format("- Peer group size: %d members\n", peerAnalysis.getPeerGroupSize()));
+        contextBuilder.append(String.format("- Average peer activity: %.1f\n", peerAnalysis.getAveragePeerActivity()));
+        contextBuilder.append(String.format("- Current user deviation: %.1f%%\n\n", peerAnalysis.getCurrentUserDeviation()));
 
         if (!riskEvents.isEmpty()) {
-            contextBuilder.append("### 6. 최근 위험 이벤트 (7일)\n");
+            contextBuilder.append("### 6. Recent Risk Events (7 Days)\n");
             riskEvents.stream()
                     .sorted(Comparator.comparing(RiskEvent::getTimestamp).reversed())
                     .limit(5)
                     .forEach(event -> contextBuilder.append(
-                            String.format("- %s: %s (위험도: %.1f)\n",
+                            String.format("- %s: %s (%s)\n",
                                     event.getTimestamp().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                                     event.getDescription(),
-                                    event.getRiskScore())));
+                                    event.getEventType())));
             contextBuilder.append("\n");
         }
 
         if (ragDocuments != null && !ragDocuments.isEmpty()) {
-            contextBuilder.append("### 7. 관련 행동 패턴 참조 (RAG)\n");
+            contextBuilder.append("### 7. Related Behavior Patterns (RAG)\n");
             for (int i = 0; i < Math.min(5, ragDocuments.size()); i++) {
                 Document doc = ragDocuments.get(i);
                 contextBuilder.append("- ").append(doc.getText().substring(0, Math.min(150, doc.getText().length())));
@@ -522,12 +509,12 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
             contextBuilder.append("\n");
         }
 
-        contextBuilder.append("### 8. AI 분석 가이드\n");
-        contextBuilder.append("위의 정보를 종합하여 다음을 평가해주세요:\n");
-        contextBuilder.append("1. 현재 행동이 사용자의 정상 패턴에서 벗어난 정도\n");
-        contextBuilder.append("2. 보안 위험도 (0-100 점수)\n");
-        contextBuilder.append("3. 구체적인 이상 징후 설명\n");
-        contextBuilder.append("4. 권장 대응 방안\n");
+        contextBuilder.append("### 8. AI Analysis Guide\n");
+        contextBuilder.append("Based on the above information, please determine the appropriate action:\n");
+        contextBuilder.append("1. ALLOW - Normal behavior within expected patterns\n");
+        contextBuilder.append("2. CHALLENGE - Requires additional verification\n");
+        contextBuilder.append("3. BLOCK - High risk behavior requiring immediate blocking\n");
+        contextBuilder.append("4. ESCALATE - Requires human security analyst review\n");
 
         return contextBuilder.toString();
     }
@@ -602,20 +589,13 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
 
     private String translateTimeCluster(String cluster) {
         switch (cluster) {
-            case "WEEKEND": return "주말";
-            case "WEEKDAY_MORNING": return "평일 아침 (06:00-09:00)";
-            case "WEEKDAY_BUSINESS": return "평일 업무시간 (09:00-18:00)";
-            case "WEEKDAY_EVENING": return "평일 저녁 (18:00-22:00)";
-            case "WEEKDAY_NIGHT": return "평일 심야 (22:00-06:00)";
+            case "WEEKEND": return "Weekend";
+            case "WEEKDAY_MORNING": return "Weekday Morning (06:00-09:00)";
+            case "WEEKDAY_BUSINESS": return "Weekday Business Hours (09:00-18:00)";
+            case "WEEKDAY_EVENING": return "Weekday Evening (18:00-22:00)";
+            case "WEEKDAY_NIGHT": return "Weekday Night (22:00-06:00)";
             default: return cluster;
         }
-    }
-
-    private String determineRiskLevel(double score) {
-        if (score >= 80) return "CRITICAL";
-        else if (score >= 60) return "HIGH";
-        else if (score >= 40) return "MEDIUM";
-        else return "LOW";
     }
 
     private double calculateDeviation(double current, double average) {
@@ -623,20 +603,12 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         return Math.abs(current - average) / average * 100;
     }
 
-    private double calculateFailureRisk(AuditLog log) {
-        
-        if (log.getAction().contains("ADMIN")) return 40.0;
-        if (log.getAction().contains("DELETE")) return 30.0;
-        if (log.getAction().contains("EXPORT")) return 25.0;
-        return 20.0;
-    }
-
     private String getDefaultContext() {
         return """
-        ## 기본 행동 분석 컨텍스트
-        
-        행동 패턴 분석을 위한 충분한 데이터가 없습니다.
-        기본 보안 정책을 적용하여 분석을 진행합니다.
+        ## Default Behavior Analysis Context
+
+        Insufficient data for behavior pattern analysis.
+        Proceeding with default security policy.
         """;
     }
 
@@ -669,19 +641,6 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         public void setNormalBehaviorCount(int count) { this.normalBehaviorCount = count; }
     }
 
-    private static class AnomalyScore {
-        private double score;
-        private String riskLevel;
-        private List<String> anomalyFactors = new ArrayList<>();
-
-        public double getScore() { return score; }
-        public void setScore(double score) { this.score = score; }
-        public String getRiskLevel() { return riskLevel; }
-        public void setRiskLevel(String level) { this.riskLevel = level; }
-        public List<String> getAnomalyFactors() { return anomalyFactors; }
-        public void setAnomalyFactors(List<String> factors) { this.anomalyFactors = factors; }
-    }
-
     private static class PeerGroupAnalysis {
         private int peerGroupSize;
         private double averagePeerActivity;
@@ -699,7 +658,6 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         private LocalDateTime timestamp;
         private String eventType;
         private String description;
-        private double riskScore;
 
         public LocalDateTime getTimestamp() { return timestamp; }
         public void setTimestamp(LocalDateTime timestamp) { this.timestamp = timestamp; }
@@ -707,8 +665,6 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         public void setEventType(String type) { this.eventType = type; }
         public String getDescription() { return description; }
         public void setDescription(String desc) { this.description = desc; }
-        public double getRiskScore() { return riskScore; }
-        public void setRiskScore(double score) { this.riskScore = score; }
     }
 
     private static class BehaviorQueryTransformer implements QueryTransformer {

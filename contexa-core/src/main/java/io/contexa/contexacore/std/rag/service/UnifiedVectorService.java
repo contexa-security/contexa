@@ -1,43 +1,36 @@
 package io.contexa.contexacore.std.rag.service;
 
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
-import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
-import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
-import lombok.RequiredArgsConstructor;
+import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.transaction.annotation.Transactional;
 
+import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreException;
+
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
-@RequiredArgsConstructor
 public class UnifiedVectorService implements VectorOperations {
 
+    private final PgVectorStoreProperties properties;
     private final VectorStoreCacheLayer cacheLayer;
-    private final StandardVectorStoreService standardService;
-    private final BehaviorVectorService behaviorService;
-    private final RiskAssessmentVectorService riskService;
+    private final VectorStore vectorStore;
 
-    private VectorOperations routeToService(String documentType) {
-        if (documentType == null || documentType.isEmpty()) {
-                        return standardService;
-        }
+    private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
-        return switch (documentType.toLowerCase()) {
-            case "behavior_analysis", "behavior", "behavioral_analysis" -> {
-                                yield behaviorService;
-            }
-            case "risk_assessment", "risk", "zero_trust" -> {
-                                yield riskService;
-            }
-            default -> {
-                                yield standardService;
-            }
-        };
+    public UnifiedVectorService(
+            PgVectorStoreProperties properties,
+            VectorStoreCacheLayer cacheLayer,
+            VectorStore vectorStore) {
+        this.properties = properties;
+        this.cacheLayer = cacheLayer;
+        this.vectorStore = vectorStore;
     }
 
     @Override
@@ -45,12 +38,7 @@ public class UnifiedVectorService implements VectorOperations {
     public void storeDocument(Document document) {
         validateDocument(document);
         enrichStandardMetadata(document);
-
-        String documentType = (String) document.getMetadata().get("documentType");
-        VectorOperations targetService = routeToService(documentType);
-
-        targetService.storeDocument(document);
-
+        vectorStore.add(List.of(document));
         cacheLayer.invalidateAll();
     }
 
@@ -58,27 +46,19 @@ public class UnifiedVectorService implements VectorOperations {
     @Transactional
     public void storeDocuments(List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
-            log.warn("[UnifiedVectorService] Attempted to store empty document list");
             return;
         }
-
-        Map<String, List<Document>> documentsByType = new HashMap<>();
 
         for (Document doc : documents) {
             validateDocument(doc);
             enrichStandardMetadata(doc);
-
-            String documentType = (String) doc.getMetadata().getOrDefault("documentType", "standard");
-            documentsByType.computeIfAbsent(documentType, k -> new ArrayList<>()).add(doc);
         }
 
-        for (Map.Entry<String, List<Document>> entry : documentsByType.entrySet()) {
-            String documentType = entry.getKey();
-            List<Document> docs = entry.getValue();
-
-            VectorOperations targetService = routeToService(documentType);
-
-                        targetService.storeDocuments(docs);
+        int batchSize = properties.getBatchSize();
+        for (int i = 0; i < documents.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, documents.size());
+            List<Document> batch = documents.subList(i, end);
+            vectorStore.add(batch);
         }
 
         cacheLayer.invalidateAll();
@@ -97,39 +77,32 @@ public class UnifiedVectorService implements VectorOperations {
     @Override
     public List<Document> searchSimilar(String query) {
         return searchSimilar(SearchRequest.builder()
-            .query(query)
-            .topK(10)
-            .similarityThreshold(0.0)  
-            .build());
+                .query(query)
+                .topK(properties.getTopK())
+                .similarityThreshold(properties.getSimilarityThreshold())
+                .build());
     }
 
     @Override
     public List<Document> searchSimilar(String query, Map<String, Object> filters) {
-        
-        String documentType = filters != null ? (String) filters.get("documentType") : null;
+        SearchRequest.Builder builder = SearchRequest.builder()
+                .query(query)
+                .topK(properties.getTopK())
+                .similarityThreshold(properties.getSimilarityThreshold());
 
-        if (documentType != null) {
-            VectorOperations targetService = routeToService(documentType);
-            return targetService.searchSimilar(query, filters);
-        }
-
-        return standardService.searchSimilar(query, filters != null ? filters : Map.of());
+        return searchSimilar(builder.build());
     }
 
     @Override
     public List<Document> searchSimilar(SearchRequest searchRequest) {
-        
         try {
-            
             List<Document> cachedResults = cacheLayer.similaritySearch(searchRequest);
 
             if (cachedResults != null && !cachedResults.isEmpty()) {
-                                return cachedResults;
+                return cachedResults;
             }
 
-                        List<Document> results = standardService.similaritySearch(searchRequest);
-
-                        return results;
+            return vectorStore.similaritySearch(searchRequest);
 
         } catch (Exception e) {
             log.error("[UnifiedVectorService] Error during similarity search", e);
@@ -139,24 +112,27 @@ public class UnifiedVectorService implements VectorOperations {
 
     @Override
     public List<Document> searchByTimeRange(String query, LocalDateTime startTime,
-                                           LocalDateTime endTime, String documentType) {
-        
-        VectorOperations targetService = routeToService(documentType);
-        return targetService.searchByTimeRange(query, startTime, endTime, documentType);
+                                            LocalDateTime endTime, String documentType) {
+        SearchRequest searchRequest = SearchRequest.builder()
+                .query(query)
+                .topK(properties.getTopK())
+                .similarityThreshold(properties.getSimilarityThreshold())
+                .build();
+
+        return vectorStore.similaritySearch(searchRequest);
     }
 
     @Override
     @Transactional
     public void deleteDocuments(List<String> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
-            log.warn("[UnifiedVectorService] Attempted to delete empty document ID list");
             return;
         }
 
         try {
-            standardService.deleteDocuments(documentIds);
+            vectorStore.delete(documentIds);
         } catch (Exception e) {
-            log.warn("[UnifiedVectorService] Failed to delete from StandardVectorStoreService", e);
+            log.error("[UnifiedVectorService] Failed to delete documents", e);
         }
 
         cacheLayer.invalidateAll();
@@ -166,26 +142,26 @@ public class UnifiedVectorService implements VectorOperations {
     @Transactional
     public void updateDocuments(List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
-            log.warn("[UnifiedVectorService] Attempted to update empty document list");
             return;
         }
 
-        Map<String, List<Document>> documentsByType = new HashMap<>();
-
         for (Document doc : documents) {
             validateDocument(doc);
-            String documentType = (String) doc.getMetadata().getOrDefault("documentType", "standard");
-            documentsByType.computeIfAbsent(documentType, k -> new ArrayList<>()).add(doc);
         }
 
-        for (Map.Entry<String, List<Document>> entry : documentsByType.entrySet()) {
-            String documentType = entry.getKey();
-            List<Document> docs = entry.getValue();
-
-            VectorOperations targetService = routeToService(documentType);
-            targetService.updateDocuments(docs);
+        List<String> documentIds = new ArrayList<>();
+        for (Document doc : documents) {
+            Object id = doc.getMetadata().get("id");
+            if (id != null) {
+                documentIds.add(id.toString());
+            }
         }
 
+        if (!documentIds.isEmpty()) {
+            vectorStore.delete(documentIds);
+        }
+
+        vectorStore.add(documents);
         cacheLayer.invalidateAll();
     }
 
@@ -193,21 +169,15 @@ public class UnifiedVectorService implements VectorOperations {
     public Map<String, Object> getStatistics() {
         Map<String, Object> stats = new HashMap<>();
 
-        Map<String, Object> standardStats = standardService.getStatistics();
-        stats.put("standard", standardStats);
-
         VectorStoreCacheLayer.CacheStatistics cacheStats = cacheLayer.getStatistics();
         stats.put("cache", Map.of(
-            "hitRate", cacheStats.getHitRate(),
-            "missRate", cacheStats.getMissRate(),
-            "size", cacheStats.getEstimatedSize(),
-            "evictions", cacheStats.getEvictionCount()
+                "hitRate", cacheStats.getHitRate(),
+                "missRate", cacheStats.getMissRate(),
+                "size", cacheStats.getEstimatedSize(),
+                "evictions", cacheStats.getEvictionCount()
         ));
 
-        stats.put("behavior", behaviorService.getStatistics());
-        stats.put("riskAssessment", riskService.getStatistics());
-
-                return stats;
+        return stats;
     }
 
     private void validateDocument(Document document) {
@@ -223,7 +193,6 @@ public class UnifiedVectorService implements VectorOperations {
         if (metadata == null) {
             throw new VectorStoreException("Document metadata cannot be null");
         }
-
     }
 
     private void enrichStandardMetadata(Document document) {
@@ -234,7 +203,7 @@ public class UnifiedVectorService implements VectorOperations {
         }
 
         if (!metadata.containsKey("timestamp")) {
-            metadata.put("timestamp", LocalDateTime.now().toString());
+            metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
         }
 
         if (!metadata.containsKey("documentType")) {

@@ -42,64 +42,64 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
         return Mono.fromCallable(() -> {
 
-            ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
+                    ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
 
-            if (selectedModel == null) {
-                throw new IllegalStateException(
-                        "No LLM model configured. " +
-                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
-            }
-
-            ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
-
-            var promptSpec = chatClient.prompt(context.getPrompt());
-
-            if (context.getChatOptions() != null) {
-                promptSpec = promptSpec.options(context.getChatOptions());
-            } else if (context.getTemperature() != null || context.getMaxTokens() != null ||
-                    context.getPreferredModel() != null || context.getTier() != null ||
-                    context.getAnalysisLevel() != null) {
-
-                if (selectedModel instanceof OllamaChatModel) {
-                    String modelName = determineOllamaModelName(context);
-                    if (modelName != null) {
-                        OllamaOptions ollamaOptions = OllamaOptions.builder()
-                                .model(modelName)
-                                .temperature(context.getTemperature() != null ? context.getTemperature() : 0.7d)
-                                .build();
-                        promptSpec = promptSpec.options(ollamaOptions);
+                    if (selectedModel == null) {
+                        throw new IllegalStateException(
+                                "No LLM model configured. " +
+                                        "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
                     }
-                } else {
-                    ChatOptions options = ChatOptions.builder()
-                            .temperature(context.getTemperature())
-                            .maxTokens(context.getMaxTokens())
-                            .build();
-                    promptSpec = promptSpec.options(options);
-                }
-            }
 
-            if (context.getToolExecutionEnabled() != null && context.getToolExecutionEnabled()) {
+                    ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
-                if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
-                    promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
-                } else if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
-                    promptSpec = promptSpec.tools(context.getToolProviders().toArray());
-                }
-            }
+                    var promptSpec = chatClient.prompt(context.getPrompt());
 
-            String response = promptSpec.call().content();
+                    if (context.getChatOptions() != null) {
+                        promptSpec = promptSpec.options(context.getChatOptions());
+                    } else if (context.getTemperature() != null || context.getMaxTokens() != null ||
+                            context.getPreferredModel() != null || context.getTier() != null ||
+                            context.getAnalysisLevel() != null) {
 
-            if (response == null || response.isBlank()) {
-                log.warn("LLM response is null or empty - RequestId: {}", context.getRequestId());
-                return "{}";
-            }
+                        if (selectedModel instanceof OllamaChatModel) {
+                            String modelName = determineOllamaModelName(context);
+                            if (modelName != null) {
+                                OllamaOptions ollamaOptions = OllamaOptions.builder()
+                                        .model(modelName)
+                                        .temperature(context.getTemperature() != null ? context.getTemperature() : 0.7d)
+                                        .build();
+                                promptSpec = promptSpec.options(ollamaOptions);
+                            }
+                        } else {
+                            ChatOptions options = ChatOptions.builder()
+                                    .temperature(context.getTemperature())
+                                    .maxTokens(context.getMaxTokens())
+                                    .build();
+                            promptSpec = promptSpec.options(options);
+                        }
+                    }
 
-            return response;
-        })
+                    if (context.getToolExecutionEnabled() != null && context.getToolExecutionEnabled()) {
+
+                        if (context.getToolCallbacks() != null && !context.getToolCallbacks().isEmpty()) {
+                            promptSpec = promptSpec.toolCallbacks(context.getToolCallbacks());
+                        } else if (context.getToolProviders() != null && !context.getToolProviders().isEmpty()) {
+                            promptSpec = promptSpec.tools(context.getToolProviders().toArray());
+                        }
+                    }
+
+                    String response = promptSpec.call().content();
+
+                    if (response == null || response.isBlank()) {
+                        log.error("LLM response is null or empty - RequestId: {}", context.getRequestId());
+                        return "{}";
+                    }
+
+                    return response;
+                })
 
                 .retryWhen(reactor.util.retry.Retry.backoff(2, java.time.Duration.ofSeconds(1))
                         .filter(throwable -> throwable instanceof java.io.IOException)
-                        .doBeforeRetry(retrySignal -> log.warn("LLM Retry #{} - RequestId: {}, Error: {}",
+                        .doBeforeRetry(retrySignal -> log.error("LLM Retry #{} - RequestId: {}, Error: {}",
                                 retrySignal.totalRetries() + 1, context.getRequestId(),
                                 retrySignal.failure().getMessage())))
                 .doOnError(error -> log.error("LLM execution failed - RequestId: {}", context.getRequestId(), error));
@@ -141,26 +141,24 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
         return Mono.fromCallable(() -> {
 
-            ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
+                    ChatModel selectedModel = modelSelectionStrategy.selectModel(context);
 
-            if (selectedModel == null) {
-                throw new IllegalStateException(
-                        "No LLM model configured. " +
-                                "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
-            }
+                    if (selectedModel == null) {
+                        throw new IllegalStateException(
+                                "No LLM model configured. " +
+                                        "Please check spring.ai.ollama.*, spring.ai.anthropic.*, or spring.ai.openai.* settings.");
+                    }
 
-            ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
+                    ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
-            var promptSpec = chatClient.prompt(context.getPrompt());
+                    var promptSpec = chatClient.prompt(context.getPrompt());
 
-            if (context.getChatOptions() != null) {
-                promptSpec = promptSpec.options(context.getChatOptions());
-            }
+                    if (context.getChatOptions() != null) {
+                        promptSpec = promptSpec.options(context.getChatOptions());
+                    }
 
-            T result = (T) promptSpec.call().entity(targetType);
-
-            return result;
-        })
+                    return (T) promptSpec.call().entity(targetType);
+                })
                 .doOnError(error -> log.error("LLM Entity execution failed - RequestId: {}", context.getRequestId(),
                         error));
     }
@@ -189,7 +187,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         }
 
         String defaultModel = tieredLLMProperties.getModelNameForTier(1);
-        log.warn("Model selection unavailable, using default model: {}", defaultModel);
+        log.error("Model selection unavailable, using default model: {}", defaultModel);
         return defaultModel;
     }
 

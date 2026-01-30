@@ -3,24 +3,24 @@ package io.contexa.contexacore.autonomous.tiered.cache;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
-
 public class VectorStoreCacheLayer {
 
-    @Autowired(required = false)
-    private StandardVectorStoreService vectorStoreService;
+    private final VectorStore vectorStore;
+
+    public VectorStoreCacheLayer(VectorStore vectorStore) {
+        this.vectorStore = vectorStore;
+    }
 
     @Value("${spring.ai.security.vector-cache.max-size:10000}")
     private long maxCacheSize;
@@ -52,28 +52,27 @@ public class VectorStoreCacheLayer {
             }
 
     public List<Document> similaritySearch(SearchRequest request) {
-        if (!cacheEnabled || vectorStoreService == null) {
+        if (!cacheEnabled || vectorStore == null) {
             return fallbackSearch(request);
         }
 
         try {
-            
             String cacheKey = generateCacheKey(request);
 
             List<Document> cachedResult = cache.getIfPresent(cacheKey);
             if (cachedResult != null) {
-                                return cachedResult;
+                return cachedResult;
             }
 
-                        long startTime = System.currentTimeMillis();
+            long startTime = System.currentTimeMillis();
 
-            List<Document> result = vectorStoreService.similaritySearch(request);
+            List<Document> result = vectorStore.similaritySearch(request);
 
             long elapsedTime = System.currentTimeMillis() - startTime;
 
             if (result != null && !result.isEmpty()) {
                 cache.put(cacheKey, result);
-                            }
+            }
 
             return result;
 
@@ -106,13 +105,13 @@ public class VectorStoreCacheLayer {
     }
 
     private List<Document> fallbackSearch(SearchRequest request) {
-        if (vectorStoreService == null) {
-            log.warn("[VectorStoreCacheLayer] VectorStoreService not available");
+        if (vectorStore == null) {
+            log.warn("[VectorStoreCacheLayer] VectorStore not available");
             return List.of();
         }
 
         try {
-            return vectorStoreService.similaritySearch(request);
+            return vectorStore.similaritySearch(request);
         } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Fallback search failed", e);
             return List.of();
@@ -120,14 +119,14 @@ public class VectorStoreCacheLayer {
     }
 
     public void add(List<Document> documents) {
-        if (vectorStoreService == null) {
-            log.warn("[VectorStoreCacheLayer] VectorStoreService not available for adding documents");
+        if (vectorStore == null) {
+            log.warn("[VectorStoreCacheLayer] VectorStore not available for adding documents");
             return;
         }
 
         try {
-            vectorStoreService.addDocuments(documents);
-                    } catch (Exception e) {
+            vectorStore.add(documents);
+        } catch (Exception e) {
             log.error("[VectorStoreCacheLayer] Failed to add documents to vector store", e);
         }
     }

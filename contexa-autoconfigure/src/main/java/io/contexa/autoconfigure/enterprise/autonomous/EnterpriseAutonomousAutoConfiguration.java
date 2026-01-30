@@ -15,8 +15,8 @@ import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
 import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
@@ -135,7 +135,7 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AITuningService aiTuningService(
-            StandardVectorStoreService vectorStore,
+            VectorStore vectorStore,
             RedisTemplate<String, Object> redisTemplate) {
         return new AITuningService(vectorStore, redisTemplate);
     }
@@ -152,15 +152,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public BehavioralAnalysisLabConnector behavioralAnalysisLabConnector() {
         return new BehavioralAnalysisLabConnector();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public IntegratedThreatEvaluator integratedThreatEvaluator(
-            RedisAtomicOperations redisAtomicOperations,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new IntegratedThreatEvaluator(redisAtomicOperations, redisTemplate);
     }
 
     @Bean
@@ -207,19 +198,17 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public MemorySystemHelper memorySystemHelper(
             UnifiedVectorService unifiedVectorService,
-            StandardVectorStoreService standardVectorStoreService,
             DistributedStateManager stateManager,
             RedisTemplate<String, Object> redisTemplate) {
-        return new MemorySystemHelper(unifiedVectorService, standardVectorStoreService, stateManager, redisTemplate);
+        return new MemorySystemHelper(unifiedVectorService, stateManager, redisTemplate);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public XAIReportingService xaiReportingService(
-            StandardVectorStoreService vectorStore,
             RedisTemplate<String, Object> redisTemplate) {
-        return new XAIReportingService(vectorStore, redisTemplate);
+        return new XAIReportingService(redisTemplate);
     }
 
     @Bean

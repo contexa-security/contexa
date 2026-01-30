@@ -2,8 +2,8 @@ package io.contexa.contexacoreenterprise.autonomous.intelligence;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.VectorStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @RequiredArgsConstructor
 public class AITuningService {
 
-    private final StandardVectorStoreService vectorStore;
+    private final VectorStore vectorStore;
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Value("${ai.tuning.enabled:true}")
@@ -440,7 +440,7 @@ public class AITuningService {
         metadata.put("timestamp", LocalDateTime.now().toString());
         
         Document doc = new Document(pattern.toString(), metadata);
-        vectorStore.addDocuments(List.of(doc));
+        vectorStore.add(List.of(doc));
     }
 
     private void saveFalseNegativePattern(SecurityEvent event, ThreatIndicators indicators) {
@@ -457,7 +457,7 @@ public class AITuningService {
         metadata.put("timestamp", LocalDateTime.now().toString());
         
         Document doc = new Document(pattern.toString(), metadata);
-        vectorStore.addDocuments(List.of(doc));
+        vectorStore.add(List.of(doc));
     }
 
     private Map<String, Object> extractFeatures(SecurityEvent event) {

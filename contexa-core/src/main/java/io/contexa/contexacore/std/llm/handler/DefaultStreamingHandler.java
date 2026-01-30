@@ -2,13 +2,13 @@ package io.contexa.contexacore.std.llm.handler;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.llm.core.ExecutionContext;
+import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
 import java.time.Duration;
@@ -18,6 +18,7 @@ import java.time.Duration;
 public class DefaultStreamingHandler implements StreamingHandler {
 
     private final TieredLLMProperties tieredLLMProperties;
+    private final JsonStreamingProcessor jsonStreamingProcessor;
     
     @Override
     public Flux<String> handleStreaming(ChatClient chatClient, ExecutionContext context) {
@@ -52,21 +53,19 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     }
                 }
 
-                Flux<String> responseFlux = promptSpec.stream().content();
+                Flux<String> rawResponseFlux = promptSpec.stream().content();
 
                 if (context.getTimeoutMs() != null) {
-                    responseFlux = responseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
+                    rawResponseFlux = rawResponseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
                 }
 
                 Integer effectiveTier = context.getEffectiveTier();
                 if (effectiveTier != null) {
-                    responseFlux = optimizeForTier(responseFlux, effectiveTier);
+                    rawResponseFlux = optimizeForTier(rawResponseFlux, effectiveTier);
                 }
 
-                return responseFlux
-                        .doOnNext(chunk -> log.trace("Streaming chunk received - RequestId: {}, length: {}",
-                                context.getRequestId(), chunk.length()))
-                        .doOnComplete(() -> log.debug("Streaming completed - RequestId: {}", context.getRequestId()))
+                // Process raw streaming through JsonStreamingProcessor for marker handling
+                return jsonStreamingProcessor.process(rawResponseFlux)
                         .doOnError(error -> log.error("Streaming error - RequestId: {}", context.getRequestId(), error));
 
             } catch (Exception e) {
@@ -80,7 +79,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
     public Flux<String> handleStreamingWithTools(ChatClient chatClient, ExecutionContext context) {
                 
         if (!hasToolsEnabled(context)) {
-            log.warn("Tools not enabled. Falling back to standard streaming.");
+            log.error("Tools not enabled. Falling back to standard streaming.");
             return handleStreaming(chatClient, context);
         }
         
@@ -95,7 +94,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     return handleStreamingWithToolProviders(chatClient, context);
                 }
 
-                log.warn("No tool configuration found. Processing with standard streaming.");
+                log.error("No tool configuration found. Processing with standard streaming.");
                 return handleStreaming(chatClient, context);
 
             } catch (Exception e) {
@@ -147,15 +146,18 @@ public class DefaultStreamingHandler implements StreamingHandler {
             if (context.getChatOptions() != null) {
                 promptSpec = promptSpec.options(context.getChatOptions());
             }
-            
-            Flux<String> responseFlux = promptSpec.stream().content();
+
+            Flux<String> rawResponseFlux = promptSpec.stream().content();
 
             if (context.getTimeoutMs() != null) {
-                responseFlux = responseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
+                rawResponseFlux = rawResponseFlux.timeout(Duration.ofMillis(context.getTimeoutMs()));
             }
-            
-            return responseFlux;
-            
+
+            // Process raw streaming through JsonStreamingProcessor for marker handling
+            return jsonStreamingProcessor.process(rawResponseFlux)
+                    .doOnError(error -> log.error("Tool provider streaming error - RequestId: {}",
+                            context.getRequestId(), error));
+
         } catch (Exception e) {
             log.error("Tool provider streaming failed", e);
             return Flux.error(e);
@@ -208,7 +210,7 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     .flatMap(chunks -> Flux.fromIterable(chunks));
             }
             default -> {
-                log.warn("Unknown tier: {}, using default streaming", tier);
+                log.error("Unknown tier: {}, using default streaming", tier);
                 yield responseFlux.timeout(Duration.ofMillis(1000));
             }
         };

@@ -126,5 +126,10 @@ public class BehavioralAnalysisTemplate implements PromptTemplate {
     public BeanOutputConverter<BehavioralAnalysisResponse> getConverter() {
         return converter;
     }
+
+    @Override
+    public Class<?> getAIGenerationType() {
+        return BehavioralAnalysisResponse.class;
+    }
 }
 

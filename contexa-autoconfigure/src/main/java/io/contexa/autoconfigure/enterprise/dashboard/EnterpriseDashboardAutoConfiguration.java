@@ -6,7 +6,7 @@ import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.UserTrustMet
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.HCADFeedbackLoopMetrics;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
 import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.DefaultRoutingDecisionMetrics;
-import io.contexa.contexacoreenterprise.dashboard.metrics.vectorstore.VectorStoreMetrics;
+import io.contexa.contexacoreenterprise.dashboard.metrics.vectorstore.VectorStoreMetricsImpl;
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.UnifiedSecurityMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
@@ -60,8 +60,8 @@ public class EnterpriseDashboardAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.dashboard.metrics", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public VectorStoreMetrics vectorStoreMetrics() {
-        return new VectorStoreMetrics();
+    public VectorStoreMetricsImpl vectorStoreMetrics() {
+        return new VectorStoreMetricsImpl();
     }
 
     @Bean

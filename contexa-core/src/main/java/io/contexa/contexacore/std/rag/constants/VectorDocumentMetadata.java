@@ -44,8 +44,6 @@ public final class VectorDocumentMetadata {
 
     public static final String ACTIVITY_SEQUENCE = "activitySequence";
 
-    public static final String BEHAVIOR_ANOMALY_SCORE = "behaviorAnomalyScore";
-
     public static final String THREAT_TYPE = "threatType";
 
     public static final String MITRE_TACTIC = "mitreTactic";
@@ -56,13 +54,9 @@ public final class VectorDocumentMetadata {
 
     public static final String RISK_CATEGORIES = "riskCategories";
 
-    public static final String TRUST_SCORE = "trustScore";
-
     public static final String RISK_LEVEL = "riskLevel";
 
     public static final String COMPLIANCE_FRAMEWORK = "complianceFramework";
-
-    public static final String HCAD_SCORE = "hcadScore";
 
     public static final String IS_COLD_PATH = "isColdPath";
 

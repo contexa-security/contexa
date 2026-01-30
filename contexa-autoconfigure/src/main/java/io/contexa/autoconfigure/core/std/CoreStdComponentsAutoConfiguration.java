@@ -40,10 +40,7 @@ import io.contexa.contexacore.std.pipeline.executor.UniversalPipelineExecutor;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
 import io.contexa.contexacore.std.pipeline.step.*;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
-import io.contexa.contexacore.std.rag.debug.FilterDebugInterceptor;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
-import io.contexa.contexacore.std.rag.etl.BehaviorMetadataEnricher;
-import io.contexa.contexacore.std.rag.processors.*;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import io.contexa.contexacore.std.strategy.BehavioralAnalysisDiagnosisStrategy;
@@ -184,8 +181,10 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DefaultStreamingHandler defaultStreamingHandler(TieredLLMProperties tieredLLMProperties) {
-        return new DefaultStreamingHandler(tieredLLMProperties);
+    public DefaultStreamingHandler defaultStreamingHandler(
+            TieredLLMProperties tieredLLMProperties,
+            JsonStreamingProcessor jsonStreamingProcessor) {
+        return new DefaultStreamingHandler(tieredLLMProperties, jsonStreamingProcessor);
     }
 
     @Bean
@@ -298,48 +297,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public FilterDebugInterceptor filterDebugInterceptor() {
-        return new FilterDebugInterceptor();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public BehaviorMetadataEnricher behaviorMetadataEnricher() {
-        return new BehaviorMetadataEnricher();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AnomalyScoreRanker anomalyScoreRanker() {
-        return new AnomalyScoreRanker();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public PolicyTemplateProcessor policyTemplateProcessor() {
-        return new PolicyTemplateProcessor();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RiskScoreAggregator riskScoreAggregator() {
-        return new RiskScoreAggregator();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public TemporalClusteringProcessor temporalClusteringProcessor() {
-        return new TemporalClusteringProcessor();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ThreatCorrelator threatCorrelator() {
-        return new ThreatCorrelator();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public BehavioralAnalysisDiagnosisStrategy behavioralAnalysisDiagnosisStrategy(AILabFactory aiLabFactory) {
         return new BehavioralAnalysisDiagnosisStrategy(aiLabFactory);
     }
@@ -382,9 +339,8 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public BehaviorETLPipeline behaviorETLPipeline(
             VectorStore vectorStore,
-            JdbcTemplate jdbcTemplate,
-            BehaviorMetadataEnricher metadataEnricher) {
-        return new BehaviorETLPipeline(vectorStore, jdbcTemplate, metadataEnricher);
+            JdbcTemplate jdbcTemplate) {
+        return new BehaviorETLPipeline(vectorStore, jdbcTemplate);
     }
 
     @Bean

@@ -39,8 +39,7 @@ public class ResponseParsingStep implements PipelineStep {
             Boolean structuredComplete = context.getMetadata("structuredOutputComplete", Boolean.class);
             if (Boolean.TRUE.equals(structuredComplete)) {
                 Object structuredResponse = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, Object.class);
-                                context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, structuredResponse);
-                context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, structuredResponse);
+                context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, structuredResponse);
                 context.addMetadata("parsingComplete", true);
                 context.addMetadata("responseType", structuredResponse != null ? structuredResponse.getClass().getSimpleName() : "unknown");
                 
@@ -58,8 +57,7 @@ public class ResponseParsingStep implements PipelineStep {
             Object result = convertWithSpringAI(llmResponse, targetTypeInfo, context);
             
             context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, result);
-            context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, result);
-            
+
             enrichWithMetadata(result, request, context);
             context.addMetadata("parsingComplete", true);
             context.addMetadata("parsedResponseType", result != null ? result.getClass() : null);
@@ -134,50 +132,10 @@ public class ResponseParsingStep implements PipelineStep {
         if (response == null || response.trim().isEmpty()) {
             return "{}";
         }
-        
+
         String cleaned = response.trim();
 
-        if (cleaned.toLowerCase().contains("this is a json") || 
-            cleaned.toLowerCase().contains("json (javascript object notation)") ||
-            cleaned.toLowerCase().contains("here is the json") ||
-            cleaned.toLowerCase().contains("json structure") ||
-            cleaned.toLowerCase().contains("json format")) {
-            
-            log.error("[{}] AI returned text describing JSON. Attempting JSON extraction...", getStepName());
-
-            int jsonStart = -1;
-            int jsonEnd = -1;
-
-            for (int i = 0; i < cleaned.length(); i++) {
-                if (cleaned.charAt(i) == '{' || cleaned.charAt(i) == '[') {
-                    jsonStart = i;
-                    break;
-                }
-            }
-
-            if (jsonStart >= 0) {
-                char startChar = cleaned.charAt(jsonStart);
-                char endChar = (startChar == '{') ? '}' : ']';
-                int braceCount = 0;
-                
-                for (int i = jsonStart; i < cleaned.length(); i++) {
-                    if (cleaned.charAt(i) == startChar) {
-                        braceCount++;
-                    } else if (cleaned.charAt(i) == endChar) {
-                        braceCount--;
-                        if (braceCount == 0) {
-                            jsonEnd = i + 1;
-                            break;
-                        }
-                    }
-                }
-                
-                if (jsonEnd > jsonStart) {
-                    cleaned = cleaned.substring(jsonStart, jsonEnd);
-                                    }
-            }
-        }
-
+        // Handle markdown code blocks with json language specifier
         if (cleaned.contains("```json")) {
             int start = cleaned.indexOf("```json") + 7;
             int end = cleaned.indexOf("```", start);
@@ -185,70 +143,46 @@ public class ResponseParsingStep implements PipelineStep {
                 cleaned = cleaned.substring(start, end).trim();
             }
         }
-        
-        else if (cleaned.startsWith("```") && cleaned.endsWith("```")) {
-            
-            cleaned = cleaned.substring(3);
-            
-            if (cleaned.endsWith("```")) {
-                cleaned = cleaned.substring(0, cleaned.length() - 3);
-            }
-            cleaned = cleaned.trim();
-
-            int firstNewline = cleaned.indexOf('\n');
-            if (firstNewline > 0 && firstNewline < 20) {
-                String firstLine = cleaned.substring(0, firstNewline).trim();
-                
-                if (firstLine.matches("^[a-zA-Z]+$")) {
-                    cleaned = cleaned.substring(firstNewline + 1).trim();
-                }
-            }
-        }
-        
+        // Handle generic markdown code blocks
         else if (cleaned.contains("```")) {
-            
-            int start = cleaned.indexOf("```");
-            if (start >= 0) {
-                
-                String afterStart = cleaned.substring(start + 3);
-                
-                int end = afterStart.indexOf("```");
-                if (end > 0) {
-                    cleaned = afterStart.substring(0, end).trim();
-                    
-                    int firstNewline = cleaned.indexOf('\n');
-                    if (firstNewline > 0 && firstNewline < 20) {
-                        String firstLine = cleaned.substring(0, firstNewline).trim();
-                        if (firstLine.matches("^[a-zA-Z]+$")) {
-                            cleaned = cleaned.substring(firstNewline + 1).trim();
-                        }
+            int start = cleaned.indexOf("```") + 3;
+            int end = cleaned.indexOf("```", start);
+            if (end > start) {
+                String content = cleaned.substring(start, end).trim();
+                // Skip language identifier if present on first line
+                int firstNewline = content.indexOf('\n');
+                if (firstNewline > 0 && firstNewline < 20) {
+                    String firstLine = content.substring(0, firstNewline).trim();
+                    if (firstLine.matches("^[a-zA-Z]+$")) {
+                        content = content.substring(firstNewline + 1).trim();
                     }
                 }
+                cleaned = content;
             }
         }
 
-        if (cleaned.isEmpty() || cleaned.equals("{}") || cleaned.equals("[]")) {
-            return cleaned.isEmpty() ? "{}" : cleaned;
+        if (cleaned.isEmpty()) {
+            return "{}";
         }
 
+        // Validate JSON structure
         if (cleaned.startsWith("{") || cleaned.startsWith("[")) {
             try {
                 objectMapper.readTree(cleaned);
                 return cleaned;
             } catch (Exception e) {
-
+                // Try fixing trailing commas
                 try {
-                    
-                    cleaned = cleaned.replaceAll(",\\s*([}\\]])", "$1");
-                    
-                    objectMapper.readTree(cleaned);
-                    return cleaned;
+                    String fixed = cleaned.replaceAll(",\\s*([}\\]])", "$1");
+                    objectMapper.readTree(fixed);
+                    return fixed;
                 } catch (Exception retryError) {
-                                    }
+                    log.error("[{}] Invalid JSON structure: {}", getStepName(), e.getMessage());
+                }
             }
         }
 
-                return response;
+        return response;
     }
 
     private Object determineTargetType(AIRequest<?> request, PipelineExecutionContext context) {
@@ -277,31 +211,18 @@ public class ResponseParsingStep implements PipelineStep {
     }
 
     private void enrichWithMetadata(Object response, AIRequest<?> request, PipelineExecutionContext context) {
-        
         Long startTime = context.getMetadata("startTime", Long.class);
         if (startTime != null) {
             long executionTime = System.currentTimeMillis() - startTime;
             context.addMetadata("executionTimeMs", executionTime);
-                    }
+        }
 
         context.addMetadata("status", response != null ? "SUCCESS" : "FAILURE");
         context.addMetadata("completedAt", System.currentTimeMillis());
 
         if (response != null) {
             context.addMetadata("responseClass", response.getClass().getName());
-            context.addMetadata("responseSize", estimateResponseSize(response));
         }
-    }
-
-    private int estimateResponseSize(Object response) {
-        if (response instanceof String) {
-            return ((String) response).length();
-        } else if (response instanceof Map) {
-            return ((Map<?, ?>) response).size();
-        } else if (response instanceof List) {
-            return ((List<?>) response).size();
-        }
-        return 1; 
     }
 
     private Object createFallbackResponse(AIRequest<?> request, PipelineExecutionContext context) {
@@ -313,16 +234,10 @@ public class ResponseParsingStep implements PipelineStep {
         );
 
         enrichWithMetadata(fallback, request, context);
-        
+
         context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, fallback);
-        context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, fallback);
-        
+
         return fallback;
-    }
-    
-    @Override
-    public String getStepName() {
-        return "RESPONSE_PARSING";
     }
 
     @Override

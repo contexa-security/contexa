@@ -6,6 +6,7 @@ import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingPipelineContext;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingPipelineExecutionContext;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.extern.slf4j.Slf4j;
@@ -64,9 +65,8 @@ public class StreamingLLMExecutionStep extends LLMExecutionStep {
 
                     return llmStream
                             .doOnNext(chunk -> {
-                                
-                                if (chunk.startsWith("###STREAMING###")) {
-                                    String streamingText = chunk.substring(15);
+                                if (chunk.startsWith(StreamingProtocol.STREAMING_MARKER)) {
+                                    String streamingText = chunk.substring(StreamingProtocol.STREAMING_MARKER.length());
                                     rawResponseCollector.append(streamingText);
 
                                     if (context.getStreamSink() != null && context.isStreamingMode()) {
@@ -83,8 +83,7 @@ public class StreamingLLMExecutionStep extends LLMExecutionStep {
                                 String fullRawResponse = rawResponseCollector.toString();
                                 StreamingPipelineExecutionContext executionContext = (StreamingPipelineExecutionContext) context;
                                 executionContext.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, fullRawResponse);
-
-                                                            })
+                            })
                             .then(Mono.just(rawResponseCollector.toString()))
                             .cast(Object.class);
                 });

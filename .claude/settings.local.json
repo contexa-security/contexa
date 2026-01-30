@@ -101,7 +101,12 @@
       "Bash(.\\\\gradlew :contexa-core:compileJava :contexa-iam:compileJava :contexa-autoconfigure:compileJava:*)",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\executor\\\\StepExecutionHandler.java\")",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\executor\\\\DefaultStepExecutionHandler.java\")",
-      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\executor\\\\PostprocessingStepExecutionHandler.java\")"
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\executor\\\\PostprocessingStepExecutionHandler.java\")",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\streaming\\\\StreamingResponseCollector.java\")",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\streaming\\\\DefaultStreamingResponseCollector.java\")",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\rag\\\\etl\\\\BehaviorMetadataEnricher.java\")",
+      "Bash(.\\\\gradlew :contexa-core:compileJava :contexa-autoconfigure:compileJava --no-daemon -q:*)",
+      "Bash(.mvnw.cmd compile:*)"
     ],
     "deny": [],
     "ask": []

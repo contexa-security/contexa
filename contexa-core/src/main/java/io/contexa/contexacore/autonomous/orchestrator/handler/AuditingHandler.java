@@ -89,14 +89,9 @@ public class AuditingHandler implements SecurityEventHandler {
                 evaluator = aiResult.getAiModel();
             }
 
-            String strategy = "IntegratedThreatEvaluator";
-            if (Boolean.FALSE.equals(context.getMetadata().get("consensusAchieved"))) {
-                strategy = "DynamicStrategySelector";
-            }
-
             long processingTime = aiResult.getAnalysisTimeMs();
 
-            auditLogger.auditThreatAssessment(event, assessment, evaluator, strategy, processingTime);
+            auditLogger.auditThreatAssessment(event, assessment, evaluator, processingTime);
 
         } catch (Exception e) {
             log.error("[AuditingHandler][AI Native] Failed to audit threat assessment", e);

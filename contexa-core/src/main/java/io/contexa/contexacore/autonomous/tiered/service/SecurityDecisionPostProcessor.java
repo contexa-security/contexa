@@ -61,7 +61,7 @@ public class SecurityDecisionPostProcessor {
             }
 
         } catch (Exception e) {
-                    }
+        }
     }
 
     public void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision) {
@@ -74,7 +74,7 @@ public class SecurityDecisionPostProcessor {
 
             double confidence = decision.getConfidence();
             if (Double.isNaN(confidence)) {
-                                
+
             }
 
             if (action == SecurityDecision.Action.ALLOW) {
@@ -88,7 +88,7 @@ public class SecurityDecisionPostProcessor {
             }
 
         } catch (Exception e) {
-                    }
+        }
     }
 
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
@@ -100,7 +100,8 @@ public class SecurityDecisionPostProcessor {
             unifiedVectorService.storeDocument(document);
 
         } catch (Exception e) {
-                    }
+            log.error(e.getMessage(), e);
+        }
     }
 
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
@@ -111,19 +112,19 @@ public class SecurityDecisionPostProcessor {
         }
 
         if (event.getSourceIp() != null) {
-            if (content.length() > 0) content.append(", ");
+            if (!content.isEmpty()) content.append(", ");
             content.append("IP: ").append(event.getSourceIp());
         }
 
         String path = extractPath(event);
         if (path != null) {
-            if (content.length() > 0) content.append(", ");
+            if (!content.isEmpty()) content.append(", ");
             content.append("Path: ").append(path);
         }
 
         String os = extractOSFromUserAgent(event.getUserAgent());
         if (os != null && !"Desktop".equals(os)) {
-            if (content.length() > 0) content.append(", ");
+            if (!content.isEmpty()) content.append(", ");
             content.append("OS: ").append(os);
         }
 
@@ -131,11 +132,9 @@ public class SecurityDecisionPostProcessor {
     }
 
     private String extractHttpMethod(SecurityEvent event) {
-        Object metadataObj = event.getMetadata();
+        Map<String, Object> metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> metadata = (Map<String, Object>) metadataObj;
-            Object method = metadata.get("httpMethod");
+            Object method = metadataObj.get("httpMethod");
             if (method != null) {
                 return method.toString();
             }
@@ -145,12 +144,12 @@ public class SecurityDecisionPostProcessor {
 
     private String extractPath(SecurityEvent event) {
         if (event.getMetadata() != null) {
-            
+
             Object uri = event.getMetadata().get("requestPath");
             if (uri != null) {
                 return uri.toString();
             }
-            
+
             Object fullPath = event.getMetadata().get("fullPath");
             if (fullPath != null) {
                 return fullPath.toString();
@@ -194,10 +193,10 @@ public class SecurityDecisionPostProcessor {
         Map<String, Object> metadata = new HashMap<>();
 
         metadata.put("documentType", documentType);
-        
+
         String eventTimestamp = event.getTimestamp() != null
-            ? event.getTimestamp().toString()
-            : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+                ? event.getTimestamp().toString()
+                : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
         metadata.put("timestamp", eventTimestamp);
 
         if (event.getTimestamp() != null) {
@@ -232,7 +231,7 @@ public class SecurityDecisionPostProcessor {
             if (userAgentOS != null) {
                 metadata.put("userAgentOS", userAgentOS);
             }
-            
+
             String browser = extractBrowserSignature(event.getUserAgent());
             if (browser != null) {
                 metadata.put("userAgentBrowser", browser);
@@ -298,7 +297,7 @@ public class SecurityDecisionPostProcessor {
         }
 
         if (userAgent.contains("Safari/") && !userAgent.contains("Chrome")) {
-            
+
             String version = extractBrowserVersion(userAgent, "Version/");
             return "Safari/" + (version != null ? version : "unknown");
         }
@@ -334,7 +333,7 @@ public class SecurityDecisionPostProcessor {
 
         if (endIndex > startIndex) {
             String fullVersion = userAgent.substring(startIndex, endIndex);
-            
+
             int dotIndex = fullVersion.indexOf('.');
             if (dotIndex > 0) {
                 return fullVersion.substring(0, dotIndex);

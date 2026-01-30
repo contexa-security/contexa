@@ -4,7 +4,6 @@ import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
-import io.contexa.contexacore.std.rag.service.StandardVectorStoreService;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import lombok.AllArgsConstructor;
@@ -27,7 +26,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class XAIReportingService {
 
-    private final StandardVectorStoreService vectorStore;
     private final RedisTemplate<String, Object> redisTemplate;
 
     @Value("${xai.enabled:true}")
