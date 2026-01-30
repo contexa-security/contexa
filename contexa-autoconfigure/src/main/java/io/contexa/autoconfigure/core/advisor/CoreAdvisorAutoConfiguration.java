@@ -6,6 +6,7 @@ import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -29,20 +30,12 @@ public class CoreAdvisorAutoConfiguration {
     @Autowired(required = false)
     private List<BaseAdvisor> baseAdvisors;
 
-    @Autowired(required = false)
-    private AdvisorRegistry advisorRegistry;
-
-    @PostConstruct
-    public void init() {
-        if (advisorRegistry != null && baseAdvisors != null) {
-            baseAdvisors.forEach(advisorRegistry::register);
-        }
-    }
-
     @Bean
     @ConditionalOnMissingBean
     public AdvisorRegistry advisorRegistry() {
-        return new AdvisorRegistry();
+        AdvisorRegistry advisorRegistry = new AdvisorRegistry();
+        baseAdvisors.forEach(advisorRegistry::register);
+        return advisorRegistry;
     }
 
     @EventListener(ContextRefreshedEvent.class)
