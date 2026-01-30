@@ -18,7 +18,6 @@ import reactor.core.publisher.Mono;
 public class DistributedStrategyExecutor<T extends DomainContext> {
 
     private final PipelineOrchestrator orchestrator;
-    private final RedisEventPublisher eventPublisher;
 
     private final AIStrategyRegistry strategyRegistry;
 
@@ -27,7 +26,6 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
                                        RedisEventPublisher eventPublisher,
                                        AIStrategyRegistry strategyRegistry) {
         this.orchestrator = orchestrator;
-        this.eventPublisher = eventPublisher;
         this.strategyRegistry = strategyRegistry;
 
     }
@@ -48,9 +46,7 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         } catch (Exception e) {
             log.error("Strategy execution failed for session: {}, falling back to AI Pipeline", sessionId, e);
 
-            R fallbackResult = executeAIPipelineFallback(request, responseType, sessionId);
-
-            return fallbackResult;
+            return executeAIPipelineFallback(request, responseType, sessionId);
         }
     }
 
@@ -97,9 +93,7 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
                                                                     String sessionId) {
         try {
 
-            R result = strategyRegistry.executeStrategy(request, responseType);
-
-            return result;
+            return strategyRegistry.executeStrategy(request, responseType);
 
         } catch (DiagnosisException e) {
             log.error("Strategy registry execution failed for session: {} - {}", sessionId, e.getMessage());
@@ -164,7 +158,7 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
 
             Object rawResult = orchestrator.execute(request, config, responseType).block();
 
-            if (rawResult != null && responseType.isInstance(rawResult)) {
+            if (responseType.isInstance(rawResult)) {
                 return responseType.cast(rawResult);
             } else {
                 log.error("Pipeline returned unexpected type: {} for expected: {}",
@@ -223,7 +217,5 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         if (result == null) {
             throw new AIOperationException("Strategy execution returned null result for session: " + sessionId);
         }
-
     }
-
-} 
+}
