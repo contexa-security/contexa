@@ -32,9 +32,7 @@ public interface AIStrategy<T extends DomainContext, R extends AIResponse> {
     }
 
     default io.contexa.contexacore.std.pipeline.PipelineConfiguration<T> suggestPipelineConfiguration(
-            AIRequest<T> request,
-            io.contexa.contexacore.std.pipeline.analyzer.RequestCharacteristics characteristics) {
-        
+            AIRequest<T> request) {
         return null;
     }
 }

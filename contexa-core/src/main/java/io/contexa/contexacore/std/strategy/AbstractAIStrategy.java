@@ -7,10 +7,6 @@ import io.contexa.contexacore.std.labs.AILab;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration.PipelineStep;
-import io.contexa.contexacore.std.pipeline.analyzer.RequestCharacteristics;
-import io.contexa.contexacore.std.pipeline.condition.AlwaysExecuteCondition;
-import io.contexa.contexacore.std.pipeline.condition.ContextRetrievalOptionalCondition;
-import io.contexa.contexacore.std.pipeline.condition.FastPathCondition;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -158,75 +154,17 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
     }
 
     @Override
-    public final PipelineConfiguration<T> suggestPipelineConfiguration(
-            AIRequest<T> request,
-            RequestCharacteristics characteristics) {
-
+    public final PipelineConfiguration<T> suggestPipelineConfiguration(AIRequest<T> request) {
         PipelineConfig config = getPipelineConfig();
         PipelineConfiguration.Builder<T> builder = PipelineConfiguration.builder();
-        builder.addConditionalStep(PipelineStep.PREPROCESSING, new AlwaysExecuteCondition<>());
-        addContextRetrievalStep(builder, config.getContextRetrieval(), characteristics);
-        builder.addConditionalStep(PipelineStep.PROMPT_GENERATION, new AlwaysExecuteCondition<>());
-        builder.addConditionalStep(PipelineStep.LLM_EXECUTION, new AlwaysExecuteCondition<>());
-        builder.addConditionalStep(PipelineStep.RESPONSE_PARSING, new AlwaysExecuteCondition<>());
-        addPostProcessingStep(builder, config.getPostProcessing(), characteristics);
+        builder.addStep(PipelineStep.PREPROCESSING);
+        builder.addStep(PipelineStep.CONTEXT_RETRIEVAL);
+        builder.addStep(PipelineStep.PROMPT_GENERATION);
+        builder.addStep(PipelineStep.LLM_EXECUTION);
+        builder.addStep(PipelineStep.RESPONSE_PARSING);
+        builder.addStep(PipelineStep.POSTPROCESSING);
         builder.timeoutSeconds(config.getTimeoutSeconds());
-
         return builder.build();
-    }
-
-    private void addContextRetrievalStep(
-            PipelineConfiguration.Builder<T> builder,
-            PipelineConfig.ContextRetrievalStrategy strategy,
-            RequestCharacteristics characteristics) {
-
-        switch (strategy) {
-            case ALWAYS_REQUIRED:
-
-                builder.addConditionalStep(PipelineStep.CONTEXT_RETRIEVAL, new AlwaysExecuteCondition<>());
-                break;
-
-            case DYNAMIC:
-
-                if (characteristics.isRequiresContextRetrieval()) {
-                    builder.addConditionalStep(PipelineStep.CONTEXT_RETRIEVAL, new AlwaysExecuteCondition<>());
-                } else {
-                    builder.addConditionalStep(PipelineStep.CONTEXT_RETRIEVAL, new ContextRetrievalOptionalCondition<>());
-                }
-                break;
-
-            case OPTIONAL:
-
-                builder.addConditionalStep(PipelineStep.CONTEXT_RETRIEVAL, new ContextRetrievalOptionalCondition<>());
-                break;
-        }
-    }
-
-    private void addPostProcessingStep(
-            PipelineConfiguration.Builder<T> builder,
-            PipelineConfig.PostProcessingStrategy strategy,
-            RequestCharacteristics characteristics) {
-
-        switch (strategy) {
-            case ALWAYS:
-
-                builder.addConditionalStep(PipelineStep.POSTPROCESSING, new AlwaysExecuteCondition<>());
-                break;
-
-            case DYNAMIC:
-
-                if (characteristics.isRequiresHighAccuracy()) {
-                    builder.addConditionalStep(PipelineStep.POSTPROCESSING, new AlwaysExecuteCondition<>());
-                } else {
-                    builder.addConditionalStep(PipelineStep.POSTPROCESSING, new FastPathCondition<>());
-                }
-                break;
-
-            case FAST_PATH:
-
-                builder.addConditionalStep(PipelineStep.POSTPROCESSING, new FastPathCondition<>());
-                break;
-        }
     }
 
     protected PipelineConfig getPipelineConfig() {

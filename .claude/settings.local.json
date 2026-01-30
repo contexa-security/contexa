@@ -97,7 +97,11 @@
       "Bash(\"d:\\\\projects\\\\contexa\\\\mvnw.cmd\" clean compile -pl contexa-core)",
       "Bash(gradle :contexa-core:compileJava:*)",
       "Bash(gradlew clean build:*)",
-      "Bash(.gradlew.bat clean build:*)"
+      "Bash(.gradlew.bat clean build:*)",
+      "Bash(.\\\\gradlew :contexa-core:compileJava :contexa-iam:compileJava :contexa-autoconfigure:compileJava:*)",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\executor\\\\StepExecutionHandler.java\")",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\executor\\\\DefaultStepExecutionHandler.java\")",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\executor\\\\PostprocessingStepExecutionHandler.java\")"
     ],
     "deny": [],
     "ask": []

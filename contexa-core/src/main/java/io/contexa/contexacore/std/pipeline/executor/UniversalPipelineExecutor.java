@@ -22,10 +22,9 @@ import java.util.stream.Stream;
 public class UniversalPipelineExecutor implements PipelineExecutor {
 
     private final Tracer tracer;
-    private final List<PipelineStep> steps;
+    protected final List<PipelineStep> steps;
     private final LLMExecutionStep llmExecutionStep;
     private final PipelineStep soarToolExecutionStep;
-    private final List<StepExecutionHandler> stepHandlers;
     private final FinalResponseBuilder responseBuilder;
 
     public UniversalPipelineExecutor(
@@ -53,13 +52,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 .sorted((a, b) -> Integer.compare(a.getOrder(), b.getOrder()))
                 .toList();
 
-        this.stepHandlers = List.of(
-                new PostprocessingStepExecutionHandler(),
-                new DefaultStepExecutionHandler()
-        );
-
         this.responseBuilder = new FinalResponseBuilder();
-
     }
 
     @Override
@@ -92,7 +85,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                         span.setAttribute("duration.ms", totalTime);
                         span.recordException(error);
                         span.setStatus(StatusCode.ERROR, error.getMessage());
-                        log.error("[PIPELINE] ===== Pipeline 실패 ===== Request: {} 총 처리시간: {}ms - {}",
+                        log.error("[PIPELINE] Pipeline failed - Request: {} Duration: {}ms - {}",
                                 request.getRequestId(), totalTime, error.getMessage(), error);
                     })
                     .doFinally(signalType -> span.end());
@@ -102,19 +95,17 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     @Override
     public <T extends DomainContext> Flux<String> executeStream(AIRequest<T> request, PipelineConfiguration<T> configuration) {
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
-        return executePreStreamingSteps(request, configuration, context)
+        boolean isSoar = request.getContext() instanceof SoarContext;
+
+        return executePreStreamingSteps(request, configuration, context, isSoar)
                 .flatMapMany(ctx -> {
                     if (configuration.hasStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)) {
-                        return llmExecutionStep.executeStreaming(request, ctx)
-                                .doOnNext(chunk -> log.debug("[{}] 스트리밍 청크: {}", getSupportedDomain(), chunk));
+                        return llmExecutionStep.executeStreaming(request, ctx);
                     }
-                    return Flux.just("ERROR: LLM_EXECUTION 단계가 비활성화됨");
+                    return Flux.just("ERROR: LLM_EXECUTION step is disabled");
                 })
-                .doOnComplete(() ->
-                        log.info("[{}] 스트리밍 완료: {} ({}ms)",
-                                getSupportedDomain(), request.getRequestId(), context.getExecutionTime()))
                 .doOnError(error ->
-                        log.error("[{}] 스트리밍 실패: {} - {}",
+                        log.error("[{}] Streaming failed: {} - {}",
                                 getSupportedDomain(), request.getRequestId(), error.getMessage(), error));
     }
 
@@ -124,31 +115,24 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             PipelineExecutionContext context,
             Class<R> responseType) {
 
-        setCurrentContext(request.getContext());
-
+        boolean isSoar = request.getContext() instanceof SoarContext;
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
         for (PipelineStep step : steps) {
-
             PipelineStep actualStep;
-            if (step == llmExecutionStep && isSoarContext() && soarToolExecutionStep != null) {
+            if (step == llmExecutionStep && isSoar && soarToolExecutionStep != null) {
                 actualStep = soarToolExecutionStep;
             } else {
                 actualStep = step;
             }
 
-            PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(actualStep);
+            PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(actualStep, isSoar);
 
             if (configuration.hasStep(configStep)) {
-
                 final String stepName = actualStep.getStepName();
                 final int stepOrder = actualStep.getOrder();
+
                 pipeline = pipeline.flatMap(ctx -> {
-
-                    if (!configuration.shouldExecuteStep(configStep, request, ctx)) {
-                        return Mono.just(ctx);
-                    }
-
                     long stepStart = System.currentTimeMillis();
 
                     Span stepSpan = tracer.spanBuilder("pipeline.step." + stepName)
@@ -158,9 +142,8 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                             .startSpan();
 
                     try (Scope stepScope = stepSpan.makeCurrent()) {
-
-                        StepExecutionHandler handler = new DefaultStepExecutionHandler();
-                        return handler.execute(actualStep, request, configuration, ctx, responseType)
+                        return actualStep.execute(request, ctx)
+                                .thenReturn(ctx)
                                 .doOnSuccess(c -> {
                                     long stepTime = System.currentTimeMillis() - stepStart;
                                     stepSpan.setAttribute("step.duration.ms", stepTime);
@@ -171,59 +154,46 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                                     stepSpan.setAttribute("step.duration.ms", stepTime);
                                     stepSpan.recordException(error);
                                     stepSpan.setStatus(StatusCode.ERROR, error.getMessage());
-                                    log.error("[PIPELINE] STEP {} 실패: {} ({}ms) - {}",
+                                    log.error("[PIPELINE] STEP {} failed: {} ({}ms) - {}",
                                             stepOrder, stepName, stepTime, error.getMessage());
                                 })
                                 .doFinally(signalType -> stepSpan.end());
                     }
                 });
-            } else {
             }
         }
 
-        return pipeline.doFinally(signal -> clearCurrentContext());
-    }
-
-    protected StepExecutionHandler findHandlerFor(PipelineStep step) {
-        return stepHandlers.stream()
-                .filter(handler -> handler.canHandle(step))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("No handler found for step: " + step.getStepName()));
+        return pipeline;
     }
 
     private <T extends DomainContext> Mono<PipelineExecutionContext> executePreStreamingSteps(
             AIRequest<T> request,
             PipelineConfiguration<T> configuration,
-            PipelineExecutionContext context) {
+            PipelineExecutionContext context,
+            boolean isSoar) {
 
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
         for (PipelineStep step : steps.subList(0, Math.min(3, steps.size()))) {
-            PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step);
+            PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step, isSoar);
 
             if (configuration.hasStep(configStep) && step.canExecute(request)) {
                 final String stepName = step.getStepName();
 
-                pipeline = pipeline.flatMap(ctx -> {
-
-                    StepExecutionHandler handler = findHandlerFor(step);
-                    return handler.execute(step, request, configuration, ctx, null)
-                            .doOnSuccess(c -> {
-                            })
-                            .doOnError(error -> {
-                                log.error("[PIPELINE] 스트리밍 전처리 단계 {} 실패: {}", stepName, error.getMessage());
-                            });
-                });
+                pipeline = pipeline.flatMap(ctx ->
+                        step.execute(request, ctx)
+                                .thenReturn(ctx)
+                                .doOnError(error ->
+                                        log.error("[PIPELINE] Pre-streaming step {} failed: {}", stepName, error.getMessage()))
+                );
             }
         }
 
-        return pipeline.doOnSuccess(ctx -> {
-        });
+        return pipeline;
     }
 
-    private PipelineConfiguration.PipelineStep getConfigStepForStep(PipelineStep step) {
-
-        if (step.getStepName().equals("LLM_EXECUTION") && isSoarContext()) {
+    protected PipelineConfiguration.PipelineStep getConfigStepForStep(PipelineStep step, boolean isSoar) {
+        if (step.getStepName().equals("LLM_EXECUTION") && isSoar) {
             return PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION;
         }
 
@@ -237,21 +207,6 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             case "POSTPROCESSING" -> PipelineConfiguration.PipelineStep.POSTPROCESSING;
             default -> throw new IllegalArgumentException("Unknown step: " + step.getStepName());
         };
-    }
-
-    private static final ThreadLocal<DomainContext> currentContext = new ThreadLocal<>();
-
-    private void setCurrentContext(DomainContext context) {
-        currentContext.set(context);
-    }
-
-    private void clearCurrentContext() {
-        currentContext.remove();
-    }
-
-    private boolean isSoarContext() {
-        DomainContext context = currentContext.get();
-        return context instanceof SoarContext;
     }
 
     @Override

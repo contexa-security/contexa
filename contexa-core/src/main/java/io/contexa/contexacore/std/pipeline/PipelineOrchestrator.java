@@ -1,8 +1,5 @@
 package io.contexa.contexacore.std.pipeline;
 
-import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacore.std.pipeline.analyzer.RequestAnalyzer;
-import io.contexa.contexacore.std.pipeline.analyzer.RequestCharacteristics;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.domain.SoarResponse;
@@ -24,24 +21,18 @@ import java.util.Map;
 public class PipelineOrchestrator {
 
     private final List<PipelineExecutor> executors;
-    private final RequestAnalyzer requestAnalyzer;
     private final Map<DiagnosisType, AIStrategy<?, ?>> strategyMap;
 
     @Autowired
     public PipelineOrchestrator(List<PipelineExecutor> executors,
-                                RequestAnalyzer requestAnalyzer,
                                 List<AIStrategy<?, ?>> strategies) {
         this.executors = executors.stream()
                 .sorted((a, b) -> Integer.compare(a.getPriority(), b.getPriority()))
                 .toList();
-        this.requestAnalyzer = requestAnalyzer;
 
         this.strategyMap = new java.util.concurrent.ConcurrentHashMap<>();
         for (AIStrategy<?, ?> strategy : strategies) {
             strategyMap.put(strategy.getSupportedType(), strategy);
-        }
-
-        for (PipelineExecutor executor : this.executors) {
         }
     }
 
@@ -57,14 +48,11 @@ public class PipelineOrchestrator {
             Class<R> responseType) {
 
         return Mono.fromCallable(() -> {
-
-                    RequestCharacteristics characteristics = requestAnalyzer.analyze(request);
-
                     AIStrategy<T, R> strategy = getStrategyForRequest(request);
 
                     PipelineConfiguration<T> optimizedConfig = null;
                     if (strategy != null) {
-                        optimizedConfig = strategy.suggestPipelineConfiguration(request, characteristics);
+                        optimizedConfig = strategy.suggestPipelineConfiguration(request);
                     }
 
                     PipelineConfiguration<T> finalConfig;
@@ -76,23 +64,15 @@ public class PipelineOrchestrator {
                         finalConfig = createDefaultPipelineConfiguration();
                     }
 
-                    Map<String, Object> characteristicsMap = characteristics.toContextMap();
-                    for (Map.Entry<String, Object> entry : characteristicsMap.entrySet()) {
-                        finalConfig.getParameters().put(entry.getKey(), entry.getValue());
-                    }
-
                     return finalConfig;
                 })
                 .flatMap(finalConfig -> selectExecutor(request, finalConfig)
-                        .map(executor -> {
-                            return executor;
-                        })
                         .flatMap(executor -> executor.execute(request, finalConfig, responseType))
                 )
                 .doOnSuccess(response ->
-                        log.info("[Orchestrator] Pipeline 완료: {}", request.getRequestId()))
+                        log.info("[Orchestrator] Pipeline completed: {}", request.getRequestId()))
                 .doOnError(error ->
-                        log.error("[Orchestrator] Pipeline 실패: {} - {}",
+                        log.error("[Orchestrator] Pipeline failed: {} - {}",
                                 request.getRequestId(), error.getMessage(), error))
                 .onErrorResume(error -> createFallbackResponse(request, responseType, error));
     }
@@ -115,16 +95,13 @@ public class PipelineOrchestrator {
             PipelineConfiguration<T> configuration) {
 
         if (configuration == null) {
-            RequestCharacteristics characteristics = requestAnalyzer.analyze(request);
             AIStrategy<T, ?> strategy = getStrategyForRequest(request);
 
             if (strategy != null) {
-                PipelineConfiguration<T> optimizedConfig = strategy.suggestPipelineConfiguration(request, characteristics);
+                PipelineConfiguration<T> optimizedConfig = strategy.suggestPipelineConfiguration(request);
                 if (optimizedConfig != null) {
-
                     configuration = PipelineConfiguration.<T>builder()
                             .steps(optimizedConfig.getSteps())
-                            .stepConditions(optimizedConfig.getStepConditions())
                             .customSteps(optimizedConfig.getCustomSteps())
                             .timeoutSeconds(optimizedConfig.getTimeoutSeconds())
                             .enableStreaming(true)
@@ -140,14 +117,11 @@ public class PipelineOrchestrator {
         PipelineConfiguration<T> finalConfig = configuration;
 
         return selectExecutor(request, finalConfig)
-                .map(executor -> {
-                    return executor;
-                })
                 .flatMapMany(executor -> executor.executeStream(request, finalConfig))
                 .doOnComplete(() ->
-                        log.info("[Orchestrator] 스트리밍 완료: {}", request.getRequestId()))
+                        log.info("[Orchestrator] Streaming completed: {}", request.getRequestId()))
                 .doOnError(error ->
-                        log.error("[Orchestrator] 스트리밍 실패: {} - {}",
+                        log.error("[Orchestrator] Streaming failed: {} - {}",
                                 request.getRequestId(), error.getMessage(), error))
                 .onErrorResume(error -> Flux.just("ERROR: " + error.getMessage()));
     }
@@ -211,7 +185,6 @@ public class PipelineOrchestrator {
         return "UNIVERSAL".equalsIgnoreCase(executorDomain);
     }
 
-    @SuppressWarnings("unchecked")
     private <T extends DomainContext, R extends AIResponse> Mono<R> createFallbackResponse(
             AIRequest<T> request,
             Class<R> responseType,

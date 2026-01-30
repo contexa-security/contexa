@@ -9,10 +9,8 @@ import io.contexa.contexacore.std.pipeline.streaming.StreamingPipelineExecutionC
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacore.domain.SoarContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -23,7 +21,7 @@ import java.util.stream.Stream;
 @Slf4j
 public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecutor {
 
-    private final List<PipelineStep> orderedSteps;
+    private final List<PipelineStep> streamingOrderedSteps;
     private final ObjectMapper objectMapper;
 
     public StreamingUniversalPipelineExecutor(
@@ -43,7 +41,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
         this.objectMapper = objectMapper;
 
-        this.orderedSteps = Stream.of(
+        this.streamingOrderedSteps = Stream.of(
                         contextRetrievalStep,
                         preprocessingStep,
                         promptGenerationStep,
@@ -67,14 +65,15 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
         Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
         context.setStreamSink(sink);
 
-        executeFullPipelineWithStreaming(request, configuration, context).subscribe(
+        boolean isSoar = request.getContext() instanceof SoarContext;
+
+        executeFullPipelineWithStreaming(request, configuration, context, isSoar).subscribe(
                 null,
                 error -> {
-                    log.error("스트리밍 파이프라인 오류", error);
+                    log.error("Streaming pipeline error", error);
                     sink.tryEmitError(error);
                 },
                 () -> {
-
                     AIResponse finalResponse = context.getStepResult(
                             PipelineConfiguration.PipelineStep.POSTPROCESSING,
                             AIResponse.class
@@ -82,11 +81,10 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
                     if (finalResponse != null) {
                         try {
-                            
                             String jsonResponse = objectMapper.writeValueAsString(finalResponse);
                             sink.tryEmitNext("###FINAL_RESPONSE###" + jsonResponse);
                         } catch (Exception e) {
-                            log.error("최종 응답 JSON 변환 오류", e);
+                            log.error("Failed to convert final response to JSON", e);
                         }
                     }
 
@@ -100,12 +98,13 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
     private <T extends DomainContext> Mono<Void> executeFullPipelineWithStreaming(
             AIRequest<T> request,
             PipelineConfiguration<T> configuration,
-            StreamingPipelineExecutionContext context) {
+            StreamingPipelineExecutionContext context,
+            boolean isSoar) {
 
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
-        for (PipelineStep step : orderedSteps) {
-            PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step);
+        for (PipelineStep step : streamingOrderedSteps) {
+            PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step, isSoar);
 
             if (configuration.hasStep(configStep)) {
                 final String stepName = step.getStepName();
@@ -113,14 +112,12 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
                 pipeline = pipeline.flatMap(ctx -> {
                     long stepStart = System.currentTimeMillis();
-                                        StepExecutionHandler handler = super.findHandlerFor(step);
-                    return handler.execute(step, request, configuration, ctx, AIResponse.class)
-                            .doOnSuccess(c -> {
-                                long stepTime = System.currentTimeMillis() - stepStart;
-                                                            })
+
+                    return step.execute(request, ctx)
+                            .thenReturn(ctx)
                             .doOnError(error -> {
                                 long stepTime = System.currentTimeMillis() - stepStart;
-                                log.error("[STREAMING-PIPELINE] STEP {} 실패: {} ({}ms) - {}",
+                                log.error("[STREAMING-PIPELINE] STEP {} failed: {} ({}ms) - {}",
                                         stepOrder, stepName, stepTime, error.getMessage());
                             });
                 });
@@ -128,18 +125,6 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
         }
 
         return pipeline.then();
-    }
-
-    private PipelineConfiguration.PipelineStep getConfigStepForStep(PipelineStep step) {
-        return switch (step.getStepName()) {
-            case "CONTEXT_RETRIEVAL" -> PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL;
-            case "PREPROCESSING" -> PipelineConfiguration.PipelineStep.PREPROCESSING;
-            case "PROMPT_GENERATION" -> PipelineConfiguration.PipelineStep.PROMPT_GENERATION;
-            case "LLM_EXECUTION", "STREAMING_LLM_EXECUTION" -> PipelineConfiguration.PipelineStep.LLM_EXECUTION;
-            case "RESPONSE_PARSING" -> PipelineConfiguration.PipelineStep.RESPONSE_PARSING;
-            case "POSTPROCESSING" -> PipelineConfiguration.PipelineStep.POSTPROCESSING;
-            default -> throw new IllegalArgumentException("Unknown step: " + step.getStepName());
-        };
     }
 
     @Override

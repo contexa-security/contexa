@@ -34,10 +34,6 @@ import io.contexa.contexacore.std.llm.model.provider.OpenAIModelProvider;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
-import io.contexa.contexacore.std.pipeline.analyzer.DefaultRequestAnalyzer;
-import io.contexa.contexacore.std.pipeline.analyzer.RequestAnalyzer;
-import io.contexa.contexacore.std.pipeline.builder.CustomPipelineStepRegistry;
-import io.contexa.contexacore.std.pipeline.builder.DynamicPipelineConfigurationBuilder;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
 import io.contexa.contexacore.std.pipeline.executor.StreamingUniversalPipelineExecutor;
 import io.contexa.contexacore.std.pipeline.executor.UniversalPipelineExecutor;
@@ -224,25 +220,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DefaultRequestAnalyzer defaultRequestAnalyzer() {
-        return new DefaultRequestAnalyzer();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public CustomPipelineStepRegistry customPipelineStepRegistry() {
-        return new CustomPipelineStepRegistry();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DynamicPipelineConfigurationBuilder dynamicPipelineConfigurationBuilder(
-            CustomPipelineStepRegistry customPipelineStepRegistry) {
-        return new DynamicPipelineConfigurationBuilder(customPipelineStepRegistry);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
             Tracer tracer,
             ContextRetrievalStep contextRetrievalStep,
@@ -402,9 +379,8 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public PipelineOrchestrator pipelineOrchestrator(
             List<PipelineExecutor> executors,
-            RequestAnalyzer requestAnalyzer,
             List<AIStrategy<?, ?>> strategies) {
-        return new PipelineOrchestrator(executors, requestAnalyzer, strategies);
+        return new PipelineOrchestrator(executors, strategies);
     }
 
     @Bean
