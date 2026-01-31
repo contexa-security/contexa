@@ -20,7 +20,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
     private final AuthContextProperties authContextProperties;
 
     public SessionSingleAuthFailureHandler(AuthResponseWriter responseWriter,
-                                          AuthContextProperties authContextProperties) {
+                                           AuthContextProperties authContextProperties) {
         super(responseWriter);
         this.authContextProperties = authContextProperties;
     }
@@ -45,7 +45,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
         String errorCode = "PRIMARY_AUTH_FAILED";
         String errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
 
-        if (failureType != null && failureType == FailureType.PRIMARY_AUTH_FAILED) {
+        if (failureType == FailureType.PRIMARY_AUTH_FAILED) {
             errorCode = "PRIMARY_AUTH_FAILED";
             errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
         } else if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
@@ -62,7 +62,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
         }
 
         if (isApiRequest(request)) {
-            
+
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("authenticated", false);
             responseData.put("message", errorMessage);
@@ -76,9 +76,8 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
                     errorCode, errorMessage, request.getRequestURI(), responseData);
 
-                    } else {
-            
+        } else {
             response.sendRedirect(failureUrl);
-                    }
+        }
     }
 }

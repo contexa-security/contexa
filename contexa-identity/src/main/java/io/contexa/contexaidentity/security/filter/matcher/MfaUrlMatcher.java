@@ -105,16 +105,4 @@ public class MfaUrlMatcher {
             lock.readLock().unlock();
         }
     }
-
-    public RequestMatcher createRequestMatcher() {
-        
-        lock.readLock().lock();
-        try {
-            List<RequestMatcher> allMatchers = new ArrayList<>();
-            matcherMap.values().forEach(allMatchers::addAll);
-            return new OrRequestMatcher(allMatchers);
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
 }

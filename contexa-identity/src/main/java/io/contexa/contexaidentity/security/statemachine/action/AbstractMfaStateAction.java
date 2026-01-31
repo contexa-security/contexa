@@ -35,10 +35,10 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     @Override
     public final void execute(StateContext<MfaState, MfaEvent> context) {
         String sessionId = extractSessionId(context);
-        
+
         FactorContext factorContext = null;
         try {
-            
+
             factorContext = extractFactorContext(context);
             if (factorContext == null) {
                 throw new IllegalStateException("FactorContext not found in state machine context");
@@ -64,11 +64,11 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
                     "MFA action failed: " + e.getMessage(), e);
 
         } catch (Exception e) {
-            
+
             log.error("Unexpected exception in action", e);
 
             if (factorContext != null) {
-                
+
                 handleUnexpectedError(context, factorContext, e);
             }
 
@@ -88,32 +88,22 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     protected void handleBusinessException(StateContext<MfaState, MfaEvent> context,
                                            FactorContext factorContext,
                                            RuntimeException e) {
-        
+
         if (factorContext != null) {
             factorContext.setLastError(e.getMessage());
 
             if (e instanceof InvalidFactorException) {
                 factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                         MfaEvent.SYSTEM_ERROR);
+                        MfaEvent.SYSTEM_ERROR);
 
             } else if (e instanceof ChallengeGenerationException) {
                 factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                         MfaEvent.CHALLENGE_INITIATION_FAILED);
+                        MfaEvent.CHALLENGE_INITIATION_FAILED);
 
             } else if (e instanceof FactorVerificationException) {
                 factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                         MfaEvent.FACTOR_VERIFICATION_FAILED);
+                        MfaEvent.FACTOR_VERIFICATION_FAILED);
             }
-        }
-    }
-
-    protected void transitionToExpiredState(StateContext<MfaState, MfaEvent> context,
-                                            FactorContext factorContext) {
-        if (factorContext != null) {
-            
-            factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                     MfaEvent.SESSION_TIMEOUT);
-            factorContext.setLastError("Session timeout");
         }
     }
 
@@ -124,7 +114,7 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
             factorContext.setLastError("Unexpected error: " + e.getMessage());
 
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                     MfaEvent.SYSTEM_ERROR);
+                    MfaEvent.SYSTEM_ERROR);
         }
 
     }
@@ -147,25 +137,5 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     protected void updateStateMachineVariables(StateContext<MfaState, MfaEvent> context,
                                                FactorContext factorContext) {
         StateContextHelper.setFactorContext(context, factorContext);
-    }
-
-    protected AuthenticationFlowConfig findMfaFlowConfig(FactorContext ctx) {
-        try {
-            if (applicationContext == null) {
-                log.error("ApplicationContext is not set for action: {}", this.getClass().getSimpleName());
-                return null;
-            }
-
-            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-
-            return platformConfig.getFlows().stream()
-                .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
-                .findFirst()
-                .orElse(null);
-        } catch (Exception e) {
-            log.error("Error loading MFA flow config for session: {}",
-                     ctx != null ? ctx.getMfaSessionId() : "unknown", e);
-            return null;
-        }
     }
 }

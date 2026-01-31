@@ -44,7 +44,7 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
             errorCode = "PRIMARY_AUTH_FAILED";
             errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
         } else if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
-            
+
             errorMessage = exception.getMessage();
         }
 
@@ -59,5 +59,5 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
 
         writeErrorResponse(request, response, errorCode, errorMessage, responseData);
 
-            }
+    }
 }

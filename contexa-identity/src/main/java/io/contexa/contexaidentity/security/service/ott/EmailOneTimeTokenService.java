@@ -15,22 +15,17 @@ import java.util.concurrent.atomic.AtomicReference;
 public class EmailOneTimeTokenService implements OneTimeTokenService {
 
     private final JdbcOneTimeTokenService delegate;
-    private final EmailService emailService;
     private final TransactionTemplate transactionTemplate;
     private final AuthContextProperties authContextProperties;
-
-    @Value("${app.url.base:http://localhost:8080}")
-    private String baseUrl;
 
     public EmailOneTimeTokenService(EmailService emailService,
                                     JdbcTemplate primaryJdbcTemplate,
                                     TransactionTemplate transactionTemplate,
                                     AuthContextProperties authContextProperties) {
         this.delegate = new JdbcOneTimeTokenService(primaryJdbcTemplate);
-        this.emailService = emailService;
         this.transactionTemplate = transactionTemplate;
         this.authContextProperties = authContextProperties;
-            }
+    }
 
     @Override
     public OneTimeToken generate(GenerateOneTimeTokenRequest request) {

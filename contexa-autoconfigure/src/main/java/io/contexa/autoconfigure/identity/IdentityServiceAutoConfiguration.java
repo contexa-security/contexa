@@ -5,7 +5,6 @@ import io.contexa.contexaidentity.controller.MfaConfigController;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
-import io.contexa.contexaidentity.security.service.ott.InMemoryCodeStore;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -57,12 +56,6 @@ public class IdentityServiceAutoConfiguration {
     @ConditionalOnMissingBean
     public MagicLinkHandler magicLinkHandler() {
         return new MagicLinkHandler();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public InMemoryCodeStore inMemoryCodeStore() {
-        return new InMemoryCodeStore();
     }
 
     @Bean

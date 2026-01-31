@@ -351,7 +351,7 @@ public class RealtimeAISecurityExpressionRoot extends AbstractAISecurityExpressi
     }
 
     private void sendSecurityAlert(String userId, Map<String, Object> context, double riskScore) {
-        log.error("🚨 보안 알림: 고위험 작업 시도 - userId: {}, risk: {}, context: {}", 
+        log.error("보안 알림: 고위험 작업 시도 - userId: {}, risk: {}, context: {}", 
                  userId, riskScore, context);
         
     }

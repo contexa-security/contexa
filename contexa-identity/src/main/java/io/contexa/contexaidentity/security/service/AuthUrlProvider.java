@@ -32,31 +32,22 @@ public class AuthUrlProvider {
 
     public void setPrimaryAuthenticationOptions(@Nullable PrimaryAuthenticationOptions primaryAuthOptions) {
         if (primaryAuthOptions != null) {
-                                                
+
             this.primaryAuthOptions = primaryAuthOptions;
 
-                                            }
+        }
     }
 
     public void setMfaPageConfig(@Nullable MfaPageConfig mfaPageConfig) {
         if (mfaPageConfig != null) {
             this.mfaPageConfig = mfaPageConfig;
-                    }
+        }
     }
 
     public void updateFactorOptions(@Nullable Map<AuthType, AuthenticationProcessingOptions> options) {
         if (options != null && !options.isEmpty()) {
-
             this.factorOptionsMap.putAll(options);
-
-            options.forEach((authType, opts) -> {
-                if (opts instanceof OttOptions ottOpts) {
-                                    } else if (opts instanceof PasskeyOptions passkeyOpts) {
-                                    }
-            });
-
-                                            } else {
-                    }
+        }
     }
 
     public String getPrimaryFormLoginProcessing() {
@@ -341,34 +332,30 @@ public class AuthUrlProvider {
 
     public List<String> getAllFactorProcessingUrls() {
         return List.of(
-            getOttLoginProcessing(),
-            getPasskeyLoginProcessing(),
-            getRecoveryCodeLoginProcessing()
+                getOttLoginProcessing(),
+                getPasskeyLoginProcessing(),
+                getRecoveryCodeLoginProcessing()
         );
     }
 
-    /**
-     * Returns all MFA UI page URLs that should bypass ZeroTrustChallengeFilter.
-     * These pages need to be rendered by DefaultMfaPageGeneratingFilter.
-     */
     public Set<String> getMfaPageUrls() {
         return Set.of(
-            getMfaSelectFactor(),
-            getMfaFailure(),
-            getMfaSuccess(),
-            getOttRequestCodeUi(),
-            getOttChallengeUi(),
-            getPasskeyChallengeUi(),
-            getRecoveryCodeChallengeUi()
+                getMfaSelectFactor(),
+                getMfaFailure(),
+                getMfaSuccess(),
+                getOttRequestCodeUi(),
+                getOttChallengeUi(),
+                getPasskeyChallengeUi(),
+                getRecoveryCodeChallengeUi()
         );
     }
 
     public List<String> getAllMfaRequestUrls() {
         return List.of(
-            getMfaSelectFactor(),
-            getOttCodeGeneration(),
-            getOttLoginProcessing(),
-            getPasskeyLoginProcessing()
+                getMfaSelectFactor(),
+                getOttCodeGeneration(),
+                getOttLoginProcessing(),
+                getPasskeyLoginProcessing()
         );
     }
 
@@ -376,18 +363,18 @@ public class AuthUrlProvider {
         Map<String, Object> urls = new LinkedHashMap<>();
 
         urls.put("primary", Map.of(
-            "formLoginPage", getPrimaryLoginPage(),
-            "formLoginProcessing", getPrimaryFormLoginProcessing(),
-            "restLoginProcessing", getPrimaryRestLoginProcessing(),
-            "loginFailure", getPrimaryLoginFailure(),
-            "loginSuccess", getPrimaryLoginSuccess()
+                "formLoginPage", getPrimaryLoginPage(),
+                "formLoginProcessing", getPrimaryFormLoginProcessing(),
+                "restLoginProcessing", getPrimaryRestLoginProcessing(),
+                "loginFailure", getPrimaryLoginFailure(),
+                "loginSuccess", getPrimaryLoginSuccess()
         ));
 
         urls.put("mfa", Map.of(
-            "selectFactor", getMfaSelectFactor(),
-            "success", getMfaSuccess(),
-            "failure", getMfaFailure(),
-            "cancel", getMfaCancel()
+                "selectFactor", getMfaSelectFactor(),
+                "success", getMfaSuccess(),
+                "failure", getMfaFailure(),
+                "cancel", getMfaCancel()
         ));
 
         Map<String, String> ottUrls = new LinkedHashMap<>();
@@ -412,21 +399,21 @@ public class AuthUrlProvider {
         urls.put("passkey", passkeyUrls);
 
         urls.put("recoveryCode", Map.of(
-            "challengeUi", getRecoveryCodeChallengeUi(),
-            "loginProcessing", getRecoveryCodeLoginProcessing()
+                "challengeUi", getRecoveryCodeChallengeUi(),
+                "loginProcessing", getRecoveryCodeLoginProcessing()
         ));
 
         urls.put("webauthn", Map.of(
-            "assertionOptions", getPasskeyAssertionOptions(),
-            "assertionVerify", getPasskeyLoginProcessing()  
+                "assertionOptions", getPasskeyAssertionOptions(),
+                "assertionVerify", getPasskeyLoginProcessing()
         ));
 
         urls.put("api", Map.of(
-            "selectFactor", getMfaSelectFactor(),
-            "cancel", getMfaCancel(),
-            "status", getMfaStatus(),
-            "requestOttCode", getMfaRequestOttCode(),
-            "config", getMfaConfig()
+                "selectFactor", getMfaSelectFactor(),
+                "cancel", getMfaCancel(),
+                "status", getMfaStatus(),
+                "requestOttCode", getMfaRequestOttCode(),
+                "config", getMfaConfig()
         ));
 
         return urls;
@@ -476,10 +463,10 @@ public class AuthUrlProvider {
         addUrlWithContext(urlToContexts, getPasskeyAssertionOptions(), "Passkey.assertionOptions");
 
         Set<String> allowedDuplicates = Set.of(
-            "/login",      
-            "/mfa/login",  
-            "/home",
-            "/loginForm"
+                "/login",
+                "/mfa/login",
+                "/home",
+                "/loginForm"
         );
 
         List<String> problematicDuplicates = new ArrayList<>();
@@ -493,11 +480,11 @@ public class AuthUrlProvider {
             }
 
             if (contexts.size() > 1) {
-                
+
                 if (!allowedDuplicates.contains(url)) {
                     problematicDuplicates.add(url + " (사용처: " + String.join(", ", contexts) + ")");
                 } else {
-                                    }
+                }
             }
         }
 
@@ -521,7 +508,7 @@ public class AuthUrlProvider {
             throw new IllegalStateException(errorMessage);
         }
 
-                    }
+    }
 
     private void addUrlWithContext(Map<String, List<String>> map, String url, String context) {
         if (url == null) return;

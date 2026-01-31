@@ -268,8 +268,8 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaSessionRepository mfaSessionRepository,
             @Autowired(required = false) UserIdentificationService userIdentificationService,
             AuthUrlProvider authUrlProvider) {
-        return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator, mfaPolicyProvider,
-                mfaSessionRepository, userIdentificationService, authUrlProvider);
+        return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
+                mfaSessionRepository, userIdentificationService);
     }
 
     @Bean

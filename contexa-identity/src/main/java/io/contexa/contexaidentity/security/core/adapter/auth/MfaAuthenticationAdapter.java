@@ -103,14 +103,14 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
                 mfaContinuationFilter.initializeUrlMatchers();
                             } catch (Exception e) {
                 
-                log.error("🚨 Critical: Failed to inject options or initialize URL matchers", e);
+                log.error("Critical: Failed to inject options or initialize URL matchers", e);
                 throw new IllegalStateException(
                     "MFA initialization failed: Unable to inject authentication options or initialize URL matchers. " +
                     "MFA flow cannot proceed safely. Please check your configuration.", e);
             }
         } else {
             
-            log.error("🚨 Critical: MFA flow has no registered factor options");
+            log.error("Critical: MFA flow has no registered factor options");
             throw new IllegalStateException(
                 "MFA initialization failed: No factor options registered. " +
                 "MFA flow requires at least one secondary factor (OTT, Passkey, etc.).");

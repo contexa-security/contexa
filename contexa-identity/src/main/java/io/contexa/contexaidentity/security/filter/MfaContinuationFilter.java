@@ -67,7 +67,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
 
         if (!initialized) {
-            log.error("🚨 MfaContinuationFilter not initialized. URL matchers must be initialized before processing requests.");
+            log.error("MfaContinuationFilter not initialized. URL matchers must be initialized before processing requests.");
             response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
                     "MFA service is initializing. Please try again in a moment.");
             return;
@@ -131,7 +131,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
 
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "MFA_SESSION_INVALID");
-        errorResponse.put("message", "MFA 세션이 유효하지 않습니다.");
+        errorResponse.put("message", "MFA session is invalid.");
         errorResponse.put("errors", validation.getErrors());
         errorResponse.put("warnings", validation.getWarnings());
         errorResponse.put("redirectUrl", request.getContextPath() + authUrlProvider.getPrimaryLoginPage());

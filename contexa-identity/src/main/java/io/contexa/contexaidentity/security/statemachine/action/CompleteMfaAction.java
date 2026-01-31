@@ -17,15 +17,8 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
                              FactorContext factorContext) throws Exception {
-        String sessionId = factorContext.getMfaSessionId();
-
         logCompletedFactors(factorContext);
-
-        performCompletionTasks(factorContext);
-
-        updateEventMetadata(context);
-
-            }
+    }
 
     private void logCompletedFactors(FactorContext factorContext) {
         List<AuthenticationStepConfig> completedFactors = factorContext.getCompletedFactors();
@@ -33,14 +26,6 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
             String completedFactorTypes = completedFactors.stream()
                     .map(AuthenticationStepConfig::getType)
                     .collect(Collectors.joining(", "));
-                    }
-    }
-
-    private void performCompletionTasks(FactorContext factorContext) {
-
-    }
-
-    private void updateEventMetadata(StateContext<MfaState, MfaEvent> context) {
-
+        }
     }
 }

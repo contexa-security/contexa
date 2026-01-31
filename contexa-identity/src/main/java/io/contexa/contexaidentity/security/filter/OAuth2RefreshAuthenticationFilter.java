@@ -79,7 +79,7 @@ public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
                 log.warn("Invalid refresh token for {}: {}", request.getRequestURI(), tie.getMessage());
                 handleFailure(request, response, HttpServletResponse.SC_UNAUTHORIZED,
                         "invalid_refresh_token",
-                        "리프레시 토큰이 유효하지 않거나 만료되었습니다: " + tie.getMessage());
+                        "Refresh token is invalid or expired: " + tie.getMessage());
                 return;
 
             } catch (Exception e) {
@@ -87,7 +87,7 @@ public class OAuth2RefreshAuthenticationFilter extends OncePerRequestFilter {
                         request.getRequestURI(), e.getMessage(), e);
                 handleFailure(request, response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                         "token_refresh_error",
-                        "토큰 리프레시 중 서버 오류가 발생했습니다.");
+                        "Server error occurred during token refresh.");
                 return;
             }
         } else {

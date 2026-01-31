@@ -42,7 +42,7 @@ public class SessionMfaSuccessHandler extends SessionBasedSuccessHandler {
         String targetUrl = determineTargetUrl(request, response);
 
         if (isApiRequest(request)) {
-            
+
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("authenticated", true);
             responseData.put("username", authentication.getName());
@@ -53,15 +53,13 @@ public class SessionMfaSuccessHandler extends SessionBasedSuccessHandler {
 
             responseWriter.writeSuccessResponse(response, responseData, HttpServletResponse.SC_OK);
 
-                    } else {
-            
+        } else {
             response.sendRedirect(targetUrl);
-                    }
+        }
     }
 
     @Override
     protected String getDefaultTargetUrl(HttpServletRequest request) {
-        
         return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
     }
 }

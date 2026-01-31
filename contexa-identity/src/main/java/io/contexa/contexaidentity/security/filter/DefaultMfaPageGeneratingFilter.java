@@ -89,11 +89,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String OTT_READONLY_USERNAME_INPUT = """
             <div class="form-group">
-                <label for="username">사용자명</label>
+                <label for="username">Username</label>
                 <input type="text" id="username" name="username"
                        value="{{username}}"
                        class="form-control"
-                       placeholder="사용자명"
+                       placeholder="Username"
                        required
                        >
             </div>
@@ -101,10 +101,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String OTT_EDITABLE_USERNAME_INPUT = """
             <div class="form-group">
-                <label for="username">사용자명</label>
+                <label for="username">Username</label>
                 <input type="text" id="username" name="username"
                        class="form-control"
-                       placeholder="사용자명을 입력하세요"
+                       placeholder="Enter your username"
                        required
                        autofocus>
             </div>
@@ -115,14 +115,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String OTT_REQUEST_TEMPLATE = """
             <!DOCTYPE html>
-            <html lang="ko">
+            <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>인증 코드 요청</title>
+                <title>Request Authentication Code</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -209,15 +209,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <h1>인증 코드 요청</h1>
-                    <p class="description">등록된 이메일 주소로 인증 코드를 전송합니다.</p>
-            
+                    <h1>Request Authentication Code</h1>
+                    <p class="description">An authentication code will be sent to your registered email address.</p>
+
                     <form id="ott-request-form" method="post" action="{{ottRequestUrl}}">
                         {{usernameInput}}
                         {{hiddenInputs}}
-            
+
                         <button type="submit" class="primary-button">
-                            인증 코드 전송
+                            Send Authentication Code
                         </button>
                     </form>
             
@@ -229,14 +229,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String OTT_VERIFY_TEMPLATE = """
             <!DOCTYPE html>
-            <html lang="ko">
+            <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>MFA - 인증 코드 입력</title>
+                <title>MFA - Enter Authentication Code</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -357,34 +357,34 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <h1>인증 코드 입력</h1>
-                    <p class="description">이메일로 전송된 6자리 코드를 입력하세요.</p>
-            
+                    <h1>Enter Authentication Code</h1>
+                    <p class="description">Enter the 6-digit code sent to your email.</p>
+
                     <div class="user-info">
-                        <div class="label">인증 중인 계정</div>
+                        <div class="label">Account being authenticated</div>
                         <div class="username">{{username}}</div>
                     </div>
-            
+
                     <form id="ott-verify-form" method="post" action="{{ottVerifyUrl}}">
                         <div class="form-group">
-                            <label for="token">인증 코드</label>
+                            <label for="token">Authentication Code</label>
                             <input type="text" id="token" name="token"
                                    class="form-control"
                                    required
                                    autofocus>
                         </div>
-            
+
                         {{hiddenInputs}}
-            
+
                         <button type="submit" class="primary-button">
-                            확인
+                            Verify
                         </button>
                     </form>
-            
+
                     <form id="resend-form" method="post" action="{{ottResendUrl}}">
                         {{resendHiddenInputs}}
                         <button type="submit" class="secondary-button">
-                            코드 재전송
+                            Resend Code
                         </button>
                     </form>
             
@@ -409,12 +409,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             
                                 const code = codeInput.value;
                                 verifyButton.disabled = true;
-                                verifyButton.textContent = '확인 중...';
-            
+                                verifyButton.textContent = 'Verifying...';
+
                                 try {
                                     const result = await mfa.verifyOtt(code);
-            
-                                    // 명시적 리다이렉트 처리
+
+                                    // Explicit redirect handling
                                     if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
                                         window.location.href = result.redirectUrl;
                                     } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
@@ -425,10 +425,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                         window.location.href = result.redirectUrl;
                                     }
                                 } catch (error) {
-                                    console.error('OTT 검증 실패:', error);
-                                    alert('인증 코드 확인 실패: ' + (error.message || '알 수 없는 오류'));
+                                    console.error('OTT verification failed:', error);
+                                    alert('Authentication code verification failed: ' + (error.message || 'Unknown error'));
                                     verifyButton.disabled = false;
-                                    verifyButton.textContent = '확인';
+                                    verifyButton.textContent = 'Verify';
                                 }
                             });
             
@@ -442,14 +442,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String PASSKEY_CHALLENGE_TEMPLATE = """
             <!DOCTYPE html>
-            <html lang="ko">
+            <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>MFA - Passkey 인증</title>
+                <title>MFA - Passkey Authentication</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -528,26 +528,26 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             <body>
                 <div class="container">
                     <div class="icon">🔐</div>
-                    <h1>Passkey 인증</h1>
-                    <p class="description">생체 인증 또는 보안 키를 사용하여 인증하세요.</p>
-            
+                    <h1>Passkey Authentication</h1>
+                    <p class="description">Authenticate using biometrics or a security key.</p>
+
                     <div class="user-info">
-                        <div class="label">인증 중인 계정</div>
+                        <div class="label">Account being authenticated</div>
                         <div class="username">{{username}}</div>
                     </div>
-            
+
                     <button id="auth-button" class="primary-button">
-                        Passkey 인증 시작
+                        Start Passkey Authentication
                     </button>
-            
-                    <!-- Passkey 등록 링크 -->
+
+                    <!-- Passkey registration link -->
                     <div style="text-align: center; margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0;">
                         <p style="color: #666; font-size: 14px; margin-bottom: 8px;">
-                            등록된 Passkey가 없으신가요?
+                            Don't have a registered Passkey?
                         </p>
                         <a href="{{contextPath}}/webauthn/register"
                            style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">
-                            Passkey 등록하기 →
+                            Register Passkey →
                         </a>
                     </div>
             
@@ -561,36 +561,36 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const authButton = document.getElementById('auth-button');
                             const mfa = new ContexaMFA.Client({ autoRedirect: false });
             
-                            // 버튼 초기 비활성화 (챌린지 완료 전까지)
+                            // Disable button initially (until challenge is ready)
                             authButton.disabled = true;
-                            authButton.textContent = '초기화 중...';
-            
-                            // SDK 초기화 (챌린지는 백엔드에서 이미 시작됨)
+                            authButton.textContent = 'Initializing...';
+
+                            // SDK initialization (challenge already started by backend)
                             (async () => {
                                 try {
                                     await mfa.init();
-            
-                                    // Phase 2.3: 백엔드에서 INITIATE_CHALLENGE_AUTO로 챌린지 시작 완료
-                                    // JavaScript는 더 이상 INITIATE_CHALLENGE를 보낼 필요 없음
+
+                                    // Phase 2.3: Challenge started by backend with INITIATE_CHALLENGE_AUTO
+                                    // JavaScript no longer needs to send INITIATE_CHALLENGE
                                     authButton.disabled = false;
-                                    authButton.textContent = 'Passkey로 인증';
+                                    authButton.textContent = 'Authenticate with Passkey';
                                     console.log('Passkey challenge ready (auto-initiated by backend)');
                                 } catch (error) {
                                     console.error('Failed to initialize SDK:', error);
                                     authButton.disabled = false;
-                                    authButton.textContent = 'Passkey로 인증';
+                                    authButton.textContent = 'Authenticate with Passkey';
                                 }
                             })();
-            
-                            // Passkey 인증
+
+                            // Passkey authentication
                             authButton.addEventListener('click', async () => {
                                 authButton.disabled = true;
-                                authButton.textContent = '인증 진행 중...';
-            
+                                authButton.textContent = 'Authenticating...';
+
                                 try {
                                     const result = await mfa.verifyPasskey();
-            
-                                    // 명시적 리다이렉트 처리
+
+                                    // Explicit redirect handling
                                     if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
                                         window.location.href = result.redirectUrl;
                                     } else if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
@@ -601,8 +601,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                         window.location.href = result.nextStepUrl;
                                     }
                                 } catch (error) {
-                                    console.error('Passkey 인증 실패:', error);
-                                    window.location.href = '{{contextPath}}{{failureUrl}}?error=' + encodeURIComponent(error.message || '알 수 없는 오류');
+                                    console.error('Passkey authentication failed:', error);
+                                    window.location.href = '{{contextPath}}{{failureUrl}}?error=' + encodeURIComponent(error.message || 'Unknown error');
                                 }
                             });
                         }
@@ -614,14 +614,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String SELECT_FACTOR_TEMPLATE = """
             <!DOCTYPE html>
-            <html lang="ko">
+            <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>MFA - 인증 방법 선택</title>
+                <title>MFA - Select Authentication Method</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -708,14 +708,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <h1>인증 방법 선택</h1>
-                    <p class="description">2단계 인증 방법을 선택하세요.</p>
-            
+                    <h1>Select Authentication Method</h1>
+                    <p class="description">Choose a two-factor authentication method.</p>
+
                     <div class="user-info">
-                        <div class="label">인증 중인 계정</div>
+                        <div class="label">Account being authenticated</div>
                         <div class="username">{{username}}</div>
                     </div>
-            
+
                     {{factorButtons}}
             
                     <!-- Progressive Enhancement: JavaScript SDK 지원 -->
@@ -738,20 +738,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     const originalText = button.textContent;
             
                                     button.disabled = true;
-                                    button.textContent = '처리 중...';
-            
+                                    button.textContent = 'Processing...';
+
                                     try {
                                         const result = await mfa.selectFactor(factorType);
-            
-                                        // 명시적 리다이렉트 처리
+
+                                        // Explicit redirect handling
                                         if (result.nextStepUrl) {
                                             window.location.href = result.nextStepUrl;
                                         } else if (result.redirectUrl) {
                                             window.location.href = result.redirectUrl;
                                         }
                                     } catch (error) {
-                                        console.error('Factor 선택 실패:', error);
-                                        alert('인증 방법 선택 실패: ' + (error.message || '알 수 없는 오류'));
+                                        console.error('Factor selection failed:', error);
+                                        alert('Authentication method selection failed: ' + (error.message || 'Unknown error'));
                                         button.disabled = false;
                                         button.textContent = originalText;
                                     }
@@ -776,11 +776,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String FAILURE_PAGE_TEMPLATE = """
             <!DOCTYPE html>
-            <html lang="ko">
+            <html lang="en">
             <head>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>MFA - 인증 실패</title>
+                <title>MFA - Authentication Failed</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -840,12 +840,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             <body>
                 <div class="container">
                     <div class="icon">❌</div>
-                    <h1>인증 실패</h1>
+                    <h1>Authentication Failed</h1>
                     <p class="error-message">{{errorMessage}}</p>
-            
+
                     <form method="get" action="{{retryUrl}}">
                         <button type="submit" class="primary-button">
-                            다시 시도
+                            Try Again
                         </button>
                     </form>
                 </div>
@@ -1157,14 +1157,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String html = """
                 <!DOCTYPE html>
-                <html lang="ko">
+                <html lang="en">
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <meta name="_csrf" content="%s">
                     <meta name="_csrf_header" content="%s">
                     <meta name="_csrf_parameter" content="%s">
-                    <title>로그인 - MFA 인증</title>
+                    <title>Login - MFA Authentication</title>
                     <style>
                         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
                         .container { max-width: 400px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -1185,19 +1185,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 </head>
                 <body>
                     <div class="container">
-                        <h1>로그인</h1>
+                        <h1>Login</h1>
                         <div id="message-area">
                             %s
                             %s
                         </div>
                         <div id="loginContainer" class="form">
-                            <input type="text" id="username" placeholder="사용자명 또는 이메일" required autofocus>
-                            <input type="password" id="password" placeholder="비밀번호" required>
-                            <button type="button" id="loginButton">로그인</button>
-                            <div class="spinner" id="spinner">인증 중...</div>
+                            <input type="text" id="username" placeholder="Username or Email" required autofocus>
+                            <input type="password" id="password" placeholder="Password" required>
+                            <button type="button" id="loginButton">Login</button>
+                            <div class="spinner" id="spinner">Authenticating...</div>
                         </div>
                         <div class="form-footer" id="form-footer">
-                            로그인 후 다단계 인증(MFA)이 진행됩니다.
+                            Multi-factor authentication (MFA) will proceed after login.
                         </div>
                     </div>
                 
@@ -1209,72 +1209,72 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
                 
-                            // SDK 초기화 (autoRedirect: true - 자동 리다이렉트)
+                            // SDK initialization (autoRedirect: true - auto redirect)
                             const mfa = new ContexaMFA.Client({ autoRedirect: true });
-                
+
                             loginButton.addEventListener('click', async () => {
                                 const username = document.getElementById('username').value;
                                 const password = document.getElementById('password').value;
-                
+
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">사용자명과 비밀번호를 입력하세요.</div>';
+                                    messageArea.innerHTML = '<div class="message error">Please enter username and password.</div>';
                                     return;
                                 }
-                
-                                // UI 상태 변경
+
+                                // Change UI state
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
                                 messageArea.innerHTML = '';
-                
+
                                 try {
-                                    // SDK의 loginForm 메서드 호출
+                                    // Call SDK loginForm method
                                     const result = await mfa.apiClient.loginForm(username, password);
-                
-                                    // 디버그: 서버 응답 확인
+
+                                    // Debug: check server response
                                     console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
                                     console.log('[DEBUG] result.status:', result.status);
                                     console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
-                
-                                    // MFA 필요 여부에 따른 분기 처리
+
+                                    // Branch processing based on MFA requirement
                                     if (result.status === 'MFA_COMPLETED') {
-                                        // MFA 불필요 - 즉시 홈으로 리다이렉트 (서버가 토큰 발급 완료)
-                                        messageArea.innerHTML = '<div class="message success">로그인 성공! 홈으로 이동합니다...</div>';
+                                        // MFA not required - redirect to home immediately (server issued tokens)
+                                        messageArea.innerHTML = '<div class="message success">Login successful! Redirecting to home...</div>';
                                         const redirectUrl = result.redirectUrl || '/home';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
-                                        // MFA 필요 - Factor 선택 페이지로 리다이렉트
-                                        messageArea.innerHTML = '<div class="message success">로그인 성공! 다단계 인증을 진행합니다...</div>';
+                                        // MFA required - redirect to factor selection page
+                                        messageArea.innerHTML = '<div class="message success">Login successful! Proceeding with multi-factor authentication...</div>';
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
-                                        // 기타 응답 - 메시지만 표시
-                                        const message = result.message || '로그인 성공!';
+                                        // Other response - show message only
+                                        const message = result.message || 'Login successful!';
                                         messageArea.innerHTML = '<div class="message success">' + message + '</div>';
                                     }
                                 } catch (error) {
-                                    // 차단 상태 감지
+                                    // Detect blocked status
                                     if (error.response && error.response.blocked === true) {
-                                        // 계정 차단 상태 - footer 숨기고 버튼 비활성화 유지
-                                        const supportContact = error.response.supportContact || '관리자';
+                                        // Account blocked - hide footer and keep button disabled
+                                        const supportContact = error.response.supportContact || 'Administrator';
                                         messageArea.innerHTML = '<div class="message error">' +
-                                            error.message + '<br>문의: ' + supportContact + '</div>';
+                                            error.message + '<br>Contact: ' + supportContact + '</div>';
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        // 일반 로그인 실패 - 재시도 가능
+                                        // Normal login failure - retry possible
                                         messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
                                     }
                                 }
                             });
-                
-                            // Enter 키 처리
+
+                            // Handle Enter key
                             document.getElementById('password').addEventListener('keypress', (e) => {
                                 if (e.key === 'Enter') {
                                     loginButton.click();
@@ -1288,8 +1288,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : ""
+                errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : ""
         );
 
         writer.write(html);
@@ -1313,14 +1313,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String html = """
                 <!DOCTYPE html>
-                <html lang="ko">
+                <html lang="en">
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <meta name="_csrf" content="%s">
                     <meta name="_csrf_header" content="%s">
                     <meta name="_csrf_parameter" content="%s">
-                    <title>로그인 - MFA 인증 (REST)</title>
+                    <title>Login - MFA Authentication (REST)</title>
                     <style>
                         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
                         .container { max-width: 400px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -1341,19 +1341,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 </head>
                 <body>
                     <div class="container">
-                        <h1>로그인 (REST API)</h1>
+                        <h1>Login (REST API)</h1>
                         <div id="message-area">
                             %s
                             %s
                         </div>
                         <div id="loginContainer" class="form">
-                            <input type="text" id="username" placeholder="사용자명 또는 이메일" required autofocus>
-                            <input type="password" id="password" placeholder="비밀번호" required>
-                            <button type="button" id="loginButton">로그인</button>
-                            <div class="spinner" id="spinner">인증 중...</div>
+                            <input type="text" id="username" placeholder="Username or Email" required autofocus>
+                            <input type="password" id="password" placeholder="Password" required>
+                            <button type="button" id="loginButton">Login</button>
+                            <div class="spinner" id="spinner">Authenticating...</div>
                         </div>
                         <div class="form-footer" id="form-footer">
-                            로그인 후 다단계 인증(MFA)이 진행됩니다.
+                            Multi-factor authentication (MFA) will proceed after login.
                         </div>
                     </div>
                 
@@ -1364,73 +1364,73 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const loginButton = document.getElementById('loginButton');
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
-                
-                            // SDK 초기화 (autoRedirect: true - 자동 리다이렉트)
+
+                            // SDK initialization (autoRedirect: true - auto redirect)
                             const mfa = new ContexaMFA.Client({ autoRedirect: true });
-                
+
                             loginButton.addEventListener('click', async () => {
                                 const username = document.getElementById('username').value;
                                 const password = document.getElementById('password').value;
-                
+
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">사용자명과 비밀번호를 입력하세요.</div>';
+                                    messageArea.innerHTML = '<div class="message error">Please enter username and password.</div>';
                                     return;
                                 }
-                
-                                // UI 상태 변경
+
+                                // Change UI state
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
                                 messageArea.innerHTML = '';
-                
+
                                 try {
-                                    // SDK의 login 메서드 호출
+                                    // Call SDK login method
                                     const result = await mfa.apiClient.login(username, password);
-                
-                                    // 디버그: 서버 응답 확인
+
+                                    // Debug: check server response
                                     console.log('[DEBUG] Server response:', JSON.stringify(result, null, 2));
                                     console.log('[DEBUG] result.status:', result.status);
                                     console.log('[DEBUG] result.redirectUrl:', result.redirectUrl);
-                
-                                    // MFA 필요 여부에 따른 분기 처리
+
+                                    // Branch processing based on MFA requirement
                                     if (result.status === 'MFA_COMPLETED') {
-                                        // MFA 불필요 - 즉시 홈으로 리다이렉트 (서버가 토큰 발급 완료)
-                                        messageArea.innerHTML = '<div class="message success">로그인 성공! 홈으로 이동합니다...</div>';
+                                        // MFA not required - redirect to home immediately (server issued tokens)
+                                        messageArea.innerHTML = '<div class="message success">Login successful! Redirecting to home...</div>';
                                         const redirectUrl = result.redirectUrl || '/home';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);
                                     } else if (result.status === 'MFA_REQUIRED_SELECT_FACTOR' ||
                                                result.status === 'MFA_REQUIRED') {
-                                        // MFA 필요 - Factor 선택 페이지로 리다이렉트
-                                        messageArea.innerHTML = '<div class="message success">로그인 성공! 다단계 인증을 진행합니다...</div>';
+                                        // MFA required - redirect to factor selection page
+                                        messageArea.innerHTML = '<div class="message success">Login successful! Proceeding with multi-factor authentication...</div>';
                                         const nextStepUrl = result.nextStepUrl || '/mfa/select-factor';
                                         setTimeout(() => {
                                             window.location.href = nextStepUrl;
                                         }, 500);
                                     } else {
-                                        // 기타 응답 - 메시지만 표시
-                                        const message = result.message || '로그인 성공!';
+                                        // Other response - show message only
+                                        const message = result.message || 'Login successful!';
                                         messageArea.innerHTML = '<div class="message success">' + message + '</div>';
                                     }
                                 } catch (error) {
-                                    // 차단 상태 감지
+                                    // Detect blocked status
                                     if (error.response && error.response.blocked === true) {
-                                        // 계정 차단 상태 - footer 숨기고 버튼 비활성화 유지
-                                        const supportContact = error.response.supportContact || '관리자';
+                                        // Account blocked - hide footer and keep button disabled
+                                        const supportContact = error.response.supportContact || 'Administrator';
                                         messageArea.innerHTML = '<div class="message error">' +
-                                            error.message + '<br>문의: ' + supportContact + '</div>';
+                                            error.message + '<br>Contact: ' + supportContact + '</div>';
                                         formFooter.style.display = 'none';
                                         loginButton.disabled = true;
                                     } else {
-                                        // 일반 로그인 실패 - 재시도 가능
+                                        // Normal login failure - retry possible
                                         messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
                                         loginButton.disabled = false;
                                         spinner.classList.remove('active');
                                     }
                                 }
                             });
-                
-                            // Enter 키 처리
+
+                            // Handle Enter key
                             document.getElementById('password').addEventListener('keypress', (e) => {
                                 if (e.key === 'Enter') {
                                     loginButton.click();
@@ -1444,8 +1444,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : ""
+                errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : ""
         );
 
         writer.write(html);
@@ -1500,8 +1500,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String username = getUsername();
         if (username == null) {
 
-            log.warn("OTT Verify Page: 인증되지 않은 사용자 접근 시도");
-            username = "(알 수 없음)";
+            log.warn("OTT Verify Page: Unauthenticated user access attempt");
+            username = "(Unknown)";
         }
 
         String hiddenInputs = resolveHiddenInputs(request);
@@ -1540,8 +1540,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String username = getUsername();
         if (username == null) {
 
-            log.warn("Passkey Challenge Page: 인증되지 않은 사용자 접근 시도");
-            username = "(알 수 없음)";
+            log.warn("Passkey Challenge Page: Unauthenticated user access attempt");
+            username = "(Unknown)";
         }
 
         String csrfHeaderName = getCsrfHeaderName(request);
@@ -1574,7 +1574,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String contextPath = request.getContextPath();
 
         String errorMessage = request.getParameter("error");
-        String displayMessage = StringUtils.hasText(errorMessage) ? errorMessage : "인증에 실패했습니다.";
+        String displayMessage = StringUtils.hasText(errorMessage) ? errorMessage : "Authentication failed.";
 
         String selectFactorUrl = extractSelectFactorUrl();
         String fullRetryUrl = contextPath + selectFactorUrl;
@@ -1662,8 +1662,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private String getFactorDisplayName(AuthType factorType) {
         return switch (factorType) {
-            case MFA_OTT -> "이메일 인증 코드 (OTT)";
-            case MFA_PASSKEY -> "Passkey 생체 인증";
+            case MFA_OTT -> "Email Authentication Code (OTT)";
+            case MFA_PASSKEY -> "Passkey Biometric Authentication";
             default -> factorType.name();
         };
     }

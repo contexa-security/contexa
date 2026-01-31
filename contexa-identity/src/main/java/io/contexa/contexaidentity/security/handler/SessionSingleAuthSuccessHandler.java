@@ -17,7 +17,7 @@ import java.util.Map;
 public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler {
 
     public SessionSingleAuthSuccessHandler(AuthResponseWriter responseWriter,
-                                          AuthContextProperties authContextProperties) {
+                                           AuthContextProperties authContextProperties) {
         super(responseWriter, authContextProperties);
     }
 
@@ -40,7 +40,7 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
         String targetUrl = determineTargetUrl(request, response);
 
         if (isApiRequest(request)) {
-            
+
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("authenticated", true);
             responseData.put("redirectUrl", targetUrl);
@@ -49,15 +49,13 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
             responseData.put("stateType", "SESSION");
 
             responseWriter.writeSuccessResponse(response, responseData, HttpServletResponse.SC_OK);
-                    } else {
-            
+        } else {
             response.sendRedirect(targetUrl);
-                    }
+        }
     }
 
     @Override
     protected String getDefaultTargetUrl(HttpServletRequest request) {
-        
         return request.getContextPath() + authContextProperties.getUrls().getSingle().getLoginSuccess();
     }
 }

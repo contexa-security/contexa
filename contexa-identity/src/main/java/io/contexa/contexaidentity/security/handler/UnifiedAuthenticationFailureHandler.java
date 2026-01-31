@@ -29,26 +29,20 @@ import java.util.Map;
 public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
-    private final MfaPolicyProvider mfaPolicyProvider;
     private final MfaSessionRepository sessionRepository;
     private final UserIdentificationService userIdentificationService;
-    private final AuthUrlProvider authUrlProvider;
 
     @Autowired(required = false)
     private ZeroTrustEventPublisher zeroTrustEventPublisher;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
-                                               MfaPolicyProvider mfaPolicyProvider,
                                                MfaSessionRepository sessionRepository,
-                                               UserIdentificationService userIdentificationService,
-                                               AuthUrlProvider authUrlProvider) {
+                                               UserIdentificationService userIdentificationService) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
-        this.mfaPolicyProvider = mfaPolicyProvider;
         this.sessionRepository = sessionRepository;
         this.userIdentificationService = userIdentificationService;
-        this.authUrlProvider = authUrlProvider;
     }
 
     @Override
@@ -175,27 +169,13 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
     }
 
-    protected void onMfaMaxAttemptsExceeded(HttpServletRequest request, HttpServletResponse response,
-                                            AuthenticationException exception, FactorContext factorContext,
-                                            AuthType factor, Map<String, Object> errorDetails)
-            throws IOException {
-        
-    }
-
-    protected void onMfaFactorFailure(HttpServletRequest request, HttpServletResponse response,
-                                      AuthenticationException exception, FactorContext factorContext,
-                                      AuthType factor, Map<String, Object> errorDetails)
-            throws IOException {
-        
-    }
-
-    protected void onPrimaryAuthFailure(HttpServletRequest request, HttpServletResponse response,
+    private void onPrimaryAuthFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, Map<String, Object> errorDetails)
             throws IOException {
         
     }
 
-    protected void onMfaSessionNotFound(HttpServletRequest request, HttpServletResponse response,
+    private void onMfaSessionNotFound(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, FactorContext factorContext,
                                         Map<String, Object> errorDetails)
             throws IOException {
@@ -363,35 +343,4 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         
         return score;
     }
-
-    private boolean processErrorEventRecommendation(FactorContext factorContext,
-                                                    HttpServletRequest request,
-                                                    String sessionId) {
-        if (factorContext == null) {
-            return false;
-        }
-
-        MfaEvent errorEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION);
-
-        if (errorEvent != null) {
-            
-            try {
-                boolean errorEventSent = stateMachineIntegrator.sendEvent(errorEvent, factorContext, request);
-
-                if (errorEventSent) {
-                    
-                    factorContext.removeAttribute("errorEventRecommendation");
-                                        return true;
-                } else {
-                    log.error("Failed to send error event {} for session: {}", errorEvent, sessionId);
-                }
-            } catch (Exception sendError) {
-                log.error("Failed to process error event recommendation for session: {}",
-                         sessionId, sendError);
-            }
-        }
-
-        return false;
-    }
-
 }

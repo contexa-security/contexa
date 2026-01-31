@@ -68,14 +68,14 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
         String html = """
                 <!DOCTYPE html>
-                <html lang="ko">
+                <html lang="en">
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
                     <meta name="_csrf" content="%s">
                     <meta name="_csrf_header" content="%s">
                     <meta name="_csrf_parameter" content="%s">
-                    <title>로그인</title>
+                    <title>Login</title>
                     <style>
                         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
                         .container { max-width: 400px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -96,19 +96,19 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                 </head>
                 <body>
                     <div class="container">
-                        <h1>로그인</h1>
+                        <h1>Login</h1>
                         <div id="message-area">
                             %s
                             %s
                         </div>
                         <div id="loginContainer" class="form">
-                            <input type="text" id="username" placeholder="사용자명 또는 이메일" required autofocus>
-                            <input type="password" id="password" placeholder="비밀번호" required>
-                            <button type="button" id="loginButton">로그인</button>
-                            <div class="spinner" id="spinner">인증 중...</div>
+                            <input type="text" id="username" placeholder="Username or Email" required autofocus>
+                            <input type="password" id="password" placeholder="Password" required>
+                            <button type="button" id="loginButton">Login</button>
+                            <div class="spinner" id="spinner">Authenticating...</div>
                         </div>
                         <div class="form-footer" id="form-footer">
-                            REST API 기반 인증 시스템
+                            REST API based authentication system
                         </div>
                     </div>
                 
@@ -119,7 +119,6 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
                 
-                            // CSRF 토큰 가져오기
                             function getCsrfToken() {
                                 const meta = document.querySelector('meta[name="_csrf"]');
                                 return meta ? meta.getAttribute('content') : null;
@@ -135,17 +134,15 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                 const password = document.getElementById('password').value;
                 
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">사용자명과 비밀번호를 입력하세요.</div>';
+                                    messageArea.innerHTML = '<div class="message error">Please enter username and password.</div>';
                                     return;
                                 }
                 
-                                // UI 상태 변경
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
                                 messageArea.innerHTML = '';
                 
                                 try {
-                                    // REST 로그인 요청 (단일 인증)
                                     const csrfToken = getCsrfToken();
                                     const csrfHeaderName = getCsrfHeader();
                 
@@ -167,16 +164,15 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                     });
                 
                                     if (!response.ok) {
-                                        const errorData = await response.json().catch(() => ({ message: '로그인 실패: 사용자명 또는 비밀번호를 확인하세요.' }));
-                                        throw new Error(errorData.message || '로그인에 실패했습니다.');
+                                        const errorData = await response.json().catch(() => ({ message: 'Login failed: Please check your username or password.' }));
+                                        throw new Error(errorData.message || 'Login failed.');
                                     }
                 
                                     const result = await response.json();
                 
                                     console.log('[DEBUG] Login success:', result);
                 
-                                    // 단일 인증 성공 - 홈으로 리다이렉트
-                                    messageArea.innerHTML = '<div class="message success">로그인 성공!</div>';
+                                    messageArea.innerHTML = '<div class="message success">Login successful!</div>';
                                     const redirectUrl = result.redirectUrl || '/home';
                                     setTimeout(() => {
                                         window.location.href = redirectUrl;
@@ -185,14 +181,12 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                 } catch (error) {
                                     console.error('Login error:', error);
                 
-                                    // 일반 로그인 실패 - 재시도 가능
                                     messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
                                     loginButton.disabled = false;
                                     spinner.classList.remove('active');
                                 }
                             });
                 
-                            // Enter 키 처리
                             document.getElementById('password').addEventListener('keypress', (e) => {
                                 if (e.key === 'Enter') {
                                     loginButton.click();
@@ -206,8 +200,8 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">로그인 실패: 사용자명 또는 비밀번호를 확인하세요.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">로그아웃되었습니다.</div>" : ""
+                errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : ""
         );
 
         writer.write(html);

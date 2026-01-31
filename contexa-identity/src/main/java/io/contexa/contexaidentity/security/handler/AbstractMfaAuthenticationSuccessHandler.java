@@ -208,8 +208,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return factorContext.getStateConfig().stateType();
         }
 
-        StateType globalDefault = authContextProperties.getStateType();
-        return globalDefault;
+        return authContextProperties.getStateType();
     }
 
     private Map<String, Object> buildResponseData(
