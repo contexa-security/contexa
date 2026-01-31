@@ -67,8 +67,6 @@ public class ZeroTrustEventListener {
                     log.warn("[ZeroTrustEventListener] Unhandled event category: {}", event.getCategory());
             }
 
-            long duration = System.currentTimeMillis() - startTime;
-
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
             log.error("[ZeroTrustEventListener] Failed to process event - category: {}, type: {}, duration: {}ms",
