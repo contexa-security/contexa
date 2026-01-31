@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.token.transport;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexaidentity.security.token.service.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 import org.springframework.util.StringUtils;
@@ -10,48 +11,45 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.contexa.contexaidentity.security.token.service.TokenService.*;
-
 public class HeaderCookieTokenStrategy extends AbstractTokenTransportStrategy implements TokenTransportStrategy {
 
-    private static final String COOKIE_PATH = "/";
     public HeaderCookieTokenStrategy(AuthContextProperties props) {
         super(props);
     }
 
     @Override
     public String resolveAccessToken(HttpServletRequest request) {
-        String header = request.getHeader(ACCESS_TOKEN_HEADER);
-        if (header != null && header.startsWith(BEARER_PREFIX)) {
-            return header.substring(BEARER_PREFIX.length());
+        String header = request.getHeader(TokenService.ACCESS_TOKEN_HEADER);
+        if (header != null && header.startsWith(TokenService.BEARER_PREFIX)) {
+            return header.substring(TokenService.BEARER_PREFIX.length());
         }
         return null;
     }
 
     @Override
     public String resolveRefreshToken(HttpServletRequest request) {
-        return extractCookie(request, REFRESH_TOKEN); 
+        return extractCookie(request, REFRESH_TOKEN_COOKIE_NAME);
     }
 
     @Override
-    public TokenTransportResult prepareTokensForWrite(String accessToken, String refreshToken, TokenServicePropertiesProvider propsProvider) {
+    public TokenTransportResult prepareTokensForWrite(String accessToken, String refreshToken) {
         Map<String, Object> body = new HashMap<>();
         body.put("accessToken", accessToken);
         body.put("tokenType", "Bearer");
-        body.put("expiresIn", propsProvider.getAccessTokenValidity());
+        body.put("expiresIn", accessTokenValidity);
         body.put("tokenTransportMethod", "HEADER_COOKIE");
 
         List<ResponseCookie> cookiesToSet = new ArrayList<>();
         if (StringUtils.hasText(refreshToken)) {
-            ResponseCookie refreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), refreshToken)
-                    .path(COOKIE_PATH) 
+            ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, refreshToken)
+                    .path(DEFAULT_COOKIE_PATH)
                     .httpOnly(HTTP_ONLY)
-                    .secure(propsProvider.isCookieSecure())
+                    .secure(cookieSecureFlag)
                     .sameSite(SAME_SITE)
-                    .maxAge((int) propsProvider.getRefreshTokenValidity() / 1000)
+                    .maxAge((int) refreshTokenValidity / 1000)
                     .build();
             cookiesToSet.add(refreshCookie);
-            body.put("refreshExpiresIn", propsProvider.getRefreshTokenValidity());
+            body.put("refreshExpiresIn", refreshTokenValidity);
         }
 
         return TokenTransportResult.builder()
@@ -61,12 +59,12 @@ public class HeaderCookieTokenStrategy extends AbstractTokenTransportStrategy im
     }
 
     @Override
-    public TokenTransportResult prepareTokensForClear(TokenServicePropertiesProvider propsProvider) {
+    public TokenTransportResult prepareTokensForClear() {
         List<ResponseCookie> cookiesToRemove = new ArrayList<>();
-        ResponseCookie expiredRefreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), "")
-                .path(COOKIE_PATH)
+        ResponseCookie expiredRefreshCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, "")
+                .path(DEFAULT_COOKIE_PATH)
                 .httpOnly(HTTP_ONLY)
-                .secure(propsProvider.isCookieSecure())
+                .secure(cookieSecureFlag)
                 .sameSite(SAME_SITE)
                 .maxAge(0)
                 .build();

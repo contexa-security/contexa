@@ -36,7 +36,6 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -47,7 +46,6 @@ public class OAuth2TokenService implements TokenService {
     private final OAuth2AuthorizationService authorizationService;
     private final RefreshTokenStore refreshTokenStore;
     private final TokenValidator tokenValidator;
-    private final JwtDecoder jwtDecoder;
     private final AuthContextProperties properties;
     private final ObjectMapper objectMapper;
     private final TokenTransportStrategy transportStrategy;
@@ -79,7 +77,6 @@ public class OAuth2TokenService implements TokenService {
         this.authorizationService = authorizationService;
         this.refreshTokenStore = refreshTokenStore;
         this.tokenValidator = tokenValidator;
-        this.jwtDecoder = jwtDecoder;
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.transportStrategy = transportStrategy;
@@ -309,39 +306,7 @@ public class OAuth2TokenService implements TokenService {
     @Override
     public TokenTransportResult prepareTokensForTransport(String accessToken, @Nullable String refreshToken) {
         if (transportStrategy != null) {
-            TokenService.TokenServicePropertiesProvider propertiesProvider = new TokenService.TokenServicePropertiesProvider() {
-                @Override
-                public long getAccessTokenValidity() {
-                    return properties.getAccessTokenValidity();
-                }
-
-                @Override
-                public long getRefreshTokenValidity() {
-                    return properties.getRefreshTokenValidity();
-                }
-
-                @Override
-                public String getCookiePath() {
-                    return "/";
-                }
-
-                @Override
-                public boolean isCookieSecure() {
-                    return false;
-                }
-
-                @Override
-                public String getRefreshTokenCookieName() {
-                    return "refresh_token";
-                }
-
-                @Override
-                public String getAccessTokenCookieName() {
-                    return "access_token";
-                }
-            };
-
-            return transportStrategy.prepareTokensForWrite(accessToken, refreshToken, propertiesProvider);
+            return transportStrategy.prepareTokensForWrite(accessToken, refreshToken);
         }
 
         return TokenTransportResult.builder()
@@ -356,39 +321,7 @@ public class OAuth2TokenService implements TokenService {
     @Override
     public TokenTransportResult prepareClearTokens() {
         if (transportStrategy != null) {
-            TokenService.TokenServicePropertiesProvider propertiesProvider = new TokenService.TokenServicePropertiesProvider() {
-                @Override
-                public long getAccessTokenValidity() {
-                    return properties.getAccessTokenValidity();
-                }
-
-                @Override
-                public long getRefreshTokenValidity() {
-                    return properties.getRefreshTokenValidity();
-                }
-
-                @Override
-                public String getCookiePath() {
-                    return "/";
-                }
-
-                @Override
-                public boolean isCookieSecure() {
-                    return false;
-                }
-
-                @Override
-                public String getRefreshTokenCookieName() {
-                    return "refresh_token";
-                }
-
-                @Override
-                public String getAccessTokenCookieName() {
-                    return "access_token";
-                }
-            };
-
-            return transportStrategy.prepareTokensForClear(propertiesProvider);
+            return transportStrategy.prepareTokensForClear();
         }
 
         return TokenTransportResult.builder().build();

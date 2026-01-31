@@ -30,17 +30,16 @@ public class HeaderTokenStrategy extends AbstractTokenTransportStrategy implemen
     }
 
     @Override
-    public TokenTransportResult prepareTokensForWrite(String accessToken, String refreshToken,
-                                                      TokenServicePropertiesProvider propsProvider) {
+    public TokenTransportResult prepareTokensForWrite(String accessToken, String refreshToken) {
         Map<String, Object> body = new HashMap<>();
 
         body.put("accessToken", accessToken);
         body.put("tokenType", "Bearer");
-        body.put("expiresIn", propsProvider.getAccessTokenValidity());
+        body.put("expiresIn", accessTokenValidity);
 
         if (StringUtils.hasText(refreshToken)) {
             body.put("refreshToken", refreshToken);
-            body.put("refreshExpiresIn", propsProvider.getRefreshTokenValidity());
+            body.put("refreshExpiresIn", refreshTokenValidity);
         }
 
         body.put("tokenTransportMethod", "HEADER");
@@ -51,8 +50,7 @@ public class HeaderTokenStrategy extends AbstractTokenTransportStrategy implemen
     }
 
     @Override
-    public TokenTransportResult prepareTokensForClear(TokenServicePropertiesProvider propsProvider) {
-
+    public TokenTransportResult prepareTokensForClear() {
         Map<String, Object> body = new HashMap<>();
         body.put("message", "Tokens have been invalidated. Please remove tokens from client storage.");
         body.put("tokenTransportMethod", "HEADER");

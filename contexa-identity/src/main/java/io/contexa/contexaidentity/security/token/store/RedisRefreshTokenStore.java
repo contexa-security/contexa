@@ -46,8 +46,7 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore {
 
     public RedisRefreshTokenStore(StringRedisTemplate redisTemplate,
                                   JwtDecoder jwtDecoder,
-                                  AuthContextProperties props,
-                                  RedisDistributedLockService lockService) {
+                                  AuthContextProperties props) {
         super(jwtDecoder, props);
         this.redisTemplate = redisTemplate;
     }

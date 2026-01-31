@@ -1,7 +1,6 @@
 package io.contexa.contexaidentity.security.token.transport;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexaidentity.security.token.service.TokenService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseCookie;
 import org.springframework.util.StringUtils;
@@ -11,12 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static io.contexa.contexaidentity.security.token.service.TokenService.ACCESS_TOKEN;
-import static io.contexa.contexaidentity.security.token.service.TokenService.REFRESH_TOKEN;
-
 public class CookieTokenStrategy extends AbstractTokenTransportStrategy implements TokenTransportStrategy {
-
-    private static final String COOKIE_PATH = "/";
 
     public CookieTokenStrategy(AuthContextProperties props) {
         super(props);
@@ -24,37 +18,36 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
 
     @Override
     public String resolveAccessToken(HttpServletRequest request) {
-        return extractCookie(request, ACCESS_TOKEN);
+        return extractCookie(request, ACCESS_TOKEN_COOKIE_NAME);
     }
 
     @Override
     public String resolveRefreshToken(HttpServletRequest request) {
-        return extractCookie(request, REFRESH_TOKEN);
+        return extractCookie(request, REFRESH_TOKEN_COOKIE_NAME);
     }
 
     @Override
-    public TokenTransportResult prepareTokensForWrite(String accessToken, String refreshToken,
-                                                      TokenService.TokenServicePropertiesProvider propsProvider) {
+    public TokenTransportResult prepareTokensForWrite(String accessToken, String refreshToken) {
         List<ResponseCookie> cookiesToSet = new ArrayList<>();
 
         if (StringUtils.hasText(accessToken)) {
-            ResponseCookie accessCookie = ResponseCookie.from(propsProvider.getAccessTokenCookieName(), accessToken)
-                    .path(propsProvider.getCookiePath())
+            ResponseCookie accessCookie = ResponseCookie.from(ACCESS_TOKEN_COOKIE_NAME, accessToken)
+                    .path(DEFAULT_COOKIE_PATH)
                     .httpOnly(HTTP_ONLY)
-                    .secure(propsProvider.isCookieSecure())
+                    .secure(cookieSecureFlag)
                     .sameSite(SAME_SITE)
-                    .maxAge((int) propsProvider.getAccessTokenValidity() / 1000)
+                    .maxAge((int) accessTokenValidity / 1000)
                     .build();
             cookiesToSet.add(accessCookie);
         }
 
         if (StringUtils.hasText(refreshToken)) {
-            ResponseCookie refreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), refreshToken)
-                    .path(propsProvider.getCookiePath())
+            ResponseCookie refreshCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, refreshToken)
+                    .path(DEFAULT_COOKIE_PATH)
                     .httpOnly(HTTP_ONLY)
-                    .secure(propsProvider.isCookieSecure())
+                    .secure(cookieSecureFlag)
                     .sameSite(SAME_SITE)
-                    .maxAge((int) propsProvider.getRefreshTokenValidity() / 1000)
+                    .maxAge((int) refreshTokenValidity / 1000)
                     .build();
             cookiesToSet.add(refreshCookie);
         }
@@ -71,22 +64,22 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
     }
 
     @Override
-    public TokenTransportResult prepareTokensForClear(TokenService.TokenServicePropertiesProvider propsProvider) {
+    public TokenTransportResult prepareTokensForClear() {
         List<ResponseCookie> cookiesToRemove = new ArrayList<>();
 
-        ResponseCookie expiredAccessCookie = ResponseCookie.from(propsProvider.getAccessTokenCookieName(), "")
-                .path(propsProvider.getCookiePath())
+        ResponseCookie expiredAccessCookie = ResponseCookie.from(ACCESS_TOKEN_COOKIE_NAME, "")
+                .path(DEFAULT_COOKIE_PATH)
                 .httpOnly(HTTP_ONLY)
-                .secure(propsProvider.isCookieSecure())
+                .secure(cookieSecureFlag)
                 .sameSite(SAME_SITE)
                 .maxAge(0)
                 .build();
         cookiesToRemove.add(expiredAccessCookie);
 
-        ResponseCookie expiredRefreshCookie = ResponseCookie.from(propsProvider.getRefreshTokenCookieName(), "")
-                .path(propsProvider.getCookiePath())
+        ResponseCookie expiredRefreshCookie = ResponseCookie.from(REFRESH_TOKEN_COOKIE_NAME, "")
+                .path(DEFAULT_COOKIE_PATH)
                 .httpOnly(HTTP_ONLY)
-                .secure(propsProvider.isCookieSecure())
+                .secure(cookieSecureFlag)
                 .sameSite(SAME_SITE)
                 .maxAge(0)
                 .build();

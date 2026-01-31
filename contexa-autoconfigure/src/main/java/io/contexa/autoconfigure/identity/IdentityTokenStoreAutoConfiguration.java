@@ -31,8 +31,7 @@ public class IdentityTokenStoreAutoConfiguration {
     @ConditionalOnMissingBean(RefreshTokenStore.class)
     public RefreshTokenStore refreshTokenStore(
             JwtDecoder jwtDecoder,
-            StringRedisTemplate redisTemplate,
-            RedisDistributedLockService lockService) {
+            StringRedisTemplate redisTemplate) {
 
         TokenStoreType storeType = authContextProperties.getTokenStoreType();
 
@@ -47,7 +46,7 @@ public class IdentityTokenStoreAutoConfiguration {
                 return new MemoryRefreshTokenStore(jwtDecoder, authContextProperties);
             }
 
-            return new RedisRefreshTokenStore(redisTemplate, jwtDecoder, authContextProperties, lockService);
+            return new RedisRefreshTokenStore(redisTemplate, jwtDecoder, authContextProperties);
         }
 
         log.warn("Unknown token store type: {}. Using default MEMORY store.", storeType);

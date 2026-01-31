@@ -12,16 +12,20 @@ import java.io.IOException;
 
 public abstract class AbstractTokenTransportStrategy {
 
-    protected static final String SAME_SITE = "Strict"; 
+    protected static final String SAME_SITE = "Strict";
     protected static final boolean HTTP_ONLY = true;
+    protected static final String ACCESS_TOKEN_COOKIE_NAME = "accessToken";
+    protected static final String REFRESH_TOKEN_COOKIE_NAME = "refreshToken";
+    protected static final String DEFAULT_COOKIE_PATH = "/";
 
-    private final boolean cookieSecureFlag; 
-
-    protected final ObjectMapper objectMapper = new ObjectMapper();
+    protected final boolean cookieSecureFlag;
+    protected final long accessTokenValidity;
+    protected final long refreshTokenValidity;
 
     protected AbstractTokenTransportStrategy(AuthContextProperties props) {
-
-        this.cookieSecureFlag = props != null && props.isCookieSecure(); 
+        this.cookieSecureFlag = props != null && props.isCookieSecure();
+        this.accessTokenValidity = props != null ? props.getAccessTokenValidity() : 3600000L;
+        this.refreshTokenValidity = props != null ? props.getRefreshTokenValidity() : 604800000L;
     }
 
     protected String extractCookie(HttpServletRequest request, String name) {
@@ -32,39 +36,6 @@ public abstract class AbstractTokenTransportStrategy {
             }
         }
         return null;
-    }
-
-    protected void addCookie(HttpServletResponse response, String name, String value, int maxAgeSeconds, String path) {
-        ResponseCookie cookie = ResponseCookie.from(name, value)
-                .path(path)
-                .httpOnly(HTTP_ONLY)
-                .secure(this.cookieSecureFlag) 
-                .sameSite(SAME_SITE)
-                .maxAge(maxAgeSeconds)
-                .build();
-        response.addHeader("Set-Cookie", cookie.toString());
-    }
-
-    protected void removeCookie(HttpServletResponse response, String name, String path) {
-        ResponseCookie expired = ResponseCookie.from(name, "")
-                .path(path)
-                .httpOnly(HTTP_ONLY)
-                .secure(this.cookieSecureFlag) 
-                .sameSite(SAME_SITE)
-                .maxAge(0)
-                .build();
-        response.addHeader("Set-Cookie", expired.toString());
-    }
-
-    protected void writeJson(HttpServletResponse response, Object body) {
-        response.setStatus(HttpServletResponse.SC_OK);
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE + ";charset=UTF-8");
-        try {
-            objectMapper.writeValue(response.getWriter(), body);
-        } catch (IOException e) {
-            
-            throw new RuntimeException("Failed to write JSON response", e);
-        }
     }
 }
 

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
-import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -46,14 +45,5 @@ public interface TokenService extends TokenProvider, TokenValidator  {
     TokenTransportResult prepareClearTokens();
     String resolveAccessToken(HttpServletRequest request);
     String resolveRefreshToken(HttpServletRequest request);
-
-    interface TokenServicePropertiesProvider {
-        long getAccessTokenValidity();
-        long getRefreshTokenValidity();
-        String getCookiePath(); 
-        boolean isCookieSecure();
-        String getRefreshTokenCookieName();
-        String getAccessTokenCookieName();
-    }
 }
 
