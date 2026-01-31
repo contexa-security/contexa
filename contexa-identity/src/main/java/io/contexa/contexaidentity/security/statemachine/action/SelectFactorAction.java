@@ -98,8 +98,7 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             return validatePasskeyType(requestedType);
         }
 
-        String userAgent = (String) factorContext.getAttribute(
-                FactorContextAttributes.DeviceAndSession.USER_AGENT);
+        String userAgent = (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.USER_AGENT);
         if (userAgent != null) {
             if (userAgent.contains("Mobile")) {
                 return "MOBILE";
@@ -132,16 +131,13 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         }
 
         String upperType = type.toUpperCase();
-        switch (upperType) {
-            case "PLATFORM":
-            case "CROSS_PLATFORM":
-            case "MOBILE":
-            case "HYBRID":
-                return upperType;
-            default:
+        return switch (upperType) {
+            case "PLATFORM", "CROSS_PLATFORM", "MOBILE", "HYBRID" -> upperType;
+            default -> {
                 log.warn("Invalid passkey type: {}, defaulting to PLATFORM", type);
-                return "PLATFORM";
-        }
+                yield "PLATFORM";
+            }
+        };
     }
 
     @Override
