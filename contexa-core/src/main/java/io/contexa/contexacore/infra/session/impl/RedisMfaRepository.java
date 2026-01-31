@@ -39,7 +39,6 @@ public class RedisMfaRepository implements MfaSessionRepository {
     private static final String COOKIE_NAME = "MFA_SID";
     private static final String TEMP_SESSION_ATTR = "_tempMfaSessionId_";
     private static final int MAX_COLLISION_RETRIES = 10;
-    private static final int MIN_SECURITY_SCORE_THRESHOLD = 75;
 
     private Duration sessionTimeout;
 
@@ -220,27 +219,6 @@ public class RedisMfaRepository implements MfaSessionRepository {
     @Override
     public String getRepositoryType() {
         return "REDIS";
-    }
-
-    @Override
-    public SessionStats getSessionStats() {
-        try {
-            Set<String> keys = redisTemplate.keys(SESSION_PREFIX + "*");
-            long activeSessions = keys.size();
-
-            double avgDurationApproximation = sessionTimeout.toSeconds() * 0.5;
-
-            return new SessionStats(
-                    activeSessions,
-                    totalSessionsCreated.get(),
-                    sessionCollisionsResolved.get(),
-                    avgDurationApproximation,
-                    getRepositoryType()
-            );
-        } catch (Exception e) {
-            log.warn("Failed to get session stats from Redis: {}", e.getMessage());
-            return new SessionStats(0, totalSessionsCreated.get(), sessionCollisionsResolved.get(), 0.0, getRepositoryType());
-        }
     }
 
     private String createSessionValue(String sessionId, HttpServletRequest request) {

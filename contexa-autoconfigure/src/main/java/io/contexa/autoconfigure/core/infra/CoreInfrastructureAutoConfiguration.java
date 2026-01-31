@@ -9,10 +9,6 @@ import io.contexa.contexacore.config.OpenTelemetryConfiguration;
 import io.contexa.contexacore.config.RedisKeyCleanup;
 import io.contexa.contexacore.config.RedissonConfiguration;
 import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
-import io.contexa.contexacore.infra.redis.DistributedAIStrategyCoordinator;
-import io.contexa.contexacore.infra.redis.RedisAsyncEventConfiguration;
-import io.contexa.contexacore.infra.redis.RedisCacheConfiguration;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -31,8 +27,6 @@ import org.springframework.data.redis.core.RedisTemplate;
         ApplicationConfig.class,
         AsyncConfig.class,
         UnifiedRedisConfiguration.class,
-        RedisAsyncEventConfiguration.class,
-        RedisCacheConfiguration.class,
         RedissonConfiguration.class,
         KafkaConfiguration.class,
         KafkaTopicConfiguration.class,
@@ -55,14 +49,5 @@ public class CoreInfrastructureAutoConfiguration {
             @Qualifier("eventRedisTemplate") RedisTemplate<String, Object> redisTemplate,
             ObjectMapper objectMapper) {
         return new RedisEventPublisher(redisTemplate, objectMapper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DistributedAIStrategyCoordinator distributedAIStrategyCoordinator(
-            RedisTemplate<String, Object> redisTemplate,
-            RedisDistributedLockService lockService,
-            RedisEventPublisher eventPublisher) {
-        return new DistributedAIStrategyCoordinator(redisTemplate, lockService, eventPublisher);
     }
 }

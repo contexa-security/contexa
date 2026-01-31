@@ -29,15 +29,6 @@ public class RedisEventPublisher {
         publishEvent("authentication-events", event);
     }
 
-    public void publishMfaEvent(String eventType, String sessionId,
-                                String username, Map<String, Object> additionalData) {
-        Map<String, Object> data = new HashMap<>(additionalData);
-        data.put("sessionId", sessionId);
-
-        Map<String, Object> event = createEvent("MFA", eventType, username, data);
-        publishEvent("mfa-events", event);
-    }
-
     public void publishSecurityEvent(String eventType, String username,
                                      String ipAddress, Map<String, Object> additionalData) {
         Map<String, Object> data = new HashMap<>(additionalData);
@@ -67,13 +58,13 @@ public class RedisEventPublisher {
 
             redisTemplate.convertAndSend(topic.getTopic(), eventJson);
 
-                    } catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to publish event to topic '{}': {}", topicName, e.getMessage());
         }
     }
 
     private String getServerId() {
-        
+
         return System.getenv("HOSTNAME") != null ?
                 System.getenv("HOSTNAME") : "server-" + System.currentTimeMillis();
     }

@@ -112,24 +112,4 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
     public boolean supportsDistributedSync() {
         return false;
     }
-
-    @Override
-    public SessionStats getSessionStats() {
-        return new SessionStats(
-                0,
-                totalSessionsCreated.get(),
-                sessionCollisions.get(),
-                sessionTimeout.toSeconds() * 0.5,
-                getRepositoryType()
-        );
-    }
-
-    private int estimateEntropy(String sessionId) {
-        if (sessionId.length() == 0) return 0;
-
-        int uniqueChars = (int) sessionId.chars().distinct().count();
-        double entropy = (double) uniqueChars / sessionId.length() * 25;
-
-        return (int) Math.min(25, entropy);
-    }
 }

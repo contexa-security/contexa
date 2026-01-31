@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.infra.redis.RedisAtomicOperations;
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
@@ -24,7 +23,6 @@ public class IamSecurityCoreAutoConfiguration {
     public ZeroTrustSecurityService zeroTrustSecurityService(
             RedisTemplate<String, Object> redisTemplate,
             ThreatScoreOrchestrator threatScoreOrchestrator,
-            RedisAtomicOperations redisAtomicOperations,
             ObjectMapper objectMapper,
             BaselineLearningService baselineLearningService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,

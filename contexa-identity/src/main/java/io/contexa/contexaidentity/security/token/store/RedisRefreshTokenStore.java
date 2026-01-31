@@ -33,7 +33,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
 
     private final StringRedisTemplate redisTemplate;
     private final RedisDistributedLockService lockService;
-    private final RedisEventPublisher eventPublisher;
 
     private final TokenChainManager tokenChainManager;
     private final RefreshTokenAnomalyDetector anomalyDetector;
@@ -86,7 +85,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
         super(jwtDecoder, props);
         this.redisTemplate = redisTemplate;
         this.lockService = lockService;
-        this.eventPublisher = eventPublisher;
         this.tokenChainManager = tokenChainManager;
         this.anomalyDetector = anomalyDetector;
         this.managementService = managementService;
@@ -168,8 +166,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
                 String.valueOf(ttlSeconds)
         );
 
-        publishTokenSavedEvent(username, deviceId);
-
         if (enhancedSecurityEnabled) {
             saveTokenMetadata(token, username, deviceId, expiration);
         }
@@ -205,8 +201,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
                 Arrays.asList(tokenKey, devicesKey),
                 deviceId
         );
-
-        publishTokenRemovedEvent(username, deviceId);
     }
 
     @Override
@@ -380,8 +374,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
             blacklistDevice(username, deviceId, reason);
         }
 
-        publishTokenRevokedEvent(username, null, reason);
-
         if (managementService != null) {
             managementService.updateTokenStatistics(username, "REVOKED");
         }
@@ -392,8 +384,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
         
         doRemoveToken(username, deviceId);
         blacklistDevice(username, deviceId, reason);
-
-        publishTokenRevokedEvent(username, deviceId, reason);
 
         if (managementService != null) {
             managementService.updateTokenStatistics(username, "REVOKED");
@@ -463,36 +453,8 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
     }
 
     private void publishTokenSavedEvent(String username, String deviceId) {
-        if (eventPublisher == null) {
-                        return;
-        }
-
         Map<String, Object> data = new HashMap<>();
         data.put("deviceId", deviceId);
-        eventPublisher.publishAuthenticationEvent("TOKEN_SAVED", username, data);
-    }
-
-    private void publishTokenRemovedEvent(String username, String deviceId) {
-        if (eventPublisher == null) {
-                        return;
-        }
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("deviceId", deviceId);
-        eventPublisher.publishAuthenticationEvent("TOKEN_REMOVED", username, data);
-    }
-
-    private void publishTokenRevokedEvent(String username, String deviceId, String reason) {
-        if (eventPublisher == null) {
-            return;
-        }
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("reason", reason);
-        if (deviceId != null) {
-            data.put("deviceId", deviceId);
-        }
-        eventPublisher.publishSecurityEvent("TOKEN_REVOKED", username, "0.0.0.0", data);
     }
 
     private String extractDeviceId(String token) {
