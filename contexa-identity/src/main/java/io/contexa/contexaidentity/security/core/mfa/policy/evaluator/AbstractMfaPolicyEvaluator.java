@@ -32,11 +32,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         this.applicationContext = applicationContext;
     }
 
-    protected AbstractMfaPolicyEvaluator() {
-        this.userRepository = null;
-        this.applicationContext = null;
-    }
-
     @Override
     public final MfaDecision evaluatePolicy(FactorContext context) {
         Assert.notNull(context, "FactorContext cannot be null");
@@ -102,7 +97,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         }
 
         Map<AuthType, ?> factorOptions = config.getRegisteredFactorOptions();
-        if (factorOptions == null || factorOptions.isEmpty()) {
+        if (factorOptions.isEmpty()) {
             return Collections.emptySet();
         }
 

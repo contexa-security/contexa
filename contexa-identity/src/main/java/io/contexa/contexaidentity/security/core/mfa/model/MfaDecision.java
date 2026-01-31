@@ -137,7 +137,6 @@ public class MfaDecision implements Serializable {
         return type == DecisionType.ESCALATED;
     }
 
-    @SuppressWarnings("unchecked")
     public <T> T getMetadataValue(String key, Class<T> type) {
         if (metadata == null || !metadata.containsKey(key)) {
             return null;

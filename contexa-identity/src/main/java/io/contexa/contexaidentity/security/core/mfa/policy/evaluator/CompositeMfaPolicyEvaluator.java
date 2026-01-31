@@ -99,19 +99,16 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
     @Override
     public boolean supports(FactorContext context) {
-
         return true;
     }
 
     @Override
     public boolean isAvailable() {
-
         return evaluators.stream().anyMatch(MfaPolicyEvaluator::isAvailable);
     }
 
     @Override
     public int getPriority() {
-
         return Integer.MAX_VALUE;
     }
 
@@ -123,12 +120,6 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     public List<MfaPolicyEvaluator> getEvaluators() {
         return evaluators;
     }
-
-    public void logEvaluatorStatus() {
-        for (MfaPolicyEvaluator evaluator : evaluators) {
-        }
-    }
-
     public String getLastUsedEvaluatorName() {
         return lastUsedEvaluatorName;
     }

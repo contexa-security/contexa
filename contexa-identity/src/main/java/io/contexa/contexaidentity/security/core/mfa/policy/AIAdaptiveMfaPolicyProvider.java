@@ -32,8 +32,6 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
         if (aiCoreOperations == null) {
             log.warn("AI Core Operations not available. AI adaptive authentication will be disabled.");
         }
-
-        compositePolicyEvaluator.logEvaluatorStatus();
     }
 
     @Override
