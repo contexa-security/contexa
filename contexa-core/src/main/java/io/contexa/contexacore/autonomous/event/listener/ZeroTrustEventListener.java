@@ -188,9 +188,9 @@ public class ZeroTrustEventListener {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Boolean isAnalyzing = redisTemplate.hasKey(analysisKey);
 
-            if (Boolean.TRUE.equals(isAnalyzing)) {
+            if (isAnalyzing) {
                 Long ttl = redisTemplate.getExpire(analysisKey);
-                if (ttl != null && ttl > 0) {
+                if (ttl > 0) {
                     return true;
                 }
             }

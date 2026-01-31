@@ -23,12 +23,6 @@ import java.util.concurrent.atomic.AtomicLong;
 @Slf4j
 public class KafkaSecurityEventCollector {
 
-    @Value("${security.plane.kafka.bootstrap-servers:localhost:9092}")
-    private String bootstrapServers;
-
-    @Value("${security.plane.kafka.group-id:security-plane-consumer}")
-    private String groupId;
-
     private final ObjectMapper objectMapper;
     private final List<SecurityEventListener> listeners;
     private final Map<String, SecurityEvent> eventCache;
@@ -65,8 +59,7 @@ public class KafkaSecurityEventCollector {
         @Header(KafkaHeaders.RECEIVED_PARTITION) int partition,
         @Header(KafkaHeaders.OFFSET) long offset,
         Acknowledgment acknowledgment) {
-        long startTime = System.currentTimeMillis();
-        
+
         try {
             ZeroTrustSpringEvent zeroTrustEvent = objectMapper.readValue(message, ZeroTrustSpringEvent.class);
             SecurityEvent event = convertZeroTrustToSecurityEvent(zeroTrustEvent);
@@ -80,8 +73,6 @@ public class KafkaSecurityEventCollector {
             processEvent(event);
             eventCount.incrementAndGet();
 
-            long duration = System.currentTimeMillis() - startTime;
-            
             if (acknowledgment != null) {
                 acknowledgment.acknowledge();
             }
