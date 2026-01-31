@@ -32,18 +32,18 @@ public class MfaStateMachineIntegrator {
     @PostConstruct
     public void initialize() {
         sessionRepository.setSessionTimeout(properties.getMfa().getSessionTimeout());
-            }
+    }
 
     public void initializeStateMachine(FactorContext context, HttpServletRequest request, HttpServletResponse response) {
         String sessionId = context.getMfaSessionId();
 
         try {
-            
+
             stateMachineService.initializeStateMachine(context, request);
 
             sessionRepository.storeSession(sessionId, request, response);
 
-                    } catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for session: {}", sessionId, e);
             throw new StateMachineIntegrationException("State Machine initialization failed", e);
         }
@@ -55,19 +55,17 @@ public class MfaStateMachineIntegrator {
 
     public boolean sendEvent(MfaEvent event, FactorContext context, HttpServletRequest request, Map<String, Object> additionalHeaders) {
         String sessionId = context.getMfaSessionId();
-        
+
         try {
             sessionRepository.refreshSession(sessionId);
 
             boolean accepted = stateMachineService.sendEvent(event, context, request, additionalHeaders);
 
             if (accepted) {
-                            } else {
+            } else {
                 String rejectionReason = analyzeEventRejectionReason(context, event);
-                log.warn("Event {} rejected by State Machine for session: {} - Reason: {}",
-                        event, sessionId, rejectionReason);
+                log.warn("Event {} rejected by State Machine for session: {} - Reason: {}", event, sessionId, rejectionReason);
             }
-
             return accepted;
         } catch (Exception e) {
             log.error("Failed to send event {} to State Machine for session: {}", event, sessionId, e);
@@ -90,7 +88,7 @@ public class MfaStateMachineIntegrator {
             if (original == null) {
                 return null;
             }
-            
+
             return original;
         } catch (Exception e) {
             log.error("Failed to load FactorContext from unified State Machine for session: {}", sessionId, e);
@@ -102,18 +100,18 @@ public class MfaStateMachineIntegrator {
         try {
             stateMachineService.saveFactorContext(context);
 
-                    } catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to save FactorContext to unified State Machine for session: {}",
                     context.getMfaSessionId(), e);
         }
     }
 
     public void releaseStateMachine(String sessionId) {
-        
+
         try {
             stateMachineService.releaseStateMachine(sessionId);
 
-                    } catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to release unified State Machine for session: {}", sessionId, e);
         }
     }
@@ -121,50 +119,14 @@ public class MfaStateMachineIntegrator {
     public FactorContext loadFactorContextFromRequest(HttpServletRequest request) {
         String mfaSessionId = sessionRepository.getSessionId(request);
         if (mfaSessionId == null) {
-                        return null;
+            return null;
         }
 
         if (!sessionRepository.existsSession(mfaSessionId)) {
-                        return null;
+            return null;
         }
 
         return loadFactorContext(mfaSessionId);
-    }
-
-    public MfaState getCurrentStateFromRequest(HttpServletRequest request) {
-        String mfaSessionId = sessionRepository.getSessionId(request);
-        if (mfaSessionId == null) {
-            return MfaState.NONE;
-        }
-
-        if (!sessionRepository.existsSession(mfaSessionId)) {
-            return MfaState.NONE;
-        }
-
-        return getCurrentState(mfaSessionId);
-    }
-
-    public boolean isValidMfaSession(HttpServletRequest request) {
-        String mfaSessionId = sessionRepository.getSessionId(request);
-        if (mfaSessionId == null) {
-            return false;
-        }
-
-        if (!sessionRepository.existsSession(mfaSessionId)) {
-            return false;
-        }
-
-        FactorContext context = loadFactorContext(mfaSessionId);
-        return context != null && !context.getCurrentState().isTerminal();
-    }
-
-    public void cleanupSession(HttpServletRequest request) {
-        String mfaSessionId = sessionRepository.getSessionId(request);
-        if (mfaSessionId != null) {
-            releaseStateMachine(mfaSessionId);
-            sessionRepository.removeSession(mfaSessionId, request, null);
-
-                    }
     }
 
     public void cleanupSession(HttpServletRequest request, HttpServletResponse response) {
@@ -173,22 +135,7 @@ public class MfaStateMachineIntegrator {
             releaseStateMachine(mfaSessionId);
             sessionRepository.removeSession(mfaSessionId, request, response);
 
-                    }
-    }
-
-    public boolean updateStateOnly(String sessionId, MfaState newState) {
-        try {
-            return stateMachineService.updateStateOnly(sessionId, newState);
-        } catch (Exception e) {
-            log.error("Failed to update state only for session: {}", sessionId, e);
-            return false;
         }
-    }
-
-    public String getSessionRepositoryInfo() {
-        return String.format("Repository: %s, Timeout: %s",
-                sessionRepository.getRepositoryType(),
-                properties.getMfa().getSessionTimeout());
     }
 
     private String analyzeEventRejectionReason(FactorContext context, MfaEvent event) {
@@ -212,12 +159,12 @@ public class MfaStateMachineIntegrator {
         reason.append(String.format("Event [%s] not valid for current state [%s]. ", event, currentState));
 
         String validSourceStates = getValidSourceStatesForEvent(event);
-        if (validSourceStates != null && !validSourceStates.isEmpty()) {
+        if (!validSourceStates.isEmpty()) {
             reason.append(String.format("Valid source states for %s: [%s]. ", event, validSourceStates));
         }
 
         String validEvents = getValidEventsForState(currentState);
-        if (validEvents != null && !validEvents.isEmpty()) {
+        if (!validEvents.isEmpty()) {
             reason.append(String.format("Valid events for %s: [%s]. ", currentState, validEvents));
         }
 
@@ -236,18 +183,13 @@ public class MfaStateMachineIntegrator {
             case PRIMARY_AUTH_SUCCESS -> "NONE";
             case MFA_NOT_REQUIRED, MFA_REQUIRED_SELECT_FACTOR, INITIATE_CHALLENGE_AUTO ->
                     "PRIMARY_AUTHENTICATION_COMPLETED";
-            case FACTOR_SELECTED ->
-                    "AWAITING_FACTOR_SELECTION, FACTOR_VERIFICATION_COMPLETED";
+            case FACTOR_SELECTED -> "AWAITING_FACTOR_SELECTION, FACTOR_VERIFICATION_COMPLETED";
             case INITIATE_CHALLENGE ->
                     "AWAITING_FACTOR_CHALLENGE_INITIATION, FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION";
-            case SUBMIT_FACTOR_CREDENTIAL ->
-                    "FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION";
-            case FACTOR_VERIFIED_SUCCESS, FACTOR_VERIFICATION_FAILED ->
-                    "FACTOR_VERIFICATION_PENDING";
-            case DETERMINE_NEXT_FACTOR, ALL_REQUIRED_FACTORS_COMPLETED ->
-                    "FACTOR_VERIFICATION_COMPLETED";
-            case ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN ->
-                    "ALL_FACTORS_COMPLETED";
+            case SUBMIT_FACTOR_CREDENTIAL -> "FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION";
+            case FACTOR_VERIFIED_SUCCESS, FACTOR_VERIFICATION_FAILED -> "FACTOR_VERIFICATION_PENDING";
+            case DETERMINE_NEXT_FACTOR, ALL_REQUIRED_FACTORS_COMPLETED -> "FACTOR_VERIFICATION_COMPLETED";
+            case ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN -> "ALL_FACTORS_COMPLETED";
             case SESSION_TIMEOUT, RETRY_LIMIT_EXCEEDED, USER_ABORTED_MFA, SYSTEM_ERROR ->
                     "Multiple non-terminal states (terminal event)";
             default -> "Unknown event";
@@ -256,12 +198,10 @@ public class MfaStateMachineIntegrator {
 
     private String getValidEventsForState(MfaState state) {
         return switch (state) {
-            case NONE ->
-                    "PRIMARY_AUTH_SUCCESS";
+            case NONE -> "PRIMARY_AUTH_SUCCESS";
             case PRIMARY_AUTHENTICATION_COMPLETED ->
                     "MFA_NOT_REQUIRED, MFA_REQUIRED_SELECT_FACTOR, INITIATE_CHALLENGE_AUTO, SESSION_TIMEOUT, SYSTEM_ERROR";
-            case AWAITING_FACTOR_SELECTION ->
-                    "FACTOR_SELECTED, SESSION_TIMEOUT, USER_ABORTED_MFA, SYSTEM_ERROR";
+            case AWAITING_FACTOR_SELECTION -> "FACTOR_SELECTED, SESSION_TIMEOUT, USER_ABORTED_MFA, SYSTEM_ERROR";
             case AWAITING_FACTOR_CHALLENGE_INITIATION ->
                     "INITIATE_CHALLENGE, SESSION_TIMEOUT, USER_ABORTED_MFA, SYSTEM_ERROR";
             case FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ->
@@ -270,13 +210,10 @@ public class MfaStateMachineIntegrator {
                     "FACTOR_VERIFIED_SUCCESS, FACTOR_VERIFICATION_FAILED, SESSION_TIMEOUT, RETRY_LIMIT_EXCEEDED, SYSTEM_ERROR";
             case FACTOR_VERIFICATION_COMPLETED ->
                     "DETERMINE_NEXT_FACTOR, ALL_REQUIRED_FACTORS_COMPLETED, FACTOR_SELECTED, SESSION_TIMEOUT, SYSTEM_ERROR";
-            case ALL_FACTORS_COMPLETED ->
-                    "ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN, SESSION_TIMEOUT, SYSTEM_ERROR";
+            case ALL_FACTORS_COMPLETED -> "ALL_FACTORS_VERIFIED_PROCEED_TO_TOKEN, SESSION_TIMEOUT, SYSTEM_ERROR";
             case MFA_SUCCESSFUL, MFA_NOT_REQUIRED, MFA_FAILED_TERMINAL, MFA_SESSION_EXPIRED,
-                 MFA_RETRY_LIMIT_EXCEEDED, MFA_CANCELLED, MFA_SYSTEM_ERROR ->
-                    "None (terminal state)";
-            default ->
-                    "Unknown state";
+                 MFA_RETRY_LIMIT_EXCEEDED, MFA_CANCELLED, MFA_SYSTEM_ERROR -> "None (terminal state)";
+            default -> "Unknown state";
         };
     }
 

@@ -46,22 +46,16 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         this.mfaSettings = authContextProperties.getMfa();
         this.authUrlProvider = authUrlProvider;
 
-            }
+    }
 
     @Override
     public void handleRequest(MfaRequestType requestType, HttpServletRequest request,
                               HttpServletResponse response, FactorContext context,
-                              FilterChain filterChain) throws ServletException, IOException {
+                              FilterChain filterChain) throws IOException {
 
         String sessionId = context.getMfaSessionId();
-        long startTime = System.currentTimeMillis();
-
         try {
-            
             processRequestByType(requestType, request, response, context, filterChain);
-
-            long processingTime = System.currentTimeMillis() - startTime;
-            
         } catch (Exception e) {
             log.error("Error in unified State Machine request handling for session: {}", sessionId, e);
             handleProcessingError(request, response, context, e);
@@ -70,7 +64,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     @Override
     public void handleTerminalContext(HttpServletRequest request, HttpServletResponse response,
-                                      FactorContext context) throws ServletException, IOException {
+                                      FactorContext context) throws IOException {
         String sessionId = context.getMfaSessionId();
         MfaState currentState = context.getCurrentState();
 
@@ -186,7 +180,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 break;
 
             case OTT_CODE_REQUEST:
-                
+
                 filterChain.doFilter(request, response);
                 break;
 
@@ -215,10 +209,8 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleFactorSelection(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context) throws IOException {
-        String sessionId = context.getMfaSessionId();
-
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
-        if (selectedFactor == null) return; 
+        if (selectedFactor == null) return;
 
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
             handleFactorSelectionSuccess(request, response, context, selectedFactor);
@@ -229,7 +221,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleChallengeInitiation(HttpServletRequest request, HttpServletResponse response,
                                            FactorContext context) throws IOException {
-        String sessionId = context.getMfaSessionId();
         MfaSettings mfaSettings = authContextProperties.getMfa();
 
         if (!isValidStateForChallengeInitiation(context)) {
@@ -258,16 +249,16 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             reuseResponse.put("challengeReused", true);
 
             responseWriter.writeSuccessResponse(response, reuseResponse, HttpServletResponse.SC_OK);
-            return; 
+            return;
         }
 
         boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
 
         if (accepted) {
-            
+
             Instant challengeStartTime = MfaTimeUtils.nowInstant();
             context.setAttribute("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
-            context.setAttribute("ottCodeSent", true); 
+            context.setAttribute("ottCodeSent", true);
 
             Instant challengeExpiryTime = MfaTimeUtils.calculateChallengeExpiry(challengeStartTime, mfaSettings);
             Duration challengeDuration = MfaTimeUtils.getRemainingChallengeTime(challengeStartTime, mfaSettings);
@@ -295,7 +286,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         MfaState currentState = context.getCurrentState();
 
         return currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
-               currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
+                currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
     }
 
     private boolean hasActiveChallengeForFactor(FactorContext context) {
@@ -352,7 +343,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private boolean sendFactorSelectionEvent(FactorContext context, HttpServletRequest request, String selectedFactor) {
         try {
-            
+
             context.setAttribute("selectedFactor", selectedFactor);
             request.setAttribute("selectedFactor", selectedFactor);
 
@@ -449,13 +440,13 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     }
 
     private void scheduleStateMachineCleanup(String sessionId) {
-        
+
         applicationContext.getBean("taskExecutor", java.util.concurrent.Executor.class)
                 .execute(() -> {
                     try {
-                        Thread.sleep(5000); 
+                        Thread.sleep(5000);
                         stateMachineIntegrator.releaseStateMachine(sessionId);
-                                            } catch (Exception e) {
+                    } catch (Exception e) {
                         log.error("Error during State Machine cleanup for session: {}", sessionId, e);
                     }
                 });

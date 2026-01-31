@@ -26,8 +26,7 @@ public class MfaUrlMatcher {
 
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
-    public MfaUrlMatcher(AuthUrlProvider authUrlProvider,
-                         ApplicationContext applicationContext) {
+    public MfaUrlMatcher(AuthUrlProvider authUrlProvider, ApplicationContext applicationContext) {
         this.authUrlProvider = authUrlProvider;
         this.applicationContext = applicationContext;
         this.matcherMap = new HashMap<>();

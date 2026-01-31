@@ -106,7 +106,8 @@
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\pipeline\\\\streaming\\\\DefaultStreamingResponseCollector.java\")",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\rag\\\\etl\\\\BehaviorMetadataEnricher.java\")",
       "Bash(.\\\\gradlew :contexa-core:compileJava :contexa-autoconfigure:compileJava --no-daemon -q:*)",
-      "Bash(.mvnw.cmd compile:*)"
+      "Bash(.mvnw.cmd compile:*)",
+      "Bash(.\\\\gradlew :contexa-identity:compileJava:*)"
     ],
     "deny": [],
     "ask": []
