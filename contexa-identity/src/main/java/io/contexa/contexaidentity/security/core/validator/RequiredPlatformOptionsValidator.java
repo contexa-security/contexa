@@ -20,15 +20,15 @@ public class RequiredPlatformOptionsValidator implements Validator<Authenticatio
 
         if ("passkey".equalsIgnoreCase(step.getType())) {
             if (!(optionsObject instanceof PasskeyOptions passkeyOptions)) {
-                result.addError(String.format("치명적 오류: %s의 옵션 객체가 PasskeyOptions 타입이 아닙니다. (실제 타입: %s)",
+                result.addError(String.format("Critical error: Options object for %s is not of PasskeyOptions type. (Actual type: %s)",
                         stepIdentifier, optionsObject != null ? optionsObject.getClass().getName() : "null"));
             } else {
                 if (!StringUtils.hasText(passkeyOptions.getRpId())) {
-                    result.addError(String.format("치명적 오류: %s에 필수 플랫폼 옵션인 'rpId'가 설정되지 않았습니다. Passkey 인증은 Relying Party ID가 반드시 필요합니다.", stepIdentifier));
+                    result.addError(String.format("Critical error: Required platform option 'rpId' is not set for %s. Passkey authentication requires a Relying Party ID.", stepIdentifier));
                 }
-                
+
                 if (!StringUtils.hasText(passkeyOptions.getRpName())) {
-                    result.addWarning(String.format("설정 경고: %s에 'rpName'이 설정되지 않았습니다. 사용자에게 표시될 Relying Party 이름입니다.", stepIdentifier));
+                    result.addWarning(String.format("Configuration warning: 'rpName' is not set for %s. This is the Relying Party name displayed to users.", stepIdentifier));
                 }
             }
         }
