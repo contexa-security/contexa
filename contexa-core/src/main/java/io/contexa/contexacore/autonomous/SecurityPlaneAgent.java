@@ -2,7 +2,6 @@ package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.*;
-import io.contexa.contexacore.autonomous.domain.SecurityIncidentDTO;
 import io.contexa.contexacore.autonomous.event.DynamicThreatResponseEvent;
 import io.contexa.contexacore.autonomous.event.IncidentResolvedEvent;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
@@ -13,18 +12,15 @@ import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.SoarContext;
-import io.contexa.contexacore.domain.SoarExecutionMode;
-import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.entity.SoarIncident;
 import io.contexa.contexacore.soar.SoarLab;
-import io.contexa.contexacore.soar.approval.ApprovalService;
-
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,15 +30,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-
-import org.springframework.beans.factory.annotation.Qualifier;
 
 @RequiredArgsConstructor
 @Slf4j
@@ -54,19 +44,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final SecurityPlaneAuditLogger auditLogger;
 
     @Autowired(required = false)
-    private ApprovalService approvalService;
-
-    @Autowired(required = false)
     private ISoarContextProvider contextProvider;
 
     @Autowired(required = false)
     private ISoarNotifier soarNotifier;
-
-    @Autowired(required = false)
-    private SoarLab soarLab;
-
-    @Autowired(required = false)
-    private PolicyEvolutionService policyEvolutionService;
 
     @Autowired(required = false)
     private LearningEngine learningEngine;
@@ -82,9 +63,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Value("${security.plane.agent.auto-start:true}")
     private boolean autoStart;
 
-    @Value("${security.agent.retry.backoff-ms:5000}")
-    private long retryBackoffMs;
-
     @Value("${security.plane.agent.max-concurrent-incidents:10}")
     private int maxConcurrentIncidents;
 
@@ -98,7 +76,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
     private final AtomicLong createdIncidents = new AtomicLong(0);
-    private final AtomicLong executedActions = new AtomicLong(0);
     private final Map<String, IncidentHandler> activeIncidentHandlers = Collections.synchronizedMap(new WeakHashMap<>());
     private ScheduledExecutorService scheduler;
 
@@ -213,7 +190,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         SecurityEventContext context = null;
 
         try {
-
             if (isEventAlreadyProcessed(event.getEventId())) {
                 log.warn("[SecurityPlaneAgent] Event {} already processed, skipping duplicate",
                         event.getEventId());
@@ -263,16 +239,13 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
 
-        } finally {
-
         }
     }
 
     private boolean isEventAlreadyProcessed(String eventId) {
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
-            Boolean exists = redisTemplate.hasKey(processingKey);
-            return Boolean.TRUE.equals(exists);
+            return redisTemplate.hasKey(processingKey);
         } catch (Exception e) {
             log.warn("[SecurityPlaneAgent] Failed to check event processing status: {}", eventId, e);
             return false;
@@ -294,9 +267,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.warn("Agent {} reached max concurrent incidents limit", agentName);
             return;
         }
-
         try {
-
             IncidentHandler handler = new IncidentHandler(incident.getIncidentId());
 
             SoarIncident soarIncident = new SoarIncident();
@@ -382,11 +353,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.warn("Cannot resolve incident - handler not found: {}", incidentId);
             return;
         }
-
         try {
-
             handler.resolveIncident(resolvedBy, resolutionMethod);
-
             IncidentResolvedEvent resolvedEvent = new IncidentResolvedEvent(
                     this,
                     incidentId,
@@ -501,7 +469,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         if (soarIncident != null && soarIncident.getMetadata() != null) {
             try {
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                @SuppressWarnings("unchecked")
                 java.util.Map<String, Object> metadataMap = mapper.readValue(
                         soarIncident.getMetadata(), java.util.Map.class);
                 Object resource = metadataMap.get("targetResource");
@@ -509,79 +476,10 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     return resource.toString();
                 }
             } catch (Exception e) {
+                log.error(e.getMessage());
             }
         }
         return null;
-    }
-
-    protected void executeRecommendedAction(String action, SecurityEvent event, ThreatAssessment assessment) {
-
-        if (contextProvider == null || soarNotifier == null) {
-            log.warn("SOAR integration not available for recommended action: {}", action);
-            return;
-        }
-
-        Map<String, Object> additionalInfo = new HashMap<>();
-        additionalInfo.put("recommendedAction", action);
-        additionalInfo.put("eventId", event.getEventId());
-        additionalInfo.put("action", assessment.getAction());
-        additionalInfo.put("riskScore", assessment.getRiskScore());
-
-        SoarContext context = contextProvider.createContextFromEvents(List.of(event));
-        context = contextProvider.enrichContext(context, additionalInfo);
-
-        if ("BLOCK".equals(assessment.getAction())) {
-            if (soarLab != null) {
-
-                try {
-
-                    SoarContext finalContext = context;
-                    String prompt = String.format(
-                            "Critical security event detected: %s with action %s and risk score %.2f. Recommended action: %s. Analyze and determine appropriate SOAR tools to execute.",
-                            event.getEventId(), assessment.getAction(), assessment.getRiskScore(), action
-                    );
-
-                    finalContext.setExecutionMode(SoarExecutionMode.ASYNC);
-                    SoarRequest soarRequest = SoarRequest.builder()
-                            .context(finalContext)
-                            .operation("soarAnalysis")
-                            .initialQuery(prompt)
-                            .sessionId(UUID.randomUUID().toString())
-                            .organizationId("security-plane")
-                            .build();
-
-                    soarLab.processAsync(soarRequest)
-                            .subscribe(
-                                    soarResponse -> {
-
-                                        executedActions.incrementAndGet();
-
-                                        evolveThreadEvaluationPolicy(event, assessment);
-                                        learnFromSecurityEvent(event, action);
-                                        storeInMemory("assessment:" + assessment.getAssessmentId(), assessment);
-
-                                        Map<String, Object> resultData = new HashMap<>();
-                                        resultData.put("eventId", event.getEventId());
-                                        resultData.put("action", action);
-                                        resultData.put("soarResponse", soarResponse);
-                                        resultData.put("assessmentId", assessment.getAssessmentId());
-
-                                        soarNotifier.notifyHighRiskTool(
-                                                action,
-                                                resultData,
-                                                finalContext
-                                        );
-                                    },
-                                    error -> {
-                                        log.error("SOAR analysis failed - Event: {}", event.getEventId(), error);
-                                    }
-                            );
-
-                } catch (Exception e) {
-                    log.error("Error invoking SOAR Lab for critical event", e);
-                }
-            }
-        }
     }
 
     private Map<String, Object> createMonitoringConfig() {
@@ -606,49 +504,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    private void handleMonitoringError(Exception e) {
-        log.error("Monitoring error in agent {}: {}", agentName, e.getMessage(), e);
-
-        if (currentState == AgentState.ERROR) {
-
-            log.error("Agent {} is in ERROR state, considering shutdown", agentName);
-
-        } else {
-
-            log.warn("Temporary monitoring error in agent {}, will retry", agentName);
-        }
-
-        try {
-            Thread.sleep(retryBackoffMs);
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
     @Override
     public boolean isRunning() {
         return running.get() && currentState == AgentState.RUNNING;
-    }
-
-    public Map<String, Object> getHealthStatus() {
-        Map<String, Object> health = new HashMap<>();
-        health.put("agent_name", agentName);
-        health.put("state", currentState.toString());
-        health.put("running", running.get());
-        health.put("processed_events", processedEvents.get());
-        health.put("created_incidents", createdIncidents.get());
-        health.put("executed_actions", executedActions.get());
-        health.put("active_incident_handlers", activeIncidentHandlers.size());
-
-        health.putAll(securityMonitor.getMonitoringStatistics());
-
-        if (approvalService != null) {
-            health.put("pending_approvals", approvalService.getPendingCount());
-        } else {
-            health.put("pending_approvals", 0);
-        }
-
-        return health;
     }
 
     private void handleProcessingResult(SecurityEvent event, ProcessingResult result) {
@@ -667,13 +525,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             if (result.isRequiresIncident()) {
                 createIncidentFromResult(event, result);
             }
-
-            if (result.getRecommendedActions() != null && !result.getRecommendedActions().isEmpty()) {
-                for (String action : result.getRecommendedActions()) {
-                    executeRecommendedAction(action, event, null);
-                }
-            }
-
         } catch (Exception e) {
             log.error("Failed to handle processing result for event: {}", event.getEventId(), e);
         }
@@ -716,83 +567,22 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return SecurityIncident.ThreatLevel.MEDIUM;
         }
 
-        switch (severity) {
-            case CRITICAL:
-                return SecurityIncident.ThreatLevel.CRITICAL;
-            case HIGH:
-                return SecurityIncident.ThreatLevel.HIGH;
-            case MEDIUM:
-                return SecurityIncident.ThreatLevel.MEDIUM;
-            case LOW:
-                return SecurityIncident.ThreatLevel.LOW;
-            default:
-                return SecurityIncident.ThreatLevel.MEDIUM;
-        }
+        return switch (severity) {
+            case CRITICAL -> SecurityIncident.ThreatLevel.CRITICAL;
+            case HIGH -> SecurityIncident.ThreatLevel.HIGH;
+            case MEDIUM -> SecurityIncident.ThreatLevel.MEDIUM;
+            case LOW -> SecurityIncident.ThreatLevel.LOW;
+            default -> SecurityIncident.ThreatLevel.MEDIUM;
+        };
     }
 
     private SecurityIncident.IncidentType mapSeverityToIncidentType(ProcessingResult.IncidentSeverity severity) {
-        switch (severity) {
-            case CRITICAL:
-                return SecurityIncident.IncidentType.INTRUSION_ATTEMPT;
-            case HIGH:
-                return SecurityIncident.IncidentType.POLICY_VIOLATION;
-            case MEDIUM:
-                return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
-            default:
-                return SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
-        }
-    }
-
-    private void evolveThreadEvaluationPolicy(SecurityEvent event, ThreatAssessment assessment) {
-        if (policyEvolutionService != null) {
-            try {
-
-                String decision = assessment.getAction() != null ? assessment.getAction() : "ESCALATE";
-                String outcome = assessment.getRiskScore() > threatThreshold ? "HIGH_RISK" : "NORMAL";
-
-                policyEvolutionService.learnFromEvent(event, decision, outcome)
-                        .subscribe(
-                                result -> log.debug("Policy learning completed"),
-                                error -> log.error("Policy learning failed", error)
-                        );
-            } catch (Exception e) {
-                log.error("Error during policy evolution", e);
-            }
-        }
-    }
-
-    private void learnFromSecurityEvent(SecurityEvent event, String response) {
-        if (learningEngine != null) {
-            try {
-
-                double effectiveness = -1.0;
-
-                learningEngine.learnFromEvent(event, response, effectiveness)
-                        .subscribe(
-                                result -> {
-
-                                    applyLearningPrediction(event);
-                                },
-                                error -> log.error("Learning failed", error)
-                        );
-            } catch (Exception e) {
-                log.error("Error processing learning engine", e);
-            }
-        }
-    }
-
-    private void applyLearningPrediction(SecurityEvent event) {
-        if (learningEngine != null) {
-
-            learningEngine.applyLearning(event)
-                    .subscribe(
-                            prediction -> {
-
-                                storeInMemory("prediction:" + event.getEventId(), prediction);
-                            },
-                            error -> log.error("Prediction application failed: {}", event.getEventId(), error)
-                    );
-        }
+        return switch (severity) {
+            case CRITICAL -> SecurityIncident.IncidentType.INTRUSION_ATTEMPT;
+            case HIGH -> SecurityIncident.IncidentType.POLICY_VIOLATION;
+            case MEDIUM -> SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+            default -> SecurityIncident.IncidentType.SUSPICIOUS_ACTIVITY;
+        };
     }
 
     private void storeInMemory(String key, Object value) {
@@ -854,9 +644,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 }
             });
 
-            toRemove.forEach(id -> {
-                activeIncidentHandlers.remove(id);
-            });
+            toRemove.forEach(activeIncidentHandlers::remove);
 
             if (!toRemove.isEmpty()) {
             }
@@ -888,10 +676,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             return completed;
         }
 
-        public void setCompleted(boolean completed) {
-            this.completed = completed;
-        }
-
         public boolean isExpired() {
             return LocalDateTime.now().isAfter(expiresAt);
         }
@@ -906,14 +690,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         public void setSoarRequestId(String soarRequestId) {
             this.soarRequestId = soarRequestId;
-        }
-
-        public LocalDateTime getCreatedAt() {
-            return createdAt;
-        }
-
-        public LocalDateTime getExpiresAt() {
-            return expiresAt;
         }
 
         public void resolveIncident(String resolvedBy, String resolutionMethod) {
@@ -937,18 +713,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
         public void setSoarIncident(SoarIncident soarIncident) {
             this.soarIncident = soarIncident;
-        }
-
-        public String getResolutionMethod() {
-            return resolutionMethod;
-        }
-
-        public String getResolvedBy() {
-            return resolvedBy;
-        }
-
-        public LocalDateTime getResolvedAt() {
-            return resolvedAt;
         }
 
         public long getResolutionTimeMs() {

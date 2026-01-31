@@ -48,18 +48,18 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-                initialize();
+        initialize();
     }
 
     private void initialize() {
-                this.mappings = new ArrayList<>();
+        this.mappings = new ArrayList<>();
 
         List<Policy> urlPolicies = policyRetrievalPoint.findUrlPolicies();
 
         for (Policy policy : urlPolicies) {
             if (policy.isAIGenerated() &&
-                (policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED || !policy.getIsActive())) {
-                                continue;
+                    (policy.getApprovalStatus() != Policy.ApprovalStatus.APPROVED || !policy.getIsActive())) {
+                continue;
             }
 
             String expression = getExpressionFromPolicy(policy);
@@ -69,16 +69,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                     RequestMatcher matcher = PathPatternRequestMatcher.withDefaults().matcher(target.getTargetIdentifier());
                     AuthorizationManager<RequestAuthorizationContext> manager = managerResolver.resolve(expression);
                     this.mappings.add(new RequestMatcherEntry<>(matcher, manager));
-
-                    String policySource = policy.isAIGenerated() ? " [AI-" + policy.getSource() + "]" : "";
-                                    }
+                }
             }
         }
-            }
+    }
 
     @Override
     public AuthorizationDecision check(Supplier<Authentication> authenticationSupplier, RequestAuthorizationContext context) {
-        
+
         final HttpServletRequest request = context.getRequest();
         final Authentication authentication = authenticationSupplier.get();
 
@@ -86,13 +84,13 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
             if (mapping.getRequestMatcher().matcher(context.getRequest()).isMatch()) {
-                
+
                 AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
 
                 return manager.check(authenticationSupplier, context);
             }
         }
-                AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
         if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
@@ -106,7 +104,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 metricsCollector.recordAuthzDecision();
             }
 
-                    }
+        }
 
         return authorizationDecision;
     }
@@ -124,7 +122,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         String finalExpression;
 
         if (conditionExpressions.size() == 1) {
-            finalExpression = conditionExpressions.getFirst(); 
+            finalExpression = conditionExpressions.getFirst();
 
         } else {
             boolean allAreSimpleAuthorities = conditionExpressions.stream().allMatch(expr -> AUTHORITY_PATTERN.matcher(expr).matches());
@@ -133,7 +131,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 finalExpression = "hasAnyAuthority(" +
                         conditionExpressions.stream().map(auth -> "'" + auth + "'").collect(Collectors.joining(",")) +
                         ")";
-                
+
             } else {
                 finalExpression = conditionExpressions.stream()
                         .map(expr -> "(" + expr + ")")
@@ -165,14 +163,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 reason = "AI 평가 결과 직렬화 실패. 점수: " + assessment.score();
             }
         } else {
-            reason = "정적 규칙 매칭"; 
+            reason = "정적 규칙 매칭";
         }
 
         auditLogService.logDecision(principal, resource, action, result, reason, clientIp);
     }
 
     public synchronized void reload() {
-                policyRetrievalPoint.clearUrlPoliciesCache();
+        policyRetrievalPoint.clearUrlPoliciesCache();
         initialize();
-            }
+    }
 }

@@ -56,11 +56,8 @@ public class SecurityContextAdvisor extends BaseAdvisor {
 
         HttpServletRequest httpRequest = null;
         try {
-            ServletRequestAttributes attrs = (ServletRequestAttributes)
-                    RequestContextHolder.currentRequestAttributes();
-            if (attrs != null) {
-                httpRequest = attrs.getRequest();
-            }
+            ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.currentRequestAttributes();
+            httpRequest = attrs.getRequest();
         } catch (Exception e) {
             log.error("Failed to get HttpServletRequest from RequestContext", e);
         }

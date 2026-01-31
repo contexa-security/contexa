@@ -199,7 +199,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
             Authentication auth = context.getAuthentication();
 
             try {
-                if (auth != null && isActuallyAuthenticated(auth)) {
+                if (isActuallyAuthenticated(auth)) {
                     String userId = auth.getName();
                     previousAuthCache.put(sessionId, userId);
                     if (sessionTrackingEnabled && shouldUpdateRedis(sessionId)) {

@@ -20,22 +20,22 @@ public class SecurityEventProcessingOrchestrator {
         long startTime = System.currentTimeMillis();
 
         SecurityEventContext context = SecurityEventContext.builder()
-            .securityEvent(event)
-            .processingStatus(SecurityEventContext.ProcessingStatus.PENDING)
-            .createdAt(LocalDateTime.now())
-            .build();
+                .securityEvent(event)
+                .processingStatus(SecurityEventContext.ProcessingStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .build();
 
         context.addMetadata("startTime", startTime);
         context.addMetadata("agentId", "security-plane-agent");
         context.addMetadata("orchestratorVersion", "1.0");
 
         try {
-            
+
             List<SecurityEventHandler> sortedHandlers = getSortedHandlers();
 
             for (SecurityEventHandler handler : sortedHandlers) {
                 if (!executeHandler(handler, context)) {
-                                        break;
+                    break;
                 }
             }
 
@@ -45,10 +45,10 @@ public class SecurityEventProcessingOrchestrator {
 
         } catch (Exception e) {
             log.error("[Orchestrator] Unexpected error in processing pipeline - eventId: {}",
-                event.getEventId(), e);
+                    event.getEventId(), e);
             context.markAsFailed("Orchestrator error: " + e.getMessage());
         } finally {
-            
+
             recordProcessingMetrics(context, startTime);
         }
 
@@ -56,9 +56,9 @@ public class SecurityEventProcessingOrchestrator {
     }
 
     private boolean executeHandler(SecurityEventHandler handler, SecurityEventContext context) {
-        
+
         if (!handler.canHandle(context)) {
-                        return true; 
+            return true;
         }
 
         try {
@@ -73,7 +73,7 @@ public class SecurityEventProcessingOrchestrator {
 
         } catch (Exception e) {
             log.error("[Orchestrator] Error in handler {} for event: {}",
-                handler.getName(), context.getSecurityEvent().getEventId(), e);
+                    handler.getName(), context.getSecurityEvent().getEventId(), e);
 
             handler.handleError(context, e);
 
@@ -102,22 +102,22 @@ public class SecurityEventProcessingOrchestrator {
         context.addMetadata("totalProcessingTime", totalTime);
         context.addMetadata("completedAt", LocalDateTime.now());
 
-            }
+    }
 
     public void addHandler(SecurityEventHandler handler) {
         if (handler != null && !handlers.contains(handler)) {
             handlers.add(handler);
-                    }
+        }
     }
 
     public void removeHandler(SecurityEventHandler handler) {
         if (handler != null && handlers.remove(handler)) {
-                    }
+        }
     }
 
     public List<String> getHandlerNames() {
         return getSortedHandlers().stream()
-            .map(SecurityEventHandler::getName)
-            .toList();
+                .map(SecurityEventHandler::getName)
+                .toList();
     }
 }
