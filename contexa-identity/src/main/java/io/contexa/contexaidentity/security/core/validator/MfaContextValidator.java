@@ -79,42 +79,6 @@ public class MfaContextValidator {
         return result;
     }
 
-    public static ValidationResult validateChallengeInitiationContext(FactorContext ctx,
-                                                                      MfaSessionRepository sessionRepository) {
-        ValidationResult result = validateMfaContext(ctx, sessionRepository);
-
-        if (result.hasErrors()) {
-            return result;
-        }
-
-        MfaState currentState = ctx.getCurrentState();
-        if (currentState != MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION) {
-            result.addError("Invalid state for challenge initiation: " + currentState);
-        }
-
-        if (ctx.getCurrentProcessingFactor() == null) {
-            result.addError("No factor selected for challenge initiation");
-        }
-
-        return result;
-    }
-
-    public static ValidationResult validateFactorVerificationContext(FactorContext ctx,
-                                                                     MfaSessionRepository sessionRepository) {
-        ValidationResult result = validateMfaContext(ctx, sessionRepository);
-
-        if (result.hasErrors()) {
-            return result;
-        }
-
-        MfaState currentState = ctx.getCurrentState();
-        if (!isFactorVerificationState(currentState)) {
-            result.addError("Invalid state for factor verification: " + currentState);
-        }
-
-        return result;
-    }
-
     private static boolean isFactorProcessingState(MfaState state) {
         return state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
                 state == MfaState.FACTOR_VERIFICATION_PENDING;
@@ -125,10 +89,5 @@ public class MfaContextValidator {
                 state == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
                 state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
                 state == MfaState.PRIMARY_AUTHENTICATION_COMPLETED;
-    }
-
-    private static boolean isFactorVerificationState(MfaState state) {
-        return state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
-                state == MfaState.FACTOR_VERIFICATION_PENDING;
     }
 }

@@ -136,12 +136,6 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public CustomBeanDependencyValidator customBeanDependencyValidator(ApplicationContext applicationContext) {
-        return new CustomBeanDependencyValidator(applicationContext);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public DuplicateFlowTypeNameValidator duplicateFlowTypeNameValidator() {
         return new DuplicateFlowTypeNameValidator();
     }

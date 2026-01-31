@@ -11,16 +11,16 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class DuplicateFlowTypeNameValidator implements Validator<List<AuthenticationFlowConfig>> { 
+public class DuplicateFlowTypeNameValidator implements Validator<List<AuthenticationFlowConfig>> {
 
     private static final Logger log = LoggerFactory.getLogger(DuplicateFlowTypeNameValidator.class);
 
     @Override
-    public ValidationResult validate(List<AuthenticationFlowConfig> allFlowConfigs) { 
+    public ValidationResult validate(List<AuthenticationFlowConfig> allFlowConfigs) {
         ValidationResult result = new ValidationResult();
 
         if (CollectionUtils.isEmpty(allFlowConfigs)) {
-                        return result;
+            return result;
         }
 
         Set<String> uniqueNormalizedTypeNames = new HashSet<>();
@@ -31,10 +31,10 @@ public class DuplicateFlowTypeNameValidator implements Validator<List<Authentica
                 log.warn("A null AuthenticationFlowConfig object was found. Skipping this entry.");
                 continue;
             }
-            String typeName = flow.getTypeName(); 
+            String typeName = flow.getTypeName();
 
             if (!StringUtils.hasText(typeName)) {
-                String authType = flow.getTypeName() ;
+                String authType = flow.getTypeName();
                 log.warn("An AuthenticationFlowConfig (AuthType: {}) was found with a null or empty typeName (flow name). " +
                                 "This entry will be skipped for duplicate check, but it's a configuration issue that should be addressed.",
                         authType != null ? authType : "UNKNOWN");
@@ -45,7 +45,7 @@ public class DuplicateFlowTypeNameValidator implements Validator<List<Authentica
             String normalizedTypeName = typeName.toLowerCase();
 
             if (!uniqueNormalizedTypeNames.add(normalizedTypeName)) {
-                duplicateOriginalTypeNames.add(typeName); 
+                duplicateOriginalTypeNames.add(typeName);
             }
         }
 
@@ -61,9 +61,9 @@ public class DuplicateFlowTypeNameValidator implements Validator<List<Authentica
                     duplicatesMessage
             );
             log.error(errorMessage);
-            result.addError(errorMessage); 
+            result.addError(errorMessage);
         } else {
-                    }
+        }
         return result;
     }
 

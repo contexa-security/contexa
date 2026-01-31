@@ -21,19 +21,19 @@ public class MfaFlowStructureValidator implements Validator<AuthenticationFlowCo
 
         List<AuthenticationStepConfig> steps = flow.getStepConfigs();
         if (CollectionUtils.isEmpty(steps)) {
-            result.addError(String.format("치명적 오류: %s에 정의된 인증 단계(stepConfigs)가 없습니다. MFA 플로우는 1차 인증과 최소 1개의 2차 인증 요소를 포함해야 합니다.", flowIdentifier));
+            result.addError(String.format("Critical error: No authentication steps (stepConfigs) defined in %s. MFA flow must include primary authentication and at least one secondary authentication factor.", flowIdentifier));
             return result;
         }
 
         AuthenticationStepConfig firstStep = steps.get(0);
         if (firstStep.getOrder() != 0 ||
                 ! ("mfa_form".equalsIgnoreCase(firstStep.getType()) || "mfa_rest".equalsIgnoreCase(firstStep.getType())) ) {
-            result.addError(String.format("치명적 오류: %s의 첫 번째 인증 단계는 'mfa_form' 또는 'mfa_rest' 방식이어야 하며, order는 0이어야 합니다. 현재: type='%s', order=%d",
+            result.addError(String.format("Critical error: The first authentication step of %s must be 'mfa_form' or 'mfa_rest' type with order 0. Current: type='%s', order=%d",
                     flowIdentifier, firstStep.getType(), firstStep.getOrder()));
         }
 
         if (steps.size() < 2) {
-            result.addError(String.format("치명적 오류: %s에는 1차 인증 외에 최소 1개 이상의 2차 인증 요소가 필요합니다. 현재 총 스텝 수: %d",
+            result.addError(String.format("Critical error: %s requires at least one secondary authentication factor in addition to primary authentication. Current total steps: %d",
                     flowIdentifier, steps.size()));
         }
 

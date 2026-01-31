@@ -61,35 +61,28 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         String factorType = request.getParameter("factor.type");
 
         if ("select".equalsIgnoreCase(factorType) || isSelectFactorRequest(request)) {
-            String selectFactorUrl = getSelectFactorPageUrl();
-                        return selectFactorUrl;
+            return getSelectFactorPageUrl();
         }
 
         if ("ott".equalsIgnoreCase(factorType) || isOttRequestPageRequest(request)) {
-            String ottRequestUrl = getOttRequestPageUrl();
-                        return ottRequestUrl;
+            return getOttRequestPageUrl();
         }
 
         if ("ott-verify".equalsIgnoreCase(factorType) || isOttVerifyPageRequest(request)) {
-            String ottVerifyUrl = getOttVerifyPageUrl();
-                        return ottVerifyUrl;
+            return getOttVerifyPageUrl();
         }
 
-        if ("passkey".equalsIgnoreCase(factorType) ||
-                "webauthn".equalsIgnoreCase(factorType) ||
+        if ("passkey".equalsIgnoreCase(factorType) || "webauthn".equalsIgnoreCase(factorType) ||
                 isPasskeyChallengeRequest(request)) {
-            String passkeyUrl = getPasskeyChallengePageUrl();
-                        return passkeyUrl;
+            return getPasskeyChallengePageUrl();
         }
 
         if ("configure".equalsIgnoreCase(factorType) || isConfigurePageRequest(request)) {
-            String configureUrl = getConfigurePageUrl();
-                        return configureUrl;
+            return getConfigurePageUrl();
         }
 
         if ("failure".equalsIgnoreCase(factorType) || isFailurePageRequest(request)) {
-            String failureUrl = getFailurePageUrl();
-                        return failureUrl;
+            return getFailurePageUrl();
         }
 
         return getLoginFormUrl();  
