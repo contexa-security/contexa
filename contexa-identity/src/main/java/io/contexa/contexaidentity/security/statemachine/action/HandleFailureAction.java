@@ -13,7 +13,7 @@ public class HandleFailureAction extends AbstractMfaStateAction {
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
                              FactorContext factorContext) throws Exception {
         String sessionId = factorContext.getMfaSessionId();
-        
+
         String failureReason = (String) context.getMessageHeader("failureReason");
         if (failureReason == null) {
             failureReason = (String) context.getExtendedState().getVariables().get("lastError");
@@ -32,6 +32,6 @@ public class HandleFailureAction extends AbstractMfaStateAction {
         if (factorContext.getRetryCount() >= maxRetries) {
             log.warn("Max retry attempts exceeded for session: {}", sessionId);
         } else {
-                    }
+        }
     }
 }

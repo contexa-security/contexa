@@ -108,7 +108,7 @@ public class MfaTimeUtils {
 
     public static String toDisplayString(Duration duration) {
         if (duration.isZero() || duration.isNegative()) {
-            return "0초";
+            return "0s";
         }
 
         long totalSeconds = duration.getSeconds();
@@ -119,15 +119,15 @@ public class MfaTimeUtils {
         StringBuilder sb = new StringBuilder();
 
         if (hours > 0) {
-            sb.append(hours).append("시간 ");
+            sb.append(hours).append("h ");
         }
 
         if (minutes > 0) {
-            sb.append(minutes).append("분 ");
+            sb.append(minutes).append("m ");
         }
 
         if (seconds > 0 || sb.length() == 0) {
-            sb.append(seconds).append("초");
+            sb.append(seconds).append("s");
         }
 
         return sb.toString().trim();

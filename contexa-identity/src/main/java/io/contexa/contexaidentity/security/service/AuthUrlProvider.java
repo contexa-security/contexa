@@ -475,35 +475,35 @@ public class AuthUrlProvider {
             List<String> contexts = entry.getValue();
 
             if (url == null || url.trim().isEmpty()) {
-                errors.add("빈 URL이 발견되었습니다");
+                errors.add("Empty URL found");
                 continue;
             }
 
             if (contexts.size() > 1) {
 
                 if (!allowedDuplicates.contains(url)) {
-                    problematicDuplicates.add(url + " (사용처: " + String.join(", ", contexts) + ")");
+                    problematicDuplicates.add(url + " (used by: " + String.join(", ", contexts) + ")");
                 } else {
                 }
             }
         }
 
         if (!problematicDuplicates.isEmpty()) {
-            errors.add("의도하지 않은 중복 URL 발견: " + String.join("; ", problematicDuplicates));
+            errors.add("Unintended duplicate URLs found: " + String.join("; ", problematicDuplicates));
         }
 
         for (String url : urlToContexts.keySet()) {
             if (!url.startsWith("/")) {
-                errors.add("URL은 '/'로 시작해야 합니다: " + url);
+                errors.add("URL must start with '/': " + url);
             }
 
             if (url.contains(" ")) {
-                errors.add("URL에 공백이 포함되어 있습니다: " + url);
+                errors.add("URL contains whitespace: " + url);
             }
         }
 
         if (!errors.isEmpty()) {
-            String errorMessage = " URL 설정 검증 실패:\n" + String.join("\n", errors);
+            String errorMessage = " URL configuration validation failed:\n" + String.join("\n", errors);
             log.error(errorMessage);
             throw new IllegalStateException(errorMessage);
         }

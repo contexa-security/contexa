@@ -21,9 +21,7 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
-                            FactorContext factorContext) {
-        String sessionId = factorContext.getMfaSessionId();
-        
+                             FactorContext factorContext) {
         NextFactorDecision decision = policyProvider.evaluateNextFactor(factorContext);
 
         if (decision.getErrorMessage() != null) {
@@ -34,7 +32,7 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
         }
 
         if (decision.isHasNextFactor()) {
-            
+
             factorContext.setCurrentProcessingFactor(decision.getNextFactorType());
             factorContext.setCurrentStepId(decision.getNextStepId());
 
@@ -42,53 +40,51 @@ public class DetermineNextFactorAction extends AbstractMfaStateAction {
 
             factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION, MfaEvent.INITIATE_CHALLENGE_AUTO);
 
-                    } else if (decision.isAllFactorsCompleted()) {
+        } else if (decision.isAllFactorsCompleted()) {
 
             factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION,
-                                       MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
+                    MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED);
 
-                    } else {
+        } else {
 
             factorContext.setAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION,
-                                       MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
+                    MfaEvent.MFA_REQUIRED_SELECT_FACTOR);
 
-                    }
+        }
     }
 
     private void setFactorSpecificAttributes(FactorContext factorContext, AuthType factorType) {
-        String sessionId = factorContext.getMfaSessionId();
-
         switch (factorType) {
             case MFA_OTT:
-                
+
                 String ottMethod = (String) factorContext.getAttribute(
-                    FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE);
+                        FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE);
                 if (ottMethod == null) {
                     ottMethod = "EMAIL";
                 }
                 factorContext.setAttribute(
-                    FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD,
-                    ottMethod);
-                                break;
+                        FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD,
+                        ottMethod);
+                break;
 
             case MFA_PASSKEY:
-                
+
                 String userAgent = (String) factorContext.getAttribute(
-                    FactorContextAttributes.DeviceAndSession.USER_AGENT);
+                        FactorContextAttributes.DeviceAndSession.USER_AGENT);
                 String passkeyType = "PLATFORM";
                 if (userAgent != null && userAgent.contains("Mobile")) {
                     passkeyType = "MOBILE";
                 }
                 factorContext.setAttribute(
-                    FactorContextAttributes.FactorInfo.PASSKEY_TYPE,
-                    passkeyType);
-                                break;
+                        FactorContextAttributes.FactorInfo.PASSKEY_TYPE,
+                        passkeyType);
+                break;
 
             default:
-                        }
+        }
 
         factorContext.setAttribute(
-            FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT,
-            System.currentTimeMillis());
+                FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT,
+                System.currentTimeMillis());
     }
 }

@@ -21,7 +21,7 @@ import io.contexa.contexaidentity.security.token.transport.TokenTransportStrateg
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategyFactory;
 import io.contexa.contexaidentity.security.token.validator.OAuth2TokenValidator;
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;

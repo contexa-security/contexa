@@ -28,8 +28,6 @@ import java.util.EnumSet;
 @RequiredArgsConstructor
 public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdapter<MfaState, MfaEvent> {
 
-    private final StateMachineProperties properties;
-
     private final InitializeMfaAction initializeMfaAction;
     private final SelectFactorAction selectFactorAction;
     private final InitiateChallengeAction initiateChallengeAction;
@@ -70,7 +68,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
     @Override
     public void configure(StateMachineTransitionConfigurer<MfaState, MfaEvent> transitions) throws Exception {
         transitions
-                
+
                 .withExternal()
                 .source(MfaState.NONE)
                 .target(MfaState.PRIMARY_AUTHENTICATION_COMPLETED)
@@ -279,8 +277,8 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
             @Override
             public void stateChanged(State<MfaState, MfaEvent> from, State<MfaState, MfaEvent> to) {
                 if (from != null) {
-                                    } else {
-                                    }
+                } else {
+                }
             }
 
             @Override
@@ -288,10 +286,10 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                                           Exception exception) {
                 String machineId = stateMachine.getId();
                 MfaState currentState = stateMachine.getState() != null ?
-                    stateMachine.getState().getId() : null;
+                        stateMachine.getState().getId() : null;
 
-                log.error("[MFA SM] [{}] StateMachine 오류 발생 (현재 상태: {}): {}",
-                    machineId, currentState, exception.getMessage(), exception);
+                log.error("[MFA SM] [{}] StateMachine error occurred (current state: {}): {}",
+                        machineId, currentState, exception.getMessage(), exception);
             }
 
             @Override
@@ -299,14 +297,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 MfaEvent mfaEvent = event.getPayload();
                 Object sessionId = event.getHeaders().get("sessionId");
 
-                log.warn("[MFA SM] [{}] 이벤트 거부됨: {} (헤더: {})",
-                    sessionId, mfaEvent, event.getHeaders());
+                log.warn("[MFA SM] [{}] Event rejected: {} (headers: {})",
+                        sessionId, mfaEvent, event.getHeaders());
             }
 
             @Override
             public void stateMachineStopped(org.springframework.statemachine.StateMachine<MfaState, MfaEvent> stateMachine) {
                 String machineId = stateMachine.getId();
-                            }
+            }
         };
     }
 }

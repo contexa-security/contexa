@@ -14,16 +14,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * Minimal Authentication Serializer for Kryo.
- *
- * This serializer stores only username and authorities, avoiding complex nested objects
- * like ZeroTrustAuthenticationToken's UserSecurityContext.
- *
- * On deserialization, it reconstructs a UsernamePasswordAuthenticationToken which is
- * sufficient for MFA completion flow since the actual ZeroTrustAuthenticationToken
- * is retrieved from SecurityContext, not from FactorContext.
- */
 public class MinimalAuthenticationSerializer extends Serializer<Authentication> {
 
     @Override

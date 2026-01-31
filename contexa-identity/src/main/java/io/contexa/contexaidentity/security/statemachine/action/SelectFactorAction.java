@@ -22,12 +22,12 @@ public class SelectFactorAction extends AbstractMfaStateAction {
         if (selectedFactor == null && factorContext.getCurrentProcessingFactor() != null) {
             selectedFactor = factorContext.getCurrentProcessingFactor().name();
             log.warn("selectedFactor header missing for session: {}, using currentProcessingFactor: {}",
-                     sessionId, selectedFactor);
+                    sessionId, selectedFactor);
         }
 
         if (selectedFactor == null) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                     MfaEvent.SYSTEM_ERROR);
+                    MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No factor selected for session: " + sessionId);
         }
 
@@ -36,13 +36,13 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             authType = AuthType.valueOf(selectedFactor.toUpperCase());
         } catch (IllegalArgumentException e) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                     MfaEvent.SYSTEM_ERROR);
+                    MfaEvent.SYSTEM_ERROR);
             throw new IllegalArgumentException("Invalid factor type: " + selectedFactor);
         }
 
         if (!factorContext.getAvailableFactors().contains(authType)) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                     MfaEvent.SYSTEM_ERROR);
+                    MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("Selected factor " + authType +
                     " is not available for user: " + factorContext.getUsername());
         }
@@ -54,32 +54,32 @@ public class SelectFactorAction extends AbstractMfaStateAction {
 
         switch (authType) {
             case MFA_OTT:
-                
+
                 String ottDeliveryMethod = determineOttDeliveryMethod(context, factorContext);
                 factorContext.setAttribute(FactorContextAttributes.FactorInfo.OTT_DELIVERY_METHOD, ottDeliveryMethod);
-                                break;
+                break;
 
             case MFA_PASSKEY:
-                
+
                 String passkeyType = determinePasskeyType(context, factorContext);
                 factorContext.setAttribute(FactorContextAttributes.FactorInfo.PASSKEY_TYPE, passkeyType);
-                                break;
+                break;
 
             default:
-                        }
+        }
 
-            }
+    }
 
     private String determineOttDeliveryMethod(StateContext<MfaState, MfaEvent> context,
                                               FactorContext factorContext) {
-        
+
         String requestedMethod = (String) context.getMessageHeader("ottDeliveryMethod");
         if (requestedMethod != null) {
             return validateOttDeliveryMethod(requestedMethod);
         }
 
         String userPreference = (String) factorContext.getAttribute(
-            FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE);
+                FactorContextAttributes.UserInfo.USER_OTT_PREFERENCE);
         if (userPreference != null) {
             return validateOttDeliveryMethod(userPreference);
         }
@@ -92,14 +92,14 @@ public class SelectFactorAction extends AbstractMfaStateAction {
 
     private String determinePasskeyType(StateContext<MfaState, MfaEvent> context,
                                         FactorContext factorContext) {
-        
+
         String requestedType = (String) context.getMessageHeader("passkeyType");
         if (requestedType != null) {
             return validatePasskeyType(requestedType);
         }
 
         String userAgent = (String) factorContext.getAttribute(
-            FactorContextAttributes.DeviceAndSession.USER_AGENT);
+                FactorContextAttributes.DeviceAndSession.USER_AGENT);
         if (userAgent != null) {
             if (userAgent.contains("Mobile")) {
                 return "MOBILE";
@@ -147,11 +147,11 @@ public class SelectFactorAction extends AbstractMfaStateAction {
     @Override
     protected void validatePreconditions(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext) throws Exception {
-        
+
         if (factorContext.getAvailableFactors() == null ||
                 factorContext.getAvailableFactors().isEmpty()) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
-                                     MfaEvent.SYSTEM_ERROR);
+                    MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No MFA factors available for user: " +
                     factorContext.getUsername());
         }

@@ -16,32 +16,28 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
     protected boolean doEvaluate(StateContext<MfaState, MfaEvent> context,
                                  FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
-
         Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
 
-        if (!(selectedAtObj instanceof Long)) {
-                        return true; 
+        if (!(selectedAtObj instanceof Long factorSelectedAt)) {
+            return true;
         }
 
-        Long factorSelectedAt = (Long) selectedAtObj;
         long currentTime = System.currentTimeMillis();
         long elapsedTime = currentTime - factorSelectedAt;
         long timeoutMs = getSelectionTimeoutMs(factorContext);
-
         boolean withinTimeout = elapsedTime < timeoutMs;
 
         if (!withinTimeout) {
             log.warn("[FactorSelectionTimeoutGuard] Factor selection timeout exceeded for session: {}, " +
                             "elapsed: {}ms, timeout: {}ms",
                     sessionId, elapsedTime, timeoutMs);
-        } else {
-                    }
+        }
 
         return withinTimeout;
     }
 
     private long getSelectionTimeoutMs(FactorContext factorContext) {
-        
+
         Object customTimeoutObj = factorContext.getAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS);
         if (customTimeoutObj instanceof Long) {
             return (Long) customTimeoutObj;
@@ -63,26 +59,4 @@ public class FactorSelectionTimeoutGuard extends AbstractMfaStateGuard {
         return "FactorSelectionTimeoutGuard";
     }
 
-    public long getRemainingSelectionTimeMs(FactorContext factorContext) {
-        Object selectedAtObj = factorContext.getAttribute(FactorContextAttributes.Timestamps.FACTOR_SELECTED_AT);
-
-        if (!(selectedAtObj instanceof Long)) {
-            return getSelectionTimeoutMs(factorContext);
-        }
-
-        Long factorSelectedAt = (Long) selectedAtObj;
-        long currentTime = System.currentTimeMillis();
-        long elapsedTime = currentTime - factorSelectedAt;
-        long timeoutMs = getSelectionTimeoutMs(factorContext);
-
-        return Math.max(0, timeoutMs - elapsedTime);
-    }
-
-    public boolean isSelectionTimedOut(FactorContext factorContext) {
-        return !doEvaluate(null, factorContext);
-    }
-
-    public void setSelectionTimeout(FactorContext factorContext, long timeoutMs) {
-        factorContext.setAttribute(FactorContextAttributes.StateControl.FACTOR_SELECTION_TIMEOUT_MS, timeoutMs);
-            }
 }

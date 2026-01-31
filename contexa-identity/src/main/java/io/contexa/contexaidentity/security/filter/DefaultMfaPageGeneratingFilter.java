@@ -221,7 +221,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         </button>
                     </form>
             
-                    <!-- Form submit만 사용 (SDK Progressive Enhancement 불필요) -->
+                    <!-- Form submit only (SDK Progressive Enhancement not required) -->
                 </div>
             </body>
             </html>
@@ -388,10 +388,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         </button>
                     </form>
             
-                    <!-- Progressive Enhancement: JavaScript SDK 지원 -->
+                    <!-- Progressive Enhancement: JavaScript SDK support -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
-                        // JavaScript 활성화 시 SDK를 통한 향상된 UX 제공
+                        // Enhanced UX through SDK when JavaScript is enabled
                         if (typeof ContexaMFA !== 'undefined') {
                             const verifyForm = document.getElementById('ott-verify-form');
                             const resendForm = document.getElementById('resend-form');
@@ -399,11 +399,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const resendButton = resendForm.querySelector('button[type="submit"]');
                             const codeInput = document.getElementById('token');
             
-                            // SDK 초기화
+                            // SDK initialization
                             const mfa = new ContexaMFA.Client({ autoRedirect: false });
                             mfa.init().catch(console.error);
             
-                            // 검증 Form Progressive Enhancement
+                            // Verification Form Progressive Enhancement
                             verifyForm.addEventListener('submit', async (e) => {
                                 e.preventDefault();
             
@@ -432,7 +432,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 }
                             });
             
-                            // 재전송 버튼은 form submit 그대로 사용 (SDK 불필요)
+                            // Resend button uses form submit as-is (SDK not required)
                         }
                     </script>
                 </div>
@@ -551,10 +551,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         </a>
                     </div>
             
-                    <!-- Spring Security WebAuthn JavaScript (기반 라이브러리) -->
+                    <!-- Spring Security WebAuthn JavaScript (base library) -->
                     <script src="{{contextPath}}/login/webauthn.js"></script>
             
-                    <!-- Contexa MFA SDK (MFA 플로우 관리 Wrapper) -->
+                    <!-- Contexa MFA SDK (MFA flow management wrapper) -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
                         if (typeof ContexaMFA !== 'undefined') {
@@ -718,15 +718,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
                     {{factorButtons}}
             
-                    <!-- Progressive Enhancement: JavaScript SDK 지원 -->
+                    <!-- Progressive Enhancement: JavaScript SDK support -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
-                        // JavaScript 활성화 시 SDK를 통한 향상된 UX 제공
+                        // Enhanced UX through SDK when JavaScript is enabled
                         if (typeof ContexaMFA !== 'undefined') {
                             const forms = document.querySelectorAll('.factor-form');
                             const mfa = new ContexaMFA.Client({ autoRedirect: false });
             
-                            // SDK 초기화
+                            // SDK initialization
                             mfa.init().catch(console.error);
             
                             forms.forEach(form => {
@@ -1093,15 +1093,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String username = getUsername();
         if (username == null) {
-            log.warn("Select Factor Page: 인증되지 않은 사용자 접근 시도");
-            username = "(알 수 없음)";
+            log.warn("Select Factor Page: Unauthenticated user access attempt");
+            username = "(Unknown)";
         }
 
         List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null ?
                 new java.util.ArrayList<>(ctx.getAvailableFactors()) : List.of();
 
         if (availableFactors.isEmpty()) {
-            log.warn("Select Factor Page: 사용 가능한 Factor가 없음. Session: {}",
+            log.warn("Select Factor Page: No available factors. Session: {}",
                     ctx != null ? ctx.getMfaSessionId() : "unknown");
         }
 

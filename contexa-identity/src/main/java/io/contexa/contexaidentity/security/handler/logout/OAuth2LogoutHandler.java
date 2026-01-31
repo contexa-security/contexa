@@ -3,7 +3,7 @@ package io.contexa.contexaidentity.security.handler.logout;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.store.TokenInfo;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;

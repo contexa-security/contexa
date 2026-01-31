@@ -22,7 +22,7 @@ public class EmailService {
             helper.setText(htmlBody, true);
             mailSender.send(message);
         } catch (MessagingException e) {
-            throw new RuntimeException("이메일 발송 실패", e);
+            throw new RuntimeException("Email sending failed", e);
         }
     }
 }

@@ -1,4 +1,4 @@
-package io.contexa.contexaidentity.security.utils.writer;
+package io.contexa.contexaidentity.security.utils;
 
 import jakarta.servlet.http.HttpServletResponse;
 

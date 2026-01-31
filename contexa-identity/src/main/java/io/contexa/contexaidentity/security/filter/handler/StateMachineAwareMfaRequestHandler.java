@@ -1,7 +1,6 @@
 package io.contexa.contexaidentity.security.filter.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -10,7 +9,7 @@ import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.MfaTimeUtils;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -92,49 +91,49 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         switch (state) {
             case MFA_SUCCESSFUL -> {
                 responseBody.put("status", "MFA_COMPLETED");
-                responseBody.put("message", "MFA 인증이 성공적으로 완료되었습니다.");
+                responseBody.put("message", "MFA authentication completed successfully.");
                 responseBody.put("redirectUrl", contextPath + "/home");
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             }
             case MFA_NOT_REQUIRED -> {
                 responseBody.put("status", "MFA_NOT_REQUIRED");
-                responseBody.put("message", "MFA가 필요하지 않습니다.");
+                responseBody.put("message", "MFA is not required.");
                 responseBody.put("redirectUrl", contextPath + "/home");
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             }
             case MFA_FAILED_TERMINAL, MFA_RETRY_LIMIT_EXCEEDED -> {
                 responseBody.put("status", "MFA_FAILED");
-                responseBody.put("message", "MFA 인증이 실패했습니다.");
+                responseBody.put("message", "MFA authentication failed.");
                 responseBody.put("redirectUrl", contextPath + "/loginForm");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
-                        "MFA_FAILED", "MFA 인증 실패", requestUri, responseBody);
+                        "MFA_FAILED", "MFA authentication failed", requestUri, responseBody);
             }
             case MFA_SESSION_EXPIRED -> {
                 responseBody.put("status", "SESSION_EXPIRED");
-                responseBody.put("message", "MFA 세션이 만료되었습니다.");
+                responseBody.put("message", "MFA session has expired.");
                 responseBody.put("redirectUrl", contextPath + "/loginForm");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
-                        "SESSION_EXPIRED", "세션 만료", requestUri, responseBody);
+                        "SESSION_EXPIRED", "Session expired", requestUri, responseBody);
             }
             case MFA_CANCELLED -> {
                 responseBody.put("status", "MFA_CANCELLED");
-                responseBody.put("message", "사용자에 의해 MFA가 취소되었습니다.");
+                responseBody.put("message", "MFA was cancelled by user.");
                 responseBody.put("redirectUrl", contextPath + "/loginForm");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                        "MFA_CANCELLED", "MFA 취소", requestUri, responseBody);
+                        "MFA_CANCELLED", "MFA cancelled", requestUri, responseBody);
             }
             case MFA_SYSTEM_ERROR -> {
                 responseBody.put("status", "SYSTEM_ERROR");
-                responseBody.put("message", "시스템 오류가 발생했습니다.");
+                responseBody.put("message", "A system error has occurred.");
                 responseBody.put("redirectUrl", contextPath + "/loginForm");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                        "SYSTEM_ERROR", "시스템 오류", requestUri, responseBody);
+                        "SYSTEM_ERROR", "System error", requestUri, responseBody);
             }
             default -> {
                 responseBody.put("status", "UNKNOWN_TERMINAL_STATE");
-                responseBody.put("message", "알 수 없는 터미널 상태입니다: " + state);
+                responseBody.put("message", "Unknown terminal state: " + state);
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                        "UNKNOWN_STATE", "알 수 없는 상태", requestUri, responseBody);
+                        "UNKNOWN_STATE", "Unknown state", requestUri, responseBody);
             }
         }
     }
@@ -155,7 +154,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "MFA_PROCESSING_ERROR");
-        errorResponse.put("message", "MFA 처리 중 시스템 오류가 발생했습니다.");
+        errorResponse.put("message", "A system error occurred during MFA processing.");
         errorResponse.put("timestamp", System.currentTimeMillis());
 
         if (context != null) {
@@ -199,7 +198,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
             default:
                 Map<String, Object> errorResponse = createErrorResponse(context, "UNSUPPORTED_REQUEST",
-                        "지원하지 않는 요청 타입입니다: " + requestType.getDescription());
+                        "Unsupported request type: " + requestType.getDescription());
                 errorResponse.put("requestType", requestType.name());
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                         "UNSUPPORTED_REQUEST", "Unsupported request type", request.getRequestURI(), errorResponse);
@@ -225,13 +224,13 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         if (!isValidStateForChallengeInitiation(context)) {
             handleInvalidStateError(request, response, context, "INVALID_STATE_FOR_CHALLENGE",
-                    "챌린지 시작이 불가능한 상태입니다. 현재 상태: " + context.getCurrentState());
+                    "Challenge cannot be started in current state: " + context.getCurrentState());
             return;
         }
 
         if (context.getCurrentProcessingFactor() == null) {
             handleInvalidStateError(request, response, context, "NO_PROCESSING_FACTOR",
-                    "처리할 팩터가 선택되지 않았습니다.");
+                    "No factor selected for processing.");
             return;
         }
 
@@ -242,7 +241,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             Duration remaining = MfaTimeUtils.getRemainingChallengeTime(challengeStart, mfaSettings);
 
             Map<String, Object> reuseResponse = createSuccessResponse(context, "CHALLENGE_REUSED",
-                    "기존 챌린지를 재사용합니다.");
+                    "Reusing existing challenge.");
             reuseResponse.put("challengeUrl", determineNextStepUrl(context, request));
             reuseResponse.put("factorType", context.getCurrentProcessingFactor());
             reuseResponse.put("remainingTimeMs", remaining.toMillis());
@@ -264,7 +263,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             Duration challengeDuration = MfaTimeUtils.getRemainingChallengeTime(challengeStartTime, mfaSettings);
 
             Map<String, Object> successResponse = createSuccessResponse(context, "CHALLENGE_INITIATED",
-                    "챌린지가 시작되었습니다.");
+                    "Challenge has been initiated.");
             successResponse.put("factorType", context.getCurrentProcessingFactor());
             successResponse.put("challengeUrl", determineNextStepUrl(context, request));
             successResponse.put("challengeInitiatedAt", MfaTimeUtils.toMillis(challengeStartTime));
@@ -278,7 +277,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             responseWriter.writeSuccessResponse(response, successResponse, HttpServletResponse.SC_OK);
         } else {
             handleInvalidStateError(request, response, context, "CHALLENGE_INITIATION_FAILED",
-                    "챌린지 시작에 실패했습니다.");
+                    "Challenge initiation failed.");
         }
     }
 
@@ -315,7 +314,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         if (accepted) {
             Map<String, Object> cancelResponse = createSuccessResponse(context, "MFA_CANCELLED",
-                    "MFA가 사용자에 의해 취소되었습니다.");
+                    "MFA was cancelled by user.");
             cancelResponse.put("cancelledAt", System.currentTimeMillis());
             cancelResponse.put("redirectUrl", request.getContextPath() + "/loginForm");
 
@@ -324,7 +323,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             scheduleStateMachineCleanup(sessionId);
         } else {
             handleInvalidStateError(request, response, context, "CANCELLATION_FAILED",
-                    "MFA 취소에 실패했습니다.");
+                    "MFA cancellation failed.");
         }
     }
 
@@ -333,7 +332,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String selectedFactor = request.getParameter("factor");
         if (selectedFactor == null || selectedFactor.trim().isEmpty()) {
             Map<String, Object> errorResponse = createErrorResponse(context, "MISSING_FACTOR_PARAMETER",
-                    "선택할 팩터를 지정해주세요.");
+                    "Please specify a factor to select.");
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                     "MISSING_PARAMETER", "Missing factor parameter", request.getRequestURI(), errorResponse);
             return null;
@@ -369,7 +368,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private void handleFactorSelectionSuccess(HttpServletRequest request, HttpServletResponse response,
                                               FactorContext context, String selectedFactor) throws IOException {
         Map<String, Object> successResponse = createSuccessResponse(context, "FACTOR_SELECTED",
-                "팩터가 성공적으로 선택되었습니다.");
+                "Factor selected successfully.");
         successResponse.put("selectedFactor", selectedFactor);
         successResponse.put("nextStepUrl", determineNextStepUrl(context, request));
         successResponse.put("factorSelectedAt", System.currentTimeMillis());
@@ -380,7 +379,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private void handleFactorSelectionFailure(HttpServletRequest request, HttpServletResponse response,
                                               FactorContext context) throws IOException {
         handleInvalidStateError(request, response, context, "FACTOR_SELECTION_REJECTED",
-                "팩터 선택이 거부되었습니다.");
+                "Factor selection was rejected.");
     }
 
     private void handleInvalidStateError(HttpServletRequest request, HttpServletResponse response,
@@ -393,7 +392,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private void handleProcessingError(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context, Exception error) throws IOException {
         Map<String, Object> errorResponse = createErrorResponse(context, "REQUEST_PROCESSING_ERROR",
-                "요청 처리 중 오류가 발생했습니다.");
+                "An error occurred while processing the request.");
         errorResponse.put("errorType", error.getClass().getSimpleName());
         errorResponse.put("errorMessage", error.getMessage());
 

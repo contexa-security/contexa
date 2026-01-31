@@ -22,14 +22,14 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
     }
 
     @Override
-    protected void doExecute(StateContext<MfaState, MfaEvent> context, FactorContext factorContext){
+    protected void doExecute(StateContext<MfaState, MfaEvent> context, FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
         String currentStepId = factorContext.getCurrentStepId();
 
         String factorType = factorContext.getCurrentProcessingFactor() != null ?
                 factorContext.getCurrentProcessingFactor().name() : null;
         if (factorType == null) {
-            
+
             Optional<AuthenticationFlowConfig> flowConfigOpt = platformConfig.getFlows().stream()
                     .filter(f -> f.getTypeName().equalsIgnoreCase(factorContext.getFlowTypeName()))
                     .findFirst();
@@ -53,15 +53,15 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
 
         AuthenticationStepConfig completedStep = createCompletedStep(
                 currentStepId,
-                factorType, 
+                factorType,
                 factorContext
         );
 
-        factorContext.addCompletedFactor(completedStep); 
+        factorContext.addCompletedFactor(completedStep);
         updateVerificationSuccess(factorContext, completedStep);
-        factorContext.setRetryCount(0); 
+        factorContext.setRetryCount(0);
 
-            }
+    }
 
     private AuthenticationStepConfig createCompletedStep(String stepId,
                                                          String factorType,
@@ -84,15 +84,15 @@ public class VerifyFactorAction extends AbstractMfaStateAction {
                     stepId, factorContext.getFlowTypeName(), factorContext.getMfaSessionId());
             AuthenticationStepConfig fallbackStep = new AuthenticationStepConfig();
             fallbackStep.setStepId(stepId);
-            fallbackStep.setType(factorType); 
-            fallbackStep.setOrder(factorContext.getCompletedFactors().size() + 1); 
-            fallbackStep.setRequired(true); 
+            fallbackStep.setType(factorType);
+            fallbackStep.setOrder(factorContext.getCompletedFactors().size() + 1);
+            fallbackStep.setRequired(true);
             return fallbackStep;
         }
 
         AuthenticationStepConfig completed = new AuthenticationStepConfig();
         completed.setStepId(originalStepConfig.getStepId());
-        completed.setType(originalStepConfig.getType()); 
+        completed.setType(originalStepConfig.getType());
         completed.setOrder(originalStepConfig.getOrder());
         completed.setRequired(originalStepConfig.isRequired());
         return completed;

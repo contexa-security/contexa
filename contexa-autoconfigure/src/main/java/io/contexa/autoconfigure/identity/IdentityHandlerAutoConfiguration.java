@@ -6,7 +6,7 @@ import io.contexa.contexaidentity.security.handler.*;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.token.service.TokenService;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;

@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.handler;
 
-import com.webauthn4j.data.PublicKeyCredentialUserEntity;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -16,7 +15,7 @@ import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.token.service.TokenService;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;

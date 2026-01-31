@@ -19,10 +19,10 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
     @Override
     protected boolean doEvaluate(StateContext<MfaState, MfaEvent> context,
                                  FactorContext factorContext) {
-        
+
         if (factorContext == null) {
             log.error("[AllFactorsCompletedGuard] FactorContext is NULL! Cannot evaluate. Returning false.");
-            return false; 
+            return false;
         }
 
         String sessionId = factorContext.getMfaSessionId();
@@ -40,18 +40,12 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
                 requiredCount = 1;
             }
 
-            boolean allCompleted = completedCount >= requiredCount;
-
-            if (allCompleted) {
-                            } else {
-                            }
-
-            return allCompleted;
+            return completedCount >= requiredCount;
 
         } catch (Exception e) {
             log.error("[AllFactorsCompletedGuard] Exception during guard evaluation for session: {}. Returning false to complete Reactive Stream.",
-                     sessionId, e);
-            return false; 
+                    sessionId, e);
+            return false;
         }
     }
 
@@ -62,7 +56,7 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
         Integer requiredFactors = mfaPolicyProvider.getRequiredFactorCount(userId, flowType);
 
         if (requiredFactors != null && requiredFactors > 0) {
-                        return requiredFactors;
+            return requiredFactors;
         }
 
         log.warn("PolicyProvider returned null/invalid for user: {}, flow: {}. Using default: 1",
@@ -73,19 +67,6 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
     @Override
     public String getFailureReason() {
         return "Not all required MFA factors have been completed. Check factor requirements and completion status.";
-    }
-
-    public boolean isFactorTypeCompleted(FactorContext factorContext, String factorType) {
-        if (factorContext.getCompletedFactors() == null || factorType == null) {
-            return false;
-        }
-
-        return factorContext.getCompletedFactors().stream()
-                .anyMatch(factor -> factorType.equalsIgnoreCase(factor.getType()));
-    }
-
-    public boolean needsMoreFactors(FactorContext factorContext) {
-        return !doEvaluate(null, factorContext);
     }
 
     @Override

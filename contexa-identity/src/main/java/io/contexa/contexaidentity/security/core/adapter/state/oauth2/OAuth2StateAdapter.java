@@ -5,7 +5,7 @@ import io.contexa.contexaidentity.security.core.adapter.StateAdapter;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
-import io.contexa.contexaidentity.security.utils.writer.JsonAuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;

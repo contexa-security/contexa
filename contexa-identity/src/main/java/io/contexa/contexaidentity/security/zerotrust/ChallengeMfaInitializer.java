@@ -28,11 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Initializes MFA flow for Zero Trust CHALLENGE scenarios.
- * This component bridges the gap between ZeroTrustSecurityService's CHALLENGE action
- * and the existing MFA infrastructure.
- */
 @Slf4j
 public class ChallengeMfaInitializer {
 
@@ -58,17 +53,6 @@ public class ChallengeMfaInitializer {
         this.platformConfig = platformConfig;
     }
 
-    /**
-     * Initializes MFA flow for Zero Trust CHALLENGE action.
-     * Replicates the initialization logic from MfaFormAuthenticationFilter and
-     * the event sending logic from PrimaryAuthenticationSuccessHandler.
-     *
-     * @param request the HTTP request
-     * @param response the HTTP response
-     * @param authentication the current authentication
-     * @return initialized FactorContext with MFA flow ready
-     * @throws ChallengeMfaInitializationException if initialization fails
-     */
     public FactorContext initializeChallengeFlow(
             HttpServletRequest request,
             HttpServletResponse response,
@@ -108,12 +92,10 @@ public class ChallengeMfaInitializer {
                         "Failed to initialize state machine with ADAPTIVE_MFA_REQUIRED event");
             }
 
-            // Reload updated context from State Machine (availableFactors set by InitializeMfaAction)
             FactorContext updatedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
             if (updatedContext != null) {
                 context = updatedContext;
             } else {
-                // Fallback: manually set availableFactors from MFA flow config
                 log.warn("Could not load updated context from state machine, setting availableFactors manually for session: {}", mfaSessionId);
                 AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();
                 if (mfaFlow != null) {

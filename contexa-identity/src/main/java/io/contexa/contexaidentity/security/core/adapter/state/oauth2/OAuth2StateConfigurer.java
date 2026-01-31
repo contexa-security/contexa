@@ -5,7 +5,7 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.Authe
 import io.contexa.contexaidentity.security.filter.OAuth2PreAuthenticationFilter;
 import io.contexa.contexaidentity.security.filter.OAuth2RefreshAuthenticationFilter;
 import io.contexa.contexaidentity.security.token.service.TokenService;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;

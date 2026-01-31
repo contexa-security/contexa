@@ -39,16 +39,15 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
     }
 
     private int getMaxRetries() {
-        
         return 3;
     }
 
     private int getFactorMaxRetries(String factorType) {
-        
+
         return switch (factorType.toUpperCase()) {
             case "MFA_OTT", "SMS" -> 5;
             case "TOTP", "FIDO", "MFA_PASSKEY" -> 3;
-            default -> getMaxRetries(); 
+            default -> getMaxRetries();
         };
     }
 
@@ -63,42 +62,9 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         return 0;
     }
 
-    public void incrementRetryCount(FactorContext factorContext) {
-        
-        factorContext.setRetryCount(factorContext.getRetryCount() + 1);
-
-        String currentFactor = factorContext.getCurrentProcessingFactor() != null ?
-                factorContext.getCurrentProcessingFactor().name() : null;
-        if (currentFactor != null) {
-            String key = "retryCount_" + currentFactor;
-            Integer currentCount = getFactorRetryCount(factorContext, currentFactor);
-            factorContext.setAttribute(key, currentCount + 1);
-        }
-
-            }
-
-    public void resetRetryCount(FactorContext factorContext, String factorType) {
-        if (factorType != null) {
-            String key = "retryCount_" + factorType;
-            factorContext.removeAttribute(key);
-                    }
-    }
-
     @Override
     public String getFailureReason() {
         return "Maximum retry attempts exceeded";
-    }
-
-    public int getRemainingRetries(FactorContext factorContext) {
-        int maxRetries = getMaxRetries();
-        int currentRetries = factorContext.getRetryCount();
-        return Math.max(0, maxRetries - currentRetries);
-    }
-
-    public int getFactorRemainingRetries(FactorContext factorContext, String factorType) {
-        int maxRetries = getFactorMaxRetries(factorType);
-        int currentRetries = getFactorRetryCount(factorContext, factorType);
-        return Math.max(0, maxRetries - currentRetries);
     }
 
     @Override

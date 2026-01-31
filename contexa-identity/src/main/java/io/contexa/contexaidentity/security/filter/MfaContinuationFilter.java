@@ -2,7 +2,6 @@ package io.contexa.contexaidentity.security.filter;
 
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.validator.MfaContextValidator;
 import io.contexa.contexaidentity.security.core.validator.ValidationResult;
 import io.contexa.contexaidentity.security.filter.handler.MfaRequestHandler;
@@ -12,7 +11,7 @@ import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaUrlMatcher;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -59,7 +58,6 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 stateMachineIntegrator,
                 authUrlProvider
         );
-
     }
 
     @Override

@@ -5,28 +5,28 @@ import lombok.Getter;
 @Getter
 public enum MfaState {
 
-    NONE("MFA 세션 없음"),
+    NONE("No MFA session"),
 
-    PRIMARY_AUTHENTICATION_COMPLETED("1차 인증 완료"),
+    PRIMARY_AUTHENTICATION_COMPLETED("Primary authentication completed"),
 
-    MFA_NOT_REQUIRED("MFA 불필요"),
+    MFA_NOT_REQUIRED("MFA not required"),
 
-    AWAITING_FACTOR_SELECTION("2차 인증 수단 선택 대기"),
-    AWAITING_FACTOR_CHALLENGE_INITIATION("2차 인증 챌린지 시작 대기"),
-    FACTOR_CHALLENGE_INITIATED("챌린지 발송/생성 완료"),
-    FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION("사용자 입력 대기"),
-    FACTOR_VERIFICATION_PENDING("팩터 검증 진행 중"),
-    FACTOR_VERIFICATION_IN_PROGRESS("팩터 검증 처리 중"), 
-    FACTOR_VERIFICATION_COMPLETED("팩터 검증 완료"),
+    AWAITING_FACTOR_SELECTION("Awaiting secondary factor selection"),
+    AWAITING_FACTOR_CHALLENGE_INITIATION("Awaiting secondary factor challenge initiation"),
+    FACTOR_CHALLENGE_INITIATED("Challenge sent/generated"),
+    FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION("Awaiting user input"),
+    FACTOR_VERIFICATION_PENDING("Factor verification in progress"),
+    FACTOR_VERIFICATION_IN_PROGRESS("Factor verification processing"),
+    FACTOR_VERIFICATION_COMPLETED("Factor verification completed"),
 
-    ALL_FACTORS_COMPLETED("모든 필수 팩터 완료"),
-    MFA_SUCCESSFUL("MFA 최종 성공"),
-    MFA_FAILED_TERMINAL("MFA 최종 실패"),
-    MFA_CANCELLED("사용자 취소"),
-    MFA_SESSION_EXPIRED("세션 만료"),
-    MFA_SESSION_INVALIDATED("세션 무효화"),
-    MFA_RETRY_LIMIT_EXCEEDED("재시도 횟수 초과"),
-    MFA_SYSTEM_ERROR("시스템 오류");
+    ALL_FACTORS_COMPLETED("All required factors completed"),
+    MFA_SUCCESSFUL("MFA final success"),
+    MFA_FAILED_TERMINAL("MFA final failure"),
+    MFA_CANCELLED("User cancelled"),
+    MFA_SESSION_EXPIRED("Session expired"),
+    MFA_SESSION_INVALIDATED("Session invalidated"),
+    MFA_RETRY_LIMIT_EXCEEDED("Retry limit exceeded"),
+    MFA_SYSTEM_ERROR("System error");
 
     private final String description;
 
@@ -43,11 +43,6 @@ public enum MfaState {
                 this == MFA_SESSION_INVALIDATED ||
                 this == MFA_RETRY_LIMIT_EXCEEDED ||
                 this == MFA_SYSTEM_ERROR;
-    }
-
-    public boolean isWaitingForUserAction() {
-        return this == AWAITING_FACTOR_SELECTION ||
-                this == FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION;
     }
 
     public boolean isProcessing() {

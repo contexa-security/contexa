@@ -26,6 +26,8 @@ public class CompleteMfaAction extends AbstractMfaStateAction {
             String completedFactorTypes = completedFactors.stream()
                     .map(AuthenticationStepConfig::getType)
                     .collect(Collectors.joining(", "));
+            log.info("MFA completed with factors: {} for session: {}",
+                    completedFactorTypes, factorContext.getMfaSessionId());
         }
     }
 }

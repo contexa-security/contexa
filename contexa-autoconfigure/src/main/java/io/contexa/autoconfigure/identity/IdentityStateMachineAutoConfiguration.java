@@ -1,15 +1,14 @@
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.action.*;
 import io.contexa.contexaidentity.security.statemachine.config.MfaStateMachineConfiguration;
 import io.contexa.contexaidentity.security.statemachine.config.StateMachineProperties;
 import io.contexa.contexaidentity.security.statemachine.config.kyro.MfaKryoStateMachineSerialisationService;
-import io.contexa.contexaidentity.security.statemachine.core.event.MfaEventPublisher;
 import io.contexa.contexaidentity.security.statemachine.core.persist.InMemoryStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineServiceImpl;
@@ -20,10 +19,6 @@ import io.contexa.contexaidentity.security.statemachine.guard.BlockedUserGuard;
 import io.contexa.contexaidentity.security.statemachine.guard.FactorSelectionTimeoutGuard;
 import io.contexa.contexaidentity.security.statemachine.guard.RetryLimitGuard;
 import io.contexa.contexaidentity.security.statemachine.listener.MfaStateChangeListener;
-import io.contexa.contexaidentity.security.statemachine.monitoring.AlertEventListener;
-import io.contexa.contexaidentity.security.statemachine.monitoring.MfaStateMachineMonitorService;
-import io.contexa.contexaidentity.security.statemachine.monitoring.MfaStateMachineMonitorServiceImpl;
-import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -31,7 +26,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableAsync;
@@ -139,21 +133,6 @@ public class IdentityStateMachineAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MfaStateMachineMonitorService mfaStateMachineMonitorService(
-            MeterRegistry meterRegistry,
-            ApplicationEventPublisher eventPublisher) {
-        return new MfaStateMachineMonitorServiceImpl(meterRegistry, eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.identity.statemachine", name = "alert-enabled", havingValue = "true", matchIfMissing = true)
-    public AlertEventListener alertEventListener() {
-        return new AlertEventListener();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public MfaStateMachineIntegrator mfaStateMachineIntegrator(
             MfaStateMachineService mfaStateMachineService,
             MfaSessionRepository mfaSessionRepository,
@@ -185,12 +164,6 @@ public class IdentityStateMachineAutoConfiguration {
         RedisPersistingStateMachineInterceptor<MfaState, MfaEvent, Object> stateMachineInterceptor = new RedisPersistingStateMachineInterceptor<>(
                 stateMachinePersist);
         return new DefaultStateMachinePersister(stateMachineInterceptor);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public MfaEventPublisher mfaEventPublisher(ApplicationEventPublisher applicationEventPublisher) {
-        return new MfaEventPublisher(applicationEventPublisher);
     }
 
     @Bean

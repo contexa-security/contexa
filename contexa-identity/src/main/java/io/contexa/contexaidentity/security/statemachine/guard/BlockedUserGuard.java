@@ -26,7 +26,7 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
             return false;
         }
 
-                return true;
+        return true;
     }
 
     @Override
@@ -39,26 +39,4 @@ public class BlockedUserGuard extends AbstractMfaStateGuard {
         return "BlockedUserGuard";
     }
 
-    public void blockUser(FactorContext factorContext, String reason) {
-        factorContext.setAttribute(FactorContextAttributes.StateControl.BLOCKED, true);
-        factorContext.setAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON, reason);
-
-        log.warn("[BlockedUserGuard] User {} blocked for session: {}, reason: {}",
-                factorContext.getUsername(), factorContext.getMfaSessionId(), reason);
-    }
-
-    public void unblockUser(FactorContext factorContext) {
-        factorContext.removeAttribute(FactorContextAttributes.StateControl.BLOCKED);
-        factorContext.removeAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
-
-            }
-
-    public boolean isUserBlocked(FactorContext factorContext) {
-        Object blockedObj = factorContext.getAttribute(FactorContextAttributes.StateControl.BLOCKED);
-        return Boolean.TRUE.equals(blockedObj);
-    }
-
-    public String getBlockReason(FactorContext factorContext) {
-        return (String) factorContext.getAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON);
-    }
 }

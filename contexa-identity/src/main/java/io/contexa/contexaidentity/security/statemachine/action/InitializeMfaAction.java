@@ -33,13 +33,13 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
                              FactorContext factorContext) throws Exception {
         String sessionId = factorContext.getMfaSessionId();
-        
+
         HttpServletRequest request = (HttpServletRequest) context.getMessageHeader("request");
         if (request != null) {
             factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.USER_AGENT,
-                                     request.getHeader("User-Agent"));
+                    request.getHeader("User-Agent"));
             factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP,
-                                     request.getRemoteAddr());
+                    request.getRemoteAddr());
         }
 
         MfaDecision decision = (MfaDecision) context.getMessageHeader("mfaDecision");
@@ -49,15 +49,15 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
             log.warn("MfaDecision not found in message header for session: {}", sessionId);
         }
 
-            }
+    }
 
     private void applyMfaDecisionToContext(FactorContext ctx, MfaDecision decision) {
         String sessionId = ctx.getMfaSessionId();
 
         ctx.setMfaRequiredAsPerPolicy(decision.isRequired());
-        
+
         ctx.setAttribute(FactorContextAttributes.StateControl.MFA_DECISION_TYPE,
-                        decision.getType().name());
+                decision.getType().name());
 
         if (decision.getMetadata() != null) {
             decision.getMetadata().forEach((key, value) -> {
@@ -65,59 +65,57 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                     ctx.setAttribute(key, value);
                 } else {
                     log.warn("Non-serializable metadata skipped for session {}: key={}, type={}",
-                             sessionId, key, value.getClass().getName());
+                            sessionId, key, value.getClass().getName());
                 }
             });
-            
+
             if (decision.getMetadata().containsKey(FactorContextAttributes.StateControl.USER_INFO)) {
-                            }
+            }
         }
 
         if (decision.isBlocked()) {
             ctx.setAttribute(FactorContextAttributes.StateControl.BLOCKED, true);
             ctx.setAttribute(FactorContextAttributes.MessageAndReason.BLOCK_REASON,
-                           decision.getReason());
+                    decision.getReason());
             log.warn("Authentication blocked for user {}: {}",
                     ctx.getUsername(), decision.getReason());
         }
 
         if (decision.isRequired()) {
-            
+
             AuthenticationFlowConfig mfaFlowConfig = platformConfig.getFlows().stream()
                     .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
                     .findFirst()
                     .orElse(null);
 
             if (mfaFlowConfig != null) {
-                
+
                 Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
                 ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
 
                 Set<AuthType> verifyFactors = ctx.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
                 if (verifyFactors == null || verifyFactors.isEmpty()) {
                     log.error("[InitializeMfaAction] availableFactors verification FAILED for session: {}",
-                             ctx.getMfaSessionId());
+                            ctx.getMfaSessionId());
                 } else {
-                                    }
+                }
 
                 if (mfaFlowConfig.getStateConfig() != null) {
                     ctx.setStateConfig(mfaFlowConfig.getStateConfig());
-                                    }
+                }
 
-                            } else {
-                
+            } else {
+
                 List<AuthType> requiredFactors = decision.getRequiredFactors();
                 if (requiredFactors != null && !requiredFactors.isEmpty()) {
                     Set<AuthType> availableFactors = new LinkedHashSet<>(requiredFactors);
                     ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
-                                    } else {
+                } else {
                     log.error("No available factors for user: {}. Configuration error.", ctx.getUsername());
                     ctx.changeState(MfaState.MFA_SYSTEM_ERROR);
                     ctx.setLastError("MFA configuration error: no available factors");
                 }
             }
         }
-
-            }
-
+    }
 }

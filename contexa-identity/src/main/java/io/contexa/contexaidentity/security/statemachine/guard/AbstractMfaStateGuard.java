@@ -21,9 +21,7 @@ public abstract class AbstractMfaStateGuard implements Guard<MfaState, MfaEvent>
                 return false;
             }
 
-            boolean result = doEvaluate(context, factorContext);
-
-            return result;
+            return doEvaluate(context, factorContext);
 
         } catch (Exception e) {
             log.error("Error evaluating guard: {}", getGuardName(), e);

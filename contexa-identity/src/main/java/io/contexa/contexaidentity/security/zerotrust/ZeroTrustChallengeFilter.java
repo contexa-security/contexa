@@ -7,7 +7,7 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.WebUtil;
-import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexacommon.enums.AuthType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -26,16 +26,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Filter that intercepts requests when Zero Trust security determines a CHALLENGE action.
- * Detects ROLE_MFA_REQUIRED authority and initializes MFA flow via ChallengeMfaInitializer.
- *
- * Key behaviors:
- * - Redirects to MFA page only once per challenge session (tracks via challengeRedirected flag)
- * - Uses Redis distributed lock to prevent concurrent initialization of the same user's MFA session
- * - Subsequent requests after redirect are passed to filter chain (will be denied by security)
- * - MFA page URLs are excluded via shouldNotFilter() to allow page rendering
- */
 @Slf4j
 public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
@@ -245,7 +235,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         }
 
         if (currentState == MfaState.AWAITING_FACTOR_SELECTION ||
-            currentState == MfaState.PRIMARY_AUTHENTICATION_COMPLETED) {
+                currentState == MfaState.PRIMARY_AUTHENTICATION_COMPLETED) {
             return contextPath + authUrlProvider.getMfaSelectFactor();
         }
 
