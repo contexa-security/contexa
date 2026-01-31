@@ -409,11 +409,6 @@ public class OAuth2TokenService implements TokenService {
     }
 
     @Override
-    public TokenTransportStrategy getUnderlyingTokenTransportStrategy() {
-        return this.transportStrategy;
-    }
-
-    @Override
     public AuthContextProperties properties() {
         return this.properties;
     }

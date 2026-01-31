@@ -39,18 +39,13 @@ public interface TokenService extends TokenProvider, TokenValidator  {
 
     default TokenPair createTokenPair(Authentication authentication, @Nullable String deviceId,
                                      HttpServletRequest request, HttpServletResponse response) {
-        
         return createTokenPair(authentication, deviceId);
     }
 
     TokenTransportResult prepareTokensForTransport(String accessToken, String refreshToken);
-
     TokenTransportResult prepareClearTokens();
-
     String resolveAccessToken(HttpServletRequest request);
     String resolveRefreshToken(HttpServletRequest request);
-
-    TokenTransportStrategy getUnderlyingTokenTransportStrategy();
 
     interface TokenServicePropertiesProvider {
         long getAccessTokenValidity();
