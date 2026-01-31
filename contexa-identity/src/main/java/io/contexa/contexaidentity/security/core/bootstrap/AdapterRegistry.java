@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.bootstrap;
 
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
 import io.contexa.contexaidentity.security.core.adapter.StateAdapter;
 import io.contexa.contexaidentity.security.core.adapter.auth.MfaAuthenticationAdapter;
@@ -26,14 +27,14 @@ public class AdapterRegistry {
         ServiceLoader.load(AuthenticationAdapter.class, getClass().getClassLoader())
                 .forEach(f -> {
                     AuthenticationAdapter adapterInstance = f;
-                    
+
                     if (f instanceof MfaAuthenticationAdapter) {
                         try {
                             adapterInstance = f.getClass()
                                     .asSubclass(AuthenticationAdapter.class)
                                     .getConstructor(ApplicationContext.class)
                                     .newInstance(this.applicationContext);
-                                                    } catch (NoSuchMethodException nsme) {
+                        } catch (NoSuchMethodException nsme) {
                             log.warn("MfaAuthenticationAdapter (id: 'mfa') does not have a constructor accepting ApplicationContext. Using default instance from ServiceLoader.");
                         } catch (Exception e) {
                             log.error("Error instantiating MfaAuthenticationAdapter (id: 'mfa') with ApplicationContext. Using default instance from ServiceLoader.", e);
@@ -45,7 +46,7 @@ public class AdapterRegistry {
                                 adapterId, adapterInstance.getClass().getName(), authAdapter.get(adapterId).getClass().getName());
                     }
                     authAdapter.put(adapterId, adapterInstance);
-                                    });
+                });
 
         ServiceLoader.load(StateAdapter.class, getClass().getClassLoader())
                 .forEach(f -> {
@@ -55,8 +56,8 @@ public class AdapterRegistry {
                                 stateId, f.getClass().getName(), stateAdapter.get(stateId).getClass().getName());
                     }
                     stateAdapter.put(stateId, f);
-                                    });
-            }
+                });
+    }
 
     public List<AuthenticationAdapter> getAuthAdaptersFor(List<AuthenticationFlowConfig> flows) {
         if (CollectionUtils.isEmpty(flows)) {
@@ -72,11 +73,11 @@ public class AdapterRegistry {
             }
             String flowTypeNameLower = flow.getTypeName().toLowerCase();
 
-            if ("mfa".equals(flowTypeNameLower)) { 
-                AuthenticationAdapter mfaBaseAdapter = authAdapter.get("mfa"); 
+            if (AuthType.MFA.name().equals(flowTypeNameLower)) {
+                AuthenticationAdapter mfaBaseAdapter = authAdapter.get(AuthType.MFA.name());
                 if (mfaBaseAdapter != null) {
                     featuresToApply.add(mfaBaseAdapter);
-                                    } else {
+                } else {
                     log.warn("MfaAuthenticationAdapter (id: 'mfa') not found. MFA flow '{}' might not be fully configured.", flow.getTypeName());
                 }
 
@@ -87,35 +88,29 @@ public class AdapterRegistry {
                             continue;
                         }
 
-                        if (step.getOrder() == 0) { 
-
-                        }
-
                         String stepTypeNameLower = step.getType().toLowerCase();
                         AuthenticationAdapter stepAdapter = authAdapter.get(stepTypeNameLower);
                         if (stepAdapter != null) {
-                            
                             if (!stepAdapter.getId().equalsIgnoreCase("mfa")) {
                                 featuresToApply.add(stepAdapter);
-                                                            }
+                            }
                         } else {
-
-                            if (step.getOrder() > 0) { 
+                            if (step.getOrder() > 0) {
                                 log.warn("No AuthenticationAdapter found for 2FA step type '{}' in MFA flow '{}'", stepTypeNameLower, flow.getTypeName());
                             }
                         }
                     }
                 }
-            } else { 
+            } else {
 
                 if (!CollectionUtils.isEmpty(flow.getStepConfigs())) {
                     AuthenticationStepConfig singleAuthStep = flow.getStepConfigs().getFirst();
                     if (singleAuthStep != null && singleAuthStep.getType() != null) {
-                        String actualFactorType = singleAuthStep.getType().toLowerCase(); 
+                        String actualFactorType = singleAuthStep.getType().toLowerCase();
                         AuthenticationAdapter singleAuthAdapter = authAdapter.get(actualFactorType);
                         if (singleAuthAdapter != null) {
                             featuresToApply.add(singleAuthAdapter);
-                                                    } else {
+                        } else {
                             log.warn("No AuthenticationAdapter found for actual factor type: '{}' in single auth flow type: '{}'",
                                     actualFactorType, flowTypeNameLower);
                         }
@@ -131,7 +126,7 @@ public class AdapterRegistry {
         List<AuthenticationAdapter> sortedAdapters = new ArrayList<>(featuresToApply);
         sortedAdapters.sort(Comparator.comparingInt(AuthenticationAdapter::getOrder));
 
-                return sortedAdapters;
+        return sortedAdapters;
     }
 
     public List<StateAdapter> getStateAdaptersFor(List<AuthenticationFlowConfig> flows) {
@@ -140,7 +135,7 @@ public class AdapterRegistry {
         }
         Set<String> stateIds = new HashSet<>();
         for (AuthenticationFlowConfig f : flows) {
-            if (f != null && f.getStateConfig() != null && f.getStateConfig().state() != null) { 
+            if (f != null && f.getStateConfig() != null && f.getStateConfig().state() != null) {
                 stateIds.add(f.getStateConfig().state().toLowerCase());
             }
         }
@@ -154,7 +149,7 @@ public class AdapterRegistry {
                 log.warn("StateAdapter not found in registry for state ID: {}", id);
             }
         }
-                return list;
+        return list;
     }
 
     @Nullable

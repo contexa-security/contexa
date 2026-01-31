@@ -210,7 +210,7 @@ public class SecurityFilterChainRegistrar {
             }
         }
 
-        log.warn("⚠️ WebAuthnAuthenticationFilter not found in filter chain for flow: {}. " +
+        log.warn("WebAuthnAuthenticationFilter not found in filter chain for flow: {}. " +
                         "Passkey authentication may not work properly without custom handlers.",
                 flowConfig.getTypeName());
     }

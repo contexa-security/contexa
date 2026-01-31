@@ -17,50 +17,47 @@ public class AuthConfigurerAdapter implements SecurityConfigurer {
     private final AuthenticationAdapter adapter;
 
     public AuthConfigurerAdapter(AuthenticationAdapter adapter) {
-        this.adapter = Objects.requireNonNull(adapter, "AuthenticationAdapter cannot be null"); 
+        this.adapter = Objects.requireNonNull(adapter, "AuthenticationAdapter cannot be null");
     }
 
     @Override
-    public void init(PlatformContext ctx, PlatformConfig config) {}
+    public void init(PlatformContext ctx, PlatformConfig config) {
+    }
 
     @Override
     public void configure(FlowContext fc) throws Exception {
-        Objects.requireNonNull(fc, "FlowContext cannot be null"); 
-        Objects.requireNonNull(fc.flow(), "FlowContext.flow cannot be null"); 
-        Objects.requireNonNull(fc.http(), "FlowContext.http cannot be null"); 
+        Objects.requireNonNull(fc, "FlowContext cannot be null");
+        Objects.requireNonNull(fc.flow(), "FlowContext.flow cannot be null");
+        Objects.requireNonNull(fc.http(), "FlowContext.http cannot be null");
 
         List<AuthenticationStepConfig> steps = fc.flow().getStepConfigs();
 
         if (adapter instanceof MfaAuthenticationAdapter) {
 
             if (AuthType.MFA.name().equalsIgnoreCase(fc.flow().getTypeName())) {
-                                adapter.apply(fc.http(), steps, fc.flow().getStateConfig());
-
-                return; 
+                adapter.apply(fc.http(), steps, fc.flow().getStateConfig());
+                return;
             }
         }
 
-        if (steps.isEmpty()) { 
-                        return;
+        if (steps.isEmpty()) {
+            return;
         }
 
-        boolean applied = false; 
+        boolean applied = false;
         for (AuthenticationStepConfig step : steps) {
             if (step != null && adapter.getId().equalsIgnoreCase(step.getType())) {
-
                 adapter.apply(fc.http(), steps, fc.flow().getStateConfig());
-                applied = true; 
-
-                break; 
+                applied = true;
+                break;
             }
         }
         if (!applied) {
-                    }
+        }
     }
 
     @Override
     public int getOrder() {
-
-        return 300; 
+        return 300;
     }
 }

@@ -217,12 +217,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             PlatformContextInitializer platformContextInitializer,
             SecurityFilterChainRegistrar securityFilterChainRegistrar,
             FlowContextFactory flowContextFactory,
-            PlatformConfig platformConfig,
-            ApplicationContext applicationContext) {
+            PlatformConfig platformConfig) {
         platformContextInitializer.initializeSharedObjects();
 
         DefaultSecurityConfigurerProvider configurerProvider = new DefaultSecurityConfigurerProvider(
-                allRegisteredConfigurers, adapterRegistry, applicationContext);
+                allRegisteredConfigurers, adapterRegistry);
 
         return new SecurityPlatformInitializer(
                 context,

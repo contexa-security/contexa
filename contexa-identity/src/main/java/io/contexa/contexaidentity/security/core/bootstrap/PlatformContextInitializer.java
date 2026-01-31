@@ -16,14 +16,14 @@ public class PlatformContextInitializer {
 
     public PlatformContextInitializer(PlatformContext platformContext,
                                       AuthContextProperties authContextProperties,
-                                      ObjectMapper objectMapper) { 
+                                      ObjectMapper objectMapper) {
         this.platformContext = Objects.requireNonNull(platformContext, "platformContext cannot be null");
         this.authContextProperties = Objects.requireNonNull(authContextProperties, "authContextProperties cannot be null");
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper cannot be null");
     }
 
     public void initializeSharedObjects() {
-                platformContext.share(AuthContextProperties.class, authContextProperties);
+        platformContext.share(AuthContextProperties.class, authContextProperties);
         platformContext.share(ObjectMapper.class, objectMapper);
-            }
+    }
 }

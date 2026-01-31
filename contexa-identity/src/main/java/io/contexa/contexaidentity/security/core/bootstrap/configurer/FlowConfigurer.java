@@ -8,7 +8,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 
 public class FlowConfigurer implements SecurityConfigurer {
     @Override
-    public void init(PlatformContext ctx, PlatformConfig config) { }
+    public void init(PlatformContext ctx, PlatformConfig config) {
+    }
 
     @Override
     public void configure(FlowContext ctx) {
@@ -20,6 +21,8 @@ public class FlowConfigurer implements SecurityConfigurer {
     }
 
     @Override
-    public int getOrder() { return 100; }
+    public int getOrder() {
+        return 100;
+    }
 }
 

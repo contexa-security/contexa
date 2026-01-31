@@ -11,16 +11,16 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 public class GlobalConfigurer implements SecurityConfigurer {
     @Override
     public void init(PlatformContext ctx, PlatformConfig config) {
-            }
+    }
 
     @Override
     public void configure(FlowContext ctx) {
         SafeHttpCustomizer<HttpSecurity> customizer = ctx.config().getGlobalCustomizer();
         if (customizer == null) {
-                        return;
+            return;
         }
         try {
-                        customizer.customize(ctx.http());
+            customizer.customize(ctx.http());
         } catch (Exception ex) {
             log.warn("Platform's global customizer failed for flow: {}", ctx.flow().getTypeName(), ex);
         }

@@ -16,7 +16,8 @@ public class StateConfigurerAdapter implements SecurityConfigurer {
     }
 
     @Override
-    public void init(PlatformContext ctx, PlatformConfig config) { }
+    public void init(PlatformContext ctx, PlatformConfig config) {
+    }
 
     @Override
     public void configure(FlowContext fc) throws Exception {

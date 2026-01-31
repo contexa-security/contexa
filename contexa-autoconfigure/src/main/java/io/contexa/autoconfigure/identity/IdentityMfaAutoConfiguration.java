@@ -1,14 +1,16 @@
 package io.contexa.autoconfigure.identity;
 
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.MfaPageGeneratingConfigurer;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.policy.AIAdaptiveMfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.policy.DefaultMfaPolicyProvider;
-import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.*;
-import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexaidentity.service.MfaSupportService;
-import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.CompositeMfaPolicyEvaluator;
+import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.DefaultMfaPolicyEvaluator;
+import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.MfaPolicyEvaluator;
+import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.ZeroTrustPolicyEvaluator;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -87,12 +89,6 @@ public class IdentityMfaAutoConfiguration {
                 compositePolicyEvaluator,
                 platformConfig,
                 aiCoreOperations);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public MfaSupportService mfaSupportService(UserRepository userRepository) {
-        return new MfaSupportService(userRepository);
     }
 
     @Bean

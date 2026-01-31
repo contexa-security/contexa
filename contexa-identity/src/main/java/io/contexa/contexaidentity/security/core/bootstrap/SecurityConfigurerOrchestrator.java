@@ -32,11 +32,11 @@ public final class SecurityConfigurerOrchestrator {
         if (globalConfigurers == null) {
             globalConfigurers = Collections.emptyList();
         }
-                for (SecurityConfigurer cfg : globalConfigurers.stream()
+        for (SecurityConfigurer cfg : globalConfigurers.stream()
                 .sorted(Comparator.comparingInt(SecurityConfigurer::getOrder))
                 .toList()) {
             try {
-                                cfg.init(platformContext, platformConfig);
+                cfg.init(platformContext, platformConfig);
             } catch (Exception e) {
                 String errorMsg = "Error during global SecurityConfigurer initialization: " + cfg.getClass().getSimpleName();
                 log.error(errorMsg, e);
@@ -59,8 +59,8 @@ public final class SecurityConfigurerOrchestrator {
             }
 
             List<SecurityConfigurer> finalConfigurersForFlow = new ArrayList<>();
-            finalConfigurersForFlow.addAll(globalConfigurers); 
-            finalConfigurersForFlow.addAll(flowSpecificAdapters); 
+            finalConfigurersForFlow.addAll(globalConfigurers);
+            finalConfigurersForFlow.addAll(flowSpecificAdapters);
 
             finalConfigurersForFlow = finalConfigurersForFlow.stream()
                     .distinct()
@@ -69,7 +69,7 @@ public final class SecurityConfigurerOrchestrator {
 
             for (SecurityConfigurer cfg : finalConfigurersForFlow) {
                 try {
-                                        cfg.configure(fc);
+                    cfg.configure(fc);
                 } catch (Exception e) {
                     String errorMessage = String.format(
                             "Error applying SecurityConfigurer '%s' for flow '%s'.",
@@ -79,6 +79,6 @@ public final class SecurityConfigurerOrchestrator {
                     throw new RuntimeException(errorMessage, e);
                 }
             }
-                    }
-            }
+        }
+    }
 }

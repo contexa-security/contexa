@@ -40,8 +40,4 @@ public class ConfiguredFactorFilterProvider {
         }
         return filter;
     }
-
-    public int getRegisteredFilterCount() {
-        return configuredFiltersByFactorId.size();
-    }
 }

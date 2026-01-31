@@ -36,6 +36,5 @@ public class PlatformBootstrap implements InitializingBean {
             log.error("DSL 유효성 검사 실패로 서버 기동을 중단합니다.", e);
             throw e;
         }
-        
-            }
+    }
 }

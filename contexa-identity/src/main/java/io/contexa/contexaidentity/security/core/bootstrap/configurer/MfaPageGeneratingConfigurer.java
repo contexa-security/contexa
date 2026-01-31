@@ -38,7 +38,8 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
     }
 
     @Override
-    public void init(PlatformContext platformContext, PlatformConfig config) {}
+    public void init(PlatformContext platformContext, PlatformConfig config) {
+    }
 
     @Override
     public void configure(FlowContext flowContext) {
@@ -87,7 +88,6 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
     private void registerMfaAuthenticationEntryPoint(FlowContext flowContext, AuthenticationFlowConfig flowConfig) {
         MfaAuthenticationEntryPoint entryPoint = flowConfig.getMfaAuthenticationEntryPoint();
 
-        // ⭐ EntryPoint가 null이면 예외 (MFA는 EntryPoint 필수)
         if (entryPoint == null) {
             throw new IllegalStateException(
                     "MfaAuthenticationEntryPoint is required for MFA flow but was null in flowConfig [" +

@@ -21,7 +21,7 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
                                  FactorContext factorContext) {
         
         if (factorContext == null) {
-            log.error("[AllFactorsCompletedGuard] ⚠️ FactorContext is NULL! Cannot evaluate. Returning false.");
+            log.error("[AllFactorsCompletedGuard] FactorContext is NULL! Cannot evaluate. Returning false.");
             return false; 
         }
 
@@ -49,7 +49,7 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
             return allCompleted;
 
         } catch (Exception e) {
-            log.error("[AllFactorsCompletedGuard] ⚠️ Exception during guard evaluation for session: {}. Returning false to complete Reactive Stream.",
+            log.error("[AllFactorsCompletedGuard] Exception during guard evaluation for session: {}. Returning false to complete Reactive Stream.",
                      sessionId, e);
             return false; 
         }
