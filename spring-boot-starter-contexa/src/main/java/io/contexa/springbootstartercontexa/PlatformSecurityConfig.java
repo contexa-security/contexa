@@ -63,7 +63,6 @@ public class PlatformSecurityConfig {
                             .clearAuthentication(true)
                     )*/
             ;
-            SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_INHERITABLETHREADLOCAL);
         };
         return registry
                 .global(globalHttpCustomizer)

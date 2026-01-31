@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.SessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import jakarta.annotation.PostConstruct;
@@ -35,12 +36,10 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class AIReactiveSecurityContextRepository extends HttpSessionSecurityContextRepository {
 
-    @Autowired
-    private ZeroTrustSecurityService zeroTrustSecurityService;
-    @Autowired
-    private SessionIdResolver sessionIdResolver;
-    @Autowired
-    private RedisTemplate<String, Object> redisTemplate;
+    @Autowired private ZeroTrustSecurityService zeroTrustSecurityService;
+    @Autowired private SessionIdResolver sessionIdResolver;
+    @Autowired private RedisTemplate<String, Object> redisTemplate;
+    @Autowired private AsyncSecurityContextProvider asyncSecurityContextProvider;
     private Cache<String, Boolean> invalidatedSessionsCache;
     private Cache<String, Set<String>> userSessionsCache;
     private Cache<String, String> sessionToUserCache;
@@ -202,6 +201,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
                 if (isActuallyAuthenticated(auth)) {
                     String userId = auth.getName();
                     previousAuthCache.put(sessionId, userId);
+                    saveAsyncAuthenticationContext(auth, sessionId);
                     if (sessionTrackingEnabled && shouldUpdateRedis(sessionId)) {
                         updateUserSessionMapping(userId, sessionId);
                         updateUserContext(userId, sessionId, request);
@@ -331,10 +331,31 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
             }
             invalidatedSessionsCache.put(sessionId, true);
             lastRedisUpdateCache.invalidate(sessionId);
+            removeAsyncAuthenticationContext(userId, sessionId);
             zeroTrustSecurityService.invalidateSession(sessionId, userId, "User logout");
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Error handling logout for user: {}", userId, e);
+        }
+    }
+
+    private void saveAsyncAuthenticationContext(Authentication auth, String sessionId) {
+        if (asyncSecurityContextProvider != null) {
+            try {
+                asyncSecurityContextProvider.saveAuthenticationForAsync(auth, sessionId);
+            } catch (Exception e) {
+                log.error("[ZeroTrust] Failed to save async authentication context for sessionId: {}", maskSessionId(sessionId), e);
+            }
+        }
+    }
+
+    private void removeAsyncAuthenticationContext(String userId, String sessionId) {
+        if (asyncSecurityContextProvider != null) {
+            try {
+                asyncSecurityContextProvider.removeAuthentication(userId, sessionId);
+            } catch (Exception e) {
+                log.error("[ZeroTrust] Failed to remove async authentication context for userId: {}", userId, e);
+            }
         }
     }
 

@@ -35,36 +35,30 @@ public class RedisSessionIdResolver implements SessionIdResolver {
 
     @Override
     public String resolve(HttpServletRequest request) {
-        String sessionId = null;
-        SessionSource source = SessionSource.NONE;
-
+        String sessionId;
         sessionId = extractFromCookie(request);
         if (StringUtils.hasText(sessionId)) {
-            source = SessionSource.COOKIE;
-                        return sessionId;
+            return sessionId;
         }
 
         sessionId = extractFromHeader(request);
         if (StringUtils.hasText(sessionId)) {
-            source = SessionSource.HEADER;
-                        return sessionId;
+            return sessionId;
         }
 
         if (bearerTokenEnabled) {
             sessionId = extractFromBearerToken(request);
             if (StringUtils.hasText(sessionId)) {
-                source = SessionSource.BEARER;
-                                return sessionId;
+                return sessionId;
             }
         }
 
         sessionId = extractFromAttribute(request);
         if (StringUtils.hasText(sessionId)) {
-            source = SessionSource.ATTRIBUTE;
-                        return sessionId;
+            return sessionId;
         }
 
-                return null;
+        return null;
     }
 
     @Override
@@ -74,19 +68,19 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         }
 
         if (!SESSION_ID_PATTERN.matcher(sessionId).matches()) {
-                        return false;
+            return false;
         }
 
         String redisKey = "spring:session:sessions:" + sessionId;
         Boolean exists = redisTemplate.hasKey(redisKey);
 
         if (Boolean.FALSE.equals(exists)) {
-                        return false;
+            return false;
         }
 
         Long ttl = redisTemplate.getExpire(redisKey, TimeUnit.SECONDS);
         if (ttl != null && ttl <= 0) {
-                        return false;
+            return false;
         }
 
         return true;
@@ -118,12 +112,12 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         for (Cookie cookie : cookies) {
             if (sessionCookieName.equals(cookie.getName())) {
                 String cookieValue = cookie.getValue();
-                
+
                 if (isBase64Encoded(cookieValue)) {
                     try {
                         cookieValue = new String(Base64.getUrlDecoder().decode(cookieValue));
                     } catch (Exception e) {
-                                            }
+                    }
                 }
                 return cookieValue;
             }
@@ -135,7 +129,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
     private String extractFromHeader(HttpServletRequest request) {
         String sessionId = request.getHeader(sessionHeaderName);
         if (StringUtils.hasText(sessionId)) {
-            
+
             if (sessionId.startsWith("Bearer ")) {
                 sessionId = sessionId.substring(7);
             }
@@ -193,7 +187,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
                 }
             }
         } catch (Exception e) {
-                    }
+        }
         return null;
     }
 

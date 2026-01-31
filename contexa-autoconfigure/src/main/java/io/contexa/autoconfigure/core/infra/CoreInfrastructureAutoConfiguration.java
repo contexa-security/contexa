@@ -9,6 +9,7 @@ import io.contexa.contexacore.config.RedisKeyCleanup;
 import io.contexa.contexacore.config.RedissonConfiguration;
 import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
+import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -38,5 +39,12 @@ public class CoreInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public RedisKeyCleanup redisKeyCleanup(RedisTemplate<String, Object> redisTemplate) {
         return new RedisKeyCleanup(redisTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.security.async", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public AsyncSecurityContextProvider asyncSecurityContextProvider(RedisTemplate<String, Object> redisTemplate) {
+        return new AsyncSecurityContextProvider(redisTemplate);
     }
 }

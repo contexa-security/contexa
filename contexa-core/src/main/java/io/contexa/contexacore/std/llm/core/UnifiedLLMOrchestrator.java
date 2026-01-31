@@ -54,6 +54,19 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
                     var promptSpec = chatClient.prompt(context.getPrompt());
 
+                    String eventUserId = context.getUserId();
+                    String eventSessionId = context.getSessionId();
+                    if ((eventUserId != null && !eventUserId.isEmpty()) || (eventSessionId != null && !eventSessionId.isEmpty())) {
+                        promptSpec = promptSpec.advisors(spec -> {
+                            if (eventUserId != null && !eventUserId.isEmpty()) {
+                                spec.param("event.userId", eventUserId);
+                            }
+                            if (eventSessionId != null && !eventSessionId.isEmpty()) {
+                                spec.param("event.sessionId", eventSessionId);
+                            }
+                        });
+                    }
+
                     if (context.getChatOptions() != null) {
                         promptSpec = promptSpec.options(context.getChatOptions());
                     } else if (context.getTemperature() != null || context.getMaxTokens() != null ||
@@ -152,6 +165,19 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                     ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
                     var promptSpec = chatClient.prompt(context.getPrompt());
+
+                    String eventUserId = context.getUserId();
+                    String eventSessionId = context.getSessionId();
+                    if ((eventUserId != null && !eventUserId.isEmpty()) || (eventSessionId != null && !eventSessionId.isEmpty())) {
+                        promptSpec = promptSpec.advisors(spec -> {
+                            if (eventUserId != null && !eventUserId.isEmpty()) {
+                                spec.param("event.userId", eventUserId);
+                            }
+                            if (eventSessionId != null && !eventSessionId.isEmpty()) {
+                                spec.param("event.sessionId", eventSessionId);
+                            }
+                        });
+                    }
 
                     if (context.getChatOptions() != null) {
                         promptSpec = promptSpec.options(context.getChatOptions());

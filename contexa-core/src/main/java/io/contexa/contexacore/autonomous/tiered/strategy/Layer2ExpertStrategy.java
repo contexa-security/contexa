@@ -136,6 +136,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         .securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
                         .timeoutMs((int) timeoutMs)
                         .requestId(event.getEventId())
+                        .userId(event.getUserId())
+                        .sessionId(event.getSessionId())
                         .temperature(0.0)
                         .topP(1.0)
                         .build();

@@ -107,7 +107,8 @@
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-core\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacore\\\\std\\\\rag\\\\etl\\\\BehaviorMetadataEnricher.java\")",
       "Bash(.\\\\gradlew :contexa-core:compileJava :contexa-autoconfigure:compileJava --no-daemon -q:*)",
       "Bash(.mvnw.cmd compile:*)",
-      "Bash(.\\\\gradlew :contexa-identity:compileJava:*)"
+      "Bash(.\\\\gradlew :contexa-identity:compileJava:*)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

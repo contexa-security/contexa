@@ -111,6 +111,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         .securityTaskType(ExecutionContext.SecurityTaskType.CONTEXTUAL_ANALYSIS)
                         .timeoutMs((int) llmTimeoutMs)
                         .requestId(event.getEventId())
+                        .userId(event.getUserId())
+                        .sessionId(event.getSessionId())
                         .temperature(0.0)
                         .topP(1.0)
                         .build();
