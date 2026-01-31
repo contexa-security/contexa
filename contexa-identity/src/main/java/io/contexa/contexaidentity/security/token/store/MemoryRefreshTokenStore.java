@@ -107,17 +107,4 @@ public class MemoryRefreshTokenStore extends AbstractRefreshTokenStore {
             return false;
         }
     }
-
-    public void cleanupExpiredBlacklistEntries() {
-        Instant now = Instant.now();
-
-        blacklistByToken.entrySet().removeIf(entry ->
-                entry.getValue().getExpiration() != null && now.isAfter(entry.getValue().getExpiration())
-        );
-
-        store.entrySet().removeIf(entry ->
-                now.isAfter(entry.getValue().getExpiration())
-        );
-
-            }
 }

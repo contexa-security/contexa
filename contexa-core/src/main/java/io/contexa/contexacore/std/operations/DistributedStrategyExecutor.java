@@ -6,7 +6,6 @@ import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
 import lombok.extern.slf4j.Slf4j;
@@ -23,11 +22,9 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
 
     @Autowired
     public DistributedStrategyExecutor(PipelineOrchestrator orchestrator,
-                                       RedisEventPublisher eventPublisher,
                                        AIStrategyRegistry strategyRegistry) {
         this.orchestrator = orchestrator;
         this.strategyRegistry = strategyRegistry;
-
     }
 
     public <R extends AIResponse> R executeDistributedStrategy(AIRequest<T> request,

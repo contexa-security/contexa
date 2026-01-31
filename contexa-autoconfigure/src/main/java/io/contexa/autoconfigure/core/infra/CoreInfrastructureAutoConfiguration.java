@@ -1,6 +1,5 @@
 package io.contexa.autoconfigure.core.infra;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.config.ApplicationConfig;
 import io.contexa.contexacore.config.AsyncConfig;
@@ -9,9 +8,7 @@ import io.contexa.contexacore.config.OpenTelemetryConfiguration;
 import io.contexa.contexacore.config.RedisKeyCleanup;
 import io.contexa.contexacore.config.RedissonConfiguration;
 import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -41,13 +38,5 @@ public class CoreInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public RedisKeyCleanup redisKeyCleanup(RedisTemplate<String, Object> redisTemplate) {
         return new RedisKeyCleanup(redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RedisEventPublisher redisEventPublisher(
-            @Qualifier("eventRedisTemplate") RedisTemplate<String, Object> redisTemplate,
-            ObjectMapper objectMapper) {
-        return new RedisEventPublisher(redisTemplate, objectMapper);
     }
 }

@@ -11,7 +11,6 @@ import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
 import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -294,13 +293,12 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AsyncResultDeliveryService asyncResultDeliveryService(
             ToolExecutionContextRepository executionRepository,
-            RedisEventPublisher eventPublisher,
             UnifiedNotificationService notificationService,
             RedisTemplate<String, Object> redisTemplate,
             SimpMessagingTemplate messagingTemplate,
             ObjectMapper objectMapper) {
         return new AsyncResultDeliveryService(
-                executionRepository, eventPublisher, notificationService,
+                executionRepository, notificationService,
                 redisTemplate, messagingTemplate, objectMapper);
     }
 

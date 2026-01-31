@@ -3,9 +3,6 @@ package io.contexa.contexaidentity.security.token.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
-import io.contexa.contexaidentity.security.token.management.EnhancedRefreshTokenStore;
-import io.contexa.contexaidentity.security.token.management.EnhancedRefreshTokenStore.ClientInfo;
-import io.contexa.contexaidentity.security.token.management.EnhancedRefreshTokenStore.TokenAction;
 import io.contexa.contexaidentity.security.token.store.RefreshTokenStore;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -37,7 +34,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
@@ -57,18 +53,6 @@ public class OAuth2TokenService implements TokenService {
     private final TokenTransportStrategy transportStrategy;
 
     private static final String CLIENT_REGISTRATION_ID = "aidc-internal";
-
-    public OAuth2TokenService(
-            OAuth2AuthorizedClientManager authorizedClientManager,
-            ClientRegistrationRepository clientRegistrationRepository,
-            OAuth2AuthorizationService authorizationService,
-            RefreshTokenStore refreshTokenStore,
-            TokenValidator tokenValidator,
-            JwtDecoder jwtDecoder,
-            AuthContextProperties properties) {
-        this(authorizedClientManager, clientRegistrationRepository, authorizationService,
-                refreshTokenStore, tokenValidator, jwtDecoder, properties, new ObjectMapper(), null);
-    }
 
     public OAuth2TokenService(
             OAuth2AuthorizedClientManager authorizedClientManager,
@@ -99,14 +83,10 @@ public class OAuth2TokenService implements TokenService {
         this.properties = properties;
         this.objectMapper = objectMapper;
         this.transportStrategy = transportStrategy;
-
-            }
+    }
 
     public TokenPair createTokenPair(Authentication authentication, @Nullable String deviceId) {
         Assert.notNull(authentication, "authentication cannot be null");
-
-        if (log.isDebugEnabled()) {
-                    }
 
         OAuth2AuthorizeRequest.Builder builder = OAuth2AuthorizeRequest
                 .withClientRegistrationId(CLIENT_REGISTRATION_ID)
@@ -150,34 +130,23 @@ public class OAuth2TokenService implements TokenService {
 
         if (refreshToken != null) {
             refreshTokenStore.save(refreshToken.getTokenValue(), authentication.getName());
-
-            if (log.isDebugEnabled()) {
-                            }
         }
 
-        TokenPair tokenPair = TokenPair.builder()
+        return TokenPair.builder()
                 .accessToken(accessTokenValue)
                 .refreshToken(refreshTokenValue)
                 .accessTokenExpiresAt(accessToken.getExpiresAt())
                 .refreshTokenExpiresAt(refreshToken != null ? refreshToken.getExpiresAt() : null)
                 .scope(accessToken.getScopes() != null ? String.join(" ", accessToken.getScopes()) : null)
                 .build();
-
-        if (log.isInfoEnabled()) {
-                    }
-
-        return tokenPair;
     }
 
     @Override
     public TokenPair createTokenPair(Authentication authentication, @Nullable String deviceId,
-                                    HttpServletRequest request, HttpServletResponse response) {
+                                     HttpServletRequest request, HttpServletResponse response) {
         Assert.notNull(authentication, "authentication cannot be null");
         Assert.notNull(request, "request cannot be null");
         Assert.notNull(response, "response cannot be null");
-
-        if (log.isDebugEnabled()) {
-                    }
 
         OAuth2AuthorizeRequest.Builder builder = OAuth2AuthorizeRequest
                 .withClientRegistrationId(CLIENT_REGISTRATION_ID)
@@ -208,33 +177,23 @@ public class OAuth2TokenService implements TokenService {
 
         if (refreshToken != null) {
             refreshTokenStore.save(refreshToken.getTokenValue(), authentication.getName());
-
-            if (log.isDebugEnabled()) {
-                            }
         }
 
-        TokenPair tokenPair = TokenPair.builder()
+        return TokenPair.builder()
                 .accessToken(accessTokenValue)
                 .refreshToken(refreshTokenValue)
                 .accessTokenExpiresAt(accessToken.getExpiresAt())
                 .refreshTokenExpiresAt(refreshToken != null ? refreshToken.getExpiresAt() : null)
                 .scope(accessToken.getScopes() != null ? String.join(" ", accessToken.getScopes()) : null)
                 .build();
-
-        if (log.isInfoEnabled()) {
-                    }
-
-        return tokenPair;
     }
 
     @Override
-    @Deprecated(since = "2025.01", forRemoval = false)
     public String createAccessToken(Authentication authentication, String deviceId) {
         return createTokenPair(authentication, deviceId).getAccessToken();
     }
 
     @Override
-    @Deprecated(since = "2025.01", forRemoval = false)
     public String createRefreshToken(Authentication authentication, String deviceId) {
         TokenPair tokenPair = createTokenPair(authentication, deviceId);
         return tokenPair.getRefreshToken();
@@ -255,17 +214,6 @@ public class OAuth2TokenService implements TokenService {
             log.error("Refresh token not found or expired in RefreshTokenStore");
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("invalid_token", "Refresh token not found or expired", null));
-        }
-
-        if (refreshTokenStore instanceof EnhancedRefreshTokenStore enhanced) {
-            if (enhanced.isTokenReused(refreshToken)) {
-                log.error("Token reuse attack detected! User: {}", username);
-                
-                enhanced.revokeAllUserTokens(username, "Token reuse detected");
-                throw new OAuth2AuthenticationException(
-                        new OAuth2Error("token_reuse_detected",
-                                "Security breach detected - all tokens revoked", null));
-            }
         }
 
         OAuth2Authorization authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
@@ -293,16 +241,6 @@ public class OAuth2TokenService implements TokenService {
                 authorities
         );
 
-        OAuth2AccessToken existingAccessToken = authorization.getAccessToken().getToken();
-        OAuth2RefreshToken existingRefreshToken = Objects.requireNonNull(authorization.getRefreshToken()).getToken();
-
-        OAuth2AuthorizedClient existingClient = new OAuth2AuthorizedClient(
-                clientRegistration,
-                principalName,
-                existingAccessToken,
-                existingRefreshToken
-        );
-
         OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
                 .withClientRegistrationId(CLIENT_REGISTRATION_ID)
                 .principal(authentication)
@@ -320,19 +258,7 @@ public class OAuth2TokenService implements TokenService {
         OAuth2RefreshToken newRefreshTokenObj = refreshedClient.getRefreshToken();
         String newRefreshToken = (newRefreshTokenObj != null)
                 ? newRefreshTokenObj.getTokenValue()
-                : refreshToken; 
-
-        if (refreshTokenStore instanceof EnhancedRefreshTokenStore enhanced) {
-            ClientInfo clientInfo = getCurrentClientInfo();
-            String deviceId = extractDeviceId(refreshToken);
-
-            if (!newRefreshToken.equals(refreshToken)) {
-                                enhanced.rotate(refreshToken, newRefreshToken, username, deviceId, clientInfo);
-            } else {
-                
-                                enhanced.recordUsage(refreshToken, TokenAction.REUSED, clientInfo);
-            }
-        }
+                : refreshToken;
 
         return new RefreshResult(newAccessToken, newRefreshToken);
     }
@@ -370,10 +296,10 @@ public class OAuth2TokenService implements TokenService {
         var authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
         if (authorization != null) {
             authorizationService.remove(authorization);
-                    }
+        }
 
         refreshTokenStore.blacklist(refreshToken, username, reason);
-            }
+    }
 
     @Override
     public ObjectMapper getObjectMapper() {
@@ -383,7 +309,6 @@ public class OAuth2TokenService implements TokenService {
     @Override
     public TokenTransportResult prepareTokensForTransport(String accessToken, @Nullable String refreshToken) {
         if (transportStrategy != null) {
-            
             TokenService.TokenServicePropertiesProvider propertiesProvider = new TokenService.TokenServicePropertiesProvider() {
                 @Override
                 public long getAccessTokenValidity() {
@@ -402,7 +327,7 @@ public class OAuth2TokenService implements TokenService {
 
                 @Override
                 public boolean isCookieSecure() {
-                    return false; 
+                    return false;
                 }
 
                 @Override
@@ -471,7 +396,6 @@ public class OAuth2TokenService implements TokenService {
 
     @Override
     public String resolveAccessToken(HttpServletRequest request) {
-        
         String bearerToken = request.getHeader(ACCESS_TOKEN_HEADER);
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
             return bearerToken.substring(BEARER_PREFIX.length());
@@ -481,7 +405,6 @@ public class OAuth2TokenService implements TokenService {
 
     @Override
     public String resolveRefreshToken(HttpServletRequest request) {
-        
         return request.getHeader(REFRESH_TOKEN_HEADER);
     }
 
@@ -496,7 +419,6 @@ public class OAuth2TokenService implements TokenService {
     }
 
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
-        
         Object rolesObj = jwt.getClaim("roles");
         if (rolesObj instanceof Collection<?>) {
             return ((Collection<?>) rolesObj).stream()
@@ -513,25 +435,5 @@ public class OAuth2TokenService implements TokenService {
         }
 
         return java.util.Collections.emptyList();
-    }
-
-    private String extractDeviceId(String token) {
-        try {
-            Jwt jwt = jwtDecoder.decode(token);
-            String deviceId = jwt.getClaim("deviceId");
-            return deviceId != null ? deviceId : "unknown";
-        } catch (Exception e) {
-                        return "unknown";
-        }
-    }
-
-    private ClientInfo getCurrentClientInfo() {
-                return new ClientInfo(
-                "127.0.0.1",
-                "Mozilla/5.0",
-                "device-fingerprint",
-                "Seoul, KR",
-                Instant.now()
-        );
     }
 }

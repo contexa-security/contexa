@@ -1,12 +1,7 @@
 package io.contexa.contexaidentity.security.token.store;
 
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacommon.properties.AuthContextProperties;
-import io.contexa.contexaidentity.security.token.management.EnhancedRefreshTokenStore;
-import io.contexa.contexaidentity.security.token.management.RefreshTokenAnomalyDetector;
-import io.contexa.contexaidentity.security.token.management.RefreshTokenManagementService;
-import io.contexa.contexaidentity.security.token.management.TokenChainManager;
+import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -14,30 +9,19 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtException;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Slf4j
-public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements EnhancedRefreshTokenStore {
+public class RedisRefreshTokenStore extends AbstractRefreshTokenStore {
 
     private static final String TOKEN_KEY_PREFIX = "refresh_token:";
     private static final String USER_DEVICES_KEY_PREFIX = "user:devices:";
     private static final String BLACKLIST_TOKEN_KEY = "blacklist:token";
     private static final String BLACKLIST_DEVICE_KEY = "blacklist:device";
-    private static final String LOCK_KEY_PREFIX = "token:lock:";
-    private static final String TOKEN_USAGE_PREFIX = "token:usage:";
-    private static final String TOKEN_METADATA_PREFIX = "token:metadata:";
 
     private final StringRedisTemplate redisTemplate;
-    private final RedisDistributedLockService lockService;
-
-    private final TokenChainManager tokenChainManager;
-    private final RefreshTokenAnomalyDetector anomalyDetector;
-    private final RefreshTokenManagementService managementService;
-    private final boolean enhancedSecurityEnabled;
 
     private static final String SAVE_TOKEN_SCRIPT =
             "local tokenKey = KEYS[1] " +
@@ -62,87 +46,10 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
 
     public RedisRefreshTokenStore(StringRedisTemplate redisTemplate,
                                   JwtDecoder jwtDecoder,
-                                  AuthContextProperties props) {
-        this(redisTemplate, jwtDecoder, props, null, null, null, null, null);
-    }
-
-    public RedisRefreshTokenStore(StringRedisTemplate redisTemplate,
-                                  JwtDecoder jwtDecoder,
                                   AuthContextProperties props,
-                                  RedisDistributedLockService lockService,
-                                  RedisEventPublisher eventPublisher) {
-        this(redisTemplate, jwtDecoder, props, lockService, eventPublisher, null, null, null);
-    }
-
-    public RedisRefreshTokenStore(StringRedisTemplate redisTemplate,
-                                  JwtDecoder jwtDecoder,
-                                  AuthContextProperties props,
-                                  RedisDistributedLockService lockService,
-                                  RedisEventPublisher eventPublisher,
-                                  TokenChainManager tokenChainManager,
-                                  RefreshTokenAnomalyDetector anomalyDetector,
-                                  RefreshTokenManagementService managementService) {
+                                  RedisDistributedLockService lockService) {
         super(jwtDecoder, props);
         this.redisTemplate = redisTemplate;
-        this.lockService = lockService;
-        this.tokenChainManager = tokenChainManager;
-        this.anomalyDetector = anomalyDetector;
-        this.managementService = managementService;
-
-        this.enhancedSecurityEnabled = tokenChainManager != null || anomalyDetector != null;
-
-            }
-
-    @Override
-    public void save(String refreshToken, String username) {
-        Objects.requireNonNull(refreshToken, "refreshToken cannot be null");
-        Objects.requireNonNull(username, "username cannot be null");
-
-        if (enhancedSecurityEnabled && anomalyDetector != null) {
-            String deviceId = extractDeviceId(refreshToken);
-            ClientInfo clientInfo = getCurrentClientInfo();
-            AnomalyDetectionResult anomaly = anomalyDetector.detectAnomaly(username, deviceId, clientInfo);
-
-            if (anomaly.isAnomalous() && isCriticalAnomalyType(anomaly.type())) {
-                log.error("Critical anomaly detected for user: {}. Type: {}, Score: {}",
-                        username, anomaly.type(), anomaly.riskScore());
-                throw new SecurityException("Token save rejected due to security risk");
-            }
-        }
-
-        String lockKey = LOCK_KEY_PREFIX + username;
-
-        if (lockService != null) {
-            try {
-                lockService.executeWithLock(lockKey, Duration.ofSeconds(5), () -> {
-                    doSaveWithEnhancements(refreshToken, username);
-                    return null;
-                });
-            } catch (RedisDistributedLockService.LockAcquisitionException e) {
-                log.error("Failed to acquire lock for saving token. User: {}", username, e);
-                throw new RuntimeException("Token save failed due to lock acquisition failure", e);
-            }
-        } else {
-            doSaveWithEnhancements(refreshToken, username);
-        }
-    }
-
-    private void doSaveWithEnhancements(String refreshToken, String username) {
-        
-        super.save(refreshToken, username);
-
-        if (enhancedSecurityEnabled && tokenChainManager != null) {
-            String deviceId = extractDeviceId(refreshToken);
-            tokenChainManager.startNewChain(refreshToken, username, deviceId);
-        }
-
-        if (enhancedSecurityEnabled) {
-            recordUsage(refreshToken, TokenAction.CREATED, getCurrentClientInfo());
-        }
-
-        if (managementService != null) {
-            managementService.updateTokenStatistics(username, "ISSUED");
-        }
     }
 
     @Override
@@ -165,10 +72,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
                 deviceId,
                 String.valueOf(ttlSeconds)
         );
-
-        if (enhancedSecurityEnabled) {
-            saveTokenMetadata(token, username, deviceId, expiration);
-        }
     }
 
     @Override
@@ -208,7 +111,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
         long ttlSeconds = calculateTtlSeconds(expiration);
 
         if (ttlSeconds > 0) {
-            
             redisTemplate.opsForSet().add(BLACKLIST_TOKEN_KEY, token);
 
             String infoKey = BLACKLIST_TOKEN_KEY + ":" + token;
@@ -263,7 +165,6 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
         }
 
         try {
-            
             Jwt jwt = jwtDecoder.decode(token);
 
             String subject = jwt.getSubject();
@@ -278,268 +179,14 @@ public class RedisRefreshTokenStore extends AbstractRefreshTokenStore implements
             );
 
         } catch (JwtException e) {
-                        return false;
+            return false;
         } catch (Exception e) {
             log.error("Unexpected error during isBlacklisted check. Error: {}", e.getMessage(), e);
             return false;
         }
     }
 
-    @Override
-    public void rotate(String oldToken, String newToken, String username, String deviceId, ClientInfo clientInfo) {
-        if (!enhancedSecurityEnabled) {
-            
-            remove(oldToken);
-            save(newToken, username);
-            return;
-        }
-
-        if (tokenChainManager != null && tokenChainManager.isTokenUsed(oldToken)) {
-            log.error("Token reuse attack detected! Token: {}, User: {}", oldToken, username);
-            revokeAllUserTokens(username, "Token reuse detected");
-            throw new TokenChainManager.TokenReuseException("Token has already been used");
-        }
-
-        if (anomalyDetector != null) {
-            AnomalyDetectionResult anomaly = anomalyDetector.detectAnomaly(username, deviceId, clientInfo);
-
-            if (anomaly.isAnomalous()) {
-                log.warn("Anomaly detected during token rotation. User: {}, Type: {}",
-                        username, anomaly.type());
-            }
-        }
-
-        if (tokenChainManager != null) {
-            tokenChainManager.rotateToken(oldToken, newToken, username, deviceId);
-        }
-
-        remove(oldToken);
-        save(newToken, username);
-
-        recordUsage(oldToken, TokenAction.ROTATED, clientInfo);
-        recordUsage(newToken, TokenAction.CREATED, clientInfo);
-
-        if (managementService != null) {
-            managementService.updateTokenStatistics(username, "REFRESHED");
-        }
-    }
-
-    @Override
-    public void recordUsage(String token, TokenAction action, ClientInfo clientInfo) {
-        if (!enhancedSecurityEnabled) {
-            return;
-        }
-
-        String key = TOKEN_USAGE_PREFIX + token;
-
-        String username = "unknown";
-        try {
-            
-            Jwt jwt = jwtDecoder.decode(token);
-            username = jwt.getSubject(); 
-        } catch (Exception e) {
-                    }
-
-        Map<String, String> usage = new HashMap<>();
-        usage.put("username", username); 
-        usage.put("action", action.name());
-        usage.put("timestamp", Instant.now().toString());
-        usage.put("ip", clientInfo.ipAddress());
-        usage.put("userAgent", clientInfo.userAgent());
-        usage.put("location", clientInfo.location());
-
-        redisTemplate.opsForHash().putAll(key, usage);
-        redisTemplate.expire(key, 30, TimeUnit.DAYS);
-
-            }
-
-    @Override
-    public boolean isTokenReused(String token) {
-        return enhancedSecurityEnabled && tokenChainManager != null && tokenChainManager.isTokenUsed(token);
-    }
-
-    @Override
-    public AnomalyDetectionResult detectAnomaly(String username, String deviceId, ClientInfo clientInfo) {
-        if (!enhancedSecurityEnabled || anomalyDetector == null) {
-            return new AnomalyDetectionResult(false, AnomalyType.NONE, "Anomaly detection disabled", 0.0);
-        }
-        return anomalyDetector.detectAnomaly(username, deviceId, clientInfo);
-    }
-
-    @Override
-    public void revokeAllUserTokens(String username, String reason) {
-
-        for (String deviceId : doGetUserDevices(username)) {
-            doRemoveToken(username, deviceId);
-            blacklistDevice(username, deviceId, reason);
-        }
-
-        if (managementService != null) {
-            managementService.updateTokenStatistics(username, "REVOKED");
-        }
-    }
-
-    @Override
-    public void revokeDeviceTokens(String username, String deviceId, String reason) {
-        
-        doRemoveToken(username, deviceId);
-        blacklistDevice(username, deviceId, reason);
-
-        if (managementService != null) {
-            managementService.updateTokenStatistics(username, "REVOKED");
-        }
-    }
-
-    @Override
-    public List<TokenUsageHistory> getTokenHistory(String username, int limit) {
-        if (!enhancedSecurityEnabled) {
-            return Collections.emptyList();
-        }
-
-        log.warn("Using keys() for token history - not recommended for production. Consider using scan() or indexed structure.");
-
-        String pattern = TOKEN_USAGE_PREFIX + "*";
-        Set<String> keys = redisTemplate.keys(pattern);
-
-        List<TokenUsageHistory> history = new ArrayList<>();
-
-        if (keys != null) {
-            for (String key : keys) {
-                Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
-                if (username.equals(data.get("username"))) {
-                    history.add(mapToTokenUsageHistory(key, data));
-                }
-            }
-        }
-
-        return history.stream()
-                .sorted((a, b) -> b.timestamp().compareTo(a.timestamp()))
-                .limit(limit)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public List<ActiveSession> getActiveSessions(String username) {
-        List<ActiveSession> sessions = new ArrayList<>();
-
-        for (String deviceId : doGetUserDevices(username)) {
-            TokenInfo tokenInfo = doGetTokenInfo(username, deviceId);
-            if (tokenInfo != null) {
-                sessions.add(createActiveSession(username, deviceId, tokenInfo));
-            }
-        }
-
-        return sessions;
-    }
-
-    @Override
-    public Optional<TokenMetadata> getTokenMetadata(String token) {
-        if (!enhancedSecurityEnabled) {
-            return Optional.empty();
-        }
-
-        String key = TOKEN_METADATA_PREFIX + token;
-        Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
-
-        if (data.isEmpty()) {
-            return Optional.empty();
-        }
-
-        return Optional.of(mapToTokenMetadata(data));
-    }
-
     private long calculateTtlSeconds(Instant expiration) {
         return Math.max(0, expiration.toEpochMilli() / 1000 - Instant.now().toEpochMilli() / 1000);
-    }
-
-    private void publishTokenSavedEvent(String username, String deviceId) {
-        Map<String, Object> data = new HashMap<>();
-        data.put("deviceId", deviceId);
-    }
-
-    private String extractDeviceId(String token) {
-        try {
-            
-            Jwt jwt = jwtDecoder.decode(token);
-            String deviceId = jwt.getClaim("deviceId");
-            return deviceId != null ? deviceId : "unknown";
-        } catch (Exception e) {
-                        return "unknown";
-        }
-    }
-
-    private boolean isCriticalAnomalyType(AnomalyType type) {
-        if (type == null) return false;
-        return switch (type) {
-            case REUSED_TOKEN, GEOGRAPHIC_ANOMALY, DEVICE_MISMATCH, RAPID_REFRESH -> true;
-            default -> false;
-        };
-    }
-
-    private ClientInfo getCurrentClientInfo() {
-                return new ClientInfo(
-                "127.0.0.1",
-                "Mozilla/5.0",
-                "device-fingerprint",
-                "Seoul, KR",
-                Instant.now()
-        );
-    }
-
-    private void saveTokenMetadata(String token, String username, String deviceId, Instant expiration) {
-        String key = TOKEN_METADATA_PREFIX + token;
-
-        Map<String, String> metadata = new HashMap<>();
-        metadata.put("username", username);
-        metadata.put("deviceId", deviceId);
-        metadata.put("issuedAt", Instant.now().toString());
-        metadata.put("expiresAt", expiration.toString());
-        metadata.put("lastUsedAt", Instant.now().toString());
-        metadata.put("usageCount", "1");
-        metadata.put("isActive", "true");
-
-        redisTemplate.opsForHash().putAll(key, metadata);
-        redisTemplate.expire(key, calculateTtlSeconds(expiration), TimeUnit.SECONDS);
-    }
-
-    private TokenUsageHistory mapToTokenUsageHistory(String key, Map<Object, Object> data) {
-        return new TokenUsageHistory(
-                key.replace(TOKEN_USAGE_PREFIX, ""),
-                TokenAction.valueOf((String) data.get("action")),
-                new ClientInfo(
-                        (String) data.get("ip"),
-                        (String) data.get("userAgent"),
-                        null,
-                        (String) data.get("location"),
-                        Instant.parse((String) data.get("timestamp"))
-                ),
-                Instant.parse((String) data.get("timestamp")),
-                true
-        );
-    }
-
-    private ActiveSession createActiveSession(String username, String deviceId, TokenInfo tokenInfo) {
-        return new ActiveSession(
-                deviceId,
-                "Device " + deviceId,
-                "127.0.0.1",
-                "Seoul, KR",
-                Instant.now(),
-                tokenInfo.getExpiration().minusSeconds(7 * 24 * 60 * 60), 
-                false
-        );
-    }
-
-    private TokenMetadata mapToTokenMetadata(Map<Object, Object> data) {
-        return new TokenMetadata(
-                (String) data.get("username"),
-                (String) data.get("deviceId"),
-                Instant.parse((String) data.get("issuedAt")),
-                Instant.parse((String) data.get("expiresAt")),
-                Instant.parse((String) data.get("lastUsedAt")),
-                Integer.parseInt((String) data.getOrDefault("usageCount", "0")),
-                (String) data.get("tokenChainId"),
-                Boolean.parseBoolean((String) data.getOrDefault("isActive", "true"))
-        );
     }
 }

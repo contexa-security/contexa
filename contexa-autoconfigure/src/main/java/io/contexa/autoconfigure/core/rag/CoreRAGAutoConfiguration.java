@@ -6,7 +6,6 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
@@ -21,7 +20,6 @@ import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
@@ -39,7 +37,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -72,10 +69,8 @@ public class CoreRAGAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public DistributedSessionManager distributedSessionManager(
-            RedisEventPublisher eventPublisher,
             AuditLogger auditLogger) {
-        return new DistributedSessionManager(
-                eventPublisher, auditLogger);
+        return new DistributedSessionManager(auditLogger);
     }
 
     @Bean
@@ -102,9 +97,8 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean
     public DistributedStrategyExecutor distributedStrategyExecutor(
             PipelineOrchestrator orchestrator,
-            RedisEventPublisher eventPublisher,
             AIStrategyRegistry strategyRegistry) {
-        return new DistributedStrategyExecutor(orchestrator, eventPublisher, strategyRegistry);
+        return new DistributedStrategyExecutor(orchestrator, strategyRegistry);
     }
 
     @Bean

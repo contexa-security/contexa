@@ -5,7 +5,6 @@ import io.contexa.contexacore.exception.AIOperationException;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -15,12 +14,10 @@ import java.util.UUID;
 @Slf4j
 public class DistributedSessionManager<T extends DomainContext> {
 
-    private final RedisEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
     @Autowired
-    public DistributedSessionManager(RedisEventPublisher eventPublisher, AuditLogger auditLogger) {
-        this.eventPublisher = eventPublisher;
+    public DistributedSessionManager(AuditLogger auditLogger) {
         this.auditLogger = auditLogger;
     }
 
@@ -65,18 +62,7 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
 
     private void updateSessionState(String sessionId, String phase, Map<String, Object> phaseData) {
-        try {
-
-            eventPublisher.publishEvent("ai:strategy:phase:updated", Map.of(
-                "sessionId", sessionId,
-                "phase", phase,
-                "timestamp", System.currentTimeMillis(),
-                "phaseData", phaseData
-            ));
-            
-        } catch (Exception e) {
-            log.error("Failed to update session state for {}: {}", sessionId, e.getMessage());
-        }
+        log.debug("Session state updated - sessionId: {}, phase: {}", sessionId, phase);
     }
     
     private Map<String, Object> prepareStrategyContext(AIRequest<T> request, String strategyId) {
@@ -93,20 +79,12 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
 
     private void publishSessionCreationEvent(String sessionId, String strategyId, AIRequest<T> request) {
-        eventPublisher.publishEvent("ai:strategy:session:created", Map.of(
-            "sessionId", sessionId,
-            "strategyId", strategyId,
-            "requestType", request.getClass().getSimpleName(),
-            "timestamp", System.currentTimeMillis()
-        ));
+        log.debug("Session created - sessionId: {}, strategyId: {}, requestType: {}",
+                sessionId, strategyId, request.getClass().getSimpleName());
     }
-    
+
     private void publishExecutionCompletionEvent(String sessionId, AIRequest<T> request, boolean success) {
-        eventPublisher.publishEvent("ai:strategy:execution:completed", Map.of(
-            "sessionId", sessionId,
-            "requestType", request.getClass().getSimpleName(),
-            "success", success,
-            "timestamp", System.currentTimeMillis()
-        ));
+        log.debug("Execution completed - sessionId: {}, requestType: {}, success: {}",
+                sessionId, request.getClass().getSimpleName(), success);
     }
 } 

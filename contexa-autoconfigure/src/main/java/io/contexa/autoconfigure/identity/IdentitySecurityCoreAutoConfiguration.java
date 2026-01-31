@@ -6,7 +6,6 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.FlowConfigurer;
@@ -31,8 +30,6 @@ import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessH
 import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
-import io.contexa.contexaidentity.security.token.management.RefreshTokenAnomalyDetector;
-import io.contexa.contexaidentity.security.token.management.TokenChainManager;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.writer.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.writer.JsonAuthResponseWriter;
@@ -354,19 +351,4 @@ public class IdentitySecurityCoreAutoConfiguration {
         return new JdbcUserCredentialRepository(jdbcOperations);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public RefreshTokenAnomalyDetector refreshTokenAnomalyDetector(
-            StringRedisTemplate redisTemplate,
-            RedisEventPublisher redisEventPublisher) {
-        return new RefreshTokenAnomalyDetector(redisTemplate, redisEventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public TokenChainManager tokenChainManager(
-            StringRedisTemplate redisTemplate,
-            RedisDistributedLockService lockService) {
-        return new TokenChainManager(redisTemplate, lockService);
-    }
 }

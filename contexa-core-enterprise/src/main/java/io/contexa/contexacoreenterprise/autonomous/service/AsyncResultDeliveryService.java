@@ -1,7 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.service;
 
 import io.contexa.contexacore.domain.SoarResponse;
-import io.contexa.contexacore.infra.redis.RedisEventPublisher;
 import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacoreenterprise.domain.entity.ToolExecutionContext;
@@ -30,7 +29,6 @@ import java.util.stream.Collectors;
 public class AsyncResultDeliveryService {
 
     private final ToolExecutionContextRepository executionRepository;
-    private final RedisEventPublisher eventPublisher;
     private final UnifiedNotificationService notificationService;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
@@ -234,22 +232,13 @@ public class AsyncResultDeliveryService {
     private Mono<Boolean> publishToRedis(String requestId, SoarResponse response) {
         return Mono.fromCallable(() -> {
             try {
-                Map<String, Object> event = new HashMap<>();
-                event.put("requestId", requestId);
-                event.put("type", "SOAR_RESULT");
-                event.put("recommendations", response.getRecommendations());
-                event.put("riskLevel", response.getThreatLevel());
-                event.put("timestamp", LocalDateTime.now());
-                
-                eventPublisher.publishEvent("soar-results", event);
-
                 String key = "soar:result:" + requestId;
                 redisTemplate.opsForValue().set(key, response, resultTtlHours, TimeUnit.HOURS);
-                
-                                channelMetrics.computeIfAbsent(DeliveryChannel.REDIS, k -> new AtomicLong()).incrementAndGet();
+
+                channelMetrics.computeIfAbsent(DeliveryChannel.REDIS, k -> new AtomicLong()).incrementAndGet();
                 return true;
             } catch (Exception e) {
-                log.error("Redis 이벤트 발행 실패 - Request ID: {}", requestId, e);
+                log.error("Redis save failed - Request ID: {}", requestId, e);
                 return false;
             }
         })
