@@ -26,29 +26,20 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
     public void publishGenericSecurityEvent(ZeroTrustSpringEvent event) {
         long startTime = System.currentTimeMillis();
 
-        try {
-
             String topic = String.format("security.events.%s.%s",
                     event.getCategory().name().toLowerCase(),
                     event.getEventType().toLowerCase());
 
             String key = generateEventKey(event);
-
-            CompletableFuture<SendResult<String, Object>> future =
-                    kafkaTemplate.send(topic, key, event);
-
+            CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(topic, key, event);
             future.whenComplete((result, ex) -> {
-                long duration = System.currentTimeMillis() - startTime;
-                log.error("[KafkaPublisher] Failed to publish ZeroTrust event - category={}, type={}, error: {}, duration={}ms",
-                        event.getCategory(), event.getEventType(), ex.getMessage(), duration, ex);
-                sendToDeadLetterQueue(event, ex);
+                if(ex != null) {
+                    long duration = System.currentTimeMillis() - startTime;
+                    log.error("[KafkaPublisher] Failed to publish ZeroTrust event - category={}, type={}, error: {}, duration={}ms",
+                            event.getCategory(), event.getEventType(), ex.getMessage(), duration, ex);
+                    sendToDeadLetterQueue(event, ex);
+                }
             });
-
-        } catch (Exception e) {
-            log.error("[KafkaPublisher] Error publishing ZeroTrust event - category={}, type={}, error: {}",
-                    event.getCategory(), event.getEventType(), e.getMessage(), e);
-            sendToDeadLetterQueue(event, e);
-        }
     }
 
     private String generateEventKey(ZeroTrustSpringEvent event) {
