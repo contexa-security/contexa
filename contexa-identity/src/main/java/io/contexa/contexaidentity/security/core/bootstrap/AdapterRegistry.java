@@ -73,7 +73,7 @@ public class AdapterRegistry {
             }
             String flowTypeNameLower = flow.getTypeName().toLowerCase();
 
-            if (AuthType.MFA.name().equals(flowTypeNameLower)) {
+            if (AuthType.MFA.name().equalsIgnoreCase(flowTypeNameLower)) {
                 AuthenticationAdapter mfaBaseAdapter = authAdapter.get(AuthType.MFA.name());
                 if (mfaBaseAdapter != null) {
                     featuresToApply.add(mfaBaseAdapter);
