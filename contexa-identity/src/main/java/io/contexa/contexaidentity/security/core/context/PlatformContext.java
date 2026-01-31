@@ -18,8 +18,9 @@ public interface PlatformContext {
     <T> void share(Class<T> clz, T obj);
 
     <T> T getShared(Class<T> clz);
-    
+
     void registerHttp(AuthenticationFlowConfig flow, HttpSecurity http);
+
     HttpSecurity http(AuthenticationFlowConfig flow);
 
     List<FlowContext> flowContexts();

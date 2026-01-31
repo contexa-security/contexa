@@ -50,9 +50,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private MfaAsepAttributes mfaAsepAttributes;
     private MfaPageConfig mfaPageConfig;
 
-    private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
-
-    private final String mfaFlowTypeName = AuthType.MFA.name().toLowerCase(); 
+    private final String mfaFlowTypeName = AuthType.MFA.name().toLowerCase();
 
     public MfaDslConfigurerImpl(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null");
@@ -159,10 +157,6 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 return this;
     }
 
-    public MfaPageConfig getMfaPageConfig() {
-        return this.mfaPageConfig;
-    }
-
     @Override
     public AuthenticationFlowConfig build() {
         PrimaryAuthenticationOptions primaryAuthOptionsForFlow = null;
@@ -243,7 +237,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             }
         }
 
-        this.mfaAuthenticationEntryPoint = createMfaAuthenticationEntryPoint(primaryAuthOptionsForFlow);
+        MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint = createMfaAuthenticationEntryPoint(primaryAuthOptionsForFlow);
 
         return flowConfigBuilder
                 .typeName(AuthType.MFA.name().toLowerCase())
@@ -257,7 +251,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
                 .mfaAsepAttributes(this.mfaAsepAttributes)
                 .mfaPageConfig(this.mfaPageConfig)
-                .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
+                .mfaAuthenticationEntryPoint(mfaAuthenticationEntryPoint)
                 .build();
     }
 
@@ -278,8 +272,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
             throw new DslConfigurationException("Failed to retrieve ObjectMapper bean from ApplicationContext for MfaAuthenticationEntryPoint", e);
         }
 
-        MfaAuthenticationEntryPoint entryPoint = new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl, this.mfaPageConfig);
-        return entryPoint;
+        return new MfaAuthenticationEntryPoint(objectMapper, loginPageUrl, this.mfaPageConfig);
     }
 }
 

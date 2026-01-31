@@ -13,21 +13,22 @@ import java.util.Objects;
 @Setter
 @ToString
 public class AuthenticationStepConfig {
-    private String stepId; 
-    private boolean isPrimary; 
-    private String type;   
-    private AuthType authType;   
+    private String stepId;
+    private boolean isPrimary;
+    private String type;
+    private AuthType authType;
     private final Map<String, Object> options = new HashMap<>();
     private int order = 0;
-    
-    private boolean required = true; 
 
-    public AuthenticationStepConfig() {}
+    private boolean required = true;
+
+    public AuthenticationStepConfig() {
+    }
 
     public AuthenticationStepConfig(String type, int order) {
         this.type = type;
         this.order = order;
-        
+
     }
 
     public AuthenticationStepConfig(String flowName, String type, int order, boolean isPrimary) {
@@ -55,7 +56,7 @@ public class AuthenticationStepConfig {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AuthenticationStepConfig that = (AuthenticationStepConfig) o;
-        
+
         return order == that.order &&
                 required == that.required &&
                 Objects.equals(stepId, that.stepId) &&

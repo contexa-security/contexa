@@ -22,7 +22,7 @@ public final class AuthenticationFlowConfig {
     private final String typeName;
     private final int order;
     private final StateConfig stateConfig;
-    private final Customizer<HttpSecurity> rawHttpCustomizer; 
+    private final Customizer<HttpSecurity> rawHttpCustomizer;
 
     private final PrimaryAuthenticationOptions primaryAuthenticationOptions;
     private final MfaPolicyProvider mfaPolicyProvider;
@@ -32,7 +32,7 @@ public final class AuthenticationFlowConfig {
     private final boolean defaultDeviceTrustEnabled;
     private final MfaAsepAttributes mfaAsepAttributes;
     private final MfaPageConfig mfaPageConfig;
-    private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; 
+    private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
     private final List<AuthenticationStepConfig> stepConfigs;
 
     private AuthenticationFlowConfig(Builder builder) {
@@ -47,8 +47,8 @@ public final class AuthenticationFlowConfig {
         this.registeredFactorOptions = builder.registeredFactorOptions != null ? Collections.unmodifiableMap(new LinkedHashMap<>(builder.registeredFactorOptions)) : Collections.emptyMap();
         this.defaultDeviceTrustEnabled = builder.defaultDeviceTrustEnabled;
         this.mfaAsepAttributes = builder.mfaAsepAttributes;
-        this.mfaPageConfig = builder.mfaPageConfig; 
-        this.mfaAuthenticationEntryPoint = builder.mfaAuthenticationEntryPoint; 
+        this.mfaPageConfig = builder.mfaPageConfig;
+        this.mfaAuthenticationEntryPoint = builder.mfaAuthenticationEntryPoint;
         this.stepConfigs = builder.stepConfigs != null ?
                 Collections.unmodifiableList(new ArrayList<>(builder.stepConfigs)) :
                 Collections.emptyList();
@@ -80,7 +80,8 @@ public final class AuthenticationFlowConfig {
         private String typeName;
         private int order = 0;
         private StateConfig stateConfig;
-        private Customizer<HttpSecurity> rawHttpCustomizer = http -> {};
+        private Customizer<HttpSecurity> rawHttpCustomizer = http -> {
+        };
 
         private PrimaryAuthenticationOptions primaryAuthenticationOptions;
         private MfaPolicyProvider mfaPolicyProvider;
@@ -89,8 +90,8 @@ public final class AuthenticationFlowConfig {
         private Map<AuthType, AuthenticationProcessingOptions> registeredFactorOptions = new LinkedHashMap<>();
         private boolean defaultDeviceTrustEnabled;
         private MfaAsepAttributes mfaAsepAttributes;
-        private MfaPageConfig mfaPageConfig; 
-        private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint; 
+        private MfaPageConfig mfaPageConfig;
+        private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
         private List<AuthenticationStepConfig> stepConfigs = new ArrayList<>();
 
         public Builder(String typeName) {
@@ -108,37 +109,63 @@ public final class AuthenticationFlowConfig {
             this.order = order;
             return this;
         }
-        public Builder stateConfig(StateConfig stateConfig) { this.stateConfig = stateConfig; return this; }
+
+        public Builder stateConfig(StateConfig stateConfig) {
+            this.stateConfig = stateConfig;
+            return this;
+        }
+
         public Builder rawHttpCustomizer(Customizer<HttpSecurity> customizer) {
             this.rawHttpCustomizer = customizer;
             return this;
         }
+
         public Builder stepConfigs(List<AuthenticationStepConfig> steps) {
             this.stepConfigs = (steps != null) ? new ArrayList<>(steps) : Collections.emptyList();
             return this;
         }
 
-        public Builder primaryAuthenticationOptions(PrimaryAuthenticationOptions opts) { this.primaryAuthenticationOptions = opts; return this; }
+        public Builder primaryAuthenticationOptions(PrimaryAuthenticationOptions opts) {
+            this.primaryAuthenticationOptions = opts;
+            return this;
+        }
+
         public Builder registeredFactorOptions(Map<AuthType, AuthenticationProcessingOptions> options) {
             this.registeredFactorOptions = (options != null) ? new LinkedHashMap<>(options) : new LinkedHashMap<>();
             return this;
         }
-        public Builder mfaPolicyProvider(MfaPolicyProvider provider) { this.mfaPolicyProvider = provider; return this; }
-        public Builder mfaFailureHandler(AuthenticationFailureHandler handler) { this.mfaFailureHandler = handler; return this; }
-        public Builder finalSuccessHandler(AuthenticationSuccessHandler handler) { this.finalSuccessHandler = handler; return this; }
-        public Builder defaultDeviceTrustEnabled(boolean enabled) { this.defaultDeviceTrustEnabled = enabled; return this; }
+
+        public Builder mfaPolicyProvider(MfaPolicyProvider provider) {
+            this.mfaPolicyProvider = provider;
+            return this;
+        }
+
+        public Builder mfaFailureHandler(AuthenticationFailureHandler handler) {
+            this.mfaFailureHandler = handler;
+            return this;
+        }
+
+        public Builder finalSuccessHandler(AuthenticationSuccessHandler handler) {
+            this.finalSuccessHandler = handler;
+            return this;
+        }
+
+        public Builder defaultDeviceTrustEnabled(boolean enabled) {
+            this.defaultDeviceTrustEnabled = enabled;
+            return this;
+        }
 
         public Builder mfaAsepAttributes(MfaAsepAttributes attributes) {
             this.mfaAsepAttributes = attributes;
             return this;
         }
 
-        public Builder mfaPageConfig(MfaPageConfig pageConfig) { 
+        public Builder mfaPageConfig(MfaPageConfig pageConfig) {
             this.mfaPageConfig = pageConfig;
             return this;
         }
 
-        public Builder mfaAuthenticationEntryPoint(MfaAuthenticationEntryPoint entryPoint) { 
+        public Builder mfaAuthenticationEntryPoint(MfaAuthenticationEntryPoint entryPoint) {
             this.mfaAuthenticationEntryPoint = entryPoint;
             return this;
         }
@@ -146,7 +173,7 @@ public final class AuthenticationFlowConfig {
         public AuthenticationFlowConfig build() {
             if (AuthType.MFA.name().equalsIgnoreCase(typeName)) {
                 Assert.notNull(primaryAuthenticationOptions, "PrimaryAuthenticationOptions must be set for MFA flow named '" + typeName + "'");
-                
+
                 Assert.isTrue(this.stepConfigs != null && this.stepConfigs.size() > 1, "MFA flow must have its primary and at least one secondary factor step configured in stepConfigs field.");
             } else {
                 Assert.isTrue(this.stepConfigs != null && !this.stepConfigs.isEmpty(),

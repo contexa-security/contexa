@@ -34,7 +34,6 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
 
     protected AbstractRestAuthenticationConfigurer() {
         this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
-        ;
     }
 
     @Override

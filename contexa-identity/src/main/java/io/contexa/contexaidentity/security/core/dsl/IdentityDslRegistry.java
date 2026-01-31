@@ -56,7 +56,6 @@ public final class IdentityDslRegistry<H extends HttpSecurityBuilder<H>>
 
     @Override
     public PlatformConfig build() {
-        PlatformConfig config = platformBuilder.build();
-                return config;
+        return platformBuilder.build();
     }
 }

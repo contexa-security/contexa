@@ -204,9 +204,8 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public FlowContextFactory flowContextFactory(AdapterRegistry adapterRegistry,
-            ApplicationContext applicationContext) {
-        return new FlowContextFactory(adapterRegistry, applicationContext);
+    public FlowContextFactory flowContextFactory(ApplicationContext applicationContext) {
+        return new FlowContextFactory(applicationContext);
     }
 
     @Bean

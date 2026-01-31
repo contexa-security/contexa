@@ -53,8 +53,7 @@ public final class PlatformConfig {
         }
 
         public PlatformConfig build() {
-
-            return new PlatformConfig(this); 
+            return new PlatformConfig(this);
         }
     }
 }

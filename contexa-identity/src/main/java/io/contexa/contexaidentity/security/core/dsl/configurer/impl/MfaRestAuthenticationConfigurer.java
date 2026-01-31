@@ -15,7 +15,6 @@ public final class MfaRestAuthenticationConfigurer<H extends HttpSecurityBuilder
 
     @Override
     public void init(H http){
-        // mfaInitiateUrl uses default value "/mfa"
     }
 
     @Override

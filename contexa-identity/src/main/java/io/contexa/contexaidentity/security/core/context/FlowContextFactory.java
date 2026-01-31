@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.core.context;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.bootstrap.AdapterRegistry;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -20,11 +21,9 @@ import java.util.function.Supplier;
 public class FlowContextFactory {
 
     private static final Logger log = LoggerFactory.getLogger(FlowContextFactory.class);
-    private final AdapterRegistry adapterRegistry;
-    private final ApplicationContext applicationContext; 
+    private final ApplicationContext applicationContext;
 
-    public FlowContextFactory(AdapterRegistry adapterRegistry, ApplicationContext applicationContext) {
-        this.adapterRegistry = Objects.requireNonNull(adapterRegistry, "featureRegistry cannot be null");
+    public FlowContextFactory(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "applicationContext cannot be null");
     }
 
@@ -36,42 +35,43 @@ public class FlowContextFactory {
         }
 
         for (AuthenticationFlowConfig flowCfg : config.getFlows()) {
-            
+
             HttpSecurity http = platformContext.newHttp();
-            
+
             platformContext.registerHttp(flowCfg, http);
 
             http.setSharedObject(AuthenticationFlowConfig.class, flowCfg);
-            
+
             http.setSharedObject(PlatformContext.class, platformContext);
             FlowContext fc = new FlowContext(flowCfg, http, platformContext, config);
-            setupSharedObjectsForFlow(fc); 
+            setupSharedObjectsForFlow(fc);
             flows.add(fc);
         }
         flows.sort(Comparator.comparingInt(f -> f.flow().getOrder()));
-                return flows;
+        return flows;
     }
 
     private void setupSharedObjectsForFlow(io.contexa.contexaidentity.security.core.context.FlowContext fc) {
         HttpSecurity http = fc.http();
         AuthenticationFlowConfig flowConfig = fc.flow();
-        ApplicationContext appContext = this.applicationContext; 
+        ApplicationContext appContext = this.applicationContext;
 
-        boolean isMfaFlow = "mfa".equalsIgnoreCase(flowConfig.getTypeName());
+        boolean isMfaFlow = AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName());
         if (isMfaFlow) {
-                        
+
             setSharedObjectIfAbsent(http, MfaPolicyProvider.class, () -> {
-                
+
                 MfaPolicyProvider dslProvider = flowConfig.getMfaPolicyProvider();
                 if (dslProvider != null) {
-                                        return dslProvider;
+                    return dslProvider;
                 }
-                
-                                return appContext.getBean(MfaPolicyProvider.class);
+
+                return appContext.getBean(MfaPolicyProvider.class);
             });
             setSharedObjectIfAbsent(http, ObjectMapper.class, ObjectMapper::new);
         }
     }
+
     private <T> void setSharedObjectIfAbsent(HttpSecurity http, Class<T> type, Supplier<T> supplier) {
         if (http.getSharedObject(type) == null) {
             try {
