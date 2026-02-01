@@ -2,7 +2,6 @@ package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
-import io.contexa.contexaiam.admin.web.monitoring.controller.MetricsDashboardController;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.admin.web.monitoring.service.DashboardService;
 import io.contexa.contexaiam.admin.web.monitoring.service.DashboardServiceImpl;
@@ -28,13 +27,6 @@ public class IamAdminMonitoringAutoConfiguration {
         return new DashboardController(dashboardService);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public MetricsDashboardController metricsDashboardController() {
-        return new MetricsDashboardController();
-    }
-
-    
     @Bean
     @ConditionalOnMissingBean
     public DashboardService dashboardService(
