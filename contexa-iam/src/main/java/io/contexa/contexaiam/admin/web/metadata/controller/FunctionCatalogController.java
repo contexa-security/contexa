@@ -14,7 +14,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.stereotype.Controller;
+
 @Slf4j
+@Controller
 @RequestMapping("/admin/catalog")
 public class FunctionCatalogController {
 
@@ -82,6 +85,7 @@ public class FunctionCatalogController {
     }
 
     @PostMapping("/batch-status")
+    @ResponseBody
     public ResponseEntity<?> batchUpdateStatus(@RequestBody Map<String, Object> payload) {
         List<Integer> idsAsInteger = (List<Integer>) payload.get("ids");
         List<Long> ids = idsAsInteger.stream().map(Integer::longValue).toList();

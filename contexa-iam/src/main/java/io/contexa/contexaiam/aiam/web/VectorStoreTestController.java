@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@RestController
 @RequestMapping("/api/vectorstore/test")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")

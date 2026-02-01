@@ -16,6 +16,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.stereotype.Controller;
+
+@Controller
 @RequestMapping("/admin/policies")
 @RequiredArgsConstructor
 @Slf4j

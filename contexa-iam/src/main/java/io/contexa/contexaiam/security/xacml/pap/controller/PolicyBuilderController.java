@@ -31,6 +31,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.springframework.stereotype.Controller;
+
+@Controller
 @RequestMapping("/admin/policy-builder")
 @RequiredArgsConstructor
 @Slf4j
@@ -391,6 +394,7 @@ public class PolicyBuilderController {
     }
 
     @PostMapping("/api/build")
+    @ResponseBody
     public ResponseEntity<Policy> buildPolicy(@RequestBody VisualPolicyDto visualPolicyDto) {
         Policy createdPolicy = policyBuilderService.buildPolicyFromVisualComponents(visualPolicyDto);
         return ResponseEntity.ok(createdPolicy);

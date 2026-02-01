@@ -13,8 +13,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@RestController
 @RequestMapping("/api/soar/incidents")
-
 public class SoarIncidentController {
 
     private final SoarIncidentService incidentService;

@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
+@RestController
 @RequestMapping("/api/ai/policies")
 @RequiredArgsConstructor
 public class AIPolicyApprovalController {

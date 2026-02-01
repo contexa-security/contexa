@@ -23,6 +23,7 @@ import reactor.core.publisher.Mono;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@RestController
 @RequestMapping("/api/ai/studio")
 @RequiredArgsConstructor
 @Slf4j

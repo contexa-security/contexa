@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 
 @Slf4j
+@RestController
 @RequestMapping("/api/ai/behavior-analysis")
 @RequiredArgsConstructor
 public class BehavioralAnalysisController {

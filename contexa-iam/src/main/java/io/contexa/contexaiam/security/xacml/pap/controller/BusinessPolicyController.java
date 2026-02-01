@@ -12,6 +12,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Map;
 import java.util.HashMap;
 
+import org.springframework.stereotype.Controller;
+
+@Controller
 @RequestMapping("/admin/authoring")
 @RequiredArgsConstructor
 public class BusinessPolicyController {
@@ -45,6 +48,7 @@ public class BusinessPolicyController {
         private final BusinessMetadataService businessMetadataService;
 
         @GetMapping("/metadata")
+        @ResponseBody
         public ResponseEntity<Map<String, Object>> getPolicyAuthoringMetadata() {
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("subjects", businessMetadataService.getAllUsersAndGroups());

@@ -24,7 +24,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.Map;
 
+import org.springframework.stereotype.Controller;
+
 @Slf4j
+@Controller
 @RequestMapping("/admin/policy-wizard")
 @RequiredArgsConstructor
 public class PolicyWizardController {
@@ -91,18 +94,21 @@ public class PolicyWizardController {
     }
 
     @PostMapping("/{contextId}/subjects")
+    @ResponseBody
     public ResponseEntity<WizardContext> saveSubjects(@PathVariable String contextId, @RequestBody SaveSubjectsRequest request) {
                 WizardContext updatedContext = wizardService.updateSubjects(contextId, request);
         return ResponseEntity.ok(updatedContext);
     }
 
     @PostMapping("/{contextId}/permissions")
+    @ResponseBody
     public ResponseEntity<WizardContext> savePermissions(@PathVariable String contextId, @RequestBody SavePermissionsRequest request) {
                 WizardContext updatedContext = wizardService.updatePermissions(contextId, request);
         return ResponseEntity.ok(updatedContext);
     }
 
     @PostMapping("/{contextId}/commit")
+    @ResponseBody
     public ResponseEntity<Map<String, Object>> commitPolicy(
             @PathVariable String contextId,
             @RequestBody CommitWizardRequest request) {

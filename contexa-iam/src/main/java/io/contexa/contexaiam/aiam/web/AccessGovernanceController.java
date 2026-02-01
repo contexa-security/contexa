@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
+@RestController
 @RequestMapping("/api/ai/access-governance")
 @RequiredArgsConstructor
 public class AccessGovernanceController {

@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import java.util.List;
 
+import org.springframework.stereotype.Controller;
+
+@Controller
 @RequiredArgsConstructor
 public class UserController {
 
@@ -46,6 +49,7 @@ public class UserController {
     }
 
     @GetMapping("/api/users")
+    @ResponseBody
     public ResponseEntity<List<UserDto>> users() {
         List<UserDto> users = userRepository.findAll().stream()
                 .map(user -> modelMapper.map(user, UserDto.class))

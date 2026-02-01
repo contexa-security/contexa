@@ -18,7 +18,10 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.Map;
 
+import org.springframework.stereotype.Controller;
+
 @Slf4j
+@Controller
 @RequestMapping("/admin/granting-wizard")
 @RequiredArgsConstructor
 public class GrantingWizardController {
@@ -92,6 +95,7 @@ public class GrantingWizardController {
     }
 
     @PostMapping("/{contextId}/commit")
+    @ResponseBody
     public ResponseEntity<Map<String, String>> commitAssignments(
             @PathVariable String contextId,
             @RequestBody AssignmentChangeDto finalAssignments,

@@ -21,6 +21,9 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import java.util.Map;
 import java.util.Set;
 
+import org.springframework.stereotype.Controller;
+
+@Controller
 @RequestMapping("/admin/workbench/resources")
 @RequiredArgsConstructor
 @Slf4j

@@ -12,6 +12,9 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.springframework.stereotype.Controller;
+
+@Controller
 @Slf4j
 public class WebSocketTestMessageController {
 

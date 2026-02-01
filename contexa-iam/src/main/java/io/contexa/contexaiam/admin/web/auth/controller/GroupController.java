@@ -9,6 +9,7 @@ import io.contexa.contexacommon.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -17,7 +18,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequestMapping("/admin/groups") 
+@Controller
+@RequestMapping("/admin/groups")
 @RequiredArgsConstructor
 public class GroupController {
 

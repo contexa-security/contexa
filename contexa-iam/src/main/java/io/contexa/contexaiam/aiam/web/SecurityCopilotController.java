@@ -27,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.springframework.stereotype.Controller;
+
+@Controller
 @RequiredArgsConstructor
 @Slf4j
 public class SecurityCopilotController {

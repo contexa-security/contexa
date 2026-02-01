@@ -10,7 +10,8 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@RequestMapping("/api/admin/catalog") 
+@RestController
+@RequestMapping("/api/admin/catalog")
 @RequiredArgsConstructor
 public class FunctionCatalogApiController {
 
