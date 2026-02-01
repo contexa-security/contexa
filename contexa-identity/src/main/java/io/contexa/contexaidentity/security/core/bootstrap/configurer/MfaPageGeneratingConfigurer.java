@@ -57,16 +57,13 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     applicationContext.getBean(AuthUrlProvider.class);
 
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
-                    flowConfig,              // DSL 설정 전체 전달
+                    flowConfig,
                     stateMachineIntegrator,
-                    authUrlProvider          // URL 우선순위 로직 제공
+                    authUrlProvider
             );
 
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
-            flowContext.http().addFilterBefore(
-                    mfaPageFilter,
-                    UsernamePasswordAuthenticationFilter.class
-            );
+            flowContext.http().addFilterBefore(mfaPageFilter, UsernamePasswordAuthenticationFilter.class);
 
             registerMfaAuthenticationEntryPoint(flowContext, flowConfig);
 

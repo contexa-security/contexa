@@ -1,5 +1,7 @@
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
@@ -28,6 +30,13 @@ public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
     public void configure(FlowContext fc) throws Exception {
         if (zeroTrustChallengeFilter == null) {
             log.warn("ZeroTrustChallengeFilter is not available, skipping registration");
+            return;
+        }
+
+        AuthenticationFlowConfig flowConfig = fc.flow();
+
+        if (!AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
+            log.debug("Skipping MfaPageGeneratingFilter for non-MFA flow: {}", flowConfig.getTypeName());
             return;
         }
 

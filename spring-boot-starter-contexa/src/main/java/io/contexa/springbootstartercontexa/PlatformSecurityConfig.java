@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -31,6 +32,7 @@ public class PlatformSecurityConfig {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
+                    .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers(
                                     "/css/**", "/js/**", "/images/**", "/favicon.ico",
@@ -66,7 +68,7 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-//                .form(form -> form.order(20).defaultSuccessUrl("/test/security")).session(Customizer.withDefaults())
+                .form(form -> form.loginPage("/login").order(20).defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
 //                .rest(rest -> rest.order(10)).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
@@ -75,17 +77,17 @@ public class PlatformSecurityConfig {
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
-                .mfa(mfa -> mfa
+                /*.mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.defaultSuccessUrl("/test/security").securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        /*.mfaPage(page ->
+                        *//*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*//*
                         .order(60)
-                ).session(Customizer.withDefaults())
+                ).session(Customizer.withDefaults())*/
                 .build();
     }
 }
