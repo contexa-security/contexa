@@ -17,7 +17,6 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAiamServiceStrategyAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean
     public DataIngestionServiceImpl dataIngestionService(
