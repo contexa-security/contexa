@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -23,7 +24,7 @@ import java.util.stream.Collectors;
 public class DataIngestionServiceImpl implements DataIngestionService {
 
     private final VectorStore vectorStore;
-    private final PolicyRepository policyRepository; 
+    private final PolicyRepository policyRepository;
     private final ObjectMapper objectMapper;
 
     @Async
@@ -38,7 +39,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
                         Map<String, Object> metadata = createMetadata(policy);
                         Document document = new Document(content, metadata);
                         vectorStore.add(List.of(document));
-                                            } catch (JsonProcessingException e) {
+                    } catch (JsonProcessingException e) {
                         log.error("Failed to serialize policy #{}", policy.getId(), e);
                     }
                 });
@@ -51,7 +52,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
     @Async
     @Override
     public void initialIndexing() {
-                List<Document> documents = policyRepository.findAllWithDetails().stream()
+        List<Document> documents = policyRepository.findAllWithDetails().stream()
                 .map(policy -> {
                     try {
                         String content = objectMapper.writeValueAsString(policy);
@@ -62,17 +63,16 @@ public class DataIngestionServiceImpl implements DataIngestionService {
                         return null;
                     }
                 })
-                .filter(doc -> doc != null)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toList());
 
         if (!documents.isEmpty()) {
             vectorStore.add(documents);
-                    } else {
-                    }
+        }
     }
 
     private Map<String, Object> createMetadata(Object entity) {
-        
+
         if (entity instanceof Policy policy) {
             return Map.of(
                     "entityType", "Policy",

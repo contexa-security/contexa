@@ -34,45 +34,6 @@ public class IamAiamServiceStrategyAutoConfiguration {
     
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ApprovalService.class)
-    public SoarActionService soarActionService(
-            @Autowired(required = false) ApprovalService approvalService) {
-        return new SoarActionService(approvalService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityCopilotMessageProvider securityCopilotMessageProvider() {
-        return new SecurityCopilotMessageProvider();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityCopilotValidationService securityCopilotValidationService(
-            SecurityCopilotMessageProvider messageProvider) {
-        return new SecurityCopilotValidationService(messageProvider);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ProtectableDataService protectableDataService(
-            CustomerDataRepository customerDataRepository) {
-        return new ProtectableDataService(customerDataRepository);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public BehaviorProfileService behaviorProfileService(
-            UserRepository userRepository,
-            UserBehaviorProfileRepository behaviorProfileRepository,
-            BehaviorAnomalyEventRepository anomalyEventRepository,
-            BehaviorBasedPermissionRepository permissionRepository) {
-        return new BehaviorProfileService(
-                userRepository, behaviorProfileRepository, anomalyEventRepository, permissionRepository);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public DataIngestionServiceImpl dataIngestionService(
             VectorStore vectorStore,
             PolicyRepository policyRepository,
@@ -82,56 +43,8 @@ public class IamAiamServiceStrategyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public RealTimeBehaviorMonitor realTimeBehaviorMonitor(
-            BehaviorRealtimeCacheRepository realtimeCacheRepository,
-            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
-        return new RealTimeBehaviorMonitor(realtimeCacheRepository, brokerTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SoarIncidentService soarIncidentService(
-            SoarIncidentRepository incidentRepository,
-            ApplicationEventPublisher eventPublisher) {
-        return new SoarIncidentService(incidentRepository, eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SoarToolCallingService.class)
-    public SoarSimulationService soarSimulationService(
-            SoarToolCallingService soarToolCallingService,
-            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
-        return new SoarSimulationService(soarToolCallingService, brokerTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public StaticAccessOptimizationService staticAccessOptimizationService(
-            AdvancedPolicyGenerationLab policyGenerationLab,
-            IAMDataCollectionService dataCollectionService,
-            MeterRegistry meterRegistry) {
-        return new StaticAccessOptimizationService(
-                policyGenerationLab, dataCollectionService, meterRegistry);
-    }
-
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public AccessGovernanceDiagnosisStrategy accessGovernanceDiagnosisStrategy(AILabFactory labFactory) {
-        return new AccessGovernanceDiagnosisStrategy(labFactory);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ConditionTemplateDiagnosisStrategy conditionTemplateDiagnosisStrategy(AILabFactory labFactory) {
         return new ConditionTemplateDiagnosisStrategy(labFactory);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DynamicThreatResponseSynthesisStrategy dynamicThreatResponseSynthesisStrategy(AILabFactory labFactory) {
-        return new DynamicThreatResponseSynthesisStrategy(labFactory);
     }
 
     @Bean
@@ -144,12 +57,6 @@ public class IamAiamServiceStrategyAutoConfiguration {
     @ConditionalOnMissingBean
     public ResourceNamingDiagnosisStrategy resourceNamingDiagnosisStrategy(AILabFactory labFactory) {
         return new ResourceNamingDiagnosisStrategy(labFactory);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityCopilotDiagnosisStrategy securityCopilotDiagnosisStrategy(AILabFactory labFactory) {
-        return new SecurityCopilotDiagnosisStrategy(labFactory);
     }
 
     @Bean

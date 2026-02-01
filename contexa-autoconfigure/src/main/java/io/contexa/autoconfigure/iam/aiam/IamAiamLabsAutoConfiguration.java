@@ -6,15 +6,10 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
-import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
-import io.contexa.contexaiam.aiam.components.retriever.AccessGovernanceContextRetriever;
 import io.contexa.contexaiam.aiam.components.retriever.ConditionTemplateContextRetriever;
-import io.contexa.contexaiam.aiam.labs.accessGovernance.AccessGovernanceLab;
-import io.contexa.contexaiam.aiam.labs.accessGovernance.AccessVectorService;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateGenerationLab;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateVectorService;
 import io.contexa.contexaiam.aiam.labs.data.IAMDataCollectionService;
@@ -24,20 +19,15 @@ import io.contexa.contexaiam.aiam.labs.policy.AdvancedPolicyGenerationLab;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingLab;
 import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingVectorService;
-import io.contexa.contexaiam.aiam.labs.securityCopilot.SecurityCopilotLab;
-import io.contexa.contexaiam.aiam.labs.securityCopilot.SecurityCopilotVectorService;
-import io.contexa.contexaiam.aiam.labs.securityCopilot.streaming.LabStreamMerger;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryLab;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.service.QueryIntentAnalyzer;
 import io.contexa.contexaiam.aiam.labs.studio.service.StudioQueryFormatter;
-import io.contexa.contexaiam.aiam.labs.synthesis.DynamicThreatResponseSynthesisLab;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
-import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
 
@@ -53,15 +43,7 @@ public class IamAiamLabsAutoConfiguration {
         return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public AccessVectorService accessVectorService(
-            VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new AccessVectorService(vectorStore, vectorStoreMetrics);
-    }
-
-    @Bean
+       @Bean
     @ConditionalOnMissingBean
     public StudioQueryVectorService studioQueryVectorService(
             VectorStore vectorStore,
@@ -85,15 +67,7 @@ public class IamAiamLabsAutoConfiguration {
         return new ConditionTemplateVectorService(vectorStore, vectorStoreMetrics);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityCopilotVectorService securityCopilotVectorService(
-            VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new SecurityCopilotVectorService(vectorStore, vectorStoreMetrics);
-    }
 
-    
     @Bean
     @ConditionalOnMissingBean
     public StudioQueryCollectionService studioQueryCollectionService(
@@ -139,28 +113,11 @@ public class IamAiamLabsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public LabStreamMerger labStreamMerger() {
-        return new LabStreamMerger();
-    }
-
-
-    @Bean
-    @ConditionalOnMissingBean
     public AdvancedPolicyGenerationLab advancedPolicyGenerationLab(
             PipelineOrchestrator orchestrator,
             IAMDataCollectionService dataCollectionService,
             PolicyGenerationVectorService vectorService) {
         return new AdvancedPolicyGenerationLab(orchestrator, dataCollectionService, vectorService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AccessGovernanceLab accessGovernanceLab(
-            PipelineOrchestrator orchestrator,
-            AccessGovernanceContextRetriever contextRetriever,
-            AccessVectorService accessVectorService,
-            ApplicationEventPublisher eventPublisher) {
-        return new AccessGovernanceLab(orchestrator, contextRetriever, accessVectorService, eventPublisher);
     }
 
     @Bean
@@ -191,25 +148,5 @@ public class IamAiamLabsAutoConfiguration {
             ObjectMapper objectMapper,
             ConditionTemplateVectorService vectorService) {
         return new ConditionTemplateGenerationLab(orchestrator, contextRetriever, objectMapper, vectorService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityCopilotLab securityCopilotLab(
-            PipelineOrchestrator orchestrator,
-            AILabFactory labFactory,
-            ObjectMapper objectMapper,
-            SecurityCopilotVectorService vectorService) {
-        return new SecurityCopilotLab(orchestrator, labFactory, objectMapper, vectorService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DynamicThreatResponseSynthesisLab dynamicThreatResponseSynthesisLab(
-            PipelineOrchestrator orchestrator,
-            AdvancedPolicyGenerationLab policyGenerationLab,
-            IAMDataCollectionService dataCollectionService,
-            MeterRegistry meterRegistry) {
-        return new DynamicThreatResponseSynthesisLab(orchestrator, policyGenerationLab, dataCollectionService, meterRegistry);
     }
 }

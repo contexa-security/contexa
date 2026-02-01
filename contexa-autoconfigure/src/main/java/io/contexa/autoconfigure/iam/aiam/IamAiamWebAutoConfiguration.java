@@ -1,23 +1,17 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexaiam.aiam.protocol.context.SecurityCopilotContext;
-import io.contexa.contexaiam.aiam.service.SecurityCopilotMessageProvider;
-import io.contexa.contexaiam.aiam.service.SecurityCopilotValidationService;
-import io.contexa.contexaiam.aiam.service.SoarActionService;
+import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
+import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.web.*;
 import io.contexa.contexaiam.properties.SecurityStepUpProperties;
-import io.contexa.contexaiam.service.PolicyService;
-import org.springframework.beans.factory.annotation.Qualifier;
+import io.contexa.contexaiam.repository.ConditionTemplateRepository;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 
 @AutoConfiguration
@@ -26,52 +20,18 @@ public class IamAiamWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityCopilotController securityCopilotController(
-            AICoreOperations<SecurityCopilotContext> aiNativeProcessor,
-            SecurityCopilotValidationService validationService,
-            SecurityCopilotMessageProvider messageProvider) {
-        return new SecurityCopilotController(aiNativeProcessor, validationService, messageProvider);
+    public AiStudioController aiStudioController(
+            AICoreOperations<StudioQueryContext> aiNativeProcessor) {
+        return new AiStudioController(aiNativeProcessor);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityPlaneController securityPlaneController() {
-        return new SecurityPlaneController();
-    }
-
-
-    @Bean
-    @ConditionalOnMissingBean
-    public WebSocketTestMessageController webSocketTestMessageController(
-            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
-        return new WebSocketTestMessageController(brokerTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public StepUpAuthController stepUpAuthController(
-            RedisTemplate<String, Object> redisTemplate,
-            PasswordEncoder passwordEncoder,
-            UserDetailsService userDetailsService) {
-        return new StepUpAuthController(redisTemplate, passwordEncoder, userDetailsService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SoarActionService.class)
-    public SoarActionController soarActionController(SoarActionService soarActionService) {
-        return new SoarActionController(soarActionService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AIPolicyApprovalViewController aiPolicyApprovalViewController() {
-        return new AIPolicyApprovalViewController();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AIPolicyApprovalController aiPolicyApprovalController(PolicyService policyService) {
-        return new AIPolicyApprovalController(policyService);
+    public AiApiController aiApiController(
+            AICoreOperations<PolicyContext> aiNativeProcessor,
+            ConditionTemplateRepository conditionTemplateRepository,
+            ManagedResourceRepository managedResourceRepository,
+            ConditionCompatibilityService conditionCompatibilityService) {
+        return new AiApiController(aiNativeProcessor, conditionTemplateRepository, managedResourceRepository, conditionCompatibilityService);
     }
 }

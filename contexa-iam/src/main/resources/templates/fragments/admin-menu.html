@@ -17,29 +17,10 @@
                 </li>
             </ul>
         </div>
-
-        <div>
-            <h3 class="section-title">통합 메트릭 대시보드</h3>
-            <ul class="space-y-1">
-                <li><a th:href="@{/admin/executive-overview}" class="menu-link-sub" style="color: #c084fc;"><span class="menu-bullet"></span>통합 대시보드<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/zerotrust-monitoring}" class="menu-link-sub" style="color: #60a5fa;"><span class="menu-bullet"></span>제로 트러스트<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/evolution-learning}" class="menu-link-sub" style="color: #10b981;"><span class="menu-bullet"></span>학습 & 진화<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/vectorstore-metrics}" class="menu-link-sub" style="color: #f59e0b;"><span class="menu-bullet"></span>VectorStore<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/tools-monitoring}" class="menu-link-sub" style="color: #8b5cf6;"><span class="menu-bullet"></span>도구 모니터링<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/system-overview}" class="menu-link-sub" style="color: #06b6d4;"><span class="menu-bullet"></span>시스템 개요<span class="menu-glow"></span></a></li>
-            </ul>
-        </div>
-
         <div>
             <h3 class="section-title">AI 보안 어드바이저</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/security-copilot}" class="menu-link-sub"><span class="menu-bullet"></span>Security Copilot<span class="menu-glow"></span></a></li>
                 <li><a th:href="@{/admin/studio}" class="menu-link-sub"><span class="menu-bullet"></span>Authorization Studio<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/behavior-analysis}" class="menu-link-sub"><span class="menu-bullet"></span>Behavior Analysis<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/access-governance}" class="menu-link-sub"><span class="menu-bullet"></span>Access Governance<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/soar-analysis}" class="menu-link-sub"><span class="menu-bullet"></span>Soar Analysis<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/security-plane}" class="menu-link-sub"><span class="menu-bullet"></span>Security Plane<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/dual-mode-simulation-enhanced}" class="menu-link-sub" style="color: #fbbf24;"><span class="menu-bullet"></span>레드/블루 시뮬레이션<span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
@@ -47,7 +28,6 @@
             <h3 class="section-title">인가 정책</h3>
             <ul class="space-y-1">
                 <li><a th:href="@{/admin/policies}" class="menu-link-sub"><span class="menu-bullet"></span>전체 정책 목록<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/authoring/policy-workbench}" class="menu-link-sub"><span class="menu-bullet"></span>비즈니스 정책 생성</a></li>
                 <li><a th:href="@{/admin/policy-builder}" class="menu-link-sub"><span class="menu-bullet"></span>시각적 정책 빌더</a></li>
             </ul>
         </div>
@@ -66,7 +46,6 @@
         <div>
             <h3 class="section-title">시스템 메타데이터</h3>
             <ul class="space-y-1">
-                <!-- [핵심 변경] 기존 '전체 리소스' 메뉴를 '리소스 워크벤치'로 변경 -->
                 <li>
                     <a th:href="@{/admin/workbench/resources}" class="menu-link-sub">
                         <span class="menu-bullet"></span>
@@ -74,16 +53,6 @@
                         <span class="menu-glow"></span>
                     </a>
                 </li>
-                <!--
-                   [변경 제안]
-                   FunctionCatalog 관련 메뉴들은 이제 '리소스 워크벤치'의 하위 개념 또는 통합된 기능이 되었습니다.
-                   메뉴 구조를 단순화하기 위해 주석 처리하거나, 필요 시 워크벤치 하위 메뉴로 재구성할 수 있습니다.
-                   여기서는 혼란을 줄이기 위해 주석 처리합니다.
-                -->
-                <!--
-                <li><a th:href="@{/admin/permissions/catalog}" class="menu-link-sub"><span class="menu-bullet"></span>권한 카탈로그<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/catalog}" class="menu-link-sub"><span class="menu-bullet"></span>기능 카탈로그 관리<span class="menu-glow"></span></a></li>
-                -->
             </ul>
         </div>
     </nav>
