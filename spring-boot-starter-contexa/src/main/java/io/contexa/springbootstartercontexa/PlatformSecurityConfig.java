@@ -38,7 +38,7 @@ public class PlatformSecurityConfig {
                                     "/css/**", "/js/**", "/images/**", "/favicon.ico",
                                     "/test/security",
                                     "/", "/authMode","/home",
-                                    "/loginForm", "/register","/login",
+                                    "/loginForm", "/register","/login","/admin/login",
                                     "/loginOtt", "/ott/sent",
                                     "/loginPasskey","/login/mfa-ott",
                                     "/mfa/select-factor","/mfa/ott/request-code-ui", "/mfa/challenge/ott",
@@ -68,7 +68,7 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-                .form(form -> form.loginPage("/login").order(20).defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
+                .form(form -> form.loginPage("/admin/login").order(20).defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
 //                .rest(rest -> rest.order(10)).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())

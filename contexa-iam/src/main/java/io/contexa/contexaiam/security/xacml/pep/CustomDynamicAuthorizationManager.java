@@ -90,7 +90,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 return manager.check(authenticationSupplier, context);
             }
         }
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(false);
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
         if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
