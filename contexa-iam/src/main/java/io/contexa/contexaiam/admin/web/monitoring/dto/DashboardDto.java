@@ -4,12 +4,11 @@ import io.contexa.contexaiam.admin.support.context.dto.RecentActivityDto;
 import java.util.List;
 
 public record DashboardDto(
-        long totalUserCount,
-        long activeSessionCount,
-        long inactiveUserCount,
-        long mfaMissingAdminCount,
+        StatisticsDto statistics,
         List<RecentActivityDto> recentActivities,
         List<RiskIndicatorDto> riskIndicators,
         SecurityScoreDto securityScore,
-        PermissionMatrixDto permissionMatrix
+        PermissionMatrixDto permissionMatrix,
+        PolicyStatusDto policyStatus,
+        List<AccessTrendDto> accessTrends
 ) {}

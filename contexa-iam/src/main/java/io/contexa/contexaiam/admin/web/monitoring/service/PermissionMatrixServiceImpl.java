@@ -35,9 +35,7 @@ public class PermissionMatrixServiceImpl implements PermissionMatrixService {
                 ? groupRepository.findAllById(filter.subjectIds())
                 : groupRepository.findAllWithRolesAndPermissions();
 
-        List<PermissionDto> permissions = permissionCatalogService.getAvailablePermissions().stream()
-                .limit(5)
-                .toList();
+        List<PermissionDto> permissions = permissionCatalogService.getAvailablePermissions();
 
         List<String> subjectNames = subjects.stream().map(Group::getName).collect(Collectors.toList());
         List<String> permissionDescriptions = permissions.stream().map(PermissionDto::getFriendlyName).collect(Collectors.toList());

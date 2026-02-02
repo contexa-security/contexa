@@ -10,8 +10,12 @@ import io.contexa.contexaiam.admin.web.monitoring.service.PermissionMatrixServic
 import io.contexa.contexaiam.admin.web.monitoring.service.SecurityScoreCalculator;
 import io.contexa.contexaiam.admin.web.monitoring.service.SecurityScoreCalculatorImpl;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
+import io.contexa.contexaiam.repository.PolicyRepository;
+import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -20,7 +24,6 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAdminMonitoringAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean
     public DashboardController dashboardController(DashboardService dashboardService) {
@@ -31,17 +34,40 @@ public class IamAdminMonitoringAutoConfiguration {
     @ConditionalOnMissingBean
     public DashboardService dashboardService(
             UserRepository userRepository,
+            GroupRepository groupRepository,
+            RoleRepository roleRepository,
+            PermissionRepository permissionRepository,
+            PolicyRepository policyRepository,
+            AuditLogRepository auditLogRepository,
+            RoleHierarchyRepository roleHierarchyRepository,
             UserContextService userContextService,
             SecurityScoreCalculator securityScoreCalculator,
             PermissionMatrixService permissionMatrixService) {
         return new DashboardServiceImpl(
-                userRepository, userContextService, securityScoreCalculator, permissionMatrixService);
+                userRepository,
+                groupRepository,
+                roleRepository,
+                permissionRepository,
+                policyRepository,
+                auditLogRepository,
+                roleHierarchyRepository,
+                userContextService,
+                securityScoreCalculator,
+                permissionMatrixService);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityScoreCalculator securityScoreCalculator(UserRepository userRepository) {
-        return new SecurityScoreCalculatorImpl(userRepository);
+    public SecurityScoreCalculator securityScoreCalculator(
+            UserRepository userRepository,
+            PolicyRepository policyRepository,
+            RoleHierarchyRepository roleHierarchyRepository,
+            AuditLogRepository auditLogRepository) {
+        return new SecurityScoreCalculatorImpl(
+                userRepository,
+                policyRepository,
+                roleHierarchyRepository,
+                auditLogRepository);
     }
 
     @Bean

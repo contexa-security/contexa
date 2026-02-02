@@ -43,10 +43,10 @@ public class GroupController {
     }
     @GetMapping("/register")
     public String registerGroupForm(Model model) {
-        model.addAttribute("group", new GroupDto()); 
-        model.addAttribute("roleList", roleService.getRoles()); 
-        model.addAttribute("selectedRoleIds", new HashSet<Long>()); 
-                return "admin/groupdetails";
+        model.addAttribute("group", new GroupDto());
+        model.addAttribute("roleList", roleService.getRoles());
+        model.addAttribute("selectedRoleIds", new HashSet<Long>());
+        return "admin/groupdetails";
     }
 
     @PostMapping

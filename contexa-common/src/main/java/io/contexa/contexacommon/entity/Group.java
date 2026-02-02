@@ -43,11 +43,12 @@ public class Group implements Serializable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Group group = (Group) o;
-        return id.equals(group.id); 
+        if (id == null || group.id == null) return false;
+        return id.equals(group.id);
     }
 
     @Override
     public int hashCode() {
-        return id.hashCode(); 
+        return id != null ? id.hashCode() : System.identityHashCode(this);
     }
 }

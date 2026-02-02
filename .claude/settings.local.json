@@ -108,7 +108,8 @@
       "Bash(.\\\\gradlew :contexa-core:compileJava :contexa-autoconfigure:compileJava --no-daemon -q:*)",
       "Bash(.mvnw.cmd compile:*)",
       "Bash(.\\\\gradlew :contexa-identity:compileJava:*)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(.\\\\gradlew :contexa-common:compileJava :contexa-iam:compileJava --no-daemon -q 2>&1:*)"
     ],
     "deny": [],
     "ask": []

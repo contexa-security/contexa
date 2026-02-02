@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='IAM 대시보드')}"></th:block>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='IAM Dashboard')}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             background-color: #0a0f1c !important;
@@ -31,7 +32,7 @@
             left: 100%;
         }
         .card-hover:hover {
-            transform: translateY(-8px) scale(1.02);
+            transform: translateY(-4px);
             box-shadow: 0 20px 40px rgba(0,0,0,0.4), 0 0 40px rgba(99, 102, 241, 0.3) !important;
         }
         .progress-ring__circle {
@@ -45,6 +46,16 @@
             border: 1px solid rgba(71, 85, 105, 0.5) !important;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3) !important;
         }
+        .stat-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid rgba(71, 85, 105, 0.4);
+            transition: all 0.3s ease;
+        }
+        .stat-card:hover {
+            background: rgba(30, 41, 59, 0.8);
+            border-color: rgba(99, 102, 241, 0.5);
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body class="flex flex-col min-h-screen">
@@ -57,43 +68,73 @@
     <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
 
         <div class="mb-8">
-            <h2 class="text-3xl font-bold text-white mb-6 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">빠른 작업</h2>
+            <h2 class="text-3xl font-bold text-white mb-6 bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">Quick Actions</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <a th:href="@{/admin/users/new}" class="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 text-white card-hover cursor-pointer block shadow-lg">
-                    <div class="bg-white/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                        <i class="fas fa-user-plus text-3xl"></i>
+                    <div class="bg-white/10 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-user-plus text-2xl"></i>
                     </div>
-                    <h3 class="font-bold text-xl mb-2">새 사용자 추가</h3>
-                    <p class="text-sm opacity-80">조직에 새 구성원 초대</p>
+                    <h3 class="font-bold text-lg mb-1">Add User</h3>
+                    <p class="text-sm opacity-80">Create new user account</p>
                 </a>
-                <a th:href="@{/admin/policy-wizard/start}" class="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-6 text-white card-hover cursor-pointer block shadow-lg">
-                    <div class="bg-white/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                        <i class="fas fa-magic text-3xl"></i>
+                <a th:href="@{/admin/policy-builder}" class="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl p-6 text-white card-hover cursor-pointer block shadow-lg">
+                    <div class="bg-white/10 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-shield-alt text-2xl"></i>
                     </div>
-                    <h3 class="font-bold text-xl mb-2">권한 부여 마법사</h3>
-                    <p class="text-sm opacity-80">간편하게 권한 설정</p>
+                    <h3 class="font-bold text-lg mb-1">Policy Builder</h3>
+                    <p class="text-sm opacity-80">Create access policies</p>
                 </a>
-                <a th:href="@{/admin/groups/new}" class="bg-gradient-to-br from-violet-600 to-violet-700 rounded-xl p-6 text-white card-hover cursor-pointer block shadow-lg">
-                    <div class="bg-white/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                        <i class="fas fa-users text-3xl"></i>
+                <a th:href="@{/admin/groups/register}" class="bg-gradient-to-br from-violet-600 to-violet-700 rounded-xl p-6 text-white card-hover cursor-pointer block shadow-lg">
+                    <div class="bg-white/10 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-users text-2xl"></i>
                     </div>
-                    <h3 class="font-bold text-xl mb-2">그룹 생성</h3>
-                    <p class="text-sm opacity-80">팀 또는 부서 그룹 구성</p>
+                    <h3 class="font-bold text-lg mb-1">Create Group</h3>
+                    <p class="text-sm opacity-80">Organize team structure</p>
                 </a>
                 <a th:href="@{/admin/studio}" class="bg-gradient-to-br from-amber-600 to-amber-700 rounded-xl p-6 text-white card-hover cursor-pointer block shadow-lg">
-                    <div class="bg-white/10 w-16 h-16 rounded-full flex items-center justify-center mb-4">
-                        <i class="fas fa-search-location text-3xl"></i>
+                    <div class="bg-white/10 w-14 h-14 rounded-full flex items-center justify-center mb-4">
+                        <i class="fas fa-microscope text-2xl"></i>
                     </div>
-                    <h3 class="font-bold text-xl mb-2">권한 분석</h3>
-                    <p class="text-sm opacity-80">Authorization Studio 실행</p>
+                    <h3 class="font-bold text-lg mb-1">Auth Studio</h3>
+                    <p class="text-sm opacity-80">Analyze permissions</p>
                 </a>
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-xl font-semibold text-white mb-4">System Overview</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <a th:href="@{/admin/users}" class="stat-card rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-blue-400" th:text="${dashboardData.statistics.totalUsers()}">0</div>
+                    <div class="text-sm text-slate-400 mt-1">Users</div>
+                </a>
+                <a th:href="@{/admin/groups}" class="stat-card rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-violet-400" th:text="${dashboardData.statistics.totalGroups()}">0</div>
+                    <div class="text-sm text-slate-400 mt-1">Groups</div>
+                </a>
+                <a th:href="@{/admin/roles}" class="stat-card rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-emerald-400" th:text="${dashboardData.statistics.totalRoles()}">0</div>
+                    <div class="text-sm text-slate-400 mt-1">Roles</div>
+                </a>
+                <a th:href="@{/admin/permissions}" class="stat-card rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-amber-400" th:text="${dashboardData.statistics.totalPermissions()}">0</div>
+                    <div class="text-sm text-slate-400 mt-1">Permissions</div>
+                </a>
+                <a th:href="@{/admin/policies}" class="stat-card rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold text-cyan-400" th:text="${dashboardData.statistics.totalPolicies()}">0</div>
+                    <div class="text-sm text-slate-400 mt-1">Policies</div>
+                </a>
+                <div class="stat-card rounded-xl p-4 text-center">
+                    <div class="text-3xl font-bold" th:classappend="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'text-emerald-400' : 'text-red-400'}" th:text="${dashboardData.statistics.mfaEnabledUsers()}">0</div>
+                    <div class="text-sm text-slate-400 mt-1">MFA Enabled</div>
+                </div>
             </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             <div class="glass-card rounded-xl p-6 flex flex-col justify-center items-center">
-                <h3 class="text-lg font-semibold text-slate-300 mb-4">종합 보안 점수</h3>
-                <div class="relative w-44 h-44 my-3">
+                <h3 class="text-lg font-semibold text-slate-300 mb-4">Security Score</h3>
+                <div class="relative w-40 h-40 my-2">
                     <svg class="w-full h-full" viewBox="0 0 100 100">
                         <circle class="text-slate-700" stroke-width="8" stroke="currentColor" fill="transparent" r="42" cx="50" cy="50" />
                         <circle class="progress-ring__circle"
@@ -103,36 +144,44 @@
                                 style="filter: drop-shadow(0 0 10px currentColor);"/>
                     </svg>
                     <div class="absolute inset-0 flex items-center justify-center">
-                        <span class="text-5xl font-bold text-white" th:text="${dashboardData.securityScore.score()}"></span>
+                        <span class="text-4xl font-bold text-white" th:text="${dashboardData.securityScore.score()}"></span>
                     </div>
                 </div>
                 <p class="text-slate-400 text-center text-sm mt-2" th:text="${dashboardData.securityScore.summary()}"></p>
+                <div class="mt-4 w-full space-y-2">
+                    <div th:each="factor : ${dashboardData.securityScore.factors()}" class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400" th:text="${factor.name()}"></span>
+                        <span class="font-semibold"
+                              th:classappend="${factor.value() >= 80 ? 'text-emerald-400' : (factor.value() >= 50 ? 'text-yellow-400' : 'text-red-400')}"
+                              th:text="${factor.value() + '%'}"></span>
+                    </div>
+                </div>
             </div>
 
             <div class="glass-card rounded-xl p-6 lg:col-span-2">
-                <h3 class="text-lg font-semibold text-white mb-4">주요 위험 지표</h3>
-                <div th:if="${#lists.isEmpty(dashboardData.riskIndicators())}" class="text-center text-slate-400 py-12">
-                    <div class="w-20 h-20 mx-auto mb-4 bg-emerald-500/20 rounded-full flex items-center justify-center">
-                        <i class="fas fa-check-circle text-4xl text-emerald-400"></i>
+                <h3 class="text-lg font-semibold text-white mb-4">Risk Indicators</h3>
+                <div th:if="${#lists.isEmpty(dashboardData.riskIndicators())}" class="text-center text-slate-400 py-8">
+                    <div class="w-16 h-16 mx-auto mb-4 bg-emerald-500/20 rounded-full flex items-center justify-center">
+                        <i class="fas fa-check-circle text-3xl text-emerald-400"></i>
                     </div>
-                    <p class="font-semibold text-emerald-400">발견된 주요 위험이 없습니다.</p>
+                    <p class="font-semibold text-emerald-400">No critical risks detected.</p>
                 </div>
-                <div th:unless="${#lists.isEmpty(dashboardData.riskIndicators())}" class="space-y-4">
+                <div th:unless="${#lists.isEmpty(dashboardData.riskIndicators())}" class="space-y-3 max-h-64 overflow-y-auto">
                     <div th:each="risk : ${dashboardData.riskIndicators()}"
-                         class="flex items-start p-4 rounded-lg backdrop-blur-sm border transition-all hover:scale-[1.02]"
-                         th:classappend="${risk.level() == 'CRITICAL' ? 'bg-red-950/30 border-red-800 hover:bg-red-950/50' : 'bg-yellow-950/30 border-yellow-800 hover:bg-yellow-950/50'}">
-                        <div class="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mr-4"
+                         class="flex items-start p-3 rounded-lg backdrop-blur-sm border transition-all hover:scale-[1.01]"
+                         th:classappend="${risk.level() == 'CRITICAL' ? 'bg-red-950/30 border-red-800' : 'bg-yellow-950/30 border-yellow-800'}">
+                        <div class="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mr-3"
                              th:classappend="${risk.level() == 'CRITICAL' ? 'bg-red-500/20' : 'bg-yellow-500/20'}">
-                            <i class="fas fa-exclamation-triangle text-xl"
+                            <i class="fas fa-exclamation-triangle"
                                th:classappend="${risk.level() == 'CRITICAL' ? 'text-red-400' : 'text-yellow-400'}"></i>
                         </div>
-                        <div class="flex-1">
-                            <p class="font-bold" th:classappend="${risk.level() == 'CRITICAL' ? 'text-red-300' : 'text-yellow-300'}" th:text="${risk.title()}"></p>
-                            <p class="text-sm mt-1" th:classappend="${risk.level() == 'CRITICAL' ? 'text-red-400' : 'text-yellow-400'}" th:text="${risk.description()}"></p>
+                        <div class="flex-1 min-w-0">
+                            <p class="font-semibold text-sm" th:classappend="${risk.level() == 'CRITICAL' ? 'text-red-300' : 'text-yellow-300'}" th:text="${risk.title()}"></p>
+                            <p class="text-xs mt-1 truncate" th:classappend="${risk.level() == 'CRITICAL' ? 'text-red-400' : 'text-yellow-400'}" th:text="${risk.description()}"></p>
                             <a th:href="@{${risk.link()}}"
-                               class="text-sm hover:underline font-semibold mt-2 inline-flex items-center gap-1"
+                               class="text-xs hover:underline font-semibold mt-1 inline-flex items-center gap-1"
                                th:classappend="${risk.level() == 'CRITICAL' ? 'text-red-300' : 'text-yellow-300'}">
-                                즉시 조치하기 <i class="fas fa-arrow-right text-xs"></i>
+                                Take Action <i class="fas fa-arrow-right text-xs"></i>
                             </a>
                         </div>
                     </div>
@@ -140,44 +189,115 @@
             </div>
         </div>
 
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="glass-card rounded-xl p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">Policy Status</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-cyan-400" th:text="${dashboardData.policyStatus.activePolicies()}">0</div>
+                        <div class="text-xs text-slate-400">Active Policies</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-purple-400" th:text="${dashboardData.policyStatus.aiGeneratedPolicies() + dashboardData.policyStatus.aiEvolvedPolicies()}">0</div>
+                        <div class="text-xs text-slate-400">AI Policies</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold" th:classappend="${dashboardData.policyStatus.pendingApproval() > 0 ? 'text-amber-400' : 'text-slate-500'}" th:text="${dashboardData.policyStatus.pendingApproval()}">0</div>
+                        <div class="text-xs text-slate-400">Pending Approval</div>
+                    </div>
+                    <div class="bg-slate-800/50 rounded-lg p-3 text-center">
+                        <div class="text-2xl font-bold text-emerald-400" th:text="${dashboardData.policyStatus.averageAiConfidence() != null ? #numbers.formatDecimal(dashboardData.policyStatus.averageAiConfidence() * 100, 1, 1) + '%' : 'N/A'}">N/A</div>
+                        <div class="text-xs text-slate-400">AI Confidence</div>
+                    </div>
+                </div>
+                <div class="border-t border-slate-700 pt-4">
+                    <h4 class="text-sm font-semibold text-slate-300 mb-3">Recent Policies</h4>
+                    <div th:if="${#lists.isEmpty(dashboardData.policyStatus.recentPolicies())}" class="text-center text-slate-500 py-4 text-sm">
+                        No policies created yet.
+                    </div>
+                    <div th:unless="${#lists.isEmpty(dashboardData.policyStatus.recentPolicies())}" class="space-y-2">
+                        <div th:each="policy : ${dashboardData.policyStatus.recentPolicies()}" class="flex items-center justify-between text-sm bg-slate-800/30 rounded-lg px-3 py-2">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-2 h-2 rounded-full flex-shrink-0"
+                                      th:classappend="${policy.effect() == 'ALLOW' ? 'bg-emerald-400' : 'bg-red-400'}"></span>
+                                <span class="text-slate-300 truncate" th:text="${policy.name()}"></span>
+                            </div>
+                            <span class="text-xs px-2 py-1 rounded flex-shrink-0"
+                                  th:classappend="${policy.source() == 'MANUAL' ? 'bg-slate-700 text-slate-300' : 'bg-purple-900/50 text-purple-300'}"
+                                  th:text="${policy.source()}"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card rounded-xl p-6">
+                <h3 class="text-lg font-semibold text-white mb-4">Access Trends (24h)</h3>
+                <div class="h-64">
+                    <canvas id="accessTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
         <div class="glass-card rounded-xl p-6 mb-8">
-            <h3 class="text-lg font-semibold text-white mb-6">권한 매트릭스 개요</h3>
+            <h3 class="text-lg font-semibold text-white mb-4">Permission Matrix</h3>
             <div class="overflow-x-auto">
                 <table class="min-w-full">
                     <thead>
                     <tr class="bg-slate-800/50">
-                        <th class="px-6 py-4 text-left text-xs font-bold text-slate-300 uppercase tracking-wider">그룹/역할</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-slate-300 uppercase tracking-wider">Group</th>
                         <th th:each="permHeader : ${dashboardData.permissionMatrix.permissions}"
                             th:text="${permHeader}"
-                            class="px-6 py-4 text-center text-xs font-bold text-slate-300 uppercase tracking-wider"></th>
+                            class="px-4 py-3 text-center text-xs font-bold text-slate-300 uppercase tracking-wider"></th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-700">
                     <tr th:if="${#lists.isEmpty(dashboardData.permissionMatrix.subjects)}" class="bg-slate-800/30">
                         <td th:attr="colspan=${#lists.size(dashboardData.permissionMatrix.permissions) + 1}"
-                            class="text-center py-8 text-slate-500">표시할 권한 데이터가 없습니다.</td>
+                            class="text-center py-6 text-slate-500">No permission data available.</td>
                     </tr>
                     <tr th:each="subjectName : ${dashboardData.permissionMatrix.subjects}"
                         class="bg-slate-800/30 hover:bg-slate-800/50 transition-colors">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-200" th:text="${subjectName}"></td>
-                        <td th:each="permName : ${dashboardData.permissionMatrix.permissions}" class="px-6 py-4 text-center">
+                        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-slate-200" th:text="${subjectName}"></td>
+                        <td th:each="permName : ${dashboardData.permissionMatrix.permissions}" class="px-4 py-3 text-center">
                             <span th:if="${dashboardData.permissionMatrix.matrixData.get(subjectName)?.get(permName) == 'GRANT'}"
-                                  class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 shadow-lg shadow-emerald-500/20"
-                                  title="권한 있음">✓</span>
+                                  class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400"
+                                  title="Granted">O</span>
                             <span th:if="${dashboardData.permissionMatrix.matrixData.get(subjectName)?.get(permName) == null or dashboardData.permissionMatrix.matrixData.get(subjectName)?.get(permName) == 'NONE'}"
-                                  class="inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium bg-slate-700/50 text-slate-600"
-                                  title="권한 없음">-</span>
+                                  class="inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium bg-slate-700/50 text-slate-600"
+                                  title="Not Granted">-</span>
                         </td>
                     </tr>
                     </tbody>
                 </table>
             </div>
         </div>
+
+        <div class="glass-card rounded-xl p-6 mb-8">
+            <h3 class="text-lg font-semibold text-white mb-4">Recent Activities</h3>
+            <div th:if="${#lists.isEmpty(dashboardData.recentActivities())}" class="text-center text-slate-500 py-8">
+                No recent activities found.
+            </div>
+            <div th:unless="${#lists.isEmpty(dashboardData.recentActivities())}" class="space-y-2">
+                <div th:each="activity : ${dashboardData.recentActivities()}" class="flex items-center justify-between bg-slate-800/30 rounded-lg px-4 py-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                            <i class="fas fa-history text-indigo-400 text-sm"></i>
+                        </div>
+                        <div>
+                            <span class="text-sm text-slate-200" th:text="${activity.action()}"></span>
+                            <span class="text-sm text-slate-400" th:if="${activity.target() != null}"> - <span th:text="${activity.target()}"></span></span>
+                        </div>
+                    </div>
+                    <span class="text-xs text-slate-500" th:text="${#temporals.format(activity.timestamp(), 'yyyy-MM-dd HH:mm')}"></span>
+                </div>
+            </div>
+        </div>
+
     </main>
 </div>
+
 <script th:inline="javascript">
     document.addEventListener('DOMContentLoaded', function() {
-        // 보안 점수 게이지 애니메이션
         const circle = document.querySelector('.progress-ring__circle');
         if(circle) {
             const radius = circle.r.baseVal.value;
@@ -187,6 +307,77 @@
             circle.style.strokeDasharray = `${circumference} ${circumference}`;
             circle.style.strokeDashoffset = circumference;
             setTimeout(() => { circle.style.strokeDashoffset = offset; }, 100);
+        }
+
+        const accessTrends = /*[[${dashboardData.accessTrends}]]*/ [];
+
+        const labels = accessTrends.map(t => t.period);
+        const allowData = accessTrends.map(t => t.allowCount);
+        const denyData = accessTrends.map(t => t.denyCount);
+
+        const ctx = document.getElementById('accessTrendChart');
+        if (ctx) {
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Allowed',
+                            data: allowData,
+                            borderColor: 'rgb(52, 211, 153)',
+                            backgroundColor: 'rgba(52, 211, 153, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Denied',
+                            data: denyData,
+                            borderColor: 'rgb(248, 113, 113)',
+                            backgroundColor: 'rgba(248, 113, 113, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                color: 'rgb(148, 163, 184)',
+                                usePointStyle: true,
+                                padding: 20
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: {
+                                color: 'rgb(100, 116, 139)',
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 12
+                            },
+                            grid: {
+                                color: 'rgba(71, 85, 105, 0.3)'
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: 'rgb(100, 116, 139)',
+                                precision: 0
+                            },
+                            grid: {
+                                color: 'rgba(71, 85, 105, 0.3)'
+                            }
+                        }
+                    }
+                }
+            });
         }
     });
 </script>
