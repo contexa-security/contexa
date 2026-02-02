@@ -85,35 +85,39 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         String strategyId = generateStrategyId(request, responseType);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
-        if (acquireStrategicLock(lockKey, strategyId)) {
-            return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
-        }
+        return Mono.fromCallable(() -> acquireStrategicLock(lockKey, strategyId))
+                .flatMapMany(lockFailed -> {
+                    if (lockFailed) {
+                        return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
+                    }
 
-        try {
-            String sessionId = sessionManager.createDistributedStrategySession(request, strategyId);
-            String auditId = generateAuditId(request, strategyId);
+                    String sessionId = sessionManager.createDistributedStrategySession(request, strategyId);
+                    String auditId = generateAuditId(request, strategyId);
 
-            return distributedStrategyExecutor.executeDistributedStrategyStream(
-                    request, responseType, sessionId, auditId
-            ).doOnComplete(() -> {
-                sessionManager.completeDistributedExecution(sessionId, auditId, request, null, true);
-            }).doOnError(error -> {
-                handleStrategicFailure(strategyId, request, (Exception) error);
-            }).doFinally(signalType -> {
-                releaseStrategicLock(lockKey, strategyId);
-            });
-
-        } catch (Exception e) {
-            handleStrategicFailure(strategyId, request, e);
-            releaseStrategicLock(lockKey, strategyId);
-            return Flux.error(new AIOperationException("Streaming strategic operation failed: " + strategyId, e));
-        }
+                    return distributedStrategyExecutor.executeDistributedStrategyStream(
+                            request, responseType, sessionId, auditId
+                    ).doOnComplete(() -> {
+                        sessionManager.completeDistributedExecution(sessionId, auditId, request, null, true);
+                    }).doOnError(error -> {
+                        handleStrategicFailure(strategyId, request, (Exception) error);
+                    }).doFinally(signalType -> {
+                        releaseStrategicLock(lockKey, strategyId);
+                    });
+                })
+                .onErrorResume(e -> {
+                    if (!(e instanceof AIOperationException)) {
+                        handleStrategicFailure(strategyId, request, (Exception) e);
+                        releaseStrategicLock(lockKey, strategyId);
+                        return Flux.error(new AIOperationException("Streaming strategic operation failed: " + strategyId, e));
+                    }
+                    return Flux.error(e);
+                });
     }
 
     @Override
     public <R extends AIResponse> Mono<List<R>> executeBatch(List<AIRequest<T>> requests, Class<R> responseType) {
         List<Mono<R>> asyncRequests = requests.stream()
-                .map(request -> executeWithAuditAsync(request, responseType))
+                .<Mono<R>>map(request -> executeWithAuditAsync(request, responseType))
                 .toList();
         return Flux.merge(asyncRequests)
                 .collectList();

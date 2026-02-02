@@ -57,41 +57,41 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
             AIRequest<T> request,
             PipelineConfiguration<T> configuration) {
 
-        StreamingPipelineExecutionContext context =
-                new StreamingPipelineExecutionContext(request.getRequestId());
-        context.enableStreamingMode();
+        return Flux.defer(() -> {
+            StreamingPipelineExecutionContext context =
+                    new StreamingPipelineExecutionContext(request.getRequestId());
+            context.enableStreamingMode();
 
-        Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
-        context.setStreamSink(sink);
+            Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
+            context.setStreamSink(sink);
 
-        boolean isSoar = request.getContext() instanceof SoarContext;
+            boolean isSoar = request.getContext() instanceof SoarContext;
 
-        executeFullPipelineWithStreaming(request, configuration, context, isSoar).subscribe(
-                null,
-                error -> {
-                    log.error("Streaming pipeline error", error);
-                    sink.tryEmitError(error);
-                },
-                () -> {
-                    AIResponse finalResponse = context.getStepResult(
-                            PipelineConfiguration.PipelineStep.POSTPROCESSING,
-                            AIResponse.class
-                    );
+            executeFullPipelineWithStreaming(request, configuration, context, isSoar)
+                    .doOnSuccess(v -> {
+                        AIResponse finalResponse = context.getStepResult(
+                                PipelineConfiguration.PipelineStep.POSTPROCESSING,
+                                AIResponse.class
+                        );
 
-                    if (finalResponse != null) {
-                        try {
-                            String jsonResponse = objectMapper.writeValueAsString(finalResponse);
-                            sink.tryEmitNext(StreamingProtocol.FINAL_RESPONSE_MARKER + jsonResponse);
-                        } catch (Exception e) {
-                            log.error("Failed to convert final response to JSON", e);
+                        if (finalResponse != null) {
+                            try {
+                                String jsonResponse = objectMapper.writeValueAsString(finalResponse);
+                                sink.tryEmitNext(StreamingProtocol.FINAL_RESPONSE_MARKER + jsonResponse);
+                            } catch (Exception e) {
+                                log.error("Failed to convert final response to JSON", e);
+                            }
                         }
-                    }
+                        sink.tryEmitComplete();
+                    })
+                    .doOnError(error -> {
+                        log.error("Streaming pipeline error", error);
+                        sink.tryEmitError(error);
+                    })
+                    .subscribe();
 
-                    sink.tryEmitComplete();
-                }
-        );
-
-        return sink.asFlux();
+            return sink.asFlux();
+        });
     }
 
     private <T extends DomainContext> Mono<Void> executeFullPipelineWithStreaming(

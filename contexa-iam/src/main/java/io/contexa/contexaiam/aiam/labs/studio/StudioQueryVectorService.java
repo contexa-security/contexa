@@ -97,8 +97,10 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
             metadata.put("hasResourceEntities", !entities.getOrDefault("resources", Collections.emptyList()).isEmpty());
 
             TimeContext timeContext = analyzeTimeContext(document.getText());
-            metadata.put("timeContext", timeContext.getType());
-            metadata.put("timeRange", timeContext.getRange());
+            metadata.put("timeContext", timeContext.getType() != null ? timeContext.getType() : "UNSPECIFIED");
+            if (timeContext.getRange() != null) {
+                metadata.put("timeRange", timeContext.getRange());
+            }
 
             String securitySensitivity = evaluateSecuritySensitivity(document.getText(), metadata);
             metadata.put("securitySensitivity", securitySensitivity);
@@ -186,18 +188,22 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
     public void storeQueryRequest(StudioQueryRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("userId", request.getUserId());
-            metadata.put("queryType", request.getQueryType());
-            metadata.put("naturalLanguageQuery", request.getQuery());
+            metadata.put("userId", request.getUserId() != null ? request.getUserId() : "anonymous");
+            metadata.put("queryType", request.getQueryType() != null ? request.getQueryType() : "GENERAL");
+            // Limit query length to avoid embedding context overflow
+            String safeQuery = request.getQuery() != null ?
+                request.getQuery().substring(0, Math.min(500, request.getQuery().length())) : "";
+
+            metadata.put("naturalLanguageQuery", safeQuery);
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "studio_query_request");
             metadata.put("requestId", UUID.randomUUID().toString());
-            
+
             String queryText = String.format(
                 "사용자 %s의 자연어 질의: %s (유형: %s)",
-                request.getUserId(),
-                request.getQuery(),
-                request.getQueryType()
+                request.getUserId() != null ? request.getUserId() : "anonymous",
+                safeQuery,
+                request.getQueryType() != null ? request.getQueryType() : "GENERAL"
             );
             
             Document queryDoc = new Document(queryText, metadata);
@@ -212,9 +218,9 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
     public void storeQueryResult(StudioQueryRequest request, StudioQueryResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("userId", request.getUserId());
-            metadata.put("queryType", request.getQueryType());
-            metadata.put("originalQuery", request.getQuery());
+            metadata.put("userId", request.getUserId() != null ? request.getUserId() : "anonymous");
+            metadata.put("queryType", request.getQueryType() != null ? request.getQueryType() : "GENERAL");
+            metadata.put("originalQuery", request.getQuery() != null ? request.getQuery() : "");
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "studio_query_result");
             metadata.put("confidenceScore", response.getConfidenceScore());
@@ -239,11 +245,16 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
                 metadata.put("visualizationType", response.getVisualizationData().getGraphType());
             }
             
+            // Limit text length to avoid embedding context overflow
+            String safeQuery = request.getQuery() != null ?
+                request.getQuery().substring(0, Math.min(200, request.getQuery().length())) : "";
+            String safeAnswer = response.getNaturalLanguageAnswer() != null ?
+                response.getNaturalLanguageAnswer().substring(0, Math.min(300, response.getNaturalLanguageAnswer().length())) : "답변 없음";
+
             String resultText = String.format(
                 "질의 '%s'에 대한 분석 결과: %s (신뢰도: %.1f)",
-                request.getQuery(),
-                response.getNaturalLanguageAnswer() != null ? 
-                    response.getNaturalLanguageAnswer().substring(0, Math.min(200, response.getNaturalLanguageAnswer().length())) : "답변 없음",
+                safeQuery,
+                safeAnswer,
                 response.getConfidenceScore()
             );
             
@@ -263,33 +274,43 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
     private void storeVisualizationData(StudioQueryRequest request, StudioQueryResponse.VisualizationData vizData) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("userId", request.getUserId());
-            metadata.put("originalQuery", request.getQuery());
+            metadata.put("userId", request.getUserId() != null ? request.getUserId() : "anonymous");
+            metadata.put("originalQuery", request.getQuery() != null ? request.getQuery() : "");
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "studio_visualization");
-            metadata.put("visualizationType", vizData.getGraphType());
-            metadata.put("nodeCount", vizData.getNodes().size());
-            metadata.put("edgeCount", vizData.getEdges().size());
+            metadata.put("visualizationType", vizData.getGraphType() != null ? vizData.getGraphType() : "UNKNOWN");
+            metadata.put("nodeCount", vizData.getNodes() != null ? vizData.getNodes().size() : 0);
+            metadata.put("edgeCount", vizData.getEdges() != null ? vizData.getEdges().size() : 0);
 
-            Map<String, Long> nodeTypes = vizData.getNodes().stream()
-                .collect(Collectors.groupingBy(
-                    node -> node.getType(),
-                    Collectors.counting()
-                ));
-            metadata.put("nodeTypes", nodeTypes);
+            if (vizData.getNodes() != null && !vizData.getNodes().isEmpty()) {
+                Map<String, Long> nodeTypes = vizData.getNodes().stream()
+                    .filter(node -> node.getType() != null)
+                    .collect(Collectors.groupingBy(
+                        node -> node.getType(),
+                        Collectors.counting()
+                    ));
+                metadata.put("nodeTypes", nodeTypes);
+            }
 
-            Map<String, Long> edgeTypes = vizData.getEdges().stream()
-                .collect(Collectors.groupingBy(
-                    edge -> edge.getType(),
-                    Collectors.counting()
-                ));
-            metadata.put("edgeTypes", edgeTypes);
-            
+            if (vizData.getEdges() != null && !vizData.getEdges().isEmpty()) {
+                Map<String, Long> edgeTypes = vizData.getEdges().stream()
+                    .filter(edge -> edge.getType() != null)
+                    .collect(Collectors.groupingBy(
+                        edge -> edge.getType(),
+                        Collectors.counting()
+                    ));
+                metadata.put("edgeTypes", edgeTypes);
+            }
+
+            int nodeCount = vizData.getNodes() != null ? vizData.getNodes().size() : 0;
+            int edgeCount = vizData.getEdges() != null ? vizData.getEdges().size() : 0;
+            String graphType = vizData.getGraphType() != null ? vizData.getGraphType() : "UNKNOWN";
+
             String vizText = String.format(
                 "시각화 데이터: %d개 노드, %d개 엣지로 구성된 %s 타입 그래프",
-                vizData.getNodes().size(),
-                vizData.getEdges().size(),
-                vizData.getGraphType()
+                nodeCount,
+                edgeCount,
+                graphType
             );
             
             Document vizDoc = new Document(vizText, metadata);
@@ -302,27 +323,32 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
 
     public void storeFeedback(String queryId, boolean isHelpful, String feedback) {
         try {
+            String safeQueryId = queryId != null ? queryId : "unknown";
+            // Limit feedback length to avoid embedding context overflow
+            String safeFeedback = feedback != null ?
+                feedback.substring(0, Math.min(500, feedback.length())) : "";
+
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("queryId", queryId);
+            metadata.put("queryId", safeQueryId);
             metadata.put("isHelpful", isHelpful);
-            metadata.put("feedbackText", feedback);
+            metadata.put("feedbackText", safeFeedback);
             metadata.put("feedbackTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "studio_query_feedback");
 
-            String feedbackCategory = categorizeFeedback(feedback);
+            String feedbackCategory = categorizeFeedback(safeFeedback);
             metadata.put("feedbackCategory", feedbackCategory);
 
-            List<String> improvementPoints = extractImprovementPoints(feedback);
+            List<String> improvementPoints = extractImprovementPoints(safeFeedback);
             if (!improvementPoints.isEmpty()) {
                 metadata.put("improvementPoints", improvementPoints);
                 metadata.put("hasImprovementSuggestions", true);
             }
-            
+
             String feedbackText = String.format(
                 "질의 %s에 대한 피드백: %s - %s",
-                queryId,
+                safeQueryId,
                 isHelpful ? "도움됨" : "도움안됨",
-                feedback
+                safeFeedback
             );
             
             Document feedbackDoc = new Document(feedbackText, metadata);
@@ -596,12 +622,17 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
 
     public void storeQuery(String query, String queryType) {
         try {
+            // Limit query length to avoid embedding context overflow
+            String safeQuery = query != null ?
+                query.substring(0, Math.min(500, query.length())) : "";
+            String safeQueryType = queryType != null ? queryType : "GENERAL";
+
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("documentType", "studio_query");
-            metadata.put("queryType", queryType);
+            metadata.put("queryType", safeQueryType);
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
-            
-            String text = String.format("Studio Query [%s]: %s", queryType, query);
+
+            String text = String.format("Studio Query [%s]: %s", safeQueryType, safeQuery);
             Document doc = new Document(text, metadata);
             storeDocument(doc);
             
@@ -619,13 +650,18 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
 
     public void storeQueryResult(String queryId, String result) {
         try {
+            // Limit result length to avoid embedding context overflow
+            String safeQueryId = queryId != null ? queryId : "unknown";
+            String safeResult = result != null ?
+                result.substring(0, Math.min(1000, result.length())) : "";
+
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("documentType", "studio_query_result");
-            metadata.put("queryId", queryId);
-            metadata.put("queryType", "QUERY_RESULT");  
+            metadata.put("queryId", safeQueryId);
+            metadata.put("queryType", "QUERY_RESULT");
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
-            
-            Document doc = new Document(result, metadata);
+
+            Document doc = new Document(safeResult, metadata);
             storeDocument(doc);
             
                     } catch (Exception e) {

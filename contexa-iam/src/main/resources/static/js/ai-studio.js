@@ -51,9 +51,9 @@ const currentLang = 'ko';
 const MSG = AI_STUDIO_MESSAGES[currentLang];
 
 // =============================
-// 🧠 AI Studio Core Class
+// 🧠 AI Studio Legacy Class (renamed to avoid conflict with modular AIStudioCore)
 // =============================
-class AIStudioCore {
+class AIStudioLegacy {
     constructor() {
         this.currentPermissionData = null;
         this.currentQuery = null;
@@ -334,8 +334,11 @@ class AIStudioCore {
      * 🌊 스트리밍 진행 상황 모달 표시
      */
     showStreamingProgressModal(query) {
-        // 기존 모달이 있으면 제거
-        this.hideStreamingProgressModal();
+        // Remove existing modal DOM only (without resetting state flags)
+        const existingModal = document.getElementById('streaming-modal');
+        if (existingModal && existingModal.parentNode) {
+            existingModal.parentNode.removeChild(existingModal);
+        }
 
         const modalHtml = `
    <div id="streaming-modal" class="streaming-modal" style="display: flex; opacity: 1;">
@@ -819,42 +822,30 @@ class AIStudioCore {
      * 🌊 스트리밍 진행 상황 모달 숨기기
      */
     hideStreamingProgressModal() {
-        // 🔥 호출 스택 추적 (Policy Builder와 동일)
-        console.log('hideStreamingProgressModal 호출됨 - 스트리밍 완료 처리');
-        console.log('📍 호출 스택:', new Error().stack);
-
         const modal = document.getElementById('streaming-modal');
         if (modal) {
-            console.log('모달 발견 - 실제로 숨기기 진행');
-
-            // 🔥 먼저 상태 플래그 초기화 (Policy Builder와 동일)
+            // Reset state flags
             this.isProcessingQuery = false;
             this.isLoading = false;
             this.isStreaming = false;
-            console.log('스트리밍 모달 숨김 - 상태 플래그 초기화 완료');
 
-            // 🔥 버튼 상태 복원 (Policy Builder와 동일)
+            // Restore button state
             const queryBtn = document.getElementById('query-btn');
             if (queryBtn) {
                 queryBtn.disabled = false;
                 queryBtn.textContent = 'AI 분석 시작';
-                console.log('버튼 상태 복원 완료');
             }
 
-            // 🔥 모달을 완전히 숨기기 (Policy Builder와 동일)
+            // Hide modal
             modal.classList.remove('show');
             modal.style.display = 'none';
-            console.log('🎥 스트리밍 모달 숨김');
 
-            // 🔥 모달을 DOM에서 완전히 제거 (Policy Builder와 동일)
+            // Remove modal from DOM after animation
             setTimeout(() => {
                 if (modal.parentNode) {
                     modal.parentNode.removeChild(modal);
-                    console.log('🎥 스트리밍 모달 DOM에서 제거 완료');
                 }
             }, 1000);
-        } else {
-            console.error('모달을 찾을 수 없음!');
         }
     }
 
@@ -8117,7 +8108,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 기존 studio.js가 로드된 후 AI Studio 초기화
     setTimeout(() => {
         if (!aiStudio) {
-            aiStudio = new AIStudioCore();
+            aiStudio = new AIStudioLegacy();
             aiStudio.init();
 
             // 인스턴스를 전역으로 노출하여 HTML에서 접근 가능하도록 함
@@ -8127,5 +8118,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 100);
 });
 
-// 전역 접근을 위한 export
-window.AIStudio = AIStudioCore; 
+// Global export with module compatibility
+if (typeof window.AIStudio === 'object' && window.AIStudio.Core) {
+    // Modular version already loaded, preserve it and add legacy reference
+    window.AIStudio.Legacy = AIStudioLegacy;
+} else {
+    window.AIStudio = AIStudioLegacy;
+} 

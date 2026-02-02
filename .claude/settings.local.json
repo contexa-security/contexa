@@ -109,7 +109,10 @@
       "Bash(.mvnw.cmd compile:*)",
       "Bash(.\\\\gradlew :contexa-identity:compileJava:*)",
       "WebFetch(domain:github.com)",
-      "Bash(.\\\\gradlew :contexa-common:compileJava :contexa-iam:compileJava --no-daemon -q 2>&1:*)"
+      "Bash(.\\\\gradlew :contexa-common:compileJava :contexa-iam:compileJava --no-daemon -q 2>&1:*)",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-iam\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexaiam\\\\aiam\\\\utils\\\\SentenceBuffer.java\")",
+      "Bash(powershell -c \"\\(Get-Content ''C:\\\\Users\\\\leaven\\\\.claude\\\\plans\\\\elegant-waddling-lake.md'' | Measure-Object -Line\\).Lines\")",
+      "Bash(node --check:*)"
     ],
     "deny": [],
     "ask": []

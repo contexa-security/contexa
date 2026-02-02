@@ -9,8 +9,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
-public class JsonStreamingProcessor {
+public class JsonStreamingProcessor implements ChunkProcessor {
 
+    private static final String PROCESSOR_TYPE = "json";
+
+    @Override
     public Flux<String> process(Flux<String> upstream) {
         AtomicReference<StringBuilder> textBuffer = new AtomicReference<>(new StringBuilder());
         AtomicBoolean jsonStarted = new AtomicBoolean(false);
@@ -99,5 +102,10 @@ public class JsonStreamingProcessor {
             return "";
         }
         return chunk.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
+    }
+
+    @Override
+    public String getProcessorType() {
+        return PROCESSOR_TYPE;
     }
 }

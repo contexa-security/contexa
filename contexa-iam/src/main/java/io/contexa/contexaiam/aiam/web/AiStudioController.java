@@ -1,16 +1,18 @@
 package io.contexa.contexaiam.aiam.web;
 
-import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.request.IAMRequest;
 import io.contexa.contexacommon.enums.AuditRequirement;
-import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexacommon.enums.SecurityLevel;
+import io.contexa.contexacore.exception.AIOperationException;
+import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingContext;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
+import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.protocol.request.StudioQueryItem;
 import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
-import io.contexa.contexaiam.aiam.utils.SentenceBuffer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -21,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeoutException;
 
 @RestController
 @RequestMapping("/api/ai/studio")
@@ -30,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AiStudioController {
 
     private final AICoreOperations<StudioQueryContext> aiNativeProcessor;
+    private final StreamingProperties streamingProperties;
 
     @PostMapping("/query")
     public Mono<ResponseEntity<StudioQueryResponse>> queryStudio(@RequestBody StudioQueryItem request) {
@@ -112,49 +115,29 @@ public class AiStudioController {
                             .withParameter("userId", request.getUserId())
                             .withParameter("organizationId", "default-org");
 
-            SentenceBuffer sentenceBuffer = new SentenceBuffer();
-            StringBuilder allData = new StringBuilder(); 
-            AtomicBoolean jsonSent = new AtomicBoolean(false);
-            AtomicBoolean finalResponseStarted = new AtomicBoolean(false); 
-            StringBuilder markerBuffer = new StringBuilder(); 
+            StreamingContext streamingContext = new StreamingContext(streamingProperties);
 
             return aiNativeProcessor.processStream(iamRequest)
                     .flatMap(chunk -> {
-                        String chunkStr = chunk != null ? chunk.toString() : "";
+                        String chunkStr = chunk != null ? chunk : "";
 
-                        allData.append(chunkStr);
+                        streamingContext.appendChunk(chunkStr);
 
-                        if (!finalResponseStarted.get()) {
-                            markerBuffer.append(chunkStr);
-
-                            if (markerBuffer.length() > 50) {
-                                markerBuffer.delete(0, markerBuffer.length() - 50);
-                            }
-                            log.warn("markerBuffer: {}", markerBuffer);
-                            
-                            if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
-                                finalResponseStarted.set(true);
-                                                            }
+                        if (streamingContext.isFinalResponseStarted()) {
+                            return Flux.empty();
                         }
 
-                        if (finalResponseStarted.get()) {
-                                                        return Flux.empty(); 
-                        }
-
-                        return sentenceBuffer.processChunk(chunkStr)
+                        return streamingContext.getSentenceBuffer().processChunk(chunkStr)
                                 .map(sentence -> ServerSentEvent.<String>builder()
                                         .data(sentence)
                                         .build());
                     })
                     .concatWith(
                             Mono.defer(() -> {
-                                String fullData = allData.toString();
+                                String jsonPart = streamingContext.extractJsonPart();
 
-                                if (fullData.contains("###FINAL_RESPONSE###") && !jsonSent.get()) {
-                                    int markerIndex = fullData.indexOf("###FINAL_RESPONSE###");
-                                    String jsonPart = fullData.substring(markerIndex);
-
-                                    jsonSent.set(true);
+                                if (jsonPart != null && !streamingContext.isJsonSent()) {
+                                    streamingContext.markJsonSent();
 
                                     return Mono.just(ServerSentEvent.<String>builder()
                                             .data(jsonPart)
@@ -165,7 +148,7 @@ public class AiStudioController {
                             })
                     )
                     .concatWith(
-                            sentenceBuffer.flush()
+                            streamingContext.getSentenceBuffer().flush()
                                     .map(remaining -> ServerSentEvent.<String>builder()
                                             .data(remaining)
                                             .build())
@@ -176,17 +159,39 @@ public class AiStudioController {
                                     .build())
                     )
                     .onErrorResume(error -> {
-                        log.error("AI Studio 스트리밍 처리 중 오류", error);
+                        log.error("AI Studio streaming error", error);
 
+                        String errorCode;
                         String errorMessage;
-                        if (error instanceof Throwable) {
-                            errorMessage = ((Throwable) error).getMessage();
-                        } else {
-                            errorMessage = error.toString();
+
+                        switch (error) {
+                            case AIOperationException aiOperationException -> {
+                                errorCode = "AI_OPERATION_ERROR";
+                                errorMessage = error.getMessage();
+                            }
+                            case TimeoutException timeoutException -> {
+                                errorCode = "TIMEOUT";
+                                errorMessage = "Request timed out";
+                            }
+                            case IllegalArgumentException illegalArgumentException -> {
+                                errorCode = "INVALID_REQUEST";
+                                errorMessage = error.getMessage();
+                            }
+                            case null, default -> {
+                                errorCode = "INTERNAL_ERROR";
+                                errorMessage = "An unexpected error occurred";
+                            }
                         }
 
+                        String errorJson = String.format(
+                                "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
+                                errorCode,
+                                errorMessage != null ? errorMessage.replace("\"", "\\\"") : "Unknown error"
+                        );
+
                         return Flux.just(ServerSentEvent.<String>builder()
-                                .data("ERROR: " + errorMessage)
+                                .event("error")
+                                .data(errorJson)
                                 .build());
                     });
 
@@ -198,41 +203,8 @@ public class AiStudioController {
         }
     }
 
-    private boolean isCompleteJson(String data) {
-        if (!data.contains("###FINAL_RESPONSE###")) return false;
-
-        int markerIndex = data.indexOf("###FINAL_RESPONSE###");
-        String jsonPart = data.substring(markerIndex + 20);
-
-        int braceCount = 0;
-        boolean inString = false;
-        boolean escape = false;
-
-        for (char c : jsonPart.toCharArray()) {
-            if (escape) {
-                escape = false;
-                continue;
-            }
-            if (c == '\\') {
-                escape = true;
-                continue;
-            }
-            if (c == '"' && !escape) {
-                inString = !inString;
-                continue;
-            }
-            if (!inString) {
-                if (c == '{') braceCount++;
-                else if (c == '}') braceCount--;
-            }
-        }
-
-        return braceCount == 0 && jsonPart.contains("{");
-    }
-
     /**
      * 권한 시각화 데이터 조회 - 완전 비동기 처리
-     * 
      * 특정 주체(사용자/그룹)에 대한 권한 구조를 시각화용 데이터로 반환
      */
     @GetMapping("/visualization/{subjectType}/{subjectId}")
@@ -361,17 +333,17 @@ public class AiStudioController {
         }
         
         // 표준화된 질문 타입으로 변환
-        switch (queryTypeStr.toUpperCase()) {
-            case "WHO": return "WHO";
-            case "WHAT": return "WHAT";
-            case "WHEN": return "WHEN";
-            case "HOW": return "HOW";
-            case "WHERE": return "WHERE";
-            case "WHY": return "WHY";
-            case "WHICH": return "WHICH";
-            case "WHOSE": return "WHOSE";
-            default: return "GENERAL";
-        }
+        return switch (queryTypeStr.toUpperCase()) {
+            case "WHO" -> "WHO";
+            case "WHAT" -> "WHAT";
+            case "WHEN" -> "WHEN";
+            case "HOW" -> "HOW";
+            case "WHERE" -> "WHERE";
+            case "WHY" -> "WHY";
+            case "WHICH" -> "WHICH";
+            case "WHOSE" -> "WHOSE";
+            default -> "GENERAL";
+        };
     }
 
     public record QueryHistoryResponse(

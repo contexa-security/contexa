@@ -197,19 +197,16 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
         if (context.getAnalysisLevel() != null) {
             int tier = context.getAnalysisLevel().getDefaultTier();
-            String modelName = tieredLLMProperties.getModelNameForTier(tier);
-            return modelName;
+            return tieredLLMProperties.getModelNameForTier(tier);
         }
 
         if (context.getTier() != null) {
-            String modelName = tieredLLMProperties.getModelNameForTier(context.getTier());
-            return modelName;
+            return tieredLLMProperties.getModelNameForTier(context.getTier());
         }
 
         if (context.getSecurityTaskType() != null) {
             int tier = context.getSecurityTaskType().getDefaultTier();
-            String modelName = tieredLLMProperties.getModelNameForTier(tier);
-            return modelName;
+            return tieredLLMProperties.getModelNameForTier(tier);
         }
 
         String defaultModel = tieredLLMProperties.getModelNameForTier(1);

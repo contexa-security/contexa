@@ -12,7 +12,9 @@ import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexacommon.enums.SecurityLevel;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
-import io.contexa.contexaiam.aiam.utils.SentenceBuffer;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingContext;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexaiam.domain.dto.AiGeneratedPolicyDraftDto;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -33,7 +35,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 @RestController
@@ -46,6 +47,7 @@ public class AiApiController {
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final ManagedResourceRepository managedResourceRepository;
     private final ConditionCompatibilityService conditionCompatibilityService;
+    private final StreamingProperties streamingProperties;
 
     @PostMapping(value = "/generate-from-text/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> generatePolicyFromTextStream(@RequestBody PolicyGenerationItem request) {
@@ -70,53 +72,33 @@ public class AiApiController {
             IAMRequest<PolicyContext> iamRequest =
                     (IAMRequest<PolicyContext>) new IAMRequest<>(context, "generatePolicyFromTextStream")
                         .withDiagnosisType(DiagnosisType.POLICY_GENERATION)
-                        .withParameter("generationMode", "streaming")  
+                        .withParameter("generationMode", "streaming")
                         .withParameter("naturalLanguageQuery", naturalLanguageQuery)
                         .withParameter("availableItems", request.availableItems());
 
-            SentenceBuffer sentenceBuffer = new SentenceBuffer();
-            StringBuilder allData = new StringBuilder(); 
-            AtomicBoolean jsonSent = new AtomicBoolean(false);
-            AtomicBoolean finalResponseStarted = new AtomicBoolean(false); 
-            StringBuilder markerBuffer = new StringBuilder(); 
-            
+            StreamingContext streamingContext = new StreamingContext(streamingProperties);
+
             return aiNativeProcessor.processStream(iamRequest)
                     .flatMap(chunk -> {
                         String chunkStr = chunk != null ? chunk.toString() : "";
 
-                        allData.append(chunkStr);
+                        streamingContext.appendChunk(chunkStr);
 
-                        if (!finalResponseStarted.get()) {
-                            markerBuffer.append(chunkStr);
-
-                            if (markerBuffer.length() > 50) {
-                                markerBuffer.delete(0, markerBuffer.length() - 50);
-                            }
-                            log.warn("markerBuffer: {}", markerBuffer);
-                            
-                            if (markerBuffer.toString().contains("###FINAL_RESPONSE###")) {
-                                finalResponseStarted.set(true);
-                                                            }
+                        if (streamingContext.isFinalResponseStarted()) {
+                            return Flux.empty();
                         }
 
-                        if (finalResponseStarted.get()) {
-                                                        return Flux.empty(); 
-                        }
-
-                        return sentenceBuffer.processChunk(chunkStr)
+                        return streamingContext.getSentenceBuffer().processChunk(chunkStr)
                                 .map(sentence -> ServerSentEvent.<String>builder()
                                         .data(sentence)
                                         .build());
                     })
                     .concatWith(
                             Mono.defer(() -> {
-                                String fullData = allData.toString();
+                                String jsonPart = streamingContext.extractJsonPart();
 
-                                if (fullData.contains("###FINAL_RESPONSE###") && !jsonSent.get()) {
-                                    int markerIndex = fullData.indexOf("###FINAL_RESPONSE###");
-                                    String jsonPart = fullData.substring(markerIndex);
-
-                                    jsonSent.set(true);
+                                if (jsonPart != null && !streamingContext.isJsonSent()) {
+                                    streamingContext.markJsonSent();
 
                                     return Mono.just(ServerSentEvent.<String>builder()
                                             .data(jsonPart)
@@ -127,7 +109,7 @@ public class AiApiController {
                             })
                     )
                     .concatWith(
-                            sentenceBuffer.flush()
+                            streamingContext.getSentenceBuffer().flush()
                                     .map(remaining -> ServerSentEvent.<String>builder()
                                             .data(remaining)
                                             .build())

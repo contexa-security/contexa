@@ -218,6 +218,19 @@
 <footer th:insert="~{fragments/footer :: footer}" class="flex-shrink-0"></footer>
 <script th:src="@{/js/toast.js}"></script>
 <script th:src="@{/js/studio.js}"></script>
-<script th:src="@{/js/ai-studio.js(v=20250109-4-structured)}"></script>
+<!-- AI Studio modular components -->
+<script th:src="@{/js/ai-studio/config.js}"></script>
+<script th:src="@{/js/ai-studio/StreamingHandler.js}"></script>
+<script th:src="@{/js/ai-studio/ModalManager.js}"></script>
+<script th:src="@{/js/ai-studio/DOMRenderer.js}"></script>
+<script th:src="@{/js/ai-studio/GraphManager.js}"></script>
+<script th:src="@{/js/ai-studio/ResponseParser.js}"></script>
+<!-- Contexa Streaming library (single bundle) -->
+<script th:src="@{/js/contexa-streaming.bundle.js}"></script>
+<!-- AI Studio Core (uses StreamingClient) -->
+<script th:src="@{/js/ai-studio/AIStudioCore.js}"></script>
+<script th:src="@{/js/ai-studio/index.js}"></script>
+<!-- Legacy integration script -->
+<script th:src="@{/js/ai-studio.js(v=20250109-5-modular)}"></script>
 </body>
 </html>

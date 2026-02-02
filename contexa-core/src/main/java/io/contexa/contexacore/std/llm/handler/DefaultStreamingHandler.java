@@ -222,8 +222,42 @@ public class DefaultStreamingHandler implements StreamingHandler {
     }
 
     private String extractToolInput(String promptContent, String toolName) {
+        if (promptContent == null || toolName == null) {
+            return promptContent;
+        }
 
-        return promptContent;
+        int toolStartIndex = promptContent.indexOf(toolName);
+        if (toolStartIndex == -1) {
+            return promptContent;
+        }
+
+        int inputStartIndex = promptContent.indexOf("{", toolStartIndex);
+        if (inputStartIndex == -1) {
+            return promptContent;
+        }
+
+        int braceCount = 0;
+        int inputEndIndex = inputStartIndex;
+
+        for (int i = inputStartIndex; i < promptContent.length(); i++) {
+            char c = promptContent.charAt(i);
+            if (c == '{') {
+                braceCount++;
+            } else if (c == '}') {
+                braceCount--;
+            }
+
+            if (braceCount == 0) {
+                inputEndIndex = i + 1;
+                break;
+            }
+        }
+
+        if (braceCount != 0) {
+            return promptContent;
+        }
+
+        return promptContent.substring(inputStartIndex, inputEndIndex);
     }
 
     private String determineModelName(ExecutionContext context) {

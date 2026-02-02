@@ -40,6 +40,7 @@ import io.contexa.contexacore.std.pipeline.executor.UniversalPipelineExecutor;
 import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
 import io.contexa.contexacore.std.pipeline.step.*;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
@@ -64,7 +65,7 @@ import java.util.Optional;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "contexa.std", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({ContexaProperties.class, StreamingProperties.class})
 public class CoreStdComponentsAutoConfiguration {
 
     @Bean

@@ -4,12 +4,20 @@ import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class SentenceBuffer {
     private final StringBuilder buffer = new StringBuilder();
     private final List<String> completeSentences = new ArrayList<>();
     private boolean inJsonBlock = false;
     private int jsonDepth = 0;
+
+    private static final Pattern JSON_MARKER_PATTERN = Pattern.compile("===JSON[^=]*===");
+    private static final Pattern JSON_CODE_BLOCK_PATTERN = Pattern.compile("```json[\\s\\S]*?```");
+    private static final Pattern CONTROL_CHAR_PATTERN = Pattern.compile("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]");
+    private static final Pattern PUNCTUATION_ONLY_PATTERN = Pattern.compile("^[.,!?;:]+$");
+    private static final Pattern VALID_CONTENT_PATTERN = Pattern.compile(".*[가-힣a-zA-Z0-9]+.*");
+    private static final Pattern NEWLINE_SPLIT_PATTERN = Pattern.compile("\\n");
 
     private static final String[] KOREAN_ENDINGS = {
             "확인했습니다.", "완료했습니다.", "시작했습니다.", "분석했습니다.",
@@ -64,10 +72,9 @@ public class SentenceBuffer {
 
         String cleaned = chunk;
 
-        cleaned = cleaned.replaceAll("===JSON[^=]*===", "");
-        cleaned = cleaned.replaceAll("```json[\\s\\S]*?```", "");
-
-        cleaned = cleaned.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
+        cleaned = JSON_MARKER_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = JSON_CODE_BLOCK_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = CONTROL_CHAR_PATTERN.matcher(cleaned).replaceAll("");
 
         return cleaned;
     }
@@ -75,7 +82,7 @@ public class SentenceBuffer {
     private void extractCompleteSentences() {
         String text = buffer.toString();
 
-        String[] lines = text.split("\\n");
+        String[] lines = NEWLINE_SPLIT_PATTERN.split(text);
         StringBuilder remainingBuffer = new StringBuilder();
 
         for (int i = 0; i < lines.length; i++) {
@@ -134,13 +141,13 @@ public class SentenceBuffer {
 
         if (trimmed.length() < 3 && !containsSpecialPattern(trimmed)) return false;
 
-        if (trimmed.matches("^[.,!?;:]+$")) return false;
+        if (PUNCTUATION_ONLY_PATTERN.matcher(trimmed).matches()) return false;
 
         if (containsSpecialPattern(trimmed)) {
             return true;
         }
 
-        return trimmed.matches(".*[가-힣a-zA-Z0-9]+.*");
+        return VALID_CONTENT_PATTERN.matcher(trimmed).matches();
     }
 
     private boolean containsSpecialPattern(String text) {

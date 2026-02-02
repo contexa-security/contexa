@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.web.*;
@@ -21,8 +22,9 @@ public class IamAiamWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AiStudioController aiStudioController(
-            AICoreOperations<StudioQueryContext> aiNativeProcessor) {
-        return new AiStudioController(aiNativeProcessor);
+            AICoreOperations<StudioQueryContext> aiNativeProcessor,
+            StreamingProperties streamingProperties) {
+        return new AiStudioController(aiNativeProcessor, streamingProperties);
     }
 
     @Bean
@@ -31,7 +33,8 @@ public class IamAiamWebAutoConfiguration {
             AICoreOperations<PolicyContext> aiNativeProcessor,
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
-            ConditionCompatibilityService conditionCompatibilityService) {
-        return new AiApiController(aiNativeProcessor, conditionTemplateRepository, managedResourceRepository, conditionCompatibilityService);
+            ConditionCompatibilityService conditionCompatibilityService,
+            StreamingProperties streamingProperties) {
+        return new AiApiController(aiNativeProcessor, conditionTemplateRepository, managedResourceRepository, conditionCompatibilityService, streamingProperties);
     }
 }

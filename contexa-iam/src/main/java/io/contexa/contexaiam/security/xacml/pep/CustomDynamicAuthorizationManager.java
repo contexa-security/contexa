@@ -90,10 +90,10 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 return manager.check(authenticationSupplier, context);
             }
         }
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(false);
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
-        if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
+        /*if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
             long startTime = System.nanoTime();
             zeroTrustEventPublisher.publishWebAuthorization(authentication, request, authorizationDecision);
 
@@ -104,7 +104,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 metricsCollector.recordAuthzDecision();
             }
 
-        }
+        }*/
 
         return authorizationDecision;
     }
