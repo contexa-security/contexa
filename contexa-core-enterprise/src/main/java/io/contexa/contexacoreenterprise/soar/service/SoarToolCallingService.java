@@ -2,11 +2,12 @@ package io.contexa.contexacoreenterprise.soar.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
 
 import java.time.LocalDateTime;
@@ -55,7 +56,7 @@ public class SoarToolCallingService {
             soarContext.setIncidentId(incidentId);
             soarContext.setOrganizationId(organizationId);
             
-            SoarRequest soarRequest = new SoarRequest(soarContext, "soarAnalysis", organizationId);
+            SoarRequest soarRequest = new SoarRequest(soarContext, new TemplateType("Soar"), new DiagnosisType("Soar"));
             soarRequest.setQuery(soarContext.getOriginalQuery());
             soarRequest.setSessionId(soarContext.getSessionId());
             soarRequest.setIncidentId(soarContext.getIncidentId());
@@ -72,7 +73,6 @@ public class SoarToolCallingService {
             soarRequest.withParameter("query", userPrompt);
             soarRequest.withParameter("sessionId", soarContext.getSessionId());
             soarRequest.withParameter("incidentId", incidentId);
-            soarRequest.withDiagnosisType(DiagnosisType.SOAR);
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("sessionState", soarContext.getSessionState());

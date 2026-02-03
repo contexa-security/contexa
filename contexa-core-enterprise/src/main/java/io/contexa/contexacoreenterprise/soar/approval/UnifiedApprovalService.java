@@ -1,5 +1,7 @@
 package io.contexa.contexacoreenterprise.soar.approval;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.domain.*;
 import io.contexa.contexacore.domain.entity.SoarApprovalRequest;
 import io.contexa.contexacore.soar.approval.ApprovalService;
@@ -428,11 +430,7 @@ public class UnifiedApprovalService implements ApprovalService {
             soarContext.setHumanApprovalNeeded(false);
             soarContext.setHumanApprovalMessage(comment);
 
-            SoarRequest soarRequest = new SoarRequest(
-                    soarContext,
-                    "resumeSoar",
-                    "Approval response received: " + entity.getStatus()
-            );
+            SoarRequest soarRequest = new SoarRequest(soarContext, new TemplateType("Soar"), new DiagnosisType("Soar"));
             soarRequest.setApprovalId(entity.getId().toString());
 
             ApprovalResumeEvent resumeEvent = new ApprovalResumeEvent(

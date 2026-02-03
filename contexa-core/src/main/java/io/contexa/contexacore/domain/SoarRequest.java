@@ -1,5 +1,7 @@
 package io.contexa.contexacore.domain;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.Getter;
 import lombok.Setter;
@@ -18,10 +20,10 @@ public class SoarRequest extends AIRequest<SoarContext> {
     private String approvalId;
     private Map<String, Object> metadata;
 
-    public SoarRequest(SoarContext context, String operation, String organizationId, 
-                       String incidentId, String threatType, String description, 
+    public SoarRequest(SoarContext context, TemplateType templateType, DiagnosisType diagnosisType,
+                       String incidentId, String threatType, String description,
                        String initialQuery, String approvalId, Map<String, Object> metadata) {
-        super(context, operation, organizationId);
+        super(context, templateType, diagnosisType);
         this.incidentId = incidentId;
         this.threatType = threatType;
         this.description = description;
@@ -30,13 +32,8 @@ public class SoarRequest extends AIRequest<SoarContext> {
         this.metadata = metadata != null ? metadata : new HashMap<>();
     }
 
-    public SoarRequest(SoarContext context, String operation) {
-        super(context != null ? context : new SoarContext(), operation, "default-org");
-    }
-
-    public SoarRequest(SoarContext context, String operation, String initialQuery) {
-        super(context, operation, "default-org");
-        this.initialQuery = initialQuery;
+    public SoarRequest(SoarContext context, TemplateType templateType, DiagnosisType diagnosisType) {
+        super(context, templateType, diagnosisType);
     }
 
     public String getIncidentId() {
@@ -144,8 +141,8 @@ public class SoarRequest extends AIRequest<SoarContext> {
 
     public static class SoarRequestBuilder {
         private SoarContext context;
-        private String operation;
-        private String organizationId = "default-org";
+        private TemplateType templateType;
+        private DiagnosisType diagnosisType;
         private String incidentId;
         private String threatType;
         private String description;
@@ -160,13 +157,13 @@ public class SoarRequest extends AIRequest<SoarContext> {
             return this;
         }
         
-        public SoarRequestBuilder operation(String operation) {
-            this.operation = operation;
+        public SoarRequestBuilder templateType(TemplateType templateType) {
+            this.templateType = templateType;
             return this;
         }
         
-        public SoarRequestBuilder organizationId(String organizationId) {
-            this.organizationId = organizationId;
+        public SoarRequestBuilder diagnosisType(DiagnosisType diagnosisType) {
+            this.diagnosisType = diagnosisType;
             return this;
         }
         
@@ -223,7 +220,7 @@ public class SoarRequest extends AIRequest<SoarContext> {
                 metadata.put("userId", userId);
             }
             
-            return new SoarRequest(context, operation, organizationId, 
+            return new SoarRequest(context, templateType, diagnosisType,
                                    incidentId, threatType, description, 
                                    initialQuery, approvalId, metadata);
         }
