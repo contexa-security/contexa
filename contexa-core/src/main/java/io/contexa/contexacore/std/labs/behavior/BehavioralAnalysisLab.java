@@ -1,5 +1,7 @@
 package io.contexa.contexacore.std.labs.behavior;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.BehavioralAnalysisRequest;
@@ -124,7 +126,7 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
     }
 
     private AIRequest<BehavioralAnalysisContext> createAIRequest(BehavioralAnalysisContext context) {
-        return new AIRequest<>(context, "behavioralAnalysisStreaming", context.getOrganizationId());
+        return new AIRequest<>(context, new TemplateType("BehavioralAnalysisStreaming"), new DiagnosisType("BehavioralAnalysis"));
     }
 
     private PipelineConfiguration createPipelineConfig() {
@@ -184,7 +186,7 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
             detectedSource, severity, recommendedActions, organizationId
         );
 
-        SoarRequest soarRequest = new SoarRequest(soarContext, "soarAnalysis");
+        SoarRequest soarRequest = new SoarRequest(soarContext, new TemplateType("Soar"), new DiagnosisType("Soar"));
         soarRequest.setIncidentId(incidentId);
         soarRequest.setThreatType(threatType);
         soarRequest.setDescription(description);

@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 @Slf4j
 public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarResponse> {
 
-    DiagnosisType diagnosisType = new DiagnosisType("soar");
+    DiagnosisType diagnosisType = new DiagnosisType("Soar");
 
     private static final int PRIORITY = 10; 
     private static final boolean SUPPORTS_STREAMING = true;
