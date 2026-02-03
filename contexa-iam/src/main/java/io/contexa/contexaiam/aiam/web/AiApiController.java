@@ -58,23 +58,19 @@ public class AiApiController {
                     .data("ERROR: naturalLanguageQuery is required")
                     .build());
         }
-
-                if (request.availableItems() != null) {
-                    }
-
         try {
-            
+
             PolicyContext context = new PolicyContext.Builder(
-                SecurityLevel.STANDARD,
-                AuditRequirement.BASIC
+                    SecurityLevel.STANDARD,
+                    AuditRequirement.BASIC
             ).withNaturalLanguageQuery(naturalLanguageQuery).build();
 
             IAMRequest<PolicyContext> iamRequest =
                     (IAMRequest<PolicyContext>) new IAMRequest<>(context, "generatePolicyFromTextStream")
-                        .withDiagnosisType(DiagnosisType.POLICY_GENERATION)
-                        .withParameter("generationMode", "streaming")
-                        .withParameter("naturalLanguageQuery", naturalLanguageQuery)
-                        .withParameter("availableItems", request.availableItems());
+                            .withDiagnosisType(DiagnosisType.POLICY_GENERATION)
+                            .withParameter("generationMode", "streaming")
+                            .withParameter("naturalLanguageQuery", naturalLanguageQuery)
+                            .withParameter("availableItems", request.availableItems());
 
             StreamingContext streamingContext = new StreamingContext(streamingProperties);
 
@@ -121,8 +117,8 @@ public class AiApiController {
                     )
                     .onErrorResume(error -> {
                         log.error("스트리밍 처리 중 오류", error);
-                        String errorMessage = error instanceof Throwable ? 
-                            ((Throwable) error).getMessage() : error.toString();
+                        String errorMessage = error instanceof Throwable ?
+                                ((Throwable) error).getMessage() : error.toString();
                         return Flux.just(ServerSentEvent.<String>builder()
                                 .data("ERROR: " + errorMessage)
                                 .build());
@@ -143,122 +139,122 @@ public class AiApiController {
             return Mono.just(ResponseEntity.badRequest().build());
         }
 
-                if (request.availableItems() != null) {
-                    }
+        if (request.availableItems() != null) {
+        }
 
         return Mono.fromCallable(() -> {
-            
-            PolicyContext context = new PolicyContext.Builder(
-                SecurityLevel.STANDARD,
-                AuditRequirement.BASIC
-            ).withNaturalLanguageQuery(naturalLanguageQuery).build();
 
-            return (AIRequest<PolicyContext>) new AIRequest<>(context, "generatePolicyFromText", context.getOrganizationId())
-                    .withDiagnosisType(DiagnosisType.POLICY_GENERATION)
-                    .withParameter("generationMode", "standard")
-                    .withParameter("naturalLanguageQuery", naturalLanguageQuery)
-                    .withParameter("availableItems", request.availableItems());
-        })
-        .flatMap(aiRequest -> {
-            
-            return aiNativeProcessor.process(aiRequest, AIResponse.class);
-        })
-        .map(response -> {
-            if (response instanceof PolicyResponse policyResponse) {
+                    PolicyContext context = new PolicyContext.Builder(
+                            SecurityLevel.STANDARD,
+                            AuditRequirement.BASIC
+                    ).withNaturalLanguageQuery(naturalLanguageQuery).build();
 
-                BusinessPolicyDto policyData = policyResponse.getPolicyData();
-                Map<String, String> roleMap = policyResponse.getRoleIdToNameMap();
-                Map<String, String> permissionMap = policyResponse.getPermissionIdToNameMap();
-                Map<String, String> conditionMap = policyResponse.getConditionIdToNameMap();
+                    return (AIRequest<PolicyContext>) new AIRequest<>(context, "generatePolicyFromText", context.getOrganizationId())
+                            .withDiagnosisType(DiagnosisType.POLICY_GENERATION)
+                            .withParameter("generationMode", "standard")
+                            .withParameter("naturalLanguageQuery", naturalLanguageQuery)
+                            .withParameter("availableItems", request.availableItems());
+                })
+                .flatMap(aiRequest -> {
 
-                if (policyData == null) {
-                    log.error("PolicyResponse 에서 policyData가 null 입니다");
+                    return aiNativeProcessor.process(aiRequest, AIResponse.class);
+                })
+                .map(response -> {
+                    if (response instanceof PolicyResponse policyResponse) {
+
+                        BusinessPolicyDto policyData = policyResponse.getPolicyData();
+                        Map<String, String> roleMap = policyResponse.getRoleIdToNameMap();
+                        Map<String, String> permissionMap = policyResponse.getPermissionIdToNameMap();
+                        Map<String, String> conditionMap = policyResponse.getConditionIdToNameMap();
+
+                        if (policyData == null) {
+                            log.error("PolicyResponse 에서 policyData가 null 입니다");
+                            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+                        }
+
+                        roleMap = roleMap != null ? roleMap : new HashMap<>();
+                        permissionMap = permissionMap != null ? permissionMap : new HashMap<>();
+                        conditionMap = conditionMap != null ? conditionMap : new HashMap<>();
+
+                        AiGeneratedPolicyDraftDto result =
+                                new AiGeneratedPolicyDraftDto(
+                                        policyData, roleMap, permissionMap, conditionMap
+                                );
+
+                        return ResponseEntity.ok(result);
+                    }
+
+                    log.error("예상하지 못한 응답 타입: {} (예상: PolicyResponse)", response.getClass().getSimpleName());
                     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-                }
-                
-                roleMap = roleMap != null ? roleMap : new HashMap<>();
-                permissionMap = permissionMap != null ? permissionMap : new HashMap<>();
-                conditionMap = conditionMap != null ? conditionMap : new HashMap<>();
-
-                AiGeneratedPolicyDraftDto result =
-                    new AiGeneratedPolicyDraftDto(
-                        policyData, roleMap, permissionMap, conditionMap
-                    );
-
-                                return ResponseEntity.ok(result);
-            }
-
-            log.error("예상하지 못한 응답 타입: {} (예상: PolicyResponse)", response.getClass().getSimpleName());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        });
+                });
     }
 
     @PostMapping("/recommend-conditions")
     public Mono<ResponseEntity<Map<String, Object>>> recommendConditions(@RequestBody RecommendConditionsRequest request) {
-        
+
         return Mono.fromCallable(() -> {
-            
-            ManagedResource resource = managedResourceRepository.findByResourceIdentifier(request.resourceIdentifier())
-                    .orElseThrow(() -> new IllegalArgumentException("Resource not found: " + request.resourceIdentifier()));
 
-            List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
+                    ManagedResource resource = managedResourceRepository.findByResourceIdentifier(request.resourceIdentifier())
+                            .orElseThrow(() -> new IllegalArgumentException("Resource not found: " + request.resourceIdentifier()));
 
-            Map<Long, CompatibilityResult> compatibilityResults =
-                conditionCompatibilityService.checkBatchCompatibility(allConditions, resource);
+                    List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
 
-            Map<ConditionTemplate.ConditionClassification, List<RecommendedCondition>> recommendedByClass =
-                new EnumMap<>(ConditionTemplate.ConditionClassification.class);
+                    Map<Long, CompatibilityResult> compatibilityResults =
+                            conditionCompatibilityService.checkBatchCompatibility(allConditions, resource);
 
-            for (ConditionTemplate condition : allConditions) {
-                CompatibilityResult result = compatibilityResults.get(condition.getId());
-                if (result != null && result.isCompatible()) {
-                    
-                    double matchingScore = calculateRecommendationScore(condition, request.context());
+                    Map<ConditionTemplate.ConditionClassification, List<RecommendedCondition>> recommendedByClass =
+                            new EnumMap<>(ConditionTemplate.ConditionClassification.class);
 
-                    RecommendedCondition recommendedCondition = new RecommendedCondition(
-                        condition.getId(),
-                        condition.getName(),
-                        condition.getDescription(),
-                        condition.getSpelTemplate(),
-                        condition.getClassification(),
-                        condition.getRiskLevel(),
-                        condition.getComplexityScore(),
-                        result.getReason(),
-                        matchingScore
-                    );
+                    for (ConditionTemplate condition : allConditions) {
+                        CompatibilityResult result = compatibilityResults.get(condition.getId());
+                        if (result != null && result.isCompatible()) {
 
-                    recommendedByClass.computeIfAbsent(condition.getClassification(),
-                        k -> new ArrayList<>()).add(recommendedCondition);
-                }
-            }
+                            double matchingScore = calculateRecommendationScore(condition, request.context());
 
-            recommendedByClass.values().forEach(list ->
-                list.sort((a, b) -> Double.compare(b.recommendationScore(), a.recommendationScore())));
+                            RecommendedCondition recommendedCondition = new RecommendedCondition(
+                                    condition.getId(),
+                                    condition.getName(),
+                                    condition.getDescription(),
+                                    condition.getSpelTemplate(),
+                                    condition.getClassification(),
+                                    condition.getRiskLevel(),
+                                    condition.getComplexityScore(),
+                                    result.getReason(),
+                                    matchingScore
+                            );
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("resourceIdentifier", request.resourceIdentifier());
-            response.put("resourceFriendlyName", resource.getFriendlyName());
-            response.put("recommendedConditions", recommendedByClass);
-            response.put("totalRecommended", recommendedByClass.values().stream()
-                .mapToInt(List::size).sum());
-            response.put("statistics", calculateRecommendationStatistics(recommendedByClass));
+                            recommendedByClass.computeIfAbsent(condition.getClassification(),
+                                    k -> new ArrayList<>()).add(recommendedCondition);
+                        }
+                    }
 
-            return ResponseEntity.ok(response);
-        })
-        .onErrorResume(error -> {
-            log.error("조건 비동기 추천 중 오류 발생", error);
-            return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "조건 추천 중 오류가 발생했습니다: " + error.getMessage())));
-        });
+                    recommendedByClass.values().forEach(list ->
+                            list.sort((a, b) -> Double.compare(b.recommendationScore(), a.recommendationScore())));
+
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("resourceIdentifier", request.resourceIdentifier());
+                    response.put("resourceFriendlyName", resource.getFriendlyName());
+                    response.put("recommendedConditions", recommendedByClass);
+                    response.put("totalRecommended", recommendedByClass.values().stream()
+                            .mapToInt(List::size).sum());
+                    response.put("statistics", calculateRecommendationStatistics(recommendedByClass));
+
+                    return ResponseEntity.ok(response);
+                })
+                .onErrorResume(error -> {
+                    log.error("조건 비동기 추천 중 오류 발생", error);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(Map.of("error", "조건 추천 중 오류가 발생했습니다: " + error.getMessage())));
+                });
     }
 
     private double calculateRecommendationScore(ConditionTemplate condition, String context) {
         double score = 0.0;
 
         switch (condition.getClassification()) {
-            case UNIVERSAL -> score += 1.0;           
-            case CONTEXT_DEPENDENT -> score += 0.7;   
-            case CUSTOM_COMPLEX -> score += 0.4;      
+            case UNIVERSAL -> score += 1.0;
+            case CONTEXT_DEPENDENT -> score += 0.7;
+            case CUSTOM_COMPLEX -> score += 0.4;
         }
 
         if (condition.getRiskLevel() != null) {
@@ -284,65 +280,65 @@ public class AiApiController {
             if (lowerDesc.contains(lowerContext) || lowerName.contains(lowerContext)) score += 0.3;
         }
 
-        return Math.max(0.0, Math.min(2.0, score)); 
+        return Math.max(0.0, Math.min(2.0, score));
     }
 
     @PostMapping("/smart-match-conditions")
     public Mono<ResponseEntity<Map<String, Object>>> smartMatchConditions(@RequestBody SmartMatchRequest request) {
-        
+
         return Mono.fromCallable(() -> {
-            
-            ManagedResource resource = managedResourceRepository.findByResourceIdentifier(request.resourceIdentifier())
-                    .orElseThrow(() -> new IllegalArgumentException("Resource not found: " + request.resourceIdentifier()));
 
-            List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
+                    ManagedResource resource = managedResourceRepository.findByResourceIdentifier(request.resourceIdentifier())
+                            .orElseThrow(() -> new IllegalArgumentException("Resource not found: " + request.resourceIdentifier()));
 
-            Map<Long, CompatibilityResult> compatibilityResults =
-                conditionCompatibilityService.checkBatchCompatibility(allConditions, resource);
+                    List<ConditionTemplate> allConditions = conditionTemplateRepository.findAll();
 
-            List<SmartMatchedCondition> smartMatched = new ArrayList<>();
+                    Map<Long, CompatibilityResult> compatibilityResults =
+                            conditionCompatibilityService.checkBatchCompatibility(allConditions, resource);
 
-            for (ConditionTemplate condition : allConditions) {
-                CompatibilityResult result = compatibilityResults.get(condition.getId());
-                if (result != null && result.isCompatible()) {
-                    double smartScore = calculateSmartMatchingScore(condition, request.permissionName(), request.context());
+                    List<SmartMatchedCondition> smartMatched = new ArrayList<>();
 
-                    SmartMatchedCondition matchedCondition = new SmartMatchedCondition(
-                        condition.getId(),
-                        condition.getName(),
-                        condition.getDescription(),
-                        condition.getSpelTemplate(),
-                        condition.getClassification(),
-                        condition.getRiskLevel(),
-                        condition.getComplexityScore(),
-                        result.getReason(),
-                        smartScore,
-                        calculateMatchingReason(condition, request.permissionName())
-                    );
+                    for (ConditionTemplate condition : allConditions) {
+                        CompatibilityResult result = compatibilityResults.get(condition.getId());
+                        if (result != null && result.isCompatible()) {
+                            double smartScore = calculateSmartMatchingScore(condition, request.permissionName(), request.context());
 
-                    smartMatched.add(matchedCondition);
-                }
-            }
+                            SmartMatchedCondition matchedCondition = new SmartMatchedCondition(
+                                    condition.getId(),
+                                    condition.getName(),
+                                    condition.getDescription(),
+                                    condition.getSpelTemplate(),
+                                    condition.getClassification(),
+                                    condition.getRiskLevel(),
+                                    condition.getComplexityScore(),
+                                    result.getReason(),
+                                    smartScore,
+                                    calculateMatchingReason(condition, request.permissionName())
+                            );
 
-            smartMatched.sort((a, b) -> Double.compare(b.smartMatchingScore(), a.smartMatchingScore()));
+                            smartMatched.add(matchedCondition);
+                        }
+                    }
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("permissionName", request.permissionName());
-            response.put("resourceIdentifier", request.resourceIdentifier());
-            response.put("resourceFriendlyName", resource.getFriendlyName());
-            response.put("smartMatchedConditions", smartMatched);
-            response.put("totalMatched", smartMatched.size());
-            response.put("highScoreConditions", smartMatched.stream()
-                .filter(c -> c.smartMatchingScore() >= 3.0)
-                .collect(Collectors.toList()));
+                    smartMatched.sort((a, b) -> Double.compare(b.smartMatchingScore(), a.smartMatchingScore()));
 
-            return ResponseEntity.ok(response);
-        })
-        .onErrorResume(error -> {
-            log.error("스마트 비동기 매칭 중 오류 발생", error);
-            return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("error", "스마트 매칭 중 오류가 발생했습니다: " + error.getMessage())));
-        });
+                    Map<String, Object> response = new HashMap<>();
+                    response.put("permissionName", request.permissionName());
+                    response.put("resourceIdentifier", request.resourceIdentifier());
+                    response.put("resourceFriendlyName", resource.getFriendlyName());
+                    response.put("smartMatchedConditions", smartMatched);
+                    response.put("totalMatched", smartMatched.size());
+                    response.put("highScoreConditions", smartMatched.stream()
+                            .filter(c -> c.smartMatchingScore() >= 3.0)
+                            .collect(Collectors.toList()));
+
+                    return ResponseEntity.ok(response);
+                })
+                .onErrorResume(error -> {
+                    log.error("스마트 비동기 매칭 중 오류 발생", error);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                            .body(Map.of("error", "스마트 매칭 중 오류가 발생했습니다: " + error.getMessage())));
+                });
     }
 
     private double calculateSmartMatchingScore(ConditionTemplate condition, String permissionName, String context) {
@@ -359,7 +355,7 @@ public class AiApiController {
         String cleanCondition = lowerCondition.replaceAll("[^가-힣a-z0-9]", "");
 
         if (cleanCondition.contains(cleanPermission) || cleanPermission.contains(cleanCondition)) {
-            score += 3.0; 
+            score += 3.0;
         }
 
         String[] permissionWords = lowerPermission.split("\\s+");
@@ -367,7 +363,7 @@ public class AiApiController {
 
         int matchedWords = 0;
         for (String pWord : permissionWords) {
-            if (pWord.length() > 1) { 
+            if (pWord.length() > 1) {
                 for (String cWord : conditionWords) {
                     if (cWord.contains(pWord) || pWord.contains(cWord)) {
                         matchedWords++;
@@ -398,7 +394,7 @@ public class AiApiController {
         if (lowerPermission.contains("소유자") && lowerCondition.contains("소유자")) score += 2.0;
         if (lowerPermission.contains("관리자") && lowerCondition.contains("관리자")) score += 1.5;
 
-        return Math.max(0.0, Math.min(5.0, score)); 
+        return Math.max(0.0, Math.min(5.0, score));
     }
 
     private String calculateMatchingReason(ConditionTemplate condition, String permissionName) {
@@ -447,7 +443,7 @@ public class AiApiController {
     }
 
     private boolean containsEntity(String text, String entity) {
-        
+
         if (text.contains(entity)) {
             return true;
         }
@@ -460,7 +456,7 @@ public class AiApiController {
                 }
             }
         }
-        
+
         return false;
     }
 
@@ -494,50 +490,54 @@ public class AiApiController {
         stats.put("countByClassification", countByClass);
 
         double avgScore = recommendedByClass.values().stream()
-            .flatMap(List::stream)
-            .mapToDouble(RecommendedCondition::recommendationScore)
-            .average()
-            .orElse(0.0);
+                .flatMap(List::stream)
+                .mapToDouble(RecommendedCondition::recommendationScore)
+                .average()
+                .orElse(0.0);
         stats.put("averageRecommendationScore", Math.round(avgScore * 100.0) / 100.0);
 
         return stats;
     }
 
     public record RecommendConditionsRequest(
-        String resourceIdentifier,
-        String context  
-    ) {}
+            String resourceIdentifier,
+            String context
+    ) {
+    }
 
     public record RecommendedCondition(
-        Long id,
-        String name,
-        String description,
-        String spelTemplate,
-        ConditionTemplate.ConditionClassification classification,
-        ConditionTemplate.RiskLevel riskLevel,
-        Integer complexityScore,
-        String compatibilityReason,
-        double recommendationScore
-    ) {}
+            Long id,
+            String name,
+            String description,
+            String spelTemplate,
+            ConditionTemplate.ConditionClassification classification,
+            ConditionTemplate.RiskLevel riskLevel,
+            Integer complexityScore,
+            String compatibilityReason,
+            double recommendationScore
+    ) {
+    }
 
     public record SmartMatchRequest(
-        String permissionName,
-        String resourceIdentifier,
-        String context
-    ) {}
+            String permissionName,
+            String resourceIdentifier,
+            String context
+    ) {
+    }
 
     public record SmartMatchedCondition(
-        Long id,
-        String name,
-        String description,
-        String spelTemplate,
-        ConditionTemplate.ConditionClassification classification,
-        ConditionTemplate.RiskLevel riskLevel,
-        Integer complexityScore,
-        String compatibilityReason,
-        double smartMatchingScore,
-        String matchingReason
-    ) {}
+            Long id,
+            String name,
+            String description,
+            String spelTemplate,
+            ConditionTemplate.ConditionClassification classification,
+            ConditionTemplate.RiskLevel riskLevel,
+            Integer complexityScore,
+            String compatibilityReason,
+            double smartMatchingScore,
+            String matchingReason
+    ) {
+    }
 
     private Flux<ServerSentEvent<String>> createStreamingFromText(String text) {
         if (text == null || text.isEmpty()) {
@@ -547,10 +547,10 @@ public class AiApiController {
         }
 
         String[] words = text.split("\\s+");
-        int chunkSize = Math.max(1, words.length / 20); 
+        int chunkSize = Math.max(1, words.length / 20);
 
         return Flux.range(0, (words.length + chunkSize - 1) / chunkSize)
-                .delayElements(java.time.Duration.ofMillis(100)) 
+                .delayElements(java.time.Duration.ofMillis(100))
                 .map(i -> {
                     int start = i * chunkSize;
                     int end = Math.min(start + chunkSize, words.length);
@@ -563,9 +563,9 @@ public class AiApiController {
                             .build();
                 })
                 .concatWith(
-                    Mono.just(ServerSentEvent.<String>builder()
-                            .data("[DONE]")
-                            .build())
+                        Mono.just(ServerSentEvent.<String>builder()
+                                .data("[DONE]")
+                                .build())
                 );
     }
 
@@ -574,7 +574,7 @@ public class AiApiController {
 
         return Flux.create(sink -> {
             try {
-                
+
                 sink.next(ServerSentEvent.<String>builder()
                         .data("AI가 요청을 분석하고 있습니다...")
                         .build());
@@ -593,19 +593,19 @@ public class AiApiController {
                         })
                         .then(Mono.delay(java.time.Duration.ofMillis(500)))
                         .doOnNext(tick -> {
-                            
+
                             String basicJson = StreamingProtocol.JSON_START_MARKER + "\n" +
-                                """
-                                {
-                                  "policyName": "AI 생성 정책 (Fallback)",
-                                  "description": "AI가 분석한 요구사항: """ + naturalLanguageQuery + """
-                                ",
-                                  "roleIds": [],
-                                  "permissionIds": [],
-                                  "conditions": {},
-                                  "effect": "ALLOW"
-                                }
-                                """ + StreamingProtocol.JSON_END_MARKER;
+                                    """
+                                            {
+                                              "policyName": "AI 생성 정책 (Fallback)",
+                                              "description": "AI가 분석한 요구사항: """ + naturalLanguageQuery + """
+                                    ",
+                                      "roleIds": [],
+                                      "permissionIds": [],
+                                      "conditions": {},
+                                      "effect": "ALLOW"
+                                    }
+                                    """ + StreamingProtocol.JSON_END_MARKER;
 
                             sink.next(ServerSentEvent.<String>builder()
                                     .data(basicJson)

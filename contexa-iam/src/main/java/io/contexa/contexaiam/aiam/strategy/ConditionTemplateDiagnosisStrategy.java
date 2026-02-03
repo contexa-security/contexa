@@ -59,9 +59,9 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
 
     @Override
     protected Object buildLabRequest(AIRequest<ConditionTemplateContext> request) {
-        
+
         String generationType = request.getParameter("generationType", String.class);
-        
+
         if ("specific".equals(generationType)) {
             String resourceIdentifier = request.getParameter("resourceIdentifier", String.class);
             String methodInfo = request.getParameter("methodInfo", String.class);
@@ -76,17 +76,17 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
         AILab<ConditionTemplateGenerationRequest, ConditionTemplateGenerationResponse> conditionTemplateGenerationLab = (ConditionTemplateGenerationLab) lab;
         ConditionTemplateGenerationResponse response;
 
-        if (labRequest instanceof UniversalTemplateRequest universalTemplateRequest) {
+        if (labRequest instanceof UniversalTemplateRequest) {
             ConditionTemplateGenerationRequest conditionTemplateLabRequest =
                     new ConditionTemplateGenerationRequest(true);
             response = conditionTemplateGenerationLab.process(conditionTemplateLabRequest);
-            
+
         } else if (labRequest instanceof SpecificTemplateRequest specificTemplateRequest) {
             ConditionTemplateGenerationRequest conditionTemplateLabRequest =
                     new ConditionTemplateGenerationRequest(false, "specific", specificTemplateRequest.resourceIdentifier, specificTemplateRequest.methodInfo);
             response = conditionTemplateGenerationLab.process(conditionTemplateLabRequest);
 
-                    } else {
+        } else {
             throw new DiagnosisException("CONDITION_TEMPLATE", "INVALID_REQUEST_TYPE",
                     "알 수 없는 요청 타입: " + labRequest.getClass().getSimpleName());
         }
@@ -115,9 +115,7 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
         }
     }
 
-    private static class UniversalTemplateRequest {
-        
-    }
+    private static class UniversalTemplateRequest {}
 
     private static class SpecificTemplateRequest {
         final String resourceIdentifier;
@@ -131,7 +129,7 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
 
     @Override
     protected PipelineConfig getPipelineConfig() {
-        
+
         return PipelineConfig.builder()
                 .contextRetrieval(PipelineConfig.ContextRetrievalStrategy.OPTIONAL)
                 .postProcessing(PipelineConfig.PostProcessingStrategy.DYNAMIC)

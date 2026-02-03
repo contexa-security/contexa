@@ -30,7 +30,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
 
     @Override
     public int getPriority() {
-        return 10; 
+        return 10;
     }
 
     @Override
@@ -64,9 +64,8 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
     protected ResourceNamingSuggestionResponse processLabExecution(Object lab, Object labRequest, AIRequest<ResourceNamingContext> request) throws Exception {
         AILab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> resourceNamingLab = (ResourceNamingLab) lab;
         ResourceNamingSuggestionRequest namingRequest = (ResourceNamingSuggestionRequest) labRequest;
-        ResourceNamingSuggestionResponse namingResponse = resourceNamingLab.process(namingRequest);
-        
-        return namingResponse;
+
+        return resourceNamingLab.process(namingRequest);
     }
 
     @Override
@@ -74,7 +73,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
         AILab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> resourceNamingLab = (ResourceNamingLab) lab;
         ResourceNamingSuggestionRequest namingRequest = (ResourceNamingSuggestionRequest) labRequest;
 
-                return resourceNamingLab.processAsync(namingRequest);
+        return resourceNamingLab.processAsync(namingRequest);
     }
 
 }

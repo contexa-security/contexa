@@ -193,42 +193,6 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         return aiRequest;
     }
 
-    private StudioQueryResponse enhanceStudioQueryResponse(StudioQueryResponse response, StudioQueryRequest request) {
-        
-        try {
-            
-            if (response.getVisualizationData() == null) {
-                                response.setVisualizationData(createDefaultVisualizationData(request));
-            }
-
-            if (response.getRecommendations() == null || response.getRecommendations().isEmpty()) {
-                                response.setRecommendations(createDefaultRecommendations(request));
-            }
-
-            try {
-                vectorService.storeQueryResult(request, response);
-            } catch (Exception ve) {
-                log.error("벡터 저장소 결과 저장 실패", ve);
-            }
-            
-            return response;
-
-        } catch (Exception e) {
-            log.error("Response post-processing failed", e);
-            return response;
-        }
-    }
-
-    public void learnFromFeedback(StudioQueryRequest request, StudioQueryResponse response, String feedback) {
-        try {
-            String queryId = request.getRequestId();
-            boolean isHelpful = response.getConfidenceScore() > 0.7; 
-            vectorService.storeFeedback(queryId, isHelpful, feedback);
-                    } catch (Exception e) {
-            log.error("[StudioQueryLab] 피드백 학습 실패", e);
-        }
-    }
-
     private StudioQueryResponse.VisualizationData createDefaultVisualizationData(StudioQueryRequest request) {
         StudioQueryResponse.VisualizationData vizData = new StudioQueryResponse.VisualizationData();
 
@@ -305,23 +269,5 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
 
         recommendation.setType("ANALYSIS_BASED");
         return List.of(recommendation);
-    }
-
-    private StudioQueryResponse createFallbackResponse(StudioQueryRequest request) {
-        StudioQueryResponse response = new StudioQueryResponse();
-        response.setNaturalLanguageAnswer("죄송합니다. 현재 질의를 처리할 수 없습니다. 잠시 후 다시 시도해주세요.");
-        response.setConfidenceScore(0);
-        response.setRecommendations(createDefaultRecommendations(request));
-        response.setVisualizationData(createDefaultVisualizationData(request));
-        return response;
-    }
-
-    private StudioQueryResponse createErrorResponse(StudioQueryRequest request, Exception e) {
-        StudioQueryResponse response = new StudioQueryResponse();
-        response.setNaturalLanguageAnswer("시스템 오류로 인해 질의를 처리할 수 없습니다: " + e.getMessage());
-        response.setConfidenceScore(0);
-        response.setRecommendations(createDefaultRecommendations(request));
-        response.setVisualizationData(createDefaultVisualizationData(request));
-        return response;
     }
 }

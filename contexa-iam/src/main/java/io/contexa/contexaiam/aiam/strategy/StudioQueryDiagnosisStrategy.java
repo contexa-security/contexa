@@ -119,7 +119,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
         AILab<StudioQueryRequest, StudioQueryResponse> studioQueryLab = (StudioQueryLab) lab;
         StudioQueryRequest studioQueryRequest = (StudioQueryRequest) labRequest;
 
-                return studioQueryLab.process(studioQueryRequest);
+        return studioQueryLab.process(studioQueryRequest);
     }
 
     @Override
@@ -127,7 +127,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
         AILab<StudioQueryRequest, StudioQueryResponse> studioQueryLab = (StudioQueryLab) lab;
         StudioQueryRequest studioQueryRequest = (StudioQueryRequest) labRequest;
 
-                return studioQueryLab.processAsync(studioQueryRequest);
+        return studioQueryLab.processAsync(studioQueryRequest);
     }
 
     @Override
@@ -136,12 +136,6 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
         StudioQueryRequest studioQueryRequest = (StudioQueryRequest) labRequest;
 
         return studioQueryLab.processStream(studioQueryRequest)
-                .doOnSubscribe(subscription -> {
-                                    })
-                .doOnNext(chunk -> {
-                                    })
-                .doOnComplete(() -> {
-                                    })
                 .doOnError(error -> {
                     log.error("스트리밍 Studio Query 진단 전략 실행 실패 - 요청: {}", request.getRequestId(), error);
                 });
@@ -149,7 +143,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
 
     @Override
     protected PipelineConfig getPipelineConfig() {
-        
+
         return PipelineConfig.fullPipeline();
     }
 }

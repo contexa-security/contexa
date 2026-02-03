@@ -69,7 +69,7 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
         AILab<PolicyGenerationRequest, PolicyResponse> policyGenerationLab = (AdvancedPolicyGenerationLab) lab;
         PolicyGenerationRequest policyGenerationRequest = (PolicyGenerationRequest) labRequest;
 
-                return policyGenerationLab.process(policyGenerationRequest);
+        return policyGenerationLab.process(policyGenerationRequest);
     }
 
     @Override
@@ -77,16 +77,13 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
         AILab<PolicyGenerationRequest, PolicyResponse> policyGenerationLab = (AdvancedPolicyGenerationLab) lab;
         PolicyGenerationRequest data = (PolicyGenerationRequest) labRequest;
 
-                return policyGenerationLab.processAsync(data);
+        return policyGenerationLab.processAsync(data);
     }
 
     @Override
     protected Flux<String> processLabExecutionStream(Object lab, Object labRequest, AIRequest<PolicyContext> request) {
         AILab<PolicyGenerationRequest, PolicyResponse> policyGenerationLab = (AdvancedPolicyGenerationLab) lab;
         PolicyGenerationRequest policyGenerationRequest = (PolicyGenerationRequest) labRequest;
-
-                if (policyGenerationRequest.getAvailableItems() != null) {
-                    }
 
         return policyGenerationLab.processStream(policyGenerationRequest);
     }
