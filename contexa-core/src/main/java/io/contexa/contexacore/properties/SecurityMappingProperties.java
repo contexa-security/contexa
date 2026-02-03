@@ -1,6 +1,6 @@
 package io.contexa.contexacore.properties;
 
-import io.contexa.contexacore.std.llm.core.ExecutionContext;
+import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;

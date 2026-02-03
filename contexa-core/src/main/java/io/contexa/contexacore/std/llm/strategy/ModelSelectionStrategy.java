@@ -1,6 +1,6 @@
 package io.contexa.contexacore.std.llm.strategy;
 
-import io.contexa.contexacore.std.llm.core.ExecutionContext;
+import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import org.springframework.ai.chat.model.ChatModel;
 
 public interface ModelSelectionStrategy {

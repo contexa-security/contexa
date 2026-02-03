@@ -1,4 +1,4 @@
-package io.contexa.contexacore.std.llm.core;
+package io.contexa.contexacore.std.llm.client;
 
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

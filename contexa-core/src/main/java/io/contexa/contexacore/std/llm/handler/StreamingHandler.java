@@ -1,6 +1,6 @@
 package io.contexa.contexacore.std.llm.handler;
 
-import io.contexa.contexacore.std.llm.core.ExecutionContext;
+import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import org.springframework.ai.chat.client.ChatClient;
 import reactor.core.publisher.Flux;
 

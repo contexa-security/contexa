@@ -331,53 +331,18 @@ class AIStudioLegacy {
     // =============================
 
     /**
-     * 🌊 스트리밍 진행 상황 모달 표시
+     * Streaming progress modal using shared ModalUIAdapter
      */
     showStreamingProgressModal(query) {
-        // Remove existing modal DOM only (without resetting state flags)
-        const existingModal = document.getElementById('streaming-modal');
-        if (existingModal && existingModal.parentNode) {
-            existingModal.parentNode.removeChild(existingModal);
+        // Use shared ModalUIAdapter from contexa-streaming.bundle.js
+        if (!this.modalAdapter) {
+            this.modalAdapter = typeof ModalUIAdapter !== 'undefined'
+                ? new ModalUIAdapter({ headerText: 'AI 권한 분석 진행 중' })
+                : null;
         }
 
-        const modalHtml = `
-   <div id="streaming-modal" class="streaming-modal" style="display: flex; opacity: 1;">
-       <div class="streaming-modal-content">
-           <div class="streaming-header">
-               <h3><i class="fas fa-brain mr-2"></i>AI 권한 분석 진행 중</h3>
-               <div class="streaming-query">
-                   <strong>질의:</strong> <span id="streaming-query-text">${this.escapeHtml(query)}</span>
-               </div>
-           </div>
-           
-           <div class="streaming-progress">
-               <div class="streaming-content" id="streaming-content" data-initial="true">
-                   <div class="streaming-step" style="opacity: 1; transform: translateY(0);">
-                       <i class="fas fa-cog fa-spin mr-2"></i>AI가 권한 분석을 시작합니다...
-                   </div>
-               </div>
-           </div>
-           
-           <div class="streaming-footer">
-               <div class="streaming-animation">
-                   <div class="dot"></div>
-                   <div class="dot"></div>
-                   <div class="dot"></div>
-               </div>
-               <small>AI가 권한 구조를 분석하고 있습니다. 잠시만 기다려주세요.</small>
-           </div>
-       </div>
-   </div>
-`;
-
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-        // 모달 강제 표시
-        const modal = document.getElementById('streaming-modal');
-        if (modal) {
-            modal.classList.add('show');
-            modal.style.display = 'flex';
-            modal.style.opacity = '1';
+        if (this.modalAdapter) {
+            this.modalAdapter.onStreamStart(query);
         }
     }
 
@@ -677,175 +642,67 @@ class AIStudioLegacy {
     }
 
     /**
-     * 🌊 스트리밍 단계 추가
+     * Streaming step addition using shared ModalUIAdapter
      */
     addStreamingStep(text) {
-        console.log('🌊 [addStreamingStep] 호출됨 - 텍스트:', text);
-
-        let streamingContent = document.getElementById('streaming-content');
-        if (!streamingContent) {
-            console.error('🌊 스트리밍 컨텐츠 요소를 찾을 수 없음!');
-
-            // 모달이 없으면 다시 생성
-            const modal = document.getElementById('streaming-modal');
-            if (!modal) {
-                console.log('🌊 모달이 없어서 재생성');
-                this.showStreamingProgressModal(this.currentOriginalQuery || '분석 중...');
-            }
-
-            // 재시도
-            streamingContent = document.getElementById('streaming-content');
-            if (!streamingContent) {
-                console.error('🌊 재시도 후에도 찾을 수 없음');
-                return;
-            }
+        // Use shared ModalUIAdapter
+        if (this.modalAdapter) {
+            this.modalAdapter.addStep(text);
         }
-
-        // 초기 메시지 제거
-        if (streamingContent.getAttribute('data-initial') === 'true') {
-            streamingContent.innerHTML = '';
-            streamingContent.removeAttribute('data-initial');
-        }
-
-        const step = document.createElement('div');
-        step.className = 'streaming-step';
-        step.innerHTML = `<i class="fas fa-cog fa-spin mr-2"></i>${this.escapeHtml(text)}`;
-        step.style.opacity = '0';
-        step.style.transform = 'translateY(10px)';
-        step.style.transition = 'all 0.3s ease';
-
-        streamingContent.appendChild(step);
-
-        // 강제 리플로우
-        void step.offsetHeight;
-
-        // 애니메이션
-        requestAnimationFrame(() => {
-            step.style.opacity = '1';
-            step.style.transform = 'translateY(0)';
-            streamingContent.scrollTop = streamingContent.scrollHeight;
-        });
-    }
-
-    addStreamingStepInternal(streamingContent, text) {
-        console.log('🌊 [addStreamingStepInternal] 실행 - 현재 자식 수:', streamingContent.children.length);
-
-        // 초기 메시지 제거
-        if (streamingContent.getAttribute('data-initial') === 'true') {
-            streamingContent.innerHTML = '';
-            streamingContent.removeAttribute('data-initial');
-            console.log('🌊 [addStreamingStepInternal] 초기 메시지 제거');
-        }
-
-        const step = document.createElement('div');
-        step.className = 'streaming-step';
-        step.innerHTML = `<i class="fas fa-cog fa-spin mr-2"></i>${this.escapeHtml(text)}`;
-        step.style.opacity = '0';
-        step.style.transform = 'translateY(10px)';
-        step.style.transition = 'all 0.3s ease';
-
-        streamingContent.appendChild(step);
-        console.log('🌊 [addStreamingStepInternal] DOM에 추가 완료');
-
-        // 강제 리플로우
-        void step.offsetHeight;
-
-        // 애니메이션 효과
-        requestAnimationFrame(() => {
-            step.style.opacity = '1';
-            step.style.transform = 'translateY(0)';
-
-            // 스크롤을 맨 아래로
-            streamingContent.scrollTop = streamingContent.scrollHeight;
-        });
     }
 
     /**
-     * 🌊 스트리밍 완료 메시지
+     * Internal streaming step addition (delegates to shared adapter)
+     */
+    addStreamingStepInternal(streamingContent, text) {
+        this.addStreamingStep(text);
+    }
+
+    /**
+     * Show streaming complete message using shared adapter
      */
     showStreamingComplete() {
-        const streamingContent = document.getElementById('streaming-content');
-        if (!streamingContent) return;
-
-        const completeStep = document.createElement('div');
-        completeStep.className = 'streaming-step streaming-complete';
-        completeStep.innerHTML = `
-            <i class="fas fa-check-circle mr-2 text-green-400"></i>
-            <span class="text-green-400 font-semibold">AI 권한 분석이 완료되었습니다.</span>
-        `;
-        completeStep.style.opacity = '1';
-        completeStep.style.transform = 'translateY(0)';
-        completeStep.style.borderLeftColor = '#22c55e';
-
-        streamingContent.appendChild(completeStep);
-        streamingContent.scrollTop = streamingContent.scrollHeight;
+        if (this.modalAdapter) {
+            this.modalAdapter.addStep('AI 권한 분석이 완료되었습니다.');
+        }
     }
 
     /**
-     * 🌊 스트리밍 진행 상황 중지
+     * Stop streaming progress using shared ModalUIAdapter
      */
     stopStreamingProgress() {
         this.isStreaming = false;
 
-        // 완료 메시지 추가
-        const streamingContent = document.getElementById('streaming-content');
-        if (streamingContent) {
-            console.log('🌊 [stopStreamingProgress] 스트리밍 중지 및 완료 메시지 추가');
-
-            // 기존 커서 제거
-            const existingCursor = streamingContent.querySelector('.streaming-cursor');
-            if (existingCursor) {
-                existingCursor.remove();
-            }
-
-            // 완료 메시지 추가
-            const completedStep = document.createElement('div');
-            completedStep.className = 'streaming-step';
-            completedStep.innerHTML = '<i class="fas fa-check-circle mr-2 text-green-400"></i>AI 권한 분석이 완료되었습니다.';
-            completedStep.style.color = '#10b981';
-            completedStep.style.fontWeight = 'bold';
-            completedStep.style.opacity = '1';
-            completedStep.style.transform = 'translateY(0)';
-            streamingContent.appendChild(completedStep);
-
-            // 스크롤을 맨 아래로
-            streamingContent.scrollTop = streamingContent.scrollHeight;
+        // Add completion message using shared adapter
+        if (this.modalAdapter) {
+            this.modalAdapter.addStep('AI 권한 분석이 완료되었습니다.');
+            this.modalAdapter.onFinalResponse({ status: 'complete' });
         }
 
-        // 2초 후 모달 닫기
+        // Close modal after delay
         setTimeout(() => {
             this.hideStreamingProgressModal();
         }, 2000);
     }
 
     /**
-     * 🌊 스트리밍 진행 상황 모달 숨기기
+     * Hide streaming progress modal using shared ModalUIAdapter
      */
     hideStreamingProgressModal() {
-        const modal = document.getElementById('streaming-modal');
-        if (modal) {
-            // Reset state flags
-            this.isProcessingQuery = false;
-            this.isLoading = false;
-            this.isStreaming = false;
+        // Reset state flags
+        this.isProcessingQuery = false;
+        this.isLoading = false;
+        this.isStreaming = false;
 
-            // Restore button state
-            const queryBtn = document.getElementById('query-btn');
-            if (queryBtn) {
-                queryBtn.disabled = false;
-                queryBtn.textContent = 'AI 분석 시작';
-            }
+        // Restore button state (matches studio.html id="ai-query-btn")
+        const queryBtn = document.getElementById('ai-query-btn');
+        if (queryBtn) {
+            queryBtn.disabled = false;
+        }
 
-            // Hide modal
-            modal.classList.remove('show');
-            modal.style.display = 'none';
-
-            // Remove modal from DOM after animation
-            setTimeout(() => {
-                if (modal.parentNode) {
-                    modal.parentNode.removeChild(modal);
-                }
-            }, 1000);
+        // Hide modal using shared adapter
+        if (this.modalAdapter) {
+            this.modalAdapter.hide();
         }
     }
 
@@ -8032,27 +7889,7 @@ class AIStudioLegacy {
         }
     }
 
-    /**
-     * 스트리밍 진행 상황 중지 (Policy Builder와 동일)
-     */
-    stopStreamingProgress() {
-        this.isStreaming = false;
-
-        const streamingContent = document.getElementById('streaming-content');
-        if (streamingContent) {
-            const completedStep = document.createElement('div');
-            completedStep.className = 'streaming-step';
-            completedStep.innerHTML = '<i class="fas fa-check-circle mr-2 text-green-400"></i>AI 분석이 완료되었습니다.';
-            streamingContent.appendChild(completedStep);
-            streamingContent.scrollTop = streamingContent.scrollHeight;
-        }
-
-        // 🔥 스트리밍 완료 메시지를 충분히 보여준 후 모달 닫기 (Policy Builder와 동일)
-        setTimeout(() => {
-            console.log('🛑 스트리밍 완료 - 3초 후 모달 자동 닫기');
-            this.hideStreamingProgressModal();
-        }, 3000);
-    }
+    // stopStreamingProgress is defined earlier in the class - removed duplicate
 
     /**
      * 🔥 불완전한 JSON 자동 복구

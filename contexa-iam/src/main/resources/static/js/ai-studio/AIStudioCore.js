@@ -62,7 +62,10 @@ class AIStudioCore {
             throw new Error('StreamingClient or StreamingHandler is required');
         }
 
-        this.modalManager = typeof ModalManager !== 'undefined' ? new ModalManager() : null;
+        // Use shared ModalUIAdapter from contexa-streaming library
+        this.modalManager = typeof ModalUIAdapter !== 'undefined' ? new ModalUIAdapter({
+            headerText: 'AI 권한 분석 진행 중'
+        }) : null;
         this.domRenderer = typeof DOMRenderer !== 'undefined' ? new DOMRenderer() : null;
         this.responseParser = typeof ResponseParser !== 'undefined' ? new ResponseParser() : null;
         this.graphManager = options.graphContainerId && typeof GraphManager !== 'undefined' ?
@@ -114,7 +117,7 @@ class AIStudioCore {
         };
 
         if (this.modalManager) {
-            this.modalManager.show(query);
+            this.modalManager.onStreamStart(query);
         }
 
         if (this.callbacks.onQueryStart) {
@@ -154,7 +157,7 @@ class AIStudioCore {
 
                 onRetry: (attempt, maxAttempts) => {
                     if (this.modalManager) {
-                        this.modalManager.showRetry(attempt, maxAttempts);
+                        this.modalManager.onRetry(attempt, maxAttempts);
                     }
                 },
 
@@ -180,7 +183,7 @@ class AIStudioCore {
         } catch (error) {
             this.isProcessing = false;
             if (this.modalManager) {
-                this.modalManager.showError(error.message || 'An error occurred');
+                this.modalManager.onError(error);
                 this.setTimeout(() => {
                     this.modalManager.hide();
                 }, 3000);
@@ -237,7 +240,7 @@ class AIStudioCore {
                 onError: (error) => {
                     this.isProcessing = false;
                     if (this.modalManager) {
-                        this.modalManager.showError(error.message || 'An error occurred');
+                        this.modalManager.onError(error);
                         this.setTimeout(() => {
                             this.modalManager.hide();
                         }, 3000);
@@ -252,7 +255,7 @@ class AIStudioCore {
 
                 onRetry: (attempt, maxAttempts) => {
                     if (this.modalManager) {
-                        this.modalManager.showRetry(attempt, maxAttempts);
+                        this.modalManager.onRetry(attempt, maxAttempts);
                     }
                 },
 

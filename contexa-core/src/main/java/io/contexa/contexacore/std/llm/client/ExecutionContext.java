@@ -1,4 +1,4 @@
-package io.contexa.contexacore.std.llm.core;
+package io.contexa.contexacore.std.llm.client;
 
 import lombok.Builder;
 import lombok.Data;

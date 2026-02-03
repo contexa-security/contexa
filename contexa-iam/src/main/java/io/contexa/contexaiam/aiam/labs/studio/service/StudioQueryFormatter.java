@@ -15,70 +15,6 @@ import java.util.*;
 @Slf4j
 public class StudioQueryFormatter {
 
-    public StudioQueryResponse.VisualizationData generateVisualizationData(IAMDataSet dataSet, StudioQueryRequest request) {
-
-        StudioQueryResponse.VisualizationData vizData = new StudioQueryResponse.VisualizationData();
-        vizData.setGraphType("AI_DRIVEN_NETWORK");
-        vizData.setTitle("AI 권한 분석 결과 시각화");
-        vizData.setDescription("AI 분석 결과를 기반으로 생성된 권한 관계 시각화");
-
-        vizData.setNodes(new ArrayList<>());
-        vizData.setEdges(new ArrayList<>());
-
-        Map<String, Object> layoutConfig = new HashMap<>();
-        layoutConfig.put("aiDriven", true);
-        layoutConfig.put("waitingForAI", true);
-        vizData.setLayoutConfig(layoutConfig);
-
-        Map<String, String> styling = new HashMap<>();
-        styling.put("theme", "ai-waiting");
-        styling.put("background", "#0a0a0a");
-        vizData.setStyling(styling);
-
-                return vizData;
-    }
-
-    public StudioQueryResponse.VisualizationData generateVisualizationFromAIResult(
-            Object aiAnalysisResult, IAMDataSet dataSet) {
-
-        StudioQueryResponse.VisualizationData vizData = new StudioQueryResponse.VisualizationData();
-        vizData.setGraphType("AI_ANALYZED_NETWORK");
-        vizData.setTitle("AI 권한 분석 결과");
-        vizData.setDescription("AI가 분석한 권한 관계 및 인사이트");
-
-        List<StudioQueryResponse.VisualizationData.Node> nodes = new ArrayList<>();
-        List<StudioQueryResponse.VisualizationData.Edge> edges = new ArrayList<>();
-
-        extractNodesFromAIResult(aiAnalysisResult, nodes, dataSet);
-        extractEdgesFromAIResult(aiAnalysisResult, edges, dataSet);
-
-        vizData.setNodes(nodes);
-        vizData.setEdges(edges);
-
-        Map<String, Object> layoutConfig = new HashMap<>();
-        layoutConfig.put("aiDriven", true);
-        layoutConfig.put("algorithm", "ai-optimized");
-        vizData.setLayoutConfig(layoutConfig);
-
-        Map<String, String> styling = new HashMap<>();
-        styling.put("theme", "ai-analyzed");
-        styling.put("background", "#0a0a0a");
-        vizData.setStyling(styling);
-
-        return vizData;
-    }
-
-    private void extractNodesFromAIResult(Object aiResult, List<StudioQueryResponse.VisualizationData.Node> nodes, IAMDataSet dataSet) {
-
-    }
-
-    private void extractEdgesFromAIResult(Object aiResult, List<StudioQueryResponse.VisualizationData.Edge> edges, IAMDataSet dataSet) {
-
-    }
-
-    private void waitForRealAIAnalysis() {
-                            }
-
     public String formatForAIMData(IAMDataSet dataSet) {
         
         if (dataSet == null) {
@@ -237,7 +173,4 @@ public class StudioQueryFormatter {
 
         return sb.toString();
     }
-
-    public void confirmHardcodedAnalysisRemoved() {
-                            }
-} 
+}

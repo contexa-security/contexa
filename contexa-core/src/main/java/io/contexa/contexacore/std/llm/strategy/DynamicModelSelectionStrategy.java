@@ -1,7 +1,7 @@
 package io.contexa.contexacore.std.llm.strategy;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
-import io.contexa.contexacore.std.llm.core.ExecutionContext;
+import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import io.contexa.contexacore.std.llm.model.DynamicModelRegistry;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;

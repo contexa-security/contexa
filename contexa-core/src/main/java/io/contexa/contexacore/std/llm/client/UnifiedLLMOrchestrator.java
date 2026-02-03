@@ -1,4 +1,4 @@
-package io.contexa.contexacore.std.llm.core;
+package io.contexa.contexacore.std.llm.client;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;

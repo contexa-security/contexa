@@ -139,7 +139,7 @@ class ModalUIAdapter extends UIAdapter {
      * @param {string} text - The new header text
      */
     updateHeader(text) {
-        const header = this.currentModal?.querySelector('.streaming-header span:last-child');
+        const header = this.currentModal?.querySelector('.ctx-header-text');
         if (header) {
             header.textContent = text;
         }
@@ -152,14 +152,28 @@ class ModalUIAdapter extends UIAdapter {
      */
     createModalHtml(query) {
         return `
-        <div id="${this.modalId}" class="streaming-modal">
-            <div class="streaming-modal-content">
-                <div class="streaming-header">
-                    <span class="streaming-icon"></span>
-                    <span>${this.escapeHtml(this.headerText)}</span>
+        <div id="${this.modalId}" class="ctx-streaming-modal">
+            <div class="ctx-modal-content">
+                <div class="ctx-modal-header">
+                    <div class="ctx-header-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z" opacity="0.3"/>
+                            <path d="M12 6v6l4 2"/>
+                        </svg>
+                    </div>
+                    <span class="ctx-header-text">${this.escapeHtml(this.headerText)}</span>
                 </div>
-                <div class="streaming-query">${this.escapeHtml(query)}</div>
-                <div id="streaming-content" class="streaming-content"></div>
+                <div class="ctx-query-box">
+                    <span class="ctx-query-label">Query</span>
+                    <span class="ctx-query-text">${this.escapeHtml(query)}</span>
+                </div>
+                <div id="streaming-content" class="ctx-stream-content"></div>
+                <div class="ctx-modal-footer">
+                    <div class="ctx-loading-dots">
+                        <span></span><span></span><span></span>
+                    </div>
+                    <span class="ctx-footer-text">Processing your request...</span>
+                </div>
             </div>
         </div>`;
     }
@@ -170,85 +184,188 @@ class ModalUIAdapter extends UIAdapter {
      */
     createDefaultStyles() {
         return `
-            .streaming-modal {
+            .ctx-streaming-modal {
                 position: fixed;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: rgba(0, 0, 0, 0.5);
+                inset: 0;
+                background: rgba(0, 0, 0, 0.85);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 z-index: 10000;
                 opacity: 0;
-                transition: opacity 0.3s ease;
+                visibility: hidden;
+                transition: opacity 0.3s ease, visibility 0.3s ease;
             }
-            .streaming-modal.show {
+            .ctx-streaming-modal.show {
                 opacity: 1;
+                visibility: visible;
             }
-            .streaming-modal-content {
-                background: white;
-                border-radius: 12px;
-                padding: 24px;
-                max-width: 500px;
+            .ctx-modal-content {
+                background: linear-gradient(145deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+                border: 1px solid rgba(99, 102, 241, 0.25);
+                border-radius: 16px;
+                padding: 28px;
                 width: 90%;
-                max-height: 80vh;
-                overflow: hidden;
+                max-width: 560px;
+                max-height: 75vh;
                 display: flex;
                 flex-direction: column;
-                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+                box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6),
+                            0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+                transform: scale(0.95) translateY(10px);
+                transition: transform 0.3s ease;
             }
-            .streaming-header {
+            .ctx-streaming-modal.show .ctx-modal-content {
+                transform: scale(1) translateY(0);
+            }
+            .ctx-modal-header {
                 display: flex;
                 align-items: center;
-                gap: 10px;
-                font-size: 18px;
+                gap: 14px;
+                margin-bottom: 20px;
+            }
+            .ctx-header-icon {
+                width: 36px;
+                height: 36px;
+                background: linear-gradient(135deg, #6366f1, #8b5cf6);
+                border-radius: 10px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                animation: ctx-pulse 2s ease-in-out infinite;
+            }
+            .ctx-header-icon svg {
+                width: 20px;
+                height: 20px;
+                color: #fff;
+                animation: ctx-spin 3s linear infinite;
+            }
+            .ctx-header-text {
+                font-size: 1.25rem;
                 font-weight: 600;
-                margin-bottom: 12px;
-                color: #333;
+                color: #f1f5f9;
+                letter-spacing: -0.01em;
             }
-            .streaming-icon {
-                width: 24px;
-                height: 24px;
-                border: 3px solid #007bff;
-                border-top-color: transparent;
-                border-radius: 50%;
-                animation: streaming-spin 1s linear infinite;
+            .ctx-query-box {
+                background: rgba(15, 23, 42, 0.7);
+                border: 1px solid rgba(71, 85, 105, 0.4);
+                border-radius: 10px;
+                padding: 14px 16px;
+                margin-bottom: 20px;
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
             }
-            .streaming-query {
-                font-size: 14px;
-                color: #666;
-                margin-bottom: 16px;
-                padding: 12px;
-                background: #f8f9fa;
-                border-radius: 8px;
+            .ctx-query-label {
+                font-size: 0.75rem;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #a5b4fc;
+                flex-shrink: 0;
+            }
+            .ctx-query-text {
+                font-size: 0.9rem;
+                color: #cbd5e1;
+                line-height: 1.5;
                 word-break: break-word;
             }
-            .streaming-content {
+            .ctx-stream-content {
                 flex: 1;
+                min-height: 180px;
+                max-height: 280px;
                 overflow-y: auto;
-                max-height: 300px;
+                background: rgba(0, 0, 0, 0.3);
+                border-radius: 10px;
+                padding: 16px;
+                margin-bottom: 16px;
             }
-            .streaming-content.error-state {
-                color: #dc3545;
+            .ctx-stream-content::-webkit-scrollbar {
+                width: 5px;
+            }
+            .ctx-stream-content::-webkit-scrollbar-track {
+                background: rgba(30, 41, 59, 0.5);
+                border-radius: 3px;
+            }
+            .ctx-stream-content::-webkit-scrollbar-thumb {
+                background: rgba(99, 102, 241, 0.5);
+                border-radius: 3px;
+            }
+            .ctx-stream-content::-webkit-scrollbar-thumb:hover {
+                background: rgba(99, 102, 241, 0.7);
+            }
+            .ctx-stream-content.error-state {
+                border-color: rgba(239, 68, 68, 0.5);
+            }
+            .ctx-stream-content.error-state .streaming-step {
+                color: #fca5a5;
+                border-left-color: #ef4444;
             }
             .streaming-step {
-                padding: 8px 12px;
-                margin: 4px 0;
-                background: #f0f7ff;
-                border-radius: 6px;
-                font-size: 14px;
+                padding: 10px 14px;
+                margin: 8px 0;
+                font-size: 0.875rem;
+                line-height: 1.6;
+                color: #e2e8f0;
+                border-left: 2px solid rgba(99, 102, 241, 0.4);
+                background: rgba(99, 102, 241, 0.05);
+                border-radius: 0 6px 6px 0;
                 opacity: 0;
-                transform: translateY(10px);
-                transition: opacity 0.3s ease, transform 0.3s ease;
+                transform: translateX(-8px);
+                transition: opacity 0.25s ease, transform 0.25s ease;
             }
             .streaming-step.visible {
                 opacity: 1;
-                transform: translateY(0);
+                transform: translateX(0);
             }
-            @keyframes streaming-spin {
+            .ctx-modal-footer {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding-top: 12px;
+                border-top: 1px solid rgba(71, 85, 105, 0.3);
+            }
+            .ctx-loading-dots {
+                display: flex;
+                gap: 4px;
+            }
+            .ctx-loading-dots span {
+                width: 6px;
+                height: 6px;
+                background: #6366f1;
+                border-radius: 50%;
+                animation: ctx-bounce 1.4s ease-in-out infinite;
+            }
+            .ctx-loading-dots span:nth-child(1) { animation-delay: -0.32s; }
+            .ctx-loading-dots span:nth-child(2) { animation-delay: -0.16s; }
+            .ctx-loading-dots span:nth-child(3) { animation-delay: 0s; }
+            .ctx-footer-text {
+                font-size: 0.8rem;
+                color: #94a3b8;
+                font-style: italic;
+            }
+            @keyframes ctx-spin {
                 to { transform: rotate(360deg); }
+            }
+            @keyframes ctx-pulse {
+                0%, 100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+                50% { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+            }
+            @keyframes ctx-bounce {
+                0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+                40% { transform: scale(1.2); opacity: 1; }
+            }
+            @media (max-width: 640px) {
+                .ctx-modal-content {
+                    width: 95%;
+                    padding: 20px;
+                    max-height: 85vh;
+                }
+                .ctx-header-text { font-size: 1.1rem; }
+                .ctx-query-box { flex-direction: column; gap: 6px; }
+                .ctx-stream-content { max-height: 220px; }
             }
         `;
     }

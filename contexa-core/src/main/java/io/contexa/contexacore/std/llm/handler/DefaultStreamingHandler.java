@@ -1,7 +1,7 @@
 package io.contexa.contexacore.std.llm.handler;
 
 import io.contexa.contexacore.config.TieredLLMProperties;
-import io.contexa.contexacore.std.llm.core.ExecutionContext;
+import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -64,7 +64,6 @@ public class DefaultStreamingHandler implements StreamingHandler {
                     rawResponseFlux = optimizeForTier(rawResponseFlux, effectiveTier);
                 }
 
-                // Process raw streaming through JsonStreamingProcessor for marker handling
                 return jsonStreamingProcessor.process(rawResponseFlux)
                         .doOnError(error -> log.error("Streaming error - RequestId: {}", context.getRequestId(), error));
 

@@ -24,7 +24,7 @@ import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
-import io.contexa.contexacore.std.llm.core.UnifiedLLMOrchestrator;
+import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
