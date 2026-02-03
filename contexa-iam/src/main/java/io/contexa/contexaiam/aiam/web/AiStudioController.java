@@ -6,6 +6,8 @@ import io.contexa.contexacommon.domain.request.IAMRequest;
 import io.contexa.contexacommon.enums.AuditRequirement;
 import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexacommon.enums.SecurityLevel;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.exception.AIOperationException;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingContext;
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 @RestController
@@ -33,6 +36,7 @@ public class AiStudioController {
 
     private final AICoreOperations<StudioQueryContext> aiNativeProcessor;
     private final StreamingProperties streamingProperties;
+    private final ObjectMapper objectMapper;
 
     @PostMapping("/query")
     public Mono<ResponseEntity<StudioQueryResponse>> queryStudio(@RequestBody StudioQueryItem request) {
@@ -70,13 +74,8 @@ public class AiStudioController {
                     .withParameter("userId", request.getUserId())
                     .withParameter("organizationId", orgId);  
         })
-        .flatMap(aiRequest -> {
-            
-            return aiNativeProcessor.process(aiRequest, AIResponse.class);
-        })
-        .map(response -> {
-                        return ResponseEntity.ok((StudioQueryResponse) response);
-        })
+        .flatMap(aiRequest -> aiNativeProcessor.process(aiRequest, AIResponse.class))
+        .map(response -> ResponseEntity.ok((StudioQueryResponse) response))
         .onErrorResume(error -> {
             log.error("AI Studio 질의 실패", error);
             return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).<StudioQueryResponse>build());
@@ -88,9 +87,9 @@ public class AiStudioController {
 
         String validationError = validateStudioQueryRequest(request);
         if (validationError != null) {
-            log.warn("스트리밍 요청 검증 실패: {}", validationError);
+            log.warn("Streaming request validation failed: {}", validationError);
             return Flux.just(ServerSentEvent.<String>builder()
-                    .data("ERROR: " + validationError)
+                    .data("ERROR: " + buildErrorJson("VALIDATION_ERROR", validationError))
                     .build());
         }
 
@@ -183,22 +182,15 @@ public class AiStudioController {
                             }
                         }
 
-                        String errorJson = String.format(
-                                "{\"error\":{\"code\":\"%s\",\"message\":\"%s\"}}",
-                                errorCode,
-                                errorMessage != null ? errorMessage.replace("\"", "\\\"") : "Unknown error"
-                        );
-
                         return Flux.just(ServerSentEvent.<String>builder()
-                                .event("error")
-                                .data(errorJson)
+                                .data("ERROR: " + buildErrorJson(errorCode, errorMessage))
                                 .build());
                     });
 
         } catch (Exception e) {
-            log.error("AI Studio 스트리밍 질의 실패", e);
+            log.error("AI Studio streaming query failed", e);
             return Flux.just(ServerSentEvent.<String>builder()
-                    .data("ERROR: " + e.getMessage())
+                    .data("ERROR: " + buildErrorJson("INTERNAL_ERROR", e.getMessage()))
                     .build());
         }
     }
@@ -344,6 +336,24 @@ public class AiStudioController {
             case "WHOSE" -> "WHOSE";
             default -> "GENERAL";
         };
+    }
+
+    /**
+     * Build error JSON safely using ObjectMapper to prevent XSS
+     */
+    private String buildErrorJson(String errorCode, String errorMessage) {
+        try {
+            Map<String, Object> errorMap = Map.of(
+                    "error", Map.of(
+                            "code", errorCode != null ? errorCode : "UNKNOWN",
+                            "message", errorMessage != null ? errorMessage : "Unknown error"
+                    )
+            );
+            return objectMapper.writeValueAsString(errorMap);
+        } catch (JsonProcessingException e) {
+            log.error("Failed to serialize error JSON", e);
+            return "{\"error\":{\"code\":\"SERIALIZATION_ERROR\",\"message\":\"Failed to serialize error\"}}";
+        }
     }
 
     public record QueryHistoryResponse(

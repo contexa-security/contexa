@@ -1,6 +1,6 @@
 /**
  * [완벽한 스트리밍 시스템] 지능형 정책 빌더 클라이언트 애플리케이션
- * - 한글 마커 지원 (===JSON시작===, ===JSON끝===)
+ * - 한글 마커 지원 (===JSON_START===, ===JSON_END===)
  * - 자연스러운 한국어 AI 응답 처리
  * - 향상된 키워드 매핑 로직
  */
@@ -1127,7 +1127,7 @@
 
                     try {
                         // 1. 한국어 JSON 마커 방식 (최우선)
-                        const koreanMarkerRegex = /===JSON시작===([\s\S]*?)===JSON끝===/;
+                        const koreanMarkerRegex = /===JSON_START===([\s\S]*?)===JSON_END===/;
                         const koreanMatch = text.match(koreanMarkerRegex);
 
                         if (koreanMatch) {
@@ -1305,7 +1305,7 @@
                 displayStreamingData(thoughtLog, data) {
                     try {
                         // JSON 블록은 코드 블록으로 표시
-                        if (data.includes('===JSON시작===') || data.includes('===JSON끝===')) {
+                        if (data.includes('===JSON_START===') || data.includes('===JSON_END===')) {
                             thoughtLog.innerHTML += `<div style="background: #1e1e1e; padding: 10px; border-radius: 5px; margin: 10px 0;">
                 <pre style="color: #4fc3f7; font-family: monospace; margin: 0; white-space: pre-wrap;">${this.escapeHtml(data)}</pre>
             </div>`;

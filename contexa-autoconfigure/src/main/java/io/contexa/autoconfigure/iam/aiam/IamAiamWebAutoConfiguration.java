@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.aiam;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
@@ -23,8 +24,9 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnMissingBean
     public AiStudioController aiStudioController(
             AICoreOperations<StudioQueryContext> aiNativeProcessor,
-            StreamingProperties streamingProperties) {
-        return new AiStudioController(aiNativeProcessor, streamingProperties);
+            StreamingProperties streamingProperties,
+            ObjectMapper objectMapper) {
+        return new AiStudioController(aiNativeProcessor, streamingProperties, objectMapper);
     }
 
     @Bean

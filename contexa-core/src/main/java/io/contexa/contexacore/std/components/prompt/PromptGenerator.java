@@ -2,6 +2,7 @@ package io.contexa.contexacore.std.components.prompt;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import jakarta.annotation.PostConstruct;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -155,11 +156,11 @@ public class PromptGenerator {
                 - 특수문자는 이스케이프: \", \\, \n
                 
                 📤 필수 JSON 형식 (정확히 이 형식만 사용):
-                
-                ===JSON시작===
+
+                %s
                 {
                   "policyName": "정책이름",
-                  "description": "정책설명", 
+                  "description": "정책설명",
                   "roleIds": [2],
                   "permissionIds": [3],
                   "conditions": {"1": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]},
@@ -168,10 +169,10 @@ public class PromptGenerator {
                   "customConditionSpel": "",
                   "effect": "ALLOW"
                 }
-                ===JSON끝===
-                
+                %s
+
                 분석 과정이나 설명은 JSON 블록 앞에 작성하고, JSON은 완벽하게 파싱 가능한 형태로만 작성하세요.
-                """, systemMetadata);
+                """, systemMetadata, StreamingProtocol.JSON_START_MARKER, StreamingProtocol.JSON_END_MARKER);
         }
 
         @Override

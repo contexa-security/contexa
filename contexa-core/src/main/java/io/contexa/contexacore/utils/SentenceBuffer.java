@@ -1,5 +1,6 @@
 package io.contexa.contexacore.utils;
 
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import reactor.core.publisher.Flux;
 
 import java.util.ArrayList;
@@ -35,21 +36,21 @@ public class SentenceBuffer {
             return Flux.empty();
         }
 
-        if (chunk.contains("```json") || chunk.contains("===JSON시작===") ||
+        if (chunk.contains("```json") || chunk.contains(StreamingProtocol.JSON_START_MARKER) ||
                 chunk.contains("===JSON") || chunk.trim().startsWith("{\"")) {
             inJsonBlock = true;
             jsonDepth += countChar(chunk, '{') - countChar(chunk, '}');
-            return Flux.empty(); 
+            return Flux.empty();
         }
 
         if (inJsonBlock) {
             jsonDepth += countChar(chunk, '{') - countChar(chunk, '}');
 
-            if (jsonDepth <= 0 || chunk.contains("```") || chunk.contains("===JSON끝===")) {
+            if (jsonDepth <= 0 || chunk.contains("```") || chunk.contains(StreamingProtocol.JSON_END_MARKER)) {
                 inJsonBlock = false;
                 jsonDepth = 0;
             }
-            return Flux.empty(); 
+            return Flux.empty();
         }
 
         String cleanChunk = cleanAndFilterChunk(chunk);

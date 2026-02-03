@@ -2,6 +2,7 @@ package io.contexa.contexaiam.aiam.components.prompt;
 
 import io.contexa.contexacore.std.components.prompt.PromptTemplate;
 import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
@@ -48,26 +49,26 @@ public class StudioQueryTemplate implements PromptTemplate {
                  - "누가 ~할 수 있나요" = 해당 권한을 보유한 사용자만 반환
                  - "누가 ~할 수 없나요" = 해당 권한이 없는 사용자만 반환
                  - "모든 사용자" = 전체 사용자 분석
-              
+
               2. **데이터 필터링**: 질의에 정확히 부합하는 데이터만 선별하세요.
                  - 질의와 관련된 사용자만 analysisResults에 포함
                  - 질의와 무관한 사용자는 완전히 제외
                  - 권한 유무가 핵심인 경우 해당 권한 여부로만 판단
-              
-              3. **JSON 출력**: `===JSON시작===` 마커와 함께 필터링된 결과만 출력하세요.
+
+              3. **JSON 출력**: `%s` 마커와 함께 필터링된 결과만 출력하세요.
                  - analysisResults: 질의에 부합하는 사용자만
                  - 제공된 **[데이터]**에 있는 실제 값만 사용
               </instructions>
-            
+
             <output_format>
-            ===JSON시작===
+            %s
             {
               "naturalLanguageAnswer": "질의에 대한 명확한 한국어 답변 (질의와 부합하는 사용자만 언급)",
               "analysisResults": [
                 {
                   "userName": "질의에 부합하는 실제 사용자명만",
                   "groupName": "해당 사용자의 실제 그룹명",
-                  "roleName": "해당 사용자의 실제 역할명", 
+                  "roleName": "해당 사용자의 실제 역할명",
                   "permissionName": "질의와 관련된 실제 권한명",
                   "hasPermission": true,
                   "description": "해당 사용자의 실제 권한 상황 설명"
@@ -110,9 +111,12 @@ public class StudioQueryTemplate implements PromptTemplate {
                 }
               ]
             }
-                ===JSON끝===
+            %s
            </output_format>
-            """, systemMetadata);
+            """, systemMetadata,
+                StreamingProtocol.JSON_START_MARKER,
+                StreamingProtocol.JSON_START_MARKER,
+                StreamingProtocol.JSON_END_MARKER);
     }
 
     /**

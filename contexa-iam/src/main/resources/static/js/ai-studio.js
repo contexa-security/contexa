@@ -865,8 +865,8 @@ class AIStudioLegacy {
      * JSON 마커에서 내용 추출
      */
     extractJsonFromMarkers(text) {
-        const startMarker = '===JSON시작===';
-        const endMarker = '===JSON끝===';
+        const startMarker = '===JSON_START===';
+        const endMarker = '===JSON_END===';
 
         const startIndex = text.indexOf(startMarker);
         const endIndex = text.indexOf(endMarker);

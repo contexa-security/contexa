@@ -44,73 +44,55 @@ public abstract class AIResponse {
         this.metadata = new ConcurrentHashMap<>();
     }
 
-    
     public abstract Object getData();
-
-    
     public abstract String getResponseType();
 
-    
     public AIResponse withMetadata(String key, Object value) {
         this.metadata.put(key, value);
         return this;
     }
 
-    
     public AIResponse withExecutionTime(LocalDateTime executionTime) {
         this.executionTime = executionTime;
         return this;
     }
 
-    
     public AIResponse withConfidenceScore(double confidenceScore) {
         this.confidenceScore = Math.max(0.0, Math.min(1.0, confidenceScore));
         return this;
     }
 
-    
     public AIResponse withAiModel(String aiModel) {
         this.aiModel = aiModel;
         return this;
     }
 
-    
     public AIResponse withWarnings(List<String> warnings) {
         this.warnings = warnings;
         return this;
     }
 
-    
     public AIResponse withError(String errorMessage) {
         this.errorMessage = errorMessage;
         return this;
     }
 
-    
-    @SuppressWarnings("unchecked")
     public <T> T getMetadata(String key, Class<T> type) {
         Object value = metadata.get(key);
         return type.isInstance(value) ? (T) value : null;
     }
 
-    
     public boolean isSuccess() {
         return status == ExecutionStatus.SUCCESS;
     }
-
-    
     public boolean isFailure() {
         return status == ExecutionStatus.FAILURE;
     }
-
-    
     public boolean hasWarnings() {
         return warnings != null && !warnings.isEmpty();
     }
-
     public Map<String, Object> getAllMetadata() { return Map.copyOf(metadata); }
 
-    
     public enum ExecutionStatus {
         SUCCESS,            
         FAILURE,            

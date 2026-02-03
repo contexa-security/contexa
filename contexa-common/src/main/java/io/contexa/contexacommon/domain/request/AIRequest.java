@@ -3,6 +3,7 @@ package io.contexa.contexacommon.domain.request;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.Getter;
+import org.springframework.util.Assert;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -23,12 +24,14 @@ public class AIRequest<T extends DomainContext> {
     private String organizationId;
     private String tenantId;
 
-    private List<Object> toolProviders = new ArrayList<>();
+    private final List<Object> toolProviders = new ArrayList<>();
 
     private boolean isStreamingRequired = false;
     private int timeoutSeconds = 300;
 
     public AIRequest(T context, String promptTemplate, String organizationId) {
+        Assert.notNull(context, "context must not be null");
+        Assert.notNull(promptTemplate, "promptTemplate must not be null");
         this.requestId = UUID.randomUUID().toString();
         this.timestamp = LocalDateTime.now();
         this.context = context;
@@ -40,6 +43,8 @@ public class AIRequest<T extends DomainContext> {
     }
 
     public AIRequest(T context, String promptTemplate, RequestPriority priority, RequestType requestType) {
+        Assert.notNull(context, "context must not be null");
+        Assert.notNull(promptTemplate, "promptTemplate must not be null");
         this.requestId = UUID.randomUUID().toString();
         this.timestamp = LocalDateTime.now();
         this.context = context;

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexacommon.domain.LabSpecialization;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.response.IAMResponse;
@@ -342,7 +343,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
     private String convertToStreamingJson(AiGeneratedPolicyDraftDto result) {
         try {
             StringBuilder json = new StringBuilder();
-            json.append("===JSON시작===\n");
+            json.append(StreamingProtocol.JSON_START_MARKER).append("\n");
             json.append("{\n");
             json.append(String.format("  \"policyName\": \"%s\",\n",
                     result.policyData().getPolicyName() != null ? result.policyData().getPolicyName() : "AI 생성 정책"));
@@ -350,7 +351,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                     result.policyData().getDescription() != null ? result.policyData().getDescription() : "AI가 생성한 정책"));
             json.append("  \"status\": \"completed\"\n");
             json.append("}\n");
-            json.append("===JSON끝===");
+            json.append(StreamingProtocol.JSON_END_MARKER);
 
             return json.toString();
         } catch (Exception e) {

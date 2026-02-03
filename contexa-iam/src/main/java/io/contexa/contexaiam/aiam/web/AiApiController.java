@@ -594,8 +594,8 @@ public class AiApiController {
                         .then(Mono.delay(java.time.Duration.ofMillis(500)))
                         .doOnNext(tick -> {
                             
-                            String basicJson = """
-                                ===JSON시작===
+                            String basicJson = StreamingProtocol.JSON_START_MARKER + "\n" +
+                                """
                                 {
                                   "policyName": "AI 생성 정책 (Fallback)",
                                   "description": "AI가 분석한 요구사항: """ + naturalLanguageQuery + """
@@ -605,8 +605,7 @@ public class AiApiController {
                                   "conditions": {},
                                   "effect": "ALLOW"
                                 }
-                                ===JSON끝===
-                                """;
+                                """ + StreamingProtocol.JSON_END_MARKER;
 
                             sink.next(ServerSentEvent.<String>builder()
                                     .data(basicJson)

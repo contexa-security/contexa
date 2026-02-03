@@ -53,7 +53,8 @@
             streaming: {
                 maxRetries: 3,
                 retryDelay: 1000,
-                retryMultiplier: 1.5
+                retryMultiplier: 1.5,
+                timeoutMs: 30000
             }
         };
 
@@ -116,6 +117,16 @@
             this.isAborted = false;
             this.abortController = new AbortController();
 
+            const timeoutMs = this.config.streaming.timeoutMs || 30000;
+            const timeoutId = setTimeout(() => {
+                if (!this.isAborted) {
+                    this.abortController.abort();
+                    if (callbacks.onError) {
+                        callbacks.onError(new Error(`Request timeout after ${timeoutMs}ms`));
+                    }
+                }
+            }, timeoutMs);
+
             try {
                 const response = await fetch(url, {
                     method: 'POST',
@@ -134,8 +145,10 @@
 
                 this.retryCount = 0;
                 await this.processStream(response, callbacks);
+                clearTimeout(timeoutId);
 
             } catch (error) {
+                clearTimeout(timeoutId);
                 if (error.name === 'AbortError' || this.isAborted) {
                     if (callbacks.onAbort) callbacks.onAbort();
                     return;
