@@ -1,8 +1,11 @@
 package io.contexa.contexacommon.domain.request;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.Getter;
+import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 
 import java.time.LocalDateTime;
@@ -14,143 +17,40 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AIRequest<T extends DomainContext> {
 
     private final String requestId;
+    private String naturalLanguageQuery;
     private final LocalDateTime timestamp;
     private final T context;
-    private final String promptTemplate;
+    private final TemplateType templateType;
+    private final DiagnosisType diagnosisType;
     private final Map<String, Object> parameters;
-    private final RequestPriority priority;
-    private final RequestType requestType;
-    private DiagnosisType diagnosisType;
-    private String organizationId;
-    private String tenantId;
 
-    private final List<Object> toolProviders = new ArrayList<>();
-
-    private boolean isStreamingRequired = false;
-    private int timeoutSeconds = 300;
-
-    public AIRequest(T context, String promptTemplate, String organizationId) {
-        Assert.notNull(context, "context must not be null");
-        Assert.notNull(promptTemplate, "promptTemplate must not be null");
+    public AIRequest(T context, TemplateType templateType, DiagnosisType diagnosisType) {
+        Assert.notNull(templateType, "templateType must not be null");
+        Assert.notNull(diagnosisType, "diagnosisType must not be null");
         this.requestId = UUID.randomUUID().toString();
         this.timestamp = LocalDateTime.now();
         this.context = context;
-        this.promptTemplate = promptTemplate;
+        this.templateType = templateType;
+        this.diagnosisType = diagnosisType;
         this.parameters = new ConcurrentHashMap<>();
-        this.priority = RequestPriority.NORMAL;
-        this.requestType = RequestType.STANDARD;
-        this.organizationId = organizationId;
     }
 
-    public AIRequest(T context, String promptTemplate, RequestPriority priority, RequestType requestType) {
-        Assert.notNull(context, "context must not be null");
-        Assert.notNull(promptTemplate, "promptTemplate must not be null");
-        this.requestId = UUID.randomUUID().toString();
-        this.timestamp = LocalDateTime.now();
-        this.context = context;
-        this.promptTemplate = promptTemplate;
-        this.parameters = new ConcurrentHashMap<>();
-        this.priority = priority;
-        this.requestType = requestType;
-    }
-
-    
     public AIRequest<T> withParameter(String key, Object value) {
         this.parameters.put(key, value);
         return this;
     }
 
-    
-    public AIRequest<T> withStreaming(boolean required) {
-        this.isStreamingRequired = required;
-        return this;
-    }
-
-    
-    public AIRequest<T> withDiagnosisType(DiagnosisType diagnosisType) {
-        this.diagnosisType = diagnosisType;
-        return this;
-    }
-
-    
-    public AIRequest<T> withTimeout(int seconds) {
-        this.timeoutSeconds = seconds;
-        return this;
-    }
-
-    
     public <P> P getParameter(String key, Class<P> type) {
         Object value = parameters.get(key);
         return type.isInstance(value) ? (P) value : null;
     }
-
     public Map<String, Object> getParameters() { return Map.copyOf(parameters); }
-    
-    
+
+    public void setNaturalLanguageQuery(String naturalLanguageQuery) {
+        this.naturalLanguageQuery = naturalLanguageQuery;
+    }
     public T getContext() { return context; }
-    public String getPromptTemplate() { return promptTemplate; }
+    public TemplateType getPromptTemplate() { return templateType; }
     public String getRequestId() { return requestId; }
 
-    
-    public AIRequest<T> withOrganizationId(String organizationId) {
-        this.organizationId = organizationId;
-        return this;
-    }
-
-    
-    public AIRequest<T> withTenantId(String tenantId) {
-        this.tenantId = tenantId;
-        return this;
-    }
-
-    
-    public AIRequest<T> withToolProvider(Object toolProvider) {
-        this.toolProviders.add(toolProvider);
-        return this;
-    }
-
-    
-    public AIRequest<T> withToolProviders(List<Object> toolProviders) {
-        this.toolProviders.addAll(toolProviders);
-        return this;
-    }
-
-    
-    public List<Object> getToolProviders() {
-        return Collections.unmodifiableList(toolProviders);
-    }
-
-    
-    public boolean hasToolProviders() {
-        return !toolProviders.isEmpty();
-    }
-
-    
-    public enum RequestPriority {
-        LOW(1), NORMAL(5), HIGH(8), CRITICAL(10);
-
-        private final int level;
-
-        RequestPriority(int level) {
-            this.level = level;
-        }
-
-        public int getLevel() { return level; }
-    }
-
-    
-    public enum RequestType {
-        STANDARD,           
-        STREAMING,          
-        BATCH,              
-        ANALYSIS,           
-        GENERATION,         
-        VALIDATION          
-    }
-
-    @Override
-    public String toString() {
-        return String.format("AIRequest{id='%s', operation='%s', domain='%s', priority=%s}",
-                requestId, promptTemplate, context.getDomainType(), priority);
-    }
-} 
+}

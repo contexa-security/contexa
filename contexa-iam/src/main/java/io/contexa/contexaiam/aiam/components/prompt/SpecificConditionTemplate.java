@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
@@ -9,15 +9,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
 @Slf4j
-@PromptTemplateConfig(
-    key = "generateSpecificConditionTemplates",
-    aliases = {"specific_condition_template", "specific_condition", "특화조건"},
-    description = "Spring AI Structured Output Specific Condition Template"
-)
 public class SpecificConditionTemplate implements PromptTemplate {
 
     private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter = 
         new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("SpecificCondition");
+    }
     
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {

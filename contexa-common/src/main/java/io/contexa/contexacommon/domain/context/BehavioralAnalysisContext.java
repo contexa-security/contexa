@@ -1,7 +1,5 @@
 package io.contexa.contexacommon.domain.context;
 
-import io.contexa.contexacommon.enums.AuditRequirement;
-import io.contexa.contexacommon.enums.SecurityLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -12,70 +10,60 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-
 @Getter
 @Setter
-public class BehavioralAnalysisContext extends IAMContext {
+public class BehavioralAnalysisContext extends DomainContext {
 
-    private static final String IAM_CONTEXT_TYPE = "BEHAVIOR_ANALYSIS";
+    private static final String DOMAIN_TYPE = "BEHAVIOR_ANALYSIS";
 
-    
     private String userId;
-    private String currentActivity; 
+    private String currentActivity;
     private String remoteIp;
     private String historicalBehaviorSummary;
 
-    
-    private List<String> recentActivitySequence = new ArrayList<>();  
-    private List<Duration> activityIntervals = new ArrayList<>();     
-    private String previousActivity;                                  
-    private LocalDateTime lastActivityTime;                          
-    private Duration timeSinceLastActivity;                          
+    private List<String> recentActivitySequence = new ArrayList<>();
+    private List<Duration> activityIntervals = new ArrayList<>();
+    private String previousActivity;
+    private LocalDateTime lastActivityTime;
+    private Duration timeSinceLastActivity;
 
-    
-    private String sessionFingerprint;                               
-    private String deviceFingerprint;                               
-    private String userAgent;                                        
-    private String browserInfo;                                      
-    private String osInfo;                                          
-    private boolean isNewDevice;                                    
-    private boolean isNewLocation;                                  
+    private String sessionFingerprint;
+    private String deviceFingerprint;
+    private String userAgent;
+    private String browserInfo;
+    private String osInfo;
+    private boolean isNewDevice;
+    private boolean isNewLocation;
 
-    
-    private int dailyActivityCount;                                 
-    private int hourlyActivityCount;                               
-    private double activityVelocity;                               
-    private Map<String, Integer> activityFrequency = new HashMap<>(); 
+    private int dailyActivityCount;
+    private int hourlyActivityCount;
+    private double activityVelocity;
+    private Map<String, Integer> activityFrequency = new HashMap<>();
 
-    
-    private double behaviorAnomalyScore;                           
-    private List<String> anomalyIndicators = new ArrayList<>();    
-    private boolean hasRiskyPattern;                               
-    private String riskCategory;                                   
+    private double behaviorAnomalyScore;
+    private List<String> anomalyIndicators = new ArrayList<>();
+    private boolean hasRiskyPattern;
+    private String riskCategory;
 
-    
-    private String accessContext;                                  
-    private String geoLocation;                                    
-    private String networkSegment;                                 
-    private boolean isVpnConnection;                               
+    private String accessContext;
+    private String geoLocation;
+    private String networkSegment;
+    private boolean isVpnConnection;
 
     public BehavioralAnalysisContext() {
-        this(SecurityLevel.STANDARD, AuditRequirement.DETAILED);
+        super();
     }
 
-    public BehavioralAnalysisContext(SecurityLevel securityLevel, AuditRequirement auditRequirement) {
-        super(securityLevel, auditRequirement);
+    public BehavioralAnalysisContext(String userId, String sessionId) {
+        super(userId, sessionId);
+        this.userId = userId;
     }
-
 
     @Override
-    public String getIAMContextType() {
-        return IAM_CONTEXT_TYPE;
+    public String getDomainType() {
+        return DOMAIN_TYPE;
     }
 
-    
-
-    
     public void addActivityToSequence(String activity) {
         if (currentActivity != null && !currentActivity.equals(activity)) {
             previousActivity = currentActivity;
@@ -83,18 +71,15 @@ public class BehavioralAnalysisContext extends IAMContext {
 
         recentActivitySequence.add(activity);
 
-        
         if (recentActivitySequence.size() > 20) {
             recentActivitySequence.remove(0);
         }
 
-        
         if (lastActivityTime != null) {
             Duration interval = Duration.between(lastActivityTime, LocalDateTime.now());
             activityIntervals.add(interval);
             timeSinceLastActivity = interval;
 
-            
             if (interval.toSeconds() > 0) {
                 activityVelocity = 60.0 / interval.toSeconds();
             }
@@ -103,11 +88,9 @@ public class BehavioralAnalysisContext extends IAMContext {
         currentActivity = activity;
         lastActivityTime = LocalDateTime.now();
 
-        
         activityFrequency.put(activity, activityFrequency.getOrDefault(activity, 0) + 1);
     }
 
-    
     public void addAnomalyIndicator(String indicator) {
         if (!anomalyIndicators.contains(indicator)) {
             anomalyIndicators.add(indicator);
@@ -115,7 +98,6 @@ public class BehavioralAnalysisContext extends IAMContext {
         }
     }
 
-    
     public void generateSessionFingerprint() {
         StringBuilder sb = new StringBuilder();
         sb.append(userId != null ? userId : "unknown").append(":");
@@ -126,7 +108,6 @@ public class BehavioralAnalysisContext extends IAMContext {
         this.sessionFingerprint = String.valueOf(sb.toString().hashCode());
     }
 
-    
     public void generateDeviceFingerprint() {
         StringBuilder sb = new StringBuilder();
         sb.append(userAgent != null ? userAgent : "unknown").append(":");
@@ -137,12 +118,10 @@ public class BehavioralAnalysisContext extends IAMContext {
         this.deviceFingerprint = String.valueOf(sb.toString().hashCode());
     }
 
-    
     public boolean isNormalBehaviorPattern() {
         return behaviorAnomalyScore < 0.5 && !hasRiskyPattern;
     }
 
-    
     public String getSequencePattern() {
         if (recentActivitySequence.isEmpty()) {
             return "NO_SEQUENCE";
@@ -150,7 +129,6 @@ public class BehavioralAnalysisContext extends IAMContext {
         return String.join(" -> ", recentActivitySequence);
     }
 
-    
     public Map<String, Object> getContextSummary() {
         Map<String, Object> summary = new HashMap<>();
         summary.put("userId", userId);

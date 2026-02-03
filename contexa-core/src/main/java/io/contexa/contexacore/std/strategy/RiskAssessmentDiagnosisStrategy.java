@@ -1,16 +1,15 @@
 package io.contexa.contexacore.std.strategy;
 
-import io.contexa.contexacore.std.labs.AILab;
-import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacore.std.labs.risk.RiskAssessmentLab;
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
-import io.contexa.contexacommon.enums.DiagnosisType;
+import io.contexa.contexacore.std.labs.AILab;
+import io.contexa.contexacore.std.labs.AILabFactory;
+import io.contexa.contexacore.std.labs.risk.RiskAssessmentLab;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -24,7 +23,7 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
 
     @Override
     public DiagnosisType getSupportedType() {
-        return DiagnosisType.RISK_ASSESSMENT;
+        return new DiagnosisType("RiskAssessment");
     }
 
     @Override
@@ -60,7 +59,7 @@ public class RiskAssessmentDiagnosisStrategy extends AbstractAIStrategy<RiskAsse
     }
 
     @Override
-    protected Object buildLabRequest(AIRequest<RiskAssessmentContext> request) {
+    protected Object convertLabRequest(AIRequest<RiskAssessmentContext> request) {
         return request;
     }
 

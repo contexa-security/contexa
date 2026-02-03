@@ -1,6 +1,6 @@
 package io.contexa.contexacommon.security;
 
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;

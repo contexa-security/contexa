@@ -1,9 +1,9 @@
 package io.contexa.contexacore.std.strategy;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
@@ -17,34 +17,30 @@ import java.util.Map;
 @Slf4j
 public class AIStrategyRegistry {
 
-    private final Map<DiagnosisType, AIStrategy<?, ?>> strategies = new HashMap<>();
+    private final Map<String, AIStrategy<?, ?>> strategies = new HashMap<>();
 
     @Autowired
     public AIStrategyRegistry(List<AIStrategy<?, ?>> allStrategies) {
 
         for (AIStrategy<?, ?> strategy : allStrategies) {
-            DiagnosisType type = strategy.getSupportedType();
+            String diagnosis = strategy.getSupportedType().name();
 
-            if (strategies.containsKey(type)) {
-                AIStrategy<?, ?> existing = strategies.get(type);
+            if (strategies.containsKey(diagnosis)) {
+                AIStrategy<?, ?> existing = strategies.get(diagnosis);
                 if (strategy.getPriority() < existing.getPriority()) {
-                    strategies.put(type, strategy);
+                    strategies.put(diagnosis, strategy);
                 }
             } else {
-                strategies.put(type, strategy);
+                strategies.put(diagnosis, strategy);
             }
         }
     }
 
     public <T extends DomainContext, R extends AIResponse> AIStrategy<T, R> getStrategy(DiagnosisType diagnosisType) {
-        AIStrategy<?, ?> strategy = strategies.get(diagnosisType);
+        AIStrategy<?, ?> strategy = strategies.get(diagnosisType.name());
 
         if (strategy == null) {
-            throw new DiagnosisException(
-                    diagnosisType != null ? diagnosisType.name() : "NULL",
-                    "STRATEGY_NOT_FOUND",
-                    "Unsupported diagnosisType: " + diagnosisType
-            );
+            throw new DiagnosisException(diagnosisType.name(), "STRATEGY_NOT_FOUND", "Unsupported diagnosisType: " + diagnosisType);
         }
 
         return (AIStrategy<T, R>) strategy;
@@ -65,11 +61,8 @@ public class AIStrategyRegistry {
                     .block(Duration.ofMinutes(5));
         } catch (Exception e) {
             log.error("Exception occurred during strategy execution: {}", strategy.getClass().getSimpleName(), e);
-            throw new DiagnosisException(
-                    request.getDiagnosisType().name(),
-                    "STRATEGY_EXECUTION_ERROR",
-                    "Error occurred during strategy execution: " + e.getMessage()
-            );
+            throw new DiagnosisException(request.getDiagnosisType().name,
+                    "STRATEGY_EXECUTION_ERROR", "Error occurred during strategy execution: " + e.getMessage());
         }
     }
 
@@ -123,28 +116,10 @@ public class AIStrategyRegistry {
         return Flux.fromIterable(chunks);
     }
 
-    public Map<DiagnosisType, String> getRegisteredStrategies() {
-        Map<DiagnosisType, String> result = new HashMap<>();
+    public Map<String, String> getRegisteredStrategies() {
+        Map<String, String> result = new HashMap<>();
         strategies.forEach((type, strategy) ->
                 result.put(type, strategy.getClass().getSimpleName()));
         return result;
-    }
-
-    public boolean isSupported(DiagnosisType diagnosisType) {
-        return strategies.containsKey(diagnosisType);
-    }
-
-    public boolean supportsOperation(String operation) {
-        if (operation == null || operation.trim().isEmpty()) {
-            return false;
-        }
-
-        return strategies.values().stream()
-                .anyMatch(strategy -> {
-                    String strategyName = strategy.getClass().getSimpleName().toLowerCase();
-                    String operationLower = operation.toLowerCase();
-                    return strategyName.contains(operationLower) ||
-                            strategy.getDescription().toLowerCase().contains(operationLower);
-                });
     }
 }

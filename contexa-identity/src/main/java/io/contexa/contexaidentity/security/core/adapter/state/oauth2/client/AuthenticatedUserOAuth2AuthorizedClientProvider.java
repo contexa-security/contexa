@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.client;
 
-import io.contexa.contexacommon.dto.UserDto;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;

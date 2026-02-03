@@ -1,31 +1,23 @@
 package io.contexa.contexaiam.aiam.protocol.request;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
-import io.contexa.contexacommon.domain.request.IAMRequest;
+import io.contexa.contexacommon.domain.request.AIRequest;
 
-public class PolicyGenerationRequest extends IAMRequest<PolicyContext> {
+public class PolicyGenerationRequest extends AIRequest<PolicyContext> {
 
-    private final String naturalLanguageQuery;
-    private final PolicyGenerationItem.AvailableItems availableItems;
+    private PolicyGenerationItem.AvailableItems availableItems;
 
-    public PolicyGenerationRequest(String naturalLanguageQuery, PolicyGenerationItem.AvailableItems availableItems) {
-        super(null, null);
-        this.naturalLanguageQuery = naturalLanguageQuery;
-        this.availableItems = availableItems;
-    }
-
-    public PolicyGenerationRequest(PolicyContext context, String operation, String naturalLanguageQuery,
-                                   PolicyGenerationItem.AvailableItems availableItems) {
-        super(context, operation);
-        this.naturalLanguageQuery = naturalLanguageQuery;
-        this.availableItems = availableItems;
-    }
-
-    public String getNaturalLanguageQuery() {
-        return naturalLanguageQuery;
+    public PolicyGenerationRequest(PolicyContext context, TemplateType templateType, DiagnosisType diagnosisType) {
+        super(context, templateType, diagnosisType);
     }
 
     public PolicyGenerationItem.AvailableItems getAvailableItems() {
         return availableItems;
+    }
+
+    public void setAvailableItems(PolicyGenerationItem.AvailableItems availableItems) {
+        this.availableItems = availableItems;
     }
 }

@@ -240,7 +240,6 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
     public void storePolicyGenerationRequest(PolicyGenerationRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("organizationId", request.getOrganizationId());
             metadata.put("naturalLanguageQuery", request.getNaturalLanguageQuery());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "policy_generation_request");
@@ -255,16 +254,12 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
                         request.getAvailableItems().conditions().size() : 0);
             }
 
-            metadata.put("streamingEnabled", request.isStreamingRequired());
-            
             String requestText = String.format(
-                "정책 생성 요청: '%s' (조직=%s, 역할=%d개, 권한=%d개, 조건=%d개, 스트리밍=%s)",
+                "Policy generation request: '%s' (org=%s, roles=%d, permissions=%d, conditions=%d)",
                 request.getNaturalLanguageQuery(),
-                request.getOrganizationId(),
                 metadata.get("availableRoles"),
                 metadata.get("availablePermissions"),
-                metadata.get("availableConditions"),
-                request.isStreamingRequired()
+                metadata.get("availableConditions")
             );
             
             Document requestDoc = new Document(requestText, metadata);
@@ -279,7 +274,6 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
     public void storeGeneratedPolicy(PolicyGenerationRequest request, AiGeneratedPolicyDraftDto policyDto) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("organizationId", request.getOrganizationId());
             metadata.put("originalQuery", request.getNaturalLanguageQuery());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "generated_policy");

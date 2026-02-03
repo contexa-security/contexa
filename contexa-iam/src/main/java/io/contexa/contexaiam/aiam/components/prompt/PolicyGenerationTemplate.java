@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
@@ -9,15 +9,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
 @Slf4j
-@PromptTemplateConfig(
-    key = "generatePolicyFromText",
-    aliases = {"policy_generation", "policyGeneration"},
-    description = "Spring AI Structured Output Policy Generation Template"
-)
 public class PolicyGenerationTemplate implements PromptTemplate {
 
     private final BeanOutputConverter<PolicyResponse> converter = 
         new BeanOutputConverter<>(PolicyResponse.class);
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("PolicyGeneration");
+    }
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {

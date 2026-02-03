@@ -28,7 +28,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
         try {
             validateRequest(request);
             Object lab = getRequiredLab();
-            Object labRequest = buildLabRequest(request);
+            Object labRequest = convertLabRequest(request);
             return processLabExecution(lab, labRequest, request);
 
         } catch (DiagnosisException e) {
@@ -52,7 +52,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
         return Mono.fromRunnable(() -> validateRequest(request))
                 .then(Mono.fromCallable(this::getRequiredLab))
                 .flatMap(lab -> {
-                    Object labRequest = buildLabRequest(request);
+                    Object labRequest = convertLabRequest(request);
 
                     return processLabExecutionAsync(lab, labRequest, request)
                             .doOnSuccess(response -> {
@@ -83,7 +83,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
         try {
             validateRequest(request);
             Object lab = getRequiredLab();
-            Object labRequest = buildLabRequest(request);
+            Object labRequest = convertLabRequest(request);
 
             return processLabExecutionStream(lab, labRequest, request)
                     .doOnNext(chunk -> {
@@ -137,20 +137,20 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
 
     protected abstract void validateRequest(AIRequest<T> request) throws DiagnosisException;
     protected abstract Class<?> getLabType();
-    protected abstract Object buildLabRequest(AIRequest<T> request) throws DiagnosisException;
+    protected abstract Object convertLabRequest(AIRequest<T> request) throws DiagnosisException;
     protected abstract R processLabExecution(Object lab, Object labRequest, AIRequest<T> request) throws Exception;
     protected abstract Mono<R> processLabExecutionAsync(Object lab, Object labRequest, AIRequest<T> originRequest);
     protected Flux<String> processLabExecutionStream(Object lab, Object labRequest, AIRequest<T> request) {
         return Flux.error(new UnsupportedOperationException("스트리밍이 지원되지 않습니다"));
     }
     protected String getExecutionErrorMessage() {
-        return getSupportedType().getDisplayName() + " 진단 실행 중 오류 발생: ";
+        return getSupportedType().name() + " 진단 실행 중 오류 발생: ";
     }
     protected String getAsyncExecutionErrorMessage() {
-        return "비동기 " + getSupportedType().getDisplayName() + " 진단 실행 중 오류 발생: ";
+        return "비동기 " + getSupportedType().name() + " 진단 실행 중 오류 발생: ";
     }
     protected String getStreamExecutionErrorMessage() {
-        return "스트리밍 " + getSupportedType().getDisplayName() + " 진단 실행 중 오류 발생: ";
+        return "스트리밍 " + getSupportedType().name() + " 진단 실행 중 오류 발생: ";
     }
 
     @Override

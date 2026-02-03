@@ -1,23 +1,15 @@
 package io.contexa.contexacoreenterprise.soar.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarResponse;
-import io.contexa.contexacoreenterprise.mcp.integration.McpPromptIntegrator;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
-import java.util.*;
-
 @Slf4j
-@PromptTemplateConfig(
-    key = "soarAnalysis",
-    aliases = {"soar_analysis", "security_analysis"},
-    description = "SOAR Security Analysis and Response Template with Tool Support"
-)
 @RequiredArgsConstructor
 public class SoarPromptTemplate implements PromptTemplate {
 
@@ -69,6 +61,11 @@ public class SoarPromptTemplate implements PromptTemplate {
     }
 
     @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("Soar");
+    }
+
+    @Override
     public String generateSystemPrompt(AIRequest<?> request, String systemMetadata) {
                 
         StringBuilder prompt = new StringBuilder();
@@ -88,9 +85,9 @@ public class SoarPromptTemplate implements PromptTemplate {
     public String generateUserPrompt(AIRequest<?> request, String contextInfo) {
         StringBuilder prompt = new StringBuilder();
 
-        String userInput = request.getPromptTemplate();
-        if (userInput != null && !userInput.trim().isEmpty()) {
-            prompt.append(userInput);
+        TemplateType templateType = request.getPromptTemplate();
+        if (templateType != null && !templateType.name().isEmpty()) {
+            prompt.append(templateType);
             prompt.append("\n");
         }
 

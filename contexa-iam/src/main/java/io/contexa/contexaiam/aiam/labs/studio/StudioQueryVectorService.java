@@ -189,21 +189,13 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
         try {
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("userId", request.getUserId() != null ? request.getUserId() : "anonymous");
-            metadata.put("queryType", request.getQueryType() != null ? request.getQueryType() : "GENERAL");
-            // Limit query length to avoid embedding context overflow
-            String safeQuery = request.getQuery() != null ?
-                request.getQuery().substring(0, Math.min(500, request.getQuery().length())) : "";
-
-            metadata.put("naturalLanguageQuery", safeQuery);
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "studio_query_request");
             metadata.put("requestId", UUID.randomUUID().toString());
 
             String queryText = String.format(
-                "사용자 %s의 자연어 질의: %s (유형: %s)",
-                request.getUserId() != null ? request.getUserId() : "anonymous",
-                safeQuery,
-                request.getQueryType() != null ? request.getQueryType() : "GENERAL"
+                "사용자 %s의 자연어 질의: %s",
+                request.getUserId() != null ? request.getUserId() : "anonymous", request.getNaturalLanguageQuery()
             );
             
             Document queryDoc = new Document(queryText, metadata);
@@ -219,11 +211,8 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
         try {
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("userId", request.getUserId() != null ? request.getUserId() : "anonymous");
-            metadata.put("queryType", request.getQueryType() != null ? request.getQueryType() : "GENERAL");
-            metadata.put("originalQuery", request.getQuery() != null ? request.getQuery() : "");
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "studio_query_result");
-            metadata.put("confidenceScore", response.getConfidenceScore());
 
             metadata.put("hasAnswer", response.getNaturalLanguageAnswer() != null);
             metadata.put("hasVisualization", response.getVisualizationData() != null);
@@ -232,7 +221,7 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
 
             if (response.getRecommendations() != null) {
                 List<String> recommendationTypes = response.getRecommendations().stream()
-                    .map(r -> r.getType())
+                    .map(StudioQueryResponse.Recommendation::getType)
                     .distinct()
                     .collect(Collectors.toList());
                 metadata.put("recommendationTypes", recommendationTypes);
@@ -244,18 +233,17 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
                 metadata.put("edgeCount", response.getVisualizationData().getEdges().size());
                 metadata.put("visualizationType", response.getVisualizationData().getGraphType());
             }
-            
+
             // Limit text length to avoid embedding context overflow
-            String safeQuery = request.getQuery() != null ?
-                request.getQuery().substring(0, Math.min(200, request.getQuery().length())) : "";
+            String safeQuery = request.getNaturalLanguageQuery() != null ?
+                request.getNaturalLanguageQuery().substring(0, Math.min(200, request.getNaturalLanguageQuery().length())) : "";
             String safeAnswer = response.getNaturalLanguageAnswer() != null ?
-                response.getNaturalLanguageAnswer().substring(0, Math.min(300, response.getNaturalLanguageAnswer().length())) : "답변 없음";
+                response.getNaturalLanguageAnswer().substring(0, Math.min(300, response.getNaturalLanguageAnswer().length())) : "No answer";
 
             String resultText = String.format(
-                "질의 '%s'에 대한 분석 결과: %s (신뢰도: %.1f)",
+                "Query '%s' analysis result: %s",
                 safeQuery,
-                safeAnswer,
-                response.getConfidenceScore()
+                safeAnswer
             );
             
             Document resultDoc = new Document(resultText, metadata);
@@ -275,7 +263,7 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
         try {
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("userId", request.getUserId() != null ? request.getUserId() : "anonymous");
-            metadata.put("originalQuery", request.getQuery() != null ? request.getQuery() : "");
+            metadata.put("originalQuery", request.getNaturalLanguageQuery() != null ? request.getNaturalLanguageQuery() : "");
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "studio_visualization");
             metadata.put("visualizationType", vizData.getGraphType() != null ? vizData.getGraphType() : "UNKNOWN");
@@ -296,7 +284,7 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
                 Map<String, Long> edgeTypes = vizData.getEdges().stream()
                     .filter(edge -> edge.getType() != null)
                     .collect(Collectors.groupingBy(
-                        edge -> edge.getType(),
+                            StudioQueryResponse.VisualizationData.Edge::getType,
                         Collectors.counting()
                     ));
                 metadata.put("edgeTypes", edgeTypes);
@@ -321,44 +309,6 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
         }
     }
 
-    public void storeFeedback(String queryId, boolean isHelpful, String feedback) {
-        try {
-            String safeQueryId = queryId != null ? queryId : "unknown";
-            // Limit feedback length to avoid embedding context overflow
-            String safeFeedback = feedback != null ?
-                feedback.substring(0, Math.min(500, feedback.length())) : "";
-
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("queryId", safeQueryId);
-            metadata.put("isHelpful", isHelpful);
-            metadata.put("feedbackText", safeFeedback);
-            metadata.put("feedbackTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
-            metadata.put("documentType", "studio_query_feedback");
-
-            String feedbackCategory = categorizeFeedback(safeFeedback);
-            metadata.put("feedbackCategory", feedbackCategory);
-
-            List<String> improvementPoints = extractImprovementPoints(safeFeedback);
-            if (!improvementPoints.isEmpty()) {
-                metadata.put("improvementPoints", improvementPoints);
-                metadata.put("hasImprovementSuggestions", true);
-            }
-
-            String feedbackText = String.format(
-                "질의 %s에 대한 피드백: %s - %s",
-                safeQueryId,
-                isHelpful ? "도움됨" : "도움안됨",
-                safeFeedback
-            );
-            
-            Document feedbackDoc = new Document(feedbackText, metadata);
-            storeDocument(feedbackDoc);
-
-        } catch (Exception e) {
-            log.error("[StudioQueryVectorService] 피드백 저장 실패", e);
-            throw new VectorStoreException("피드백 저장 실패: " + e.getMessage(), e);
-        }
-    }
 
     private String classifyQueryType(String content) {
         if (content == null) return "UNKNOWN";
@@ -559,42 +509,6 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
         
         metadata.put("vizPatternTracked", true);
         metadata.put("vizTrackingTimestamp", LocalDateTime.now().format(ISO_FORMATTER));
-    }
-
-    private String categorizeFeedback(String feedback) {
-        if (feedback == null) return "GENERAL";
-        
-        String lowerFeedback = feedback.toLowerCase();
-        
-        if (lowerFeedback.contains("정확") || lowerFeedback.contains("accurate")) {
-            return "ACCURACY";
-        } else if (lowerFeedback.contains("빠르") || lowerFeedback.contains("느리") || lowerFeedback.contains("speed")) {
-            return "PERFORMANCE";
-        } else if (lowerFeedback.contains("이해") || lowerFeedback.contains("명확") || lowerFeedback.contains("clear")) {
-            return "CLARITY";
-        } else if (lowerFeedback.contains("도움") || lowerFeedback.contains("유용") || lowerFeedback.contains("useful")) {
-            return "USEFULNESS";
-        } else if (lowerFeedback.contains("시각화") || lowerFeedback.contains("그래프") || lowerFeedback.contains("visualization")) {
-            return "VISUALIZATION";
-        }
-        
-        return "GENERAL";
-    }
-
-    private List<String> extractImprovementPoints(String feedback) {
-        List<String> points = new ArrayList<>();
-        
-        if (feedback == null) return points;
-
-        Pattern suggestionPattern = Pattern.compile("(더 |좀 더 |보다 )([가-힣a-zA-Z]+)(하면|했으면|해주|하게)");
-        suggestionPattern.matcher(feedback).results()
-            .forEach(match -> points.add(match.group()));
-
-        if (feedback.contains("부족") || feedback.contains("없") || feedback.contains("안")) {
-            points.add("부족한 부분 개선 필요");
-        }
-        
-        return points;
     }
 
     private static class QueryComplexity {

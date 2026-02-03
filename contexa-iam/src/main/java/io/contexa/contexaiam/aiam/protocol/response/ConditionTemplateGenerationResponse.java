@@ -1,12 +1,12 @@
 package io.contexa.contexaiam.aiam.protocol.response;
 
-import io.contexa.contexacommon.domain.response.IAMResponse;
+import io.contexa.contexacommon.domain.request.AIResponse;
 import lombok.Getter;
 
 import java.util.Map;
 
 @Getter
-public class ConditionTemplateGenerationResponse extends IAMResponse {
+public class ConditionTemplateGenerationResponse extends AIResponse {
     
     private final String templateResult; 
     private final String templateType; 
@@ -69,10 +69,4 @@ public class ConditionTemplateGenerationResponse extends IAMResponse {
                !templateResult.trim().isEmpty() && 
                !templateResult.trim().equals("[]");
     }
-    
-    @Override
-    public String toString() {
-        return String.format("ConditionTemplateGenerationResponse{type='%s', resource='%s', status='%s', hasTemplates=%s}", 
-                templateType, resourceIdentifier, getStatus(), hasTemplates());
-    }
-} 
+}

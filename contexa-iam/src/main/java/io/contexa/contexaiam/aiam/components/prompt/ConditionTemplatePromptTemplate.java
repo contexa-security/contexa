@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
@@ -11,45 +11,45 @@ import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 
 @Slf4j
-@PromptTemplateConfig(
-    key = "conditionTemplateGeneration",
-    aliases = {"condition_template_generation"},
-    description = "Spring AI Structured Output Condition Template Generation Router"
-)
 public class ConditionTemplatePromptTemplate implements PromptTemplate {
 
-    private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter = 
-        new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
-    
+    private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter =
+            new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
+
     private final UniversalConditionTemplate universalTemplate;
     private final SpecificConditionTemplate specificTemplate;
-    
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("ConditionTemplate");
+    }
+
     @Autowired
     public ConditionTemplatePromptTemplate(UniversalConditionTemplate universalTemplate,
-                                         SpecificConditionTemplate specificTemplate) {
+                                           SpecificConditionTemplate specificTemplate) {
         this.universalTemplate = universalTemplate;
         this.specificTemplate = specificTemplate;
-                            }
+    }
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         String templateType = extractTemplateType(request);
-        
+
         if ("universal".equals(templateType)) {
-                        return universalTemplate.generateSystemPrompt(request, systemMetadata);
+            return universalTemplate.generateSystemPrompt(request, systemMetadata);
         } else {
-                        return specificTemplate.generateSystemPrompt(request, systemMetadata);
+            return specificTemplate.generateSystemPrompt(request, systemMetadata);
         }
     }
 
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         String templateType = extractTemplateType(request);
-        
+
         if ("universal".equals(templateType)) {
             return universalTemplate.generateUserPrompt(request, contextInfo);
         } else {
-            
+
             return specificTemplate.generateUserPrompt(request, contextInfo);
         }
     }
@@ -58,12 +58,12 @@ public class ConditionTemplatePromptTemplate implements PromptTemplate {
         if (request instanceof ConditionTemplateGenerationRequest) {
             ConditionTemplateGenerationRequest ctgRequest = (ConditionTemplateGenerationRequest) request;
             String templateType = ctgRequest.getTemplateType();
-                        return templateType;
+            return templateType;
         }
 
         String templateType = request.getParameter("templateType", String.class);
         if (templateType != null) {
-                        return templateType;
+            return templateType;
         }
 
         log.warn("templateType을 찾을 수 없음, 기본값 'universal' 사용");

@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.admin.web.auth.controller;
 
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;

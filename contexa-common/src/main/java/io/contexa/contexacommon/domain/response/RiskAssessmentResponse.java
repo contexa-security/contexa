@@ -1,6 +1,7 @@
 package io.contexa.contexacommon.domain.response;
 
 import io.contexa.contexacommon.domain.TrustAssessment;
+import io.contexa.contexacommon.domain.request.AIResponse;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,7 +11,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class RiskAssessmentResponse extends IAMResponse {
+public class RiskAssessmentResponse extends AIResponse {
     
     
     private TrustAssessment assessment;
@@ -112,10 +113,4 @@ public class RiskAssessmentResponse extends IAMResponse {
     public String getResponseType() {
         return "RISK_ASSESSMENT";
     }
-    
-    @Override
-    public String toString() {
-        return String.format("RiskAssessmentResponse{id='%s', status=%s, trustScore=%.2f, processingTime=%dms}", 
-                getResponseId(), getStatus(), trustScore(), processingTimeMs);
-    }
-} 
+}

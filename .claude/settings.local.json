@@ -113,7 +113,11 @@
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-iam\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexaiam\\\\aiam\\\\utils\\\\SentenceBuffer.java\")",
       "Bash(powershell -c \"\\(Get-Content ''C:\\\\Users\\\\leaven\\\\.claude\\\\plans\\\\elegant-waddling-lake.md'' | Measure-Object -Line\\).Lines\")",
       "Bash(node --check:*)",
-      "Bash(node build.js:*)"
+      "Bash(node build.js:*)",
+      "Bash(Get-ChildItem -Path . -Include \"*.java\" -Recurse)",
+      "Bash(Select-String -Pattern \"StandardStreamingService|StreamRequestBuilder|DataEnricher\" -SimpleMatch)",
+      "Bash(Select-Object -First 30 -Property Path, LineNumber, Line)",
+      "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-common\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacommon\\\\domain\\\\context\\\\IAMContext.java\")"
     ],
     "deny": [],
     "ask": []

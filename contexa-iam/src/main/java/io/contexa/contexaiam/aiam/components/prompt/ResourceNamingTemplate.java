@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionRequest;
@@ -14,15 +14,15 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 @Slf4j
-@PromptTemplateConfig(
-    key = "resource_naming_suggestion",
-    aliases = {"resource_naming", "리소스네이밍"},
-    description = "Spring AI Structured Output Resource Naming Template"
-)
 public class ResourceNamingTemplate implements PromptTemplate {
 
     private final BeanOutputConverter<ResourceNamingSuggestionResponse> converter = 
         new BeanOutputConverter<>(ResourceNamingSuggestionResponse.class);
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("ResourceNaming");
+    }
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {

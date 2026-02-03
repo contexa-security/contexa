@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.UserGroup;

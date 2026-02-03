@@ -15,17 +15,17 @@ public class DefaultAILabFactory implements AILabFactory {
     @Autowired
     public DefaultAILabFactory(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
-            }
+    }
 
     @Override
     public <T extends AILab<?, ?>> Optional<T> getLab(Class<T> labType) {
         try {
             T lab = applicationContext.getBean(labType);
-                        return Optional.of(lab);
+            return Optional.of(lab);
         } catch (Exception e) {
-                    }
+            log.error("Lab not found: {}", labType.getSimpleName());
+        }
 
-        log.warn("Lab not found: {}", labType.getSimpleName());
         return Optional.empty();
     }
 
@@ -47,7 +47,7 @@ public class DefaultAILabFactory implements AILabFactory {
                 return getLab((Class<AILab<?, ?>>) clazz);
             }
         } catch (ClassNotFoundException e) {
-                    }
+        }
         return Optional.empty();
     }
 }

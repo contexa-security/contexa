@@ -2,6 +2,8 @@ package io.contexa.contexaiam.aiam.labs.condition;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacommon.domain.LabSpecialization;
@@ -24,16 +26,12 @@ import java.util.Map;
 public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemplateGenerationRequest, ConditionTemplateGenerationResponse> {
 
     private final PipelineOrchestrator orchestrator;
-    private final ObjectMapper objectMapper;
     private final ConditionTemplateVectorService vectorService;
 
     public ConditionTemplateGenerationLab(PipelineOrchestrator orchestrator,
-                                          ConditionTemplateContextRetriever contextRetriever,
-                                          ObjectMapper objectMapper,
                                           ConditionTemplateVectorService vectorService) {
         super("ConditionTemplateGeneration", "2.0", LabSpecialization.RECOMMENDATION_SYSTEM);
         this.orchestrator = orchestrator;
-        this.objectMapper = objectMapper;
         this.vectorService = vectorService;
     }
 
@@ -129,15 +127,14 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                                 "Pipeline returned null response"
                         );
                     }
-
                     try {
                         ConditionTemplateGenerationRequest request = new ConditionTemplateGenerationRequest(true);
                         vectorService.storeGeneratedTemplates(request, (ConditionTemplateGenerationResponse) response);
                     } catch (Exception e) {
                         log.error("벡터 저장소 결과 저장 실패", e);
                     }
-                    
-                    return (ConditionTemplateGenerationResponse)response;
+
+                    return (ConditionTemplateGenerationResponse) response;
                 })
                 .onErrorResume(error -> {
                     log.error("AI 특화 조건 비동기 생성 실패: {}", resourceIdentifier, error);
@@ -165,13 +162,8 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
 
     private AIRequest<ConditionTemplateContext> createUniversalTemplateRequest() {
         ConditionTemplateContext context = ConditionTemplateContext.forUniversalTemplate();
-
-        AIRequest<ConditionTemplateContext> request = new AIRequest<>(context, "conditionTemplateGeneration", context.getOrganizationId());
-
+        AIRequest<ConditionTemplateContext> request = new AIRequest<>(context, new TemplateType("ConditionTemplate"), new DiagnosisType("ConditionTemplate"));
         request.withParameter("templateType", "universal");
-        request.withParameter("requestType", "condition_template");
-        request.withParameter("outputFormat", "json_array");
-        request.withParameter("maxTemplates", 3);
 
         return request;
     }
@@ -179,216 +171,13 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
     private AIRequest<ConditionTemplateContext> createSpecificTemplateRequest(String resourceIdentifier, String methodInfo) {
         ConditionTemplateContext context = ConditionTemplateContext.forSpecificTemplate(resourceIdentifier, methodInfo);
 
-        AIRequest<ConditionTemplateContext> request = new AIRequest<>(context, "conditionTemplateGeneration", context.getOrganizationId());
+        AIRequest<ConditionTemplateContext> request = new AIRequest<>(context, new TemplateType("ConditionTemplate"), new DiagnosisType("ConditionTemplate"));
+        ;
 
         request.withParameter("templateType", "specific");
-        request.withParameter("requestType", "condition_template");
         request.withParameter("resourceIdentifier", resourceIdentifier);
         request.withParameter("methodInfo", methodInfo);
-        request.withParameter("outputFormat", "json_array");
-        request.withParameter("maxTemplates", 1);
 
         return request;
-    }
-
-    private ConditionTemplateGenerationResponse validateAndOptimizeTemplateResult(
-            String jsonResponse, String templateType, String resourceIdentifier) {
-
-        if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
-            log.warn("Pipeline에서 빈 응답 수신, 폴백 사용");
-            String fallback = "universal".equals(templateType) ?
-                    getFallbackUniversalTemplates() :
-                    generateFallbackSpecificTemplate(resourceIdentifier);
-            return ConditionTemplateGenerationResponse.success(
-                    "pipeline-empty",
-                    fallback,
-                    templateType,
-                    resourceIdentifier
-            );
-        }
-
-        try {
-            
-            String cleanedJson = extractAndCleanJson(jsonResponse);
-            if (cleanedJson.equals("[]")) {
-                log.warn("JSON 응답이 비어있음, 폴백 사용");
-                String fallback = "universal".equals(templateType) ?
-                        getFallbackUniversalTemplates() :
-                        generateFallbackSpecificTemplate(resourceIdentifier);
-                return ConditionTemplateGenerationResponse.success(
-                        "pipeline-empty-json",
-                        fallback,
-                        templateType,
-                        resourceIdentifier
-                );
-            }
-
-            jsonResponse = cleanedJson;
-            List<ConditionTemplate> parsedTemplates = parseAITemplateResponse(jsonResponse, resourceIdentifier != null ? resourceIdentifier : "universal");
-
-            if (parsedTemplates.isEmpty()) {
-                log.warn("파싱된 템플릿이 비어있음, 폴백 사용");
-                String fallback = "universal".equals(templateType) ?
-                        getFallbackUniversalTemplates() :
-                        generateFallbackSpecificTemplate(resourceIdentifier);
-                return ConditionTemplateGenerationResponse.success(
-                        "pipeline-empty-parsed",
-                        fallback,
-                        templateType,
-                        resourceIdentifier
-                );
-            }
-
-            return ConditionTemplateGenerationResponse.success(
-                    "pipeline-success",
-                    jsonResponse,
-                    templateType,
-                    resourceIdentifier
-            );
-
-        } catch (Exception e) {
-            log.error("조건 템플릿 결과 검증 실패", e);
-            String fallback = "universal".equals(templateType) ?
-                    getFallbackUniversalTemplates() :
-                    generateFallbackSpecificTemplate(resourceIdentifier);
-            return ConditionTemplateGenerationResponse.success(
-                    "pipeline-error",
-                    fallback,
-                    templateType,
-                    resourceIdentifier
-            );
-        }
-    }
-
-    private String extractAndCleanJson(String aiResponse) {
-        if (aiResponse == null || aiResponse.trim().isEmpty()) {
-            return "[]";
-        }
-
-        String cleaned = aiResponse.replaceAll("```json\\s*", "").replaceAll("```\\s*", "");
-
-        int startIdx = cleaned.indexOf('[');
-        int endIdx = cleaned.lastIndexOf(']');
-
-        if (startIdx != -1 && endIdx != -1 && startIdx < endIdx) {
-            return cleaned.substring(startIdx, endIdx + 1).trim();
-        }
-
-        startIdx = cleaned.indexOf('{');
-        endIdx = cleaned.lastIndexOf('}');
-
-        if (startIdx != -1 && endIdx != -1 && startIdx < endIdx) {
-            String jsonObject = cleaned.substring(startIdx, endIdx + 1).trim();
-            return "[" + jsonObject + "]";
-        }
-
-        log.warn("AI 응답에서 유효한 JSON을 찾을 수 없음: {}", aiResponse.substring(0, Math.min(100, aiResponse.length())));
-        return "[]";
-    }
-
-    private List<ConditionTemplate> parseAITemplateResponse(String aiResponse, String sourceMethod) {
-        List<ConditionTemplate> templates = new ArrayList<>();
-
-        try {
-            
-            String cleanedJson = extractAndCleanJson(aiResponse);
-
-            List<Map<String, Object>> rawTemplates = objectMapper.readValue(
-                    cleanedJson, new TypeReference<List<Map<String, Object>>>() {});
-
-            for (int i = 0; i < rawTemplates.size(); i++) {
-                Map<String, Object> raw = rawTemplates.get(i);
-                
-                try {
-                    ConditionTemplate template = ConditionTemplate.builder()
-                            .name((String) raw.get("name"))
-                            .description((String) raw.get("description"))
-                            .spelTemplate((String) raw.get("spelTemplate"))
-                            .category((String) raw.getOrDefault("category", "AI 생성"))
-                            .classification(parseClassification((String) raw.get("classification")))
-                            .sourceMethod(sourceMethod)
-                            .isAutoGenerated(true)
-                            .templateType("ai_generated")
-                            .createdAt(LocalDateTime.now())
-                            .build();
-
-                    if (template.getSpelTemplate() != null && !template.getSpelTemplate().trim().isEmpty()) {
-                        templates.add(template);
-                                            } else {
-                        log.warn("빈 SpEL 템플릿으로 인해 제외됨: {}", raw);
-                    }
-                } catch (Exception itemError) {
-                    log.error("템플릿 항목 파싱 실패: {}", raw, itemError);
-                }
-            }
-
-        } catch (Exception e) {
-            log.error("AI 응답 파싱 실패: {}", aiResponse, e);
-            
-        }
-
-        return templates;
-    }
-
-    private ConditionTemplate.ConditionClassification parseClassification(String classification) {
-        if (classification == null) return ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT;
-
-        try {
-            return ConditionTemplate.ConditionClassification.valueOf(classification.toUpperCase());
-        } catch (Exception e) {
-            return ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT;
-        }
-    }
-
-    private String getFallbackUniversalTemplates() {
-        return """
-        [
-          {
-            "name": "사용자 인증 상태 확인",
-            "description": "사용자가 인증되었는지 확인하는 조건",
-            "spelTemplate": "isAuthenticated()",
-            "category": "인증 상태",
-            "classification": "UNIVERSAL"
-          },
-          {
-            "name": "관리자 역할 확인",
-            "description": "관리자 역할을 가진 사용자인지 확인하는 조건",
-            "spelTemplate": "hasRole('ROLE_ADMIN')",
-            "category": "역할 확인",
-            "classification": "UNIVERSAL"
-          },
-          {
-            "name": "업무시간 접근 제한",
-            "description": "오전 9시부터 오후 6시까지만 접근을 허용하는 조건",
-            "spelTemplate": "T(java.time.LocalTime).now().hour >= 9 && T(java.time.LocalTime).now().hour <= 18",
-            "category": "시간 제한",
-            "classification": "UNIVERSAL"
-          }
-        ]
-        """;
-    }
-
-    private String generateFallbackSpecificTemplate(String resourceIdentifier) {
-        return String.format("""
-        [
-          {
-            "name": "%s 대상 검증",
-            "description": "%s 리소스에 대한 접근 검증 조건",
-            "spelTemplate": "hasPermission(#param, '%s', 'READ')",
-            "category": "리소스 접근",
-            "classification": "SPECIFIC"
-          }
-        ]
-        """, resourceIdentifier, resourceIdentifier, resourceIdentifier);
-    }
-
-    public void learnFromFeedback(ConditionTemplateGenerationRequest request, ConditionTemplateGenerationResponse response, String feedback) {
-        try {
-
-            vectorService.storeGeneratedTemplates(request, response);
-            
-                    } catch (Exception e) {
-            log.error("[ConditionTemplateGenerationLab] 피드백 학습 실패", e);
-        }
     }
 }

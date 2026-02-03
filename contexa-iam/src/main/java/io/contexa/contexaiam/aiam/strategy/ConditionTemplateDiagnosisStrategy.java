@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.aiam.strategy;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacore.std.labs.AILab;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -7,7 +8,6 @@ import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
 import io.contexa.contexacore.std.strategy.PipelineConfig;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateGenerationLab;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
@@ -23,7 +23,7 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
 
     @Override
     public DiagnosisType getSupportedType() {
-        return DiagnosisType.CONDITION_TEMPLATE;
+        return new DiagnosisType("ConditionTemplate");
     }
 
     @Override
@@ -58,7 +58,7 @@ public class ConditionTemplateDiagnosisStrategy extends AbstractAIStrategy<Condi
     }
 
     @Override
-    protected Object buildLabRequest(AIRequest<ConditionTemplateContext> request) {
+    protected Object convertLabRequest(AIRequest<ConditionTemplateContext> request) {
 
         String generationType = request.getParameter("generationType", String.class);
 

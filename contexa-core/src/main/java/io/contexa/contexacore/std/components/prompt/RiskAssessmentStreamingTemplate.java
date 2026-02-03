@@ -1,20 +1,22 @@
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import org.springframework.stereotype.Component;
 
-@PromptTemplateConfig(
-        key = "riskAssessmentStreaming",
-        aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessmentStreaming"},
-        description = "Risk Assessment Unified Streaming+JSON Template"
-)
 public class RiskAssessmentStreamingTemplate implements PromptTemplate {
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         return buildUnifiedSystemPrompt(systemMetadata);
+    }
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("RiskAssessmentStreaming");
     }
 
     @Override

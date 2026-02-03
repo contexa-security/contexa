@@ -1,5 +1,7 @@
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.TrustAssessment;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
@@ -7,11 +9,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.stereotype.Component;
 
-@PromptTemplateConfig(
-        key = "riskAssessment",
-        aliases = {"zeroTrustAssessment", "securityRiskAnalysis", "riskAssessment"},
-        description = "Spring AI Structured Output Risk Assessment Template"
-)
 public class RiskAssessmentTemplate implements PromptTemplate {
 
     private final BeanOutputConverter<TrustAssessment> converter = new BeanOutputConverter<>(TrustAssessment.class);
@@ -19,6 +16,11 @@ public class RiskAssessmentTemplate implements PromptTemplate {
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         return buildSystemPrompt(systemMetadata);
+    }
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("RiskAssessment");
     }
 
     @Override

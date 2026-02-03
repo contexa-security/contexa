@@ -1,15 +1,17 @@
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import org.springframework.stereotype.Component;
 
-@PromptTemplateConfig(
-        key = "behavioralAnalysisStreaming",
-        description = "User Behavior Anomaly Detection Streaming Template"
-)
 public class BehavioralAnalysisStreamingTemplate implements PromptTemplate {
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("BehavioralAnalysisStreaming");
+    }
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {

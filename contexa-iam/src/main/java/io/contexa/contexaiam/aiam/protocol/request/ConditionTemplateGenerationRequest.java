@@ -1,14 +1,15 @@
 package io.contexa.contexaiam.aiam.protocol.request;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
+import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
-import io.contexa.contexacommon.enums.DiagnosisType;
-import io.contexa.contexacommon.domain.request.IAMRequest;
 import lombok.Getter;
 
 import java.util.Map;
 
 @Getter
-public class ConditionTemplateGenerationRequest extends IAMRequest<ConditionTemplateContext> {
+public class ConditionTemplateGenerationRequest extends AIRequest<ConditionTemplateContext> {
     
     private final String templateType; 
     private final String resourceIdentifier; 
@@ -25,15 +26,14 @@ public class ConditionTemplateGenerationRequest extends IAMRequest<ConditionTemp
     }
     public ConditionTemplateGenerationRequest(boolean isUniversal, String templateType, String resourceIdentifier,
                                                String methodInfo, Map<String, Object> additionalParameters) {
-        super(createContext(templateType, resourceIdentifier, methodInfo), "conditionTemplateGeneration");
+        super(createContext(templateType, resourceIdentifier, methodInfo), new TemplateType("ConditionTemplate"), new DiagnosisType("ConditionTemplate"));
         
         this.templateType = templateType;
         this.resourceIdentifier = resourceIdentifier;
         this.methodInfo = methodInfo;
         this.additionalParameters = additionalParameters != null ? additionalParameters : Map.of();
         this.isUniversal = isUniversal;
-        this.withDiagnosisType(DiagnosisType.CONDITION_TEMPLATE);
-        
+
         this.withParameter("templateType", templateType);
         if (resourceIdentifier != null) {
             this.withParameter("resourceIdentifier", resourceIdentifier);

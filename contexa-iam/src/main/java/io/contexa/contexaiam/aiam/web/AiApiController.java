@@ -1,24 +1,20 @@
 package io.contexa.contexaiam.aiam.web;
 
-import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexaiam.repository.ManagedResourceRepository;
-import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIResponse;
-import io.contexa.contexacommon.domain.request.IAMRequest;
 import io.contexa.contexacommon.entity.ManagedResource;
-import io.contexa.contexacommon.enums.AuditRequirement;
+import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
-import io.contexa.contexacommon.enums.DiagnosisType;
-import io.contexa.contexacommon.enums.SecurityLevel;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
+import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
-import io.contexa.contexacore.std.pipeline.streaming.StreamingContext;
-import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
-import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexaiam.domain.dto.AiGeneratedPolicyDraftDto;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.resource.service.CompatibilityResult;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import lombok.RequiredArgsConstructor;
@@ -44,92 +40,24 @@ import java.util.stream.Collectors;
 public class AiApiController {
 
     private final AICoreOperations<PolicyContext> aiNativeProcessor;
+    private final StandardStreamingService streamingService;
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final ManagedResourceRepository managedResourceRepository;
     private final ConditionCompatibilityService conditionCompatibilityService;
-    private final StreamingProperties streamingProperties;
 
     @PostMapping(value = "/generate-from-text/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> generatePolicyFromTextStream(@RequestBody PolicyGenerationItem request) {
 
         String naturalLanguageQuery = request.naturalLanguageQuery();
         if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
-            return Flux.just(ServerSentEvent.<String>builder()
-                    .data("ERROR: naturalLanguageQuery is required")
-                    .build());
+            return streamingService.errorStream("VALIDATION_ERROR", "naturalLanguageQuery is required");
         }
-        try {
 
-            PolicyContext context = new PolicyContext.Builder(
-                    SecurityLevel.STANDARD,
-                    AuditRequirement.BASIC
-            ).withNaturalLanguageQuery(naturalLanguageQuery).build();
-
-            IAMRequest<PolicyContext> iamRequest =
-                    (IAMRequest<PolicyContext>) new IAMRequest<>(context, "generatePolicyFromTextStream")
-                            .withDiagnosisType(DiagnosisType.POLICY_GENERATION)
-                            .withParameter("generationMode", "streaming")
-                            .withParameter("naturalLanguageQuery", naturalLanguageQuery)
-                            .withParameter("availableItems", request.availableItems());
-
-            StreamingContext streamingContext = new StreamingContext(streamingProperties);
-
-            return aiNativeProcessor.processStream(iamRequest)
-                    .flatMap(chunk -> {
-                        String chunkStr = chunk != null ? chunk.toString() : "";
-
-                        streamingContext.appendChunk(chunkStr);
-
-                        if (streamingContext.isFinalResponseStarted()) {
-                            return Flux.empty();
-                        }
-
-                        return streamingContext.getSentenceBuffer().processChunk(chunkStr)
-                                .map(sentence -> ServerSentEvent.<String>builder()
-                                        .data(sentence)
-                                        .build());
-                    })
-                    .concatWith(
-                            Mono.defer(() -> {
-                                String jsonPart = streamingContext.extractJsonPart();
-
-                                if (jsonPart != null && !streamingContext.isJsonSent()) {
-                                    streamingContext.markJsonSent();
-
-                                    return Mono.just(ServerSentEvent.<String>builder()
-                                            .data(jsonPart)
-                                            .build());
-                                }
-
-                                return Mono.empty();
-                            })
-                    )
-                    .concatWith(
-                            streamingContext.getSentenceBuffer().flush()
-                                    .map(remaining -> ServerSentEvent.<String>builder()
-                                            .data(remaining)
-                                            .build())
-                    )
-                    .concatWith(
-                            Mono.just(ServerSentEvent.<String>builder()
-                                    .data("[DONE]")
-                                    .build())
-                    )
-                    .onErrorResume(error -> {
-                        log.error("스트리밍 처리 중 오류", error);
-                        String errorMessage = error instanceof Throwable ?
-                                ((Throwable) error).getMessage() : error.toString();
-                        return Flux.just(ServerSentEvent.<String>builder()
-                                .data("ERROR: " + errorMessage)
-                                .build());
-                    });
-        } catch (Exception e) {
-            log.error("AI 스트리밍 정책 생성 실패", e);
-            return Flux.just(ServerSentEvent.<String>builder()
-                    .data("ERROR: " + e.getMessage())
-                    .build());
-        }
+        PolicyGenerationRequest aiRequest = createPolicyRequest(request, new TemplateType("PolicyGenerationStreaming"), new DiagnosisType("PolicyGeneration"));
+        return streamingService.stream(aiRequest, aiNativeProcessor);
     }
+
+
 
     @PostMapping("/generate-from-text")
     public Mono<ResponseEntity<AiGeneratedPolicyDraftDto>> generatePolicyFromText(@RequestBody PolicyGenerationItem request) {
@@ -144,16 +72,7 @@ public class AiApiController {
 
         return Mono.fromCallable(() -> {
 
-                    PolicyContext context = new PolicyContext.Builder(
-                            SecurityLevel.STANDARD,
-                            AuditRequirement.BASIC
-                    ).withNaturalLanguageQuery(naturalLanguageQuery).build();
-
-                    return (AIRequest<PolicyContext>) new AIRequest<>(context, "generatePolicyFromText", context.getOrganizationId())
-                            .withDiagnosisType(DiagnosisType.POLICY_GENERATION)
-                            .withParameter("generationMode", "standard")
-                            .withParameter("naturalLanguageQuery", naturalLanguageQuery)
-                            .withParameter("availableItems", request.availableItems());
+                    return createPolicyRequest(request, new TemplateType("PolicyGeneration"), new DiagnosisType("PolicyGeneration"));
                 })
                 .flatMap(aiRequest -> {
 
@@ -187,6 +106,18 @@ public class AiApiController {
                     log.error("예상하지 못한 응답 타입: {} (예상: PolicyResponse)", response.getClass().getSimpleName());
                     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
                 });
+    }
+
+    private PolicyGenerationRequest createPolicyRequest(PolicyGenerationItem request,TemplateType templateType, DiagnosisType diagnosisType) {
+
+        PolicyContext context = new PolicyContext.Builder().build();
+
+        PolicyGenerationRequest policyGenerationRequest = new PolicyGenerationRequest(context, templateType, diagnosisType);
+        policyGenerationRequest.setNaturalLanguageQuery(request.naturalLanguageQuery());
+        policyGenerationRequest.setAvailableItems(request.availableItems());
+        policyGenerationRequest.withParameter("availableItems", request.availableItems());
+
+        return policyGenerationRequest;
     }
 
     @PostMapping("/recommend-conditions")
@@ -461,18 +392,16 @@ public class AiApiController {
     }
 
     private boolean containsAction(String text, String action) {
-        switch (action) {
-            case "수정":
-                return text.contains("수정") || text.contains("edit") || text.contains("update") || text.contains("modify");
-            case "삭제":
-                return text.contains("삭제") || text.contains("delete") || text.contains("remove");
-            case "조회":
-                return text.contains("조회") || text.contains("read") || text.contains("view") || text.contains("get") || text.contains("find");
-            case "생성":
-                return text.contains("생성") || text.contains("create") || text.contains("add") || text.contains("insert");
-            default:
-                return text.contains(action);
-        }
+        return switch (action) {
+            case "수정" ->
+                    text.contains("수정") || text.contains("edit") || text.contains("update") || text.contains("modify");
+            case "삭제" -> text.contains("삭제") || text.contains("delete") || text.contains("remove");
+            case "조회" ->
+                    text.contains("조회") || text.contains("read") || text.contains("view") || text.contains("get") || text.contains("find");
+            case "생성" ->
+                    text.contains("생성") || text.contains("create") || text.contains("add") || text.contains("insert");
+            default -> text.contains(action);
+        };
     }
 
     private Map<String, Object> calculateRecommendationStatistics(
@@ -567,66 +496,5 @@ public class AiApiController {
                                 .data("[DONE]")
                                 .build())
                 );
-    }
-
-    private Flux<ServerSentEvent<String>> createFallbackStreamingFromRequest(String naturalLanguageQuery, PolicyGenerationItem.AvailableItems availableItems) {
-        log.warn("Fallback 스트리밍 생성: {}", naturalLanguageQuery);
-
-        return Flux.create(sink -> {
-            try {
-
-                sink.next(ServerSentEvent.<String>builder()
-                        .data("AI가 요청을 분석하고 있습니다...")
-                        .build());
-
-                Mono.delay(java.time.Duration.ofMillis(500))
-                        .doOnNext(tick -> {
-                            sink.next(ServerSentEvent.<String>builder()
-                                    .data("사용 가능한 역할과 권한을 검토하고 있습니다...")
-                                    .build());
-                        })
-                        .then(Mono.delay(java.time.Duration.ofMillis(500)))
-                        .doOnNext(tick -> {
-                            sink.next(ServerSentEvent.<String>builder()
-                                    .data("정책 구조를 생성하고 있습니다...")
-                                    .build());
-                        })
-                        .then(Mono.delay(java.time.Duration.ofMillis(500)))
-                        .doOnNext(tick -> {
-
-                            String basicJson = StreamingProtocol.JSON_START_MARKER + "\n" +
-                                    """
-                                            {
-                                              "policyName": "AI 생성 정책 (Fallback)",
-                                              "description": "AI가 분석한 요구사항: """ + naturalLanguageQuery + """
-                                    ",
-                                      "roleIds": [],
-                                      "permissionIds": [],
-                                      "conditions": {},
-                                      "effect": "ALLOW"
-                                    }
-                                    """ + StreamingProtocol.JSON_END_MARKER;
-
-                            sink.next(ServerSentEvent.<String>builder()
-                                    .data(basicJson)
-                                    .build());
-                        })
-                        .then(Mono.delay(java.time.Duration.ofMillis(200)))
-                        .doOnNext(tick -> {
-                            sink.next(ServerSentEvent.<String>builder()
-                                    .data("[DONE]")
-                                    .build());
-                            sink.complete();
-                        })
-                        .subscribe();
-
-            } catch (Exception e) {
-                log.error("Fallback 스트리밍 생성 실패", e);
-                sink.next(ServerSentEvent.<String>builder()
-                        .data("ERROR: " + e.getMessage())
-                        .build());
-                sink.complete();
-            }
-        });
     }
 }

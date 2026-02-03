@@ -1,27 +1,28 @@
 package io.contexa.contexacore.std.components.prompt;
 
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
-import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 @Slf4j
-@PromptTemplateConfig(
-        key = "behavioralAnalysis",
-        aliases = {"ueba", "behavioral_analysis"},
-        description = "Spring AI Structured Output Behavioral Analysis Template"
-)
 public class BehavioralAnalysisTemplate implements PromptTemplate {
 
     private final BeanOutputConverter<BehavioralAnalysisResponse> converter =
         new BeanOutputConverter<>(BehavioralAnalysisResponse.class);
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("BehavioralAnalysis");
+    }
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {

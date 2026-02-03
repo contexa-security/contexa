@@ -2,7 +2,7 @@ package io.contexa.contexaiam.admin.web.workflow.wizard.service;
 
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaiam.admin.web.studio.dto.InitiateGrantRequestDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.SavePermissionsRequest;

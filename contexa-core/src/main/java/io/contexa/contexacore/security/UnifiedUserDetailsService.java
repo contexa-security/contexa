@@ -1,6 +1,6 @@
 package io.contexa.contexacore.security;
 
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.entity.UserGroup;

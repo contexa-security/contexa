@@ -1,11 +1,11 @@
 package io.contexa.contexacoreenterprise.soar.strategy;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.std.labs.AILab;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
 import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
@@ -19,6 +19,8 @@ import java.time.LocalDateTime;
 @Slf4j
 public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarResponse> {
 
+    DiagnosisType diagnosisType = new DiagnosisType("soar");
+
     private static final int PRIORITY = 10; 
     private static final boolean SUPPORTS_STREAMING = true;
 
@@ -28,17 +30,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
     @Override
     public DiagnosisType getSupportedType() {
-        return DiagnosisType.SOAR;
-    }
-
-    @Override
-    public boolean canHandle(AIRequest<SoarContext> request) {
-        if (request == null || request.getContext() == null) {
-            return false;
-        }
-
-        DiagnosisType type = request.getParameter("diagnosisType", DiagnosisType.class);
-        return type == DiagnosisType.SOAR;
+        return diagnosisType;
     }
 
     @Override
@@ -56,7 +48,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
         if (request.getContext() == null) {
             throw new DiagnosisException(
-                    DiagnosisType.SOAR.name(),
+                    diagnosisType.name(),
                     "INVALID_CONTEXT",
                     "SoarContext가 누락되었습니다"
             );
@@ -66,7 +58,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
         if (context.getSessionId() == null || context.getSessionId().isEmpty()) {
             throw new DiagnosisException(
-                    DiagnosisType.SOAR.name(),
+                    diagnosisType.name(),
                     "INVALID_SESSION",
                     "세션 ID가 누락되었습니다"
             );
@@ -74,7 +66,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
         if (context.getOriginalQuery() == null || context.getOriginalQuery().trim().isEmpty()) {
             throw new DiagnosisException(
-                    DiagnosisType.SOAR.name(),
+                    diagnosisType.name(),
                     "INVALID_QUERY",
                     "질의가 비어있습니다"
             );
@@ -82,7 +74,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
         if (context.getOrganizationId() == null || context.getOrganizationId().isEmpty()) {
             throw new DiagnosisException(
-                    DiagnosisType.SOAR.name(),
+                    diagnosisType.name(),
                     "INVALID_ORGANIZATION",
                     "조직 ID가 누락되었습니다"
             );
@@ -97,7 +89,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
     }
 
     @Override
-    protected Object buildLabRequest(AIRequest<SoarContext> request) throws DiagnosisException {
+    protected Object convertLabRequest(AIRequest<SoarContext> request) throws DiagnosisException {
         return request;
     }
 
@@ -107,7 +99,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
         
         if (!(lab instanceof SoarLabImpl)) {
             throw new DiagnosisException(
-                    DiagnosisType.SOAR.name(),
+                    diagnosisType.name(),
                     "INVALID_LAB",
                     "잘못된 Lab 타입: " + lab.getClass().getName()
             );
@@ -115,7 +107,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
         if (!(labRequest instanceof SoarRequest)) {
             throw new DiagnosisException(
-                    DiagnosisType.SOAR.name(),
+                    diagnosisType.name(),
                     "INVALID_REQUEST",
                     "잘못된 요청 타입: " + labRequest.getClass().getName()
             );

@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.aiam.protocol.response;
 
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
-import io.contexa.contexacommon.domain.response.IAMResponse;
+import io.contexa.contexacommon.domain.request.AIResponse;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -10,7 +10,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class PolicyResponse extends IAMResponse {
+public class PolicyResponse extends AIResponse {
     
     private String generatedPolicy;
     private Double policyConfidenceScore;
@@ -22,20 +22,11 @@ public class PolicyResponse extends IAMResponse {
     private Map<String, String> roleIdToNameMap;
     private Map<String, String> permissionIdToNameMap;
     private Map<String, String> conditionIdToNameMap;
-    
-    public PolicyResponse() {
-        super("default", ExecutionStatus.SUCCESS);
-    }
-    
+
     public PolicyResponse(String requestId, ExecutionStatus status) {
         super(requestId, status);
     }
-    
-    public PolicyResponse(String requestId, ExecutionStatus status, String generatedPolicy) {
-        super(requestId, status);
-        this.generatedPolicy = generatedPolicy;
-    }
-    
+
     @Override
     public Object getData() { 
         return policyData != null ? policyData : generatedPolicy; 
@@ -46,9 +37,4 @@ public class PolicyResponse extends IAMResponse {
         return "POLICY"; 
     }
 
-    @Override
-    public String toString() {
-        return String.format("PolicyResponse{status=%s, confidence=%.2f, optimized=%s, hasPolicyData=%s}", 
-                getStatus(), policyConfidenceScore != null ? policyConfidenceScore : 0.0, optimized, policyData != null);
-    }
-} 
+}

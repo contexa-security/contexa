@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.security.core;
 
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationProvider;

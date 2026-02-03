@@ -1,9 +1,9 @@
 package io.contexa.contexaiam.aiam.strategy;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacore.std.labs.AILab;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
 import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingLab;
@@ -25,7 +25,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
 
     @Override
     public DiagnosisType getSupportedType() {
-        return DiagnosisType.RESOURCE_NAMING;
+        return new DiagnosisType("ResourceNaming");
     }
 
     @Override
@@ -49,7 +49,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
     }
 
     @Override
-    protected Object buildLabRequest(AIRequest<ResourceNamingContext> request) throws DiagnosisException {
+    protected Object convertLabRequest(AIRequest<ResourceNamingContext> request) throws DiagnosisException {
         try {
             List<Map<String, String>> legacyResources = (List<Map<String, String>>) request.getParameter("resources", List.class);
             return ResourceNamingSuggestionRequest.fromMapList(legacyResources);

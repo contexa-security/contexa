@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.aiam.strategy;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacore.std.labs.AILab;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -8,7 +9,6 @@ import io.contexa.contexacore.std.strategy.DiagnosisException;
 import io.contexa.contexacore.std.strategy.PipelineConfig;
 import io.contexa.contexaiam.aiam.labs.policy.AdvancedPolicyGenerationLab;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
@@ -25,7 +25,7 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
 
     @Override
     public DiagnosisType getSupportedType() {
-        return DiagnosisType.POLICY_GENERATION;
+        return new DiagnosisType("PolicyGeneration");
     }
 
     @Override
@@ -57,11 +57,8 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
     }
 
     @Override
-    protected Object buildLabRequest(AIRequest<PolicyContext> request) {
-        return new PolicyGenerationRequest(
-                request.getParameter("naturalLanguageQuery", String.class),
-                request.getParameter("availableItems", PolicyGenerationItem.AvailableItems.class)
-        );
+    protected Object convertLabRequest(AIRequest<PolicyContext> request) {
+        return request;
     }
 
     @Override

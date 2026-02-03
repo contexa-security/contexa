@@ -110,14 +110,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                     auth, attributePIP, aINativeProcessor, authorizationContext,
                     auditLogRepository, redisTemplate, stringRedisTemplate);
                                 break;
-                
-            case "REALTIME":
-                
-                root = new RealtimeAISecurityExpressionRoot(
-                    auth, attributePIP, aINativeProcessor, authorizationContext, 
-                    auditLogRepository);
-                                break;
-                
+
             case "STANDARD":
             default:
                 

@@ -1,18 +1,14 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@PromptTemplateConfig(
-        key = "studioQueryStreaming",
-        aliases = {"studio_query_streaming", "authorization_studio_streaming", "studioQuery"},
-        description = "Authorization Studio Unified Streaming+JSON Template"
-)
 public class StudioQueryStreamingTemplate implements PromptTemplate {
 
     @Override
@@ -27,6 +23,11 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
         String actualContextInfo = iamDataContext != null ? iamDataContext : contextInfo;
 
         return buildUnifiedUserPrompt(naturalQuery, actualContextInfo, contextInfo);
+    }
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("StudioQueryStreaming");
     }
 
     private String buildUnifiedSystemPrompt(String contextInfo) {
@@ -114,22 +115,17 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
             2.  모든 분석이 끝나면, ###FINAL_RESPONSE### 마커와 함께 위에서 정의된 완벽한 JSON 구조의 데이터를 출력하고 즉시 응답을 종료하세요.
             
             **지금부터 자연어 분석을 시작하세요.**
-            """, query, scope); // contextInfo는 시스템 프롬프트에서 이미 활용되므로 중복 제거
+            """, query, scope);
     }
 
     /**
      * 요청에서 자연어 질의 추출
      */
     private String extractNaturalQuery(AIRequest<? extends DomainContext> request) {
-        String naturalQuery = request.getParameter("naturalLanguageQuery", String.class);
+        String naturalQuery = request.getNaturalLanguageQuery();
 
         if (naturalQuery != null) {
             return naturalQuery;
-        }
-
-        if (request.getContext() instanceof StudioQueryContext context) {
-            return context.getNaturalLanguageQuery() != null ?
-                    context.getNaturalLanguageQuery() : "Authorization Studio 질의";
         }
 
         return "자연어 질의가 제공되지 않았습니다";

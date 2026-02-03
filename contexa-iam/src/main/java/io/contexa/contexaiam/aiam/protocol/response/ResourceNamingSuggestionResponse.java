@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.aiam.protocol.response;
 
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNameSuggestion;
-import io.contexa.contexacommon.domain.response.IAMResponse;
+import io.contexa.contexacommon.domain.request.AIResponse;
 import lombok.*;
 
 import java.util.List;
@@ -10,7 +10,7 @@ import java.util.stream.Collectors;
 
 @Getter
 @Setter
-public class ResourceNamingSuggestionResponse extends IAMResponse {
+public class ResourceNamingSuggestionResponse extends AIResponse {
 
     private List<ResourceNamingSuggestion> suggestions;
 

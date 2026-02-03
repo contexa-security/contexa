@@ -86,11 +86,6 @@ public class SoarContext extends DomainContext {
         return "SOAR";
     }
 
-    @Override
-    public int getPriorityLevel() {
-        return 10;
-    }
-
     public enum ThreatLevel {
         CRITICAL("치명적", 10),
         HIGH("높음", 8),

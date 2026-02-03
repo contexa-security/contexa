@@ -1,8 +1,8 @@
 package io.contexa.contexaiam.aiam.protocol;
 
-import io.contexa.contexacommon.domain.response.IAMResponse;
+import io.contexa.contexacommon.domain.request.AIResponse;
 
-public class DefaultIAMAIResponse extends IAMResponse {
+public class DefaultIAMAIResponse extends AIResponse {
     private final String data;
     private final long executionTimeMs;
     private final String status;

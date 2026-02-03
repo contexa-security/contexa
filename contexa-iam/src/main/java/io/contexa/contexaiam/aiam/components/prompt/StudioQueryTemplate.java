@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
@@ -11,11 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
 @Slf4j
-@PromptTemplateConfig(
-        key = "studioQuery",
-        aliases = {"studio_query", "authorization_studio_query", "iam_natural_query"},
-        description = "Spring AI Structured Output Authorization Studio Query Template"
-)
 public class StudioQueryTemplate implements PromptTemplate {
 
     private final BeanOutputConverter<StudioQueryResponse> converter = 
@@ -24,6 +19,11 @@ public class StudioQueryTemplate implements PromptTemplate {
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         return buildStudioQuerySystemPrompt(systemMetadata);
+    }
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("StudioQuery");
     }
 
     @Override

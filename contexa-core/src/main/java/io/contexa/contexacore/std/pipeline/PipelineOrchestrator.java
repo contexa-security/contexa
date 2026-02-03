@@ -1,5 +1,7 @@
 package io.contexa.contexacore.std.pipeline;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.domain.SoarResponse;
@@ -7,7 +9,6 @@ import io.contexa.contexacore.domain.SessionState;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
@@ -16,21 +17,15 @@ import reactor.core.publisher.Mono;
 import java.util.List;
 import java.util.Optional;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 public class PipelineOrchestrator {
-
-    // Domain hint constants
-    private static final String DOMAIN_IAM = "IAM";
     private static final String DOMAIN_UNIVERSAL = "UNIVERSAL";
     private static final String DOMAIN_STREAMING_UNIVERSAL = "STREAMING-UNIVERSAL";
-
-    // Domain detection keywords
-    private static final String KEYWORD_IAM = "iam";
     private static final String KEYWORD_STREAMING = "Streaming";
-
     private final List<PipelineExecutor> executors;
-    private final Map<DiagnosisType, AIStrategy<?, ?>> strategyMap;
+    private final Map<String, AIStrategy<?, ?>> strategyMap;
 
     @Autowired
     public PipelineOrchestrator(List<PipelineExecutor> executors,
@@ -39,9 +34,9 @@ public class PipelineOrchestrator {
                 .sorted((a, b) -> Integer.compare(a.getPriority(), b.getPriority()))
                 .toList();
 
-        this.strategyMap = new java.util.concurrent.ConcurrentHashMap<>();
+        this.strategyMap = new ConcurrentHashMap<>();
         for (AIStrategy<?, ?> strategy : strategies) {
-            strategyMap.put(strategy.getSupportedType(), strategy);
+            strategyMap.put(strategy.getSupportedType().name(), strategy);
         }
     }
 
@@ -161,18 +156,9 @@ public class PipelineOrchestrator {
     }
 
     private <T extends DomainContext> String extractDomainHint(AIRequest<T> request) {
-        String contextTypeName = request.getContext().getClass().getSimpleName();
-        if (contextTypeName.toLowerCase().contains(KEYWORD_IAM)) {
-            return DOMAIN_IAM;
-        }
 
-        String requestTypeName = request.getClass().getSimpleName();
-        if (requestTypeName.toLowerCase().contains(KEYWORD_IAM)) {
-            return DOMAIN_IAM;
-        }
-
-        String operation = request.getPromptTemplate();
-        if (operation != null && operation.contains(KEYWORD_STREAMING)) {
+        TemplateType diagnosisType = request.getPromptTemplate();
+        if (diagnosisType != null && diagnosisType.name.contains(KEYWORD_STREAMING)) {
             return DOMAIN_STREAMING_UNIVERSAL;
         }
 
@@ -219,7 +205,6 @@ public class PipelineOrchestrator {
         SoarResponse soarResponse = new SoarResponse(requestId, AIResponse.ExecutionStatus.FAILURE);
 
         soarResponse.withError("Pipeline execution failed: " + error.getMessage())
-                .withConfidenceScore(0.0)
                 .withMetadata("errorType", error.getClass().getSimpleName())
                 .withMetadata("timestamp", System.currentTimeMillis());
 
@@ -245,7 +230,6 @@ public class PipelineOrchestrator {
         R response = createResponseInstance(requestId, responseType);
 
         response.withError("Pipeline execution failed: " + error.getMessage())
-                .withConfidenceScore(0.0)
                 .withMetadata("errorType", error.getClass().getSimpleName())
                 .withMetadata("timestamp", System.currentTimeMillis());
 

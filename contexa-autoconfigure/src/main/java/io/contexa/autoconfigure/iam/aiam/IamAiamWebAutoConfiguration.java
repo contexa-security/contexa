@@ -1,8 +1,7 @@
 package io.contexa.autoconfigure.iam.aiam;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
+import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.web.*;
@@ -24,19 +23,18 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnMissingBean
     public AiStudioController aiStudioController(
             AICoreOperations<StudioQueryContext> aiNativeProcessor,
-            StreamingProperties streamingProperties,
-            ObjectMapper objectMapper) {
-        return new AiStudioController(aiNativeProcessor, streamingProperties, objectMapper);
+            StandardStreamingService streamingService) {
+        return new AiStudioController(aiNativeProcessor, streamingService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public AiApiController aiApiController(
             AICoreOperations<PolicyContext> aiNativeProcessor,
+            StandardStreamingService streamingService,
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
-            ConditionCompatibilityService conditionCompatibilityService,
-            StreamingProperties streamingProperties) {
-        return new AiApiController(aiNativeProcessor, conditionTemplateRepository, managedResourceRepository, conditionCompatibilityService, streamingProperties);
+            ConditionCompatibilityService conditionCompatibilityService) {
+        return new AiApiController(aiNativeProcessor, streamingService, conditionTemplateRepository, managedResourceRepository, conditionCompatibilityService);
     }
 }

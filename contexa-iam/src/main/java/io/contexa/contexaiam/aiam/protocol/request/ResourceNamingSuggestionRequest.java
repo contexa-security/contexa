@@ -1,7 +1,11 @@
 package io.contexa.contexaiam.aiam.protocol.request;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
+import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.enums.RequestPriority;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
-import io.contexa.contexacommon.domain.request.IAMRequest;
+import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.*;
 
 import java.util.List;
@@ -9,18 +13,14 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class ResourceNamingSuggestionRequest extends IAMRequest<ResourceNamingContext> {
+public class ResourceNamingSuggestionRequest extends AIRequest<ResourceNamingContext> {
 
     private List<ResourceItem> resources;
     private int batchSize = 5;
     private RequestPriority priority = RequestPriority.NORMAL;
 
-    public ResourceNamingSuggestionRequest() {
-        this(null, null);
-    }
-
-    public ResourceNamingSuggestionRequest(ResourceNamingContext context, String operation) {
-        super(context, operation);
+    public ResourceNamingSuggestionRequest(DomainContext context, TemplateType templateType, DiagnosisType diagnosisType) {
+        super(null, templateType, diagnosisType);
     }
 
     @Data
@@ -28,7 +28,7 @@ public class ResourceNamingSuggestionRequest extends IAMRequest<ResourceNamingCo
     @NoArgsConstructor
     @AllArgsConstructor
     public static class ResourceItem {
-        
+
         private String identifier;
 
         private String owner;
@@ -47,7 +47,8 @@ public class ResourceNamingSuggestionRequest extends IAMRequest<ResourceNamingCo
         List<ResourceItem> items = resourceMaps.stream()
                 .map(ResourceItem::fromMap)
                 .toList();
-        ResourceNamingSuggestionRequest resourceNamingSuggestionRequest = new ResourceNamingSuggestionRequest();
+        ResourceNamingContext context = new ResourceNamingContext();
+        ResourceNamingSuggestionRequest resourceNamingSuggestionRequest = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
         resourceNamingSuggestionRequest.setResources(items);
         return resourceNamingSuggestionRequest;
     }

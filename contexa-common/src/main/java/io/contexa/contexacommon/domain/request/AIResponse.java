@@ -7,7 +7,6 @@ import io.contexa.contexacommon.deserializer.NullSafeLocalDateTimeDeserializer;
 import lombok.Getter;
 
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -27,14 +26,6 @@ public abstract class AIResponse {
 
     @JsonSetter(nulls = Nulls.SKIP)
     private String errorMessage;
-
-    @JsonSetter(nulls = Nulls.AS_EMPTY)
-    private List<String> warnings;
-
-    private double confidenceScore = 0.0;
-
-    @JsonSetter(nulls = Nulls.SKIP)
-    private String aiModel;
 
     protected AIResponse(String requestId, ExecutionStatus status) {
         this.responseId = java.util.UUID.randomUUID().toString();
@@ -57,21 +48,6 @@ public abstract class AIResponse {
         return this;
     }
 
-    public AIResponse withConfidenceScore(double confidenceScore) {
-        this.confidenceScore = Math.max(0.0, Math.min(1.0, confidenceScore));
-        return this;
-    }
-
-    public AIResponse withAiModel(String aiModel) {
-        this.aiModel = aiModel;
-        return this;
-    }
-
-    public AIResponse withWarnings(List<String> warnings) {
-        this.warnings = warnings;
-        return this;
-    }
-
     public AIResponse withError(String errorMessage) {
         this.errorMessage = errorMessage;
         return this;
@@ -88,9 +64,7 @@ public abstract class AIResponse {
     public boolean isFailure() {
         return status == ExecutionStatus.FAILURE;
     }
-    public boolean hasWarnings() {
-        return warnings != null && !warnings.isEmpty();
-    }
+
     public Map<String, Object> getAllMetadata() { return Map.copyOf(metadata); }
 
     public enum ExecutionStatus {
@@ -106,7 +80,7 @@ public abstract class AIResponse {
 
     @Override
     public String toString() {
-        return String.format("AIResponse{id='%s', type='%s', status=%s, confidence=%.2f}",
-                responseId, getResponseType(), status, confidenceScore);
+        return String.format("AIResponse{id='%s', type='%s', status=%s}",
+                responseId, getResponseType(), status);
     }
 }

@@ -1,4 +1,4 @@
-package io.contexa.contexacommon.dto;
+package io.contexa.contexacommon.domain;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

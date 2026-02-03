@@ -3,7 +3,7 @@ package io.contexa.contexaiam.admin.web.workflow.wizard.service;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.admin.web.studio.dto.EffectivePermissionDto;
 import io.contexa.contexaiam.admin.web.studio.dto.SimulationResultDto;
 import io.contexa.contexaiam.admin.web.studio.dto.WizardInitiationDto;

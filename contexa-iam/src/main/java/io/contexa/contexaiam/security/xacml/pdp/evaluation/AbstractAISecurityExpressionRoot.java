@@ -1,6 +1,10 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
+import io.contexa.contexacore.std.components.prompt.BehavioralAnalysisTemplate;
+import io.contexa.contexacore.std.components.prompt.RiskAssessmentTemplate;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacommon.domain.TrustAssessment;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
@@ -10,9 +14,7 @@ import io.contexa.contexacommon.domain.request.BehavioralAnalysisRequest;
 import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
-import io.contexa.contexacommon.enums.AuditRequirement;
-import io.contexa.contexacommon.enums.SecurityLevel;
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.entity.AuditLog;
@@ -44,23 +46,23 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     protected String lastAssessmentContextHash;
 
     protected AbstractAISecurityExpressionRoot(Authentication authentication,
-                                             AttributeInformationPoint attributePIP,
+                                               AttributeInformationPoint attributePIP,
                                                AICoreOperations aINativeProcessor,
-                                             AuthorizationContext authorizationContext,
-                                             AuditLogRepository auditLogRepository) {
+                                               AuthorizationContext authorizationContext,
+                                               AuditLogRepository auditLogRepository) {
         super(authentication);
         this.attributePIP = attributePIP;
         this.aINativeProcessor = aINativeProcessor;
         this.authorizationContext = authorizationContext;
         this.auditLogRepository = auditLogRepository;
-        
-            }
+
+    }
 
     protected String getRemoteIp() {
         if (authorizationContext != null && authorizationContext.environment() != null) {
             jakarta.servlet.http.HttpServletRequest request = authorizationContext.environment().request();
             if (request != null) {
-                
+
                 String xForwardedFor = request.getHeader("X-Forwarded-For");
                 if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
                     return xForwardedFor.split(",")[0].trim();
@@ -85,8 +87,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         }
 
         Object principal = authentication.getPrincipal();
-        if (principal instanceof UserDto) {
-            UserDto userDto = (UserDto) principal;
+        if (principal instanceof UserDto userDto) {
             return userDto.getId() != null ? userDto.getId().toString() : userDto.getUsername();
         } else if (principal instanceof String) {
             return (String) principal;
@@ -118,9 +119,10 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         context.setCurrentActivity(currentActivity);
         context.setRemoteIp(remoteIp);
 
-        AIRequest<BehavioralAnalysisContext> aiRequest = BehavioralAnalysisRequest.create(context, "behavioralAnalysis");
+        AIRequest<BehavioralAnalysisContext> aiRequest = BehavioralAnalysisRequest.
+                create(context, new TemplateType("BehavioralAnalysisStreaming"), new DiagnosisType("BehavioralAnalysis"));
         try {
-                        Mono<BehavioralAnalysisResponse> aiResultMono = aINativeProcessor.process(aiRequest, BehavioralAnalysisResponse.class);
+            Mono<BehavioralAnalysisResponse> aiResultMono = aINativeProcessor.process(aiRequest, BehavioralAnalysisResponse.class);
             BehavioralAnalysisResponse response = aiResultMono
                     .timeout(Duration.ofSeconds(180))
                     .doOnError(error -> log.error("[{}] AI 평가 오류: {}", error.getMessage(), error))
@@ -128,71 +130,60 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
             if (response instanceof BehavioralAnalysisResponse analysisResponse) {
                 double riskScore = analysisResponse.getBehavioralRiskScore();
-                boolean isSafe = riskScore <= safeThresholdScore;
-                                return isSafe;
+                return riskScore <= safeThresholdScore;
             } else {
                 log.warn("hasSafeBehavior check failed for user '{}': AI analysis returned an unexpected response type or failed parsing.", userId);
-                return false; 
+                return false;
             }
         } catch (Exception e) {
             log.error("hasSafeBehavior check failed for user '{}' due to an exception during AI processing.", userId, e);
-            return false; 
-        }
-    }
-
-    private BehavioralAnalysisResponse parseResponse(String json) {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.readValue(json, BehavioralAnalysisResponse.class);
-        } catch (Exception e) {
-            
-            return null;
+            return false;
         }
     }
 
     public TrustAssessment assessContext() {
         try {
-            
+
             String currentContextHash = calculateContextHash();
 
             if (cachedAIAssessment != null && currentContextHash.equals(lastAssessmentContextHash)) {
-                                return cachedAIAssessment;
+                return cachedAIAssessment;
             }
 
             ContextExtractionResult extractedContext = extractCurrentContext();
 
             double trustScore = performAdvancedAIRiskAssessment(
-                extractedContext.remoteIp,
-                extractedContext.userAgent,
-                extractedContext.resourceIdentifier,
-                extractedContext.actionType
+                    extractedContext.remoteIp,
+                    extractedContext.userAgent,
+                    extractedContext.resourceIdentifier,
+                    extractedContext.actionType
             );
 
             this.cachedAIAssessment = createTrustAssessment(
-                trustScore, 
-                extractedContext.remoteIp, 
-                extractedContext.resourceIdentifier, 
-                extractedContext.actionType
+                    trustScore,
+                    extractedContext.remoteIp,
+                    extractedContext.resourceIdentifier,
+                    extractedContext.actionType
             );
-            
+
             this.lastAssessmentContextHash = currentContextHash;
 
             this.authorizationContext.attributes().put("ai_assessment", this.cachedAIAssessment);
 
             return this.cachedAIAssessment;
-            
+
         } catch (Exception e) {
             log.error("AI 신뢰도 평가 실패: {}", e.getMessage(), e);
 
             this.cachedAIAssessment = createFallbackTrustAssessment();
             this.authorizationContext.attributes().put("ai_assessment", this.cachedAIAssessment);
-            
+
             return this.cachedAIAssessment;
         }
     }
 
     public Object getAttribute(String key) {
-        
+
         if (authorizationContext.attributes().containsKey(key)) {
             return authorizationContext.attributes().get(key);
         }
@@ -200,11 +191,9 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         try {
             Map<String, Object> fetchedAttributes = attributePIP.getAttributes(authorizationContext);
             authorizationContext.attributes().putAll(fetchedAttributes);
-            
-            Object value = authorizationContext.attributes().get(key);
-                        
-            return value;
-            
+
+            return authorizationContext.attributes().get(key);
+
         } catch (Exception e) {
             log.warn("속성 조회 실패 - Key: {}, Error: {}", key, e.getMessage());
             return null;
@@ -215,26 +204,21 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
     protected abstract String calculateContextHash();
 
-    protected double performAdvancedAIRiskAssessment(String remoteIp, String userAgent, 
-                                                   String resourceIdentifier, String actionType) {
-        long assessmentStart = System.currentTimeMillis();
+    protected double performAdvancedAIRiskAssessment(String remoteIp, String userAgent,
+                                                     String resourceIdentifier, String actionType) {
         String assessmentId = "AI_EVAL_" + System.currentTimeMillis();
-
         try {
-            
+
             RiskAssessmentContext context = buildComprehensiveRiskContext(
-                remoteIp, userAgent, resourceIdentifier, actionType, assessmentId);
+                    remoteIp, userAgent, resourceIdentifier, actionType, assessmentId);
 
             RiskAssessmentResponse aiResponse = executeAIRiskAssessment(context, assessmentId);
 
             double finalTrustScore = integrateAIWithBusinessRules(aiResponse, context, assessmentId);
 
             recordAIAssessmentAudit(context, aiResponse, finalTrustScore, assessmentId);
-            
-            long processingTime = System.currentTimeMillis() - assessmentStart;
-                        
             return finalTrustScore;
-            
+
         } catch (Exception e) {
             log.error("[{}] AI 위험 평가 실패: {}", assessmentId, e.getMessage(), e);
             return applyFailsafePolicy(remoteIp, resourceIdentifier, e);
@@ -248,8 +232,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             String userId = auth != null ? auth.getName() : "anonymous";
 
-            RiskAssessmentContext context = new RiskAssessmentContext(
-                userId, generateSessionId(), SecurityLevel.HIGH, AuditRequirement.REQUIRED);
+            RiskAssessmentContext context = new RiskAssessmentContext(userId, generateSessionId());
 
             context.setResourceIdentifier(resourceIdentifier);
             context.setActionType(actionType);
@@ -259,15 +242,15 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
             if (auth != null && auth.getAuthorities() != null) {
                 List<String> roles = auth.getAuthorities().stream()
-                    .map(authority -> authority.getAuthority())
-                    .collect(Collectors.toList());
+                        .map(authority -> authority.getAuthority())
+                        .collect(Collectors.toList());
                 context.setUserRoles(roles);
             }
 
             enrichContextWithEnvironmentalFactors(context, remoteIp, userAgent, assessmentId);
-            
+
             return context;
-            
+
         } catch (Exception e) {
             log.error("[{}] 컨텍스트 구성 실패: {}", assessmentId, e.getMessage(), e);
             throw new RuntimeException("Risk context 구성 실패", e);
@@ -276,28 +259,27 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
     private RiskAssessmentResponse executeAIRiskAssessment(RiskAssessmentContext context, String assessmentId) {
         try {
-                        
-            RiskAssessmentRequest request = RiskAssessmentRequest.create(context, "riskAssessment");
 
+            RiskAssessmentRequest request = RiskAssessmentRequest.create(context, new TemplateType("RiskAssessment"), new DiagnosisType("RiskAssessment"));
             Mono<RiskAssessmentResponse> aiResultMono = aINativeProcessor.process(request, RiskAssessmentResponse.class);
-            
+
             RiskAssessmentResponse aiResponse = aiResultMono
-                .timeout(Duration.ofSeconds(120))
-                .doOnError(error -> log.error("[{}] AI 평가 오류: {}", assessmentId, error.toString()))
-                .onErrorReturn(createEmergencyFallbackResponse(context, assessmentId))
-                .block(); 
+                    .timeout(Duration.ofSeconds(120))
+                    .doOnError(error -> log.error("[{}] AI 평가 오류: {}", assessmentId, error.toString()))
+                    .onErrorReturn(createEmergencyFallbackResponse(context, assessmentId))
+                    .block();
 
             assert aiResponse != null;
-                        return aiResponse;
-            
+            return aiResponse;
+
         } catch (Exception e) {
             log.error("[{}] AI 평가 실행 실패: {}", assessmentId, e.getMessage(), e);
             return createEmergencyFallbackResponse(context, assessmentId);
         }
     }
 
-    private double integrateAIWithBusinessRules(RiskAssessmentResponse aiResponse, 
-                                              RiskAssessmentContext context, String assessmentId) {
+    private double integrateAIWithBusinessRules(RiskAssessmentResponse aiResponse,
+                                                RiskAssessmentContext context, String assessmentId) {
         try {
             double aiTrustScore = aiResponse.trustScore();
 
@@ -307,25 +289,25 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             double finalScore = aiTrustScore * 0.7 + businessWeight * 0.2 + complianceWeight * 0.1;
 
             if (aiResponse.riskScore() > 0.8) {
-                finalScore = Math.min(finalScore, 0.4); 
+                finalScore = Math.min(finalScore, 0.4);
             }
-            
+
             return Math.max(0.0, Math.min(1.0, finalScore));
-            
+
         } catch (Exception e) {
             log.error("[{}] 점수 통합 실패: {}", assessmentId, e.getMessage());
-            return 0.3; 
+            return 0.3;
         }
     }
 
     private void recordAIAssessmentAudit(RiskAssessmentContext context, RiskAssessmentResponse aiResponse,
-                                       double finalScore, String assessmentId) {
+                                         double finalScore, String assessmentId) {
         try {
-            
+
             if (TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
-                                return;
+                return;
             }
-            
+
             Map<String, Object> auditData = new HashMap<>();
             auditData.put("assessmentId", assessmentId);
             auditData.put("userId", context.getUserId());
@@ -333,12 +315,12 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             auditData.put("aiRiskScore", aiResponse.riskScore());
             auditData.put("finalTrustScore", finalScore);
             auditData.put("timestamp", LocalDateTime.now());
-            
+
             auditLogRepository.save(createAuditLogEntry(auditData));
-                        
+
         } catch (Exception e) {
             log.error("[{}] 감사 로그 기록 실패: {}", assessmentId, e.getMessage());
-            
+
         }
     }
 
@@ -354,22 +336,22 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             context.withEnvironmentAttribute("deviceType", determineDeviceType(userAgent));
 
             if (context.getBehaviorMetrics() != null) {
-                context.getBehaviorMetrics().put("mfaEnabled", "Unknown"); 
-                context.getBehaviorMetrics().put("lastLoginHours", 24); 
-                context.getBehaviorMetrics().put("sessionCount", 1); 
-                context.getBehaviorMetrics().put("averageSessionDuration", 30); 
+                context.getBehaviorMetrics().put("mfaEnabled", "Unknown");
+                context.getBehaviorMetrics().put("lastLoginHours", 24);
+                context.getBehaviorMetrics().put("sessionCount", 1);
+                context.getBehaviorMetrics().put("averageSessionDuration", 30);
                 context.getBehaviorMetrics().put("deviceTrust", isInternalIP(remoteIp) ? "High" : "Medium");
                 context.getBehaviorMetrics().put("locationConsistency", "Unknown");
-                context.getBehaviorMetrics().put("accessPatternNormality", 0.8); 
+                context.getBehaviorMetrics().put("accessPatternNormality", 0.8);
             }
-            
+
         } catch (Exception e) {
             log.warn("[{}] 환경 요인 수집 실패: {}", assessmentId, e.getMessage());
         }
     }
 
-    private TrustAssessment createTrustAssessment(double trustScore, String remoteIp, 
-                                                String resourceIdentifier, String actionType) {
+    private TrustAssessment createTrustAssessment(double trustScore, String remoteIp,
+                                                  String resourceIdentifier, String actionType) {
         List<String> riskTags = determineRiskTags(trustScore, remoteIp, resourceIdentifier);
         String summary = String.format("AI 신뢰도: %.2f, 액션: %s", trustScore, actionType);
         return new TrustAssessment(trustScore, riskTags, summary);
@@ -385,50 +367,50 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
     private AuditLog createAuditLogEntry(Map<String, Object> auditData) {
         return AuditLog.builder()
-            .principalName((String) auditData.get("userId"))
-            .resourceIdentifier((String) auditData.get("resourceId"))
-            .action("AI_ASSESSMENT")
-            .decision("EVALUATED")
-            .reason("AI 기반 신뢰도 평가")
-            .details(auditData.toString())
-            .build();
+                .principalName((String) auditData.get("userId"))
+                .resourceIdentifier((String) auditData.get("resourceId"))
+                .action("AI_ASSESSMENT")
+                .decision("EVALUATED")
+                .reason("AI 기반 신뢰도 평가")
+                .details(auditData.toString())
+                .build();
     }
 
     private double calculateBusinessWeight(RiskAssessmentContext context) {
         double weight = 1.0;
-        
+
         if (context.getEnvironmentAttributes() != null) {
             Boolean isBusinessHours = (Boolean) context.getEnvironmentAttributes().get("isBusinessHours");
             if (Boolean.FALSE.equals(isBusinessHours)) weight -= 0.2;
-            
+
             Boolean isInternal = (Boolean) context.getEnvironmentAttributes().get("isInternalNetwork");
             if (Boolean.TRUE.equals(isInternal)) weight += 0.1;
         }
-        
+
         return Math.max(0.0, Math.min(1.0, weight));
     }
 
     private double calculateComplianceWeight(RiskAssessmentContext context) {
         double weight = 1.0;
-        
+
         String resourceId = context.getResourceIdentifier();
         if (resourceId != null && (resourceId.contains("admin") || resourceId.contains("sensitive"))) {
             weight -= 0.3;
         }
-        
+
         return Math.max(0.0, Math.min(1.0, weight));
     }
 
     private List<String> determineRiskTags(double trustScore, String remoteIp, String resourceIdentifier) {
         List<String> tags = new java.util.ArrayList<>();
-        
+
         if (trustScore < 0.3) tags.add("HIGH_RISK");
         else if (trustScore < 0.6) tags.add("MEDIUM_RISK");
         else tags.add("LOW_RISK");
-        
+
         if (!isInternalIP(remoteIp)) tags.add("EXTERNAL_ACCESS");
         if (resourceIdentifier != null && resourceIdentifier.contains("admin")) tags.add("ADMIN_RESOURCE");
-        
+
         return tags;
     }
 
@@ -459,18 +441,18 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     }
 
     private double applyFailsafePolicy(String remoteIp, String resourceIdentifier, Exception error) {
-        log.warn("보수적 정책 적용 - IP: {}, Resource: {}, 원인: {}", 
-                   remoteIp, resourceIdentifier, error.getMessage());
+        log.warn("보수적 정책 적용 - IP: {}, Resource: {}, 원인: {}",
+                remoteIp, resourceIdentifier, error.getMessage());
         return isInternalIP(remoteIp) ? 0.6 : 0.3;
     }
 
     protected void storeActionAsTrustAssessment(String action) {
         if (authorizationContext == null) {
-                        return;
+            return;
         }
 
         if (authorizationContext.attributes().containsKey("ai_assessment")) {
-                        return;
+            return;
         }
 
         double score = switch (action != null ? action.toUpperCase() : "PENDING_ANALYSIS") {
@@ -478,7 +460,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             case "CHALLENGE" -> 0.5;
             case "ESCALATE" -> 0.3;
             case "BLOCK" -> 0.0;
-            default -> 0.5; 
+            default -> 0.5;
         };
 
         List<String> riskTags = List.of("LLM_ACTION", action != null ? action : "PENDING_ANALYSIS");
@@ -487,7 +469,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         TrustAssessment assessment = new TrustAssessment(score, riskTags, summary);
         authorizationContext.attributes().put("ai_assessment", assessment);
 
-            }
+    }
 
     protected abstract String getCurrentAction();
 
@@ -535,7 +517,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             return false;
         }
         return Arrays.stream(allowedActions)
-            .anyMatch(a -> a.equalsIgnoreCase(action));
+                .anyMatch(a -> a.equalsIgnoreCase(action));
     }
 
     public boolean hasSafeBehaviorWithAction(double threshold) {
@@ -553,8 +535,8 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     public boolean isAnalysisComplete() {
         String action = getCurrentAction();
         return action != null
-            && !action.isEmpty()
-            && !"PENDING_ANALYSIS".equalsIgnoreCase(action);
+                && !action.isEmpty()
+                && !"PENDING_ANALYSIS".equalsIgnoreCase(action);
     }
 
     public boolean requiresAnalysis() {
@@ -573,7 +555,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         boolean hasAllowedAction = hasActionIn(allowedActions);
         if (!hasAllowedAction) {
             log.warn("분석 완료 but 허용되지 않은 action - current: {}, allowed: {}",
-                getCurrentAction(), Arrays.toString(allowedActions));
+                    getCurrentAction(), Arrays.toString(allowedActions));
         }
         return hasAllowedAction;
     }
@@ -581,15 +563,15 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     public boolean hasActionOrDefault(String defaultAction, String... allowedActions) {
         String action = getCurrentAction();
         if (action == null || action.isEmpty() || "PENDING_ANALYSIS".equalsIgnoreCase(action)) {
-            
+
             action = defaultAction;
-                    }
+        }
 
         storeActionAsTrustAssessment(action);
 
         final String finalAction = action;
         return Arrays.stream(allowedActions)
-            .anyMatch(a -> a.equalsIgnoreCase(finalAction));
+                .anyMatch(a -> a.equalsIgnoreCase(finalAction));
     }
 
     protected static class ContextExtractionResult {
@@ -599,7 +581,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         public final String actionType;
 
         public ContextExtractionResult(String remoteIp, String userAgent,
-                                     String resourceIdentifier, String actionType) {
+                                       String resourceIdentifier, String actionType) {
             this.remoteIp = remoteIp;
             this.userAgent = userAgent;
             this.resourceIdentifier = resourceIdentifier;
@@ -610,7 +592,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     protected String getActionFromRedisHash(String userId, String redisKey,
                                             org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate) {
         if (userId == null || redisKey == null || stringRedisTemplate == null) {
-                        return "PENDING_ANALYSIS";
+            return "PENDING_ANALYSIS";
         }
 
         try {
@@ -618,9 +600,9 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
             if (actionValue != null) {
                 String action = actionValue.toString();
-                                return action;
+                return action;
             } else {
-                                return "PENDING_ANALYSIS";
+                return "PENDING_ANALYSIS";
             }
         } catch (Exception e) {
             log.error("getActionFromRedisHash: Redis 조회 실패 - userId: {}, PENDING_ANALYSIS 반환", userId, e);

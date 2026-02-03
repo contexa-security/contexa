@@ -65,75 +65,60 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
     }
 
     public Mono<StudioQueryResponse> processRequestAsync(StudioQueryRequest request) {
-        long startTime = System.currentTimeMillis();
-
         try {
             vectorService.storeQueryRequest(request);
         } catch (Exception e) {
-            log.error("벡터 저장소 요청 저장 실패", e);
+            log.error("Vector store request save failed", e);
         }
 
         return Mono.fromCallable(() -> {
-                    
-                    DataCollectionPlan collectionPlan = createDataCollectionPlan(request.getQuery());
-
+                    DataCollectionPlan collectionPlan = createDataCollectionPlan(request.getNaturalLanguageQuery());
                     IAMDataSet dataSet = dataCollectionService.studioCollectData(collectionPlan);
 
                     String formattedData = queryFormatter.formatForAIMData(dataSet);
                     String systemMetadata = queryFormatter.formatSystemMetadata(request);
 
-                    return createStudioQueryAIRequest(request, formattedData, systemMetadata, false);
-                })
-                .flatMap(aiRequest -> {
+                    request.withParameter("iamDataContext", formattedData);
+                    request.withParameter("systemMetadata", systemMetadata);
+                    request.withParameter("requestType", "studio_query");
+                    request.withParameter("outputFormat", "json_object");
+                    request.withParameter("includeVisualization", true);
 
-                    PipelineConfiguration config = createStudioQueryPipelineConfig();
-                    return orchestrator.execute(aiRequest, config, StudioQueryResponse.class);
+                    return request;
                 })
-                .map(response -> {
-                    long endTime = System.currentTimeMillis();
-                                        return (StudioQueryResponse) response;
+                .flatMap(enrichedRequest -> {
+                    PipelineConfiguration<StudioQueryContext> config = createStudioQueryPipelineConfig();
+                    return orchestrator.execute(enrichedRequest, config, StudioQueryResponse.class);
                 })
+                .map(response -> (StudioQueryResponse) response)
                 .doOnError(error -> {
-                    if (error instanceof Throwable throwable) {
-                        log.error("[DIAGNOSIS] AI Studio 진단 처리 실패: {}", throwable.getMessage(), throwable);
-                    }
+                    log.error("[DIAGNOSIS] AI Studio diagnosis processing failed: {}", error.getMessage(), error);
                 });
     }
 
     public Flux<String> processStreamingRequest(StudioQueryRequest request) {
         return Flux.defer(() -> {
             try {
-
-                DataCollectionPlan collectionPlan = createDataCollectionPlan(request.getQuery());
-
+                DataCollectionPlan collectionPlan = createDataCollectionPlan(request.getNaturalLanguageQuery());
                 IAMDataSet dataSet = dataCollectionService.studioCollectData(collectionPlan);
 
                 String formattedData = queryFormatter.formatForAIMData(dataSet);
                 String systemMetadata = queryFormatter.formatSystemMetadata(request);
 
-                AIRequest<StudioQueryContext> aiRequest = createStudioQueryAIRequest(request, formattedData, systemMetadata, true);
+                request.withParameter("iamDataContext", formattedData);
+                request.withParameter("systemMetadata", systemMetadata);
+                request.withParameter("requestType", "studio_query_streaming");
+                request.withParameter("outputFormat", "natural_language");
 
-                PipelineConfiguration pipelineConfig = createStudioQueryStreamPipelineConfig();
-                
-                                return orchestrator.executeStream(aiRequest, pipelineConfig)
-                        .doOnSubscribe(subscription -> { })
-                        .doOnNext(chunk -> {
-                            String chunkStr = chunk != null ? chunk.toString() : "";
-
-                        })
-                        .doOnComplete(() -> {
-                                                    })
+                PipelineConfiguration<StudioQueryContext> pipelineConfig = createStudioQueryStreamPipelineConfig();
+                return orchestrator.executeStream(request, pipelineConfig)
                         .doOnError(error -> {
-                            if (error instanceof Throwable) {
-                                log.error("[STREAMING] 스트리밍 오류: {}", ((Throwable) error).getMessage(), error);
-                            } else {
-                                log.error("[STREAMING] 스트리밍 오류: {}", error.toString(), error);
-                            }
+                            log.error("[STREAMING] Streaming error: {}", error.getMessage(), error);
                         });
 
             } catch (Exception e) {
-                log.error("스트리밍 처리 중 오류 발생: {}", e.getMessage(), e);
-                return Flux.error(new AIOperationException("스트리밍 처리 실패", e));
+                log.error("Streaming processing error: {}", e.getMessage(), e);
+                return Flux.error(new AIOperationException("Streaming processing failed", e));
             }
         });
     }
@@ -147,8 +132,9 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         }
     }
 
-    private PipelineConfiguration createStudioQueryPipelineConfig() {
-        return PipelineConfiguration.builder()
+    @SuppressWarnings("unchecked")
+    private PipelineConfiguration<StudioQueryContext> createStudioQueryPipelineConfig() {
+        return (PipelineConfiguration<StudioQueryContext>) PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
                 .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
                 .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
@@ -159,115 +145,14 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
                 .build();
     }
 
-    private PipelineConfiguration createStudioQueryStreamPipelineConfig() {
-        return PipelineConfiguration.builder()
+    @SuppressWarnings("unchecked")
+    private PipelineConfiguration<StudioQueryContext> createStudioQueryStreamPipelineConfig() {
+        return (PipelineConfiguration<StudioQueryContext>) PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
                 .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
                 .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
                 .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
                 .timeoutSeconds(300)
                 .build();
-    }
-
-    private AIRequest<StudioQueryContext> createStudioQueryAIRequest(StudioQueryRequest request,
-                                                                     String formattedData,
-                                                                     String systemMetadata,
-                                                                     boolean isStreaming) {
-        StudioQueryContext context = new StudioQueryContext.Builder(SecurityLevel.STANDARD, AuditRequirement.DETAILED)
-                .withUserId(request.getUserId())
-                .withNaturalLanguageQuery(request.getQuery())
-                .build();
-
-        String promptKey = isStreaming ? "studioQueryStreaming" : "studioQuery";
-        AIRequest<StudioQueryContext> aiRequest = new AIRequest<>(context, promptKey, "default-org");
-
-        aiRequest.withParameter("naturalLanguageQuery", request.getQuery());
-        aiRequest.withParameter("queryType", request.getQueryType());
-        aiRequest.withParameter("requestType", isStreaming ? "studio_query_streaming" : "studio_query");
-        aiRequest.withParameter("outputFormat", isStreaming ? "natural_language" : "json_object");
-        aiRequest.withParameter("userId", request.getUserId());
-        aiRequest.withParameter("includeVisualization", !isStreaming);
-        aiRequest.withParameter("iamDataContext", formattedData);
-        aiRequest.withParameter("systemMetadata", systemMetadata);
-
-        return aiRequest;
-    }
-
-    private StudioQueryResponse.VisualizationData createDefaultVisualizationData(StudioQueryRequest request) {
-        StudioQueryResponse.VisualizationData vizData = new StudioQueryResponse.VisualizationData();
-
-        StudioQueryResponse.VisualizationData.Node queryNode = new StudioQueryResponse.VisualizationData.Node();
-        queryNode.setId("query-1");
-        queryNode.setLabel("사용자 질의");
-        queryNode.setType("QUERY");
-        queryNode.getMetadata().put("query", request.getQuery());
-
-        StudioQueryResponse.VisualizationData.Node resultNode = new StudioQueryResponse.VisualizationData.Node();
-        resultNode.setId("result-1");
-        resultNode.setLabel("분석 결과");
-        resultNode.setType("RESULT");
-
-        vizData.getNodes().add(queryNode);
-        vizData.getNodes().add(resultNode);
-
-        StudioQueryResponse.VisualizationData.Edge edge = new StudioQueryResponse.VisualizationData.Edge();
-        edge.setId("query-to-result");
-        edge.setSource("query-1");
-        edge.setTarget("result-1");
-        edge.setLabel("분석");
-        edge.setType("ANALYSIS");
-
-        vizData.getEdges().add(edge);
-
-        return vizData;
-    }
-
-    private List<StudioQueryResponse.Recommendation> createDefaultRecommendations(StudioQueryRequest request) {
-        StudioQueryResponse.Recommendation recommendation = new StudioQueryResponse.Recommendation();
-
-        String query = request.getQuery().toLowerCase();
-
-        if (query.contains("누가") || query.contains("접근") || query.contains("권한")) {
-            recommendation.setTitle("권한 현황 상세 검토");
-            recommendation.setDescription("질의하신 권한 관련 사항을 더 자세히 검토해보시기 바랍니다.");
-            recommendation.setPriority(2);
-            recommendation.setActionItems(List.of(
-                    "사용자별 권한 현황 확인",
-                    "그룹별 역할 검토",
-                    "불필요한 권한 식별 및 제거"
-            ));
-
-            StudioQueryResponse.ActionLink usersLink = new StudioQueryResponse.ActionLink();
-            usersLink.setText("사용자 관리");
-            usersLink.setUrl("/admin/users");
-            usersLink.setType("PRIMARY");
-
-            StudioQueryResponse.ActionLink groupsLink = new StudioQueryResponse.ActionLink();
-            groupsLink.setText("그룹 관리");
-            groupsLink.setUrl("/admin/groups");
-            groupsLink.setType("SECONDARY");
-
-            recommendation.setActionLinks(List.of(usersLink, groupsLink));
-
-        } else {
-            recommendation.setTitle("시스템 보안 점검");
-            recommendation.setDescription("전반적인 시스템 보안 상태를 점검하고 개선하세요.");
-            recommendation.setPriority(3);
-            recommendation.setActionItems(List.of(
-                    "전체 권한 체계 검토",
-                    "정책 및 규칙 업데이트",
-                    "접근 로그 분석"
-            ));
-
-            StudioQueryResponse.ActionLink policiesLink = new StudioQueryResponse.ActionLink();
-            policiesLink.setText("정책 관리");
-            policiesLink.setUrl("/admin/policies");
-            policiesLink.setType("SECONDARY");
-
-            recommendation.setActionLinks(List.of(policiesLink));
-        }
-
-        recommendation.setType("ANALYSIS_BASED");
-        return List.of(recommendation);
     }
 }

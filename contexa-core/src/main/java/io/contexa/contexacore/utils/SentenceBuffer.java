@@ -108,7 +108,7 @@ public class SentenceBuffer {
         }
 
         buffer.setLength(0);
-        if (remainingBuffer.length() > 0) {
+        if (!remainingBuffer.isEmpty()) {
             buffer.append(remainingBuffer.toString());
         }
     }

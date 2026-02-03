@@ -1,23 +1,23 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-@PromptTemplateConfig(
-        key = "policyGenerationStreaming",
-        aliases = {"policy_generation_streaming", "generatePolicyFromTextStreaming", "generatePolicyFromText"},
-        description = "정책 생성 통합 프롬프트 - 스트리밍+JSON 일원화"
-)
 public class PolicyGenerationStreamingTemplate implements PromptTemplate {
 
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         return buildUnifiedSystemPrompt(contextInfo);
+    }
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("PolicyGenerationStreaming");
     }
 
     @Override

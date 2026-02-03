@@ -12,7 +12,7 @@ import java.util.*;
 
 @Getter
 @Setter
-public class BehavioralAnalysisResponse extends IAMResponse {
+public class BehavioralAnalysisResponse extends AIResponse {
     @JsonSetter(nulls = Nulls.SKIP)
     private String analysisId = UUID.randomUUID().toString();
 

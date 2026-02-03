@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.aiam.protocol.response;
 
-import io.contexa.contexacommon.domain.response.IAMResponse;
+import io.contexa.contexacommon.domain.request.AIResponse;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -11,7 +11,7 @@ import java.util.Map;
 
 @Getter
 @Setter
-public class StudioQueryResponse extends IAMResponse {
+public class StudioQueryResponse extends AIResponse {
 
     private String naturalLanguageAnswer;
 
@@ -25,22 +25,10 @@ public class StudioQueryResponse extends IAMResponse {
 
     private long processingTimeMs;
 
-    public void setConfidenceScore(int score) {
-        this.withConfidenceScore(score / 100.0);
-    }
-    
     public StudioQueryResponse(String requestId) {
         super(requestId, ExecutionStatus.SUCCESS);
     }
 
-    public StudioQueryResponse(String requestId, ExecutionStatus status) {
-        super(requestId, status);
-    }
-
-    public StudioQueryResponse() {
-        super("default", ExecutionStatus.SUCCESS);
-    }
-    
     @Override
     public String getResponseType() {
         return "STUDIO_QUERY";
@@ -54,7 +42,6 @@ public class StudioQueryResponse extends IAMResponse {
         data.put("analysisResults", analysisResults);
         data.put("visualizationData", visualizationData);
         data.put("recommendations", recommendations);
-        data.put("confidenceScore", getConfidenceScore());
         data.put("processingTimeMs", processingTimeMs);
         return data;
     }

@@ -239,7 +239,6 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             metadata.put("organizationId", request.getContext().getOrganizationId());
             metadata.put("resourceCount", request.getResources().size());
             metadata.put("batchSize", request.getBatchSize());
-            metadata.put("priority", request.getPriority().toString());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "resource_naming_request");
             metadata.put("requestId", UUID.randomUUID().toString());
@@ -273,10 +272,9 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             metadata.put("identifiers", identifiers);
             
             String requestText = String.format(
-                "조직 %s의 리소스 네이밍 요청: %d개 리소스 (우선순위: %s)",
+                "조직 %s의 리소스 네이밍 요청: %d개 리소스",
                 request.getContext().getOrganizationId(),
-                request.getResources().size(),
-                request.getPriority()
+                request.getResources().size()
             );
             
             Document requestDoc = new Document(requestText, metadata);

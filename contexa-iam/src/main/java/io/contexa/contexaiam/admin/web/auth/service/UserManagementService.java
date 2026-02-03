@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
-import io.contexa.contexacommon.dto.UserDto;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 
 import java.util.List;

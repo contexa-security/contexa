@@ -1,9 +1,9 @@
 package io.contexa.contexaiam.aiam.strategy;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacore.std.labs.AILab;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacommon.enums.DiagnosisType;
 import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
 import io.contexa.contexacore.std.strategy.PipelineConfig;
@@ -28,7 +28,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
 
     @Override
     public DiagnosisType getSupportedType() {
-        return DiagnosisType.STUDIO_QUERY;
+        return new DiagnosisType("StudioQuery");
     }
 
     @Override
@@ -44,18 +44,17 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
     @Override
     protected void validateRequest(AIRequest<StudioQueryContext> request) throws DiagnosisException {
         if (request == null) {
-            throw new DiagnosisException("STUDIO_QUERY", "NULL_REQUEST", "요청이 null입니다");
+            throw new DiagnosisException("STUDIO_QUERY", "NULL_REQUEST", "Request is null");
         }
 
-        String naturalLanguageQuery = request.getParameter("naturalLanguageQuery", String.class);
-        if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
-            throw new DiagnosisException("STUDIO_QUERY", "MISSING_NATURAL_LANGUAGE_QUERY",
-                    "naturalLanguageQuery 파라미터가 필요합니다");
+        StudioQueryContext context = request.getContext();
+        if (context == null) {
+            throw new DiagnosisException("STUDIO_QUERY", "NULL_CONTEXT", "Context is null");
         }
 
-        String organizationId = request.getParameter("organizationId", String.class);
+        String organizationId = context.getOrganizationId();
         if (organizationId == null || organizationId.trim().isEmpty()) {
-            log.warn("organizationId 파라미터가 없어 기본값을 사용합니다");
+            log.error("organizationId is missing, using default value");
         }
     }
 
@@ -65,53 +64,8 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
     }
 
     @Override
-    protected Object buildLabRequest(AIRequest<StudioQueryContext> request) {
-        String naturalLanguageQuery = request.getParameter("naturalLanguageQuery", String.class);
-        String organizationId = request.getParameter("organizationId", String.class);
-        String userId = request.getParameter("userId", String.class);
-
-        if (userId == null || userId.trim().isEmpty()) {
-            throw new DiagnosisException("STUDIO_QUERY", "MISSING_USER_ID",
-                    "userId 파라미터가 필요합니다. 정확한 사용자 인증이 필요합니다.");
-        }
-
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("organizationId", organizationId != null ? organizationId : "default-org");
-        metadata.put("requestId", request.getRequestId());
-
-        Boolean includeVisualization = request.getParameter("includeVisualization", Boolean.class);
-        if (includeVisualization != null) {
-            metadata.put("includeVisualization", includeVisualization);
-        }
-
-        Boolean includeRecommendations = request.getParameter("includeRecommendations", Boolean.class);
-        if (includeRecommendations != null) {
-            metadata.put("includeRecommendations", includeRecommendations);
-        }
-
-        String responseFormat = request.getParameter("responseFormat", String.class);
-        if (responseFormat != null) {
-            metadata.put("responseFormat", responseFormat);
-        }
-
-        String detailLevel = request.getParameter("detailLevel", String.class);
-        if (detailLevel != null) {
-            metadata.put("detailLevel", detailLevel);
-        }
-
-        String queryType = request.getParameter("queryType", String.class);
-        if (queryType == null || queryType.trim().isEmpty()) {
-            queryType = "GENERAL";
-        }
-
-        StudioQueryRequest studioQueryRequest = new StudioQueryRequest();
-        studioQueryRequest.setQuery(naturalLanguageQuery);
-        studioQueryRequest.setUserId(userId);
-        studioQueryRequest.setMetadata(metadata);
-        studioQueryRequest.setQueryType(queryType);
-        studioQueryRequest.setTimestamp(LocalDateTime.now());
-
-        return studioQueryRequest;
+    protected Object convertLabRequest(AIRequest<StudioQueryContext> request) {
+        return request;
     }
 
     @Override

@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.aiam.labs.resource;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacommon.domain.LabSpecialization;
@@ -108,11 +110,8 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                         .flatMap(List::stream)
                         .collect(Collectors.toList());
                 
-                ResourceNamingContext context = new ResourceNamingContext(SecurityLevel.STANDARD, AuditRequirement.BASIC);
-                ResourceNamingSuggestionRequest originalRequest = new ResourceNamingSuggestionRequest(
-                        context,
-                        "resource_naming"
-                );
+                ResourceNamingContext context = new ResourceNamingContext();
+                ResourceNamingSuggestionRequest originalRequest = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
                 originalRequest.setResources(allResources);
                 vectorService.storeNamingResult(originalRequest, finalResponse);
             } catch (Exception e) {
@@ -170,9 +169,9 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     }
 
     private AIRequest<ResourceNamingContext> createResourceNamingRequest(List<ResourceNamingSuggestionRequest.ResourceItem> batch) {
-        ResourceNamingContext context = new ResourceNamingContext(SecurityLevel.STANDARD, AuditRequirement.BASIC);
+        ResourceNamingContext context = new ResourceNamingContext();
 
-        AIRequest<ResourceNamingContext> request = new AIRequest<>(context, "resource_naming_suggestion", context.getOrganizationId());
+        AIRequest<ResourceNamingContext> request = new AIRequest<>(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
 
         request.withParameter("requestType", "resource_naming");
         request.withParameter("batchSize", batch.size());

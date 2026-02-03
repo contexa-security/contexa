@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacore.std.components.prompt.PromptTemplate;
-import io.contexa.contexacore.std.components.prompt.PromptTemplateConfig;
+import io.contexa.contexacommon.domain.PromptTemplate;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
@@ -9,15 +9,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.converter.BeanOutputConverter;
 
 @Slf4j
-@PromptTemplateConfig(
-    key = "generateUniversalConditionTemplates",
-    aliases = {"universal_condition_template", "universal_condition", "범용조건"},
-    description = "Spring AI Structured Output Universal Condition Template"
-)
 public class UniversalConditionTemplate implements PromptTemplate {
 
     private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter = 
         new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
+
+    @Override
+    public TemplateType getSupportedType() {
+        return new TemplateType("UniversalCondition");
+    }
     
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {

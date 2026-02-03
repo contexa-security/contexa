@@ -1,5 +1,7 @@
 package io.contexa.contexacoreenterprise.autonomous.evolution;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -108,11 +110,7 @@ public class BehavioralAnalysisLabConnector {
     }
 
     private BehavioralAnalysisRequest createRequest(BehavioralAnalysisContext context, SecurityEvent event) {
-        
-        String operation = String.format("analyze_%s", event.getSeverity().toString().toLowerCase());
-        BehavioralAnalysisRequest request = BehavioralAnalysisRequest.create(context, operation, event.getSessionId());
-
-        return request;
+        return BehavioralAnalysisRequest.create(context, new TemplateType("BehavioralAnalysis"), new DiagnosisType("BehavioralAnalysis"));
     }
 
     private CompletableFuture<BehavioralAnalysisResponse> executeBehavioralAnalysis(BehavioralAnalysisRequest request) {

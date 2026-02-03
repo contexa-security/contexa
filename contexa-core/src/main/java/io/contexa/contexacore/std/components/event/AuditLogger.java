@@ -54,9 +54,6 @@ public class AuditLogger {
         entry.duration = java.time.Duration.between(entry.startTime, entry.endTime).toMillis();
         entry.status = "SUCCESS";
         entry.responseType = response.getClass().getSimpleName();
-        
-        auditLog.info("AUDIT_SUCCESS: {} - Duration: {}ms - Response: {} - Status: {}", 
-                     auditId, entry.duration, entry.responseType, response.getStatus());
 
         collectMetrics(entry, request, response);
     }

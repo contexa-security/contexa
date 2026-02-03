@@ -32,27 +32,25 @@ public abstract class DomainContext {
         this.sessionId = sessionId;
     }
     
-    
+
     public abstract String getDomainType();
-    
-    
-    public abstract int getPriorityLevel();
-    
-    
+
     public void addMetadata(String key, Object value) {
         this.metadata.put(key, value);
     }
-    
-    
+
     public <T> T getMetadata(String key, Class<T> type) {
         Object value = metadata.get(key);
         return type.isInstance(value) ? (T) value : null;
     }
-    public Map<String, Object> getAllMetadata() { return Map.copyOf(metadata); }
-    
+
+    public Map<String, Object> getAllMetadata() {
+        return Map.copyOf(metadata);
+    }
+
     @Override
     public String toString() {
-        return String.format("%s{id='%s', domain='%s', priority=%d}", 
-                getClass().getSimpleName(), contextId, getDomainType(), getPriorityLevel());
+        return String.format("%s{id='%s', domain='%s'}",
+                getClass().getSimpleName(), contextId, getDomainType());
     }
 } 

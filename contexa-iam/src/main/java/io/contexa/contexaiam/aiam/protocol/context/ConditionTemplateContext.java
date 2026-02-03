@@ -1,34 +1,30 @@
 package io.contexa.contexaiam.aiam.protocol.context;
 
-import io.contexa.contexacommon.domain.context.IAMContext;
-import io.contexa.contexacommon.enums.AuditRequirement;
-import io.contexa.contexacommon.enums.SecurityLevel;
+import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.Getter;
 
 import java.util.HashMap;
 import java.util.Map;
 
 @Getter
-public class ConditionTemplateContext extends IAMContext {
-    
-    private final String templateType; 
-    private final String resourceIdentifier; 
-    private final String methodInfo; 
-    private final Map<String, Object> templateMetadata; 
-    
-    public ConditionTemplateContext(SecurityLevel securityLevel, AuditRequirement auditRequirement,
-                                   String templateType, String resourceIdentifier, String methodInfo) {
-        super(securityLevel, auditRequirement);
+public class ConditionTemplateContext extends DomainContext {
+
+    private final String templateType;
+    private final String resourceIdentifier;
+    private final String methodInfo;
+    private final Map<String, Object> templateMetadata;
+
+    public ConditionTemplateContext(String templateType, String resourceIdentifier, String methodInfo) {
+        super();
         this.templateType = templateType;
         this.resourceIdentifier = resourceIdentifier;
         this.methodInfo = methodInfo;
         this.templateMetadata = new HashMap<>();
     }
-    
-    public ConditionTemplateContext(String userId, String sessionId, SecurityLevel securityLevel, 
-                                   AuditRequirement auditRequirement, String templateType, 
-                                   String resourceIdentifier, String methodInfo) {
-        super(userId, sessionId, securityLevel, auditRequirement);
+
+    public ConditionTemplateContext(String userId, String sessionId,
+                                   String templateType, String resourceIdentifier, String methodInfo) {
+        super(userId, sessionId);
         this.templateType = templateType;
         this.resourceIdentifier = resourceIdentifier;
         this.methodInfo = methodInfo;
@@ -36,17 +32,15 @@ public class ConditionTemplateContext extends IAMContext {
     }
 
     public static ConditionTemplateContext forUniversalTemplate() {
-        return new ConditionTemplateContext(SecurityLevel.STANDARD, AuditRequirement.BASIC,
-                "universal", null, null);
+        return new ConditionTemplateContext("universal", null, null);
     }
 
     public static ConditionTemplateContext forSpecificTemplate(String resourceIdentifier, String methodInfo) {
-        return new ConditionTemplateContext(SecurityLevel.STANDARD, AuditRequirement.BASIC,
-                "specific", resourceIdentifier, methodInfo);
+        return new ConditionTemplateContext("specific", resourceIdentifier, methodInfo);
     }
-    
+
     @Override
-    public String getIAMContextType() {
+    public String getDomainType() {
         return "CONDITION_TEMPLATE";
     }
 
@@ -65,7 +59,6 @@ public class ConditionTemplateContext extends IAMContext {
         }
         data.putAll(templateMetadata);
         data.putAll(getAllMetadata());
-        data.putAll(getAllIAMMetadata());
         return data;
     }
-} 
+}
