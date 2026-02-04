@@ -1,12 +1,9 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
-import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
-import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
+import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
