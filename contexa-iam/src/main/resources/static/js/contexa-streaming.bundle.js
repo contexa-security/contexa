@@ -56,7 +56,7 @@
                 maxRetries: 3,
                 retryDelay: 1000,
                 retryMultiplier: 1.5,
-                timeoutMs: 30000
+                timeoutMs: 300000
             }
         };
 
@@ -269,9 +269,45 @@
 
         parseJson(jsonString) {
             if (!jsonString || typeof jsonString !== 'string') throw new Error('Invalid JSON input');
-            const trimmed = jsonString.trim();
-            if (!trimmed) throw new Error('Empty JSON input');
-            return JSON.parse(trimmed);
+            let cleaned = jsonString.trim();
+            if (!cleaned) throw new Error('Empty JSON input');
+
+            // Remove markdown code blocks
+            if (cleaned.startsWith('```json')) {
+                cleaned = cleaned.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
+            } else if (cleaned.startsWith('```')) {
+                cleaned = cleaned.replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
+            }
+
+            // Extract JSON object from first { to last }
+            const firstBrace = cleaned.indexOf('{');
+            let lastBrace = cleaned.lastIndexOf('}');
+
+            // Auto-complete incomplete JSON
+            if (firstBrace !== -1 && lastBrace === -1) {
+                let braceCount = 0, bracketCount = 0, inString = false, escapeNext = false;
+                for (let i = firstBrace; i < cleaned.length; i++) {
+                    const char = cleaned[i];
+                    if (escapeNext) { escapeNext = false; continue; }
+                    if (char === '\\') { escapeNext = true; continue; }
+                    if (char === '"' && !escapeNext) { inString = !inString; continue; }
+                    if (!inString) {
+                        if (char === '{') braceCount++;
+                        else if (char === '}') braceCount--;
+                        else if (char === '[') bracketCount++;
+                        else if (char === ']') bracketCount--;
+                    }
+                }
+                for (let i = 0; i < bracketCount; i++) cleaned += ']';
+                for (let i = 0; i < braceCount; i++) cleaned += '}';
+                lastBrace = cleaned.lastIndexOf('}');
+            }
+
+            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+            }
+
+            return JSON.parse(cleaned);
         }
 
         getCsrfHeaders() {
@@ -444,6 +480,8 @@
             this.generatingResultShown = false;
             this.initialLoadingText = options.initialLoadingText || 'LLM 분석 시작...';
             this.generatingResultText = options.generatingResultText || '결과 데이터 생성중...';
+            this.analysisCompleteText = options.analysisCompleteText || 'LLM 분석 완료';
+            this.finalCompleteText = options.finalCompleteText || 'AI 분석 완료!';
         }
 
         onStreamStart(query) {
@@ -462,10 +500,8 @@
         }
 
         onChunk(chunk) {
-            if (this.initialMessageShown) {
-                this.removeLoadingStep('ctx-initial-loading');
-                this.initialMessageShown = false;
-            }
+            // Initial loading removal is handled by onGeneratingResult()
+            // Just add the chunk as a step
             this.addStep(chunk);
         }
         onSentence(sentence) { this.addStep(sentence); }
@@ -474,6 +510,7 @@
             if (this.initialMessageShown) {
                 this.removeLoadingStep('ctx-initial-loading');
                 this.initialMessageShown = false;
+                this.addStep(this.analysisCompleteText);
             }
             if (!this.generatingResultShown) {
                 this.generatingResultShown = true;
@@ -486,6 +523,7 @@
                 this.removeLoadingStep('ctx-generating-result');
                 this.generatingResultShown = false;
             }
+            this.addStep(this.finalCompleteText);
             this.updateHeader('Complete');
         }
 
@@ -660,6 +698,10 @@
             if (content) content.innerHTML = '';
         }
 
+        autoHide(delayMs = 1500) {
+            setTimeout(() => this.hide(), delayMs);
+        }
+
         destroy() { this.hide(); }
     }
 
@@ -781,6 +823,86 @@
     }
 
     // ============================================================
+    // StreamingAnalyzer - Single API for LLM Analysis with Modal UI
+    // ============================================================
+    class StreamingAnalyzer {
+        /**
+         * Perform real-time LLM analysis with automatic modal UI management.
+         *
+         * @param {string} url - Streaming API endpoint
+         * @param {Object} requestData - Request data (query is required)
+         * @param {Object} options - Configuration options
+         * @returns {Promise<Object>} Parsed final response
+         */
+        static async analyze(url, requestData, options = {}) {
+            const config = {
+                modalTitle: options.modalTitle || 'AI Analyzing...',
+                initialLoadingText: options.initialLoadingText || 'LLM 분석 시작...',
+                analysisCompleteText: options.analysisCompleteText || 'LLM 분석 완료',
+                generatingResultText: options.generatingResultText || '결과 데이터 생성중...',
+                finalCompleteText: options.finalCompleteText || 'AI 분석 완료!',
+                autoHideDelay: options.autoHideDelay || 1500,
+                timeoutMs: options.timeoutMs || 300000,
+                onProgress: options.onProgress || null,
+                onComplete: options.onComplete || null,
+                onError: options.onError || null
+            };
+
+            const adapter = new ModalUIAdapter({
+                headerText: config.modalTitle,
+                initialLoadingText: config.initialLoadingText,
+                generatingResultText: config.generatingResultText,
+                analysisCompleteText: config.analysisCompleteText,
+                finalCompleteText: config.finalCompleteText
+            });
+
+            const client = new StreamingClient({
+                streaming: { timeoutMs: config.timeoutMs }
+            });
+            const query = requestData.query || '';
+            adapter.onStreamStart(query);
+
+            let errorHandled = false;
+
+            try {
+                const result = await client.stream(url, requestData, {
+                    onChunk: (chunk) => {
+                        adapter.onChunk(chunk);
+                        if (config.onProgress) config.onProgress(chunk);
+                    },
+                    onGeneratingResult: () => {
+                        adapter.onGeneratingResult();
+                    },
+                    onFinalResponse: (data) => {
+                        adapter.onFinalResponse(data);
+                    },
+                    onError: (error) => {
+                        if (!errorHandled) {
+                            errorHandled = true;
+                            adapter.onError(error);
+                            if (config.onError) config.onError(error);
+                        }
+                    }
+                });
+
+                if (config.onComplete) config.onComplete(result);
+                adapter.autoHide(config.autoHideDelay);
+                return result;
+            } catch (error) {
+                // Only handle if not already handled by onError callback
+                if (!errorHandled) {
+                    adapter.onError(error);
+                    adapter.autoHide(config.autoHideDelay);
+                    if (config.onError) config.onError(error);
+                } else {
+                    adapter.autoHide(config.autoHideDelay);
+                }
+                throw error;
+            }
+        }
+    }
+
+    // ============================================================
     // Export to global namespace
     // ============================================================
     const ContexaStreaming = {
@@ -790,7 +912,9 @@
         SimpleProgressAdapter,
         ModalUIAdapter,
         StreamingClientBuilder,
-        StreamingClientWithAdapter
+        StreamingClientWithAdapter,
+        StreamingAnalyzer,
+        analyze: StreamingAnalyzer.analyze
     };
 
     // Browser environment
@@ -804,6 +928,7 @@
         window.ModalUIAdapter = ModalUIAdapter;
         window.StreamingClientBuilder = StreamingClientBuilder;
         window.StreamingClientWithAdapter = StreamingClientWithAdapter;
+        window.StreamingAnalyzer = StreamingAnalyzer;
     }
 
     // CommonJS environment

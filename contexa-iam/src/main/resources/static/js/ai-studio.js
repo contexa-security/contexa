@@ -260,24 +260,21 @@ class AIStudioLegacy {
         this.hideCanvasPlaceholder();
 
         try {
-            console.log('🧠 AI Query (일원화된 스트리밍):', query);
+            console.log('AI Query (unified streaming):', query);
 
-            // AI 질의 히스토리에 추가
+            // Add to AI query history
             this.aiQueryHistory.push({
                 query: query,
                 timestamp: new Date().toISOString()
             });
 
-            // 🎥 스트리밍 모달 표시하고 DOM 추가 완료 대기
-            this.showStreamingProgressModal(query);
-            await new Promise(resolve => setTimeout(resolve, 100));
+            // Store current query for later use
+            this.currentQuery = query;
 
-            console.log('🌊 [일원화] 단일 스트리밍 호출 시작');
-
-            // 🔥 일원화된 스트리밍 호출 (SecurityCopilot 방식)
+            // Use ContexaStreaming.analyze() API
             await this.startUnifiedStreamingAnalysis(query);
 
-            console.log('[일원화] 스트리밍 완료');
+            console.log('Streaming completed');
 
         } catch (error) {
             console.error('AI Studio 질의 실패:', error);
@@ -292,38 +289,16 @@ class AIStudioLegacy {
         }
     }
 
-
-    // 스트리밍을 비동기로 독립 실행
-    async startStreamingProgressAsync(query) {
-        try {
-            console.log('🌊 스트리밍 비동기 시작');
-            await this.startUnifiedStreamingAnalysis(query);
-            console.log('스트리밍 완료');
-
-            // 스트리밍 완료 메시지 표시
-            this.showStreamingComplete();
-
-        } catch (error) {
-            console.error('🌊 스트리밍 오류:', error);
-            this.addStreamingStep('스트리밍 중 오류가 발생했습니다.');
-        }
-    }
-
-    // 🗑️ [제거됨] startAIQueryAsync - 일원화된 스트리밍으로 대체됨
-
-    // 오류 처리 통합
+    // Error handling
     handleQueryError(error, query) {
-        // 모달 닫기
-        this.hideStreamingProgressModal();
-
-        // 오류 메시지 표시
+        // Display error message
         const userMessage = this.getErrorMessage(error);
-        this.addStreamingStep(`오류 발생: ${userMessage}`);
         this.showToast(userMessage, 'error');
         this.displayErrorInInspector(error, query);
         this.showCanvasPlaceholder();
 
-        // 상태 초기화는 handleAIQuery finally에서 처리
+        // Reset state flags (modal is auto-hidden by library)
+        this.resetStreamingState();
     }
 
     // =============================
@@ -350,152 +325,79 @@ class AIStudioLegacy {
     }
 
     /**
-     * 🌊 진짜 스트리밍 진행 상황
+     * Unified streaming analysis using ContexaStreaming.analyze() API
      */
-    // ai-studio.js 수정
-    async startUnifiedStreamingAnalysis(query, permissions) {
-        const startTime = Date.now();
-        console.log('🌊 [JS-STREAM-' + startTime + '] 진짜 스트리밍 진행 상황 시작');
+    async startUnifiedStreamingAnalysis(query) {
+        const self = this;
+        let errorHandled = false;
 
         try {
-            const startTime = Date.now();
-            console.log('🌊 [JS-STREAM-' + startTime + '] 진짜 스트리밍 진행 상황 시작');
-
-            const userId = this.getCurrentUserId();
-            const queryType = this.detectQueryType(query);
-
-            const requestData = {
-                query: query,
-                userId: userId,
-                queryType: queryType
-            };
-
-            const response = await fetch('/api/ai/studio/query/stream', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'text/event-stream'
+            await ContexaStreaming.analyze(
+                '/api/ai/studio/query/stream',
+                {
+                    query: query
                 },
-                body: JSON.stringify(requestData)
-            });
+                {
+                    modalTitle: 'AI 권한 분석 진행 중',
+                    autoHideDelay: 1500,
+                    onProgress: (chunk) => {
+                        console.log('Streaming chunk received:', chunk.substring(0, 50));
+                    },
+                    onComplete: (response) => {
+                        console.log('Streaming completed with response:', response);
 
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-
-            let buffer = '';
-            let allDataBuffer = ''; // 🔥 모든 데이터를 저장하는 버퍼
-            let finalResponseDetected = false;
-
-            while (true) {
-                const {done, value} = await reader.read();
-
-                if (done) {
-                    console.log('🌊 스트림 읽기 완료');
-                    console.log('📊 전체 수집된 데이터 길이:', allDataBuffer.length);
-                    break;
-                }
-
-                const chunk = decoder.decode(value, {stream: true});
-                buffer += chunk;
-
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // 마지막 불완전한 라인은 버퍼에 유지
-
-                for (const line of lines) {
-                    if (line.trim() === '') continue;
-
-                    if (line.startsWith('data: ') || line.startsWith('data:')) {
-                        let data = line.startsWith('data: ') ? line.slice(6) : line.slice(5);
-
-                        if (data === '[DONE]') {
-                            console.log('🌊 [DONE] 신호 수신');
-                            continue;
+                        if (response && !response.parseError) {
+                            self.processAIResponse(response, query);
+                            self.showMessage('AI 분석이 성공적으로 완료되었습니다!', 'success');
+                        } else if (response && response.parseError) {
+                            console.error('JSON parse error:', response.errorMessage);
+                            const basicResponse = {
+                                analysisId: "studio-query-001",
+                                query: query,
+                                naturalLanguageAnswer: "분석 결과 처리 중 오류가 발생했습니다.",
+                                status: "PARTIAL"
+                            };
+                            self.processAIResponse(basicResponse, query);
+                            self.showMessage('AI 분석이 완료되었습니다 (일부 데이터 누락)', 'warning');
+                        } else {
+                            // Handle null response
+                            console.warn('No response received');
+                            self.showMessage('분석이 완료되었으나 결과가 없습니다.', 'warning');
                         }
 
-                        // 🔥 모든 데이터를 allDataBuffer에 누적
-                        console.log('📦 [SSE-DATA] Received:', data.length, 'chars, preview:', data.substring(0, 100));
-                        allDataBuffer += data;
-
-                        // FINAL_RESPONSE 감지
-                        if (!finalResponseDetected && allDataBuffer.includes('###FINAL_RESPONSE###')) {
-                            console.log('📊 [DIAGNOSIS] FINAL_RESPONSE 마커 감지, buffer length:', allDataBuffer.length);
-                            finalResponseDetected = true;
-
-                            // "결과 데이터 생성중..." 애니메이션 제거
-                            if (this.modalAdapter) {
-                                this.modalAdapter.removeLoadingStep('ctx-generating-result');
-                            }
-
-                            // 분석 완료 메시지들 표시
-                            this.addStreamingStep('AI 분석 완료! 결과 데이터 처리 중...');
-
-                            setTimeout(() => {
-                                this.addStreamingStep('📊 분석 결과를 정리하고 있습니다...');
-                            }, 500);
-
-                            setTimeout(() => {
-                                this.addStreamingStep('🎯 시각화 데이터를 준비하고 있습니다...');
-                            }, 1000);
-                        }
-
-                        // 일반 스트리밍 표시 (FINAL_RESPONSE 전까지만)
-                        if (data.trim() && !finalResponseDetected) {
-                            // 첫 번째 청크 도착 시 "LLM 분석 시작..." 제거하고 "LLM 분석 완료" 표시
-                            if (this.modalAdapter && !this.llmAnalysisCompleted) {
-                                this.modalAdapter.removeLoadingStep('ctx-initial-loading');
-                                this.llmAnalysisCompleted = true;
-                                this.addStreamingStep('LLM 분석 완료');
-                            }
-
-                            // GENERATING_RESULT 마커 감지 시 애니메이션 효과가 있는 "결과 데이터 생성중..." 표시
-                            if (data.includes('###GENERATING_RESULT###')) {
-                                if (this.modalAdapter) {
-                                    this.modalAdapter.onGeneratingResult();
-                                }
-                            } else {
-                                this.addStreamingStep(data.trim());
-                            }
+                        // Reset state flags
+                        self.resetStreamingState();
+                    },
+                    onError: (error) => {
+                        // Mark error as handled to prevent duplicate handling
+                        if (!errorHandled) {
+                            errorHandled = true;
+                            console.error('Streaming error:', error);
+                            self.handleQueryError(error, query);
                         }
                     }
                 }
-            }
-
-            // 🔥 버퍼에 남은 마지막 데이터 처리
-            if (buffer.trim()) {
-                console.log('📦 마지막 버퍼 처리:', buffer);
-                if (buffer.startsWith('data: ')) {
-                    allDataBuffer += buffer.slice(6);
-                } else if (buffer.startsWith('data:')) {
-                    allDataBuffer += buffer.slice(5);
-                } else {
-                    allDataBuffer += buffer;
-                }
-            }
-
-            // 스트리밍 완료 후 JSON 처리
-            console.log('🌊 스트리밍 종료 - 완료 처리 시작');
-            console.log('📊 최종 수집된 전체 데이터 길이:', allDataBuffer.length);
-
-            if (finalResponseDetected && allDataBuffer.includes('###FINAL_RESPONSE###')) {
-                this.addStreamingStep('✨ 모든 분석이 완료되었습니다!');
-
-                // processFinalResponse 메서드 호출
-                setTimeout(() => {
-                    this.processFinalResponse(allDataBuffer);
-                }, 1000);
-            }
-
-            console.log('[일원화] 스트리밍 완료');
-
+            );
         } catch (error) {
-            console.error('🌊 스트리밍 오류:', error);
-            this.addStreamingStep('스트리밍 연결 오류가 발생했습니다.');
-            this.hideStreamingProgressModal();
-            throw error;
+            // Only handle if not already handled by onError callback
+            if (!errorHandled) {
+                console.error('Streaming analysis failed:', error);
+                throw error;
+            }
+        }
+    }
+
+    /**
+     * Reset streaming state flags
+     */
+    resetStreamingState() {
+        this.isProcessingQuery = false;
+        this.isLoading = false;
+        this.isStreaming = false;
+
+        const queryBtn = document.getElementById('ai-query-btn');
+        if (queryBtn) {
+            queryBtn.disabled = false;
         }
     }
 
@@ -666,40 +568,6 @@ class AIStudioLegacy {
     }
 
     /**
-     * Internal streaming step addition (delegates to shared adapter)
-     */
-    addStreamingStepInternal(streamingContent, text) {
-        this.addStreamingStep(text);
-    }
-
-    /**
-     * Show streaming complete message using shared adapter
-     */
-    showStreamingComplete() {
-        if (this.modalAdapter) {
-            this.modalAdapter.addStep('AI 권한 분석이 완료되었습니다.');
-        }
-    }
-
-    /**
-     * Stop streaming progress using shared ModalUIAdapter
-     */
-    stopStreamingProgress() {
-        this.isStreaming = false;
-
-        // Add completion message using shared adapter
-        if (this.modalAdapter) {
-            this.modalAdapter.addStep('AI 권한 분석이 완료되었습니다.');
-            this.modalAdapter.onFinalResponse({ status: 'complete' });
-        }
-
-        // Close modal after delay
-        setTimeout(() => {
-            this.hideStreamingProgressModal();
-        }, 2000);
-    }
-
-    /**
      * Hide streaming progress modal using shared ModalUIAdapter
      */
     hideStreamingProgressModal() {
@@ -720,14 +588,6 @@ class AIStudioLegacy {
         }
     }
 
-    /**
-     * 🔧 HTML 이스케이프 (XSS 방지)
-     */
-    escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
 
     // AI 질의 API 호출
     async sendAIQuery(query) {
@@ -773,250 +633,6 @@ class AIStudioLegacy {
         return response.status === 204 ? null : response.json();
     }
 
-    // =============================
-    // 🔧 헬퍼 메서드들
-    // =============================
-
-    /**
-     * 🔥 안전한 JSON 파싱 (Jackson 오류 방지)
-     */
-    async safeJsonParse(response) {
-        let responseText = '';
-
-        try {
-            // 먼저 응답을 텍스트로 받기
-            responseText = await response.text();
-            console.log('Raw response (first 500 chars):', responseText.substring(0, 500));
-
-            // 마크다운 응답 감지
-            if (this.isMarkdownResponse(responseText)) {
-                console.error('AI가 마크다운으로 응답했습니다:', responseText.substring(0, 200));
-                this.showToast('AI가 올바르지 않은 형식으로 응답했습니다. 다시 시도해주세요.', 'error');
-                return this.generateErrorResponse('AI_MARKDOWN_RESPONSE', 'AI가 마크다운 형식으로 응답하여 처리할 수 없습니다.');
-            }
-
-            // JSON 마커 추출 시도
-            const jsonContent = this.extractJsonFromMarkers(responseText);
-            if (jsonContent) {
-                console.log('Extracted JSON from markers:', jsonContent.substring(0, 200));
-
-                // 잘못된 문자 정리
-                const cleanedJson = this.cleanJsonString(jsonContent);
-                console.log('Cleaned JSON:', cleanedJson.substring(0, 200));
-
-                // 안전한 파싱 시도
-                return JSON.parse(cleanedJson);
-            }
-
-            // 마커가 없으면 전체 응답을 JSON으로 파싱 시도
-            const cleanedResponse = this.cleanJsonString(responseText);
-            return JSON.parse(cleanedResponse);
-
-        } catch (jsonError) {
-            console.error('JSON 파싱 오류:', jsonError);
-            console.error('원본 응답:', responseText);
-
-            // 응답이 이미 객체인 경우 그대로 반환
-            if (typeof response === 'object' && response !== null) {
-                console.log('응답이 이미 객체입니다. 파싱 없이 반환합니다.');
-                return response;
-            }
-
-            // 사용자에게 알림
-            this.showToast('AI 응답 처리 중 오류가 발생했습니다. 다시 시도해주세요.', 'error');
-
-            // 기본 응답 구조 반환
-            return this.generateErrorResponse('JSON_PARSE_ERROR', jsonError.message);
-        }
-    }
-
-    /**
-     * 마크다운 응답 감지
-     */
-    isMarkdownResponse(text) {
-        // 마크다운 패턴들
-        const markdownPatterns = [
-            /^\*\*[^*]+\*\*/m,          // **헤더**
-            /^#{1,6}\s+/m,              // # 헤더
-            /^\s*[-*]\s+/m,             // - 또는 * 리스트
-            /\*\*핵심\s*임무\*\*/,       // **핵심 임무**
-            /\*\*데이터\*\*/,           // **데이터**
-            /\*\*응답\s*형식\*\*/,       // **응답 형식**
-            /\*\*질의\*\*/              // **질의**
-        ];
-
-        return markdownPatterns.some(pattern => pattern.test(text));
-    }
-
-    /**
-     * 🔧 오류 응답 생성
-     */
-    generateErrorResponse(errorType, errorMessage) {
-        return {
-            naturalLanguageAnswer: "AI 응답 처리 중 오류가 발생했습니다. 시스템 로그를 확인해주세요.",
-            analysisResults: [],
-            queryResults: [],
-            recommendations: [{
-                title: "오류 해결 제안",
-                description: `${errorType}: ${errorMessage}`,
-                priority: 1,
-                type: "ERROR_RECOVERY",
-                actionItems: [
-                    "브라우저 새로고침 후 다시 시도",
-                    "다른 방식으로 질문 재작성",
-                    "프롬프트 개선 요청"
-                ]
-            }],
-            error: {
-                message: errorMessage,
-                type: errorType,
-                timestamp: new Date().toISOString()
-            }
-        };
-    }
-
-    /**
-     * JSON 마커에서 내용 추출
-     */
-    extractJsonFromMarkers(text) {
-        const startMarker = '===JSON_START===';
-        const endMarker = '===JSON_END===';
-
-        const startIndex = text.indexOf(startMarker);
-        const endIndex = text.indexOf(endMarker);
-
-        if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
-            return text.substring(startIndex + startMarker.length, endIndex).trim();
-        }
-
-        return null;
-    }
-
-    /**
-     * 🧹 JSON 문자열 정리 (잘못된 문자 제거)
-     */
-    cleanJsonString(jsonString) {
-        return jsonString
-            // 마크다운 제거 (AI가 마크다운으로 응답하는 경우)
-            .replace(/^\*\*[^*]+\*\*.*$/gm, '')  // **헤더** 제거
-            .replace(/^#{1,6}\s+.*$/gm, '')      // # 헤더 제거
-            .replace(/^\s*-\s+.*$/gm, '')        // - 리스트 제거
-            .replace(/^\s*\*\s+.*$/gm, '')       // * 리스트 제거
-            .replace(/\*\*([^*]+)\*\*/g, '$1')   // **볼드** → 텍스트
-            .replace(/\*([^*]+)\*/g, '$1')       // *이탤릭* → 텍스트
-
-            // JSON 밖에 있는 한국어 토큰들 제거
-            .replace(/^[^{]*모든[^{]*/, '')
-            .replace(/^[^{]*전체[^{]*/, '')
-            .replace(/^[^{]*결과[^{]*/, '')
-            .replace(/^[^{]*핵심[^{]*/, '')
-            .replace(/^[^{]*데이터[^{]*/, '')
-
-            // JSON 후에 오는 한국어 토큰들 제거
-            .replace(/}[^}]*모든.*$/, '}')
-            .replace(/}[^}]*전체.*$/, '}')
-            .replace(/}[^}]*결과.*$/, '}')
-            .replace(/}[^}]*핵심.*$/, '}')
-            .replace(/}[^}]*데이터.*$/, '}')
-
-            // + 기호 제거 (JSON에서 문자열 연결 시도)
-            .replace(/\s*\+\s*"[^"]*"/g, '')
-            .replace(/"\s*\+\s*/g, '"')
-
-            // JSON 배열 오류 수정
-            .replace(/,\s*]/g, ']')              // 배열 끝 여분 쉼표 제거
-            .replace(/,\s*}/g, '}')              // 객체 끝 여분 쉼표 제거
-            .replace(/,(\s*[,\]}])/g, '$1')      // 연속 쉼표 제거
-
-            // 잘못된 문자 제거
-            .replace(/\s*&\s*/g, '')
-            .replace(/\s*\|\s*/g, '')            // | 기호 제거
-
-            // 여러 줄 공백 정리
-            .replace(/\n\s*\n/g, '\n')
-            .replace(/^\s+|\s+$/g, '')           // 앞뒤 공백 제거
-            .trim();
-    }
-
-    /**
-     * 현재 사용자 ID 가져오기
-     */
-    getCurrentUserId() {
-        // 1. Spring Security 인증 컨텍스트에서 추출 시도
-        try {
-            const userElement = document.querySelector('[data-user-id]');
-            if (userElement) {
-                return userElement.getAttribute('data-user-id');
-            }
-        } catch (e) {
-            // 무시
-        }
-
-        // 2. 전역 변수에서 추출 시도
-        if (typeof window.currentUser !== 'undefined' && window.currentUser.id) {
-            return window.currentUser.id;
-        }
-
-        // 3. 세션 정보에서 추출 시도
-        try {
-            const userInfo = sessionStorage.getItem('userInfo');
-            if (userInfo) {
-                const parsed = JSON.parse(userInfo);
-                if (parsed.userId) {
-                    return parsed.userId;
-                }
-            }
-        } catch (e) {
-            // 무시
-        }
-
-        // 4. 기본값: AI Studio 전용 익명 사용자
-        console.warn('사용자 ID를 찾을 수 없어 익명 사용자로 처리합니다.');
-        return 'ai-studio-user-' + Date.now();
-    }
-
-    /**
-     * 자연어 질의에서 타입 자동 감지
-     */
-    detectQueryType(query) {
-        if (!query || typeof query !== 'string') {
-            return 'ANALYZE_PERMISSIONS';
-        }
-
-        const lowerQuery = query.toLowerCase().trim();
-
-        // 질의 패턴 분석
-        if (lowerQuery.includes('누가') || lowerQuery.includes('who can') || lowerQuery.includes('can access')) {
-            return 'WHO_CAN';
-        }
-
-        if (lowerQuery.includes('왜') || lowerQuery.includes('why') || lowerQuery.includes('cannot') || lowerQuery.includes('할 수 없')) {
-            return 'WHY_CANNOT';
-        }
-
-        if (lowerQuery.includes('경로') || lowerQuery.includes('path') || lowerQuery.includes('접근') || lowerQuery.includes('어떻게')) {
-            return 'ACCESS_PATH';
-        }
-
-        if (lowerQuery.includes('시각화') || lowerQuery.includes('구조') || lowerQuery.includes('분석') || lowerQuery.includes('보여')) {
-            return 'ANALYZE_PERMISSIONS';
-        }
-
-        if (lowerQuery.includes('영향') || lowerQuery.includes('impact') || lowerQuery.includes('변경')) {
-            return 'IMPACT_ANALYSIS';
-        }
-
-        if (lowerQuery.includes('규정') || lowerQuery.includes('compliance') || lowerQuery.includes('준수')) {
-            return 'COMPLIANCE_CHECK';
-        }
-
-        // 기본값: 일반적인 권한 분석
-        return 'ANALYZE_PERMISSIONS';
-    }
-
-    // =============================
-    // 📊 AI 응답 처리 및 시각화
-    // =============================
     async processAIResponse(response, originalQuery) {
         console.log('🧠 AI-Native Response:', response);
 
@@ -7902,51 +7518,8 @@ class AIStudioLegacy {
             this.showToast(message, type);
         }
     }
+ }
 
-    // stopStreamingProgress is defined earlier in the class - removed duplicate
-
-    /**
-     * 🔥 불완전한 JSON 자동 복구
-     */
-    repairIncompleteJson(incompleteJson) {
-        console.log('🔧 [REPAIR] JSON 복구 시작:', incompleteJson.length, '문자');
-
-        let repaired = incompleteJson.trim();
-
-        // 1. naturalLanguageAnswer가 끝나지 않은 경우 강제 종료
-        if (repaired.includes('"naturalLanguageAnswer":') && !repaired.includes('","confidenceScore":')) {
-            // naturalLanguageAnswer 끝에 따옴표 추가
-            repaired += '"';
-            console.log('🔧 [REPAIR] naturalLanguageAnswer 따옴표 추가');
-        }
-
-        // 2. 기본 필드들 추가
-        if (!repaired.includes('"confidenceScore":')) {
-            repaired += ',"confidenceScore":75';
-        }
-        if (!repaired.includes('"visualizationData":')) {
-            repaired += ',"visualizationData":null';
-        }
-        if (!repaired.includes('"analysisResults":')) {
-            repaired += ',"analysisResults":[]';
-        }
-        if (!repaired.includes('"recommendations":')) {
-            repaired += ',"recommendations":[]';
-        }
-
-        // 3. JSON 닫기
-        if (!repaired.endsWith('}')) {
-            repaired += '}';
-        }
-
-        console.log('🔧 [REPAIR] JSON 복구 완료:', repaired.length, '문자');
-        return repaired;
-    }
-}
-
-// =============================
-// 🚀 AI Studio 초기화
-// ============================= 
 let aiStudio = null;
 
 document.addEventListener('DOMContentLoaded', () => {
