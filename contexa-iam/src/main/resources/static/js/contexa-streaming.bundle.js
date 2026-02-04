@@ -443,7 +443,7 @@
             this.initialMessageShown = false;
             this.generatingResultShown = false;
             this.initialLoadingText = options.initialLoadingText || 'LLM 분석 시작...';
-            this.generatingResultText = options.generatingResultText || '결과데이터 생성중...';
+            this.generatingResultText = options.generatingResultText || '결과 데이터 생성중...';
         }
 
         onStreamStart(query) {

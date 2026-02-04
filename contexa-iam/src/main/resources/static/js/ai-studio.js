@@ -341,6 +341,9 @@ class AIStudioLegacy {
                 : null;
         }
 
+        // Reset flags for new streaming session
+        this.llmAnalysisCompleted = false;
+
         if (this.modalAdapter) {
             this.modalAdapter.onStreamStart(query);
         }
@@ -422,6 +425,11 @@ class AIStudioLegacy {
                             console.log('📊 [DIAGNOSIS] FINAL_RESPONSE 마커 감지, buffer length:', allDataBuffer.length);
                             finalResponseDetected = true;
 
+                            // "결과 데이터 생성중..." 애니메이션 제거
+                            if (this.modalAdapter) {
+                                this.modalAdapter.removeLoadingStep('ctx-generating-result');
+                            }
+
                             // 분석 완료 메시지들 표시
                             this.addStreamingStep('AI 분석 완료! 결과 데이터 처리 중...');
 
@@ -436,7 +444,21 @@ class AIStudioLegacy {
 
                         // 일반 스트리밍 표시 (FINAL_RESPONSE 전까지만)
                         if (data.trim() && !finalResponseDetected) {
-                            this.addStreamingStep(data.trim());
+                            // 첫 번째 청크 도착 시 "LLM 분석 시작..." 제거하고 "LLM 분석 완료" 표시
+                            if (this.modalAdapter && !this.llmAnalysisCompleted) {
+                                this.modalAdapter.removeLoadingStep('ctx-initial-loading');
+                                this.llmAnalysisCompleted = true;
+                                this.addStreamingStep('LLM 분석 완료');
+                            }
+
+                            // GENERATING_RESULT 마커 감지 시 애니메이션 효과가 있는 "결과 데이터 생성중..." 표시
+                            if (data.includes('###GENERATING_RESULT###')) {
+                                if (this.modalAdapter) {
+                                    this.modalAdapter.onGeneratingResult();
+                                }
+                            } else {
+                                this.addStreamingStep(data.trim());
+                            }
                         }
                     }
                 }
