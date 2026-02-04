@@ -28,6 +28,7 @@
         onStreamStart(query) {}
         onChunk(chunk) {}
         onSentence(sentence) {}
+        onGeneratingResult() {}
         onFinalResponse(response) {}
         onError(error) {
             console.error('Streaming error:', error);
@@ -45,6 +46,7 @@
         static DEFAULT_CONFIG = {
             markers: {
                 FINAL_RESPONSE: '###FINAL_RESPONSE###',
+                GENERATING_RESULT: '###GENERATING_RESULT###',
                 DONE: '[DONE]',
                 ERROR_PREFIX: 'ERROR:',
                 JSON_START: '===JSON_START===',
@@ -234,6 +236,11 @@
 
             if (data.includes(markers.FINAL_RESPONSE)) {
                 if (callbacks.onFinalResponse) callbacks.onFinalResponse(data);
+                return;
+            }
+
+            if (data.includes(markers.GENERATING_RESULT)) {
+                if (callbacks.onGeneratingResult) callbacks.onGeneratingResult();
                 return;
             }
 
@@ -430,23 +437,54 @@
             this.hideDelay = options.hideDelay || 300;
             this.animationDelay = options.animationDelay || 100;
             this.currentModal = null;
+            this.initialMessageShown = false;
+            this.generatingResultShown = false;
+            this.initialLoadingText = options.initialLoadingText || 'LLM 분석 시작...';
+            this.generatingResultText = options.generatingResultText || '결과데이터 생성중...';
         }
 
         onStreamStart(query) {
             this.hide();
             this.injectStyles();
+            this.initialMessageShown = false;
+            this.generatingResultShown = false;
             const modalHtml = this.createModalHtml(query);
             document.body.insertAdjacentHTML('beforeend', modalHtml);
             this.currentModal = document.getElementById(this.modalId);
             requestAnimationFrame(() => {
                 if (this.currentModal) this.currentModal.classList.add('show');
             });
+            this.initialMessageShown = true;
+            this.addLoadingStep(this.initialLoadingText, 'ctx-initial-loading');
         }
 
-        onChunk(chunk) { this.addStep(chunk); }
+        onChunk(chunk) {
+            if (this.initialMessageShown) {
+                this.removeLoadingStep('ctx-initial-loading');
+                this.initialMessageShown = false;
+            }
+            this.addStep(chunk);
+        }
         onSentence(sentence) { this.addStep(sentence); }
 
-        onFinalResponse(response) { this.updateHeader('Complete'); }
+        onGeneratingResult() {
+            if (this.initialMessageShown) {
+                this.removeLoadingStep('ctx-initial-loading');
+                this.initialMessageShown = false;
+            }
+            if (!this.generatingResultShown) {
+                this.generatingResultShown = true;
+                this.addLoadingStep(this.generatingResultText, 'ctx-generating-result');
+            }
+        }
+
+        onFinalResponse(response) {
+            if (this.generatingResultShown) {
+                this.removeLoadingStep('ctx-generating-result');
+                this.generatingResultShown = false;
+            }
+            this.updateHeader('Complete');
+        }
 
         onError(error) {
             this.updateHeader('Error');
@@ -493,6 +531,33 @@
                 step.classList.add('visible');
                 content.scrollTop = content.scrollHeight;
             });
+        }
+
+        addLoadingStep(message, id) {
+            const content = this.currentModal?.querySelector('#streaming-content');
+            if (!content) return;
+            const step = document.createElement('div');
+            step.id = id;
+            step.className = 'streaming-step ctx-loading-step';
+            step.innerHTML = `
+                <div class="ctx-loading-spinner"></div>
+                <span>${this.escapeHtml(message)}</span>
+            `;
+            content.appendChild(step);
+            requestAnimationFrame(() => {
+                step.classList.add('visible');
+                content.scrollTop = content.scrollHeight;
+            });
+        }
+
+        removeLoadingStep(id) {
+            const step = this.currentModal?.querySelector(`#${id}`);
+            if (step) {
+                step.classList.remove('visible');
+                setTimeout(() => {
+                    if (step.parentNode) step.parentNode.removeChild(step);
+                }, 200);
+            }
         }
 
         updateHeader(text) {
@@ -550,6 +615,8 @@
                 .ctx-stream-content.error-state .streaming-step { color: #fca5a5; border-left-color: #ef4444; }
                 .streaming-step { padding: 10px 14px; margin: 8px 0; font-size: 0.875rem; line-height: 1.6; color: #e2e8f0; border-left: 2px solid rgba(99,102,241,0.4); background: rgba(99,102,241,0.05); border-radius: 0 6px 6px 0; opacity: 0; transform: translateX(-8px); transition: opacity 0.25s ease, transform 0.25s ease; }
                 .streaming-step.visible { opacity: 1; transform: translateX(0); }
+                .ctx-loading-step { display: flex; align-items: center; gap: 10px; border-left-color: rgba(139,92,246,0.6); background: rgba(139,92,246,0.08); }
+                .ctx-loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(139,92,246,0.3); border-top-color: #8b5cf6; border-radius: 50%; animation: ctx-spin 1s linear infinite; flex-shrink: 0; }
                 .ctx-modal-footer { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid rgba(71,85,105,0.3); }
                 .ctx-loading-dots { display: flex; gap: 4px; }
                 .ctx-loading-dots span { width: 6px; height: 6px; background: #6366f1; border-radius: 50%; animation: ctx-bounce 1.4s ease-in-out infinite; }
@@ -610,6 +677,12 @@
                 onChunk: (chunk) => {
                     if (this.adapter) this.adapter.onChunk(chunk);
                     if (additionalCallbacks.onChunk) additionalCallbacks.onChunk(chunk);
+                },
+                onGeneratingResult: () => {
+                    if (this.adapter && typeof this.adapter.onGeneratingResult === 'function') {
+                        this.adapter.onGeneratingResult();
+                    }
+                    if (additionalCallbacks.onGeneratingResult) additionalCallbacks.onGeneratingResult();
                 },
                 onFinalResponse: (response) => {
                     if (this.adapter) this.adapter.onFinalResponse(response);

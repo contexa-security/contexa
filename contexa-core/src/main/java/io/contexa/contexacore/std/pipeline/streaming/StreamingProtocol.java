@@ -28,6 +28,13 @@ public final class StreamingProtocol {
      */
     public static final String JSON_END_MARKER = "===JSON_END===";
 
+    /**
+     * Marker indicating result generation has started.
+     * Sent when JSON_START is detected to notify client that analysis is complete
+     * and result data is being generated.
+     */
+    public static final String GENERATING_RESULT_MARKER = "###GENERATING_RESULT###";
+
     private StreamingProtocol() {
         // Utility class - prevent instantiation
     }

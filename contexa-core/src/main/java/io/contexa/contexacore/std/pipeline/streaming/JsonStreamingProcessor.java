@@ -59,10 +59,12 @@ public class JsonStreamingProcessor implements ChunkProcessor {
             log.debug("[JSON_START] detected at index={}, beforeJson length={}, afterMarker length={}",
                 startIndex, beforeJson.length(), afterMarker.length());
 
+            List<String> results = new ArrayList<>();
             if (!beforeJson.trim().isEmpty()) {
-                return Flux.just(StreamingProtocol.STREAMING_MARKER + beforeJson);
+                results.add(StreamingProtocol.STREAMING_MARKER + beforeJson);
             }
-            return Flux.empty();
+            results.add(StreamingProtocol.GENERATING_RESULT_MARKER);
+            return Flux.fromIterable(results);
         }
 
         if (jsonStarted.get() && !jsonEnded.get()) {
