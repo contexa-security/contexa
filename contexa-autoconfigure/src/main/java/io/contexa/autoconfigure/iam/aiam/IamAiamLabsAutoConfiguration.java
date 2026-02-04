@@ -144,9 +144,7 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public ConditionTemplateGenerationLab conditionTemplateGenerationLab(
             PipelineOrchestrator orchestrator,
-            ConditionTemplateContextRetriever contextRetriever,
-            ObjectMapper objectMapper,
             ConditionTemplateVectorService vectorService) {
-        return new ConditionTemplateGenerationLab(orchestrator, contextRetriever, objectMapper, vectorService);
+        return new ConditionTemplateGenerationLab(orchestrator, vectorService);
     }
 }

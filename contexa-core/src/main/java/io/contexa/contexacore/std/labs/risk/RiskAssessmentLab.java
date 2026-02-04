@@ -126,18 +126,14 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
             try {
                 String assessmentId = generateAssessmentId();
                 RiskAssessmentContext context = request.getContext();
-
                 RiskAssessmentContext enrichedContext = contextEnricher.enrichContext(context);
-
-                AIRequest<RiskAssessmentContext> riskRequest = createRiskAssessmentRequest(enrichedContext);
-
+                request.setContext(enrichedContext);
                 PipelineConfiguration pipelineConfig = createRiskAssessmentStreamPipelineConfig();
 
-                return orchestrator.executeStream(riskRequest, pipelineConfig)
+                return orchestrator.executeStream(request, pipelineConfig)
                         .map(chunk -> {
-                            String chunkStr = chunk != null ? chunk.toString() : "";
 
-                            return chunkStr;
+                            return chunk != null ? chunk.toString() : "";
                         })
                         .doOnSubscribe(subscription -> { })
                         .doOnComplete(() -> {
@@ -227,14 +223,6 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                         return Mono.just(context);
                     });
         });
-    }
-
-    private AIRequest<RiskAssessmentContext> createRiskAssessmentRequest(RiskAssessmentContext context) {
-        return new AIRequest<>(
-                context,
-                "riskAssessmentStreaming",
-                context.getOrganizationId()
-        );
     }
 
     private RequestPriority determinePriority(RiskAssessmentContext context) {

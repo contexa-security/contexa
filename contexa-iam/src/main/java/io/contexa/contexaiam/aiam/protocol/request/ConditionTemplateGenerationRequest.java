@@ -11,7 +11,7 @@ import java.util.Map;
 @Getter
 public class ConditionTemplateGenerationRequest extends AIRequest<ConditionTemplateContext> {
     
-    private final String templateType; 
+    private final String template;
     private final String resourceIdentifier; 
     private final String methodInfo; 
     private final Map<String, Object> additionalParameters;
@@ -21,20 +21,20 @@ public class ConditionTemplateGenerationRequest extends AIRequest<ConditionTempl
         this(isUniversal, null, null, null, null);
     }
 
-    public ConditionTemplateGenerationRequest(boolean isUniversal, String templateType, String resourceIdentifier, String methodInfo) {
-        this(isUniversal, templateType, resourceIdentifier, methodInfo, null);
+    public ConditionTemplateGenerationRequest(boolean isUniversal, String template, String resourceIdentifier, String methodInfo) {
+        this(isUniversal, template, resourceIdentifier, methodInfo, null);
     }
-    public ConditionTemplateGenerationRequest(boolean isUniversal, String templateType, String resourceIdentifier,
-                                               String methodInfo, Map<String, Object> additionalParameters) {
-        super(createContext(templateType, resourceIdentifier, methodInfo), new TemplateType("ConditionTemplate"), new DiagnosisType("ConditionTemplate"));
+    public ConditionTemplateGenerationRequest(boolean isUniversal, String template, String resourceIdentifier,
+                                              String methodInfo, Map<String, Object> additionalParameters) {
+        super(createContext(template, resourceIdentifier, methodInfo), new TemplateType("ConditionTemplate"), new DiagnosisType("ConditionTemplate"));
         
-        this.templateType = templateType;
+        this.template = template;
         this.resourceIdentifier = resourceIdentifier;
         this.methodInfo = methodInfo;
         this.additionalParameters = additionalParameters != null ? additionalParameters : Map.of();
         this.isUniversal = isUniversal;
 
-        this.withParameter("templateType", templateType);
+        this.withParameter("templateType", template);
         if (resourceIdentifier != null) {
             this.withParameter("resourceIdentifier", resourceIdentifier);
         }
@@ -67,7 +67,7 @@ public class ConditionTemplateGenerationRequest extends AIRequest<ConditionTempl
     
     @Override
     public String toString() {
-        return String.format("ConditionTemplateGenerationRequest{type='%s', resource='%s', requestId='%s'}", 
-                templateType, resourceIdentifier, getRequestId());
+        return String.format("ConditionTemplateGenerationRequest{type='%s', resource='%s', requestId='%s'}",
+                template, resourceIdentifier, getRequestId());
     }
 } 

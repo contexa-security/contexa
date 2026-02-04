@@ -114,15 +114,6 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                 });
     }
 
-    @Override
-    public <R extends AIResponse> Mono<List<R>> executeBatch(List<AIRequest<T>> requests, Class<R> responseType) {
-        List<Mono<R>> asyncRequests = requests.stream()
-                .<Mono<R>>map(request -> executeWithAuditAsync(request, responseType))
-                .toList();
-        return Flux.merge(asyncRequests)
-                .collectList();
-    }
-
     private boolean acquireStrategicLock(String lockKey, String strategyId) {
         try {
             return !distributedLockService.tryLock(lockKey, getNodeId(), STRATEGIC_LOCK_TIMEOUT);

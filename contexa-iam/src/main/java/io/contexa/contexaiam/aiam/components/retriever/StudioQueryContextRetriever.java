@@ -38,16 +38,16 @@ public class StudioQueryContextRetriever extends ContextRetriever {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final StudioQueryVectorService vectorService;
-    
+
     @Autowired(required = false)
     private ChatClient.Builder chatClientBuilder;
-    
+
     @Value("${spring.ai.rag.studio.similarity-threshold:0.65}")
     private double studioSimilarityThreshold;
-    
+
     @Value("${spring.ai.rag.studio.top-k:10}")
     private int studioTopK;
-    
+
     private RetrievalAugmentationAdvisor studioAdvisor;
 
     public StudioQueryContextRetriever(
@@ -70,39 +70,39 @@ public class StudioQueryContextRetriever extends ContextRetriever {
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-                registerSelf();
+        registerSelf();
     }
 
     private void registerSelf() {
-        
+
         if (chatClientBuilder != null && vectorStore != null) {
             createStudioAdvisor();
         }
 
         registry.registerRetriever(StudioQueryContext.class, this);
-            }
+    }
 
     private void createStudioAdvisor() {
-        
+
         QueryTransformer studioQueryTransformer = new StudioQueryTransformer(chatClientBuilder);
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
-            filterBuilder.in("documentType", "authorization", "query", "studio", "access"),
-            filterBuilder.gte("relevanceScore", 0.6)
+                filterBuilder.in("documentType", "authorization", "query", "studio", "access"),
+                filterBuilder.gte("relevanceScore", 0.6)
         ).build();
 
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
-            .vectorStore(vectorStore)
-            .similarityThreshold(studioSimilarityThreshold)
-            .topK(studioTopK)
-            .filterExpression(filter)
-            .build();
+                .vectorStore(vectorStore)
+                .similarityThreshold(studioSimilarityThreshold)
+                .topK(studioTopK)
+                .filterExpression(filter)
+                .build();
 
         studioAdvisor = RetrievalAugmentationAdvisor.builder()
-            .documentRetriever(retriever)
-            .queryTransformers(studioQueryTransformer)
-            .build();
+                .documentRetriever(retriever)
+                .queryTransformers(studioQueryTransformer)
+                .build();
 
         registerDomainAdvisor(StudioQueryContext.class, studioAdvisor);
     }
@@ -114,7 +114,7 @@ public class StudioQueryContextRetriever extends ContextRetriever {
             String contextInfo = retrieveStudioQueryContext((AIRequest<StudioQueryContext>) request);
             return new ContextRetrievalResult(
                     contextInfo,
-                    List.of(), 
+                    List.of(),
                     Map.of("retrieverType", "StudioQueryContextRetriever", "timestamp", System.currentTimeMillis())
             );
         }
@@ -123,20 +123,20 @@ public class StudioQueryContextRetriever extends ContextRetriever {
     }
 
     public String retrieveStudioQueryContext(AIRequest<StudioQueryContext> request) {
-        
+
         try {
             StudioQueryContext context = request.getContext();
             StringBuilder contextBuilder = new StringBuilder();
 
-            String naturalQuery = context.getNaturalLanguageQuery();
+            String naturalQuery = request.getNaturalLanguageQuery();
             if (naturalQuery == null || naturalQuery.trim().isEmpty()) {
                 log.warn("자연어 질의가 비어있습니다");
                 return getDefaultStudioQueryContext();
             }
 
             try {
-                vectorService.storeQuery(naturalQuery, context.inferQueryType().toString());
-                            } catch (Exception e) {
+                vectorService.storeQuery(naturalQuery, request.getNaturalLanguageQuery());
+            } catch (Exception e) {
                 log.warn("VectorService 쿼리 저장 실패: {}", e.getMessage());
             }
 
@@ -163,10 +163,10 @@ public class StudioQueryContextRetriever extends ContextRetriever {
             try {
                 String queryId = request.getRequestId();
                 vectorService.storeQueryResult(queryId, result);
-                            } catch (Exception e) {
+            } catch (Exception e) {
                 log.warn("VectorService 결과 저장 실패: {}", e.getMessage());
             }
-            
+
             return result;
 
         } catch (Exception e) {
@@ -177,7 +177,7 @@ public class StudioQueryContextRetriever extends ContextRetriever {
 
     private String searchSimilarQueryPatterns(String naturalQuery) {
         try {
-            
+
             List<Document> similarQueries = vectorService.findSimilarQueries(naturalQuery, 5);
 
             String searchQuery = String.format("Authorization Studio 질의: %s", naturalQuery);
@@ -193,7 +193,7 @@ public class StudioQueryContextRetriever extends ContextRetriever {
 
             for (Document doc : vectorDocs) {
                 boolean isDuplicate = allDocs.stream()
-                    .anyMatch(existing -> existing.getText().equals(doc.getText()));
+                        .anyMatch(existing -> existing.getText().equals(doc.getText()));
                 if (!isDuplicate) {
                     allDocs.add(doc);
                 }
@@ -233,7 +233,7 @@ public class StudioQueryContextRetriever extends ContextRetriever {
         StringBuilder structure = new StringBuilder();
 
         try {
-            
+
             long totalUsers = userRepository.count();
             structure.append(String.format("- 전체 사용자 수: %d명\n", totalUsers));
 
@@ -328,7 +328,7 @@ public class StudioQueryContextRetriever extends ContextRetriever {
                         mapping.append("- 보유 권한: ");
                         String permissionNames = userPermissions.stream()
                                 .map(Permission::getFriendlyName)
-                                .limit(10) 
+                                .limit(10)
                                 .collect(Collectors.joining(", "));
                         mapping.append(permissionNames);
                         if (userPermissions.size() > 10) {
@@ -399,106 +399,88 @@ public class StudioQueryContextRetriever extends ContextRetriever {
     }
 
     private String getQueryTypeGuidelines(StudioQueryContext context) {
-        StudioQueryContext.QueryType queryType = context.inferQueryType();
-        StudioQueryContext.QueryScope queryScope = context.inferQueryScope();
 
-        StringBuilder guidelines = new StringBuilder();
-
-        guidelines.append("### 질의 타입: ").append(queryType != null ? queryType.getDescription() : "일반 분석").append("\n");
-        guidelines.append("### 질의 범위: ").append(queryScope != null ? queryScope.getDescription() : "전체").append("\n\n");
-
-        guidelines.append("### 분석 지침:\n");
-
-        if (queryType == StudioQueryContext.QueryType.WHO_CAN) {
-            guidelines.append("""
-                - 특정 작업을 수행할 수 있는 모든 사용자 식별
-                - 직접 권한과 그룹/역할을 통한 간접 권한 모두 확인
-                - 권한 획득 경로 명확히 표시
-                - 시각화: 사용자 → 그룹 → 역할 → 권한 흐름도
-                """);
-        } else if (queryType == StudioQueryContext.QueryType.WHY_CANNOT) {
-            guidelines.append("""
-                - 접근 불가 원인을 단계별로 분석
-                - 필요한 권한과 현재 보유 권한 비교
-                - 권한 획득을 위한 구체적 방법 제시
-                - 시각화: 현재 상태와 필요 상태 비교 다이어그램
-                """);
-        } else if (queryType == StudioQueryContext.QueryType.ANALYZE_PERMISSIONS) {
-            guidelines.append("""
-                - 대상의 전체 권한 구조 상세 분석
-                - 권한의 출처(직접/간접) 구분
-                - 과도한 권한이나 부족한 권한 식별
-                - 시각화: 권한 계층 구조도
-                """);
-        } else {
-            guidelines.append("""
-                - 질의에 가장 적합한 분석 방법 선택
-                - 명확하고 실행 가능한 답변 제공
-                - 보안 관점에서의 권장사항 포함
-                - 적절한 시각화 방법 선택
-                """);
-        }
-
-        return guidelines.toString();
+        return "### 분석 지침:\n" +
+                """
+                        - 특정 작업을 수행할 수 있는 모든 사용자 식별
+                        - 직접 권한과 그룹/역할을 통한 간접 권한 모두 확인
+                        - 권한 획득 경로 명확히 표시
+                        
+                        - 시각화: 사용자 → 그룹 → 역할 → 권한 흐름도
+                        - 접근 불가 원인을 단계별로 분석
+                        - 필요한 권한과 현재 보유 권한 비교
+                        - 권한 획득을 위한 구체적 방법 제시
+                        
+                        - 시각화: 현재 상태와 필요 상태 비교 다이어그램
+                        - 대상의 전체 권한 구조 상세 분석
+                        - 권한의 출처(직접/간접) 구분
+                        - 과도한 권한이나 부족한 권한 식별
+                        
+                        - 시각화: 권한 계층 구조도
+                        - 질의에 가장 적합한 분석 방법 선택
+                        - 명확하고 실행 가능한 답변 제공
+                        - 보안 관점에서의 권장사항 포함
+                        - 적절한 시각화 방법 선택
+                        """;
     }
 
     private String getDefaultStudioQueryContext() {
         return """
-        ## 기본 Authorization Studio 컨텍스트
-        
-        ### 지원하는 질의 유형:
-        - "누가 ~할 수 있나요?" (WHO_CAN)
-        - "왜 ~할 수 없나요?" (WHY_CANNOT)
-        - "~의 권한을 분석해주세요" (ANALYZE_PERMISSIONS)
-        - "~에 접근하는 경로는?" (ACCESS_PATH)
-        - "~변경 시 영향은?" (IMPACT_ANALYSIS)
-        
-        ### 분석 원칙:
-        - 정확한 데이터 기반 분석
-        - 권한 획득 경로 명확히 표시
-        - 보안 관점의 권장사항 제공
-        - 직관적인 시각화 제공
-        
-        ### 주의사항:
-        - 민감한 정보는 필터링
-        - 최소 권한 원칙 준수
-        - 컴플라이언스 고려
-        """;
+                ## 기본 Authorization Studio 컨텍스트
+                
+                ### 지원하는 질의 유형:
+                - "누가 ~할 수 있나요?" (WHO_CAN)
+                - "왜 ~할 수 없나요?" (WHY_CANNOT)
+                - "~의 권한을 분석해주세요" (ANALYZE_PERMISSIONS)
+                - "~에 접근하는 경로는?" (ACCESS_PATH)
+                - "~변경 시 영향은?" (IMPACT_ANALYSIS)
+                
+                ### 분석 원칙:
+                - 정확한 데이터 기반 분석
+                - 권한 획득 경로 명확히 표시
+                - 보안 관점의 권장사항 제공
+                - 직관적인 시각화 제공
+                
+                ### 주의사항:
+                - 민감한 정보는 필터링
+                - 최소 권한 원칙 준수
+                - 컴플라이언스 고려
+                """;
     }
 
     private static class StudioQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
-        
+
         public StudioQueryTransformer(ChatClient.Builder chatClientBuilder) {
             this.chatClient = chatClientBuilder.build();
         }
-        
+
         @Override
         public Query transform(Query originalQuery) {
             if (originalQuery == null || originalQuery.text() == null) {
                 return originalQuery;
             }
-            
+
             String prompt = String.format("""
-                Authorization Studio 자연어 질의를 위한 검색 쿼리를 최적화하세요:
-                
-                원본 쿼리: %s
-                
-                최적화 지침:
-                1. 사용자, 그룹, 역할, 권한 관련 용어를 추가하세요
-                2. 접근 경로와 권한 상속 관련 키워드를 포함하세요
-                3. WHO_CAN, WHY_CANNOT 등 질의 타입을 구체화하세요
-                4. 조직 구조와 계층 관계 관련 용어를 추가하세요
-                5. 권한 분석과 영향 평가 관련 키워드를 포함하세요
-                
-                최적화된 쿼리만 반환하세요.
-                """, originalQuery.text());
-            
+                    Authorization Studio 자연어 질의를 위한 검색 쿼리를 최적화하세요:
+                    
+                    원본 쿼리: %s
+                    
+                    최적화 지침:
+                    1. 사용자, 그룹, 역할, 권한 관련 용어를 추가하세요
+                    2. 접근 경로와 권한 상속 관련 키워드를 포함하세요
+                    3. WHO_CAN, WHY_CANNOT 등 질의 타입을 구체화하세요
+                    4. 조직 구조와 계층 관계 관련 용어를 추가하세요
+                    5. 권한 분석과 영향 평가 관련 키워드를 포함하세요
+                    
+                    최적화된 쿼리만 반환하세요.
+                    """, originalQuery.text());
+
             String transformedText = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content();
-                
+                    .user(prompt)
+                    .call()
+                    .content();
+
             return new Query(transformedText);
         }
     }

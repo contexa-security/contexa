@@ -13,6 +13,9 @@ public class JsonStreamingProcessor implements ChunkProcessor {
 
     private static final String PROCESSOR_TYPE = "json";
 
+    // Maximum marker length: ===JSON_START=== = 16 characters
+    private static final int MAX_MARKER_LENGTH = 16;
+
     @Override
     public Flux<String> process(Flux<String> upstream) {
         AtomicReference<StringBuilder> textBuffer = new AtomicReference<>(new StringBuilder());
@@ -35,22 +38,23 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                                              AtomicReference<StringBuilder> jsonBuffer) {
 
         textBuffer.get().append(chunk);
+        String buffer = textBuffer.get().toString();
 
-        if (!jsonStarted.get() && textBuffer.get().toString().contains(StreamingProtocol.JSON_START_MARKER)) {
+        // 1. Detect JSON_START marker (only when jsonStarted=false)
+        if (!jsonStarted.get() && buffer.contains(StreamingProtocol.JSON_START_MARKER)) {
             jsonStarted.set(true);
-            int startIndex = textBuffer.get().toString().indexOf(StreamingProtocol.JSON_START_MARKER);
+            int startIndex = buffer.indexOf(StreamingProtocol.JSON_START_MARKER);
 
-            String beforeJson = textBuffer.get().substring(0, startIndex);
+            String beforeJson = buffer.substring(0, startIndex);
+            String afterMarker = buffer.substring(startIndex + StreamingProtocol.JSON_START_MARKER.length());
 
-            String afterJsonMarker = textBuffer.get().substring(startIndex + StreamingProtocol.JSON_START_MARKER.length());
-            textBuffer.set(new StringBuilder(afterJsonMarker));
+            textBuffer.set(new StringBuilder(afterMarker));
             jsonBuffer.set(new StringBuilder());
 
             if (!beforeJson.trim().isEmpty()) {
                 return Flux.just(StreamingProtocol.STREAMING_MARKER + beforeJson);
-            } else {
-                return Flux.empty();
             }
+            return Flux.empty();
         }
 
         if (jsonStarted.get() && !jsonEnded.get()) {
@@ -67,7 +71,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                 textBuffer.set(new StringBuilder(afterJson));
 
                 List<String> results = new ArrayList<>();
-
                 results.add(StreamingProtocol.FINAL_RESPONSE_MARKER + jsonBuffer.get().toString());
 
                 if (!afterJson.trim().isEmpty()) {
@@ -80,21 +83,62 @@ public class JsonStreamingProcessor implements ChunkProcessor {
             return Flux.empty();
         }
 
-        if (!jsonStarted.get() || jsonEnded.get()) {
-            String currentText = textBuffer.get().toString();
-            textBuffer.set(new StringBuilder());
+        String currentText = textBuffer.get().toString();
 
-            String cleanedText = currentText
-                    .replace(StreamingProtocol.JSON_START_MARKER, "")
-                    .replace(StreamingProtocol.JSON_END_MARKER, "");
-            if (!cleanedText.trim().isEmpty()) {
-                return Flux.just(StreamingProtocol.STREAMING_MARKER + cleanedText);
-            } else {
-                return Flux.empty();
+        int keepFromIndex = findIncompleteMarkerIndex(currentText);
+
+        if (keepFromIndex != -1) {
+            String toProcess = currentText.substring(0, keepFromIndex);
+            String toKeep = currentText.substring(keepFromIndex);
+            textBuffer.set(new StringBuilder(toKeep));
+
+            if (!toProcess.trim().isEmpty()) {
+                return Flux.just(StreamingProtocol.STREAMING_MARKER + toProcess);
+            }
+            return Flux.empty();
+        }
+
+        // No marker prefix - process entire buffer
+        textBuffer.set(new StringBuilder());
+        String cleanedText = currentText
+                .replace(StreamingProtocol.JSON_START_MARKER, "")
+                .replace(StreamingProtocol.JSON_END_MARKER, "");
+
+        if (!cleanedText.trim().isEmpty()) {
+            return Flux.just(StreamingProtocol.STREAMING_MARKER + cleanedText);
+        }
+        return Flux.empty();
+    }
+
+    /**
+     * Find index where an incomplete marker might start at the end of the buffer.
+     * Returns -1 if no incomplete marker prefix is found.
+     *
+     * Checks if any suffix of the buffer could be the start of:
+     * - ===JSON_START===
+     * - ===JSON_END===
+     */
+    private int findIncompleteMarkerIndex(String text) {
+        if (text == null || text.isEmpty()) {
+            return -1;
+        }
+
+        String startMarker = StreamingProtocol.JSON_START_MARKER;
+        String endMarker = StreamingProtocol.JSON_END_MARKER;
+
+        // Check suffixes from longest possible incomplete marker to shortest
+        int searchStart = Math.max(0, text.length() - MAX_MARKER_LENGTH + 1);
+
+        for (int i = searchStart; i < text.length(); i++) {
+            String suffix = text.substring(i);
+
+            // Check if this suffix could be the beginning of a marker
+            if (startMarker.startsWith(suffix) || endMarker.startsWith(suffix)) {
+                return i;
             }
         }
 
-        return Flux.empty();
+        return -1;
     }
 
     private String cleanTextChunk(String chunk) {

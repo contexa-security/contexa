@@ -15,6 +15,4 @@ public interface AICoreOperations<T extends DomainContext> {
 
     Flux<String> processStream(AIRequest<T> request);
 
-    <R extends AIResponse> Mono<List<R>> executeBatch(List<AIRequest<T>> requests, Class<R> responseType);
-
 }

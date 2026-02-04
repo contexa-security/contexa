@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.core.std;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.mcp.tool.ToolResolver;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;

@@ -1,5 +1,7 @@
 package io.contexa.contexacoreenterprise.soar.lab;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.SoarResponse;
@@ -26,7 +28,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
         
         PipelineConfiguration<SoarContext> config = createPipelineConfiguration(request);
 
-        AIRequest<SoarContext> aiRequest = new AIRequest<>(request.getContext(), "SOAR_ANALYSIS", request.getOrganizationId())
+        AIRequest<SoarContext> aiRequest = new AIRequest<>(request.getContext(), new TemplateType("Soar"), new DiagnosisType("Soar"))
                 .withParameter("query", request.getQuery())
                 .withParameter("sessionId", request.getSessionId());
 

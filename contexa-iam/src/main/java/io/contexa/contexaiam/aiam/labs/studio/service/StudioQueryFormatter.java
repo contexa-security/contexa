@@ -167,7 +167,7 @@ public class StudioQueryFormatter {
         
         StringBuilder sb = new StringBuilder();
         sb.append("AI-Native Authorization Studio\n");
-        sb.append("질의: ").append(request.getQuery()).append("\n");
+        sb.append("질의: ").append(request.getNaturalLanguageQuery()).append("\n");
         sb.append("분석 시각: ").append(new Date()).append("\n");
         sb.append("분석 모드: AI-Native (하드코딩 제거 완료)\n");
 

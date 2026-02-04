@@ -132,7 +132,6 @@ public class DefaultStandardStreamingService implements StandardStreamingService
     private Flux<ServerSentEvent<String>> flushRemainingBuffer(
             StreamingContext streamingContext) {
 
-        // Sentence buffering enabled by default
         return streamingContext.getSentenceBuffer().flush()
                 .map(this::createDataEvent);
     }

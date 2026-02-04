@@ -19,12 +19,13 @@ public class AIRequest<T extends DomainContext> {
     private final String requestId;
     private String naturalLanguageQuery;
     private final LocalDateTime timestamp;
-    private final T context;
+    private T context;
     private final TemplateType templateType;
     private final DiagnosisType diagnosisType;
     private final Map<String, Object> parameters;
 
     public AIRequest(T context, TemplateType templateType, DiagnosisType diagnosisType) {
+        Assert.notNull(context, "context must not be null");
         Assert.notNull(templateType, "templateType must not be null");
         Assert.notNull(diagnosisType, "diagnosisType must not be null");
         this.requestId = UUID.randomUUID().toString();
@@ -49,6 +50,11 @@ public class AIRequest<T extends DomainContext> {
     public void setNaturalLanguageQuery(String naturalLanguageQuery) {
         this.naturalLanguageQuery = naturalLanguageQuery;
     }
+
+    public void setContext(T context) {
+        this.context = context;
+    }
+
     public T getContext() { return context; }
     public TemplateType getPromptTemplate() { return templateType; }
     public String getRequestId() { return requestId; }

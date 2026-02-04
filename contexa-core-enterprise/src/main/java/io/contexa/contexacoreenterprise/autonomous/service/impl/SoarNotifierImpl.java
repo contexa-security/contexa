@@ -1,5 +1,7 @@
 package io.contexa.contexacoreenterprise.autonomous.service.impl;
 
+import io.contexa.contexacommon.domain.DiagnosisType;
+import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.autonomous.service.ISoarNotifier;
 import io.contexa.contexacore.autonomous.domain.NotificationResult;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
@@ -85,7 +87,8 @@ public class SoarNotifierImpl implements ISoarNotifier {
 
                     SoarRequest soarRequest = SoarRequest.builder()
                         .context(context)
-                        .operation("soarAnalysis")
+                        .templateType(new TemplateType("Soar"))
+                        .diagnosisType(new DiagnosisType("Soar"))
                         .initialQuery(prompt)
                         .build();
                     SoarResponse soarResponse = (SoarResponse) soarLab.processAsync(soarRequest)
@@ -207,7 +210,8 @@ public class SoarNotifierImpl implements ISoarNotifier {
                 
                 SoarRequest soarRequest = SoarRequest.builder()
                     .context(context)
-                    .operation("soarAnalysis")
+                    .templateType(new TemplateType("Soar"))
+                    .diagnosisType(new DiagnosisType("Soar"))
                     .initialQuery(prompt)
                     .build();
                 SoarResponse soarResponse = (SoarResponse) soarLab.processAsync(soarRequest)

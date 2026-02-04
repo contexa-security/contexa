@@ -6,6 +6,7 @@ import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -42,7 +43,7 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
             - 이 단계에서는 절대 JSON 형식이나 코드 블록을 출력해서는 안 됩니다.
 
             **[2단계] 최종 JSON 데이터 출력:**
-            - 모든 분석이 완료되면, "###FINAL_RESPONSE###" 마커 바로 뒤에 순수한(raw) JSON 객체를 출력해야 합니다.
+            - 모든 분석이 완료되면, "===JSON_START===" 마커와 "===JSON_END===" 마커 사이에 순수한(raw) JSON 객체를 출력해야 합니다.
             - JSON 객체는 반드시 `{`로 시작하여 `}`로 끝나야 합니다.
             
             **JSON 출력에 대한 절대 규칙 (반드시 준수할 것):**
@@ -54,8 +55,9 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
             6.  **따옴표 주의:** 모든 키(key)와 문자열 값(value)은 반드시 큰따옴표(`"`)로 감싸야 합니다. 숫자 및 boolean 값은 예외입니다.
 
             **아래는 당신이 출력해야 할 완벽한 JSON 구조입니다. 이 구조를 반드시 따르세요.**
-            
-            ###FINAL_RESPONSE###{
+
+            ===JSON_START===
+            {
               "analysisId": "studio-query-001",
               "query": "그룹과 문서를 조회할 수 있는 사용자를 모두 보여주세요",
               "naturalLanguageAnswer": "김팀장과 이운영이 그룹 정보 조회와 문서 조회 권한을 보유하고 있습니다.",
@@ -92,6 +94,7 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
                 }
               ]
             }
+            ===JSON_END===
 
             **컨텍스트 정보:**
             %s
@@ -112,7 +115,7 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
             
             **권한 분석 실행 지시:**
             1.  먼저, 분석 과정을 자연어로 단계별로 설명합니다. (JSON 형식 절대 사용 금지)
-            2.  모든 분석이 끝나면, ###FINAL_RESPONSE### 마커와 함께 위에서 정의된 완벽한 JSON 구조의 데이터를 출력하고 즉시 응답을 종료하세요.
+            2.  모든 분석이 끝나면, ===JSON_START=== 마커와 ===JSON_END=== 마커 사이에 위에서 정의된 완벽한 JSON 구조의 데이터를 출력하고 즉시 응답을 종료하세요.
             
             **지금부터 자연어 분석을 시작하세요.**
             """, query, scope);

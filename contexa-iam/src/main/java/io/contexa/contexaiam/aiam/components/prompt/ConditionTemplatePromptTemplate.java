@@ -57,7 +57,7 @@ public class ConditionTemplatePromptTemplate implements PromptTemplate {
     private String extractTemplateType(AIRequest<? extends DomainContext> request) {
         if (request instanceof ConditionTemplateGenerationRequest) {
             ConditionTemplateGenerationRequest ctgRequest = (ConditionTemplateGenerationRequest) request;
-            String templateType = ctgRequest.getTemplateType();
+            String templateType = ctgRequest.getTemplate();
             return templateType;
         }
 
