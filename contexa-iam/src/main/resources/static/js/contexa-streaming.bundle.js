@@ -65,6 +65,8 @@
             this.abortController = null;
             this.isAborted = false;
             this.retryCount = 0;
+            this.finalResponseReceived = false;
+            this.finalResponseBuffer = '';
         }
 
         mergeConfig(defaults, overrides) {
@@ -84,6 +86,7 @@
         async stream(url, requestData, callbacks = {}) {
             return new Promise((resolve, reject) => {
                 let finalResponse = null;
+                let finalResponseMarkerReceived = false;
 
                 this.startStreaming(url, requestData, {
                     onChunk: (chunk) => {
@@ -93,10 +96,15 @@
                         if (callbacks.onGeneratingResult) callbacks.onGeneratingResult();
                     },
                     onFinalResponse: (data) => {
-                        finalResponse = this.parseFinalResponse(data);
-                        if (callbacks.onFinalResponse) callbacks.onFinalResponse(finalResponse);
+                        // Mark that final response marker was received, actual parsing happens in onComplete
+                        finalResponseMarkerReceived = true;
+                        if (callbacks.onFinalResponse) callbacks.onFinalResponse(data);
                     },
                     onComplete: () => {
+                        // Parse the accumulated buffer after all data is received
+                        if (finalResponseMarkerReceived && this.finalResponseBuffer) {
+                            finalResponse = this.parseFinalResponse(this.finalResponseBuffer);
+                        }
                         if (callbacks.onComplete) callbacks.onComplete();
                         resolve(finalResponse);
                     },
@@ -121,6 +129,8 @@
         async startStreaming(url, requestData, callbacks) {
             this.isAborted = false;
             this.abortController = new AbortController();
+            this.finalResponseReceived = false;
+            this.finalResponseBuffer = '';
 
             const timeoutMs = this.config.streaming.timeoutMs || 30000;
             const timeoutId = setTimeout(() => {
@@ -237,7 +247,15 @@
                 return;
             }
 
+            // If final response marker was already received, accumulate data to buffer and skip onChunk
+            if (this.finalResponseReceived) {
+                this.finalResponseBuffer += data;
+                return;
+            }
+
             if (data.includes(markers.FINAL_RESPONSE)) {
+                this.finalResponseReceived = true;
+                this.finalResponseBuffer = data;
                 if (callbacks.onFinalResponse) callbacks.onFinalResponse(data);
                 return;
             }
@@ -256,7 +274,8 @@
             try {
                 const markers = this.config.markers;
                 if (data.includes(markers.FINAL_RESPONSE)) {
-                    const markerIndex = data.indexOf(markers.FINAL_RESPONSE);
+                    // Use lastIndexOf to get the last marker (server may send multiple markers)
+                    const markerIndex = data.lastIndexOf(markers.FINAL_RESPONSE);
                     const jsonString = data.substring(markerIndex + markers.FINAL_RESPONSE.length);
                     return this.parseJson(jsonString);
                 }
@@ -510,7 +529,7 @@
             if (this.initialMessageShown) {
                 this.removeLoadingStep('ctx-initial-loading');
                 this.initialMessageShown = false;
-                this.addStep(this.analysisCompleteText);
+                this.addCompletedStep(this.analysisCompleteText);
             }
             if (!this.generatingResultShown) {
                 this.generatingResultShown = true;
@@ -523,7 +542,7 @@
                 this.removeLoadingStep('ctx-generating-result');
                 this.generatingResultShown = false;
             }
-            this.addStep(this.finalCompleteText);
+            this.addCompletedStep(this.finalCompleteText);
             this.updateHeader('Complete');
         }
 
@@ -591,6 +610,26 @@
             });
         }
 
+        addCompletedStep(message) {
+            const content = this.currentModal?.querySelector('#streaming-content');
+            if (!content) return;
+            const step = document.createElement('div');
+            step.className = 'streaming-step ctx-completed-step';
+            step.innerHTML = `
+                <div class="ctx-completed-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                        <path d="M20 6L9 17l-5-5"/>
+                    </svg>
+                </div>
+                <span>${this.escapeHtml(message)}</span>
+            `;
+            content.appendChild(step);
+            requestAnimationFrame(() => {
+                step.classList.add('visible');
+                content.scrollTop = content.scrollHeight;
+            });
+        }
+
         removeLoadingStep(id) {
             const step = this.currentModal?.querySelector(`#${id}`);
             if (step) {
@@ -647,7 +686,7 @@
                 .ctx-query-box { background: rgba(15,23,42,0.7); border: 1px solid rgba(71,85,105,0.4); border-radius: 10px; padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: baseline; gap: 10px; }
                 .ctx-query-label { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #a5b4fc; flex-shrink: 0; }
                 .ctx-query-text { font-size: 0.9rem; color: #cbd5e1; line-height: 1.5; word-break: break-word; }
-                .ctx-stream-content { flex: 1; min-height: 180px; max-height: 280px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+                .ctx-stream-content { flex: 1; min-height: 234px; max-height: 364px; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
                 .ctx-stream-content::-webkit-scrollbar { width: 5px; }
                 .ctx-stream-content::-webkit-scrollbar-track { background: rgba(30,41,59,0.5); border-radius: 3px; }
                 .ctx-stream-content::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.5); border-radius: 3px; }
@@ -658,6 +697,10 @@
                 .streaming-step.visible { opacity: 1; transform: translateX(0); }
                 .ctx-loading-step { display: flex; align-items: center; gap: 10px; border-left-color: rgba(139,92,246,0.6); background: rgba(139,92,246,0.08); }
                 .ctx-loading-spinner { width: 16px; height: 16px; border: 2px solid rgba(139,92,246,0.3); border-top-color: #8b5cf6; border-radius: 50%; animation: ctx-spin 1s linear infinite; flex-shrink: 0; }
+                .ctx-completed-step { display: flex; align-items: center; gap: 10px; border-left-color: rgba(34,197,94,0.6); background: rgba(34,197,94,0.08); }
+                .ctx-completed-icon { width: 18px; height: 18px; background: linear-gradient(135deg, #22c55e, #16a34a); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; animation: ctx-check-pop 0.4s ease-out; }
+                .ctx-completed-icon svg { width: 12px; height: 12px; color: #fff; }
+                @keyframes ctx-check-pop { 0% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
                 .ctx-modal-footer { display: flex; align-items: center; gap: 12px; padding-top: 12px; border-top: 1px solid rgba(71,85,105,0.3); }
                 .ctx-loading-dots { display: flex; gap: 4px; }
                 .ctx-loading-dots span { width: 6px; height: 6px; background: #6366f1; border-radius: 50%; animation: ctx-bounce 1.4s ease-in-out infinite; }
@@ -668,7 +711,7 @@
                 @keyframes ctx-spin { to { transform: rotate(360deg); } }
                 @keyframes ctx-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0.4); } 50% { box-shadow: 0 0 0 8px rgba(99,102,241,0); } }
                 @keyframes ctx-bounce { 0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; } 40% { transform: scale(1.2); opacity: 1; } }
-                @media (max-width: 640px) { .ctx-modal-content { width: 95%; padding: 20px; max-height: 85vh; } .ctx-header-text { font-size: 1.1rem; } .ctx-query-box { flex-direction: column; gap: 6px; } .ctx-stream-content { max-height: 220px; } }
+                @media (max-width: 640px) { .ctx-modal-content { width: 95%; padding: 20px; max-height: 85vh; } .ctx-header-text { font-size: 1.1rem; } .ctx-query-box { flex-direction: column; gap: 6px; } .ctx-stream-content { max-height: 286px; } }
             `;
         }
 
