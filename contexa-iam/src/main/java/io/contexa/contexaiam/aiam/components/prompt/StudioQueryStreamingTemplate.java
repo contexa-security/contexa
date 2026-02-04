@@ -108,19 +108,20 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
      * 통합 사용자 프롬프트 - 구체적 요청과 실행 지시
      */
     private String buildUnifiedUserPrompt(String query, String scope, String contextInfo) {
-        // [개선] 사용자 프롬프트에서도 규칙을 다시 한번 강조
         return String.format("""
             **권한 분석 질의:**
             "%s"
-            
+
             **분석 범위:**
             %s
-            
-            **권한 분석 실행 지시:**
+
+            **권한 분석 실행 지시 (반드시 준수):**
             1.  먼저, 분석 과정을 자연어로 단계별로 설명합니다. (JSON 형식 절대 사용 금지)
-            2.  모든 분석이 끝나면, ===JSON_START=== 마커와 ===JSON_END=== 마커 사이에 위에서 정의된 완벽한 JSON 구조의 데이터를 출력하고 즉시 응답을 종료하세요.
-            
-            **지금부터 자연어 분석을 시작하세요.**
+            2.  모든 분석이 끝나면, 반드시 ===JSON_START=== 마커로 시작하여 JSON 데이터를 출력하고 ===JSON_END=== 마커로 종료합니다.
+
+            **[중요] JSON 출력은 필수입니다. JSON 출력 없이 응답을 종료하면 실패로 간주됩니다.**
+
+            **지금부터 자연어 분석을 시작하고, 분석이 끝나면 반드시 JSON 결과를 출력하세요:**
             """, query, scope);
     }
 
