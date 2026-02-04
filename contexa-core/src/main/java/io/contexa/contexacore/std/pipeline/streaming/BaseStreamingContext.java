@@ -1,5 +1,7 @@
 package io.contexa.contexacore.std.pipeline.streaming;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -24,6 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * }).subscribe();
  * }</pre>
  */
+@Slf4j
 public class BaseStreamingContext {
 
     private final StreamingProperties properties;
@@ -80,11 +83,14 @@ public class BaseStreamingContext {
                 markerBuffer.delete(0, markerBuffer.length() - maxMarkerLength);
             }
 
-            if (markerBuffer.toString().contains(properties.getFinalResponseMarker())) {
+            String marker = properties.getFinalResponseMarker();
+            if (markerBuffer.toString().contains(marker)) {
                 finalResponseStarted.set(true);
+//                log.debug("[CONTEXT] FINAL_RESPONSE marker detected! allData length={}", allData.length());
             }
         } else {
             finalResponseData.append(chunk);
+//            log.debug("[CONTEXT] Appending to finalResponseData: length={}", finalResponseData.length());
         }
     }
 
@@ -156,10 +162,19 @@ public class BaseStreamingContext {
         String fullData = allData.toString();
         String marker = properties.getFinalResponseMarker();
 
+        log.debug("[CONTEXT] extractJsonPart called: allData length={}, contains marker={}",
+            fullData.length(), fullData.contains(marker));
+
         if (fullData.contains(marker)) {
             int markerIndex = fullData.indexOf(marker);
-            return fullData.substring(markerIndex);
+            String jsonPart = fullData.substring(markerIndex);
+            log.debug("[CONTEXT] Extracted JSON part: length={}", jsonPart.length());
+            log.debug("[CONTEXT] JSON part: {}",jsonPart);
+//            log.debug("[CONTEXT] JSON part (last 300): {}",
+//                jsonPart.length() > 300 ? "..." + jsonPart.substring(jsonPart.length() - 300) : jsonPart);
+            return jsonPart;
         }
+//        log.debug("[CONTEXT] No marker found, returning null");
         return null;
     }
 

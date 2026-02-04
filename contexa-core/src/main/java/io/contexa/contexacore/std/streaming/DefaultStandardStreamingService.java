@@ -106,13 +106,21 @@ public class DefaultStandardStreamingService implements StandardStreamingService
     private Flux<ServerSentEvent<String>> processChunk(String chunk, StreamingContext streamingContext) {
 
         String chunkStr = chunk != null ? chunk : "";
+
+//        log.debug("[SSE-CHUNK] Received chunk: length={}, preview={}",
+//            chunkStr.length(),
+//            chunkStr.length() > 100 ? chunkStr.substring(0, 100) + "..." : chunkStr);
+
         streamingContext.appendChunk(chunkStr);
 
         if (streamingContext.isFinalResponseStarted()) {
+//            log.debug("[SSE-CHUNK] FINAL_RESPONSE detected, returning empty");
             return Flux.empty();
         }
 
         return streamingContext.getSentenceBuffer().processChunk(chunkStr)
+//                .doOnNext(sentence -> log.debug("[SSE-SENTENCE] Sending sentence: {}",
+//                    sentence.length() > 100 ? sentence.substring(0, 100) + "..." : sentence))
                 .map(this::createDataEvent);
     }
 
@@ -122,7 +130,13 @@ public class DefaultStandardStreamingService implements StandardStreamingService
         return Mono.defer(() -> {
             String jsonPart = streamingContext.extractJsonPart();
             if (jsonPart != null && !streamingContext.isJsonSent()) {
+                log.debug("[SSE-JSON] Sending JSON response: {}", jsonPart);
+                log.debug("[SSE-JSON] Sending JSON response: length={}", jsonPart.length());
                 streamingContext.markJsonSent();
+//                log.debug("[SSE-JSON] JSON content (first 500): {}",
+//                    jsonPart.length() > 500 ? jsonPart.substring(0, 500) + "..." : jsonPart);
+//                log.debug("[SSE-JSON] JSON content (last 500): {}",
+//                    jsonPart.length() > 500 ? "..." + jsonPart.substring(jsonPart.length() - 500) : jsonPart);
                 return Mono.just(createDataEvent(jsonPart));
             }
             return Mono.empty();
@@ -132,7 +146,19 @@ public class DefaultStandardStreamingService implements StandardStreamingService
     private Flux<ServerSentEvent<String>> flushRemainingBuffer(
             StreamingContext streamingContext) {
 
+        log.debug("[SSE-FLUSH] flushRemainingBuffer called: isFinalResponseStarted={}",
+            streamingContext.isFinalResponseStarted());
+
+        // Do not flush buffer after FINAL_RESPONSE - prevents JSON corruption
+        // from leftover buffer data being appended after JSON response
+        if (streamingContext.isFinalResponseStarted()) {
+            log.debug("[SSE-FLUSH] Skipping flush - FINAL_RESPONSE already started");
+            return Flux.empty();
+        }
+
         return streamingContext.getSentenceBuffer().flush()
+                .doOnNext(data -> log.debug("[SSE-FLUSH] Flushing data: {}",
+                    data.length() > 100 ? data.substring(0, 100) + "..." : data))
                 .map(this::createDataEvent);
     }
 
@@ -143,8 +169,15 @@ public class DefaultStandardStreamingService implements StandardStreamingService
     }
 
     private ServerSentEvent<String> createDataEvent(String data) {
+        // SSE multiline bug fix: Remove newlines to prevent client parsing issues
+        // Client splits by '\n' and only processes lines starting with 'data:'
+        // JSON with newlines causes data loss (e.g., '],' between lines gets dropped)
+        String sanitizedData = data;
+        if (data != null && data.contains("\n")) {
+            sanitizedData = data.replace("\n", "").replace("\r", "");
+        }
         return ServerSentEvent.<String>builder()
-                .data(data)
+                .data(sanitizedData)
                 .build();
     }
 

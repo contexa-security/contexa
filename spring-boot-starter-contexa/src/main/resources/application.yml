@@ -1,6 +1,13 @@
 contexa:
   hcad:
     enable-simulated-user-agent: true
+
+logging:
+  level:
+    io.contexa.contexacore.std.pipeline.streaming: DEBUG
+    io.contexa.contexacore.std.streaming: DEBUG
+    io.contexa.contexacore.std.llm: DEBUG
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/identity

@@ -414,11 +414,12 @@ class AIStudioLegacy {
                         }
 
                         // 🔥 모든 데이터를 allDataBuffer에 누적
+                        console.log('📦 [SSE-DATA] Received:', data.length, 'chars, preview:', data.substring(0, 100));
                         allDataBuffer += data;
 
                         // FINAL_RESPONSE 감지
                         if (!finalResponseDetected && allDataBuffer.includes('###FINAL_RESPONSE###')) {
-                            console.log('📊 [DIAGNOSIS] FINAL_RESPONSE 마커 감지');
+                            console.log('📊 [DIAGNOSIS] FINAL_RESPONSE 마커 감지, buffer length:', allDataBuffer.length);
                             finalResponseDetected = true;
 
                             // 분석 완료 메시지들 표시
@@ -480,8 +481,11 @@ class AIStudioLegacy {
     processFinalResponse(fullData) {
         console.log('📊 [FINAL-PARSING] JSON 파싱 시작');
         console.log('전체 데이터 길이:', fullData.length);
+        console.log('📊 [FINAL-PARSING] fullData (first 500):', fullData.substring(0, 500));
+        console.log('📊 [FINAL-PARSING] fullData (last 500):', fullData.substring(Math.max(0, fullData.length - 500)));
 
-        const markerIndex = fullData.indexOf('###FINAL_RESPONSE###');
+        const markerIndex = fullData.lastIndexOf('###FINAL_RESPONSE###');
+        console.log('📊 [FINAL-PARSING] Marker index:', markerIndex);
         if (markerIndex === -1) {
             console.error('FINAL_RESPONSE 마커를 찾을 수 없음');
             this.handleJsonParseError('');
@@ -490,25 +494,11 @@ class AIStudioLegacy {
 
         const marker = '###FINAL_RESPONSE###';
         let jsonData = fullData.substring(markerIndex + marker.length);
-
-        // 🔥 중복 제거: JSON 안에 ###FINAL_RESPONSE### 마커가 또 있는 경우 첫 번째만 사용
-        const duplicateMarkerIndex = jsonData.indexOf('###FINAL_RESPONSE###');
-        if (duplicateMarkerIndex !== -1) {
-            console.warn('중복된 FINAL_RESPONSE 마커 감지 - 첫 번째만 사용');
-            jsonData = jsonData.substring(0, duplicateMarkerIndex);
-            console.log('🔥 중복 제거 후 JSON 길이:', jsonData.length);
-        }
+        console.log('📊 [FINAL-PARSING] jsonData after marker (first 500):', jsonData.substring(0, 500));
+        console.log('📊 [FINAL-PARSING] jsonData after marker (last 500):', jsonData.substring(Math.max(0, jsonData.length - 500)));
 
         // JSON 추출 및 정제
         let cleanJsonData = jsonData.trim();
-
-        // 🔥 JSON 내부에 섞인 마커 제거 (문자열 안에 포함된 경우)
-        if (cleanJsonData.includes('###FINAL_RESPONSE###')) {
-            console.warn('JSON 내부에 마커 발견 - 제거 중');
-            // JSON 문자열 안에서 마커 제거 (따옴표 안에 있는 것만)
-            cleanJsonData = cleanJsonData.replace(/###FINAL_RESPONSE###[^"]*"/, '"');
-            console.log('🔥 JSON 내부 마커 제거 완료');
-        }
 
         // 마크다운 코드 블록 제거
         if (cleanJsonData.startsWith('```json')) {
@@ -581,6 +571,8 @@ class AIStudioLegacy {
         if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
             cleanJsonData = cleanJsonData.substring(firstBrace, lastBrace + 1);
             console.log('🔥 JSON 추출 성공:', cleanJsonData.length, 'bytes');
+            console.log('📊 [FINAL-PARSING] cleanJsonData to parse (first 500):', cleanJsonData.substring(0, 500));
+            console.log('📊 [FINAL-PARSING] cleanJsonData to parse (last 500):', cleanJsonData.substring(Math.max(0, cleanJsonData.length - 500)));
 
             try {
                 const parsedResult = JSON.parse(cleanJsonData);

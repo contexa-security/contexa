@@ -53,6 +53,13 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
             4.  **완벽한 구조:** 아래에 명시된 JSON 구조를 단 하나의 필드도 빠뜨리거나 추가하지 말고 완벽하게 따르세요.
             5.  **배열 형식 준수:** `analysisResults`, `queryResults`, `recommendations`, `nodes`, `edges` 필드의 값은 반드시 배열( `[]` ) 형식이어야 합니다. 내용이 없더라도 빈 배열로 출력하세요.
             6.  **따옴표 주의:** 모든 키(key)와 문자열 값(value)은 반드시 큰따옴표(`"`)로 감싸야 합니다. 숫자 및 boolean 값은 예외입니다.
+            7.  **쉼표 규칙 필수:**
+                - 배열 내 객체들 사이에 반드시 쉼표(`,`)를 넣으세요.
+                - 객체 내 필드들 사이에 반드시 쉼표(`,`)를 넣으세요.
+                - 배열을 닫는 `]` 뒤에 다음 필드가 있으면 반드시 쉼표를 넣으세요. 예: `"nodes": [...],` `"edges": [...]`
+                - 마지막 요소 뒤에는 쉼표를 넣지 마세요.
+            8.  **배열 닫기 필수:** 모든 배열은 반드시 `]`로 닫아야 합니다. `"nodes": [...]`처럼 열고 닫는 괄호가 일치해야 합니다.
+            9.  **JSON 검증:** 출력 전 JSON 구문이 유효한지 반드시 확인하세요. `JSON.parse()`로 파싱 가능해야 합니다.
 
             **아래는 당신이 출력해야 할 완벽한 JSON 구조입니다. 이 구조를 반드시 따르세요.**
 
@@ -64,35 +71,31 @@ public class StudioQueryStreamingTemplate implements PromptTemplate {
               "confidenceScore": 95.0,
               "visualizationData": {
                 "nodes": [
-                  { "id": "user-김팀장", "type": "USER", "label": "김팀장", "properties": { "name": "김팀장", "description": "개발본부 그룹, ROLE_DEVELOPER 역할" } }
+                  { "id": "user-김팀장", "type": "USER", "label": "김팀장", "properties": { "name": "김팀장", "description": "개발본부 그룹" } },
+                  { "id": "user-이운영", "type": "USER", "label": "이운영", "properties": { "name": "이운영", "description": "운영팀 그룹" } },
+                  { "id": "group-개발본부", "type": "GROUP", "label": "개발본부", "properties": { "name": "개발본부" } }
                 ],
                 "edges": [
-                  { "id": "edge-1", "source": "user-김팀장", "target": "group-개발본부", "type": "MEMBER_OF", "properties": { "label": "소속", "description": "그룹 멤버십" } }
+                  { "id": "edge-1", "source": "user-김팀장", "target": "group-개발본부", "type": "MEMBER_OF", "properties": { "label": "소속" } },
+                  { "id": "edge-2", "source": "user-이운영", "target": "group-개발본부", "type": "MEMBER_OF", "properties": { "label": "소속" } }
                 ]
               },
               "analysisResults": [
                 {
-                  "user": "실제_사용자명_예:김팀장",
-                  "groups": ["실제_그룹명_예:시스템관리자"],
-                  "roles": ["실제_역할명_예:ROLE_DEVELOPER"],
-                  "permissions": ["실제_권한명_예:GROUP_INFO_VIEW", "DOCUMENT_VIEW"]
+                  "user": "김팀장",
+                  "groups": ["개발본부"],
+                  "roles": ["ROLE_DEVELOPER"],
+                  "permissions": ["GROUP_INFO_VIEW", "DOCUMENT_VIEW"]
+                },
+                {
+                  "user": "이운영",
+                  "groups": ["운영팀"],
+                  "roles": ["ROLE_OPERATOR"],
+                  "permissions": ["GROUP_INFO_VIEW", "DOCUMENT_VIEW"]
                 }
               ],
-              "queryResults": [
-                {
-                  "resultType": "PERMISSION_CHECK",
-                  "entityName": "엔티티명",
-                  "hasAccess": true,
-                  "reason": "접근 가능 이유"
-                }
-              ],
-              "recommendations": [
-                {
-                  "title": "권장사항 제목",
-                  "description": "권장사항 설명",
-                  "priority": 1
-                }
-              ]
+              "queryResults": [],
+              "recommendations": []
             }
             ===JSON_END===
 
