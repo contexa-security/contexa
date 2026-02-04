@@ -89,6 +89,9 @@
                     onChunk: (chunk) => {
                         if (callbacks.onChunk) callbacks.onChunk(chunk);
                     },
+                    onGeneratingResult: () => {
+                        if (callbacks.onGeneratingResult) callbacks.onGeneratingResult();
+                    },
                     onFinalResponse: (data) => {
                         finalResponse = this.parseFinalResponse(data);
                         if (callbacks.onFinalResponse) callbacks.onFinalResponse(finalResponse);

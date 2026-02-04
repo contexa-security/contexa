@@ -10,6 +10,7 @@ import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingContext;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
+import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.codec.ServerSentEvent;
@@ -116,6 +117,11 @@ public class DefaultStandardStreamingService implements StandardStreamingService
         if (streamingContext.isFinalResponseStarted()) {
 //            log.debug("[SSE-CHUNK] FINAL_RESPONSE detected, returning empty");
             return Flux.empty();
+        }
+
+        // Special markers bypass SentenceBuffer and are sent directly to client
+        if (chunkStr.contains(StreamingProtocol.GENERATING_RESULT_MARKER)) {
+            return Flux.just(createDataEvent(StreamingProtocol.GENERATING_RESULT_MARKER));
         }
 
         return streamingContext.getSentenceBuffer().processChunk(chunkStr)
