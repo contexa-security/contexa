@@ -1,37 +1,34 @@
 /**
- * Contexa Streaming Library - Bundle
+ * Contexa LLM Library - Bundle
  *
- * A reusable streaming library for LLM responses with customizable UI adapters.
- * This bundle includes all components in a single file.
+ * A reusable library for LLM analysis with streaming and non-streaming support.
  *
- * @version 1.0.0
+ * @version 2.0.0
  * @license MIT
  *
- * @example Basic usage
- * const client = new ContexaStreaming.StreamingClientBuilder()
- *     .withModalUI()
- *     .build();
+ * @example Streaming analysis
+ * const result = await ContexaLLM.analyzeStreaming('/api/llm/stream', { query: 'Hello' });
  *
- * await client.streamWithAdapter('/api/llm/stream', { query: 'Hello' });
+ * @example Non-streaming analysis
+ * const result = await ContexaLLM.analyze('/api/llm/query', { query: 'Hello' });
  */
 (function(global) {
     'use strict';
 
     // ============================================================
-    // UIAdapter - Base Class for Streaming UI Adapters
+    // UIAdapter - Base Class for UI Adapters
     // ============================================================
     class UIAdapter {
         constructor(options = {}) {
             this.options = options;
         }
 
-        onStreamStart(query) {}
+        onStart(query) {}
         onChunk(chunk) {}
-        onSentence(sentence) {}
         onGeneratingResult() {}
         onFinalResponse(response) {}
         onError(error) {
-            console.error('Streaming error:', error);
+            console.error('LLM error:', error);
         }
         onRetry(attempt, maxAttempts) {}
         onComplete() {}
@@ -40,7 +37,7 @@
     }
 
     // ============================================================
-    // StreamingClient - Universal LLM Streaming Client
+    // StreamingClient - SSE Streaming Client
     // ============================================================
     class StreamingClient {
         static DEFAULT_CONFIG = {
@@ -48,39 +45,24 @@
                 FINAL_RESPONSE: '###FINAL_RESPONSE###',
                 GENERATING_RESULT: '###GENERATING_RESULT###',
                 DONE: '[DONE]',
-                ERROR_PREFIX: 'ERROR:',
-                JSON_START: '===JSON_START===',
-                JSON_END: '===JSON_END==='
+                ERROR_PREFIX: 'ERROR:'
             },
-            streaming: {
-                maxRetries: 3,
-                retryDelay: 1000,
-                retryMultiplier: 1.5,
-                timeoutMs: 300000
-            }
+            maxRetries: 3,
+            retryDelay: 1000,
+            retryMultiplier: 1.5,
+            timeoutMs: 300000
         };
 
         constructor(config = {}) {
-            this.config = this.mergeConfig(StreamingClient.DEFAULT_CONFIG, config);
+            this.config = { ...StreamingClient.DEFAULT_CONFIG, ...config };
+            if (config.markers) {
+                this.config.markers = { ...StreamingClient.DEFAULT_CONFIG.markers, ...config.markers };
+            }
             this.abortController = null;
             this.isAborted = false;
             this.retryCount = 0;
             this.finalResponseReceived = false;
             this.finalResponseBuffer = '';
-        }
-
-        mergeConfig(defaults, overrides) {
-            const result = { ...defaults };
-            for (const key in overrides) {
-                if (overrides[key] !== undefined && overrides[key] !== null) {
-                    if (typeof overrides[key] === 'object' && !Array.isArray(overrides[key])) {
-                        result[key] = this.mergeConfig(defaults[key] || {}, overrides[key]);
-                    } else {
-                        result[key] = overrides[key];
-                    }
-                }
-            }
-            return result;
         }
 
         async stream(url, requestData, callbacks = {}) {
@@ -96,12 +78,10 @@
                         if (callbacks.onGeneratingResult) callbacks.onGeneratingResult();
                     },
                     onFinalResponse: (data) => {
-                        // Mark that final response marker was received, actual parsing happens in onComplete
                         finalResponseMarkerReceived = true;
                         if (callbacks.onFinalResponse) callbacks.onFinalResponse(data);
                     },
                     onComplete: () => {
-                        // Parse the accumulated buffer after all data is received
                         if (finalResponseMarkerReceived && this.finalResponseBuffer) {
                             finalResponse = this.parseFinalResponse(this.finalResponseBuffer);
                         }
@@ -120,7 +100,6 @@
                         resolve(null);
                     },
                     onDone: callbacks.onDone,
-                    onEvent: callbacks.onEvent,
                     onStreamError: callbacks.onStreamError
                 });
             });
@@ -132,15 +111,14 @@
             this.finalResponseReceived = false;
             this.finalResponseBuffer = '';
 
-            const timeoutMs = this.config.streaming.timeoutMs || 30000;
             const timeoutId = setTimeout(() => {
                 if (!this.isAborted) {
                     this.abortController.abort();
                     if (callbacks.onError) {
-                        callbacks.onError(new Error(`Request timeout after ${timeoutMs}ms`));
+                        callbacks.onError(new Error(`Request timeout after ${this.config.timeoutMs}ms`));
                     }
                 }
-            }, timeoutMs);
+            }, this.config.timeoutMs);
 
             try {
                 const response = await fetch(url, {
@@ -169,13 +147,12 @@
                     return;
                 }
 
-                const streamingConfig = this.config.streaming;
-                if (this.retryCount < streamingConfig.maxRetries) {
+                if (this.retryCount < this.config.maxRetries) {
                     this.retryCount++;
-                    const delay = streamingConfig.retryDelay *
-                        Math.pow(streamingConfig.retryMultiplier, this.retryCount - 1);
+                    const delay = this.config.retryDelay *
+                        Math.pow(this.config.retryMultiplier, this.retryCount - 1);
 
-                    if (callbacks.onRetry) callbacks.onRetry(this.retryCount, streamingConfig.maxRetries);
+                    if (callbacks.onRetry) callbacks.onRetry(this.retryCount, this.config.maxRetries);
                     await this.sleep(delay);
 
                     if (!this.isAborted) {
@@ -225,9 +202,6 @@
             if (trimmedLine.startsWith('data:')) {
                 const data = trimmedLine.substring(5).trim();
                 this.processSSEData(data, callbacks);
-            } else if (trimmedLine.startsWith('event:')) {
-                const event = trimmedLine.substring(6).trim();
-                if (callbacks.onEvent) callbacks.onEvent(event);
             }
         }
 
@@ -247,7 +221,6 @@
                 return;
             }
 
-            // If final response marker was already received, accumulate data to buffer and skip onChunk
             if (this.finalResponseReceived) {
                 this.finalResponseBuffer += data;
                 return;
@@ -274,7 +247,6 @@
             try {
                 const markers = this.config.markers;
                 if (data.includes(markers.FINAL_RESPONSE)) {
-                    // Use lastIndexOf to get the last marker (server may send multiple markers)
                     const markerIndex = data.lastIndexOf(markers.FINAL_RESPONSE);
                     const jsonString = data.substring(markerIndex + markers.FINAL_RESPONSE.length);
                     return this.parseJson(jsonString);
@@ -291,18 +263,15 @@
             let cleaned = jsonString.trim();
             if (!cleaned) throw new Error('Empty JSON input');
 
-            // Remove markdown code blocks
             if (cleaned.startsWith('```json')) {
                 cleaned = cleaned.replace(/^```json\s*/, '').replace(/```\s*$/, '').trim();
             } else if (cleaned.startsWith('```')) {
                 cleaned = cleaned.replace(/^```\s*/, '').replace(/```\s*$/, '').trim();
             }
 
-            // Extract JSON object from first { to last }
             const firstBrace = cleaned.indexOf('{');
             let lastBrace = cleaned.lastIndexOf('}');
 
-            // Auto-complete incomplete JSON
             if (firstBrace !== -1 && lastBrace === -1) {
                 let braceCount = 0, bracketCount = 0, inString = false, escapeNext = false;
                 for (let i = firstBrace; i < cleaned.length; i++) {
@@ -344,142 +313,76 @@
             }
         }
 
-        reset() {
-            this.abort();
-            this.retryCount = 0;
-            this.isAborted = false;
-        }
-
-        isStreaming() {
-            return this.abortController !== null && !this.isAborted;
-        }
-
         sleep(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
-
-        getConfig() {
-            return this.config;
-        }
     }
 
     // ============================================================
-    // ConsoleAdapter - Console Output Adapter
+    // SyncClient - Non-streaming HTTP Client
     // ============================================================
-    class ConsoleAdapter extends UIAdapter {
-        constructor(options = {}) {
-            super(options);
-            this.prefix = options.prefix || '[STREAM]';
-            this.showTimestamp = options.showTimestamp || false;
+    class SyncClient {
+        static DEFAULT_CONFIG = {
+            timeoutMs: 300000
+        };
+
+        constructor(config = {}) {
+            this.config = { ...SyncClient.DEFAULT_CONFIG, ...config };
+            this.abortController = null;
         }
 
-        formatMessage(type, message) {
-            const timestamp = this.showTimestamp ? `[${new Date().toISOString()}] ` : '';
-            return `${timestamp}${this.prefix} ${type}: ${message}`;
-        }
+        async request(url, requestData, callbacks = {}) {
+            this.abortController = new AbortController();
 
-        onStreamStart(query) { console.log(this.formatMessage('START', query)); }
-        onChunk(chunk) { console.log(this.formatMessage('CHUNK', chunk)); }
-        onSentence(sentence) { console.log(this.formatMessage('SENTENCE', sentence)); }
-        onFinalResponse(response) { console.log(this.formatMessage('FINAL', JSON.stringify(response, null, 2))); }
-        onError(error) { console.error(this.formatMessage('ERROR', error.message || error)); }
-        onRetry(attempt, maxAttempts) { console.warn(this.formatMessage('RETRY', `Attempt ${attempt}/${maxAttempts}`)); }
-        onComplete() { console.log(this.formatMessage('COMPLETE', 'Streaming finished')); }
-        onAbort() { console.log(this.formatMessage('ABORT', 'Streaming aborted')); }
-    }
+            const timeoutId = setTimeout(() => {
+                this.abortController.abort();
+                if (callbacks.onTimeout) callbacks.onTimeout();
+            }, this.config.timeoutMs);
 
-    // ============================================================
-    // SimpleProgressAdapter - Simple Progress UI Adapter
-    // ============================================================
-    class SimpleProgressAdapter extends UIAdapter {
-        constructor(options = {}) {
-            super(options);
-            this.container = options.container || document.body;
-            this.loadingMessage = options.loadingMessage || 'Processing...';
-            this.errorMessage = options.errorMessage || 'An error occurred';
-            this.retryMessage = options.retryMessage || 'Retrying...';
-            this.className = options.className || 'streaming-progress';
-            this.progressElement = null;
-        }
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        ...this.getCsrfHeaders()
+                    },
+                    body: JSON.stringify(requestData),
+                    signal: this.abortController.signal
+                });
 
-        createProgressHTML(query) {
-            return `
-                <div class="${this.className}">
-                    <div class="${this.className}-spinner"></div>
-                    <div class="${this.className}-text">${this.escapeHtml(this.loadingMessage)}</div>
-                    <div class="${this.className}-query">${this.escapeHtml(query.substring(0, 50))}${query.length > 50 ? '...' : ''}</div>
-                </div>
-            `;
-        }
+                clearTimeout(timeoutId);
 
-        createDefaultStyles() {
-            return `
-                .${this.className} { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px 30px; background: rgba(0, 0, 0, 0.8); color: white; border-radius: 8px; text-align: center; z-index: 10000; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-                .${this.className}-spinner { width: 30px; height: 30px; border: 3px solid rgba(255, 255, 255, 0.3); border-top-color: white; border-radius: 50%; margin: 0 auto 10px; animation: ${this.className}-spin 1s linear infinite; }
-                .${this.className}-text { font-size: 14px; margin-bottom: 5px; }
-                .${this.className}-query { font-size: 12px; opacity: 0.7; }
-                .${this.className}-error { color: #ff6b6b; }
-                .${this.className}-retry { color: #ffd93d; }
-                @keyframes ${this.className}-spin { to { transform: rotate(360deg); } }
-            `;
-        }
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
 
-        injectStyles() {
-            const styleId = `${this.className}-styles`;
-            if (!document.getElementById(styleId)) {
-                const style = document.createElement('style');
-                style.id = styleId;
-                style.textContent = this.createDefaultStyles();
-                document.head.appendChild(style);
+                const result = await response.json();
+                if (callbacks.onSuccess) callbacks.onSuccess(result);
+                return result;
+
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    if (callbacks.onAbort) callbacks.onAbort();
+                    return null;
+                }
+                if (callbacks.onError) callbacks.onError(error);
+                throw error;
             }
         }
 
-        escapeHtml(text) {
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
+        getCsrfHeaders() {
+            if (typeof document === 'undefined') return {};
+            const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+            return (csrfToken && csrfHeader) ? { [csrfHeader]: csrfToken } : {};
         }
 
-        onStreamStart(query) {
-            this.destroy();
-            this.injectStyles();
-            const wrapper = document.createElement('div');
-            wrapper.innerHTML = this.createProgressHTML(query);
-            this.progressElement = wrapper.firstElementChild;
-            this.container.appendChild(this.progressElement);
-        }
-
-        onChunk(chunk) {
-            const textEl = this.progressElement?.querySelector(`.${this.className}-text`);
-            if (textEl) {
-                const displayText = chunk.substring(0, 50) + (chunk.length > 50 ? '...' : '');
-                textEl.textContent = displayText;
-            }
-        }
-
-        onError(error) {
-            const textEl = this.progressElement?.querySelector(`.${this.className}-text`);
-            if (textEl) {
-                textEl.textContent = this.errorMessage;
-                textEl.classList.add(`${this.className}-error`);
-            }
-        }
-
-        onRetry(attempt, maxAttempts) {
-            const textEl = this.progressElement?.querySelector(`.${this.className}-text`);
-            if (textEl) {
-                textEl.textContent = `${this.retryMessage} (${attempt}/${maxAttempts})`;
-                textEl.classList.add(`${this.className}-retry`);
-            }
-        }
-
-        onComplete() { this.destroy(); }
-        onAbort() { this.destroy(); }
-
-        destroy() {
-            if (this.progressElement && this.progressElement.parentNode) {
-                this.progressElement.parentNode.removeChild(this.progressElement);
-                this.progressElement = null;
+        abort() {
+            if (this.abortController) {
+                this.abortController.abort();
+                this.abortController = null;
             }
         }
     }
@@ -490,10 +393,9 @@
     class ModalUIAdapter extends UIAdapter {
         constructor(options = {}) {
             super(options);
-            this.modalId = options.modalId || 'streaming-modal';
+            this.modalId = options.modalId || 'llm-modal';
             this.headerText = options.headerText || 'AI Analyzing...';
             this.hideDelay = options.hideDelay || 300;
-            this.animationDelay = options.animationDelay || 100;
             this.currentModal = null;
             this.initialMessageShown = false;
             this.generatingResultShown = false;
@@ -503,7 +405,7 @@
             this.finalCompleteText = options.finalCompleteText || 'AI 분석 완료!';
         }
 
-        onStreamStart(query) {
+        onStart(query) {
             this.hide();
             this.injectStyles();
             this.initialMessageShown = false;
@@ -519,11 +421,8 @@
         }
 
         onChunk(chunk) {
-            // Initial loading removal is handled by onGeneratingResult()
-            // Just add the chunk as a step
             this.addStep(chunk);
         }
-        onSentence(sentence) { this.addStep(sentence); }
 
         onGeneratingResult() {
             if (this.initialMessageShown) {
@@ -647,7 +546,7 @@
 
         createModalHtml(query) {
             return `
-            <div id="${this.modalId}" class="ctx-streaming-modal">
+            <div id="${this.modalId}" class="ctx-llm-modal">
                 <div class="ctx-modal-content">
                     <div class="ctx-modal-header">
                         <div class="ctx-header-icon">
@@ -675,10 +574,10 @@
 
         createDefaultStyles() {
             return `
-                .ctx-streaming-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
-                .ctx-streaming-modal.show { opacity: 1; visibility: visible; }
+                .ctx-llm-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; opacity: 0; visibility: hidden; transition: opacity 0.3s ease, visibility 0.3s ease; }
+                .ctx-llm-modal.show { opacity: 1; visibility: visible; }
                 .ctx-modal-content { background: linear-gradient(145deg, rgba(15,23,42,0.98), rgba(30,41,59,0.98)); border: 1px solid rgba(99,102,241,0.25); border-radius: 16px; padding: 28px; width: 90%; max-width: 560px; max-height: 75vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05) inset; transform: scale(0.95) translateY(10px); transition: transform 0.3s ease; }
-                .ctx-streaming-modal.show .ctx-modal-content { transform: scale(1) translateY(0); }
+                .ctx-llm-modal.show .ctx-modal-content { transform: scale(1) translateY(0); }
                 .ctx-modal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 20px; }
                 .ctx-header-icon { width: 36px; height: 36px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; animation: ctx-pulse 2s ease-in-out infinite; }
                 .ctx-header-icon svg { width: 20px; height: 20px; color: #fff; animation: ctx-spin 3s linear infinite; }
@@ -690,7 +589,6 @@
                 .ctx-stream-content::-webkit-scrollbar { width: 5px; }
                 .ctx-stream-content::-webkit-scrollbar-track { background: rgba(30,41,59,0.5); border-radius: 3px; }
                 .ctx-stream-content::-webkit-scrollbar-thumb { background: rgba(99,102,241,0.5); border-radius: 3px; }
-                .ctx-stream-content::-webkit-scrollbar-thumb:hover { background: rgba(99,102,241,0.7); }
                 .ctx-stream-content.error-state { border-color: rgba(239,68,68,0.5); }
                 .ctx-stream-content.error-state .streaming-step { color: #fca5a5; border-left-color: #ef4444; }
                 .streaming-step { padding: 10px 14px; margin: 8px 0; font-size: 0.875rem; line-height: 1.6; color: #e2e8f0; border-left: 2px solid rgba(99,102,241,0.4); background: rgba(99,102,241,0.05); border-radius: 0 6px 6px 0; opacity: 0; transform: translateX(-8px); transition: opacity 0.25s ease, transform 0.25s ease; }
@@ -716,7 +614,7 @@
         }
 
         injectStyles() {
-            const styleId = 'streaming-modal-styles';
+            const styleId = 'ctx-llm-modal-styles';
             if (!document.getElementById(styleId)) {
                 const style = document.createElement('style');
                 style.id = styleId;
@@ -732,152 +630,178 @@
             return div.innerHTML;
         }
 
-        isVisible() {
-            return this.currentModal !== null && this.currentModal.classList.contains('show');
-        }
-
-        clearSteps() {
-            const content = this.currentModal?.querySelector('#streaming-content');
-            if (content) content.innerHTML = '';
-        }
-
-        autoHide(delayMs = 1500) {
-            setTimeout(() => this.hide(), delayMs);
-        }
-
         destroy() { this.hide(); }
     }
 
     // ============================================================
-    // StreamingClientWithAdapter - Wrapper with UI adapter integration
+    // InlineLoadingAdapter - Inline Loading UI for Non-streaming
     // ============================================================
-    class StreamingClientWithAdapter {
-        constructor(client, adapter) {
-            this.client = client;
-            this.adapter = adapter;
+    class InlineLoadingAdapter extends UIAdapter {
+        constructor(options = {}) {
+            super(options);
+            this.container = options.container || document.body;
+            this.loadingText = options.loadingText || 'AI 분석 중...';
+            this.subText = options.subText || '잠시만 기다려 주세요';
+            this.loadingElement = null;
         }
 
-        async streamWithAdapter(url, requestData, additionalCallbacks = {}) {
-            const query = requestData.query || requestData.prompt || JSON.stringify(requestData).substring(0, 50);
-            if (this.adapter) this.adapter.onStreamStart(query);
+        onStart(query) {
+            this.destroy();
+            this.injectStyles();
 
-            return this.client.stream(url, requestData, {
-                onChunk: (chunk) => {
-                    if (this.adapter) this.adapter.onChunk(chunk);
-                    if (additionalCallbacks.onChunk) additionalCallbacks.onChunk(chunk);
-                },
-                onGeneratingResult: () => {
-                    if (this.adapter && typeof this.adapter.onGeneratingResult === 'function') {
-                        this.adapter.onGeneratingResult();
-                    }
-                    if (additionalCallbacks.onGeneratingResult) additionalCallbacks.onGeneratingResult();
-                },
-                onFinalResponse: (response) => {
-                    if (this.adapter) this.adapter.onFinalResponse(response);
-                    if (additionalCallbacks.onFinalResponse) additionalCallbacks.onFinalResponse(response);
-                },
-                onError: (error) => {
-                    if (this.adapter) this.adapter.onError(error);
-                    if (additionalCallbacks.onError) additionalCallbacks.onError(error);
-                },
-                onRetry: (attempt, maxAttempts) => {
-                    if (this.adapter) this.adapter.onRetry(attempt, maxAttempts);
-                    if (additionalCallbacks.onRetry) additionalCallbacks.onRetry(attempt, maxAttempts);
-                },
-                onComplete: () => {
-                    if (this.adapter) this.adapter.onComplete();
-                    if (additionalCallbacks.onComplete) additionalCallbacks.onComplete();
-                },
-                onAbort: () => {
-                    if (this.adapter) this.adapter.onAbort();
-                    if (additionalCallbacks.onAbort) additionalCallbacks.onAbort();
+            this.loadingElement = document.createElement('div');
+            this.loadingElement.className = 'ctx-inline-loader';
+            this.loadingElement.innerHTML = `
+                <div class="ctx-inline-loader-content">
+                    <div class="ctx-inline-spinner"></div>
+                    <div class="ctx-inline-text">${this.escapeHtml(this.loadingText)}</div>
+                    <div class="ctx-inline-subtext">${this.escapeHtml(this.subText)}</div>
+                </div>
+            `;
+            this.container.appendChild(this.loadingElement);
+        }
+
+        onError(error) {
+            if (this.loadingElement) {
+                const textEl = this.loadingElement.querySelector('.ctx-inline-text');
+                if (textEl) {
+                    textEl.textContent = `Error: ${error.message || error}`;
+                    textEl.classList.add('ctx-inline-error');
                 }
-            });
+            }
         }
 
-        stream(url, requestData, callbacks = {}) {
-            return this.client.stream(url, requestData, callbacks);
-        }
-
-        abort() {
-            this.client.abort();
-            if (this.adapter) this.adapter.onAbort();
-        }
-
-        reset() { this.client.reset(); }
-        isStreaming() { return this.client.isStreaming(); }
-        getClient() { return this.client; }
-        getAdapter() { return this.adapter; }
-
-        setAdapter(adapter) {
-            if (this.adapter) this.adapter.destroy();
-            this.adapter = adapter;
-        }
+        onComplete() { this.destroy(); }
+        onAbort() { this.destroy(); }
 
         destroy() {
-            this.client.reset();
-            if (this.adapter) this.adapter.destroy();
+            if (this.loadingElement && this.loadingElement.parentNode) {
+                this.loadingElement.parentNode.removeChild(this.loadingElement);
+                this.loadingElement = null;
+            }
+        }
+
+        injectStyles() {
+            const styleId = 'ctx-inline-loader-styles';
+            if (document.getElementById(styleId)) return;
+
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = `
+                .ctx-inline-loader {
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: rgba(15, 23, 42, 0.7);
+                    backdrop-filter: blur(4px);
+                    z-index: 100;
+                }
+                .ctx-inline-loader-content {
+                    text-align: center;
+                    color: #e2e8f0;
+                }
+                .ctx-inline-spinner {
+                    width: 48px;
+                    height: 48px;
+                    border: 4px solid rgba(99, 102, 241, 0.3);
+                    border-top-color: #6366f1;
+                    border-radius: 50%;
+                    margin: 0 auto 16px;
+                    animation: ctx-inline-spin 1s linear infinite;
+                }
+                .ctx-inline-text {
+                    font-size: 14px;
+                    font-weight: 500;
+                    margin-bottom: 8px;
+                }
+                .ctx-inline-text.ctx-inline-error {
+                    color: #fca5a5;
+                }
+                .ctx-inline-subtext {
+                    font-size: 12px;
+                    color: #94a3b8;
+                }
+                @keyframes ctx-inline-spin {
+                    to { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
     }
 
     // ============================================================
-    // StreamingClientBuilder - Builder Pattern for StreamingClient
+    // ContexaLLM - Main API
     // ============================================================
-    class StreamingClientBuilder {
-        constructor() {
-            this.config = {};
-            this.adapter = null;
-        }
+    const ContexaLLM = {
+        UIAdapter,
+        StreamingClient,
+        SyncClient,
+        ModalUIAdapter,
+        InlineLoadingAdapter,
 
-        withMarkers(markers) {
-            this.config.markers = { ...this.config.markers, ...markers };
-            return this;
-        }
-
-        withRetry(options) {
-            this.config.streaming = { ...this.config.streaming, ...options };
-            return this;
-        }
-
-        withAdapter(adapter) {
-            this.adapter = adapter;
-            return this;
-        }
-
-        withModalUI(options = {}) {
-            this.adapter = new ModalUIAdapter(options);
-            return this;
-        }
-
-        withSimpleProgress(container, options = {}) {
-            this.adapter = new SimpleProgressAdapter({ container, ...options });
-            return this;
-        }
-
-        withConsoleOutput(options = {}) {
-            this.adapter = new ConsoleAdapter(options);
-            return this;
-        }
-
-        build() {
-            const client = new StreamingClient(this.config);
-            return new StreamingClientWithAdapter(client, this.adapter);
-        }
-    }
-
-    // ============================================================
-    // StreamingAnalyzer - Single API for LLM Analysis with Modal UI
-    // ============================================================
-    class StreamingAnalyzer {
         /**
-         * Perform real-time LLM analysis with automatic modal UI management.
-         *
+         * Perform non-streaming LLM analysis
+         * @param {string} url - API endpoint
+         * @param {Object} requestData - Request data (query field expected)
+         * @param {Object} options - Configuration options
+         * @returns {Promise<Object>} Parsed JSON response
+         */
+        async analyze(url, requestData, options = {}) {
+            const config = {
+                timeoutMs: options.timeoutMs || 300000,
+                showLoading: options.showLoading !== false,
+                container: options.container || null,
+                loadingText: options.loadingText || 'AI 분석 중...',
+                subText: options.subText || '잠시만 기다려 주세요',
+                onComplete: options.onComplete || null,
+                onError: options.onError || null
+            };
+
+            let adapter = null;
+
+            if (config.showLoading && config.container) {
+                adapter = new InlineLoadingAdapter({
+                    container: config.container,
+                    loadingText: config.loadingText,
+                    subText: config.subText
+                });
+                adapter.onStart(requestData.query || '');
+            }
+
+            const client = new SyncClient({ timeoutMs: config.timeoutMs });
+
+            try {
+                const result = await client.request(url, requestData);
+                if (config.onComplete) config.onComplete(result);
+                return result;
+
+            } catch (error) {
+                if (adapter) adapter.onError(error);
+                if (config.onError) config.onError(error);
+                throw error;
+
+            } finally {
+                if (adapter) adapter.destroy();
+            }
+        },
+
+        /**
+         * Perform streaming LLM analysis with modal UI
          * @param {string} url - Streaming API endpoint
-         * @param {Object} requestData - Request data (query is required)
+         * @param {Object} requestData - Request data (query field expected)
          * @param {Object} options - Configuration options
          * @returns {Promise<Object>} Parsed final response
          */
-        static async analyze(url, requestData, options = {}) {
+        async analyzeStreaming(url, requestData, options = {}) {
             const config = {
                 modalTitle: options.modalTitle || 'AI Analyzing...',
                 initialLoadingText: options.initialLoadingText || 'LLM 분석 시작...',
@@ -899,11 +823,9 @@
                 finalCompleteText: config.finalCompleteText
             });
 
-            const client = new StreamingClient({
-                streaming: { timeoutMs: config.timeoutMs }
-            });
+            const client = new StreamingClient({ timeoutMs: config.timeoutMs });
             const query = requestData.query || '';
-            adapter.onStreamStart(query);
+            adapter.onStart(query);
 
             let errorHandled = false;
 
@@ -929,54 +851,30 @@
                 });
 
                 if (config.onComplete) config.onComplete(result);
-                adapter.autoHide(config.autoHideDelay);
+                setTimeout(() => adapter.hide(), config.autoHideDelay);
                 return result;
+
             } catch (error) {
-                // Only handle if not already handled by onError callback
                 if (!errorHandled) {
                     adapter.onError(error);
-                    adapter.autoHide(config.autoHideDelay);
+                    setTimeout(() => adapter.hide(), config.autoHideDelay);
                     if (config.onError) config.onError(error);
                 } else {
-                    adapter.autoHide(config.autoHideDelay);
+                    setTimeout(() => adapter.hide(), config.autoHideDelay);
                 }
                 throw error;
             }
         }
-    }
-
-    // ============================================================
-    // Export to global namespace
-    // ============================================================
-    const ContexaStreaming = {
-        UIAdapter,
-        StreamingClient,
-        ConsoleAdapter,
-        SimpleProgressAdapter,
-        ModalUIAdapter,
-        StreamingClientBuilder,
-        StreamingClientWithAdapter,
-        StreamingAnalyzer,
-        analyze: StreamingAnalyzer.analyze
     };
 
     // Browser environment
     if (typeof window !== 'undefined') {
-        window.ContexaStreaming = ContexaStreaming;
-        // Also expose classes globally for convenience
-        window.UIAdapter = UIAdapter;
-        window.StreamingClient = StreamingClient;
-        window.ConsoleAdapter = ConsoleAdapter;
-        window.SimpleProgressAdapter = SimpleProgressAdapter;
-        window.ModalUIAdapter = ModalUIAdapter;
-        window.StreamingClientBuilder = StreamingClientBuilder;
-        window.StreamingClientWithAdapter = StreamingClientWithAdapter;
-        window.StreamingAnalyzer = StreamingAnalyzer;
+        window.ContexaLLM = ContexaLLM;
     }
 
     // CommonJS environment
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = ContexaStreaming;
+        module.exports = ContexaLLM;
     }
 
 })(typeof globalThis !== 'undefined' ? globalThis : typeof window !== 'undefined' ? window : this);

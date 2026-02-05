@@ -5,10 +5,12 @@ import io.contexa.contexacommon.domain.LabSpecialization;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
+import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexaiam.aiam.labs.AbstractIAMLab;
 import io.contexa.contexaiam.aiam.labs.data.IAMDataCollectionService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
+import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
@@ -45,7 +47,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
     @Override
     protected PolicyResponse doProcess(PolicyGenerationRequest request) throws Exception {
         AiGeneratedPolicyDraftDto policyDraft = generatePolicyFromTextSync(request);
-
         return convertDtoToPolicyResponse(policyDraft, "sync-request-id");
     }
 
@@ -57,10 +58,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
     @Override
     protected Flux<String> doProcessStream(PolicyGenerationRequest request) {
-        return generateRealPolicyFromTextStream(
-                request.getNaturalLanguageQuery(),
-                request.getAvailableItems()
-        );
+        return generateRealPolicyFromTextStream(request);
     }
 
     private Mono<AiGeneratedPolicyDraftDto> generatePolicyFromTextAsync(PolicyGenerationRequest request) {
@@ -74,7 +72,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                     return request;
                 })
                 .flatMap(aiRequest -> {
-                    return orchestrator.execute(aiRequest, PolicyResponse.class);
+                    return orchestrator.execute(aiRequest,createStudioQueryPipelineConfig(), PolicyResponse.class);
                 })
                 .map(response -> {
                     if (response == null) {
@@ -102,14 +100,13 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 });
     }
 
-    private Flux<String> generateRealPolicyFromTextStream(String naturalLanguageQuery,
-                                                          PolicyGenerationItem.AvailableItems availableItems) {
+    private Flux<String> generateRealPolicyFromTextStream(PolicyGenerationRequest request){
 
         try {
 
-            AIRequest<PolicyContext> aiRequest = createPolicyGenerationStreamingRequest(naturalLanguageQuery, availableItems);
+            AIRequest<PolicyContext> aiRequest = createPolicyGenerationStreamingRequest(request);
 
-            Flux<String> streamingFlux = orchestrator.executeStream(aiRequest);
+            Flux<String> streamingFlux = orchestrator.executeStream(aiRequest, createStudioQueryStreamPipelineConfig());
             return streamingFlux
                     .map(this::cleanStreamingChunk)
                     .concatWith(Mono.just("[DONE]"))
@@ -136,6 +133,30 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
+    private PipelineConfiguration<PolicyContext> createStudioQueryPipelineConfig() {
+        return (PipelineConfiguration<PolicyContext>) PipelineConfiguration.builder()
+                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
+                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
+                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
+                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
+                .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
+                .timeoutSeconds(300)
+                .build();
+    }
+
+    private PipelineConfiguration<PolicyContext> createStudioQueryStreamPipelineConfig() {
+        return (PipelineConfiguration<PolicyContext>) PipelineConfiguration.builder()
+                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
+                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
+                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
+                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
+                .enableStreaming(true)
+                .timeoutSeconds(300)
+                .build();
+    }
+
     private PolicyResponse convertDtoToPolicyResponse(AiGeneratedPolicyDraftDto dto, String requestId) {
         PolicyResponse response = new PolicyResponse(requestId, AIResponse.ExecutionStatus.SUCCESS);
         response.setPolicyData(dto.policyData());
@@ -145,35 +166,14 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return response;
     }
 
-    private AIRequest<PolicyContext> createPolicyGenerationStreamingRequest(String naturalLanguageQuery,
-                                                                            PolicyGenerationItem.AvailableItems availableItems) {
+    private AIRequest<PolicyContext> createPolicyGenerationStreamingRequest(PolicyGenerationRequest request) {
 
-        if (availableItems == null) {
-            availableItems = dataCollectionService.policyCollectData();
+        if (request.getAvailableItems() == null) {
+            request.setAvailableItems(dataCollectionService.policyCollectData());
+            request.withParameter("availableItems", dataCollectionService.policyCollectData());
         }
-
-        PolicyContext context = new PolicyContext.Builder()
-                .withNaturalLanguageQuery(naturalLanguageQuery).build();
-
-        String orgId = context.getOrganizationId();
-        if (orgId == null || orgId.trim().isEmpty()) {
-            orgId = "default-org";
-        }
-
-        AIRequest<PolicyContext> request = new AIRequest<>(context, new TemplateType("PolicyGenerationStreaming"), new DiagnosisType("PolicyGeneration"));
-
-        if (naturalLanguageQuery != null) {
-            request.withParameter("naturalLanguageQuery", naturalLanguageQuery);
-        }
-        if (availableItems != null) {
-            request.withParameter("availableItems", availableItems);
-        }
-        request.withParameter("requestType", "policy_generation_streaming");
-        request.withParameter("outputFormat", "streaming_json");
-        request.withParameter("enableRealTimeAnalysis", true);
-
-        if (availableItems != null) {
-            request.withParameter("systemMetadata", buildSystemMetadataFromAvailableItems(availableItems));
+        if (request.getAvailableItems() != null) {
+            request.withParameter("systemMetadata", buildSystemMetadataFromAvailableItems(request.getAvailableItems()));
         }
 
         return request;

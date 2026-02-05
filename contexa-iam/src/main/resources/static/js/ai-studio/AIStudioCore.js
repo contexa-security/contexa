@@ -1,7 +1,7 @@
 /**
  * AIStudioCore - Main Controller for AI Studio
  *
- * Coordinates streaming operations using the shared ContexaStreaming library.
+ * Coordinates streaming operations using the shared ContexaLLM library.
  * Provides a high-level API for AI query handling with modal feedback.
  *
  * @example Basic usage
@@ -45,7 +45,7 @@ class AIStudioCore {
 
     /**
      * Initializes components with fallback support
-     * Uses shared ContexaStreaming library if available, otherwise uses local modules
+     * Uses shared ContexaLLM library if available, otherwise uses local modules
      * @param {Object} options - Configuration options
      */
     initializeComponents(options) {
@@ -62,7 +62,7 @@ class AIStudioCore {
             throw new Error('StreamingClient or StreamingHandler is required');
         }
 
-        // Use shared ModalUIAdapter from contexa-streaming library
+        // Use shared ModalUIAdapter from contexa-llm library
         this.modalManager = typeof ModalUIAdapter !== 'undefined' ? new ModalUIAdapter({
             headerText: 'AI 권한 분석 진행 중'
         }) : null;

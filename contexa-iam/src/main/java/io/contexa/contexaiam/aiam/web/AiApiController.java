@@ -2,7 +2,6 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
-import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
@@ -67,45 +66,30 @@ public class AiApiController {
             return Mono.just(ResponseEntity.badRequest().build());
         }
 
-        if (request.availableItems() != null) {
+        PolicyGenerationRequest aiRequest = createPolicyRequest(request, new TemplateType("PolicyGeneration"), new DiagnosisType("PolicyGeneration"));
+
+        return streamingService.process(aiRequest, aiNativeProcessor, PolicyResponse.class)
+                .map(this::convertToAiGeneratedPolicyDraftDto)
+                .onErrorResume(error -> {
+                    log.error("Policy generation failed", error);
+                    return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
+                });
+    }
+
+    private ResponseEntity<AiGeneratedPolicyDraftDto> convertToAiGeneratedPolicyDraftDto(PolicyResponse policyResponse) {
+        BusinessPolicyDto policyData = policyResponse.getPolicyData();
+
+        if (policyData == null) {
+            log.error("PolicyResponse policyData is null");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
 
-        return Mono.fromCallable(() -> {
+        Map<String, String> roleMap = policyResponse.getRoleIdToNameMap() != null ? policyResponse.getRoleIdToNameMap() : new HashMap<>();
+        Map<String, String> permissionMap = policyResponse.getPermissionIdToNameMap() != null ? policyResponse.getPermissionIdToNameMap() : new HashMap<>();
+        Map<String, String> conditionMap = policyResponse.getConditionIdToNameMap() != null ? policyResponse.getConditionIdToNameMap() : new HashMap<>();
 
-                    return createPolicyRequest(request, new TemplateType("PolicyGeneration"), new DiagnosisType("PolicyGeneration"));
-                })
-                .flatMap(aiRequest -> {
-
-                    return aiNativeProcessor.process(aiRequest, AIResponse.class);
-                })
-                .map(response -> {
-                    if (response instanceof PolicyResponse policyResponse) {
-
-                        BusinessPolicyDto policyData = policyResponse.getPolicyData();
-                        Map<String, String> roleMap = policyResponse.getRoleIdToNameMap();
-                        Map<String, String> permissionMap = policyResponse.getPermissionIdToNameMap();
-                        Map<String, String> conditionMap = policyResponse.getConditionIdToNameMap();
-
-                        if (policyData == null) {
-                            log.error("PolicyResponse 에서 policyData가 null 입니다");
-                            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-                        }
-
-                        roleMap = roleMap != null ? roleMap : new HashMap<>();
-                        permissionMap = permissionMap != null ? permissionMap : new HashMap<>();
-                        conditionMap = conditionMap != null ? conditionMap : new HashMap<>();
-
-                        AiGeneratedPolicyDraftDto result =
-                                new AiGeneratedPolicyDraftDto(
-                                        policyData, roleMap, permissionMap, conditionMap
-                                );
-
-                        return ResponseEntity.ok(result);
-                    }
-
-                    log.error("예상하지 못한 응답 타입: {} (예상: PolicyResponse)", response.getClass().getSimpleName());
-                    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-                });
+        AiGeneratedPolicyDraftDto result = new AiGeneratedPolicyDraftDto(policyData, roleMap, permissionMap, conditionMap);
+        return ResponseEntity.ok(result);
     }
 
     private PolicyGenerationRequest createPolicyRequest(PolicyGenerationItem request,TemplateType templateType, DiagnosisType diagnosisType) {

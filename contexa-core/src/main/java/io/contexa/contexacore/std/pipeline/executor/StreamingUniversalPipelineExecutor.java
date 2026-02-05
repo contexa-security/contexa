@@ -108,4 +108,9 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
     public String getSupportedDomain() {
         return "STREAMING-UNIVERSAL";
     }
+
+    @Override
+    public boolean supportsStreaming() {
+        return true;
+    }
 }

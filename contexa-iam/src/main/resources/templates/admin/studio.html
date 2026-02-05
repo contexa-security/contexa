@@ -130,6 +130,10 @@
                             <option value="hierarchy">🏗️ 계층구조</option>
                             <option value="flowchart">📊 플로우차트</option>
                         </select>
+                        <select id="ai-query-mode" class="px-3 py-1 bg-slate-700 border-slate-600 rounded text-slate-300 text-sm" title="AI 분석 모드">
+                            <option value="streaming">⚡ Streaming</option>
+                            <option value="sync">🔄 Sync</option>
+                        </select>
                     </div>
                 </div>
             </div>
@@ -185,13 +189,13 @@
     </div>
 </div>
 
-<!-- Streaming Modal is dynamically created by ModalUIAdapter from contexa-streaming.bundle.js -->
+<!-- LLM Modal is dynamically created by ModalUIAdapter from contexa-llm.bundle.js -->
 
 <footer th:insert="~{fragments/footer :: footer}" class="flex-shrink-0"></footer>
 <script th:src="@{/js/toast.js}"></script>
 <script th:src="@{/js/studio.js}"></script>
-<!-- Contexa Streaming library - MUST load before AI Studio modules -->
-<script th:src="@{/js/contexa-streaming.bundle.js}"></script>
+<!-- Contexa LLM library - MUST load before AI Studio modules -->
+<script th:src="@{/js/contexa-llm.bundle.js}"></script>
 <!-- AI Studio modular components -->
 <script th:src="@{/js/ai-studio/config.js}"></script>
 <script th:src="@{/js/ai-studio/StreamingHandler.js}"></script>

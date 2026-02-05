@@ -1,7 +1,6 @@
 package io.contexa.contexacore.std.pipeline;
 
 import io.contexa.contexacommon.domain.DiagnosisType;
-import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.domain.SoarResponse;
@@ -21,9 +20,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 public class PipelineOrchestrator {
-    private static final String DOMAIN_UNIVERSAL = "UNIVERSAL";
-    private static final String DOMAIN_STREAMING_UNIVERSAL = "STREAMING-UNIVERSAL";
-    private static final String KEYWORD_STREAMING = "Streaming";
+
     private final List<PipelineExecutor> executors;
     private final Map<String, AIStrategy<?, ?>> strategyMap;
 
@@ -130,11 +127,11 @@ public class PipelineOrchestrator {
             AIRequest<T> request,
             PipelineConfiguration<T> configuration) {
 
-        String domainHint = extractDomainHint(request);
+        boolean streamingRequired = configuration.isEnableStreaming();
 
         Optional<PipelineExecutor> selectedExecutor = executors.stream()
                 .filter(executor -> executor.supportsConfiguration(configuration))
-                .filter(executor -> isDomainMatch(executor, domainHint))
+                .filter(executor -> executor.supportsStreaming() == streamingRequired)
                 .findFirst();
 
         if (selectedExecutor.isPresent()) {
@@ -146,33 +143,11 @@ public class PipelineOrchestrator {
                 .findFirst();
 
         if (fallbackExecutor.isPresent()) {
-            log.error("[Orchestrator] Domain matching failed, using fallback executor: {}",
-                    fallbackExecutor.get().getSupportedDomain());
             return Mono.just(fallbackExecutor.get());
         }
 
         return Mono.error(new IllegalStateException(
                 "No PipelineExecutor found that supports configuration: " + configuration.getSteps()));
-    }
-
-    private <T extends DomainContext> String extractDomainHint(AIRequest<T> request) {
-
-        TemplateType diagnosisType = request.getPromptTemplate();
-        if (diagnosisType != null && diagnosisType.name.contains(KEYWORD_STREAMING)) {
-            return DOMAIN_STREAMING_UNIVERSAL;
-        }
-
-        return DOMAIN_UNIVERSAL;
-    }
-
-    private boolean isDomainMatch(PipelineExecutor executor, String domainHint) {
-        String executorDomain = executor.getSupportedDomain();
-
-        if (executorDomain.equalsIgnoreCase(domainHint)) {
-            return true;
-        }
-
-        return DOMAIN_UNIVERSAL.equalsIgnoreCase(executorDomain);
     }
 
     private <T extends DomainContext, R extends AIResponse> Mono<R> createFallbackResponse(

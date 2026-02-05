@@ -23,6 +23,17 @@ public interface PipelineExecutor {
     <T extends DomainContext> boolean supportsConfiguration(PipelineConfiguration<T> configuration);
 
     default int getPriority() {
-        return 100; 
+        return 100;
+    }
+
+    /**
+     * Indicates whether this executor supports streaming operations.
+     * Used by PipelineOrchestrator to select the appropriate executor
+     * based on PipelineConfiguration.enableStreaming setting.
+     *
+     * @return true if this executor supports streaming, false otherwise
+     */
+    default boolean supportsStreaming() {
+        return false;
     }
 } 

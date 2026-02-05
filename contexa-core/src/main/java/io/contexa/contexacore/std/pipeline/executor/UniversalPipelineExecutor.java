@@ -222,4 +222,9 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     public int getPriority() {
         return 100;
     }
+
+    @Override
+    public boolean supportsStreaming() {
+        return false;
+    }
 }

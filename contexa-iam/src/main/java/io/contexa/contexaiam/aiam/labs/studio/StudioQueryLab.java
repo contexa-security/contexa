@@ -132,7 +132,6 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
         }
     }
 
-    @SuppressWarnings("unchecked")
     private PipelineConfiguration<StudioQueryContext> createStudioQueryPipelineConfig() {
         return (PipelineConfiguration<StudioQueryContext>) PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
@@ -145,13 +144,14 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
     private PipelineConfiguration<StudioQueryContext> createStudioQueryStreamPipelineConfig() {
         return (PipelineConfiguration<StudioQueryContext>) PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
                 .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
                 .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
                 .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
+                .enableStreaming(true)
                 .timeoutSeconds(300)
                 .build();
     }

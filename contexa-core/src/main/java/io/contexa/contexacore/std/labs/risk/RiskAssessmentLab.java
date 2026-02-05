@@ -179,6 +179,7 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
                 .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
                 .timeoutSeconds(300)
                 .enableCaching(true)
+                .enableStreaming(true)
                 .build();
     }
 
@@ -225,25 +226,6 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         });
     }
 
-    private RequestPriority determinePriority(RiskAssessmentContext context) {
-        if (context.getUserRoles() != null &&
-                context.getUserRoles().stream().anyMatch(role -> role.contains("ADMIN") || role.contains("ROOT"))) {
-            return RequestPriority.HIGH;
-        }
-
-        Object recentFailedAttempts = context.getEnvironmentAttributes().get("recentFailedAttempts");
-        if (recentFailedAttempts instanceof Number && ((Number) recentFailedAttempts).intValue() > 5) {
-            return RequestPriority.HIGH;
-        }
-
-        Object sensitivityLevel = context.getEnvironmentAttributes().get("resourceSensitivityLevel");
-        if ("HIGH".equals(sensitivityLevel) || "CRITICAL".equals(sensitivityLevel)) {
-            return RequestPriority.NORMAL;
-        }
-
-        return RequestPriority.LOW;
-    }
-
     private void validateEnrichedContext(RiskAssessmentContext context, String assessmentId) {
         int validationScore = 0;
         int maxScore = 100;
@@ -263,157 +245,8 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
         }
     }
 
-    private RiskAssessmentResponse enhanceResponseQuality(RiskAssessmentResponse response,
-                                                          RiskAssessmentContext context,
-                                                          String assessmentId) {
-        try {
-            double confidenceLevel = getConfidenceLevel(response);
-            if (confidenceLevel < MIN_CONFIDENCE_THRESHOLD) {
-                log.warn("[{}] AI 응답 신뢰도 낮음: {} < {}",
-                        assessmentId, confidenceLevel, MIN_CONFIDENCE_THRESHOLD);
-                return enhanceResponseWithFallback(response, context);
-            }
-
-            validateScoreConsistency(response, assessmentId);
-            validateRecommendation(response, context, assessmentId);
-
-            return response;
-
-        } catch (Exception e) {
-            log.error("[{}] 응답 품질 강화 실패: {}", assessmentId, e.getMessage());
-            return response;
-        }
-    }
-
-    private double getConfidenceLevel(RiskAssessmentResponse response) {
-        try {
-            if (response != null) {
-                return 0.8; 
-            }
-        } catch (Exception e) {
-                    }
-        return 0.8;
-    }
-
-    private RiskAssessmentResponse enhanceResponseWithFallback(RiskAssessmentResponse original, RiskAssessmentContext context) {
-        double adjustedRiskScore = Math.min(1.0, original.riskScore() + 0.2);
-        double adjustedTrustScore = Math.max(0.0, original.trustScore() - 0.2);
-
-        String adjustedRecommendation = determineConservativeRecommendation(adjustedRiskScore);
-
-        return createAdjustedResponse(original, adjustedRiskScore, adjustedTrustScore, adjustedRecommendation);
-    }
-
-    private RiskAssessmentResponse createAdjustedResponse(RiskAssessmentResponse original,
-                                                          double riskScore,
-                                                          double trustScore,
-                                                          String recommendation) {
-
-        TrustAssessment adjustedAssessment = new TrustAssessment(
-                trustScore,
-                List.of("RISK_ADJUSTED", "FALLBACK_MODE"),
-                recommendation
-        );
-
-        RiskAssessmentResponse adjusted = new RiskAssessmentResponse(original.getRequestId(), adjustedAssessment);
-
-        adjusted.setProcessingMetrics(
-                original.getProcessingTimeMs(),
-                original.getAssessedByNode(),
-                original.isUsedHistoryAnalysis(),
-                original.isUsedBehaviorAnalysis(),
-                original.getAnalyzedHistoryRecords()
-        );
-
-        return adjusted;
-    }
-
-    private String determineConservativeRecommendation(double riskScore) {
-
-        return "ESCALATE";
-    }
-
-    private void validateScoreConsistency(RiskAssessmentResponse response, String assessmentId) {
-        double expectedTrustScore = 1.0 - response.riskScore();
-        double scoreDifference = Math.abs(response.trustScore() - expectedTrustScore);
-
-        if (scoreDifference > 0.3) {
-            log.warn("[{}] 점수 일관성 문제: riskScore={}, trustScore={}, expected={}",
-                    assessmentId, response.riskScore(), response.trustScore(), expectedTrustScore);
-        }
-    }
-
-    private void validateRecommendation(RiskAssessmentResponse response, RiskAssessmentContext context, String assessmentId) {
-        String recommendation = response.recommendation();
-        double riskScore = response.riskScore();
-
-        boolean inconsistent = false;
-
-        if ("ALLOW".equals(recommendation) && riskScore > 0.7) inconsistent = true;
-        if ("DENY".equals(recommendation) && riskScore < 0.3) inconsistent = true;
-
-        if (inconsistent) {
-            log.warn("[{}] 권장사항 불일치: recommendation={}, riskScore={}",
-                    assessmentId, recommendation, riskScore);
-        }
-    }
-
-    private RiskAssessmentResponse createFailsafeResponse(RiskAssessmentContext context, Throwable error) {
-        log.warn("Creating failsafe response due to error: {}", error.getMessage());
-
-        TrustAssessment failsafeAssessment = new TrustAssessment(
-                0.2,
-                List.of("AI_SYSTEM_ERROR", "FAILSAFE_MODE", "HIGH_RISK"),
-                determineConservativeRecommendation(0.8)
-        );
-
-        RiskAssessmentResponse response = new RiskAssessmentResponse(generateRequestId(), failsafeAssessment);
-
-        response.withMetadata("failsafeMode", true);
-        response.withMetadata("errorType", error.getClass().getSimpleName());
-        response.withMetadata("errorMessage", error.getMessage());
-
-        return response;
-    }
-
-    private void recordPerformanceMetrics(String assessmentId, long processingTime, RiskAssessmentResponse response) {
-        Map<String, Object> metrics = new HashMap<>();
-        metrics.put("assessmentId", assessmentId);
-        metrics.put("processingTimeMs", processingTime);
-        metrics.put("riskScore", response.riskScore());
-        metrics.put("trustScore", response.trustScore());
-        metrics.put("recommendation", response.recommendation());
-        metrics.put("timestamp", LocalDateTime.now());
-
-            }
-
     private String generateAssessmentId() {
         return "RISK-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 1000);
     }
 
-    private String generateRequestId() {
-        return java.util.UUID.randomUUID().toString();
-    }
-
-    private RiskAssessmentContext createRiskAssessmentContext(RiskAssessmentRequest request) {
-        RiskAssessmentContext context = request.getContext();
-        if (context == null) {
-            
-            context = new RiskAssessmentContext();
-            context.setUserId(request.getUserId());
-            context.setResourceIdentifier(request.getResourceId());
-            context.setActionType(request.getActionType());
-        }
-        return context;
-    }
-
-    public void learnFromFeedback(RiskAssessmentRequest request, RiskAssessmentResponse response, String feedback) {
-        try {
-
-            vectorService.storeRiskAssessmentResult(request, response);
-            
-                    } catch (Exception e) {
-            log.error("[RiskAssessmentLab] 피드백 학습 실패", e);
-        }
-    }
 }

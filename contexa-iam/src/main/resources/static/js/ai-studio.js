@@ -260,8 +260,6 @@ class AIStudioLegacy {
         this.hideCanvasPlaceholder();
 
         try {
-            console.log('AI Query (unified streaming):', query);
-
             // Add to AI query history
             this.aiQueryHistory.push({
                 query: query,
@@ -271,10 +269,19 @@ class AIStudioLegacy {
             // Store current query for later use
             this.currentQuery = query;
 
-            // Use ContexaStreaming.analyze() API
-            await this.startUnifiedStreamingAnalysis(query);
+            // Check query mode
+            const queryMode = document.getElementById('ai-query-mode')?.value || 'streaming';
+            console.log(`AI Query (${queryMode} mode):`, query);
 
-            console.log('Streaming completed');
+            if (queryMode === 'streaming') {
+                // Streaming mode - ContexaLLM.analyzeStreaming()
+                await this.startUnifiedStreamingAnalysis(query);
+            } else {
+                // Sync mode - ContexaLLM.analyze()
+                await this.executeSyncAnalysis(query);
+            }
+
+            console.log('Analysis completed');
 
         } catch (error) {
             console.error('AI Studio 질의 실패:', error);
@@ -301,15 +308,15 @@ class AIStudioLegacy {
         this.resetStreamingState();
     }
 
-       /**
-     * Unified streaming analysis using ContexaStreaming.analyze() API
+    /**
+     * Unified streaming analysis using ContexaLLM.analyzeStreaming() API
      */
     async startUnifiedStreamingAnalysis(query) {
         const self = this;
         let errorHandled = false;
 
         try {
-            await ContexaStreaming.analyze(
+            await ContexaLLM.analyzeStreaming(
                 '/api/ai/studio/query/stream',
                 {
                     query: query
@@ -361,6 +368,59 @@ class AIStudioLegacy {
                 console.error('Streaming analysis failed:', error);
                 throw error;
             }
+        }
+    }
+
+    /**
+     * Sync (non-streaming) analysis using ContexaLLM.analyze() API
+     */
+    async executeSyncAnalysis(query) {
+        const self = this;
+
+        try {
+            const response = await ContexaLLM.analyze(
+                '/api/ai/studio/query',
+                {
+                    query: query
+                },
+                {
+                    showLoading: true,
+                    container: document.getElementById('canvas-content'),
+                    loadingText: 'AI 분석 중...',
+                    subText: '잠시만 기다려 주세요',
+                    onComplete: (result) => {
+                        console.log('Sync analysis completed:', result);
+                    },
+                    onError: (error) => {
+                        console.error('Sync analysis error:', error);
+                    }
+                }
+            );
+
+            if (response && !response.parseError) {
+                self.processAIResponse(response, query);
+                self.showMessage('AI 분석이 성공적으로 완료되었습니다!', 'success');
+            } else if (response && response.parseError) {
+                console.error('JSON parse error:', response.errorMessage);
+                const basicResponse = {
+                    analysisId: "studio-query-001",
+                    query: query,
+                    naturalLanguageAnswer: "분석 결과 처리 중 오류가 발생했습니다.",
+                    status: "PARTIAL"
+                };
+                self.processAIResponse(basicResponse, query);
+                self.showMessage('AI 분석이 완료되었습니다 (일부 데이터 누락)', 'warning');
+            } else {
+                console.warn('No response received');
+                self.showMessage('분석이 완료되었으나 결과가 없습니다.', 'warning');
+            }
+
+            self.resetStreamingState();
+
+        } catch (error) {
+            console.error('Sync analysis failed:', error);
+            self.handleQueryError(error, query);
+            throw error;
         }
     }
 

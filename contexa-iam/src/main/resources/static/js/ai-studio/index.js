@@ -2,7 +2,7 @@
  * AI Studio Module Index
  *
  * Exports all AI Studio components for easy import.
- * AI Studio uses the shared ContexaStreaming library when available,
+ * AI Studio uses the shared ContexaLLM library when available,
  * with fallback to local StreamingHandler for backwards compatibility.
  *
  * @example Browser usage
@@ -38,8 +38,8 @@ if (typeof window !== 'undefined') {
         Core: typeof AIStudioCore !== 'undefined' ? AIStudioCore : null
     };
 
-    // Also expose the shared streaming library reference if available
-    if (typeof ContexaStreaming !== 'undefined') {
-        window.AIStudio.Streaming = ContexaStreaming;
+    // Also expose the shared LLM library reference if available
+    if (typeof ContexaLLM !== 'undefined') {
+        window.AIStudio.LLM = ContexaLLM;
     }
 }

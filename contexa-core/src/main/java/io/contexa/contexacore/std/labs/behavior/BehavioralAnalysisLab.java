@@ -147,6 +147,7 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
                 .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
                 .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                .enableStreaming(true)
                 .build();
     }
 
