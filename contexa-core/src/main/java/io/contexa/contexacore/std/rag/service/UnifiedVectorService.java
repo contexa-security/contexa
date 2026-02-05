@@ -64,15 +64,6 @@ public class UnifiedVectorService implements VectorOperations {
         cacheLayer.invalidateAll();
     }
 
-    @Override
-    public CompletableFuture<Void> storeDocumentAsync(Document document) {
-        return CompletableFuture.runAsync(() -> storeDocument(document));
-    }
-
-    @Override
-    public CompletableFuture<Void> storeDocumentsAsync(List<Document> documents) {
-        return CompletableFuture.runAsync(() -> storeDocuments(documents));
-    }
 
     @Override
     public List<Document> searchSimilar(String query) {
@@ -111,18 +102,6 @@ public class UnifiedVectorService implements VectorOperations {
     }
 
     @Override
-    public List<Document> searchByTimeRange(String query, LocalDateTime startTime,
-                                            LocalDateTime endTime, String documentType) {
-        SearchRequest searchRequest = SearchRequest.builder()
-                .query(query)
-                .topK(properties.getTopK())
-                .similarityThreshold(properties.getSimilarityThreshold())
-                .build();
-
-        return vectorStore.similaritySearch(searchRequest);
-    }
-
-    @Override
     @Transactional
     public void deleteDocuments(List<String> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
@@ -136,48 +115,6 @@ public class UnifiedVectorService implements VectorOperations {
         }
 
         cacheLayer.invalidateAll();
-    }
-
-    @Override
-    @Transactional
-    public void updateDocuments(List<Document> documents) {
-        if (documents == null || documents.isEmpty()) {
-            return;
-        }
-
-        for (Document doc : documents) {
-            validateDocument(doc);
-        }
-
-        List<String> documentIds = new ArrayList<>();
-        for (Document doc : documents) {
-            Object id = doc.getMetadata().get("id");
-            if (id != null) {
-                documentIds.add(id.toString());
-            }
-        }
-
-        if (!documentIds.isEmpty()) {
-            vectorStore.delete(documentIds);
-        }
-
-        vectorStore.add(documents);
-        cacheLayer.invalidateAll();
-    }
-
-    @Override
-    public Map<String, Object> getStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-
-        VectorStoreCacheLayer.CacheStatistics cacheStats = cacheLayer.getStatistics();
-        stats.put("cache", Map.of(
-                "hitRate", cacheStats.getHitRate(),
-                "missRate", cacheStats.getMissRate(),
-                "size", cacheStats.getEstimatedSize(),
-                "evictions", cacheStats.getEvictionCount()
-        ));
-
-        return stats;
     }
 
     private void validateDocument(Document document) {
