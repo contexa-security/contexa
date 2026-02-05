@@ -65,12 +65,6 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest,StudioQuer
     }
 
     public Mono<StudioQueryResponse> processRequestAsync(StudioQueryRequest request) {
-        try {
-            vectorService.storeQueryRequest(request);
-        } catch (Exception e) {
-            log.error("Vector store request save failed", e);
-        }
-
         return Mono.fromCallable(() -> {
                     DataCollectionPlan collectionPlan = createDataCollectionPlan(request.getNaturalLanguageQuery());
                     IAMDataSet dataSet = dataCollectionService.studioCollectData(collectionPlan);

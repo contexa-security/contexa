@@ -2,8 +2,6 @@ package io.contexa.contexacore.std.rag.service;
 
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreException;
-import jakarta.annotation.PostConstruct;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -17,12 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Slf4j
 public abstract class AbstractVectorLabService implements VectorOperations {
@@ -40,17 +32,11 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     @Value("${spring.ai.vectorstore.lab.batch-size:50}")
     protected int labBatchSize;
 
-    @Value("${spring.ai.vectorstore.lab.async-enabled:true}")
-    protected boolean asyncEnabled;
-
     @Value("${spring.ai.vectorstore.lab.validation-enabled:true}")
     protected boolean validationEnabled;
 
     @Value("${spring.ai.vectorstore.lab.enrichment-enabled:true}")
     protected boolean enrichmentEnabled;
-
-    @Value("${spring.ai.vectorstore.lab.async-thread-pool-size:4}")
-    protected int asyncThreadPoolSize;
 
     @Value("${spring.ai.vectorstore.lab.top-k:100}")
     protected int defaultTopK;
@@ -58,29 +44,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     @Value("${spring.ai.vectorstore.lab.similarity-threshold:0.75}")
     protected double defaultSimilarityThreshold;
 
-    private Executor asyncExecutor;
-
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
-
-    @PostConstruct
-    protected void initialize() {
-        this.asyncExecutor = Executors.newFixedThreadPool(asyncThreadPoolSize);
-    }
-
-    @PreDestroy
-    protected void cleanup() {
-        if (asyncExecutor instanceof ExecutorService es) {
-            es.shutdown();
-            try {
-                if (!es.awaitTermination(10, TimeUnit.SECONDS)) {
-                    es.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                es.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-        }
-    }
 
     protected abstract String getLabName();
 
@@ -167,34 +131,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     @Override
-    public final CompletableFuture<Void> storeDocumentAsync(Document document) {
-        if (!asyncEnabled) {
-            storeDocument(document);
-            return CompletableFuture.completedFuture(null);
-        }
-
-        return CompletableFuture.runAsync(() -> storeDocument(document), asyncExecutor)
-                .exceptionally(throwable -> {
-                    log.error("[{}] Async single document storage failed", getLabName(), throwable);
-                    throw new VectorStoreException("Async single document storage failed", throwable);
-                });
-    }
-
-    @Override
-    public final CompletableFuture<Void> storeDocumentsAsync(List<Document> documents) {
-        if (!asyncEnabled) {
-            storeDocuments(documents);
-            return CompletableFuture.completedFuture(null);
-        }
-
-        return CompletableFuture.runAsync(() -> storeDocuments(documents), asyncExecutor)
-                .exceptionally(throwable -> {
-                    log.error("[{}] Async batch document storage failed", getLabName(), throwable);
-                    throw new VectorStoreException("Async batch document storage failed", throwable);
-                });
-    }
-
-    @Override
     public final List<Document> searchSimilar(String query) {
         return searchSimilar(query, Collections.emptyMap());
     }
@@ -267,52 +203,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     @Override
-    public final List<Document> searchByTimeRange(String query, LocalDateTime startTime,
-                                                  LocalDateTime endTime, String documentType) {
-        long start = System.currentTimeMillis();
-
-        try {
-            String finalDocumentType = documentType != null ? documentType : getDocumentType();
-
-            FilterExpressionBuilder builder = new FilterExpressionBuilder();
-
-            FilterExpressionBuilder.Op timeFilterOp = builder.and(
-                    builder.gte("timestamp", startTime.format(ISO_FORMATTER)),
-                    builder.lte("timestamp", endTime.format(ISO_FORMATTER))
-            );
-
-            Filter.Expression filter = builder.and(
-                    timeFilterOp,
-                    builder.eq("documentType", finalDocumentType)
-            ).build();
-
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .query(query)
-                    .topK(defaultTopK)
-                    .similarityThreshold(defaultSimilarityThreshold)
-                    .filterExpression(filter)
-                    .build();
-
-            List<Document> results = vectorStore.similaritySearch(searchRequest);
-
-            if (vectorStoreMetrics != null) {
-                vectorStoreMetrics.recordOperation(getLabName(), OperationType.SEARCH,
-                        results.size(),
-                        System.currentTimeMillis() - start);
-            }
-
-            return results;
-
-        } catch (Exception e) {
-            if (vectorStoreMetrics != null) {
-                vectorStoreMetrics.recordError(getLabName(), OperationType.SEARCH, e);
-            }
-            log.error("[{}] Time range search failed", getLabName(), e);
-            throw new VectorStoreException("Time range search failed: " + e.getMessage(), e);
-        }
-    }
-
-    @Override
     @Transactional
     public void deleteDocuments(List<String> documentIds) {
         if (documentIds == null || documentIds.isEmpty()) {
@@ -337,64 +227,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             log.error("[{}] Document deletion failed", getLabName(), e);
             throw new VectorStoreException("Document deletion failed: " + e.getMessage(), e);
         }
-    }
-
-    @Override
-    @Transactional
-    public void updateDocuments(List<Document> documents) {
-        if (documents == null || documents.isEmpty()) {
-            return;
-        }
-
-        long startTime = System.currentTimeMillis();
-        try {
-
-            List<Document> processedDocuments = new ArrayList<>();
-            for (Document doc : documents) {
-                processedDocuments.add(preprocessDocument(doc));
-            }
-
-            List<String> documentIds = processedDocuments.stream()
-                    .map(doc -> (String) doc.getMetadata().get("id"))
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
-
-            if (!documentIds.isEmpty()) {
-                vectorStore.delete(documentIds);
-            }
-
-            vectorStore.add(processedDocuments);
-
-            for (Document doc : processedDocuments) {
-                postProcessDocument(doc, OperationType.UPDATE);
-            }
-
-            if (vectorStoreMetrics != null) {
-                vectorStoreMetrics.recordOperation(getLabName(), OperationType.UPDATE,
-                        processedDocuments.size(),
-                        System.currentTimeMillis() - startTime);
-            }
-
-        } catch (Exception e) {
-            if (vectorStoreMetrics != null) {
-                vectorStoreMetrics.recordError(getLabName(), OperationType.UPDATE, e);
-            }
-            log.error("[{}] Document update failed", getLabName(), e);
-            throw new VectorStoreException("Document update failed: " + e.getMessage(), e);
-        }
-    }
-
-    @Override
-    public final Map<String, Object> getStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("labName", getLabName());
-        stats.put("documentType", getDocumentType());
-
-        if (vectorStoreMetrics != null) {
-            stats.putAll(vectorStoreMetrics.getLabStatistics(getLabName()));
-        }
-
-        return stats;
     }
 
     private Document preprocessDocument(Document document) {
@@ -496,6 +328,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     public enum OperationType {
-        STORE, SEARCH, UPDATE, DELETE
+        STORE, SEARCH, DELETE
     }
 }

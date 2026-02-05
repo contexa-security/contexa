@@ -135,23 +135,23 @@ public class StudioQueryContextRetriever extends ContextRetriever {
             }
 
             try {
-                vectorService.storeQuery(naturalQuery, request.getNaturalLanguageQuery());
+                vectorService.storeQuery(naturalQuery);
             } catch (Exception e) {
-                log.warn("VectorService 쿼리 저장 실패: {}", e.getMessage());
+                log.warn("VectorService query save failed: {}", e.getMessage());
             }
 
             String similarQueryPatterns = searchSimilarQueryPatterns(naturalQuery);
             if (!similarQueryPatterns.isEmpty()) {
-                contextBuilder.append("## 📚 유사 질의 패턴 분석\n");
+                contextBuilder.append("## [Similar Query Pattern Analysis]\n");
                 contextBuilder.append(similarQueryPatterns).append("\n\n");
             }
 
             String authorizationStructure = buildAuthorizationStructure(context);
-            contextBuilder.append("## 🏢 현재 권한 구조\n");
+            contextBuilder.append("## [Current Authorization Structure]\n");
             contextBuilder.append(authorizationStructure).append("\n\n");
 
             String mappingInfo = buildUserGroupRolePermissionMapping(context);
-            contextBuilder.append("## 🔗 권한 매핑 정보\n");
+            contextBuilder.append("## [Permission Mapping Information]\n");
             contextBuilder.append(mappingInfo).append("\n\n");
 
             String analysisGuidelines = getQueryTypeGuidelines(context);

@@ -71,19 +71,35 @@ public abstract class AbstractBasePromptTemplate implements PromptTemplate {
     }
 
     /**
-     * Extracts the IAM data context from the request.
+     * Extracts and merges the IAM data context from the request with RAG context info.
      * <p>
-     * If the IAM data context parameter is not present, falls back to
-     * the provided context info.
+     * This method combines both data sources for optimal LLM response quality:
+     * <ul>
+     *   <li>IAM data context: Real-time authorization status from database</li>
+     *   <li>Context info: RAG retrieval results (similar query patterns)</li>
+     * </ul>
      * </p>
      *
      * @param request the AI request containing the context
-     * @param contextInfo fallback context information
-     * @return the IAM data context or the fallback context info
+     * @param contextInfo RAG retrieval context information
+     * @return merged context combining IAM data and RAG context
      */
     protected String extractIamDataContext(AIRequest<? extends DomainContext> request, String contextInfo) {
         String iamDataContext = request.getParameter(IAM_DATA_CONTEXT_PARAM, String.class);
-        return iamDataContext != null ? iamDataContext : contextInfo;
+
+        // Both exist: merge for optimal response quality
+        if (iamDataContext != null && !iamDataContext.isBlank()
+                && contextInfo != null && !contextInfo.isBlank()) {
+            return iamDataContext + "\n\n--- RAG Context (Similar Query Patterns) ---\n" + contextInfo;
+        }
+
+        // Only IAM data: sufficient for basic response
+        if (iamDataContext != null && !iamDataContext.isBlank()) {
+            return iamDataContext;
+        }
+
+        // Only RAG context: fallback
+        return contextInfo;
     }
 
     /**
