@@ -13,6 +13,12 @@ import java.util.Map;
 @Setter
 public class StudioQueryResponse extends AIResponse {
 
+    private String analysisId;
+
+    private String query;
+
+    private double confidenceScore;
+
     private String naturalLanguageAnswer;
 
     private List<QueryResult> queryResults = new ArrayList<>();
@@ -37,6 +43,9 @@ public class StudioQueryResponse extends AIResponse {
     @Override
     public Object getData() {
         Map<String, Object> data = new HashMap<>();
+        data.put("analysisId", analysisId);
+        data.put("query", query);
+        data.put("confidenceScore", confidenceScore);
         data.put("naturalLanguageAnswer", naturalLanguageAnswer);
         data.put("queryResults", queryResults);
         data.put("analysisResults", analysisResults);

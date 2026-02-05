@@ -4,9 +4,7 @@ import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.components.prompt.AbstractStreamingPromptTemplate;
-import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.converter.BeanOutputConverter;
 
 /**
  * Streaming template for IAM Studio query analysis.
@@ -17,14 +15,6 @@ import org.springframework.ai.converter.BeanOutputConverter;
  */
 @Slf4j
 public class StudioQueryStreamingTemplate extends AbstractStreamingPromptTemplate {
-
-    private final BeanOutputConverter<StudioQueryResponse> converter =
-            new BeanOutputConverter<>(StudioQueryResponse.class);
-
-    @Override
-    protected BeanOutputConverter<?> getOutputConverter() {
-        return converter;
-    }
 
     @Override
     protected String generateDomainSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
@@ -43,14 +33,48 @@ public class StudioQueryStreamingTemplate extends AbstractStreamingPromptTemplat
     }
 
     /**
-     * Returns an empty string as the JSON schema is now provided by BeanOutputConverter.
-     * This method is retained for backward compatibility with AbstractStreamingPromptTemplate.
+     * Returns the manual JSON schema example for LLM guidance.
+     * This schema provides detailed field descriptions and rules that LLM must follow.
      *
-     * @return empty string (schema is provided via getOutputConverter())
+     * @return JSON schema example with field descriptions
      */
     @Override
     protected String getJsonSchemaExample() {
-        return "";
+        return """
+            {
+              "analysisId": "studio-query-001",
+              "query": "그룹과 문서를 조회할 수 있는 사용자를 모두 보여주세요",
+              "naturalLanguageAnswer": "김팀장과 이운영이 그룹 정보 조회와 문서 조회 권한을 보유하고 있습니다.",
+              "confidenceScore": 95.0,
+              "visualizationData": {
+                "nodes": [
+                  { "id": "user-김팀장", "type": "USER", "label": "김팀장", "properties": { "name": "김팀장", "description": "개발본부 그룹" } },
+                  { "id": "user-이운영", "type": "USER", "label": "이운영", "properties": { "name": "이운영", "description": "운영팀 그룹" } },
+                  { "id": "group-개발본부", "type": "GROUP", "label": "개발본부", "properties": { "name": "개발본부" } }
+                ],
+                "edges": [
+                  { "id": "edge-1", "source": "user-김팀장", "target": "group-개발본부", "type": "MEMBER_OF", "properties": { "label": "소속" } },
+                  { "id": "edge-2", "source": "user-이운영", "target": "group-개발본부", "type": "MEMBER_OF", "properties": { "label": "소속" } }
+                ]
+              },
+              "analysisResults": [
+                {
+                  "user": "김팀장",
+                  "groups": ["개발본부"],
+                  "roles": ["ROLE_DEVELOPER"],
+                  "permissions": ["GROUP_INFO_VIEW", "DOCUMENT_VIEW"]
+                },
+                {
+                  "user": "이운영",
+                  "groups": ["운영팀"],
+                  "roles": ["ROLE_OPERATOR"],
+                  "permissions": ["GROUP_INFO_VIEW", "DOCUMENT_VIEW"]
+                }
+              ],
+              "queryResults": [],
+              "recommendations": []
+            }
+            """;
     }
 
     @Override
