@@ -278,7 +278,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private Filter.Expression buildFilterExpression(Map<String, Object> filters) {
         if (filters == null || filters.isEmpty()) {
             return null;
@@ -313,10 +312,10 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
 
         if (ops.size() == 1) {
-            return ops.get(0).build();
+            return ops.getFirst().build();
         }
 
-        FilterExpressionBuilder.Op combined = ops.get(0);
+        FilterExpressionBuilder.Op combined = ops.getFirst();
         for (int i = 1; i < ops.size(); i++) {
             combined = builder.and(combined, ops.get(i));
         }
@@ -328,6 +327,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
     }
 
     public enum OperationType {
-        STORE, SEARCH, DELETE
+        STORE, SEARCH, UPDATE, DELETE
     }
 }
