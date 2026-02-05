@@ -100,30 +100,8 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
             StreamingPipelineExecutionContext context,
             boolean isSoar) {
 
-        Mono<PipelineExecutionContext> pipeline = Mono.just(context);
-
-        for (PipelineStep step : streamingOrderedSteps) {
-            PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(step, isSoar);
-
-            if (configuration.hasStep(configStep)) {
-                final String stepName = step.getStepName();
-                final int stepOrder = step.getOrder();
-
-                pipeline = pipeline.flatMap(ctx -> {
-                    long stepStart = System.currentTimeMillis();
-
-                    return step.execute(request, ctx)
-                            .thenReturn(ctx)
-                            .doOnError(error -> {
-                                long stepTime = System.currentTimeMillis() - stepStart;
-                                log.error("[STREAMING-PIPELINE] STEP {} failed: {} ({}ms) - {}",
-                                        stepOrder, stepName, stepTime, error.getMessage());
-                            });
-                });
-            }
-        }
-
-        return pipeline.then();
+        return executeStepsWithConfig(request, configuration, context, streamingOrderedSteps, isSoar, "STREAMING-PIPELINE")
+                .then();
     }
 
     @Override

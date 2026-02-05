@@ -41,22 +41,9 @@ public class StreamingLLMExecutionStep extends LLMExecutionStep {
             AIRequest<T> request,
             StreamingPipelineContext context) {
 
-        return Mono.fromCallable(() -> {
-                    
-                    StreamingPipelineExecutionContext executionContext = (StreamingPipelineExecutionContext) context;
+        StreamingPipelineExecutionContext executionContext = (StreamingPipelineExecutionContext) context;
 
-                    PromptGenerator.PromptGenerationResult promptResult =
-                            executionContext.getStepResult(
-                                    PipelineConfiguration.PipelineStep.PROMPT_GENERATION,
-                                    PromptGenerator.PromptGenerationResult.class
-                            );
-
-                    if (promptResult == null || promptResult.getPrompt() == null) {
-                        throw new IllegalStateException("No prompt found in context");
-                    }
-
-                    return promptResult.getPrompt();
-                })
+        return preparePrompt(executionContext)
                 
                 .flatMap(prompt -> {
                     StringBuilder rawResponseCollector = new StringBuilder();
@@ -81,7 +68,6 @@ public class StreamingLLMExecutionStep extends LLMExecutionStep {
                             })
                             .doOnComplete(() -> {
                                 String fullRawResponse = rawResponseCollector.toString();
-                                StreamingPipelineExecutionContext executionContext = (StreamingPipelineExecutionContext) context;
                                 executionContext.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, fullRawResponse);
                             })
                             .then(Mono.just(rawResponseCollector.toString()))

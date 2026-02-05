@@ -1,26 +1,36 @@
 package io.contexa.contexacore.std.components.prompt;
 
-import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
+import org.springframework.ai.converter.BeanOutputConverter;
 
 /**
  * Abstract base class for all streaming prompt templates.
  * <p>
- * This class enforces the streaming protocol by automatically including
- * the required marker protocol prompts in the system prompt. Subclasses
- * only need to implement domain-specific prompts and JSON schema examples.
+ * This class extends {@link AbstractBasePromptTemplate} and enforces the
+ * streaming protocol by automatically including the required marker protocol
+ * prompts in the system prompt. Subclasses only need to implement
+ * domain-specific prompts and JSON schema examples.
  * </p>
  * <p>
  * All streaming templates MUST use the JSON_DELIMITER strategy with
  * {@code ===JSON_START===} and {@code ===JSON_END===} markers.
  * </p>
+ * <p>
+ * Inherited utilities from {@link AbstractBasePromptTemplate}:
+ * <ul>
+ *   <li>{@code extractNaturalQuery()} - Extract natural language queries</li>
+ *   <li>{@code extractIamDataContext()} - Extract IAM data context</li>
+ *   <li>{@code isContextType()} - Check context type</li>
+ * </ul>
+ * </p>
  *
+ * @see AbstractBasePromptTemplate
  * @see StreamingProtocol
  */
-public abstract class AbstractStreamingPromptTemplate implements PromptTemplate {
+public abstract class AbstractStreamingPromptTemplate extends AbstractBasePromptTemplate {
 
     /**
      * Generates the complete system prompt with streaming protocol.
@@ -77,10 +87,32 @@ public abstract class AbstractStreamingPromptTemplate implements PromptTemplate 
      * JSON schema example. The example should be a valid JSON object without
      * any markers - markers are automatically added by the abstract class.
      * </p>
+     * <p>
+     * Note: If {@link #getOutputConverter()} returns a non-null converter,
+     * this method's return value is ignored and the converter's format is used instead.
+     * </p>
      *
      * @return the JSON schema example as a string (without markers)
      */
     protected abstract String getJsonSchemaExample();
+
+    /**
+     * Returns the BeanOutputConverter for automatic JSON schema generation.
+     * <p>
+     * When this method returns a non-null converter, its {@code getFormat()} output
+     * is used instead of {@link #getJsonSchemaExample()}. This ensures consistency
+     * between streaming and non-streaming templates that share the same response type.
+     * </p>
+     * <p>
+     * Default implementation returns null to maintain backward compatibility
+     * with existing subclasses that use {@link #getJsonSchemaExample()}.
+     * </p>
+     *
+     * @return the BeanOutputConverter instance, or null to use getJsonSchemaExample()
+     */
+    protected BeanOutputConverter<?> getOutputConverter() {
+        return null;
+    }
 
     /**
      * Returns the template type identifier.
@@ -169,14 +201,18 @@ public abstract class AbstractStreamingPromptTemplate implements PromptTemplate 
     /**
      * Builds the JSON schema section with markers.
      * <p>
-     * This method wraps the provided JSON schema example with the
-     * required streaming protocol markers.
+     * This method wraps the JSON schema with the required streaming protocol markers.
+     * If a BeanOutputConverter is provided via {@link #getOutputConverter()},
+     * its format is used instead of the provided jsonSchema parameter.
      * </p>
      *
-     * @param jsonSchema the JSON schema example to wrap
+     * @param jsonSchema the fallback JSON schema example (used when no converter is available)
      * @return the complete JSON schema section with markers
      */
     private String buildJsonSchemaSection(String jsonSchema) {
+        BeanOutputConverter<?> converter = getOutputConverter();
+        String schema = (converter != null) ? converter.getFormat() : jsonSchema;
+
         return String.format("""
 
             **아래는 당신이 출력해야 할 완벽한 JSON 구조입니다. 이 구조를 반드시 따르세요.**
@@ -186,7 +222,7 @@ public abstract class AbstractStreamingPromptTemplate implements PromptTemplate 
             %s
             """,
             StreamingProtocol.JSON_START_MARKER,
-            jsonSchema.trim(),
+            schema.trim(),
             StreamingProtocol.JSON_END_MARKER);
     }
 

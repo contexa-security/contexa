@@ -37,14 +37,14 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                                              AtomicBoolean jsonEnded,
                                              AtomicReference<StringBuilder> jsonBuffer) {
 
-        log.debug("[CHUNK] received: length={}, content={}", chunk.length(),
-            chunk.length() > 100 ? chunk.substring(0, 100) + "..." : chunk);
+//        log.debug("[CHUNK] received: length={}, content={}", chunk.length(),
+//            chunk.length() > 100 ? chunk.substring(0, 100) + "..." : chunk);
 
         textBuffer.get().append(chunk);
         String buffer = textBuffer.get().toString();
 
-        log.debug("[STATE] jsonStarted={}, jsonEnded={}, bufferLen={}, jsonBufferLen={}",
-            jsonStarted.get(), jsonEnded.get(), buffer.length(), jsonBuffer.get().length());
+//        log.debug("[STATE] jsonStarted={}, jsonEnded={}, bufferLen={}, jsonBufferLen={}",
+//            jsonStarted.get(), jsonEnded.get(), buffer.length(), jsonBuffer.get().length());
 
         if (!jsonStarted.get() && buffer.contains(StreamingProtocol.JSON_START_MARKER)) {
             jsonStarted.set(true);
@@ -56,8 +56,8 @@ public class JsonStreamingProcessor implements ChunkProcessor {
             textBuffer.set(new StringBuilder(afterMarker));
             jsonBuffer.set(new StringBuilder());
 
-            log.debug("[JSON_START] detected at index={}, beforeJson length={}, afterMarker length={}",
-                startIndex, beforeJson.length(), afterMarker.length());
+//            log.debug("[JSON_START] detected at index={}, beforeJson length={}, afterMarker length={}",
+//                startIndex, beforeJson.length(), afterMarker.length());
 
             List<String> results = new ArrayList<>();
             if (!beforeJson.trim().isEmpty()) {
@@ -70,8 +70,8 @@ public class JsonStreamingProcessor implements ChunkProcessor {
         if (jsonStarted.get() && !jsonEnded.get()) {
             String currentText = textBuffer.get().toString();
 
-            log.debug("[JSON_ACCUMULATING] currentText length={}, contains END_MARKER={}",
-                currentText.length(), currentText.contains(StreamingProtocol.JSON_END_MARKER));
+//            log.debug("[JSON_ACCUMULATING] currentText length={}, contains END_MARKER={}",
+//                currentText.length(), currentText.contains(StreamingProtocol.JSON_END_MARKER));
 
             if (currentText.contains(StreamingProtocol.JSON_END_MARKER)) {
                 jsonEnded.set(true);
@@ -86,14 +86,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                 List<String> results = new ArrayList<>();
                 String rawJson = jsonBuffer.get().toString().trim();
 
-//                log.debug("[JSON_END] detected, raw JSON {}", rawJson);
-//                log.debug("[FINAL_RESPONSE] raw JSON (first 500): {}",
-//                    rawJson.length() > 500 ? rawJson.substring(0, 500) + "..." : rawJson);
-//                log.debug("[FINAL_RESPONSE] raw JSON (last 500): {}",
-//                    rawJson.length() > 500 ? "..." + rawJson.substring(rawJson.length() - 500) : rawJson);
-
-                // repairJson disabled - LLM outputs valid JSON, repair may corrupt it
-                // String repairedJson = repairJson(rawJson);
                 results.add(StreamingProtocol.FINAL_RESPONSE_MARKER + rawJson);
 
                 if (!afterJson.trim().isEmpty()) {
@@ -114,13 +106,13 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                 }
                 textBuffer.set(new StringBuilder(toKeep));
 
-                log.debug("[JSON_BUFFER] partial accumulate, jsonBufferLen={}, keeping={}",
-                    jsonBuffer.get().length(), toKeep);
+//                log.debug("[JSON_BUFFER] partial accumulate, jsonBufferLen={}, keeping={}",
+//                    jsonBuffer.get().length(), toKeep);
             } else {
                 jsonBuffer.get().append(currentText);
                 textBuffer.set(new StringBuilder());
 
-                log.debug("[JSON_BUFFER] full accumulate, total jsonBuffer length={}", jsonBuffer.get().length());
+//                log.debug("[JSON_BUFFER] full accumulate, total jsonBuffer length={}", jsonBuffer.get().length());
             }
 
             return Flux.empty();
@@ -140,8 +132,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
             return Flux.empty();
         }
 
-        // Marker split handling: Keep last MAX_MARKER_LENGTH chars for marker detection
-        // This prevents marker loss when split across multiple chunks
         int maxBufferSize = 100;
         if (currentText.length() > maxBufferSize) {
             String toProcess = currentText.substring(0, currentText.length() - MAX_MARKER_LENGTH);

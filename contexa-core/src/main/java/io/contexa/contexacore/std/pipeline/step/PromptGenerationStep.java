@@ -16,13 +16,11 @@ import reactor.core.publisher.Mono;
 public class PromptGenerationStep implements PipelineStep {
     
     private final PromptGenerator promptGenerator;
-    private final ToolResolver chainedToolResolver;
 
     public PromptGenerationStep(
             PromptGenerator promptGenerator,
             @Autowired(required = false) ToolResolver chainedToolResolver) {
         this.promptGenerator = promptGenerator;
-        this.chainedToolResolver = chainedToolResolver;
     }
     
     @Override

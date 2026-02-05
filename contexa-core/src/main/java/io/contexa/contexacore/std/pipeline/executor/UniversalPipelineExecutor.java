@@ -106,16 +106,48 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
             Class<R> responseType) {
 
         boolean isSoar = request.getContext() instanceof SoarContext;
+        return executeStepsWithConfig(request, configuration, context, steps, isSoar, "PIPELINE");
+    }
+
+    /**
+     * Resolves the actual step to execute, allowing subclasses to customize step resolution.
+     * Default implementation substitutes SOAR tool execution step when applicable.
+     *
+     * @param step the original pipeline step
+     * @param isSoar whether the request is a SOAR context
+     * @return the resolved step to execute
+     */
+    protected PipelineStep resolveActualStep(PipelineStep step, boolean isSoar) {
+        if (step == llmExecutionStep && isSoar && soarToolExecutionStep != null) {
+            return soarToolExecutionStep;
+        }
+        return step;
+    }
+
+    /**
+     * Executes pipeline steps sequentially with configurable step list and log prefix.
+     * This method can be reused by subclasses for different step configurations.
+     *
+     * @param request the AI request
+     * @param configuration the pipeline configuration
+     * @param context the execution context
+     * @param stepsToExecute the list of steps to execute
+     * @param isSoar whether the request is a SOAR context
+     * @param logPrefix the log prefix for error messages
+     * @return Mono of the execution context after all steps complete
+     */
+    protected <T extends DomainContext> Mono<PipelineExecutionContext> executeStepsWithConfig(
+            AIRequest<T> request,
+            PipelineConfiguration<T> configuration,
+            PipelineExecutionContext context,
+            List<PipelineStep> stepsToExecute,
+            boolean isSoar,
+            String logPrefix) {
+
         Mono<PipelineExecutionContext> pipeline = Mono.just(context);
 
-        for (PipelineStep step : steps) {
-            PipelineStep actualStep;
-            if (step == llmExecutionStep && isSoar && soarToolExecutionStep != null) {
-                actualStep = soarToolExecutionStep;
-            } else {
-                actualStep = step;
-            }
-
+        for (PipelineStep step : stepsToExecute) {
+            PipelineStep actualStep = resolveActualStep(step, isSoar);
             PipelineConfiguration.PipelineStep configStep = getConfigStepForStep(actualStep, isSoar);
 
             if (configuration.hasStep(configStep)) {
@@ -129,8 +161,8 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                             .thenReturn(ctx)
                             .doOnError(error -> {
                                 long stepTime = System.currentTimeMillis() - stepStart;
-                                log.error("[PIPELINE] STEP {} failed: {} ({}ms) - {}",
-                                        stepOrder, stepName, stepTime, error.getMessage());
+                                log.error("[{}] STEP {} failed: {} ({}ms) - {}",
+                                        logPrefix, stepOrder, stepName, stepTime, error.getMessage());
                             });
                 });
             }

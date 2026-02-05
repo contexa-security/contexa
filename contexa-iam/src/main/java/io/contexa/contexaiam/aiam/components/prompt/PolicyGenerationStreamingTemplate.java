@@ -124,7 +124,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
      * @param request the AI request
      * @return the natural language query or a default message
      */
-    private String extractNaturalQuery(AIRequest<? extends DomainContext> request) {
+    public String extractNaturalQuery(AIRequest<? extends DomainContext> request) {
         String naturalQuery = request.getParameter("naturalLanguageQuery", String.class);
         if (naturalQuery != null) {
             return naturalQuery;

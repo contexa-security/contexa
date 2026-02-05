@@ -21,15 +21,15 @@ import java.util.Map;
 
 @Slf4j
 public class ResponseParsingStep implements PipelineStep {
-    
+
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final DefaultConversionService conversionService = new DefaultConversionService();
-    
+
     @Override
     public <T extends DomainContext> Mono<Object> execute(AIRequest<T> request, PipelineExecutionContext context) {
         return Mono.fromCallable(() -> {
-                        String finalResponse = context.getStepResult(PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION, String.class);
-            if(finalResponse != null){
+            String finalResponse = context.getStepResult(PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION, String.class);
+            if (finalResponse != null) {
                 SoarResponse soarResponse = new SoarResponse();
                 soarResponse.setAnalysisResult(finalResponse);
                 context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, soarResponse);
@@ -42,27 +42,27 @@ public class ResponseParsingStep implements PipelineStep {
                 context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, structuredResponse);
                 context.addMetadata("parsingComplete", true);
                 context.addMetadata("responseType", structuredResponse != null ? structuredResponse.getClass().getSimpleName() : "unknown");
-                
+
                 return structuredResponse;
             }
-            
+
             String llmResponse = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, String.class);
-            
+
             if (llmResponse == null || llmResponse.trim().isEmpty()) {
                 log.error("[{}] LLM response is empty", getStepName());
                 return createFallbackResponse(request, context);
             }
-            
+
             Object targetTypeInfo = determineTargetType(request, context);
             Object result = convertWithSpringAI(llmResponse, targetTypeInfo, context);
-            
+
             context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, result);
 
             enrichWithMetadata(result, request, context);
             context.addMetadata("parsingComplete", true);
             context.addMetadata("parsedResponseType", result != null ? result.getClass() : null);
             context.addMetadata("responseType", result != null ? result.getClass().getSimpleName() : "unknown");
-            
+
             return result;
         });
     }
@@ -73,20 +73,18 @@ public class ResponseParsingStep implements PipelineStep {
 
             switch (targetTypeInfo) {
                 case Class<?> targetClass -> {
-                    
+
                     if (Map.class.isAssignableFrom(targetClass)) {
-                                                MapOutputConverter converter = new MapOutputConverter();
-                        Map<String, Object> result = converter.convert(cleanJson);
-                                                return result;
+                        MapOutputConverter converter = new MapOutputConverter();
+                        return converter.convert(cleanJson);
+
                     } else if (List.class.isAssignableFrom(targetClass)) {
-                                                ListOutputConverter converter = new ListOutputConverter(conversionService);
-                        List<String> result = converter.convert(cleanJson);
-                                                return result;
+                        ListOutputConverter converter = new ListOutputConverter(conversionService);
+                        return converter.convert(cleanJson);
                     } else {
-                                                try {
+                        try {
                             BeanOutputConverter<?> converter = new BeanOutputConverter<>(targetClass);
-                            Object result = converter.convert(cleanJson);
-                                                        return result;
+                            return converter.convert(cleanJson);
                         } catch (Exception beanEx) {
                             log.error("[{}] BeanOutputConverter failed ({}): {}",
                                     getStepName(), targetClass.getSimpleName(), beanEx.getMessage());
@@ -100,19 +98,17 @@ public class ResponseParsingStep implements PipelineStep {
                 }
                 case ParameterizedTypeReference<?> typeRef -> {
                     BeanOutputConverter<?> converter = new BeanOutputConverter<>(typeRef);
-                    Object result = converter.convert(cleanJson);
-                                        return result;
+                    return converter.convert(cleanJson);
                 }
                 case StructuredOutputConverter<?> converter -> {
-                    Object result = converter.convert(cleanJson);
-                                        return result;
+                    return converter.convert(cleanJson);
                 }
                 case null, default -> {
-                                        MapOutputConverter converter = new MapOutputConverter();
+                    MapOutputConverter converter = new MapOutputConverter();
                     return converter.convert(cleanJson);
                 }
             }
-            
+
         } catch (Exception e) {
             log.error("[{}] Spring AI conversion failed: {}", getStepName(), e.getMessage());
             log.error("[{}] Detailed error: ", getStepName(), e);
@@ -135,7 +131,6 @@ public class ResponseParsingStep implements PipelineStep {
 
         String cleaned = response.trim();
 
-        // Handle markdown code blocks with json language specifier
         if (cleaned.contains("```json")) {
             int start = cleaned.indexOf("```json") + 7;
             int end = cleaned.indexOf("```", start);
@@ -143,13 +138,11 @@ public class ResponseParsingStep implements PipelineStep {
                 cleaned = cleaned.substring(start, end).trim();
             }
         }
-        // Handle generic markdown code blocks
         else if (cleaned.contains("```")) {
             int start = cleaned.indexOf("```") + 3;
             int end = cleaned.indexOf("```", start);
             if (end > start) {
                 String content = cleaned.substring(start, end).trim();
-                // Skip language identifier if present on first line
                 int firstNewline = content.indexOf('\n');
                 if (firstNewline > 0 && firstNewline < 20) {
                     String firstLine = content.substring(0, firstNewline).trim();
@@ -165,13 +158,11 @@ public class ResponseParsingStep implements PipelineStep {
             return "{}";
         }
 
-        // Validate JSON structure
         if (cleaned.startsWith("{") || cleaned.startsWith("[")) {
             try {
                 objectMapper.readTree(cleaned);
                 return cleaned;
             } catch (Exception e) {
-                // Try fixing trailing commas
                 try {
                     String fixed = cleaned.replaceAll(",\\s*([}\\]])", "$1");
                     objectMapper.readTree(fixed);
@@ -189,25 +180,25 @@ public class ResponseParsingStep implements PipelineStep {
 
         Class<?> aiGenerationType = context.getMetadata("aiGenerationType", Class.class);
         if (aiGenerationType != null) {
-                        return aiGenerationType;
+            return aiGenerationType;
         }
 
         Object typeFromContext = context.getMetadata("targetResponseType", Object.class);
         if (typeFromContext != null) {
-                        return typeFromContext;
+            return typeFromContext;
         }
 
         Object typeFromRequest = request.getParameter("responseType", Object.class);
         if (typeFromRequest != null) {
-                        return typeFromRequest;
+            return typeFromRequest;
         }
 
         Object converter = request.getParameter("outputConverter", Object.class);
         if (converter instanceof StructuredOutputConverter) {
-                        return converter;
+            return converter;
         }
 
-                return Map.class;
+        return Map.class;
     }
 
     private void enrichWithMetadata(Object response, AIRequest<?> request, PipelineExecutionContext context) {
@@ -227,10 +218,10 @@ public class ResponseParsingStep implements PipelineStep {
 
     private Object createFallbackResponse(AIRequest<?> request, PipelineExecutionContext context) {
         log.error("[{}] Creating fallback response", getStepName());
-        
+
         DefaultAIResponse fallback = new DefaultAIResponse(
-            request.getRequestId() != null ? request.getRequestId() : "unknown",
-            Map.of("error", "No response from LLM", "status", "fallback")
+                request.getRequestId() != null ? request.getRequestId() : "unknown",
+                Map.of("error", "No response from LLM", "status", "fallback")
         );
 
         enrichWithMetadata(fallback, request, context);
@@ -247,6 +238,6 @@ public class ResponseParsingStep implements PipelineStep {
 
     @Override
     public int getOrder() {
-        return 5; 
+        return 5;
     }
 }

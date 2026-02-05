@@ -76,7 +76,14 @@ public class LLMExecutionStep implements PipelineStep {
                 .doOnError(error -> log.error("[PIPELINE-STEP] Streaming execution failed. Request: {}", request.getRequestId(), error));
     }
 
-    private Mono<Prompt> preparePrompt(PipelineExecutionContext context) {
+    /**
+     * Prepares the prompt from the pipeline execution context.
+     * This method can be reused by subclasses for prompt preparation.
+     *
+     * @param context the pipeline execution context containing the prompt generation result
+     * @return Mono of the prepared Prompt
+     */
+    protected Mono<Prompt> preparePrompt(PipelineExecutionContext context) {
         return Mono.fromCallable(() -> {
             PromptGenerationResult promptResult = context.getStepResult(
                     PipelineConfiguration.PipelineStep.PROMPT_GENERATION, PromptGenerationResult.class);

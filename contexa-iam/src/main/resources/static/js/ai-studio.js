@@ -448,14 +448,6 @@ class AIStudioLegacy {
             console.log('🎯 시각화 데이터 없음 - 중앙 패널 표시 생략');
         }
 
-        // 🔥 중복 제거: displayAINativeAnalysisInInspector에서 이미 모든 섹션 표시됨
-        // this.displayPermissionAnomalies(analysisResult.anomalies);
-        // this.displayOptimizationSuggestions(analysisResult.suggestions);
-        // this.displayKeyInsights(analysisResult.insights);
-
-        // 💡 Canvas 오버레이는 상세 리포트에서만 표시하도록 변경
-        // 가운데 패널에서 핵심 인사이트 제거 - 상세 리포트에서만 표시
-        console.log('🎯 핵심 인사이트는 상세 리포트에서만 표시합니다.');
     }
 
     /**
@@ -473,36 +465,27 @@ class AIStudioLegacy {
             dynamicStatsWillGenerate: true
         });
 
-        // 🔥 서버 응답 데이터를 올바르게 매핑
+        // Server response data mapping
         const analysisResult = {
-            // 서버에서 클라이언트 구조로 제공하는 필드들
-            analysisId: response.analysisId || 'unknown',
-            query: response.query || '',
+            // Core server fields
             naturalAnswer: response.naturalLanguageAnswer || '',
             confidenceScore: response.confidenceScore || 0,
 
-            // 🔥 서버 데이터 올바른 매핑
+            // Server data mapping
             analysisResults: this.convertServerDataToAnalysisResults(response),
             queryResults: response.queryResults || [],
             recommendations: response.recommendations || [],
 
-            // 시각화 데이터
+            // Visualization data
             visualizationData: response.visualizationData || null,
 
-            // 메타데이터
+            // Metadata
             processingTime: response.processingTimeMs || 0,
-            statistics: this.generateDynamicStatistics(response), // 🔥 실제 데이터 기반 동적 생성
+            statistics: this.generateDynamicStatistics(response),
 
-            // 클라이언트 전용 필드 계산
+            // Client-side computed fields
             analysisType: this.detectAnalysisTypeFromServerData(response),
-            complexityScore: 0,
-            riskScore: 0,
-
-            // 🔥 올바른 데이터 매핑 (6번 문제 해결 - insights는 문자열)
-            insights: typeof response.insights === 'string' ? [response.insights] : (response.insights || []),
-            // 🔥 recommendations를 suggestions 형태로 변환
-            suggestions: this.transformRecommendationsToSuggestions(response.recommendations || []),
-            anomalies: []
+            suggestions: this.transformRecommendationsToSuggestions(response.recommendations || [])
         };
 
         console.log('🔥 [PREPROCESSED] 클라이언트 구조 기반 분석 결과:', analysisResult);
@@ -2007,20 +1990,11 @@ class AIStudioLegacy {
             </div>
         `;
 
-        // 🗂️ 상세 리포트 데이터 저장 (모달에서 사용)
-        console.log('[INSIGHTS] AI 인사이트 및 권장사항 확인:', {
-            insights: analysisResult.insights?.length || 0,
-            suggestions: analysisResult.suggestions?.length || 0,
-            recommendations: analysisResult.recommendations?.length || 0,
-            hasDetailedReportData: !!(analysisResult.insights || analysisResult.suggestions)
-        });
-
+        // Store detailed report data for modal
         this.currentDetailedReport = {
             analysisResult,
             originalQuery,
             timestamp,
-            insights: analysisResult.insights,
-            anomalies: analysisResult.anomalies,
             suggestions: analysisResult.suggestions,
             naturalLanguageAnswer: analysisResult.naturalAnswer || analysisResult.naturalLanguageAnswer || ''
         };
@@ -2332,8 +2306,6 @@ class AIStudioLegacy {
             analysisResult,
             originalQuery,
             timestamp,
-            insights,
-            anomalies,
             suggestions,
             naturalLanguageAnswer
         } = this.currentDetailedReport;
@@ -2406,13 +2378,7 @@ class AIStudioLegacy {
                     </div>
                     ` : ''}
                     
-                    <!-- 🧠 AI 핵심 인사이트 -->
-                    ${this.generateAIInsightsHTML(insights)}
-                    
-                    <!-- 🔥 권한 이상 탐지 -->
-                    ${this.generateAnomaliesHTML(anomalies)}
-                    
-                    <!-- 📊 상세 분석 결과 -->
+                    <!-- Detail analysis results -->
                     <div class="report-section">
                         <div class="section-header">
                             <i class="fas fa-chart-line text-blue-400"></i>
@@ -2439,20 +2405,6 @@ class AIStudioLegacy {
                                     <div class="metric-info">
                                         <span class="metric-value">${analysisResult.analysisResults?.length || 0}</span>
                                         <span class="metric-label">분석 대상</span>
-                                    </div>
-                                </div>
-                                <div class="metric-card">
-                                    <i class="fas fa-lightbulb text-yellow-400"></i>
-                                    <div class="metric-info">
-                                        <span class="metric-value">${insights?.length || 0}</span>
-                                        <span class="metric-label">인사이트</span>
-                                    </div>
-                                </div>
-                                <div class="metric-card">
-                                    <i class="fas fa-exclamation-triangle text-red-400"></i>
-                                    <div class="metric-info">
-                                        <span class="metric-value">${anomalies?.length || 0}</span>
-                                        <span class="metric-label">이상 탐지</span>
                                     </div>
                                 </div>
                                 <div class="metric-card">
@@ -2598,117 +2550,8 @@ class AIStudioLegacy {
     /**
      * 🧠 AI 핵심 인사이트 HTML 생성
      */
-    generateAIInsightsHTML(insights) {
-        if (!insights || insights.length === 0) return '';
-
-        const insightsHTML = insights.map((insight, index) => `
-            <div class="ai-insight-card" data-insight-type="${insight.type}">
-                <div class="insight-header">
-                    <div class="insight-icon ${this.getInsightIconClass(insight.type)}">
-                        <i class="${this.getInsightIcon(insight.type)}"></i>
-                    </div>
-                    <div class="insight-title">
-                        <h5>${insight.title}</h5>
-                        <div class="insight-meta">
-                            <span class="insight-importance ${this.getImportanceClass(insight.importance)}">
-                                ${this.getImportanceText(insight.importance)}
-                            </span>
-                            <span class="insight-confidence">
-                                신뢰도: ${Math.round(insight.confidenceScore * 100)}%
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="insight-content">
-                    <p>${insight.description}</p>
-                    ${insight.actionable && insight.actionLinks ? `
-                        <div class="insight-actions">
-                            ${insight.actionLinks.map(link => `
-                                <button class="insight-action-btn" onclick="window.location.href='${link.url}'" data-type="${link.type}">
-                                    <i class="fas fa-arrow-right"></i>
-                                    ${link.text}
-                                </button>
-                            `).join('')}
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `).join('');
-
-        return `
-            <div class="report-section ai-insights-section">
-                <div class="section-header">
-                    <i class="fas fa-lightbulb text-yellow-400"></i>
-                    <h4>🧠 AI 핵심 인사이트</h4>
-                    <div class="section-badge ai-badge">${insights.length}개 인사이트</div>
-                </div>
-                <div class="section-content">
-                    <div class="ai-insights-grid">
-                        ${insightsHTML}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
     /**
-     * 🔥 권한 이상 탐지 HTML 생성
-     */
-    generateAnomaliesHTML(anomalies) {
-        if (!anomalies || anomalies.length === 0) return '';
-
-        const anomaliesHTML = anomalies.map((anomaly, index) => `
-            <div class="anomaly-card ${this.getAnomalySeverityClass(anomaly.severity)}" data-anomaly-type="${anomaly.type}">
-                <div class="anomaly-header">
-                    <div class="anomaly-icon">
-                        <i class="${this.getAnomalyIcon(anomaly.type)}"></i>
-                    </div>
-                    <div class="anomaly-title">
-                        <h5>${anomaly.title}</h5>
-                        <div class="anomaly-meta">
-                            <span class="anomaly-severity ${this.getSeverityClass(anomaly.severity)}">
-                                ${this.getSeverityText(anomaly.severity)}
-                            </span>
-                            <span class="anomaly-risk">
-                                위험도: ${Math.round(anomaly.riskScore * 100)}%
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="anomaly-content">
-                    <p>${anomaly.description}</p>
-                    ${anomaly.recommendedActions && anomaly.recommendedActions.length > 0 ? `
-                        <div class="anomaly-actions">
-                            <h6>권장 조치:</h6>
-                            <ul>
-                                ${anomaly.recommendedActions.map(action => `
-                                    <li><i class="fas fa-chevron-right"></i> ${action}</li>
-                                `).join('')}
-                            </ul>
-                        </div>
-                    ` : ''}
-                </div>
-            </div>
-        `).join('');
-
-        return `
-            <div class="report-section anomalies-section">
-                <div class="section-header">
-                    <i class="fas fa-exclamation-triangle text-red-400"></i>
-                    <h4>🔥 권한 이상 탐지</h4>
-                    <div class="section-badge anomaly-badge">${anomalies.length}개 이상</div>
-                </div>
-                <div class="section-content">
-                    <div class="anomalies-list">
-                        ${anomaliesHTML}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-
-    /**
-     * 🚀 최적화 제안 HTML 생성
+     * Optimization suggestions HTML generation
      */
     generateOptimizationSuggestionsHTML(suggestions) {
         if (!suggestions || suggestions.length === 0) return '';
@@ -5615,119 +5458,7 @@ class AIStudioLegacy {
     }
 
     /**
-     * 중요도에 따른 CSS 클래스 반환
-     */
-    getImportanceClass(importance) {
-        const classMap = {
-            1: 'importance-high text-red-400',
-            2: 'importance-medium text-yellow-400',
-            3: 'importance-low text-green-400'
-        };
-        return classMap[importance] || 'importance-medium text-yellow-400';
-    }
-
-    /**
-     * 중요도를 텍스트로 변환
-     */
-    getImportanceText(importance) {
-        const textMap = {
-            1: '높음',
-            2: '보통',
-            3: '낮음'
-        };
-        return textMap[importance] || '보통';
-    }
-
-    /**
-     * 인사이트 타입에 따른 아이콘 반환
-     */
-    getInsightIcon(type) {
-        const iconMap = {
-            'ACCESS_PATTERN': 'fas fa-route',
-            'ACCESS_RESTRICTION': 'fas fa-lock',
-            'RECOMMENDATION_INSIGHT': 'fas fa-lightbulb',
-            'DISTRIBUTION': 'fas fa-chart-pie',
-            'PATTERN': 'fas fa-project-diagram',
-            'RISK': 'fas fa-exclamation-triangle',
-            'EFFICIENCY': 'fas fa-tachometer-alt',
-            'COMPLIANCE': 'fas fa-shield-check',
-            'TREND': 'fas fa-chart-line'
-        };
-        return iconMap[type] || 'fas fa-info-circle';
-    }
-
-    /**
-     * 인사이트 타입에 따른 아이콘 CSS 클래스 반환
-     */
-    getInsightIconClass(type) {
-        const classMap = {
-            'ACCESS_PATTERN': 'insight-icon-blue',
-            'ACCESS_RESTRICTION': 'insight-icon-red',
-            'RECOMMENDATION_INSIGHT': 'insight-icon-yellow',
-            'DISTRIBUTION': 'insight-icon-green',
-            'PATTERN': 'insight-icon-purple',
-            'RISK': 'insight-icon-red',
-            'EFFICIENCY': 'insight-icon-blue',
-            'COMPLIANCE': 'insight-icon-green',
-            'TREND': 'insight-icon-indigo'
-        };
-        return classMap[type] || 'insight-icon-default';
-    }
-
-    /**
-     * 이상 탐지 타입에 따른 아이콘 반환
-     */
-    getAnomalyIcon(type) {
-        const iconMap = {
-            'MISSING_PERMISSION': 'fas fa-ban',
-            'DUPLICATE': 'fas fa-copy',
-            'CONFLICT': 'fas fa-exclamation-triangle',
-            'EXCESSIVE': 'fas fa-warning',
-            'ORPHANED': 'fas fa-unlink',
-            'CIRCULAR': 'fas fa-sync-alt',
-            'COMPLEX_PERMISSION_CHAIN': 'fas fa-project-diagram'
-        };
-        return iconMap[type] || 'fas fa-exclamation';
-    }
-
-    /**
-     * 심각도에 따른 CSS 클래스 반환
-     */
-    getAnomalySeverityClass(severity) {
-        const classMap = {
-            1: 'anomaly-low',
-            2: 'anomaly-medium',
-            3: 'anomaly-high'
-        };
-        return classMap[severity] || 'anomaly-medium';
-    }
-
-    /**
-     * 심각도에 따른 CSS 클래스 반환
-     */
-    getSeverityClass(severity) {
-        const classMap = {
-            1: 'severity-low text-green-400',
-            2: 'severity-medium text-yellow-400',
-            3: 'severity-high text-red-400'
-        };
-        return classMap[severity] || 'severity-medium text-yellow-400';
-    }
-
-    /**
-     * 심각도를 텍스트로 변환
-     */
-    getSeverityText(severity) {
-        const textMap = {
-            1: '낮음',
-            2: '보통',
-            3: '높음'
-        };
-        return textMap[severity] || '보통';
-    }
-
-    /**
-     * 최적화 제안 타입에 따른 아이콘 반환
+     * Get optimization icon by type
      */
     getOptimizationIcon(type) {
         const iconMap = {
@@ -6458,35 +6189,7 @@ class AIStudioLegacy {
     }
 
     /**
-     * 🔥 권한 이상 탐지 결과 표시
-     */
-    displayPermissionAnomalies(anomalies) {
-        if (!anomalies || anomalies.length === 0) return;
-
-        console.log('🔥 Displaying permission anomalies:', anomalies);
-
-        // 이상 탐지 알림 생성
-        anomalies.forEach(anomaly => {
-            const severity = anomaly.severity || 2;
-            const type = severity >= 3 ? 'error' : (severity >= 2 ? 'warning' : 'info');
-
-            this.showToast(
-                `🔥 ${anomaly.title || '권한 이상 탐지'}: ${anomaly.description}`,
-                type
-            );
-        });
-
-        // Inspector에 이상 탐지 섹션 추가
-        const inspectorContent = document.getElementById('inspector-content');
-        if (inspectorContent && anomalies.length > 0) {
-            const anomaliesHtml = this.generateAnomaliesHTML(anomalies);
-            const existingContent = inspectorContent.innerHTML;
-            inspectorContent.innerHTML = existingContent + anomaliesHtml;
-        }
-    }
-
-    /**
-     * 🚀 최적화 제안 표시
+     * Display optimization suggestions
      */
     displayOptimizationSuggestions(suggestions) {
         if (!suggestions || suggestions.length === 0) return;
@@ -6513,31 +6216,7 @@ class AIStudioLegacy {
     }
 
     /**
-     * 🧠 AI 핵심 인사이트 표시 (실제 AI 분석 결과 기반)
-     */
-    displayKeyInsights(insights) {
-        if (!insights || insights.length === 0) return;
-
-        console.log('🧠 AI 핵심 인사이트 표시:', insights);
-
-        // 실제 AI 분석 결과의 중요한 인사이트는 토스트로 표시
-        insights.forEach(insight => {
-            if (insight.importance === 1 || insight.confidenceScore > 0.8) {
-                this.showToast(
-                    `🧠 AI 인사이트: ${insight.title}`,
-                    'info'
-                );
-            }
-        });
-
-        // Canvas 오버레이 제거 - 상세 리포트에서만 표시
-        console.log('🎯 핵심 인사이트는 상세 리포트에서만 표시됩니다.');
-    }
-
-    // 🔥 핵심 인사이트 중앙패널 완전 제거 - 상세 리포트에서만 표시
-
-    /**
-     * 🎯 사용자 권한 부여 기능
+     * Grant user permissions
      */
     grantUserPermissions(userName) {
         console.log('🔑 권한 부여 시도:', userName);
