@@ -24,8 +24,6 @@ public class PolicyGenerationCollectionService {
     private final RoleService roleService;
     private final PermissionCatalogService permissionCatalogService;
     private final ConditionTemplateRepository conditionTemplateRepository;
-    private static final Pattern SPEL_VARIABLE_PATTERN = Pattern.compile("#(\\w+)");
-    private static final Set<String> GLOBAL_CONTEXT_VARIABLES = Set.of("#authentication", "#request", "#ai");
 
     @Transactional(readOnly = true)
     public PolicyGenerationItem.AvailableItems collectData() {
@@ -90,39 +88,21 @@ public class PolicyGenerationCollectionService {
 
         if (cond.getClassification() != null) {
             switch (cond.getClassification()) {
-                case UNIVERSAL -> desc.append(" 🟢 (즉시 사용 가능)");
-                case CONTEXT_DEPENDENT -> desc.append(" 🟡 (AI 검증 필요)");
-                case CUSTOM_COMPLEX -> desc.append(" 🔴 (전문가 검토)");
+                case UNIVERSAL -> desc.append(" [UNIVERSAL - Ready to use]");
+                case CONTEXT_DEPENDENT -> desc.append(" [CONTEXT_DEPENDENT - AI verification required]");
+                case CUSTOM_COMPLEX -> desc.append(" [CUSTOM_COMPLEX - Expert review required]");
             }
         }
 
         if (cond.getComplexityScore() != null) {
-            desc.append(" [복잡도: ").append(cond.getComplexityScore()).append("/10]");
+            desc.append(" [Complexity: ").append(cond.getComplexityScore()).append("/10]");
         }
 
         if (Boolean.TRUE.equals(cond.getApprovalRequired())) {
-            desc.append(" 승인필요");
+            desc.append(" [Approval required]");
         }
 
         return desc.toString();
     }
 
-    private int getClassificationOrder(ConditionTemplate.ConditionClassification classification) {
-        if (classification == null) return 2;
-        return switch (classification) {
-            case UNIVERSAL -> 1;
-            case CONTEXT_DEPENDENT -> 2;
-            case CUSTOM_COMPLEX -> 3;
-        };
-    }
-
-    private Set<String> extractVariablesFromSpel(String spelTemplate) {
-        Set<String> variables = new HashSet<>();
-        if (spelTemplate == null) return variables;
-        Matcher matcher = SPEL_VARIABLE_PATTERN.matcher(spelTemplate);
-        while (matcher.find()) {
-            variables.add(matcher.group()); 
-        }
-        return variables;
-    }
 }
