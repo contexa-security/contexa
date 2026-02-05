@@ -129,7 +129,7 @@ public class IamAiamLabsAutoConfiguration {
             StudioQueryFormatter queryFormatter,
             StudioQueryVectorService vectorService) {
         return new StudioQueryLab(orchestrator, queryIntentAnalyzer,
-                dataCollectionService, queryFormatter, vectorService);
+                dataCollectionService, queryFormatter);
     }
 
     @Bean

@@ -10,35 +10,34 @@ import java.util.Map;
 
 @Slf4j
 public class ContextRetrieverRegistry {
-    
+
     private final Map<Class<? extends DomainContext>, ContextRetriever> retrieverMap = new HashMap<>();
     private final ContextRetriever defaultRetriever;
-    
+
     public ContextRetrieverRegistry(ContextRetriever defaultRetriever) {
         this.defaultRetriever = defaultRetriever;
-            }
+    }
 
     public void registerRetriever(Class<? extends DomainContext> contextType, ContextRetriever retriever) {
         retrieverMap.put(contextType, retriever);
-            }
+    }
 
     public ContextRetriever getRetriever(Class<? extends DomainContext> contextType) {
-        
+
         ContextRetriever retriever = retrieverMap.get(contextType);
         if (retriever != null) {
-                        return retriever;
+            return retriever;
         }
 
         for (Map.Entry<Class<? extends DomainContext>, ContextRetriever> entry : retrieverMap.entrySet()) {
             if (entry.getKey().isAssignableFrom(contextType)) {
-                                return entry.getValue();
+                return entry.getValue();
             }
         }
 
-                return defaultRetriever;
+        return defaultRetriever;
     }
 
-    @SuppressWarnings("unchecked")
     public ContextRetriever getRetriever(DomainContext context) {
         return getRetriever((Class<? extends DomainContext>) context.getClass());
     }

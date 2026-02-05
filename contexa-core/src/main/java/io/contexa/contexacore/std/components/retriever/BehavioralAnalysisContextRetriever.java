@@ -102,8 +102,6 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
             .documentRetriever(retriever)
             .queryTransformers(behaviorQueryTransformer)
             .build();
-
-        registerDomainAdvisor(BehavioralAnalysisContext.class, behaviorAdvisor);
     }
 
     @Override

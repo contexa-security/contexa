@@ -106,7 +106,6 @@ public class SoarContextRetriever extends ContextRetriever {
             .queryTransformers(soarQueryTransformer)
             .build();
 
-        registerDomainAdvisor(SoarContext.class, soarAdvisor);
     }
 
     private ContextRetrievalResult retrieveSoarContextWithRAG(AIRequest<SoarContext> request) {

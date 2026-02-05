@@ -84,21 +84,16 @@ public abstract class AbstractBasePromptTemplate implements PromptTemplate {
      * @param contextInfo RAG retrieval context information
      * @return merged context combining IAM data and RAG context
      */
-    protected String extractIamDataContext(AIRequest<? extends DomainContext> request, String contextInfo) {
+    protected String extractContextInfo(AIRequest<? extends DomainContext> request, String contextInfo) {
         String iamDataContext = request.getParameter(IAM_DATA_CONTEXT_PARAM, String.class);
 
-        // Both exist: merge for optimal response quality
         if (iamDataContext != null && !iamDataContext.isBlank()
                 && contextInfo != null && !contextInfo.isBlank()) {
             return iamDataContext + "\n\n--- RAG Context (Similar Query Patterns) ---\n" + contextInfo;
         }
-
-        // Only IAM data: sufficient for basic response
         if (iamDataContext != null && !iamDataContext.isBlank()) {
             return iamDataContext;
         }
-
-        // Only RAG context: fallback
         return contextInfo;
     }
 

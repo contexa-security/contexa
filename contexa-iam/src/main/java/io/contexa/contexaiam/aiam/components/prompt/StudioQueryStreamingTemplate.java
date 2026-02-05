@@ -85,7 +85,7 @@ public class StudioQueryStreamingTemplate extends AbstractStreamingPromptTemplat
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         String naturalQuery = extractNaturalQuery(request, "자연어 질의가 제공되지 않았습니다");
-        String actualContextInfo = extractIamDataContext(request, contextInfo);
+        String actualContextInfo = extractContextInfo(request, contextInfo);
 
         return buildUserPrompt(naturalQuery, actualContextInfo);
     }

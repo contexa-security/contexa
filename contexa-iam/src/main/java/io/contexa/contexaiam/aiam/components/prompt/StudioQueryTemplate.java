@@ -125,7 +125,7 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         String naturalQuery = extractNaturalQueryFromRequest(request);
-        String iamDataContext = extractIamDataContext(request, contextInfo);
+        String iamDataContext = extractContextInfo(request, contextInfo);
 
         return buildUserPrompt(naturalQuery, iamDataContext);
     }

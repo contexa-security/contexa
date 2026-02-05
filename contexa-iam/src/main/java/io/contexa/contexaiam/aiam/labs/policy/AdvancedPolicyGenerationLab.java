@@ -1,8 +1,6 @@
 package io.contexa.contexaiam.aiam.labs.policy;
 
-import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.LabSpecialization;
-import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
@@ -10,7 +8,6 @@ import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexaiam.aiam.labs.AbstractIAMLab;
 import io.contexa.contexaiam.aiam.labs.data.IAMDataCollectionService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
-import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
@@ -46,22 +43,22 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
     @Override
     protected PolicyResponse doProcess(PolicyGenerationRequest request) throws Exception {
-        AiGeneratedPolicyDraftDto policyDraft = generatePolicyFromTextSync(request);
+        AiGeneratedPolicyDraftDto policyDraft = processRequestAsync(request).block();
         return convertDtoToPolicyResponse(policyDraft, "sync-request-id");
     }
 
     @Override
     protected Mono<PolicyResponse> doProcessAsync(PolicyGenerationRequest request) {
-        return generatePolicyFromTextAsync(request)
+        return processRequestAsync(request)
         .map(policyDraft -> convertDtoToPolicyResponse(policyDraft, "async-request-id"));
     }
 
     @Override
     protected Flux<String> doProcessStream(PolicyGenerationRequest request) {
-        return generateRealPolicyFromTextStream(request);
+        return processRequestAsyncStream(request);
     }
 
-    private Mono<AiGeneratedPolicyDraftDto> generatePolicyFromTextAsync(PolicyGenerationRequest request) {
+    private Mono<AiGeneratedPolicyDraftDto> processRequestAsync(PolicyGenerationRequest request) {
 
         try {
             vectorService.storePolicyGenerationRequest(request);
@@ -100,7 +97,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 });
     }
 
-    private Flux<String> generateRealPolicyFromTextStream(PolicyGenerationRequest request){
+    private Flux<String> processRequestAsyncStream(PolicyGenerationRequest request){
 
         try {
 
@@ -121,15 +118,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         } catch (Exception e) {
             log.error("실제 AI 스트리밍 초기화 실패", e);
             return Flux.just("ERROR: 실제 스트리밍 초기화 실패: " + e.getMessage(), "[DONE]");
-        }
-    }
-
-    private AiGeneratedPolicyDraftDto generatePolicyFromTextSync(PolicyGenerationRequest request) {
-        try {
-            return generatePolicyFromTextAsync(request).block();
-        } catch (Exception e) {
-            log.error("동기 정책 생성 실패", e);
-            return createFallbackPolicyData(request.getNaturalLanguageQuery());
         }
     }
 

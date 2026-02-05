@@ -1,6 +1,5 @@
 package io.contexa.autoconfigure.iam.aiam;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexaiam.aiam.components.prompt.*;
 import io.contexa.contexaiam.aiam.components.retriever.*;
@@ -8,8 +7,6 @@ import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateVectorService;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
-import io.contexa.contexaiam.repository.ConditionTemplateRepository;
-import io.contexa.contexacommon.repository.*;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -18,7 +15,6 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class IamAiamComponentsAutoConfiguration {
 
-    
     @Bean
     @ConditionalOnMissingBean
     public PolicyGenerationTemplate policyGenerationTemplate() {
@@ -73,14 +69,10 @@ public class IamAiamComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public PolicyGenerationContextRetriever policyGenerationContextRetriever(
             VectorStore vectorStore,
-            RoleRepository roleRepository,
-            PermissionRepository permissionRepository,
-            ConditionTemplateRepository conditionTemplateRepository,
             ContextRetrieverRegistry contextRetrieverRegistry,
             PolicyGenerationVectorService policyGenerationVectorService) {
         return new PolicyGenerationContextRetriever(
-                vectorStore, roleRepository, permissionRepository,
-                conditionTemplateRepository, contextRetrieverRegistry, policyGenerationVectorService);
+                vectorStore, contextRetrieverRegistry, policyGenerationVectorService);
     }
 
     @Bean
@@ -108,13 +100,8 @@ public class IamAiamComponentsAutoConfiguration {
     public StudioQueryContextRetriever studioQueryContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,
-            UserRepository userRepository,
-            GroupRepository groupRepository,
-            RoleRepository roleRepository,
-            PermissionRepository permissionRepository,
             StudioQueryVectorService studioQueryVectorService) {
         return new StudioQueryContextRetriever(
-                vectorStore, contextRetrieverRegistry, userRepository,
-                groupRepository, roleRepository, permissionRepository, studioQueryVectorService);
+                vectorStore, contextRetrieverRegistry, studioQueryVectorService);
     }
 }
