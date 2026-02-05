@@ -39,7 +39,7 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
         prompt.append(domainPrompt.trim());
         prompt.append("\n\n");
         prompt.append("<output_format>\n");
-        prompt.append("You MUST respond with a valid JSON object matching this schema:\n");
+        prompt.append("응답은 반드시 다음 스키마와 일치하는 유효한 JSON 객체여야 합니다:\n");
         prompt.append(jsonSchema);
         prompt.append("\n</output_format>");
 

@@ -142,12 +142,9 @@ public class PipelineOrchestrator {
                 .filter(executor -> executor.supportsConfiguration(configuration))
                 .findFirst();
 
-        if (fallbackExecutor.isPresent()) {
-            return Mono.just(fallbackExecutor.get());
-        }
+        return fallbackExecutor.map(Mono::just).orElseGet(() -> Mono.error(new IllegalStateException(
+                "No PipelineExecutor found that supports configuration: " + configuration.getSteps())));
 
-        return Mono.error(new IllegalStateException(
-                "No PipelineExecutor found that supports configuration: " + configuration.getSteps()));
     }
 
     private <T extends DomainContext, R extends AIResponse> Mono<R> createFallbackResponse(
