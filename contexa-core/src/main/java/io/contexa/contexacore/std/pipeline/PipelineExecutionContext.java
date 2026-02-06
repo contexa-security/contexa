@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.HashMap;
 
 public class PipelineExecutionContext {
-    
+
     private final String executionId;
     private final Map<String, Object> parameters;
     private final Map<String, Object> stepResults;
@@ -34,6 +34,7 @@ public class PipelineExecutionContext {
     public PipelineExecutionContext(String executionId) {
         this(executionId, new HashMap<>());
     }
+
     public void addStepResult(PipelineConfiguration.PipelineStep step, Object result) {
         if (step == null) {
             throw new IllegalArgumentException("Pipeline step cannot be null");
@@ -54,7 +55,7 @@ public class PipelineExecutionContext {
     public <T> T getStepResult(PipelineConfiguration.PipelineStep step, Class<T> type) {
         return getStepResult(step.name(), type);
     }
-    
+
     public Object get(String key) {
         Object result = sharedData.get(key);
         if (result == null) {
@@ -62,7 +63,7 @@ public class PipelineExecutionContext {
         }
         return result;
     }
-    
+
     public <T> T get(String key, Class<T> type) {
         Object result = get(key);
         return type.isInstance(result) ? type.cast(result) : null;
@@ -88,6 +89,7 @@ public class PipelineExecutionContext {
         Object safeValue = value != null ? value : "NULL_VALUE";
         metadata.put(key, safeValue);
     }
+
     public <T> T getMetadata(String key, Class<T> type) {
         Object value = metadata.get(key);
         if ("NULL_VALUE".equals(value)) {

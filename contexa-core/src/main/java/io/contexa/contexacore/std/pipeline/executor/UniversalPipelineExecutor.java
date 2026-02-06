@@ -38,7 +38,6 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     protected final List<PipelineStep> steps;
     private final LLMExecutionStep llmExecutionStep;
     private final PipelineStep soarToolExecutionStep;
-    private final FinalResponseBuilder responseBuilder;
 
     public UniversalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
@@ -62,8 +61,6 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
                 )
                 .sorted((a, b) -> Integer.compare(a.getOrder(), b.getOrder()))
                 .toList();
-
-        this.responseBuilder = new FinalResponseBuilder();
     }
 
     @Override
@@ -76,7 +73,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
         context.addMetadata("targetResponseType", responseType);
 
         return executeStepsSequentially(request, configuration, context, responseType)
-                .map(ctx -> responseBuilder.build(request, ctx, responseType))
+                .map(ctx -> context.getStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, responseType))
                 .doOnError(error ->
                         log.error("[PIPELINE] Pipeline failed - Request: {} - {}",
                                 request.getRequestId(), error.getMessage(), error));
