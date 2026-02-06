@@ -97,9 +97,8 @@ public class PostprocessingStep implements PipelineStep {
         context.addMetadata("completedAt", System.currentTimeMillis());
     }
 
-    private Object createMinimalFallbackResponse(AIRequest<?> request, PipelineExecutionContext context) {
+    private Object createMinimalFallbackResponse(PipelineExecutionContext context) {
         DefaultAIResponse fallback = new DefaultAIResponse(
-                request.getRequestId() != null ? request.getRequestId() : "unknown",
                 "{\"status\":\"no_response\"}"
         );
 
@@ -137,10 +136,7 @@ public class PostprocessingStep implements PipelineStep {
             com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
             String jsonResponse = mapper.writeValueAsString(fallbackData);
 
-            DefaultAIResponse fallback = new DefaultAIResponse(
-                    request.getRequestId() != null ? request.getRequestId() : "unknown",
-                    jsonResponse
-            );
+            DefaultAIResponse fallback = new DefaultAIResponse(jsonResponse);
 
             context.addStepResult(PipelineConfiguration.PipelineStep.POSTPROCESSING, fallback);
             context.addMetadata("status", "FALLBACK");
@@ -149,7 +145,7 @@ public class PostprocessingStep implements PipelineStep {
         } catch (Exception e) {
             log.error("[{}] Failed to create fallback response", getStepName(), e);
 
-            return createMinimalFallbackResponse(request, context);
+            return createMinimalFallbackResponse(context);
         }
     }
 
