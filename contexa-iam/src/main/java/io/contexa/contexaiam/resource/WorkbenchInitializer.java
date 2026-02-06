@@ -21,19 +21,18 @@ public class WorkbenchInitializer implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-                try {
+        try {
+            resourceRegistryService.refreshAndSynchronizeResources();
 
             List<Policy> policiesToUpdate = policyRepository.findByFriendlyDescriptionIsNull();
 
-            if (policiesToUpdate.isEmpty()) {
-                                return;
-            }
+            if (policiesToUpdate.isEmpty()) return;
 
-                        for (Policy policy : policiesToUpdate) {
+            for (Policy policy : policiesToUpdate) {
                 policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
                 policyRepository.save(policy);
             }
-                    } catch (Exception e) {
+        } catch (Exception e) {
             log.error("IAM Command Center: Failed to initialize resources on startup.", e);
         }
     }
