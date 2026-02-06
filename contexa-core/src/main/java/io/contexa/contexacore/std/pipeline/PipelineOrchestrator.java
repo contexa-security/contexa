@@ -159,9 +159,9 @@ public class PipelineOrchestrator {
             R response;
 
             if (responseType.equals(SoarResponse.class)) {
-                response = (R) createSoarFallbackResponse(request.getRequestId(), error);
+                response = (R) createSoarFallbackResponse(error);
             } else {
-                response = createGenericFallbackResponse(request.getRequestId(), responseType, error);
+                response = createGenericFallbackResponse(responseType, error);
             }
 
             return Mono.just(response);
@@ -173,8 +173,8 @@ public class PipelineOrchestrator {
         }
     }
 
-    private SoarResponse createSoarFallbackResponse(String requestId, Throwable error) {
-        SoarResponse soarResponse = new SoarResponse(requestId, AIResponse.ExecutionStatus.FAILURE);
+    private SoarResponse createSoarFallbackResponse(Throwable error) {
+        SoarResponse soarResponse = new SoarResponse();
 
         soarResponse.withError("Pipeline execution failed: " + error.getMessage())
                 .withMetadata("errorType", error.getClass().getSimpleName())
@@ -195,11 +195,10 @@ public class PipelineOrchestrator {
     }
 
     private <R extends AIResponse> R createGenericFallbackResponse(
-            String requestId,
             Class<R> responseType,
             Throwable error) throws Exception {
 
-        R response = createResponseInstance(requestId, responseType);
+        R response = createResponseInstance(responseType);
 
         response.withError("Pipeline execution failed: " + error.getMessage())
                 .withMetadata("errorType", error.getClass().getSimpleName())
@@ -208,10 +207,9 @@ public class PipelineOrchestrator {
         return response;
     }
 
-    private <R extends AIResponse> R createResponseInstance(String requestId, Class<R> responseType) throws Exception {
+    private <R extends AIResponse> R createResponseInstance(Class<R> responseType) throws Exception {
         try {
-            return responseType.getDeclaredConstructor(String.class, AIResponse.ExecutionStatus.class)
-                    .newInstance(requestId, AIResponse.ExecutionStatus.FAILURE);
+            return responseType.getDeclaredConstructor(String.class, AIResponse.ExecutionStatus.class).newInstance();
         } catch (NoSuchMethodException e) {
             try {
                 return responseType.getDeclaredConstructor().newInstance();
@@ -221,15 +219,6 @@ public class PipelineOrchestrator {
                         ". Expected either () or (String, ExecutionStatus)", ex);
             }
         }
-    }
-
-    public List<String> getRegisteredExecutors() {
-        return executors.stream()
-                .map(executor -> String.format("%s (%s, priority: %d)",
-                        executor.getSupportedDomain(),
-                        executor.getClass().getSimpleName(),
-                        executor.getPriority()))
-                .toList();
     }
 
     private <T extends DomainContext> PipelineConfiguration<T> createDefaultPipelineConfiguration() {

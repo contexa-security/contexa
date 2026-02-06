@@ -43,34 +43,14 @@ public class SoarResponse extends AIResponse {
     private Map<String, Object> metadata;
 
     public SoarResponse() {
-        super("default-request", ExecutionStatus.SUCCESS);
         this.timestamp = LocalDateTime.now();
         this.sessionState = SessionState.INITIALIZED;
         this.withExecutionTime(LocalDateTime.now());
     }
 
     public SoarResponse(String requestId, ExecutionStatus status) {
-        super(requestId, status);
         this.timestamp = LocalDateTime.now();
         this.sessionState = SessionState.INITIALIZED;
         this.withExecutionTime(LocalDateTime.now());
-    }
-
-    @Override
-    public String getResponseType() {
-        return "SOAR_RESPONSE";
-    }
-    
-    @Override
-    public Object getData() {
-        
-        return Map.of(
-            "analysisResult", analysisResult != null ? analysisResult : "",
-            "summary", summary != null ? summary : "",
-            "recommendations", recommendations != null ? recommendations : List.of(),
-            "executedTools", executedTools != null ? executedTools : List.of(),
-            "sessionState", sessionState != null ? sessionState.toString() : "UNKNOWN",
-            "threatLevel", threatLevel != null ? threatLevel.toString() : "UNKNOWN"
-        );
     }
 }
