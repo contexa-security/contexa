@@ -66,9 +66,7 @@ public class AiApiController {
 
         PolicyGenerationRequest aiRequest = createPolicyRequest(request, new TemplateType("PolicyGeneration"), new DiagnosisType("PolicyGeneration"));
         return streamingService.process(aiRequest, aiNativeProcessor, PolicyResponse.class)
-                .map(body -> {
-                    return ResponseEntity.ok(body);
-                })
+                .map(ResponseEntity::ok)
                 .onErrorResume(error -> {
                     log.error("Policy generation failed", error);
                     return Mono.just(ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build());
