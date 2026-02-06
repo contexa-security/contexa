@@ -15,8 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
 public abstract class AIResponse {
 
     private final LocalDateTime timestamp;
-    private final String requestId;
-    private final ExecutionStatus status;
     private final Map<String, Object> metadata;
 
     @JsonSetter(nulls = Nulls.SKIP)
@@ -26,10 +24,8 @@ public abstract class AIResponse {
     @JsonSetter(nulls = Nulls.SKIP)
     private String errorMessage;
 
-    protected AIResponse(String requestId, ExecutionStatus status) {
+    protected AIResponse() {
         this.timestamp = LocalDateTime.now();
-        this.requestId = requestId;
-        this.status = status;
         this.metadata = new ConcurrentHashMap<>();
     }
 
@@ -52,14 +48,6 @@ public abstract class AIResponse {
         Object value = metadata.get(key);
         return type.isInstance(value) ? (T) value : null;
     }
-
-    public boolean isSuccess() {
-        return status == ExecutionStatus.SUCCESS;
-    }
-    public boolean isFailure() {
-        return status == ExecutionStatus.FAILURE;
-    }
-
     public Map<String, Object> getAllMetadata() { return Map.copyOf(metadata); }
 
     public enum ExecutionStatus {

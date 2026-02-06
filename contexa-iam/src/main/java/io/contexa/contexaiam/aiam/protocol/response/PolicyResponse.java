@@ -12,14 +12,8 @@ import java.util.Map;
 @Setter
 public class PolicyResponse extends AIResponse {
     
-    private String generatedPolicy;
-
     private BusinessPolicyDto policyData;
     private Map<String, String> roleIdToNameMap;
     private Map<String, String> permissionIdToNameMap;
     private Map<String, String> conditionIdToNameMap;
-
-    public PolicyResponse(String requestId, ExecutionStatus status) {
-        super(requestId, status);
-    }
 }

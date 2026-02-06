@@ -36,10 +36,6 @@ public class BehavioralAnalysisResponse extends AIResponse {
     @JsonSetter(nulls = Nulls.SKIP)
     private TimelineVisualizationData visualizationData;
 
-    public BehavioralAnalysisResponse(String requestId, AIResponse.ExecutionStatus status) {
-        super(requestId, status);
-    }
-
     public enum RiskLevel { LOW, MEDIUM, HIGH, CRITICAL }
 
     @Getter @Setter

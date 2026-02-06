@@ -76,7 +76,6 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                 .map(response -> {
                     if (response == null) {
                         return ConditionTemplateGenerationResponse.failure(
-                                "unknown",
                                 "universal",
                                 null,
                                 "Pipeline returned null response"
@@ -96,7 +95,6 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                     log.error("AI 범용 템플릿 비동기 생성 실패", error);
                     String errorMsg = error instanceof Throwable ? ((Throwable) error).getMessage() : error.toString();
                     return Mono.just(ConditionTemplateGenerationResponse.failure(
-                            "unknown",
                             "universal",
                             null,
                             "Exception: " + errorMsg
@@ -121,7 +119,6 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                 .map(response -> {
                     if (response == null) {
                         return ConditionTemplateGenerationResponse.failure(
-                                "unknown",
                                 "specific",
                                 resourceIdentifier,
                                 "Pipeline returned null response"
@@ -140,7 +137,6 @@ public class ConditionTemplateGenerationLab extends AbstractIAMLab<ConditionTemp
                     log.error("AI 특화 조건 비동기 생성 실패: {}", resourceIdentifier, error);
                     String errorMsg = error instanceof Throwable ? ((Throwable) error).getMessage() : error.toString();
                     return Mono.just(ConditionTemplateGenerationResponse.failure(
-                            "unknown",
                             "specific",
                             resourceIdentifier,
                             "Exception: " + errorMsg

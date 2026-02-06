@@ -266,7 +266,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             RiskAssessmentResponse aiResponse = aiResultMono
                     .timeout(Duration.ofSeconds(120))
                     .doOnError(error -> log.error("[{}] AI 평가 오류: {}", assessmentId, error.toString()))
-                    .onErrorReturn(createEmergencyFallbackResponse(context, assessmentId))
+                    .onErrorReturn(createEmergencyFallbackResponse())
                     .block();
 
             assert aiResponse != null;
@@ -274,7 +274,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
         } catch (Exception e) {
             log.error("[{}] AI 평가 실행 실패: {}", assessmentId, e.getMessage(), e);
-            return createEmergencyFallbackResponse(context, assessmentId);
+            return createEmergencyFallbackResponse();
         }
     }
 
@@ -361,8 +361,8 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         return new TrustAssessment(0.3, List.of("EVALUATION_FAILED", "LOW_TRUST"), "AI 평가 실패 - 보수적 정책 적용");
     }
 
-    private RiskAssessmentResponse createEmergencyFallbackResponse(RiskAssessmentContext context, String assessmentId) {
-        return RiskAssessmentResponse.defaultSafe(assessmentId);
+    private RiskAssessmentResponse createEmergencyFallbackResponse() {
+        return RiskAssessmentResponse.defaultSafe();
     }
 
     private AuditLog createAuditLogEntry(Map<String, Object> auditData) {

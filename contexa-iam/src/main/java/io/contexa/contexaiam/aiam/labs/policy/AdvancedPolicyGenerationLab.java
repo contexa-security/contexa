@@ -41,15 +41,13 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
     }
 
     @Override
-    protected PolicyResponse doProcess(PolicyGenerationRequest request) throws Exception {
-        AiGeneratedPolicyDraftDto policyDraft = processRequestAsync(request).block();
-        return convertDtoToPolicyResponse(policyDraft, "sync-request-id");
+    protected PolicyResponse doProcess(PolicyGenerationRequest request){
+        return processRequestAsync(request).block();
     }
 
     @Override
     protected Mono<PolicyResponse> doProcessAsync(PolicyGenerationRequest request) {
-        return processRequestAsync(request)
-        .map(policyDraft -> convertDtoToPolicyResponse(policyDraft, "async-request-id"));
+        return processRequestAsync(request);
     }
 
     @Override
@@ -57,7 +55,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return processRequestAsyncStream(request);
     }
 
-    private Mono<AiGeneratedPolicyDraftDto> processRequestAsync(PolicyGenerationRequest request) {
+    private Mono<PolicyResponse> processRequestAsync(PolicyGenerationRequest request) {
 
         try {
             vectorService.storePolicyGenerationRequest(request);
@@ -71,26 +69,24 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 .map(response -> {
                     if (response == null) {
                         log.error("Null response received from async Pipeline, generating fallback");
-                        return createFallbackPolicyData(request.getNaturalLanguageQuery());
+                        return createFallbackPolicyResponse(request.getNaturalLanguageQuery());
                     }
-
                     try {
-                        AiGeneratedPolicyDraftDto policyDto = convertPolicyResponseToDto((PolicyResponse) response, request.getNaturalLanguageQuery());
-                        vectorService.storeGeneratedPolicy(request, policyDto);
-                        return policyDto;
+                        vectorService.storeGeneratedPolicy(request, response);
+                        return response;
                     } catch (Exception e) {
                         log.error("Vector store policy storage failed", e);
-                        return convertPolicyResponseToDto((PolicyResponse) response, request.getNaturalLanguageQuery());
+                        return response;
                     }
                 })
                 .doOnError(error -> {
                     if (error instanceof Throwable) {
-                        log.error("[DIAGNOSIS] AI policy diagnosis generation failed: {}", ((Throwable) error).getMessage(), (Throwable) error);
+                        log.error("[DIAGNOSIS] AI policy diagnosis generation failed: {}", error.getMessage(),error);
                     }
                 })
                 .onErrorResume(error -> {
                     log.error("AI policy async generation failed", error);
-                    return Mono.just(createFallbackPolicyData(request.getNaturalLanguageQuery()));
+                    return Mono.just(createFallbackPolicyResponse(request.getNaturalLanguageQuery()));
                 });
     }
 
@@ -173,15 +169,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 .build();
     }
 
-    private PolicyResponse convertDtoToPolicyResponse(AiGeneratedPolicyDraftDto dto, String requestId) {
-        PolicyResponse response = new PolicyResponse(requestId, AIResponse.ExecutionStatus.SUCCESS);
-        response.setPolicyData(dto.policyData());
-        response.setRoleIdToNameMap(dto.roleIdToNameMap());
-        response.setPermissionIdToNameMap(dto.permissionIdToNameMap());
-        response.setConditionIdToNameMap(dto.conditionIdToNameMap());
-        return response;
-    }
-
     private String buildSystemMetadataFromAvailableItems(PolicyGenerationItem.AvailableItems availableItems) {
         StringBuilder metadata = new StringBuilder();
         metadata.append("Available items (use only these IDs):\n\n");
@@ -235,60 +222,21 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
     }
 
-    private AiGeneratedPolicyDraftDto convertPolicyResponseToDto(PolicyResponse policyResponse, String naturalLanguageQuery) {
-        if (policyResponse == null) {
-            log.error("PolicyResponse is null, generating fallback");
-            return createFallbackPolicyData(naturalLanguageQuery);
-        }
+    private PolicyResponse createFallbackPolicyResponse(String naturalLanguageQuery) {
+        log.error("Generating fallback PolicyResponse: {}", naturalLanguageQuery);
 
-        if (policyResponse.getPolicyData() != null) {
-            return new AiGeneratedPolicyDraftDto(
-                    policyResponse.getPolicyData(),
-                    policyResponse.getRoleIdToNameMap(),
-                    policyResponse.getPermissionIdToNameMap(),
-                    policyResponse.getConditionIdToNameMap()
-            );
-        }
-
-        if (policyResponse.getGeneratedPolicy() != null && !policyResponse.getGeneratedPolicy().trim().isEmpty()) {
-            return validateAndOptimizePolicyResult(policyResponse.getGeneratedPolicy(), naturalLanguageQuery);
-        }
-
-        log.error("PolicyResponse has no valid data, generating fallback");
-        return createFallbackPolicyData(naturalLanguageQuery);
-    }
-
-    private AiGeneratedPolicyDraftDto validateAndOptimizePolicyResult(String jsonResponse, String naturalLanguageQuery) {
-        if (jsonResponse == null || jsonResponse.trim().isEmpty()) {
-            log.error("Empty JSON response, using fallback");
-            return createFallbackPolicyData(naturalLanguageQuery);
-        }
-
-        try {
-
-            if (jsonResponse.contains("{") && jsonResponse.contains("}")) {
-            }
-
-            return createFallbackPolicyData(naturalLanguageQuery);
-
-        } catch (Exception e) {
-            log.error("JSON validation failed, using fallback", e);
-            return createFallbackPolicyData(naturalLanguageQuery);
-        }
-    }
-
-    private AiGeneratedPolicyDraftDto createFallbackPolicyData(String naturalLanguageQuery) {
-        log.error("Generating fallback policy data: {}", naturalLanguageQuery);
+        PolicyResponse fallbackResponse = new PolicyResponse();
 
         BusinessPolicyDto fallbackPolicy = new BusinessPolicyDto();
         fallbackPolicy.setPolicyName("AI 생성 정책 (Fallback)");
         fallbackPolicy.setDescription("요청: " + (naturalLanguageQuery != null ? naturalLanguageQuery : "알 수 없음"));
 
-        return new AiGeneratedPolicyDraftDto(
-                fallbackPolicy,
-                Map.of(),
-                Map.of(),
-                Map.of()
-        );
+        fallbackResponse.setPolicyData(fallbackPolicy);
+        fallbackResponse.setRoleIdToNameMap(Map.of());
+        fallbackResponse.setPermissionIdToNameMap(Map.of());
+        fallbackResponse.setConditionIdToNameMap(Map.of());
+
+        return fallbackResponse;
     }
+
 }

@@ -33,9 +33,7 @@ public class RiskAssessmentPostProcessor implements DomainResponseProcessor {
             );
         }
 
-        String requestId = context.getExecutionId();
-
-        RiskAssessmentResponse response = new RiskAssessmentResponse(requestId, trustAssessment);
+        RiskAssessmentResponse response = new RiskAssessmentResponse(trustAssessment);
 
         Long startTime = context.getMetadata("startTime", Long.class);
         if (startTime != null) {
