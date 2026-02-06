@@ -31,10 +31,6 @@ public class StudioQueryResponse extends AIResponse {
 
     private long processingTimeMs;
 
-    public StudioQueryResponse(String requestId) {
-        super(requestId, ExecutionStatus.SUCCESS);
-    }
-
     @Getter
     @Setter
     public static class QueryResult {
