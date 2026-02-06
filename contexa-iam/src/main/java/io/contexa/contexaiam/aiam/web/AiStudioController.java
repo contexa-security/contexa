@@ -14,11 +14,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.time.LocalDateTime;
 
 @RestController
 @RequestMapping("/api/ai/studio")
@@ -33,7 +34,6 @@ public class AiStudioController {
     public Mono<ResponseEntity<StudioQueryResponse>> queryStudio(@RequestBody StudioQueryItem request) {
 
         StudioQueryRequest studioQueryRequest = getStudioQueryRequest(request,  new TemplateType("StudioQuery"), new DiagnosisType("StudioQuery"));
-
         return streamingService.process(studioQueryRequest, aiNativeProcessor, StudioQueryResponse.class)
                 .doOnSuccess(response -> {
                     if (response != null) {
@@ -59,13 +59,11 @@ public class AiStudioController {
     public Flux<ServerSentEvent<String>> queryStudioStream(@RequestBody StudioQueryItem request) {
 
         StudioQueryRequest studioQueryRequest = getStudioQueryRequest(request,  new TemplateType("StudioQueryStreaming"), new DiagnosisType("StudioQuery"));
-        
         return streamingService.stream(studioQueryRequest, aiNativeProcessor);
     }
 
     private StudioQueryRequest getStudioQueryRequest(StudioQueryItem request, TemplateType templateType, DiagnosisType diagnosisType) {
         StudioQueryContext context = new StudioQueryContext.Builder().build();
-
         StudioQueryRequest studioQueryRequest = new StudioQueryRequest(context, templateType, diagnosisType);
         studioQueryRequest.setNaturalLanguageQuery(request.getQuery());
         return studioQueryRequest;

@@ -2,19 +2,14 @@ package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
-import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
-import io.contexa.contexaiam.domain.dto.AiGeneratedPolicyDraftDto;
-import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
-import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
-import io.contexa.contexaiam.resource.service.CompatibilityResult;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,9 +24,6 @@ import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.*;
-import java.util.stream.Collectors;
-
 @RestController
 @RequestMapping("/api/ai/policies")
 @RequiredArgsConstructor
@@ -40,9 +32,6 @@ public class AiApiController {
 
     private final AICoreOperations<PolicyContext> aiNativeProcessor;
     private final StandardStreamingService streamingService;
-    private final ConditionTemplateRepository conditionTemplateRepository;
-    private final ManagedResourceRepository managedResourceRepository;
-    private final ConditionCompatibilityService conditionCompatibilityService;
 
     @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> generatePolicyFromTextStream(@RequestBody PolicyGenerationItem request) {
@@ -76,7 +65,6 @@ public class AiApiController {
     private PolicyGenerationRequest createPolicyRequest(PolicyGenerationItem request,TemplateType templateType, DiagnosisType diagnosisType) {
 
         PolicyContext context = new PolicyContext.Builder().build();
-
         PolicyGenerationRequest policyGenerationRequest = new PolicyGenerationRequest(context, templateType, diagnosisType);
         policyGenerationRequest.setNaturalLanguageQuery(request.naturalLanguageQuery());
         policyGenerationRequest.setAvailableItems(request.availableItems());
