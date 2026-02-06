@@ -201,7 +201,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         } else {
             metadata.append("\n[Available Condition Templates] None\n");
         }
-
         metadata.append("\nWarning: Do not use any IDs other than those listed above. Using non-existent IDs will cause system errors.\n");
 
         return metadata.toString();
