@@ -9,6 +9,7 @@ import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionReque
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
 
 /**
@@ -26,6 +27,11 @@ public class ResourceNamingTemplate extends AbstractBasePromptTemplate {
     @Override
     public TemplateType getSupportedType() {
         return new TemplateType("ResourceNaming");
+    }
+
+    @Override
+    public Class<?> getAIGenerationType() {
+        return Map.class;
     }
 
     @Override

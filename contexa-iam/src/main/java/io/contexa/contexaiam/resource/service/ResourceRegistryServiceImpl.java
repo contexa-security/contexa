@@ -46,8 +46,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     @Async
     @Override
     @Transactional
-    public void
-    refreshAndSynchronizeResources() {
+    public void refreshAndSynchronizeResources() {
 
         List<ManagedResource> discoveredResources = scanners.stream()
                 .flatMap(scanner -> scanner.scan().stream())
@@ -82,9 +81,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         }
 
-        if (newResources.isEmpty()) {
-        } else if (newResources.size() == 1) {
-
+        if (newResources.size() == 1) {
             processSingleResource(newResources.getFirst());
         } else {
 
@@ -102,39 +99,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processSingleResource(ManagedResource resource) {
-        try {
-
-            List<Map<String, String>> singleResourceList = List.of(
-                    Map.of("identifier", resource.getResourceIdentifier(),
-                            "owner", resource.getServiceOwner() != null ? resource.getServiceOwner() : "Unknown")
-            );
-
-            AIRequest<ResourceNamingContext> request = createResourceNamingRequest(singleResourceList);
-
-            Object rawResponse = aiNativeProcessor.process(request, ResourceNamingSuggestionResponse.class).block();
-            ResourceNamingSuggestionResponse suggestionResponse = (ResourceNamingSuggestionResponse) rawResponse;
-
-            Map<String, ResourceNameSuggestion> suggestions = suggestionResponse.toResourceNameSuggestionMap();
-            ResourceNameSuggestion suggestion = suggestions.get(resource.getResourceIdentifier());
-
-            if (suggestion != null) {
-                resource.setFriendlyName(suggestion.friendlyName());
-                resource.setDescription(suggestion.description());
-            } else {
-
-                resource.setFriendlyName(generateFallbackFriendlyName(resource.getResourceIdentifier()));
-                resource.setDescription("AI 추천을 받지 못한 리소스입니다.");
-                log.warn("AI가 추천을 제공하지 않아 기본값을 사용합니다: {}", resource.getResourceIdentifier());
-            }
-
-            managedResourceRepository.save(resource);
-
-        } catch (Exception e) {
-            log.warn("AI 리소스 이름 추천 실패: {}. 기본값을 사용합니다.", resource.getResourceIdentifier(), e);
-            resource.setFriendlyName(generateFallbackFriendlyName(resource.getResourceIdentifier()));
-            resource.setDescription("AI 추천 실패로 기본값을 사용합니다.");
-            managedResourceRepository.save(resource);
-        }
+        processResourceBatch(List.of(resource));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -165,9 +130,18 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         try {
 
             AIRequest<ResourceNamingContext> request = createResourceNamingRequest(resourcesToSuggest);
-
             Object rawResponse = aiNativeProcessor.process(request, ResourceNamingSuggestionResponse.class).block();
-            ResourceNamingSuggestionResponse suggestionResponse = (ResourceNamingSuggestionResponse) rawResponse;
+
+            ResourceNamingSuggestionResponse suggestionResponse;
+            if (rawResponse instanceof ResourceNamingSuggestionResponse) {
+                suggestionResponse = (ResourceNamingSuggestionResponse) rawResponse;
+            } else if (rawResponse instanceof Map) {
+                Map<String, Object> mapResponse = (Map<String, Object>) rawResponse;
+                suggestionResponse = ResourceNamingSuggestionResponse.fromMap(mapResponse);
+            } else {
+                throw new IllegalStateException("Unexpected response type: " +
+                        (rawResponse != null ? rawResponse.getClass().getName() : "null"));
+            }
 
             Map<String, ResourceNameSuggestion> suggestionsMap = suggestionResponse.toResourceNameSuggestionMap();
 

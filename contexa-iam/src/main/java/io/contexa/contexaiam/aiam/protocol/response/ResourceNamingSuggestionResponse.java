@@ -4,6 +4,7 @@ import io.contexa.contexaiam.aiam.protocol.request.ResourceNameSuggestion;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import lombok.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -74,6 +75,37 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
                         ResourceNamingSuggestion::getIdentifier,
                         ResourceNamingSuggestion::toResourceNameSuggestion
                 ));
+    }
+
+    public static ResourceNamingSuggestionResponse fromMap(Map<String, Object> mapResponse) {
+        List<String> failedIdentifiers = new ArrayList<>();
+        List<ResourceNamingSuggestion> suggestions = new ArrayList<>();
+
+        for (Map.Entry<String, Object> entry : mapResponse.entrySet()) {
+            String identifier = entry.getKey();
+            try {
+                Map<String, String> value = (Map<String, String>) entry.getValue();
+                String friendlyName = value.get("friendlyName");
+                String description = value.get("description");
+
+                suggestions.add(ResourceNamingSuggestion.builder()
+                        .identifier(identifier)
+                        .friendlyName(friendlyName != null ? friendlyName : identifier + " 기능")
+                        .description(description != null ? description : "AI 추천을 받지 못한 리소스입니다.")
+                        .confidence(0.8)
+                        .build());
+            } catch (Exception e) {
+                failedIdentifiers.add(identifier);
+            }
+        }
+
+        ProcessingStats stats = ProcessingStats.builder()
+                .totalRequested(mapResponse.size())
+                .successfullyProcessed(suggestions.size())
+                .failed(failedIdentifiers.size())
+                .build();
+
+        return new ResourceNamingSuggestionResponse(suggestions, failedIdentifiers, stats);
     }
 
     public static ResourceNamingSuggestionResponse fromResourceNameSuggestionMap(Map<String, ResourceNameSuggestion> suggestionMap) {

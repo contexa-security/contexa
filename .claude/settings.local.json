@@ -121,7 +121,9 @@
       "Bash(where.exe:*)",
       "Bash(node -e:*)",
       "Bash(.\\\\gradlew compileJava:*)",
-      "Bash(gradlew compileJava:*)"
+      "Bash(gradlew compileJava:*)",
+      "Bash(gradlew contexa-iam:compileJava:*)",
+      "Bash(.\\\\gradlew.bat contexa-iam:compileJava:*)"
     ],
     "deny": [],
     "ask": []

@@ -14,7 +14,7 @@ import reactor.core.publisher.Mono;
 
 @Slf4j
 public class PromptGenerationStep implements PipelineStep {
-    
+
     private final PromptGenerator promptGenerator;
 
     public PromptGenerationStep(
@@ -22,33 +22,33 @@ public class PromptGenerationStep implements PipelineStep {
             @Autowired(required = false) ToolResolver chainedToolResolver) {
         this.promptGenerator = promptGenerator;
     }
-    
+
     @Override
     public <T extends DomainContext> Mono<Object> execute(
-            AIRequest<T> request, 
+            AIRequest<T> request,
             PipelineExecutionContext context) {
-        
+
         return Mono.fromCallable(() -> {
-                        
+
             ContextRetriever.ContextRetrievalResult contextResult =
-                context.getStepResult(
-                    PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL, 
-                    ContextRetriever.ContextRetrievalResult.class
-                );
-            
+                    context.getStepResult(
+                            PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL,
+                            ContextRetriever.ContextRetrievalResult.class
+                    );
+
             String systemMetadata = context.getStepResult(
-                PipelineConfiguration.PipelineStep.PREPROCESSING, 
-                String.class
+                    PipelineConfiguration.PipelineStep.PREPROCESSING,
+                    String.class
             );
 
-                String contextInfo = contextResult != null ? contextResult.getContextInfo() : "";
-                String metadata = systemMetadata != null ? systemMetadata : "";
-                PromptGenerator.PromptGenerationResult promptResult = promptGenerator.generatePrompt(request, contextInfo, metadata);
+            String contextInfo = contextResult != null ? contextResult.getContextInfo() : "";
+            String metadata = systemMetadata != null ? systemMetadata : "";
+            PromptGenerator.PromptGenerationResult promptResult = promptGenerator.generatePrompt(request, contextInfo, metadata);
 
             Class<?> aiGenerationType = promptGenerator.getAIGenerationType(request);
             if (aiGenerationType != null) {
                 context.addMetadata("aiGenerationType", aiGenerationType);
-                            }
+            }
 
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
@@ -65,10 +65,10 @@ public class PromptGenerationStep implements PipelineStep {
     public <T extends DomainContext> boolean canExecute(AIRequest<T> request) {
         return request != null && promptGenerator != null;
     }
-    
+
     @Override
     public int getOrder() {
-        return 3; 
+        return 3;
     }
-    
+
 }
