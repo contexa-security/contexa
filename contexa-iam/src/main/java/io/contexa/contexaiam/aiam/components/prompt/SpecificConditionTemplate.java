@@ -1,30 +1,57 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
-import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.converter.BeanOutputConverter;
+import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.std.components.prompt.AbstractBasePromptTemplate;
 
-@Slf4j
-public class SpecificConditionTemplate implements PromptTemplate {
-
-    private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter = 
-        new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
+/**
+ * Non-streaming template for specific condition template generation.
+ * <p>
+ * This template generates prompts for creating ABAC-based SpEL hasPermission
+ * conditions by analyzing Java method signatures. It produces
+ * context-dependent conditions with structured JSON output.
+ * </p>
+ *
+ * @see AbstractBasePromptTemplate
+ */
+public class SpecificConditionTemplate extends AbstractBasePromptTemplate {
 
     @Override
     public TemplateType getSupportedType() {
         return new TemplateType("SpecificCondition");
     }
-    
+
     @Override
     public String generateSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
-        
-        String formatInstructions = converter.getFormat();
-        
-        return String.format("""
+        String domainPrompt = generateDomainSystemPrompt();
+        String jsonSchema = getJsonSchemaExample();
+
+        StringBuilder prompt = new StringBuilder();
+        prompt.append(domainPrompt.trim());
+        prompt.append("\n\n");
+        prompt.append("<output_format>\n");
+        prompt.append("응답은 반드시 다음 스키마와 일치하는 유효한 JSON 객체여야 합니다:\n");
+        prompt.append(jsonSchema);
+        prompt.append("\n</output_format>");
+
+        if (systemMetadata != null && !systemMetadata.isBlank()) {
+            prompt.append("\n\n");
+            prompt.append("<context>\n");
+            prompt.append(systemMetadata);
+            prompt.append("\n</context>");
+        }
+
+        return prompt.toString();
+    }
+
+    /**
+     * Generates the domain-specific system prompt for specific condition generation.
+     *
+     * @return the domain-specific system prompt content
+     */
+    private String generateDomainSystemPrompt() {
+        return """
             당신은 Java 메서드 시그니처를 분석하여 ABAC(속성 기반 접근 제어)용 SpEL 기반 hasPermission 조건을 생성하는 전문 AI입니다.
 
             중요: 응답은 반드시 ConditionTemplateGenerationResponse 스키마와 일치하는 순수 JSON 형식이어야 합니다.
@@ -72,8 +99,6 @@ public class SpecificConditionTemplate implements PromptTemplate {
                       </output>
                     </example>
                     </examples>
-                    
-            %s
 
             필수 출력:
             - templateResult: 조건 템플릿 배열을 포함하는 JSON 문자열
@@ -87,16 +112,42 @@ public class SpecificConditionTemplate implements PromptTemplate {
             - spelTemplate: hasPermission을 사용하는 SpEL 표현식
             - category: 한국어 카테고리 ("접근 확인" 또는 "대상 검증")
             - classification: "CONTEXT_DEPENDENT"
-
-            %s
-        """, formatInstructions, systemMetadata != null ? systemMetadata : "");
+            """;
     }
-    
+
+    /**
+     * Returns the manual JSON schema example for ConditionTemplateGenerationResponse.
+     *
+     * @return JSON schema example with field descriptions
+     */
+    private String getJsonSchemaExample() {
+        return """
+            {
+              "templateResult": "[{\\"name\\": \\"그룹 조회 접근 확인\\", \\"description\\": \\"특정 ID의 그룹에 대한 READ 접근을 확인하는 조건\\", \\"spelTemplate\\": \\"hasPermission(#id, 'GROUP', 'READ')\\", \\"category\\": \\"접근 확인\\", \\"classification\\": \\"CONTEXT_DEPENDENT\\"}]",
+              "templateType": "specific",
+              "resourceIdentifier": "getGroup(Long id)",
+              "processingMetadata": {
+                "generatedAt": 1698400000000
+              }
+            }
+            """;
+    }
+
     @Override
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         String methodSignature = contextInfo != null ? contextInfo : "";
-        
-        String conditionRequest = String.format("""
+
+        return buildUserPrompt(methodSignature);
+    }
+
+    /**
+     * Builds the user prompt with method signature for condition generation.
+     *
+     * @param methodSignature the Java method signature to analyze
+     * @return the formatted user prompt
+     */
+    private String buildUserPrompt(String methodSignature) {
+        return String.format("""
             다음 Java 메서드 시그니처를 분석하고 특정 조건 템플릿을 생성하세요:
 
             메서드 시그니처:
@@ -127,11 +178,5 @@ public class SpecificConditionTemplate implements PromptTemplate {
 
             완전한 ConditionTemplateGenerationResponse를 JSON 형식으로 생성하세요.
             """, methodSignature);
-
-        return conditionRequest + "\n\n" + converter.getFormat();
     }
-
-    public BeanOutputConverter<ConditionTemplateGenerationResponse> getConverter() {
-        return converter;
-    }
-} 
+}

@@ -1,20 +1,23 @@
 package io.contexa.contexaiam.aiam.components.prompt;
 
-import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
-import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.std.components.prompt.AbstractBasePromptTemplate;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
-import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.converter.BeanOutputConverter;
 import org.springframework.beans.factory.annotation.Autowired;
 
+/**
+ * Delegating template that routes condition generation to either
+ * UniversalConditionTemplate or SpecificConditionTemplate based on template type.
+ *
+ * @see AbstractBasePromptTemplate
+ * @see UniversalConditionTemplate
+ * @see SpecificConditionTemplate
+ */
 @Slf4j
-public class ConditionTemplatePromptTemplate implements PromptTemplate {
-
-    private final BeanOutputConverter<ConditionTemplateGenerationResponse> converter =
-            new BeanOutputConverter<>(ConditionTemplateGenerationResponse.class);
+public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate {
 
     private final UniversalConditionTemplate universalTemplate;
     private final SpecificConditionTemplate specificTemplate;
@@ -49,7 +52,6 @@ public class ConditionTemplatePromptTemplate implements PromptTemplate {
         if ("universal".equals(templateType)) {
             return universalTemplate.generateUserPrompt(request, contextInfo);
         } else {
-
             return specificTemplate.generateUserPrompt(request, contextInfo);
         }
     }
@@ -66,11 +68,7 @@ public class ConditionTemplatePromptTemplate implements PromptTemplate {
             return templateType;
         }
 
-        log.warn("templateType을 찾을 수 없음, 기본값 'universal' 사용");
+        log.error("templateType not found, using default 'universal'");
         return "universal";
     }
-
-    public BeanOutputConverter<ConditionTemplateGenerationResponse> getConverter() {
-        return converter;
-    }
-} 
+}

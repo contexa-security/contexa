@@ -6,7 +6,6 @@ import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
-import io.contexa.contexaiam.resource.MethodPatternAnalyzer;
 import io.contexa.contexaiam.resource.ResourceEnhancementService;
 import io.contexa.contexaiam.resource.WorkbenchInitializer;
 import io.contexa.contexaiam.resource.scanner.MethodResourceScanner;
@@ -75,12 +74,6 @@ public class IamResourceAutoConfiguration {
     @ConditionalOnMissingBean
     public ResourceEnhancementService resourceEnhancementService(ResourceRegistryService resourceRegistryService) {
         return new ResourceEnhancementService(resourceRegistryService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public MethodPatternAnalyzer methodPatternAnalyzer() {
-        return new MethodPatternAnalyzer();
     }
 
     @Bean

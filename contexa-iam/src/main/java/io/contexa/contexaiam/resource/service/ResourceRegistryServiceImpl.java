@@ -1,6 +1,5 @@
 package io.contexa.contexaiam.resource.service;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -159,7 +158,6 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         if (resourcesToSuggest.isEmpty()) {
             log.warn("유효한 리소스가 없어 AI 추천을 건너뜁니다.");
-
             managedResourceRepository.saveAll(batch);
             return;
         }
@@ -186,9 +184,6 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
                 ResourceNameSuggestion suggestion = suggestionsMap.get(resource.getResourceIdentifier());
 
                 if (suggestion != null) {
-                    String oldFriendlyName = resource.getFriendlyName();
-                    String oldDescription = resource.getDescription();
-
                     resource.setFriendlyName(suggestion.friendlyName());
                     resource.setDescription(suggestion.description());
 
@@ -346,9 +341,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     }
 
     private AIRequest<ResourceNamingContext> createResourceNamingRequest(List<Map<String, String>> resources) {
-        ResourceNamingContext context = new ResourceNamingContext.Builder()
-                .withResourceBatch(resources).build();
-
+        ResourceNamingContext context = new ResourceNamingContext.Builder().withResourceBatch(resources).build();
 
         ResourceNamingSuggestionRequest request = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new io.contexa.contexacommon.domain.DiagnosisType("ResourceNaming"));
         request.withParameter("resources", resources);
@@ -356,5 +349,4 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
         return request;
     }
-
 }
