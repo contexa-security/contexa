@@ -24,16 +24,19 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
     private final QueryIntentAnalyzer queryIntentAnalyzer;
     private final IAMDataCollectionService dataCollectionService;
     private final StudioQueryFormatter queryFormatter;
+    private final StudioQueryVectorService vectorService;
 
     public StudioQueryLab(PipelineOrchestrator orchestrator,
                           QueryIntentAnalyzer queryIntentAnalyzer,
                           IAMDataCollectionService dataCollectionService,
-                          StudioQueryFormatter queryFormatter) {
+                          StudioQueryFormatter queryFormatter,
+                          StudioQueryVectorService vectorService) {
         super("StudioQuery", "1.0", LabSpecialization.STUDIO_QUERY);
         this.orchestrator = orchestrator;
         this.queryIntentAnalyzer = queryIntentAnalyzer;
         this.dataCollectionService = dataCollectionService;
         this.queryFormatter = queryFormatter;
+        this.vectorService = vectorService;
     }
 
     @Override
@@ -57,18 +60,37 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
     }
 
     public Mono<StudioQueryResponse> processRequestAsync(StudioQueryRequest request) {
+        try {
+            vectorService.storeQueryRequest(request);
+        } catch (Exception e) {
+            log.error("Vector store query request failed", e);
+        }
+
         return Mono.fromCallable(() -> enrichRequest(request, false))
                 .flatMap(enrichedRequest -> {
                     PipelineConfiguration<StudioQueryContext> config = createStudioQueryPipelineConfig();
                     return orchestrator.execute(enrichedRequest, config, StudioQueryResponse.class);
                 })
                 .map(response -> (StudioQueryResponse) response)
+                .doOnSuccess(response -> {
+                    try {
+                        vectorService.storeQueryResult(request.getRequestId(), response.toString());
+                    } catch (Exception e) {
+                        log.error("Vector store query result failed", e);
+                    }
+                })
                 .doOnError(error -> {
                     log.error("[DIAGNOSIS] AI Studio diagnosis processing failed: {}", error.getMessage(), error);
                 });
     }
 
     public Flux<String> processRequestAsyncStream(StudioQueryRequest request) {
+        try {
+            vectorService.storeQueryRequest(request);
+        } catch (Exception e) {
+            log.error("Vector store query request failed", e);
+        }
+
         return Flux.defer(() -> {
             try {
                 StudioQueryRequest enrichedRequest = enrichRequest(request, true);

@@ -109,17 +109,6 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
         if (request.getContext() instanceof BehavioralAnalysisContext) {
             BehavioralAnalysisContext context = (BehavioralAnalysisContext) request.getContext();
 
-            try {
-                vectorService.storeBehaviorContext(context);
-            } catch (Exception e) {
-                log.error("Vector store context storage failed", e);
-            }
-
-            ContextRetrievalResult ragResult = null;
-            if (behaviorAdvisor != null) {
-                ragResult = super.retrieveContext(request);
-            }
-
             List<Document> vectorServiceDocs = List.of();
             try {
                 String remoteIp = context.getRemoteIp();
@@ -135,30 +124,21 @@ public class BehavioralAnalysisContextRetriever extends ContextRetriever {
                 log.error("Vector service search failed", e);
             }
 
-            List<Document> allDocuments = new ArrayList<>();
-            if (ragResult != null && ragResult.getDocuments() != null) {
-                allDocuments.addAll(ragResult.getDocuments());
-            }
-            allDocuments.addAll(vectorServiceDocs);
-            
             String contextInfo = retrieveBehavioralContext(
                 (AIRequest<BehavioralAnalysisContext>) request,
-                allDocuments
+                vectorServiceDocs
             );
-            
+
             Map<String, Object> metadata = new HashMap<>();
-            if (ragResult != null) {
-                metadata.putAll(ragResult.getMetadata());
-            }
             metadata.put("retrieverType", "BehavioralAnalysisContextRetriever");
             metadata.put("timestamp", System.currentTimeMillis());
             metadata.put("ragEnabled", behaviorAdvisor != null);
             metadata.put("vectorServiceUsed", true);
             metadata.put("vectorServiceDocsCount", vectorServiceDocs.size());
-            
+
             return new ContextRetrievalResult(
                     contextInfo,
-                    allDocuments,
+                    vectorServiceDocs,
                     metadata
             );
         }

@@ -8,6 +8,7 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.transaction.annotation.Transactional;
 
+import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreException;
 
 import java.time.LocalDateTime;
@@ -139,7 +140,7 @@ public class UnifiedVectorService implements VectorOperations {
         }
 
         if (!metadata.containsKey("documentType")) {
-            metadata.put("documentType", "standard");
+            metadata.put("documentType", VectorDocumentType.STANDARD.getValue());
         }
 
         if (!metadata.containsKey("version")) {

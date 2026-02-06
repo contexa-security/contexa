@@ -10,10 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -90,31 +88,14 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
             try {
                 vectorServiceDocs = vectorService.findSimilarNamings(identifier, 5);
             } catch (Exception e) {
-                log.warn("VectorService naming search failed: {}", e.getMessage());
+                log.error("VectorService naming search failed: {}", e.getMessage());
             }
 
-            String searchQuery = buildSearchQuery(request);
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .query(searchQuery)
-                    .topK(3)
-                    .similarityThreshold(0.6)
-                    .build();
-            List<Document> vectorDocs = vectorStore.similaritySearch(searchRequest);
-
-            List<Document> allDocs = new ArrayList<>(vectorServiceDocs);
-            for (Document doc : vectorDocs) {
-                boolean isDuplicate = allDocs.stream()
-                        .anyMatch(existing -> existing.getText().equals(doc.getText()));
-                if (!isDuplicate) {
-                    allDocs.add(doc);
-                }
-            }
-
-            if (allDocs.isEmpty()) {
+            if (vectorServiceDocs.isEmpty()) {
                 return "";
             }
 
-            return buildContextFromDocuments(allDocs);
+            return buildContextFromDocuments(vectorServiceDocs);
 
         } catch (Exception e) {
             log.error("Failed to search similar naming patterns: {}", e.getMessage());

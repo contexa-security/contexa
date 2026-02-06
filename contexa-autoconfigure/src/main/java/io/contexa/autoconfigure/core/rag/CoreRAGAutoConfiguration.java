@@ -77,11 +77,8 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
-            BehaviorETLPipeline behaviorETLPipeline,
-            AuditLogRepository auditLogRepository) {
-        return new BehaviorVectorService(
-                vectorStore, vectorStoreMetrics, behaviorETLPipeline, auditLogRepository);
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
+        return new BehaviorVectorService(vectorStore, vectorStoreMetrics);
     }
 
     @Bean

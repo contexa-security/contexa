@@ -119,7 +119,8 @@
       "Bash(Select-Object -First 30 -Property Path, LineNumber, Line)",
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-common\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexacommon\\\\domain\\\\context\\\\IAMContext.java\")",
       "Bash(where.exe:*)",
-      "Bash(node -e:*)"
+      "Bash(node -e:*)",
+      "Bash(.\\\\gradlew compileJava:*)"
     ],
     "deny": [],
     "ask": []

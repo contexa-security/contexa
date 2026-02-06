@@ -13,7 +13,6 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.rag.Query;
 import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +25,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class RiskAssessmentContextRetriever extends ContextRetriever {
 
-    private final VectorStore vectorStore;
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final BusinessResourceActionRepository resourceActionRepository;
@@ -41,7 +39,6 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             ContextRetrieverRegistry contextRetrieverRegistry,
             RiskAssessmentVectorService vectorService) {
         super(vectorStore);
-        this.vectorStore = vectorStore;
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
         this.resourceActionRepository = resourceActionRepository;
@@ -70,16 +67,10 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
     }
 
     public String retrieveRiskAssessmentContext(AIRequest<RiskAssessmentContext> request) {
-                
+
         try {
             RiskAssessmentContext context = request.getContext();
             StringBuilder contextBuilder = new StringBuilder();
-
-            try {
-                vectorService.storeRiskAssessment(context);
-            } catch (Exception e) {
-                log.error("VectorService risk assessment storage failed: {}", e.getMessage());
-            }
 
             String historicalRiskPatterns = searchHistoricalRiskPatterns(context);
             if (!historicalRiskPatterns.isEmpty()) {
@@ -103,16 +94,8 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
             contextBuilder.append("## Risk Assessment Guidelines\n");
             contextBuilder.append(riskAssessmentGuidelines);
 
-            String result = contextBuilder.toString();
+            return contextBuilder.toString();
 
-            try {
-                vectorService.storeRiskResult(request.getRequestId(), result);
-            } catch (Exception e) {
-                log.error("VectorService result storage failed: {}", e.getMessage());
-            }
-            
-            return result;
-            
         } catch (Exception e) {
             log.error("Risk assessment context retrieval failed", e);
             return getDefaultRiskAssessmentContext();
@@ -121,44 +104,17 @@ public class RiskAssessmentContextRetriever extends ContextRetriever {
 
     private String searchHistoricalRiskPatterns(RiskAssessmentContext context) {
         try {
-            
             List<Document> similarRisks = vectorService.findSimilarRiskPatterns(
-                context.getUserId(), 
-                context.getResourceIdentifier(), 
+                context.getUserId(),
+                context.getResourceIdentifier(),
                 5
             );
 
-            String searchQuery = String.format(
-                "risk assessment case user:%s resource:%s action:%s ip:%s",
-                context.getUserId(),
-                context.getResourceIdentifier(),
-                context.getActionType(),
-                context.getRemoteIp()
-            );
-            
-            SearchRequest searchRequest = SearchRequest.builder()
-                .query(searchQuery)
-                .topK(3)
-                .similarityThreshold(0.7)
-                .build();
-            
-            List<Document> vectorDocs = vectorStore.similaritySearch(searchRequest);
-
-            List<Document> riskDocs = new ArrayList<>();
-            riskDocs.addAll(similarRisks);
-            for (Document doc : vectorDocs) {
-                boolean isDuplicate = riskDocs.stream()
-                    .anyMatch(existing -> existing.getText().equals(doc.getText()));
-                if (!isDuplicate) {
-                    riskDocs.add(doc);
-                }
-            }
-            
-            if (riskDocs.isEmpty()) {
+            if (similarRisks.isEmpty()) {
                 return "No historical risk assessment cases found for this user/resource/action combination.";
             }
 
-            return riskDocs.stream()
+            return similarRisks.stream()
                 .map(doc -> "- " + doc.getText())
                 .collect(Collectors.joining("\n"));
 

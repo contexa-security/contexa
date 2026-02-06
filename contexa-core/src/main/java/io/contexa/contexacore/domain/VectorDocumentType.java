@@ -20,7 +20,47 @@ public enum VectorDocumentType {
 
     ACTIVITY("activity"),
 
-    ANOMALY("anomaly");
+    ANOMALY("anomaly"),
+
+    POLICY_GENERATION("policy_generation"),
+
+    CONDITION_TEMPLATE("condition_template"),
+
+    RESOURCE_NAMING("resource_naming"),
+
+    STUDIO_QUERY("studio_query"),
+
+    STANDARD("standard"),
+
+    BEHAVIOR_FEEDBACK("behavior_feedback"),
+
+    BEHAVIOR_BATCH("behavior_batch"),
+
+    RISK_ASSESSMENT_REQUEST("risk_assessment_request"),
+
+    RISK_ASSESSMENT_RESULT("risk_assessment_result"),
+
+    CONDITION_TEMPLATE_REQUEST("condition_template_request"),
+
+    GENERATED_TEMPLATE("generated_template"),
+
+    TEMPLATE_FEEDBACK("template_feedback"),
+
+    INDIVIDUAL_TEMPLATE("individual_template"),
+
+    CONDITION_CONTEXT("condition_context"),
+
+    POLICY_GENERATION_REQUEST("policy_generation_request"),
+
+    GENERATED_POLICY("generated_policy"),
+
+    STUDIO_QUERY_RESULT("studio_query_result"),
+
+    RESOURCE_NAMING_REQUEST("resource_naming_request"),
+
+    RESOURCE_NAMING_RESULT("resource_naming_result"),
+
+    RESOURCE_NAMING_FEEDBACK("resource_naming_feedback");
 
     private final String value;
 

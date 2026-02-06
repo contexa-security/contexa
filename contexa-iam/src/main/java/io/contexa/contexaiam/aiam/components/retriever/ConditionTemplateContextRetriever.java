@@ -9,10 +9,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -83,34 +81,18 @@ public class ConditionTemplateContextRetriever extends ContextRetriever {
             try {
                 methodConditions = vectorService.findMethodConditions(methodName, 5);
             } catch (Exception e) {
-                log.warn("VectorService method conditions search failed: {}", e.getMessage());
+                log.error("VectorService method conditions search failed: {}", e.getMessage());
             }
 
-            SearchRequest searchRequest = SearchRequest.builder()
-                    .query(resourceIdentifier + " " + (templateType != null ? templateType : ""))
-                    .topK(3)
-                    .similarityThreshold(0.6)
-                    .build();
-            List<Document> vectorDocs = vectorStore.similaritySearch(searchRequest);
-
-            List<Document> allDocs = new ArrayList<>(methodConditions);
-            for (Document doc : vectorDocs) {
-                boolean isDuplicate = allDocs.stream()
-                        .anyMatch(existing -> existing.getText().equals(doc.getText()));
-                if (!isDuplicate) {
-                    allDocs.add(doc);
-                }
-            }
-
-            if (allDocs.isEmpty()) {
+            if (methodConditions.isEmpty()) {
                 return "";
             }
 
             StringBuilder patterns = new StringBuilder();
             patterns.append("### Similar Condition Template Cases:\n");
 
-            for (int i = 0; i < Math.min(allDocs.size(), 8); i++) {
-                Document doc = allDocs.get(i);
+            for (int i = 0; i < Math.min(methodConditions.size(), 8); i++) {
+                Document doc = methodConditions.get(i);
                 patterns.append(String.format("%d. %s\n", i + 1, doc.getText()));
 
                 if (doc.getMetadata().containsKey("conditionType")) {

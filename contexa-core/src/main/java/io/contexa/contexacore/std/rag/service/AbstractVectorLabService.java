@@ -142,7 +142,6 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         try {
 
             Map<String, Object> labFilters = new HashMap<>(filters);
-            labFilters.put("documentType", getDocumentType());
             labFilters.putAll(getLabSpecificFilters());
 
             int topK = labFilters.containsKey("topK")
@@ -250,7 +249,9 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             }
 
-            metadata.put("documentType", getDocumentType());
+            if (!metadata.containsKey("documentType")) {
+                metadata.put("documentType", getDocumentType());
+            }
 
             metadata.put("labName", getLabName());
             metadata.put("processingTimestamp", LocalDateTime.now().format(ISO_FORMATTER));

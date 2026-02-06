@@ -117,14 +117,6 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 .doOnError(error -> log.error("[STREAMING] 행동 분석 스트리밍 오류", error));
     }
 
-    public CompletableFuture<Void> performBatchLearning() {
-                return behaviorVectorService.runBatchLearning();
-    }
-
-    public void learnFromFeedback(String analysisId, boolean isCorrect, String feedback) {
-                behaviorVectorService.storeFeedback(analysisId, isCorrect, feedback);
-    }
-
     private AIRequest<BehavioralAnalysisContext> createAIRequest(BehavioralAnalysisContext context) {
         return new AIRequest<>(context, new TemplateType("BehavioralAnalysisStreaming"), new DiagnosisType("BehavioralAnalysis"));
     }
@@ -149,20 +141,6 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
                 .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
                 .enableStreaming(true)
                 .build();
-    }
-
-    private String extractActivityType(String activity) {
-        if (activity == null) return "UNKNOWN";
-
-        String lower = activity.toLowerCase();
-        if (lower.contains("login")) return "LOGIN";
-        if (lower.contains("create") || lower.contains("생성")) return "CREATE";
-        if (lower.contains("update") || lower.contains("수정")) return "UPDATE";
-        if (lower.contains("delete") || lower.contains("삭제")) return "DELETE";
-        if (lower.contains("read") || lower.contains("조회")) return "READ";
-        if (lower.contains("admin") || lower.contains("관리")) return "ADMIN_ACTION";
-
-        return "OTHER";
     }
 
     private SoarRequest createSoarRequestFromBehavioralAnalysis(BehavioralAnalysisContext behavioralContext, BehavioralAnalysisResponse behavioralResponse) {
