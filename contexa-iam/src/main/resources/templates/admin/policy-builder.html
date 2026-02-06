@@ -1109,9 +1109,15 @@
                             class="ai-textarea w-full"
                             rows="3"
                             placeholder="예시) 개발팀은 평일 업무시간에만 '고객 데이터 조회' 권한을 가집니다."></textarea>
-                    <button id="generateByAiBtn" class="ai-generate-btn w-full mt-4">
-                        <i class="fas fa-robot mr-3"></i>AI로 정책 초안 생성
-                    </button>
+                    <div class="flex items-center gap-3 mt-4">
+                        <select id="ai-query-mode" class="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-300 text-sm" title="AI 분석 모드">
+                            <option value="streaming">스트리밍 분석</option>
+                            <option value="sync">일반 분석</option>
+                        </select>
+                        <button id="generateByAiBtn" class="ai-generate-btn flex-1">
+                            <i class="fas fa-robot mr-3"></i>AI로 정책 초안 생성
+                        </button>
+                    </div>
                 </div>
                 <!-- 스트리밍 모달은 body 끝에 추가 -->
                 <!-- 메인 콘텐츠 그리드 -->
@@ -1318,37 +1324,7 @@
     </div>
 </div>
 
-<!-- 🎥 스트리밍 진행 모달 (AI Studio와 동일한 디자인) -->
-<div id="streaming-modal" class="streaming-modal">
-    <div class="streaming-modal-content">
-        <div class="streaming-header">
-            <h3><i class="fas fa-brain mr-2"></i>AI 정책 분석 진행 중</h3>
-            <div class="streaming-query">
-                <strong>질의:</strong> <span id="streaming-query-text"></span>
-            </div>
-        </div>
-        
-        <div class="streaming-progress">
-            <div class="streaming-content" id="streaming-content">
-                <div class="streaming-step">
-                    <i class="fas fa-cog fa-spin mr-2"></i>
-                    AI가 정책 분석을 시작합니다...
-                </div>
-            </div>
-        </div>
-        
-        <div class="streaming-footer">
-            <div class="streaming-animation">
-                <div class="dot"></div>
-                <div class="dot"></div>
-                <div class="dot"></div>
-            </div>
-            <small>AI가 정책을 분석하고 있습니다. 잠시만 기다려주세요.</small>
-        </div>
-    </div>
-</div>
-
-<!-- 🔥 policy-builder.js 스크립트 로딩 -->
+<script th:src="@{/js/contexa-llm.bundle.js}"></script>
 <script th:src="@{/js/policy-builder.js(v=${#dates.createNow().time})}"></script>
 
 </body>
