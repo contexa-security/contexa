@@ -2,6 +2,7 @@ package io.contexa.contexaiam.aiam.labs.studio;
 
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import io.contexa.contexaiam.aiam.protocol.request.StudioQueryRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -102,23 +103,6 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
         return "GENERAL_QUERY";
     }
 
-    public void storeQuery(String query) {
-        try {
-            String safeQuery = query != null ?
-                query.substring(0, Math.min(500, query.length())) : "";
-
-            Map<String, Object> metadata = new HashMap<>();
-            metadata.put("documentType", "studio_query");
-            metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
-
-            Document doc = new Document(safeQuery, metadata);
-            storeDocument(doc);
-
-        } catch (Exception e) {
-            log.error("Studio query save failed", e);
-        }
-    }
-
     public List<Document> findSimilarQueries(String query, int topK) {
         Map<String, Object> filters = new HashMap<>();
         filters.put("documentType", "studio_query");
@@ -126,11 +110,35 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
         return searchSimilar(query, filters);
     }
 
+    public void storeQueryRequest(StudioQueryRequest request) {
+        try {
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("userId", request.getUserId());
+            metadata.put("naturalLanguageQuery", request.getNaturalLanguageQuery());
+            metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
+            metadata.put("documentType", "studio_query");
+            metadata.put("requestId", UUID.randomUUID().toString());
+
+            String queryText = String.format(
+                    "사용자 %s의 자연어 질의: %s",
+                    request.getUserId(),
+                    request.getNaturalLanguageQuery()
+            );
+
+            Document queryDoc = new Document(queryText, metadata);
+            storeDocument(queryDoc);
+
+        } catch (Exception e) {
+            log.error("[StudioQueryVectorService] 질의 요청 저장 실패", e);
+            throw new VectorStoreException("질의 요청 저장 실패: " + e.getMessage(), e);
+        }
+    }
+
     public void storeQueryResult(String queryId, String result) {
         try {
             String safeQueryId = queryId != null ? queryId : "unknown";
             String safeResult = result != null ?
-                result.substring(0, Math.min(1000, result.length())) : "";
+                    result.substring(0, Math.min(1000, result.length())) : "";
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("documentType", "studio_query_result");

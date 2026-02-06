@@ -125,11 +125,6 @@ public class UnifiedVectorService implements VectorOperations {
         if (document.getText() == null || document.getText().isEmpty()) {
             throw new VectorStoreException("Document text cannot be empty");
         }
-
-        Map<String, Object> metadata = document.getMetadata();
-        if (metadata == null) {
-            throw new VectorStoreException("Document metadata cannot be null");
-        }
     }
 
     private void enrichStandardMetadata(Document document) {
