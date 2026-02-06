@@ -145,7 +145,7 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
             [Data]
             %s
 
-            Generate complete StudioQueryResponse in JSON format.
+            완전한 StudioQueryResponse를 JSON 형식으로 생성하세요.
             """, naturalQuery, contextInfo);
     }
 
@@ -162,14 +162,14 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
     private String extractNaturalQueryFromRequest(AIRequest<? extends DomainContext> request) {
         String naturalQuery = extractNaturalQuery(request);
 
-        if (naturalQuery != null && !naturalQuery.equals("Natural language query was not provided")) {
+        if (naturalQuery != null && !naturalQuery.equals("자연어 질의가 제공되지 않았습니다")) {
             return naturalQuery;
         }
 
         if (isContextType(request, StudioQueryContext.class)) {
-            return "Authorization Studio query";
+            return "권한 스튜디오 질의";
         }
 
-        return "No natural language query provided";
+        return "자연어 질의가 제공되지 않았습니다";
     }
 }

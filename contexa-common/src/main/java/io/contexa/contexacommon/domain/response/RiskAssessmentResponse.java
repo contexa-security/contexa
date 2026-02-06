@@ -93,24 +93,11 @@ public class RiskAssessmentResponse extends AIResponse {
     public double riskScore() {
         return assessment != null ? (int) Math.round((1.0 - assessment.score()) * 100) : 100;
     }
-    
-    
     public double trustScore() {
         return assessment != null ? assessment.score() : 0.0;
     }
-    
-    
     public String recommendation() {
         return assessment != null ? assessment.summary() : "No assessment available";
     }
     
-    @Override
-    public Object getData() {
-        return assessment;
-    }
-    
-    @Override
-    public String getResponseType() {
-        return "RISK_ASSESSMENT";
-    }
 }

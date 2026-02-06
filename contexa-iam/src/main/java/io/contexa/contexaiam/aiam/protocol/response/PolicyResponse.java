@@ -13,11 +13,7 @@ import java.util.Map;
 public class PolicyResponse extends AIResponse {
     
     private String generatedPolicy;
-    private Double policyConfidenceScore;
-    private List<String> appliedRules;
-    private String policyFormat;
-    private boolean optimized;
-    
+
     private BusinessPolicyDto policyData;
     private Map<String, String> roleIdToNameMap;
     private Map<String, String> permissionIdToNameMap;
@@ -26,15 +22,4 @@ public class PolicyResponse extends AIResponse {
     public PolicyResponse(String requestId, ExecutionStatus status) {
         super(requestId, status);
     }
-
-    @Override
-    public Object getData() { 
-        return policyData != null ? policyData : generatedPolicy; 
-    }
-    
-    @Override
-    public String getResponseType() { 
-        return "POLICY"; 
-    }
-
 }

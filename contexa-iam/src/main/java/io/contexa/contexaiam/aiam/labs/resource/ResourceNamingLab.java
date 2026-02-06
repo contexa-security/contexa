@@ -203,15 +203,4 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                 batch.stream().map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier).toList(),
                 fallbackStats);
     }
-
-    public void learnFromFeedback(ResourceNamingSuggestionRequest request, ResourceNamingSuggestionResponse response, String feedback) {
-        try {
-            
-            String namingId = response.getRequestId();
-            String selected = response.getSuggestions().isEmpty() ? "" : response.getSuggestions().get(0).getFriendlyName();
-            vectorService.storeFeedback(namingId, selected, feedback);
-                    } catch (Exception e) {
-            log.error("[ResourceNamingLab] 피드백 학습 실패", e);
-        }
-    }
 }

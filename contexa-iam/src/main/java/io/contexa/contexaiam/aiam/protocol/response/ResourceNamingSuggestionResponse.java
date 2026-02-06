@@ -32,21 +32,6 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
         this.failedIdentifiers = failedIdentifiers != null ? failedIdentifiers : List.of();
         this.stats = stats != null ? stats : new ProcessingStats();
     }
-    
-    @Override
-    public String getResponseType() {
-        return "RESOURCE_NAMING_SUGGESTION";
-    }
-    
-    @Override
-    public Object getData() {
-        return Map.of(
-            "suggestions", suggestions,
-            "failedIdentifiers", failedIdentifiers,
-            "stats", stats,
-            "timestamp", getTimestamp()
-        );
-    }
 
     @Data
     @Builder

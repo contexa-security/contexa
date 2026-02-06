@@ -40,24 +40,6 @@ public class BehavioralAnalysisResponse extends AIResponse {
         super(requestId, status);
     }
 
-    @Override
-    public Object getData() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("analysisId", analysisId);
-        data.put("userId", userId);
-        data.put("behavioralRiskScore", behavioralRiskScore);
-        data.put("RiskLevel", riskLevel);
-        data.put("summary", summary);
-        data.put("anomalies", anomalies);
-        data.put("recommendations", recommendations);
-        return data;
-    }
-
-    @Override
-    public String getResponseType() {
-        return "BEHAVIOR_ANALYSIS";
-    }
-
     public enum RiskLevel { LOW, MEDIUM, HIGH, CRITICAL }
 
     @Getter @Setter

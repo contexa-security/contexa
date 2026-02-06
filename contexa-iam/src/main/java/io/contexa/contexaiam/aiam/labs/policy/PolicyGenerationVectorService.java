@@ -255,7 +255,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
             }
 
             String requestText = String.format(
-                "Policy generation request: '%s' (org=%s, roles=%d, permissions=%d, conditions=%d)",
+                "Policy generation request: '%s' (roles=%d, permissions=%d, conditions=%d)",
                 request.getNaturalLanguageQuery(),
                 metadata.get("availableRoles"),
                 metadata.get("availablePermissions"),
@@ -300,7 +300,7 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
                 policy != null ? policy.getPolicyName() : "Unknown",
                 policy != null ? policy.getDescription() : "No description",
                 policy != null ? policy.getEffect() : "UNKNOWN",
-                policy != null ? policy.isConditional() : false,
+                policy != null && policy.isConditional(),
                 metadata.get("roleCount"),
                 metadata.get("permissionCount")
             );

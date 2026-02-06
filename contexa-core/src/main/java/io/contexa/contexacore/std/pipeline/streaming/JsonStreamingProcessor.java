@@ -37,8 +37,7 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                                              AtomicBoolean jsonEnded,
                                              AtomicReference<StringBuilder> jsonBuffer) {
 
-//        log.debug("[CHUNK] received: length={}, content={}", chunk.length(),
-//            chunk.length() > 100 ? chunk.substring(0, 100) + "..." : chunk);
+        log.debug("content={}", chunk.length() > 100 ? chunk.substring(0, 100) + "..." : chunk);
 
         textBuffer.get().append(chunk);
         String buffer = textBuffer.get().toString();

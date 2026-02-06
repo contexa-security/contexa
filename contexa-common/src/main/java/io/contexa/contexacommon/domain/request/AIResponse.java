@@ -14,7 +14,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @Getter
 public abstract class AIResponse {
 
-    private final String responseId;
     private final LocalDateTime timestamp;
     private final String requestId;
     private final ExecutionStatus status;
@@ -28,15 +27,11 @@ public abstract class AIResponse {
     private String errorMessage;
 
     protected AIResponse(String requestId, ExecutionStatus status) {
-        this.responseId = java.util.UUID.randomUUID().toString();
         this.timestamp = LocalDateTime.now();
         this.requestId = requestId;
         this.status = status;
         this.metadata = new ConcurrentHashMap<>();
     }
-
-    public abstract Object getData();
-    public abstract String getResponseType();
 
     public AIResponse withMetadata(String key, Object value) {
         this.metadata.put(key, value);
@@ -76,11 +71,5 @@ public abstract class AIResponse {
         CANCELLED,          
         INVESTIGATING,      
         IN_PROGRESS         
-    }
-
-    @Override
-    public String toString() {
-        return String.format("AIResponse{id='%s', type='%s', status=%s}",
-                responseId, getResponseType(), status);
     }
 }

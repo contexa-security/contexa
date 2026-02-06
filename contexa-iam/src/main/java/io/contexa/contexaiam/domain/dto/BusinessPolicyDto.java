@@ -17,7 +17,7 @@ public class BusinessPolicyDto {
 
     private boolean conditional;
 
-    private Map<Long, List<String>> conditions; 
+    private Map<Long, List<String>> conditions;
     private boolean aiRiskAssessmentEnabled; 
     private double requiredTrustScore; 
     private String customConditionSpel; 

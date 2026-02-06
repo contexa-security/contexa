@@ -293,7 +293,6 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
             metadata.put("resourceCount", request.getResources().size());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "resource_naming_result");
-            metadata.put("requestId", response.getRequestId());
 
             if (response.getStats() != null) {
                 metadata.put("totalRequested", response.getStats().getTotalRequested());

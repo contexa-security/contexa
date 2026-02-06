@@ -25,10 +25,10 @@ public class SpecificConditionTemplate implements PromptTemplate {
         String formatInstructions = converter.getFormat();
         
         return String.format("""
-            You are an AI specialized in analyzing Java method signatures to generate SpEL-based hasPermission conditions for ABAC (Attribute-Based Access Control).
-            
-            IMPORTANT: Response must be in PURE JSON format matching the ConditionTemplateGenerationResponse schema.
-            Language: Names and descriptions must be in Korean (한국어).
+            당신은 Java 메서드 시그니처를 분석하여 ABAC(속성 기반 접근 제어)용 SpEL 기반 hasPermission 조건을 생성하는 전문 AI입니다.
+
+            중요: 응답은 반드시 ConditionTemplateGenerationResponse 스키마와 일치하는 순수 JSON 형식이어야 합니다.
+            언어: 이름과 설명은 반드시 한국어로 작성하세요.
 
                     <rules>
                     1.  **입력 패턴에 따른 `hasPermission` 함수 생성 규칙:**
@@ -74,20 +74,20 @@ public class SpecificConditionTemplate implements PromptTemplate {
                     </examples>
                     
             %s
-            
-            Required Output:
-            - templateResult: JSON string containing array of condition templates
-            - templateType: "specific" for this template type
-            - resourceIdentifier: The method signature being analyzed
-            - processingMetadata: Metadata about the generation process
-            
-            Each template in templateResult must include:
-            - name: Korean name without "권한" word
-            - description: Clear Korean description
-            - spelTemplate: SpEL expression using hasPermission
-            - category: Korean category ("접근 확인" or "대상 검증")
+
+            필수 출력:
+            - templateResult: 조건 템플릿 배열을 포함하는 JSON 문자열
+            - templateType: 이 템플릿 유형은 "specific"
+            - resourceIdentifier: 분석 대상 메서드 시그니처
+            - processingMetadata: 생성 프로세스에 대한 메타데이터
+
+            templateResult 내 각 템플릿에 포함되어야 하는 항목:
+            - name: "권한" 단어를 사용하지 않는 한국어 이름
+            - description: 명확한 한국어 설명
+            - spelTemplate: hasPermission을 사용하는 SpEL 표현식
+            - category: 한국어 카테고리 ("접근 확인" 또는 "대상 검증")
             - classification: "CONTEXT_DEPENDENT"
-            
+
             %s
         """, formatInstructions, systemMetadata != null ? systemMetadata : "");
     }
@@ -97,35 +97,35 @@ public class SpecificConditionTemplate implements PromptTemplate {
         String methodSignature = contextInfo != null ? contextInfo : "";
         
         String conditionRequest = String.format("""
-            Analyze the following Java method signature and generate specific condition templates:
-            
-            Method Signature:
+            다음 Java 메서드 시그니처를 분석하고 특정 조건 템플릿을 생성하세요:
+
+            메서드 시그니처:
             %s
-            
-            Generation Requirements:
-            1. Parse the method signature to identify:
-               - Method name and operation type
-               - Parameters (ID parameters vs Object parameters)
-               - Resource type being accessed
-            
-            2. Generate hasPermission conditions based on:
-               - ID parameters: hasPermission(#paramName, 'RESOURCE_TYPE', 'ACTION')
-               - Object parameters: hasPermission(#paramName, 'RESOURCE_ACTION')
-               - No parameters: Return empty array []
-            
-            3. Create ConditionTemplateGenerationResponse with:
-               - templateResult: JSON array of conditions
+
+            생성 요구사항:
+            1. 메서드 시그니처를 분석하여 다음을 식별하세요:
+               - 메서드명과 작업 유형
+               - 파라미터 (ID 파라미터 vs 객체 파라미터)
+               - 접근 대상 리소스 유형
+
+            2. 다음 기준에 따라 hasPermission 조건을 생성하세요:
+               - ID 파라미터: hasPermission(#파라미터명, '리소스종류', '액션')
+               - 객체 파라미터: hasPermission(#파라미터명, '리소스종류_액션')
+               - 파라미터 없음: 빈 배열 [] 반환
+
+            3. ConditionTemplateGenerationResponse 생성 시 포함 사항:
+               - templateResult: 조건 JSON 배열
                - templateType: "specific"
-               - resourceIdentifier: The method signature
-               - Appropriate metadata
-            
-            Important:
-            - Use Korean for names and descriptions
-            - Never use the word "권한" in names
-            - Follow the exact hasPermission patterns
-            - Return empty array for parameterless methods
-            
-            Generate complete ConditionTemplateGenerationResponse in JSON format.
+               - resourceIdentifier: 메서드 시그니처
+               - 적절한 메타데이터
+
+            중요 사항:
+            - 이름과 설명은 한국어로 작성하세요
+            - 이름에 "권한" 단어를 절대 사용하지 마세요
+            - 정확한 hasPermission 패턴을 따르세요
+            - 파라미터가 없는 메서드는 빈 배열을 반환하세요
+
+            완전한 ConditionTemplateGenerationResponse를 JSON 형식으로 생성하세요.
             """, methodSignature);
 
         return conditionRequest + "\n\n" + converter.getFormat();

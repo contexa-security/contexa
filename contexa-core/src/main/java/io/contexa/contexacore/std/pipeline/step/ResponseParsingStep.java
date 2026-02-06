@@ -173,6 +173,31 @@ public class ResponseParsingStep implements PipelineStep {
             }
         }
 
+        // Extract JSON from mixed content (e.g., markdown text with embedded JSON)
+        int jsonObjStart = cleaned.indexOf('{');
+        int jsonArrStart = cleaned.indexOf('[');
+        if (jsonObjStart >= 0 || jsonArrStart >= 0) {
+            int startIdx = (jsonObjStart >= 0 && (jsonArrStart < 0 || jsonObjStart < jsonArrStart))
+                    ? jsonObjStart : jsonArrStart;
+            char closeChar = (cleaned.charAt(startIdx) == '{') ? '}' : ']';
+            int lastClose = cleaned.lastIndexOf(closeChar);
+            if (lastClose > startIdx) {
+                String candidate = cleaned.substring(startIdx, lastClose + 1);
+                try {
+                    objectMapper.readTree(candidate);
+                    return candidate;
+                } catch (Exception e) {
+                    try {
+                        String fixed = candidate.replaceAll(",\\s*([}\\]])", "$1");
+                        objectMapper.readTree(fixed);
+                        return fixed;
+                    } catch (Exception ignored) {
+                        log.error("[{}] Failed to extract JSON from mixed content", getStepName());
+                    }
+                }
+            }
+        }
+
         return response;
     }
 

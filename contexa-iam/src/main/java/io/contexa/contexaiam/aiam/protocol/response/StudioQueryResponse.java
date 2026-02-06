@@ -35,30 +35,6 @@ public class StudioQueryResponse extends AIResponse {
         super(requestId, ExecutionStatus.SUCCESS);
     }
 
-    @Override
-    public String getResponseType() {
-        return "STUDIO_QUERY";
-    }
-    
-    @Override
-    public Object getData() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("analysisId", analysisId);
-        data.put("query", query);
-        data.put("confidenceScore", confidenceScore);
-        data.put("naturalLanguageAnswer", naturalLanguageAnswer);
-        data.put("queryResults", queryResults);
-        data.put("analysisResults", analysisResults);
-        data.put("visualizationData", visualizationData);
-        data.put("recommendations", recommendations);
-        data.put("processingTimeMs", processingTimeMs);
-        return data;
-    }
-
-    public int getResultCount() {
-        return queryResults != null ? queryResults.size() : 0;
-    }
-
     @Getter
     @Setter
     public static class QueryResult {
@@ -149,20 +125,4 @@ public class StudioQueryResponse extends AIResponse {
         private boolean openInNewTab = false;  
         private Map<String, Object> metadata = new HashMap<>();
     }
-
-    public static StudioQueryResponse success(String requestId, String answer) {
-        StudioQueryResponse response = new StudioQueryResponse(requestId);
-        response.setNaturalLanguageAnswer(answer);
-        return response;
-    }
-
-    public static StudioQueryResponse failure(String requestId, String errorMessage) {
-        StudioQueryResponse response = new StudioQueryResponse(requestId);
-        return (StudioQueryResponse) response.withError(errorMessage);
-    }
-
-    public static StudioQueryResponse error(String requestId, String errorMessage) {
-        StudioQueryResponse response = new StudioQueryResponse(requestId);
-        return (StudioQueryResponse) response.withError(errorMessage);
-    }
-} 
+}

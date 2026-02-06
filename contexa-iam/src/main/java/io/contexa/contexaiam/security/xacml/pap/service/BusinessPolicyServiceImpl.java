@@ -160,7 +160,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         if (!CollectionUtils.isEmpty(dto.getConditions())) {
             dto.getConditions().forEach((templateId, params) -> {
                 ConditionTemplate template = conditionTemplateRepository.findById(templateId)
-                        .orElseThrow(() -> new IllegalArgumentException("조건 템플릿을 찾을 수 없습니다: " + templateId));
+                        .orElseThrow(() -> new IllegalArgumentException("Condition template not found: " + templateId));
                 Object[] quotedParams = params.stream().map(p -> "'" + p + "'").toArray();
                 allConditions.add(String.format(template.getSpelTemplate(), quotedParams));
             });

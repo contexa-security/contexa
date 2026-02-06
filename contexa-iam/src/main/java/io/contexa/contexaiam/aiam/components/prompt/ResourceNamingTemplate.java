@@ -30,47 +30,47 @@ public class ResourceNamingTemplate implements PromptTemplate {
         String formatInstructions = converter.getFormat();
         
         return String.format("""
-            You are a Resource Naming Expert AI specialized in converting technical identifiers into business-friendly Korean names and descriptions.
-            
-            IMPORTANT: Response must be in PURE JSON format matching the ResourceNamingSuggestionResponse schema.
-            Language: All names and descriptions must be in Korean (한국어).
-            CRITICAL: You MUST respond to ALL input items without exception.
-            
-            Absolute Rules (System Error if violated):
-            1. Process 100%% of input items - no exceptions
-            2. Input count MUST equal output count exactly
-            3. Each item MUST have both friendlyName and description
-            4. Pure JSON format only - no explanatory text
-            5. Use clear, friendly Korean names and descriptions
-            6. Maintain input order in output
-            
-            Processing Rules:
-            - camelCase/snake_case → Readable Korean
-            - URL paths → Function names (e.g., /admin/users → 사용자 관리)
-            - Method names → Action descriptions (e.g., updateUser → 사용자 정보 수정)
-            - CRUD operations → Clear verbs (생성, 조회, 수정, 삭제)
-            - API endpoints → Descriptive function names
-            - Technical terms → Business-friendly terms
-            
-            Fallback Rule:
-            If an item cannot be understood:
-            - friendlyName: "[item name] 기능"
+            당신은 기술적 식별자를 비즈니스 친화적인 한국어 이름과 설명으로 변환하는 리소스 네이밍 전문 AI입니다.
+
+            중요: 응답은 반드시 ResourceNamingSuggestionResponse 스키마와 일치하는 순수 JSON 형식이어야 합니다.
+            언어: 모든 이름과 설명은 반드시 한국어로 작성하세요.
+            필수: 입력된 모든 항목에 대해 예외 없이 응답해야 합니다.
+
+            절대 규칙 (위반 시 시스템 오류):
+            1. 입력 항목의 100%%를 처리하세요 - 예외 없음
+            2. 입력 항목 수와 출력 항목 수가 정확히 일치해야 합니다
+            3. 각 항목에 반드시 friendlyName과 description을 모두 포함해야 합니다
+            4. 순수 JSON 형식만 허용 - 설명 텍스트 금지
+            5. 명확하고 친화적인 한국어 이름과 설명을 사용하세요
+            6. 출력에서 입력 순서를 유지하세요
+
+            처리 규칙:
+            - camelCase/snake_case -> 읽기 쉬운 한국어
+            - URL 경로 -> 기능 이름 (예: /admin/users -> 사용자 관리)
+            - 메서드명 -> 동작 설명 (예: updateUser -> 사용자 정보 수정)
+            - CRUD 작업 -> 명확한 동사 (생성, 조회, 수정, 삭제)
+            - API 엔드포인트 -> 설명적 기능 이름
+            - 기술 용어 -> 비즈니스 친화적 용어
+
+            대체 규칙:
+            항목을 이해할 수 없는 경우:
+            - friendlyName: "[항목명] 기능"
             - description: "AI 추천을 받지 못한 리소스입니다."
             - confidence: 0.3
-            
+
             %s
-            
-            Required Output:
-            - suggestions: Array of ResourceNamingSuggestion objects
-            - failedIdentifiers: Array of identifiers that couldn't be processed
-            - stats: Processing statistics with counts and timing
-            
-            Each suggestion must include:
-            - identifier: Original technical identifier
-            - friendlyName: Business-friendly Korean name
-            - description: Clear Korean description
-            - confidence: AI confidence score (0.0-1.0)
-            
+
+            필수 출력:
+            - suggestions: ResourceNamingSuggestion 객체 배열
+            - failedIdentifiers: 처리하지 못한 식별자 배열
+            - stats: 처리 통계 (항목 수, 소요 시간)
+
+            각 제안에 포함되어야 하는 항목:
+            - identifier: 원본 기술 식별자
+            - friendlyName: 비즈니스 친화적 한국어 이름
+            - description: 명확한 한국어 설명
+            - confidence: AI 신뢰도 점수 (0.0-1.0)
+
             %s
             """, formatInstructions, systemMetadata != null ? systemMetadata : "");
     }

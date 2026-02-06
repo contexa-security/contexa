@@ -275,7 +275,6 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             metadata.put("resourceIdentifier", response.getResourceIdentifier());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "generated_template");
-            metadata.put("generationId", response.getRequestId());
 
             int templateCount = 0;
             if (response.getTemplateResult() != null && response.getTemplateResult().contains("[")) {
@@ -285,8 +284,7 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             metadata.put("templateCount", templateCount);
             
             String resultText = String.format(
-                "조건 템플릿 생성 결과: ID=%s, 유형=%s, 템플릿=%d개",
-                response.getRequestId(),
+                "조건 템플릿 생성 결과: 유형=%s, 템플릿=%d개",
                 metadata.get("templateType"),
                 templateCount
             );

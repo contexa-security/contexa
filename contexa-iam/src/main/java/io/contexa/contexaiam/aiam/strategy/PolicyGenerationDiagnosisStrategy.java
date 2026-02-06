@@ -44,7 +44,7 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
             throw new DiagnosisException("POLICY_GENERATION", "NULL_REQUEST", "요청이 null입니다");
         }
 
-        String naturalLanguageQuery = request.getParameter("naturalLanguageQuery", String.class);
+        String naturalLanguageQuery = request.getNaturalLanguageQuery();
         if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
             throw new DiagnosisException("POLICY_GENERATION", "MISSING_NATURAL_LANGUAGE_QUERY",
                     "naturalLanguageQuery 파라미터가 필요합니다");

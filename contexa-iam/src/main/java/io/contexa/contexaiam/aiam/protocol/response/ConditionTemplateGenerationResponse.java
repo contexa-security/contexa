@@ -47,23 +47,6 @@ public class ConditionTemplateGenerationResponse extends AIResponse {
         );
     }
     
-    @Override
-    public String getResponseType() {
-        return "CONDITION_TEMPLATE_GENERATION";
-    }
-    
-    @Override
-    public Object getData() {
-        return Map.of(
-                "templates", templateResult != null ? templateResult : "[]",
-                "templateType", templateType != null ? templateType : "",
-                "resourceIdentifier", resourceIdentifier != null ? resourceIdentifier : "",
-                "metadata", processingMetadata,
-                "timestamp", getTimestamp(),
-                "requestId", getRequestId()
-        );
-    }
-
     public boolean hasTemplates() {
         return templateResult != null && 
                !templateResult.trim().isEmpty() && 

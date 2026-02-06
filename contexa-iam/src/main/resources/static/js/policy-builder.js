@@ -924,7 +924,7 @@
 
                     console.log('데이터 검증 통과 - 빌더 채우기 시작');
 
-                    const validatedData = this.alidateAndFilterAIResponse(draftDto.policyData);
+                    const validatedData = this.validateAndFilterAIResponse(draftDto.policyData);
                     if (!validatedData) {
                         this.showMessage('AI 응답 검증에 실패했습니다.', 'error');
                         return;

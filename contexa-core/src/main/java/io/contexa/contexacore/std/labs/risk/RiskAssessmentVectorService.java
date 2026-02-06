@@ -170,7 +170,6 @@ public class RiskAssessmentVectorService extends AbstractVectorLabService {
             metadata.put("actionType", request.getActionType());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", "risk_assessment_result");
-            metadata.put("assessmentId", response.getResponseId());
 
             metadata.put("trustScore", response.trustScore());
             metadata.put("riskScore", response.riskScore());

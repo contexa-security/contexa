@@ -21,18 +21,21 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
     @Override
     protected String generateDomainSystemPrompt(AIRequest<? extends DomainContext> request, String systemMetadata) {
         return """
-            You are not a conversational AI, but an IAM policy generation API that outputs data only in the specified JSON format.
+            당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 IAM 정책 생성 API입니다.
 
-            You generate security policies based on natural language requirements including:
-            - Role assignments and permission mappings
-            - Condition configurations
-            - AI-based risk assessment settings
-            - Compliance verification
+            자연어 요구사항을 기반으로 다음을 포함한 보안 정책을 생성합니다:
+            - 역할 할당 및 권한 매핑
+            - 조건 구성
+            - AI 기반 위험 평가 설정
+            - 컴플라이언스 검증
 
-            **Important Rules:**
-            - Only use IDs that are provided in the 'Available Items' section
-            - Generate policies that follow the principle of least privilege
-            - Ensure proper security and compliance requirements are met
+            **필수 규칙:**
+            - '사용 가능한 항목' 섹션에 제공된 ID만 사용하세요
+            - 최소 권한 원칙을 따르는 정책을 생성하세요
+            - 적절한 보안 및 컴플라이언스 요구사항을 충족하세요
+            - "conditions" 필드는 반드시 조건 목록의 숫자 조건 템플릿 ID를 키로, 문자열 배열을 값으로 하는 맵이어야 합니다
+            - "time.hour"와 같은 설명적 문자열을 조건 키로 절대 사용하지 마세요. 조건 목록에 제공된 숫자 ID만 사용하세요
+            - 조건 목록에서 적용 가능한 조건이 없으면 "conditions"를 빈 객체 {}로 설정하세요
             """;
     }
 
@@ -109,10 +112,10 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
      */
     private String buildUserPrompt(String naturalQuery, PolicyGenerationItem.AvailableItems availableItems, String contextInfo) {
         return String.format("""
-            **Natural Language Requirements:**
+            **자연어 요구사항:**
             "%s"
 
-            **Available Items (Use only IDs and names from this list):**
+            **사용 가능한 항목 (이 목록의 ID와 이름만 사용하세요):**
             %s
             %s
             """, naturalQuery, formatAvailableItems(availableItems), buildUserPromptExecutionInstructions());
@@ -129,7 +132,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
         if (naturalQuery != null) {
             return naturalQuery;
         }
-        return request.getContext() != null ? request.getContext().toString() : "Natural language requirements were not provided";
+        return request.getContext() != null ? request.getContext().toString() : "자연어 요구사항이 제공되지 않았습니다";
     }
 
     /**
@@ -150,24 +153,24 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
      */
     private String formatAvailableItems(PolicyGenerationItem.AvailableItems availableItems) {
         if (availableItems == null) {
-            return "Available items information was not provided.";
+            return "사용 가능한 항목 정보가 제공되지 않았습니다.";
         }
         StringBuilder info = new StringBuilder();
         if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
-            info.append("**Role List:**\n");
+            info.append("**역할 목록:**\n");
             availableItems.roles().forEach(role ->
                     info.append(String.format("- %s (ID: %d)\n", role.name(), role.id())));
         }
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
-            info.append("\n**Permission List:**\n");
+            info.append("\n**권한 목록:**\n");
             availableItems.permissions().forEach(permission ->
                     info.append(String.format("- %s (ID: %d)\n", permission.name(), permission.id())));
         }
         if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
-            info.append("\n**Condition List:**\n");
+            info.append("\n**조건 목록 (\"conditions\" 필드의 키로 반드시 이 숫자 ID만 사용하세요):**\n");
             availableItems.conditions().forEach(condition ->
-                    info.append(String.format("- %s (ID: %d)\n", condition.name(), condition.id())));
+                    info.append(String.format("- ID: %d, Name: %s\n", condition.id(), condition.name())));
         }
-        return info.length() > 0 ? info.toString() : "No available items.";
+        return info.length() > 0 ? info.toString() : "사용 가능한 항목이 없습니다.";
     }
 }

@@ -42,7 +42,6 @@ public class AIStrategyRegistry {
         if (strategy == null) {
             throw new DiagnosisException(diagnosisType.name(), "STRATEGY_NOT_FOUND", "Unsupported diagnosisType: " + diagnosisType);
         }
-
         return (AIStrategy<T, R>) strategy;
     }
 
@@ -52,7 +51,6 @@ public class AIStrategyRegistry {
         if (request.getDiagnosisType() == null) {
             throw new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE", "Diagnosis type is not set in the request");
         }
-
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
 
         try {
@@ -73,9 +71,7 @@ public class AIStrategyRegistry {
             return Mono.error(new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE",
                     "Diagnosis type is not set in the request"));
         }
-
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
-
         return strategy.executeAsync(request, responseType);
     }
 
@@ -88,38 +84,6 @@ public class AIStrategyRegistry {
         }
 
         AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
-
-        if (!strategy.supportsStreaming()) {
-            return strategy.executeAsync(request, responseType)
-                    .flatMapMany(result -> {
-                        Object resultData = result.getData();
-                        if (resultData instanceof String resultString) {
-                            return splitStringIntoFlux(resultString, 100);
-                        } else {
-                            return Flux.just(resultData.toString());
-                        }
-                    })
-                    .onErrorResume(Exception.class, e -> {
-                        log.error("Async strategy execution failed", e);
-                        return Flux.error(e);
-                    });
-        }
-
         return strategy.executeStream(request, responseType);
-    }
-
-    private Flux<String> splitStringIntoFlux(String text, int chunkSize) {
-        List<String> chunks = new java.util.ArrayList<>();
-        for (int i = 0; i < text.length(); i += chunkSize) {
-            chunks.add(text.substring(i, Math.min(text.length(), i + chunkSize)));
-        }
-        return Flux.fromIterable(chunks);
-    }
-
-    public Map<String, String> getRegisteredStrategies() {
-        Map<String, String> result = new HashMap<>();
-        strategies.forEach((type, strategy) ->
-                result.put(type, strategy.getClass().getSimpleName()));
-        return result;
     }
 }

@@ -25,10 +25,10 @@ public class UniversalConditionTemplate implements PromptTemplate {
         String formatInstructions = converter.getFormat();
         
         return String.format("""
-            You are an ABAC Universal Condition Generation Expert AI specialized in creating reusable access control conditions.
-            
-            IMPORTANT: Response must be in PURE JSON format matching the ConditionTemplateGenerationResponse schema.
-            Language: All names and descriptions must be in Korean (한국어).
+            당신은 재사용 가능한 접근 제어 조건을 생성하는 ABAC 범용 조건 생성 전문 AI입니다.
+
+            중요: 응답은 반드시 ConditionTemplateGenerationResponse 스키마와 일치하는 순수 JSON 형식이어야 합니다.
+            언어: 모든 이름과 설명은 반드시 한국어로 작성하세요.
         
         **필수 JSON 응답 형식:**
         [
@@ -57,20 +57,20 @@ public class UniversalConditionTemplate implements PromptTemplate {
         - "업무시간 접근 제한" ← 올바름
         
         %s
-        
-        Required Output:
-        - templateResult: JSON string containing exactly 3 universal condition templates
-        - templateType: "universal" for this template type  
-        - resourceIdentifier: null (not applicable for universal conditions)
-        - processingMetadata: Metadata about the generation process
-        
-        Each template in templateResult must include:
-        - name: Korean name without "권한" word
-        - description: Clear Korean description
-        - spelTemplate: SpEL expression without parameters
-        - category: Korean category
+
+        필수 출력:
+        - templateResult: 정확히 3개의 범용 조건 템플릿을 포함하는 JSON 문자열
+        - templateType: 이 템플릿 유형은 "universal"
+        - resourceIdentifier: null (범용 조건에는 해당 없음)
+        - processingMetadata: 생성 프로세스에 대한 메타데이터
+
+        templateResult 내 각 템플릿에 포함되어야 하는 항목:
+        - name: "권한" 단어를 사용하지 않는 한국어 이름
+        - description: 명확한 한국어 설명
+        - spelTemplate: 파라미터 없는 SpEL 표현식
+        - category: 한국어 카테고리
         - classification: "UNIVERSAL"
-        
+
         %s
         """, formatInstructions, systemMetadata != null ? systemMetadata : "");
     }
@@ -95,14 +95,14 @@ public class UniversalConditionTemplate implements PromptTemplate {
         - ```json 코드블록 절대 금지
         - "물론입니다", "아래는" 같은 서두 절대 금지
         
-        Generate ConditionTemplateGenerationResponse with:
-        - Exactly 3 universal conditions in templateResult
+        ConditionTemplateGenerationResponse 생성 시 포함 사항:
+        - templateResult에 정확히 3개의 범용 조건
         - templateType: "universal"
-        - All text in Korean
-        - Never use the word "권한"
-        - Never use hasPermission() in universal conditions
-        
-        Generate complete ConditionTemplateGenerationResponse in JSON format.
+        - 모든 텍스트는 한국어로
+        - "권한" 단어 절대 사용 금지
+        - 범용 조건에서 hasPermission() 절대 사용 금지
+
+        완전한 ConditionTemplateGenerationResponse를 JSON 형식으로 생성하세요.
         """);
 
         return conditionRequest + "\n\n" + converter.getFormat();
