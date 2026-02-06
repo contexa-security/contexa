@@ -137,8 +137,7 @@ public class ResponseParsingStep implements PipelineStep {
             if (end > start) {
                 cleaned = cleaned.substring(start, end).trim();
             }
-        }
-        else if (cleaned.contains("```")) {
+        } else if (cleaned.contains("```")) {
             int start = cleaned.indexOf("```") + 3;
             int end = cleaned.indexOf("```", start);
             if (end > start) {
@@ -244,13 +243,8 @@ public class ResponseParsingStep implements PipelineStep {
     private Object createFallbackResponse(AIRequest<?> request, PipelineExecutionContext context) {
         log.error("[{}] Creating fallback response", getStepName());
 
-        DefaultAIResponse fallback = new DefaultAIResponse(
-                request.getRequestId() != null ? request.getRequestId() : "unknown",
-                Map.of("error", "No response from LLM", "status", "fallback")
-        );
-
+        DefaultAIResponse fallback = new DefaultAIResponse(Map.of("error", "No response from LLM", "status", "fallback"));
         enrichWithMetadata(fallback, request, context);
-
         context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, fallback);
 
         return fallback;
