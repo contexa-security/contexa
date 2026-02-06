@@ -58,7 +58,6 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                             new ResourceNamingSuggestionResponse.ProcessingStats(
                                     request.getResources().size(), 0, request.getResources().size(), 0);
                     return Mono.just(new ResourceNamingSuggestionResponse(
-                            "processResourceNamingAsync-error",
                             List.of(),
                             request.getResources().stream()
                                     .map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier)
@@ -101,9 +100,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                             .processingTimeMs(processingTime)
                             .build();
 
-            ResourceNamingSuggestionResponse finalResponse = new ResourceNamingSuggestionResponse(
-                    "executePipelineAsync", allSuggestions, failedIdentifiers, stats);
-
+            ResourceNamingSuggestionResponse finalResponse = new ResourceNamingSuggestionResponse(allSuggestions, failedIdentifiers, stats);
             try {
                 
                 List<ResourceNamingSuggestionRequest.ResourceItem> allResources = batches.stream()
@@ -198,7 +195,6 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
         ResourceNamingSuggestionResponse.ProcessingStats fallbackStats =
                 new ResourceNamingSuggestionResponse.ProcessingStats(batch.size(), 0, batch.size(), 0);
         return new ResourceNamingSuggestionResponse(
-                "fallback",
                 List.of(),
                 batch.stream().map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier).toList(),
                 fallbackStats);

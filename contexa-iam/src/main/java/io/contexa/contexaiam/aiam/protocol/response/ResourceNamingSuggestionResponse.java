@@ -18,16 +18,8 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
 
     private ProcessingStats stats;
 
-    public ResourceNamingSuggestionResponse() {
-        super("resource-naming-default", ExecutionStatus.SUCCESS);
-        this.suggestions = List.of();
-        this.failedIdentifiers = List.of();
-        this.stats = new ProcessingStats();
-    }
-
-    public ResourceNamingSuggestionResponse(String requestId, List<ResourceNamingSuggestion> suggestions, 
+    public ResourceNamingSuggestionResponse(List<ResourceNamingSuggestion> suggestions,
                                           List<String> failedIdentifiers, ProcessingStats stats) {
-        super(requestId, ExecutionStatus.SUCCESS);
         this.suggestions = suggestions != null ? suggestions : List.of();
         this.failedIdentifiers = failedIdentifiers != null ? failedIdentifiers : List.of();
         this.stats = stats != null ? stats : new ProcessingStats();
@@ -95,6 +87,6 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
                 .failed(0)
                 .build();
                 
-        return new ResourceNamingSuggestionResponse("fromMap", suggestions, List.of(), stats);
+        return new ResourceNamingSuggestionResponse(suggestions, List.of(), stats);
     }
 } 
