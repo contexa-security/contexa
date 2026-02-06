@@ -44,7 +44,7 @@ public class AiApiController {
     private final ManagedResourceRepository managedResourceRepository;
     private final ConditionCompatibilityService conditionCompatibilityService;
 
-    @PostMapping(value = "/generate-from-text/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PostMapping(value = "/generate/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux<ServerSentEvent<String>> generatePolicyFromTextStream(@RequestBody PolicyGenerationItem request) {
 
         String naturalLanguageQuery = request.naturalLanguageQuery();
@@ -56,7 +56,7 @@ public class AiApiController {
         return streamingService.stream(aiRequest, aiNativeProcessor);
     }
 
-    @PostMapping("/generate-from-text")
+    @PostMapping("/generate")
     public Mono<ResponseEntity<PolicyResponse>> generatePolicyFromText(@RequestBody PolicyGenerationItem request) {
 
         String naturalLanguageQuery = request.naturalLanguageQuery();

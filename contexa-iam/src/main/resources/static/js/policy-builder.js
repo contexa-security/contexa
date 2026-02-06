@@ -594,7 +594,7 @@
 
                     try {
                         await ContexaLLM.analyzeStreaming(
-                            '/api/ai/policies/generate-from-text/stream',
+                            '/api/ai/policies/generate/stream',
                             requestData,
                             {
                                 modalTitle: 'AI 정책 분석 진행 중',
@@ -636,7 +636,7 @@
 
                     try {
                         const response = await ContexaLLM.analyze(
-                            '/api/ai/policies/generate-from-text',
+                            '/api/ai/policies/generate',
                             requestData,
                             {
                                 showLoading: true,

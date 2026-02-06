@@ -31,7 +31,7 @@ const AIStudioConfig = {
     api: {
         STUDIO_QUERY_STREAM: '/api/ai/studio/query/stream',
         STUDIO_QUERY: '/api/ai/studio/query',
-        POLICY_GENERATE_STREAM: '/api/ai/policies/generate-from-text/stream'
+        POLICY_GENERATE_STREAM: '/api/ai/policies/generate/stream'
     },
 
     validation: {
