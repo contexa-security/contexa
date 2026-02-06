@@ -31,10 +31,7 @@ public class IamAiamWebAutoConfiguration {
     @ConditionalOnMissingBean
     public AiApiController aiApiController(
             AICoreOperations<PolicyContext> aiNativeProcessor,
-            StandardStreamingService streamingService,
-            ConditionTemplateRepository conditionTemplateRepository,
-            ManagedResourceRepository managedResourceRepository,
-            ConditionCompatibilityService conditionCompatibilityService) {
-        return new AiApiController(aiNativeProcessor, streamingService, conditionTemplateRepository, managedResourceRepository, conditionCompatibilityService);
+            StandardStreamingService streamingService) {
+        return new AiApiController(aiNativeProcessor, streamingService);
     }
 }
