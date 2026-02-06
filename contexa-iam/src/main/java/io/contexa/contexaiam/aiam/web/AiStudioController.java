@@ -35,6 +35,19 @@ public class AiStudioController {
         StudioQueryRequest studioQueryRequest = getStudioQueryRequest(request,  new TemplateType("StudioQuery"), new DiagnosisType("StudioQuery"));
 
         return streamingService.process(studioQueryRequest, aiNativeProcessor, StudioQueryResponse.class)
+                .doOnSuccess(response -> {
+                    if (response != null) {
+                        log.info("[STUDIO_QUERY] Response received - analysisResults: {}, visualizationData: {}, recommendations: {}",
+                                response.getAnalysisResults() != null ? response.getAnalysisResults().size() : 0,
+                                response.getVisualizationData() != null ? "present" : "null",
+                                response.getRecommendations() != null ? response.getRecommendations().size() : 0);
+                        if (log.isDebugEnabled()) {
+                            log.debug("[STUDIO_QUERY] Full response: {}", response);
+                        }
+                    } else {
+                        log.error("[STUDIO_QUERY] Response is null");
+                    }
+                })
                 .map(ResponseEntity::ok)
                 .onErrorResume(error -> {
                     log.error("AI Studio query failed", error);
