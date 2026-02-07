@@ -5,7 +5,6 @@ import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNamingSuggestionRequest;
-import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
@@ -26,15 +25,12 @@ import java.util.stream.Collectors;
 public class ResourceNamingContextRetriever extends ContextRetriever {
 
     private final ContextRetrieverRegistry contextRetrieverRegistry;
-    private final ResourceNamingVectorService vectorService;
 
     public ResourceNamingContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry,
-            ResourceNamingVectorService vectorService) {
+            ContextRetrieverRegistry contextRetrieverRegistry) {
         super(vectorStore);
         this.contextRetrieverRegistry = contextRetrieverRegistry;
-        this.vectorService = vectorService;
     }
 
     @EventListener
@@ -44,11 +40,10 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
 
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<?> req) {
-        if (!(req instanceof ResourceNamingSuggestionRequest)) {
+        if (!(req instanceof ResourceNamingSuggestionRequest request)) {
             return super.retrieveContext(req);
         }
 
-        ResourceNamingSuggestionRequest request = (ResourceNamingSuggestionRequest) req;
         if (request.getResources() == null || request.getResources().isEmpty()) {
             return new ContextRetrievalResult(null, List.of(), Map.of());
         }
@@ -67,112 +62,6 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
     }
 
     private String retrieveRagContext(ResourceNamingSuggestionRequest request) {
-        try {
-            String identifier = request.getResources().isEmpty() ? "" :
-                    request.getResources().get(0).getIdentifier();
-
-            if (identifier == null || identifier.trim().isEmpty()) {
-                return "";
-            }
-
-            return searchSimilarNamingPatterns(request, identifier);
-        } catch (Exception e) {
-            log.error("Failed to retrieve RAG context", e);
-            return "";
-        }
-    }
-
-    private String searchSimilarNamingPatterns(ResourceNamingSuggestionRequest request, String identifier) {
-        try {
-            List<Document> vectorServiceDocs = List.of();
-            try {
-                vectorServiceDocs = vectorService.findSimilarNamings(identifier, 5);
-            } catch (Exception e) {
-                log.error("VectorService naming search failed: {}", e.getMessage());
-            }
-
-            if (vectorServiceDocs.isEmpty()) {
-                return "";
-            }
-
-            return buildContextFromDocuments(vectorServiceDocs);
-
-        } catch (Exception e) {
-            log.error("Failed to search similar naming patterns: {}", e.getMessage());
-            return "";
-        }
-    }
-
-    private String buildSearchQuery(ResourceNamingSuggestionRequest request) {
-        List<String> keywords = request.getResources().stream()
-                .map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier)
-                .flatMap(identifier -> extractKeywords(identifier).stream())
-                .distinct()
-                .collect(Collectors.toList());
-
-        List<String> owners = request.getResources().stream()
-                .map(ResourceNamingSuggestionRequest.ResourceItem::getOwner)
-                .filter(owner -> owner != null && !owner.trim().isEmpty())
-                .distinct()
-                .collect(Collectors.toList());
-
-        StringBuilder query = new StringBuilder();
-        query.append("Resource naming cases: ");
-        query.append(String.join(", ", keywords));
-
-        if (!owners.isEmpty()) {
-            query.append(" Owner: ").append(String.join(", ", owners));
-        }
-
-        return query.toString();
-    }
-
-    private List<String> extractKeywords(String identifier) {
-        if (identifier == null || identifier.trim().isEmpty()) {
-            return List.of();
-        }
-
-        if (identifier.startsWith("/")) {
-            return List.of(identifier.split("/"))
-                    .stream()
-                    .filter(part -> !part.isEmpty() && !part.matches("\\{.*\\}"))
-                    .collect(Collectors.toList());
-        }
-
-        if (identifier.contains(".")) {
-            String[] parts = identifier.split("\\.");
-            String methodName = parts[parts.length - 1].replace("()", "");
-            String[] camelParts = methodName.split("(?=\\p{Upper})");
-            return List.of(camelParts);
-        }
-
-        return List.of(identifier);
-    }
-
-    private String buildContextFromDocuments(List<Document> documents) {
-        StringBuilder context = new StringBuilder();
-        context.append("### Similar Resource Naming Cases:\n\n");
-
-        for (int i = 0; i < Math.min(documents.size(), 8); i++) {
-            Document doc = documents.get(i);
-            context.append(i + 1).append(". ");
-
-            if (doc.getMetadata().containsKey("identifier")) {
-                context.append("Identifier: ").append(doc.getMetadata().get("identifier"));
-            }
-            if (doc.getMetadata().containsKey("friendlyName")) {
-                context.append(" -> Friendly Name: ").append(doc.getMetadata().get("friendlyName"));
-            }
-
-            context.append("\n");
-
-            String content = doc.getText();
-            if (content.length() > 200) {
-                content = content.substring(0, 200) + "...";
-            }
-            context.append("   Description: ").append(content).append("\n\n");
-        }
-
-        return context.toString();
+        return "";
     }
 }

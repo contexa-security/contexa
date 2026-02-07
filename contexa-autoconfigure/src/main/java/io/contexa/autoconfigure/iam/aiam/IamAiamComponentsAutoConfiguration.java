@@ -5,7 +5,6 @@ import io.contexa.contexaiam.aiam.components.prompt.*;
 import io.contexa.contexaiam.aiam.components.retriever.*;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateVectorService;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
-import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -89,10 +88,9 @@ public class IamAiamComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public ResourceNamingContextRetriever resourceNamingContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry,
-            ResourceNamingVectorService resourceNamingVectorService) {
+            ContextRetrieverRegistry contextRetrieverRegistry) {
         return new ResourceNamingContextRetriever(
-                vectorStore, contextRetrieverRegistry, resourceNamingVectorService);
+                vectorStore, contextRetrieverRegistry);
     }
 
     @Bean

@@ -1,6 +1,5 @@
 package io.contexa.autoconfigure.iam.aiam;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
@@ -9,7 +8,6 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
-import io.contexa.contexaiam.aiam.components.retriever.ConditionTemplateContextRetriever;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateGenerationLab;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateVectorService;
 import io.contexa.contexaiam.aiam.labs.data.IAMDataCollectionService;
@@ -18,7 +16,6 @@ import io.contexa.contexaiam.aiam.labs.data.StudioQueryCollectionService;
 import io.contexa.contexaiam.aiam.labs.policy.AdvancedPolicyGenerationLab;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingLab;
-import io.contexa.contexaiam.aiam.labs.resource.ResourceNamingVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryLab;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.service.QueryIntentAnalyzer;
@@ -49,14 +46,6 @@ public class IamAiamLabsAutoConfiguration {
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new StudioQueryVectorService(vectorStore, vectorStoreMetrics);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ResourceNamingVectorService resourceNamingVectorService(
-            VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new ResourceNamingVectorService(vectorStore, vectorStoreMetrics);
     }
 
     @Bean
@@ -135,9 +124,8 @@ public class IamAiamLabsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ResourceNamingLab resourceNamingLab(
-            PipelineOrchestrator orchestrator,
-            ResourceNamingVectorService vectorService) {
-        return new ResourceNamingLab(orchestrator, vectorService);
+            PipelineOrchestrator orchestrator) {
+        return new ResourceNamingLab(orchestrator);
     }
 
     @Bean

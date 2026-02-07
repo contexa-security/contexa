@@ -49,7 +49,6 @@ public class PromptGenerationStep implements PipelineStep {
             if (aiGenerationType != null) {
                 context.addMetadata("aiGenerationType", aiGenerationType);
             }
-
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 
             return promptResult;

@@ -23,14 +23,11 @@ import java.util.stream.Collectors;
 public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRequest, ResourceNamingSuggestionResponse> {
 
     private final PipelineOrchestrator orchestrator;
-    private final ResourceNamingVectorService vectorService;
     private static final int DEFAULT_BATCH_SIZE = 10;
 
-    public ResourceNamingLab(PipelineOrchestrator orchestrator,
-                             ResourceNamingVectorService vectorService) {
+    public ResourceNamingLab(PipelineOrchestrator orchestrator) {
         super("ResourceNaming", "1.0", LabSpecialization.RECOMMENDATION_SYSTEM);
         this.orchestrator = orchestrator;
-        this.vectorService = vectorService;
     }
 
     @Override
@@ -44,13 +41,6 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     }
 
     private Mono<ResourceNamingSuggestionResponse> processResourceNamingAsync(ResourceNamingSuggestionRequest request) {
-
-        try {
-            vectorService.storeNamingRequest(request);
-        } catch (Exception e) {
-            log.error("벡터 저장소 요청 저장 실패", e);
-        }
-
         return executePipelineAsync(request)
                 .onErrorResume(error -> {
                     log.error("ResourceNaming 비동기 진단 실패", error);
@@ -98,11 +88,9 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
                 ResourceNamingContext context = new ResourceNamingContext();
                 ResourceNamingSuggestionRequest originalRequest = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
                 originalRequest.setResources(allResources);
-                vectorService.storeNamingResult(originalRequest, finalResponse);
             } catch (Exception e) {
                 log.error("벡터 저장소 결과 저장 실패", e);
             }
-
             return Mono.just(finalResponse);
         }
         List<ResourceNamingSuggestionRequest.ResourceItem> currentBatch = batches.get(currentIndex);
