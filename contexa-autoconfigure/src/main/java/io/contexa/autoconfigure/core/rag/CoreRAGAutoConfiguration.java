@@ -9,6 +9,7 @@ import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedSessionManager;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
@@ -115,7 +116,7 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AINativeProcessor aiNativeProcessor(
+    public AICoreOperations aiNativeProcessor(
             DistributedSessionManager sessionManager,
             RedisDistributedLockService distributedLockService,
             DistributedStrategyExecutor distributedStrategyExecutor) {

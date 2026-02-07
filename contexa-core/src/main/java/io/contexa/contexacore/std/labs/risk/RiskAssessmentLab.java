@@ -1,6 +1,7 @@
 package io.contexa.contexacore.std.labs.risk;
 
 import io.contexa.contexacore.std.labs.AbstractAILab;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -35,7 +36,7 @@ public class RiskAssessmentLab extends AbstractAILab<RiskAssessmentRequest, Risk
     private static final double MIN_CONFIDENCE_THRESHOLD = 0.7;
 
     @Autowired
-    public RiskAssessmentLab(AINativeProcessor ainativeProcessor,
+    public RiskAssessmentLab(AICoreOperations aiNativeProcessor,
                              PipelineOrchestrator orchestrator,
                              RiskContextEnricher contextEnricher,
                              RiskAssessmentVectorService vectorService) {

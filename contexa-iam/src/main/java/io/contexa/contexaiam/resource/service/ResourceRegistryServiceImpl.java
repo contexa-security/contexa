@@ -6,6 +6,7 @@ import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
@@ -41,7 +42,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     private final List<ResourceScanner> scanners;
     private final ManagedResourceRepository managedResourceRepository;
     private final PermissionCatalogService permissionCatalogService;
-    private final AINativeProcessor<ResourceNamingContext> aiNativeProcessor;
+    private final AICoreOperations<ResourceNamingContext> aiNativeProcessor;
     private final AutoConditionTemplateService autoConditionTemplateService;
 
     @Async

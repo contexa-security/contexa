@@ -33,6 +33,7 @@ import io.contexa.contexacore.std.llm.model.provider.AnthropicModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OllamaModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OpenAIModelProvider;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
@@ -145,7 +146,7 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public BehavioralAnalysisLab behavioralAnalysisLab(
-            AINativeProcessor aiNativeProcessor,
+            AICoreOperations aiNativeProcessor,
             PipelineOrchestrator pipelineOrchestrator,
             BehavioralAnalysisContextRetriever behavioralAnalysisContextRetriever,
             BehaviorVectorService behaviorVectorService) {
@@ -162,7 +163,7 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public RiskAssessmentLab riskAssessmentLab(
-            AINativeProcessor aiNativeProcessor,
+            AICoreOperations aiNativeProcessor,
             PipelineOrchestrator pipelineOrchestrator,
             RiskContextEnricher riskContextEnricher,
             RiskAssessmentVectorService riskAssessmentVectorService) {

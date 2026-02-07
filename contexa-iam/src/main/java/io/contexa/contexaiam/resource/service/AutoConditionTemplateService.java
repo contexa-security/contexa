@@ -3,7 +3,9 @@ package io.contexa.contexaiam.resource.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
+import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -23,12 +25,12 @@ public class AutoConditionTemplateService {
 
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final ManagedResourceRepository managedResourceRepository;
-    private final AINativeProcessor aiNativeProcessor;
+    private final AICoreOperations<ConditionTemplateContext> aiNativeProcessor;
     private final ObjectMapper objectMapper;
 
     @Transactional
     public List<ConditionTemplate> saveDedupedTemplates(List<ConditionTemplate> templates) {
-        
+
         List<ConditionTemplate> allExistingTemplates = conditionTemplateRepository.findAll();
 
         Set<String> existingNames = allExistingTemplates.stream()
@@ -43,20 +45,20 @@ public class AutoConditionTemplateService {
 
         List<ConditionTemplate> newTemplates = templates.stream()
                 .filter(template -> {
-                    
+
                     if (existingSpelTemplates.contains(template.getSpelTemplate())) {
-                                                return false;
+                        return false;
                     }
 
                     String originalName = template.getName();
                     String uniqueName = makeUniqueName(originalName, existingNames, processingNames);
 
                     if (!originalName.equals(uniqueName)) {
-                                                template.setName(uniqueName);
+                        template.setName(uniqueName);
                     }
 
                     processingNames.add(uniqueName);
-                    existingNames.add(uniqueName); 
+                    existingNames.add(uniqueName);
 
                     return true;
                 })
@@ -104,7 +106,7 @@ public class AutoConditionTemplateService {
 
         for (ManagedResource resource : methodResources) {
             try {
-                
+
                 String resourceKey = resource.getResourceIdentifier();
 
                 if (processedMethodSignatures.contains(resourceKey)) {
@@ -124,9 +126,7 @@ public class AutoConditionTemplateService {
             }
         }
 
-        List<ConditionTemplate> savedTemplates = saveDedupedTemplates(templates);
-
-                return savedTemplates;
+        return saveDedupedTemplates(templates);
     }
 
     private List<ConditionTemplate> generateAIUniversalTemplates() {
@@ -145,31 +145,30 @@ public class AutoConditionTemplateService {
     private List<ConditionTemplate> generateAISpecificTemplates(ManagedResource resource) {
 
         String parameterTypes = resource.getParameterTypes();
-        log.warn("DEBUG - AutoConditionTemplateService 파라미터 체크: resourceIdentifier={}, parameterTypes='{}'", 
-                 resource.getResourceIdentifier(), parameterTypes);
+        log.warn("DEBUG - AutoConditionTemplateService 파라미터 체크: resourceIdentifier={}, parameterTypes='{}'",
+                resource.getResourceIdentifier(), parameterTypes);
 
-        if (parameterTypes == null || parameterTypes.trim().isEmpty() || 
-            parameterTypes.equals("[]") || parameterTypes.equals("()")) {
+        if (parameterTypes == null || parameterTypes.trim().isEmpty() ||
+                parameterTypes.equals("[]") || parameterTypes.equals("()")) {
             log.warn("AutoConditionTemplateService - 파라미터 없는 메서드 건너뛰기: {}", resource.getResourceIdentifier());
-            return new ArrayList<>(); 
+            return new ArrayList<>();
         }
 
         try {
-            
+
             ConditionTemplateGenerationRequest request = ConditionTemplateGenerationRequest.forSpecificTemplate(
                     resource.getResourceIdentifier(), "AUTO_GENERATED");
 
-            Object rawResponse = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
-            ConditionTemplateGenerationResponse response = (ConditionTemplateGenerationResponse) rawResponse;
-            
+            ConditionTemplateGenerationResponse response = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
+
             if (response != null && response.hasTemplates()) {
                 String templateResult = response.getTemplateResult();
-                                
+
                 List<ConditionTemplate> templates = parseAITemplateResponse(templateResult, resource.getResourceIdentifier());
 
                 if (templates.size() > 1) {
                     log.warn("AI가 {} 개 조건 생성했지만 첫 번째만 사용: {}", templates.size(), resource.getResourceIdentifier());
-                    templates = List.of(templates.get(0));
+                    templates = List.of(templates.getFirst());
                 }
 
                 return templates;
@@ -177,7 +176,7 @@ public class AutoConditionTemplateService {
                 log.warn("특화 조건 템플릿 응답이 비어있음");
                 return new ArrayList<>();
             }
-            
+
         } catch (Exception e) {
             log.warn("AI 특화 템플릿 생성 실패: {}", resource.getResourceIdentifier(), e);
             return new ArrayList<>();
@@ -191,28 +190,24 @@ public class AutoConditionTemplateService {
 
                 ConditionTemplateGenerationRequest request = ConditionTemplateGenerationRequest.forUniversalTemplate();
 
-                Object rawResponse = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
-                ConditionTemplateGenerationResponse response = (ConditionTemplateGenerationResponse) rawResponse;
-                
+                ConditionTemplateGenerationResponse response = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
+
                 if (response != null && response.hasTemplates()) {
-                    String templateResult = response.getTemplateResult();
-                                        return templateResult;
+                    return response.getTemplateResult();
                 } else {
                     log.warn("범용 조건 템플릿 응답이 비어있음");
                     return "[]";
                 }
-                
+
             } else {
 
                 ConditionTemplateGenerationRequest request = ConditionTemplateGenerationRequest.forSpecificTemplate(
                         "METHOD", userPrompt);
 
-                Object rawResponse = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
-                ConditionTemplateGenerationResponse response = (ConditionTemplateGenerationResponse) rawResponse;
-                
+                ConditionTemplateGenerationResponse response = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
+
                 if (response != null && response.hasTemplates()) {
-                    String templateResult = response.getTemplateResult();
-                                        return templateResult;
+                    return response.getTemplateResult();
                 } else {
                     log.warn("특화 조건 템플릿 응답이 비어있음");
                     return "[]";
@@ -221,7 +216,7 @@ public class AutoConditionTemplateService {
 
         } catch (Exception e) {
             log.error("AINativeIAMOperations 호출 실패", e);
-            
+
             return "[]";
         }
     }
@@ -230,15 +225,11 @@ public class AutoConditionTemplateService {
         List<ConditionTemplate> templates = new ArrayList<>();
 
         try {
-            
+
             String cleanedJson = extractAndCleanJson(aiResponse);
+            List<Map<String, Object>> rawTemplates = objectMapper.readValue(cleanedJson, new TypeReference<>() {});
 
-            List<Map<String, Object>> rawTemplates = objectMapper.readValue(
-                    cleanedJson, new TypeReference<List<Map<String, Object>>>() {});
-
-            for (int i = 0; i < rawTemplates.size(); i++) {
-                Map<String, Object> raw = rawTemplates.get(i);
-                
+            for (Map<String, Object> raw : rawTemplates) {
                 try {
                     ConditionTemplate template = ConditionTemplate.builder()
                             .name((String) raw.get("name"))
@@ -254,7 +245,7 @@ public class AutoConditionTemplateService {
 
                     if (template.getSpelTemplate() != null && !template.getSpelTemplate().trim().isEmpty()) {
                         templates.add(template);
-                                            } else {
+                    } else {
                         log.warn("빈 SpEL 템플릿으로 인해 제외됨: {}", raw);
                     }
                 } catch (Exception itemError) {
@@ -264,7 +255,7 @@ public class AutoConditionTemplateService {
 
         } catch (Exception e) {
             log.error("AI 응답 파싱 실패: {}", aiResponse, e);
-            
+
         }
 
         return templates;
@@ -307,7 +298,7 @@ public class AutoConditionTemplateService {
     }
 
     private List<ConditionTemplate> generateFallbackUniversalTemplates() {
-        
+
         List<ConditionTemplate> templates = new ArrayList<>();
 
         templates.add(ConditionTemplate.builder()

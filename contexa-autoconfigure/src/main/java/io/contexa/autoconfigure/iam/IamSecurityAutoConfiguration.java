@@ -3,7 +3,7 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandler;
@@ -35,7 +35,7 @@ public class IamSecurityAutoConfiguration {
             ContextHandler contextHandler,
             AttributeInformationPoint attributePIP,
             AuditLogService auditLogService,
-            AINativeProcessor aINativeProcessor,
+            AICoreOperations aiNativeProcessor,
             AuditLogRepository auditLogRepository,
             ApplicationContext applicationContext,
             UserRepository userRepository,
@@ -52,7 +52,7 @@ public class IamSecurityAutoConfiguration {
                 contextHandler,
                 attributePIP,
                 auditLogService,
-                aINativeProcessor,
+                aiNativeProcessor,
                 auditLogRepository,
                 applicationContext,
                 userRepository,

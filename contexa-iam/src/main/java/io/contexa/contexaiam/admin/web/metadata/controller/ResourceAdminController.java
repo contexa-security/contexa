@@ -30,7 +30,6 @@ import org.springframework.stereotype.Controller;
 public class ResourceAdminController {
 
     private final ResourceRegistryService resourceRegistryService;
-    private final PermissionWizardService permissionWizardService;
 
     @GetMapping
     public String resourceWorkbenchPage(

@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -44,7 +45,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final AttributeInformationPoint attributePIP;
     private final AuditLogService auditLogService;
 
-    private final AINativeProcessor aINativeProcessor;
+    private final AICoreOperations aiNativeProcessor;
     private final AuditLogRepository auditLogRepository;
     private final ApplicationContext applicationContext;
 
@@ -64,7 +65,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AttributeInformationPoint attributePIP,
             AuditLogService auditLogService,
-            AINativeProcessor aINativeProcessor,
+            AICoreOperations aiNativeProcessor,
             AuditLogRepository auditLogRepository,
             ApplicationContext applicationContext,
             UserRepository userRepository,
@@ -80,7 +81,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.contextHandler = contextHandler;
         this.attributePIP = attributePIP;
         this.auditLogService = auditLogService;
-        this.aINativeProcessor = aINativeProcessor;
+        this.aiNativeProcessor = aiNativeProcessor;
         this.auditLogRepository = auditLogRepository;
         this.applicationContext = applicationContext;
         this.userRepository = userRepository;
@@ -107,7 +108,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             case "TRUST":
                 
                 root = new TrustSecurityExpressionRoot(
-                    auth, attributePIP, aINativeProcessor, authorizationContext,
+                    auth, attributePIP, aiNativeProcessor, authorizationContext,
                     auditLogRepository, redisTemplate, stringRedisTemplate);
                                 break;
 
@@ -115,7 +116,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             default:
                 
                 CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot(
-                    auth, attributePIP, authorizationContext, aINativeProcessor, auditLogRepository, mi);
+                    auth, attributePIP, authorizationContext, aiNativeProcessor, auditLogRepository, mi);
                 customRoot.setOwnerField(ownerField);
                 customRoot.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
                 root = customRoot;

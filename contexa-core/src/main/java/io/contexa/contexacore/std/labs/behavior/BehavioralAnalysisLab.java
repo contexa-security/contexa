@@ -11,6 +11,7 @@ import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.std.components.retriever.BehavioralAnalysisContextRetriever;
 import io.contexa.contexacore.std.labs.AbstractAILab;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
@@ -27,10 +28,10 @@ public class BehavioralAnalysisLab extends AbstractAILab<BehavioralAnalysisReque
 
     private final PipelineOrchestrator orchestrator;
     private final BehaviorVectorService behaviorVectorService;
-    private final AINativeProcessor aiNativeProcessor; 
+    private final AICoreOperations aiNativeProcessor;
 
     public BehavioralAnalysisLab(
-            AINativeProcessor aiNativeProcessor,
+            AICoreOperations aiNativeProcessor,
             PipelineOrchestrator orchestrator,
             BehavioralAnalysisContextRetriever contextRetriever,
             BehaviorVectorService behaviorVectorService) {

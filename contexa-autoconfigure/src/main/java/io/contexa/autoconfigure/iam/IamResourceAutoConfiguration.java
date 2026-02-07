@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
@@ -32,7 +33,7 @@ public class IamResourceAutoConfiguration {
             List<ResourceScanner> scanners,
             ManagedResourceRepository managedResourceRepository,
             PermissionCatalogService permissionCatalogService,
-            AINativeProcessor aiNativeProcessor,
+            AICoreOperations aiNativeProcessor,
             AutoConditionTemplateService autoConditionTemplateService) {
         return new ResourceRegistryServiceImpl(
                 scanners, managedResourceRepository, permissionCatalogService,
@@ -50,7 +51,7 @@ public class IamResourceAutoConfiguration {
     public AutoConditionTemplateService autoConditionTemplateService(
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
-            AINativeProcessor aiNativeProcessor,
+            AICoreOperations aiNativeProcessor,
             ObjectMapper objectMapper) {
         return new AutoConditionTemplateService(
                 conditionTemplateRepository, managedResourceRepository, aiNativeProcessor, objectMapper);

@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
+import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.repository.DocumentRepository;
@@ -45,9 +46,9 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     public CustomMethodSecurityExpressionRoot(Authentication authentication,
                                               AttributeInformationPoint attributePIP,
                                               AuthorizationContext authorizationContext,
-                                              AINativeProcessor aINativeProcessor,
+                                              AICoreOperations aiNativeProcessor,
                                               AuditLogRepository auditLogRepository, MethodInvocation mi) {
-        super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
+        super(authentication, attributePIP, aiNativeProcessor, authorizationContext, auditLogRepository);
         this.invocation = mi;
     }
 
