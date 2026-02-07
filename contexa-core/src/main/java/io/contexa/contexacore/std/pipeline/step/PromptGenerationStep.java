@@ -18,8 +18,7 @@ public class PromptGenerationStep implements PipelineStep {
     private final PromptGenerator promptGenerator;
 
     public PromptGenerationStep(
-            PromptGenerator promptGenerator,
-            @Autowired(required = false) ToolResolver chainedToolResolver) {
+            PromptGenerator promptGenerator) {
         this.promptGenerator = promptGenerator;
     }
 

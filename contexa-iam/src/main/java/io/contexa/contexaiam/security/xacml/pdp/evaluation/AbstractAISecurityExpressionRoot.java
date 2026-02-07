@@ -1,12 +1,9 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
-import io.contexa.contexacore.std.components.prompt.BehavioralAnalysisTemplate;
-import io.contexa.contexacore.std.components.prompt.RiskAssessmentTemplate;
-import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacommon.domain.TrustAssessment;
+import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
 import io.contexa.contexacommon.domain.context.RiskAssessmentContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -14,11 +11,11 @@ import io.contexa.contexacommon.domain.request.BehavioralAnalysisRequest;
 import io.contexa.contexacommon.domain.request.RiskAssessmentRequest;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
-import io.contexa.contexacommon.domain.UserDto;
-import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
-import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.entity.AuditLog;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
+import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.expression.SecurityExpressionRoot;
 import org.springframework.security.core.Authentication;

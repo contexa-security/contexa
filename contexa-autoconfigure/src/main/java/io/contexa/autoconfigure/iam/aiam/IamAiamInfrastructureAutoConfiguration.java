@@ -4,6 +4,7 @@ import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyEvolutionLabIntegration;
 import io.contexa.contexaiam.aiam.listener.StompEventListener;
+import io.contexa.contexaiam.aiam.pipeline.processor.ResourceNamingResponseProcessor;
 import io.contexa.contexaiam.aiam.pipeline.processor.RiskAssessmentPostProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -21,6 +22,12 @@ public class IamAiamInfrastructureAutoConfiguration {
     @ConditionalOnMissingBean
     public RiskAssessmentPostProcessor riskAssessmentPostProcessor() {
         return new RiskAssessmentPostProcessor();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ResourceNamingResponseProcessor resourceNamingResponseProcessor() {
+        return new ResourceNamingResponseProcessor();
     }
 
     @Bean

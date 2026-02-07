@@ -274,9 +274,8 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public PromptGenerationStep promptGenerationStep(
-            PromptGenerator promptGenerator,
-            @Autowired(required = false) ToolResolver toolResolver) {
-        return new PromptGenerationStep(promptGenerator, toolResolver);
+            PromptGenerator promptGenerator) {
+        return new PromptGenerationStep(promptGenerator);
     }
 
     @Bean

@@ -48,8 +48,14 @@ public class ResourceNamingSuggestionRequest extends AIRequest<ResourceNamingCon
                 .map(ResourceItem::fromMap)
                 .toList();
         ResourceNamingContext context = new ResourceNamingContext();
-        ResourceNamingSuggestionRequest resourceNamingSuggestionRequest = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
-        resourceNamingSuggestionRequest.setResources(items);
-        return resourceNamingSuggestionRequest;
+        ResourceNamingSuggestionRequest request = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
+        request.setResources(items);
+
+        List<String> identifiers = items.stream()
+                .map(ResourceItem::getIdentifier)
+                .toList();
+        request.withParameter("identifiers", identifiers);
+
+        return request;
     }
 } 
