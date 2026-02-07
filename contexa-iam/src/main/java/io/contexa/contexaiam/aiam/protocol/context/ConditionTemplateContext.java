@@ -22,15 +22,6 @@ public class ConditionTemplateContext extends DomainContext {
         this.templateMetadata = new HashMap<>();
     }
 
-    public ConditionTemplateContext(String userId, String sessionId,
-                                   String templateType, String resourceIdentifier, String methodInfo) {
-        super(userId, sessionId);
-        this.templateType = templateType;
-        this.resourceIdentifier = resourceIdentifier;
-        this.methodInfo = methodInfo;
-        this.templateMetadata = new HashMap<>();
-    }
-
     public static ConditionTemplateContext forUniversalTemplate() {
         return new ConditionTemplateContext("universal", null, null);
     }
@@ -48,17 +39,4 @@ public class ConditionTemplateContext extends DomainContext {
         this.templateMetadata.put(key, value);
     }
 
-    public Map<String, Object> getContextData() {
-        Map<String, Object> data = new HashMap<>();
-        data.put("templateType", templateType);
-        if (resourceIdentifier != null) {
-            data.put("resourceIdentifier", resourceIdentifier);
-        }
-        if (methodInfo != null) {
-            data.put("methodInfo", methodInfo);
-        }
-        data.putAll(templateMetadata);
-        data.putAll(getAllMetadata());
-        return data;
-    }
 }

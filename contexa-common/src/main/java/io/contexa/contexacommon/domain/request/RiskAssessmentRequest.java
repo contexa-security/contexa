@@ -30,10 +30,4 @@ public class RiskAssessmentRequest extends AIRequest<RiskAssessmentContext> {
     public static RiskAssessmentRequest create(RiskAssessmentContext context, TemplateType templateType, DiagnosisType diagnosisType) {
         return new RiskAssessmentRequest(context, templateType, diagnosisType);
     }
-    
-    @Override
-    public String toString() {
-        return String.format("RiskAssessmentRequest{id='%s', operation='%s', sessionId='%s', context=%s}", 
-                getRequestId(), getPromptTemplate(), sessionId, getContext());
-    }
-} 
+}
