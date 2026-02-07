@@ -3,7 +3,6 @@ package io.contexa.autoconfigure.iam.aiam;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexaiam.aiam.components.prompt.*;
 import io.contexa.contexaiam.aiam.components.retriever.*;
-import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateVectorService;
 import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
 import org.springframework.ai.vectorstore.VectorStore;

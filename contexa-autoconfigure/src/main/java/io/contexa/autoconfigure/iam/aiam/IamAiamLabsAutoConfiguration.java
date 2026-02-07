@@ -9,7 +9,6 @@ import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateGenerationLab;
-import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateVectorService;
 import io.contexa.contexaiam.aiam.labs.data.IAMDataCollectionService;
 import io.contexa.contexaiam.aiam.labs.data.PolicyGenerationCollectionService;
 import io.contexa.contexaiam.aiam.labs.data.StudioQueryCollectionService;
@@ -47,15 +46,6 @@ public class IamAiamLabsAutoConfiguration {
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new StudioQueryVectorService(vectorStore, vectorStoreMetrics);
     }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ConditionTemplateVectorService conditionTemplateVectorService(
-            VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new ConditionTemplateVectorService(vectorStore, vectorStoreMetrics);
-    }
-
 
     @Bean
     @ConditionalOnMissingBean
@@ -131,8 +121,7 @@ public class IamAiamLabsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ConditionTemplateGenerationLab conditionTemplateGenerationLab(
-            PipelineOrchestrator orchestrator,
-            ConditionTemplateVectorService vectorService) {
-        return new ConditionTemplateGenerationLab(orchestrator, vectorService);
+            PipelineOrchestrator orchestrator) {
+        return new ConditionTemplateGenerationLab(orchestrator);
     }
 }
