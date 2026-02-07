@@ -11,7 +11,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -78,11 +77,11 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
 
     @Override
     public Flux<String> processStream(AIRequest<T> request) {
-        return executeStreamWithAudit(request, AIResponse.class);
+        return executeStreamWithAudit(request);
     }
 
-    private <R extends AIResponse> Flux<String> executeStreamWithAudit(AIRequest<T> request, Class<R> responseType) {
-        String strategyId = generateStrategyId(request, responseType);
+    private <R extends AIResponse> Flux<String> executeStreamWithAudit(AIRequest<T> request) {
+        String strategyId = generateStrategyId(request, AIResponse.class);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
         return Mono.fromCallable(() -> acquireStrategicLock(lockKey, strategyId))
@@ -95,7 +94,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     String auditId = generateAuditId(request, strategyId);
 
                     return distributedStrategyExecutor.executeDistributedStrategyStream(
-                            request, responseType, sessionId, auditId
+                            request, (Class<R>) AIResponse.class, sessionId, auditId
                     ).doOnComplete(() -> {
                         sessionManager.completeDistributedExecution(sessionId, auditId, request, null, true);
                     }).doOnError(error -> {

@@ -7,7 +7,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.aiam.protocol.context.ResourceNamingContext;
 import io.contexa.contexaiam.aiam.protocol.request.ResourceNameSuggestion;
@@ -92,7 +91,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         }
-        autoConditionTemplateService.generateConditionTemplates();
+//        autoConditionTemplateService.generateConditionTemplates();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

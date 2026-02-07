@@ -27,26 +27,6 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         this.strategyRegistry = strategyRegistry;
     }
 
-    public <R extends AIResponse> R executeDistributedStrategy(AIRequest<T> request,
-                                                               Class<R> responseType,
-                                                               String sessionId,
-                                                               String auditId) {
-
-        try {
-
-            R result = executeStrategyThroughRegistry(request, responseType, sessionId);
-
-            validateResult(result, sessionId);
-
-            return result;
-
-        } catch (Exception e) {
-            log.error("Strategy execution failed for session: {}, falling back to AI Pipeline", sessionId, e);
-
-            return executeAIPipelineFallback(request, responseType, sessionId);
-        }
-    }
-
     public <R extends AIResponse> Mono<R> executeDistributedStrategyAsync(AIRequest<T> request,
                                                                           Class<R> responseType,
                                                                           String sessionId,
@@ -82,28 +62,6 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         } catch (Exception e) {
             log.error("Distributed streaming strategy execution failed for session: {}", sessionId, e);
             return Flux.error(new AIOperationException("Streaming strategy execution failed", e));
-        }
-    }
-
-    private <R extends AIResponse> R executeStrategyThroughRegistry(AIRequest<T> request,
-                                                                    Class<R> responseType,
-                                                                    String sessionId) {
-        try {
-
-            return strategyRegistry.executeStrategy(request, responseType);
-
-        } catch (DiagnosisException e) {
-            log.error("Strategy registry execution failed for session: {} - {}", sessionId, e.getMessage());
-
-            return executeAIPipelineFallback(request, responseType, sessionId);
-
-        } catch (Exception e) {
-            log.error("Unexpected error in strategy execution for session: {}", sessionId, e);
-            throw new DiagnosisException(
-                    request.getDiagnosisType() != null ? request.getDiagnosisType().name() : "UNKNOWN",
-                    "STRATEGY_EXECUTION_ERROR",
-                    "Unexpected error during strategy execution: " + e.getMessage()
-            );
         }
     }
 
