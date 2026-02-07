@@ -16,7 +16,7 @@ import java.util.Map;
 public class ResourceNamingSuggestionRequest extends AIRequest<ResourceNamingContext> {
 
     private List<ResourceItem> resources;
-    private int batchSize = 5;
+    private int batchSize = 10;
     private RequestPriority priority = RequestPriority.NORMAL;
 
     public ResourceNamingSuggestionRequest(ResourceNamingContext context, TemplateType templateType, DiagnosisType diagnosisType) {
@@ -42,20 +42,4 @@ public class ResourceNamingSuggestionRequest extends AIRequest<ResourceNamingCon
                     .build();
         }
     }
-
-    public static ResourceNamingSuggestionRequest fromMapList(List<Map<String, String>> resourceMaps) {
-        List<ResourceItem> items = resourceMaps.stream()
-                .map(ResourceItem::fromMap)
-                .toList();
-        ResourceNamingContext context = new ResourceNamingContext();
-        ResourceNamingSuggestionRequest request = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
-        request.setResources(items);
-
-        List<String> identifiers = items.stream()
-                .map(ResourceItem::getIdentifier)
-                .toList();
-        request.withParameter("identifiers", identifiers);
-
-        return request;
-    }
-} 
+}

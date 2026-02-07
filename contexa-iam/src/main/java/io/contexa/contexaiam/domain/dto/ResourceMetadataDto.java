@@ -7,5 +7,4 @@ public class ResourceMetadataDto {
     private String friendlyName;
     private String description;
     private String serviceOwner;
-    private boolean isManaged;
 }

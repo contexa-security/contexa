@@ -21,7 +21,6 @@ public class ResourceNamingResponseProcessor implements DomainResponseProcessor 
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public Object wrapResponse(Object parsedData, PipelineExecutionContext context) {
         if (!(parsedData instanceof Map)) {
             throw new IllegalArgumentException(

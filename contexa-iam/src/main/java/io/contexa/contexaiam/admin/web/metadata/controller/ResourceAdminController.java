@@ -4,7 +4,6 @@ import io.contexa.contexaiam.domain.dto.ResourceManagementDto;
 import io.contexa.contexaiam.domain.dto.ResourceMetadataDto;
 import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
-import io.contexa.contexaiam.admin.web.workflow.wizard.service.PermissionWizardService;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import lombok.RequiredArgsConstructor;
@@ -65,7 +64,6 @@ public class ResourceAdminController {
             Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, metadataDto);
 
             Map<String, Object> response = Map.of(
-                    "success", true,
                     "message", "리소스가 성공적으로 권한으로 정의되었습니다.",
                     "permissionId", newPermission.getId(),
                     "permissionName", newPermission.getFriendlyName()
@@ -73,9 +71,23 @@ public class ResourceAdminController {
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
-            log.error("권한 정의 API 처리 중 오류 발생: {}", e.getMessage(), e);
-            return ResponseEntity.badRequest().body(Map.of("success", false, "message", e.getMessage()));
+            log.error("Permission definition API failed for resource ID: {}", id, e);
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    @PostMapping("/{id}/restore")
+    public String restoreResource(@PathVariable Long id, RedirectAttributes ra) {
+        try {
+            ResourceManagementDto dto = new ResourceManagementDto();
+            dto.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
+            resourceRegistryService.updateResourceManagementStatus(id, dto);
+            ra.addFlashAttribute("message", "리소스가 관리 대상으로 복원되었습니다.");
+        } catch (Exception e) {
+            log.error("Resource restore failed for ID: {}", id, e);
+            ra.addFlashAttribute("errorMessage", "복원 중 오류 발생: " + e.getMessage());
+        }
+        return "redirect:/admin/workbench/resources";
     }
 
     @PostMapping("/{id}/exclude")

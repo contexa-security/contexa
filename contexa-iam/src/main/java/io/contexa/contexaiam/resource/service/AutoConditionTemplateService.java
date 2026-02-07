@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;

@@ -50,14 +50,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
 
     @Override
     protected Object convertLabRequest(AIRequest<ResourceNamingContext> request) throws DiagnosisException {
-        try {
-            List<Map<String, String>> legacyResources = (List<Map<String, String>>) request.getParameter("resources", List.class);
-            return ResourceNamingSuggestionRequest.fromMapList(legacyResources);
-
-        } catch (ClassCastException e) {
-            throw new DiagnosisException("RESOURCE_NAMING", "INVALID_RESOURCES_FORMAT",
-                    "resources 파라미터 형식이 올바르지 않습니다", e);
-        }
+        return request;
     }
 
     @Override

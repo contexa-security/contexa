@@ -52,9 +52,8 @@ public class IamAdminMetadataAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ResourceAdminController resourceAdminController(
-            ResourceRegistryService resourceRegistryService,
-            PermissionWizardService permissionWizardService) {
-        return new ResourceAdminController(resourceRegistryService, permissionWizardService);
+            ResourceRegistryService resourceRegistryService) {
+        return new ResourceAdminController(resourceRegistryService);
     }
 
     @Bean

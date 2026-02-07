@@ -91,7 +91,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         }
-//        autoConditionTemplateService.generateConditionTemplates();
+        autoConditionTemplateService.generateConditionTemplates();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -257,8 +257,12 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         ResourceNamingContext context = new ResourceNamingContext.Builder().withResourceBatch(resources).build();
 
         ResourceNamingSuggestionRequest request = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
-        request.withParameter("resources", resources);
+        List<ResourceNamingSuggestionRequest.ResourceItem> items = resources.stream()
+                .map(ResourceNamingSuggestionRequest.ResourceItem::fromMap)
+                .toList();
+        request.setResources(items);
 
+        request.withParameter("resources", resources);
         List<String> identifiers = resources.stream()
                 .map(r -> r.get("identifier"))
                 .toList();
