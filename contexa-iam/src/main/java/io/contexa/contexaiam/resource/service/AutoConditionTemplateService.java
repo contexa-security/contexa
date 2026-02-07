@@ -32,11 +32,7 @@ public class AutoConditionTemplateService {
     @Transactional
     public List<ConditionTemplate> generateConditionTemplates() {
 
-        List<ManagedResource> methodResources = managedResourceRepository.findAll()
-                .stream()
-                .filter(resource -> resource.getResourceType() == ManagedResource.ResourceType.METHOD)
-                .filter(resource -> resource.getStatus() != ManagedResource.Status.EXCLUDED)
-                .toList();
+        List<ManagedResource> methodResources = managedResourceRepository.findByResourceType(ManagedResource.ResourceType.METHOD);
 
         if (methodResources.isEmpty()) {
             return new ArrayList<>();

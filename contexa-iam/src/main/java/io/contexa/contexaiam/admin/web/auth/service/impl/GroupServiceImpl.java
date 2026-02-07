@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
@@ -24,6 +25,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public Group createGroup(Group group, List<Long> selectedRoleIds) {
         if (groupRepository.findByName(group.getName()).isPresent()) {
             throw new IllegalArgumentException("Group with name " + group.getName() + " already exists.");
@@ -52,12 +54,14 @@ public class GroupServiceImpl implements GroupService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public void deleteGroup(Long id) {
         groupRepository.deleteById(id);
     }
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public Group updateGroup(Group group, List<Long> selectedRoleIds) {
         Group existingGroup = groupRepository.findByIdWithRoles(group.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + group.getId()));

@@ -12,6 +12,8 @@ public interface ManagedResourceRepository extends JpaRepository<ManagedResource
 
     Optional<ManagedResource> findByResourceIdentifier(String resourceIdentifier);
 
+    List<ManagedResource> findByResourceType(ManagedResource.ResourceType resourceType);
+
     @Query("SELECT DISTINCT r.serviceOwner FROM ManagedResource r WHERE r.serviceOwner IS NOT NULL ORDER BY r.serviceOwner ASC")
     Set<String> findAllServiceOwners();
 

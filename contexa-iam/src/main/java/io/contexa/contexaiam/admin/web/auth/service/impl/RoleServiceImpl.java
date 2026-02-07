@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -62,6 +63,7 @@ public class RoleServiceImpl implements RoleService {
             },
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
+    @Protectable
     public Role createRole(Role role, List<Long> permissionIds) {
         if (roleRepository.findByRoleName(role.getRoleName()).isPresent()) {
             throw new IllegalArgumentException("Role with name " + role.getRoleName() + " already exists.");
@@ -89,6 +91,7 @@ public class RoleServiceImpl implements RoleService {
             },
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
+    @Protectable
     public Role updateRole(Role role, List<Long> permissionIds) {
         Role existingRole = roleRepository.findByIdWithPermissions(role.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + role.getId()));
@@ -129,6 +132,7 @@ public class RoleServiceImpl implements RoleService {
                     @CacheEvict(value = "roles", key = "#id")
             }
     )
+    @Protectable
     public void deleteRole(long id) {
         roleRepository.deleteById(id);
     }

@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
@@ -22,12 +23,13 @@ public class PermissionServiceImpl implements PermissionService {
 
     @Transactional
     @Caching(
-            evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)}, 
-            put = {@CachePut(value = "permissions", key = "#result.id")} 
+            evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)},
+            put = {@CachePut(value = "permissions", key = "#result.id")}
     )
     @Override
+    @Protectable
     public Permission createPermission(Permission permission) {
-        
+
         if (permissionRepository.findByName(permission.getName()).isPresent()) {
             throw new IllegalArgumentException("Permission with name " + permission.getName() + " already exists.");
         }
@@ -49,22 +51,24 @@ public class PermissionServiceImpl implements PermissionService {
     @Transactional
     @Caching(
             evict = {
-                    @CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true), 
-                    @CacheEvict(value = "permissions", key = "#id"), 
-                    @CacheEvict(value = "permissions", key = "'allPermissions'") 
+                    @CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true),
+                    @CacheEvict(value = "permissions", key = "#id"),
+                    @CacheEvict(value = "permissions", key = "'allPermissions'")
             }
     )
     @Override
+    @Protectable
     public void deletePermission(Long id) {
         permissionRepository.deleteById(id);
     }
 
     @Caching(
-            evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)}, 
-            put = {@CachePut(value = "permissions", key = "#result.id")} 
+            evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)},
+            put = {@CachePut(value = "permissions", key = "#result.id")}
     )
     @Transactional
     @Override
+    @Protectable
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));

@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
@@ -25,7 +26,7 @@ public class RoleHierarchyService {
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
-                reloadRoleHierarchyBean();
+        reloadRoleHierarchyBean();
     }
 
     public List<RoleHierarchyEntity> getAllRoleHierarchies() {
@@ -44,9 +45,10 @@ public class RoleHierarchyService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
-            
+
             if (roleHierarchyRepository.findByHierarchyString(roleHierarchyEntity.getHierarchyString()).isPresent()) {
                 throw new IllegalArgumentException("동일한 역할 계층 설정이 이미 존재합니다.");
             }
@@ -61,7 +63,7 @@ public class RoleHierarchyService {
                 deactivateAllOtherHierarchies(savedEntity.getId());
                 reloadRoleHierarchyBean();
             }
-                        return savedEntity;
+            return savedEntity;
 
         } catch (Exception e) {
             log.error("Error creating role hierarchy: ", e);
@@ -71,29 +73,30 @@ public class RoleHierarchyService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public RoleHierarchyEntity updateRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
-            
+
             RoleHierarchyEntity existingEntity = roleHierarchyRepository.findById(roleHierarchyEntity.getId())
                     .orElseThrow(() -> new IllegalArgumentException("RoleHierarchy not found with ID: " + roleHierarchyEntity.getId()));
 
-                        validateHierarchyString(roleHierarchyEntity.getHierarchyString());
+            validateHierarchyString(roleHierarchyEntity.getHierarchyString());
 
-                        validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
+            validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
 
             existingEntity.setHierarchyString(roleHierarchyEntity.getHierarchyString());
             existingEntity.setDescription(roleHierarchyEntity.getDescription());
             existingEntity.setIsActive(roleHierarchyEntity.getIsActive());
 
             RoleHierarchyEntity updatedEntity = roleHierarchyRepository.save(existingEntity);
-            
+
             if (updatedEntity.getIsActive()) {
-                                deactivateAllOtherHierarchies(updatedEntity.getId());
+                deactivateAllOtherHierarchies(updatedEntity.getId());
             }
 
-                        reloadRoleHierarchyBean();
+            reloadRoleHierarchyBean();
 
-                        return updatedEntity;
+            return updatedEntity;
 
         } catch (Exception e) {
             log.error("Error updating role hierarchy: ", e);
@@ -103,13 +106,15 @@ public class RoleHierarchyService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public void deleteRoleHierarchy(Long id) {
         roleHierarchyRepository.deleteById(id);
         reloadRoleHierarchyBean();
-            }
+    }
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    @Protectable
     public void activateRoleHierarchy(Long activeId) {
         List<RoleHierarchyEntity> all = roleHierarchyRepository.findAll();
         for (RoleHierarchyEntity entity : all) {
@@ -117,7 +122,7 @@ public class RoleHierarchyService {
             roleHierarchyRepository.save(entity);
         }
         reloadRoleHierarchyBean();
-            }
+    }
 
     public void reloadRoleHierarchyBean() {
         try {
@@ -125,10 +130,10 @@ public class RoleHierarchyService {
 
             if (hierarchyString != null && hierarchyString.contains("\\n")) {
                 hierarchyString = hierarchyString.replace("\\n", "\n");
-                            }
+            }
 
             roleHierarchy.setHierarchy(hierarchyString);
-                    } catch (Exception e) {
+        } catch (Exception e) {
             log.error("Failed to reload RoleHierarchyImpl bean dynamically. Error: {}", e.getMessage(), e);
         }
     }
@@ -215,7 +220,7 @@ public class RoleHierarchyService {
     }
 
     private boolean isTransitivelyConnected(Map<String, Set<String>> graph, String start, String end) {
-        
+
         Map<String, Set<String>> tempGraph = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : graph.entrySet()) {
             tempGraph.put(entry.getKey(), new HashSet<>(entry.getValue()));
@@ -238,7 +243,7 @@ public class RoleHierarchyService {
             if (children != null) {
                 for (String child : children) {
                     if (child.equals(end)) {
-                        return true; 
+                        return true;
                     }
                     queue.offer(child);
                 }
