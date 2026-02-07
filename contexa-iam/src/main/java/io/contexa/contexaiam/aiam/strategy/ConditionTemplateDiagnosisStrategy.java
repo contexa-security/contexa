@@ -43,11 +43,15 @@ public class ConditionTemplateDiagnosisStrategy
                     "templateType is required in context");
         }
 
-        if ("specific".equals(context.getTemplateType())
-                && (context.getResourceIdentifier() == null
-                    || context.getResourceIdentifier().trim().isEmpty())) {
-            throw new DiagnosisException("CONDITION_TEMPLATE", "MISSING_RESOURCE_IDENTIFIER",
-                    "resourceIdentifier is required for specific condition templates");
+        if ("specific".equals(context.getTemplateType())) {
+            boolean hasSingleResource = context.getResourceIdentifier() != null
+                    && !context.getResourceIdentifier().trim().isEmpty();
+            boolean hasBatchResource = context.getResourceBatch() != null
+                    && !context.getResourceBatch().isEmpty();
+            if (!hasSingleResource && !hasBatchResource) {
+                throw new DiagnosisException("CONDITION_TEMPLATE", "MISSING_RESOURCE_IDENTIFIER",
+                        "resourceIdentifier or resourceBatch is required for specific condition templates");
+            }
         }
     }
 
