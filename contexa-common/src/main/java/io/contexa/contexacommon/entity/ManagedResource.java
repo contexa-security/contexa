@@ -54,6 +54,21 @@ public class ManagedResource {
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
+    @PrePersist
+    protected void onPrePersist() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+        if (updatedAt == null) {
+            updatedAt = LocalDateTime.now();
+        }
+    }
+
+    @PreUpdate
+    protected void onPreUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
     public enum ResourceType { URL, METHOD }
     public enum HttpMethod { GET, POST, PUT, DELETE, PATCH, ANY }
     public enum Status {

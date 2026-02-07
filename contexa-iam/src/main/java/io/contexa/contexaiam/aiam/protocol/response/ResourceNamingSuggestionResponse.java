@@ -14,16 +14,12 @@ import java.util.stream.Collectors;
 public class ResourceNamingSuggestionResponse extends AIResponse {
 
     private List<ResourceNamingSuggestion> suggestions;
-
     private List<String> failedIdentifiers;
 
-    private ProcessingStats stats;
-
     public ResourceNamingSuggestionResponse(List<ResourceNamingSuggestion> suggestions,
-                                          List<String> failedIdentifiers, ProcessingStats stats) {
+                                          List<String> failedIdentifiers) {
         this.suggestions = suggestions != null ? suggestions : List.of();
         this.failedIdentifiers = failedIdentifiers != null ? failedIdentifiers : List.of();
-        this.stats = stats != null ? stats : new ProcessingStats();
     }
 
     @Data
@@ -33,11 +29,8 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
     public static class ResourceNamingSuggestion {
         
         private String identifier;
-
         private String friendlyName;
-
         private String description;
-
         private double confidence;
 
         public ResourceNameSuggestion toResourceNameSuggestion() {
@@ -51,21 +44,6 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
                     .description(suggestion.description())
                     .confidence(0.8) 
                     .build();
-        }
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ProcessingStats {
-        private int totalRequested;
-        private int successfullyProcessed;
-        private int failed;
-        private long processingTimeMs;
-        
-        public double getSuccessRate() {
-            return totalRequested > 0 ? (double) successfullyProcessed / totalRequested : 0.0;
         }
     }
 
@@ -98,14 +76,7 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
                 failedIdentifiers.add(identifier);
             }
         }
-
-        ProcessingStats stats = ProcessingStats.builder()
-                .totalRequested(mapResponse.size())
-                .successfullyProcessed(suggestions.size())
-                .failed(failedIdentifiers.size())
-                .build();
-
-        return new ResourceNamingSuggestionResponse(suggestions, failedIdentifiers, stats);
+        return new ResourceNamingSuggestionResponse(suggestions, failedIdentifiers);
     }
 
     public static ResourceNamingSuggestionResponse fromResourceNameSuggestionMap(Map<String, ResourceNameSuggestion> suggestionMap) {
@@ -113,12 +84,6 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
                 .map(entry -> ResourceNamingSuggestion.fromResourceNameSuggestion(entry.getKey(), entry.getValue()))
                 .toList();
                 
-        ProcessingStats stats = ProcessingStats.builder()
-                .totalRequested(suggestionMap.size())
-                .successfullyProcessed(suggestionMap.size())
-                .failed(0)
-                .build();
-                
-        return new ResourceNamingSuggestionResponse(suggestions, List.of(), stats);
+        return new ResourceNamingSuggestionResponse(suggestions, List.of());
     }
 } 

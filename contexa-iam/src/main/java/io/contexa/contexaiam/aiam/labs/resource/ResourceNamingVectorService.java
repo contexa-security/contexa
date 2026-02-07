@@ -42,14 +42,6 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
 
     @Override
     protected void validateLabSpecificDocument(Document document) {
-        Map<String, Object> metadata = document.getMetadata();
-
-        if (!metadata.containsKey("resourceCategory") &&
-            !metadata.containsKey("resourcePath") &&
-            !metadata.containsKey("organizationId")) {
-            throw new IllegalArgumentException(
-                "Resource Naming document must contain at least one of: resourceCategory, resourcePath, organizationId");
-        }
 
         String text = document.getText();
         if (text == null || text.trim().isEmpty()) {
@@ -71,14 +63,12 @@ public class ResourceNamingVectorService extends AbstractVectorLabService {
     public void storeNamingRequest(ResourceNamingSuggestionRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("organizationId", request.getContext().getOrganizationId());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", VectorDocumentType.RESOURCE_NAMING_REQUEST.getValue());
             metadata.put("requestId", UUID.randomUUID().toString());
 
             String requestText = String.format(
-                "Resource naming request from organization %s: %d resources",
-                request.getContext().getOrganizationId(),
+                "Resource naming request : %d resources",
                 request.getResources().size()
             );
 

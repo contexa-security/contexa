@@ -24,7 +24,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
 
     private final PipelineOrchestrator orchestrator;
     private final ResourceNamingVectorService vectorService;
-    private static final int DEFAULT_BATCH_SIZE = 5;
+    private static final int DEFAULT_BATCH_SIZE = 10;
 
     public ResourceNamingLab(PipelineOrchestrator orchestrator,
                              ResourceNamingVectorService vectorService) {
@@ -54,15 +54,12 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
         return executePipelineAsync(request)
                 .onErrorResume(error -> {
                     log.error("ResourceNaming 비동기 진단 실패", error);
-                    ResourceNamingSuggestionResponse.ProcessingStats errorStats =
-                            new ResourceNamingSuggestionResponse.ProcessingStats(
-                                    request.getResources().size(), 0, request.getResources().size(), 0);
                     return Mono.just(new ResourceNamingSuggestionResponse(
                             List.of(),
                             request.getResources().stream()
                                     .map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier)
-                                    .toList(),
-                            errorStats));
+                                    .toList()
+                            ));
                 });
     }
 
@@ -74,7 +71,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
 
         List<List<ResourceNamingSuggestionRequest.ResourceItem>> batches =
                 request.getResources().stream()
-                        .collect(Collectors.groupingBy(item -> allSuggestions.size() / DEFAULT_BATCH_SIZE))
+                        .collect(Collectors.groupingBy(item -> 0 / DEFAULT_BATCH_SIZE))
                         .values()
                         .stream()
                         .toList();
@@ -91,16 +88,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
             int totalResources) {
 
         if (currentIndex >= batches.size()) {
-            long processingTime = System.currentTimeMillis() - startTime;
-            ResourceNamingSuggestionResponse.ProcessingStats stats =
-                    ResourceNamingSuggestionResponse.ProcessingStats.builder()
-                            .totalRequested(totalResources)
-                            .successfullyProcessed(allSuggestions.size())
-                            .failed(failedIdentifiers.size())
-                            .processingTimeMs(processingTime)
-                            .build();
-
-            ResourceNamingSuggestionResponse finalResponse = new ResourceNamingSuggestionResponse(allSuggestions, failedIdentifiers, stats);
+            ResourceNamingSuggestionResponse finalResponse = new ResourceNamingSuggestionResponse(allSuggestions, failedIdentifiers);
             try {
                 
                 List<ResourceNamingSuggestionRequest.ResourceItem> allResources = batches.stream()
@@ -192,11 +180,9 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
 
     private ResourceNamingSuggestionResponse createFallbackResponse(List<ResourceNamingSuggestionRequest.ResourceItem> batch, String errorMessage) {
         log.error("[AI 오류] 진짜 6단계 파이프라인 완전 실패, 빈 결과 반환: {}", errorMessage);
-        ResourceNamingSuggestionResponse.ProcessingStats fallbackStats =
-                new ResourceNamingSuggestionResponse.ProcessingStats(batch.size(), 0, batch.size(), 0);
         return new ResourceNamingSuggestionResponse(
                 List.of(),
-                batch.stream().map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier).toList(),
-                fallbackStats);
+                batch.stream().map(ResourceNamingSuggestionRequest.ResourceItem::getIdentifier).toList()
+                );
     }
 }

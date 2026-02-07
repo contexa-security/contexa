@@ -19,8 +19,8 @@ public class ResourceNamingSuggestionRequest extends AIRequest<ResourceNamingCon
     private int batchSize = 5;
     private RequestPriority priority = RequestPriority.NORMAL;
 
-    public ResourceNamingSuggestionRequest(DomainContext context, TemplateType templateType, DiagnosisType diagnosisType) {
-        super(null, templateType, diagnosisType);
+    public ResourceNamingSuggestionRequest(ResourceNamingContext context, TemplateType templateType, DiagnosisType diagnosisType) {
+        super(context, templateType, diagnosisType);
     }
 
     @Data

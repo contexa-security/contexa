@@ -23,8 +23,7 @@ public interface ResourceRegistryService {
 
     void excludeResourceFromManagement(Long resourceId);
 
-    void restoreResourceToManagement(Long resourceId);
-
     Set<String> getAllServiceOwners();
+
     void batchUpdateStatus(List<Long> ids, ManagedResource.Status status);
 }

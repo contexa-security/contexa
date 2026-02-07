@@ -36,7 +36,7 @@ public class MethodResourceScanner implements ResourceScanner {
             try {
                 bean = applicationContext.getBean(beanName);
             } catch (Exception e) {
-                                continue;
+                continue;
             }
 
             Class<?> targetClass = AopUtils.getTargetClass(bean);
@@ -52,7 +52,7 @@ public class MethodResourceScanner implements ResourceScanner {
 
             try {
                 for (Method method : targetClass.getDeclaredMethods()) {
-                    
+
                     if (!Modifier.isPublic(method.getModifiers())) {
                         continue;
                     }
@@ -81,7 +81,7 @@ public class MethodResourceScanner implements ResourceScanner {
                     resources.add(ManagedResource.builder()
                             .resourceIdentifier(identifier)
                             .resourceType(ManagedResource.ResourceType.METHOD)
-                            .serviceOwner(targetClass.getSimpleName()) 
+                            .serviceOwner(targetClass.getSimpleName())
                             .parameterTypes(parameterTypesJson)
                             .returnType(method.getReturnType().getName())
                             .sourceCodeLocation(sourceCodeLocation)
@@ -92,7 +92,7 @@ public class MethodResourceScanner implements ResourceScanner {
                 log.warn("빈 '{}'의 메서드를 스캔하는 중 오류 발생: {}", beanName, e.getMessage());
             }
         }
-                return resources;
+        return resources;
     }
 
 }

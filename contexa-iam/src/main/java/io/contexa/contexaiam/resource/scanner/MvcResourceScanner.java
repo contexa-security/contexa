@@ -38,7 +38,8 @@ public class MvcResourceScanner implements ResourceScanner {
             final Class<?> beanType = handlerMethod.getBeanType();
 
             if (!beanType.getPackageName().startsWith("io.contexa.contexaiam")) continue;
-            if (!beanType.isAnnotationPresent(Controller.class) && !beanType.isAnnotationPresent(RestController.class)) continue;
+            if (!beanType.isAnnotationPresent(Controller.class) && !beanType.isAnnotationPresent(RestController.class))
+                continue;
 
             PathPatternsRequestCondition pathPatternsCondition = mappingInfo.getPathPatternsCondition();
             if (pathPatternsCondition == null || pathPatternsCondition.getPatterns().isEmpty()) continue;
@@ -71,7 +72,6 @@ public class MvcResourceScanner implements ResourceScanner {
                     .status(ManagedResource.Status.NEEDS_DEFINITION)
                     .build());
         }
-
-                return resources;
+        return resources;
     }
 }

@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.resource.service;
 
 import com.google.common.collect.Lists;
+import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.entity.ManagedResource;
@@ -254,7 +255,6 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     @Override
     @Transactional(readOnly = true)
     public Page<ManagedResource> findResources(ResourceSearchCriteria criteria, Pageable pageable) {
-
         return managedResourceRepository.findByCriteria(criteria, pageable);
     }
 
@@ -264,20 +264,6 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         ManagedResource resource = managedResourceRepository.findById(resourceId)
                 .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
         resource.setStatus(ManagedResource.Status.EXCLUDED);
-        managedResourceRepository.save(resource);
-    }
-
-    @Override
-    @Transactional
-    public void restoreResourceToManagement(Long resourceId) {
-        ManagedResource resource = managedResourceRepository.findById(resourceId)
-                .orElseThrow(() -> new IllegalArgumentException("Resource not found with ID: " + resourceId));
-
-        if (resource.getPermission() != null) {
-            resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
-        } else {
-            resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
-        }
         managedResourceRepository.save(resource);
     }
 
@@ -297,9 +283,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         if (resourcesToUpdate.isEmpty()) {
             return;
         }
-
         for (ManagedResource resource : resourcesToUpdate) {
-
             if (status == ManagedResource.Status.NEEDS_DEFINITION) {
                 if (resource.getPermission() != null) {
                     resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
@@ -317,7 +301,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     private AIRequest<ResourceNamingContext> createResourceNamingRequest(List<Map<String, String>> resources) {
         ResourceNamingContext context = new ResourceNamingContext.Builder().withResourceBatch(resources).build();
 
-        ResourceNamingSuggestionRequest request = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new io.contexa.contexacommon.domain.DiagnosisType("ResourceNaming"));
+        ResourceNamingSuggestionRequest request = new ResourceNamingSuggestionRequest(context, new TemplateType("ResourceNaming"), new DiagnosisType("ResourceNaming"));
         request.withParameter("resources", resources);
         request.withParameter("batchSize", resources.size());
 
