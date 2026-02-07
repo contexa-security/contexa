@@ -40,22 +40,8 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public UniversalConditionTemplate universalConditionTemplate() {
-        return new UniversalConditionTemplate();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SpecificConditionTemplate specificConditionTemplate() {
-        return new SpecificConditionTemplate();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public ConditionTemplatePromptTemplate conditionTemplatePromptTemplate(
-            UniversalConditionTemplate universalTemplate,
-            SpecificConditionTemplate specificTemplate) {
-        return new ConditionTemplatePromptTemplate(universalTemplate, specificTemplate);
+    public ConditionTemplatePromptTemplate conditionTemplatePromptTemplate() {
+        return new ConditionTemplatePromptTemplate();
     }
 
     @Bean
@@ -78,10 +64,9 @@ public class IamAiamComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public ConditionTemplateContextRetriever conditionTemplateContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry,
-            ConditionTemplateVectorService conditionTemplateVectorService) {
+            ContextRetrieverRegistry contextRetrieverRegistry) {
         return new ConditionTemplateContextRetriever(
-                vectorStore, contextRetrieverRegistry, conditionTemplateVectorService);
+                vectorStore, contextRetrieverRegistry);
     }
 
     @Bean

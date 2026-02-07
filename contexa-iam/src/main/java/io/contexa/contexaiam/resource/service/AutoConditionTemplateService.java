@@ -1,7 +1,6 @@
 package io.contexa.contexaiam.resource.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
@@ -16,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @RequiredArgsConstructor
@@ -25,7 +26,163 @@ public class AutoConditionTemplateService {
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final ManagedResourceRepository managedResourceRepository;
     private final AICoreOperations<ConditionTemplateContext> aiNativeProcessor;
-    private final ObjectMapper objectMapper;
+
+    private static final int BATCH_SIZE = 10;
+
+    @Transactional
+    public List<ConditionTemplate> generateConditionTemplates() {
+
+        List<ManagedResource> methodResources = managedResourceRepository.findAll()
+                .stream()
+                .filter(resource -> resource.getResourceType() == ManagedResource.ResourceType.METHOD)
+                .filter(resource -> resource.getStatus() != ManagedResource.Status.EXCLUDED)
+                .toList();
+
+        if (methodResources.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<ConditionTemplate> templates = new ArrayList<>(generateAIUniversalTemplates());
+
+        List<ManagedResource> uniqueResources = methodResources.stream()
+                .filter(resource -> {
+                    String parameterTypes = resource.getParameterTypes();
+                    return parameterTypes != null && !parameterTypes.trim().isEmpty()
+                            && !parameterTypes.equals("[]") && !parameterTypes.equals("()");
+                })
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toMap(ManagedResource::getResourceIdentifier, Function.identity(), (a, b) -> a),
+                        map -> new ArrayList<>(map.values())
+                ));
+
+        if (!uniqueResources.isEmpty()) {
+            List<List<ManagedResource>> batches = Lists.partition(uniqueResources, BATCH_SIZE);
+
+            List<CompletableFuture<List<ConditionTemplate>>> futures = batches.stream()
+                    .map(batch -> CompletableFuture.supplyAsync(() -> processConditionBatch(batch)))
+                    .toList();
+
+            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+
+            for (CompletableFuture<List<ConditionTemplate>> future : futures) {
+                try {
+                    templates.addAll(future.join());
+                } catch (Exception e) {
+                    log.error("Condition batch processing failed", e);
+                }
+            }
+        }
+
+        return saveDedupedTemplates(templates);
+    }
+
+    private List<ConditionTemplate> generateAIUniversalTemplates() {
+        try {
+            ConditionTemplateContext context = ConditionTemplateContext.forUniversalTemplate();
+            ConditionTemplateGenerationRequest request = new ConditionTemplateGenerationRequest(context);
+            ConditionTemplateGenerationResponse response =
+                    aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
+
+            if (response != null && response.hasTemplates()) {
+                return convertUniversalResponseToTemplates(response);
+            }
+            log.error("Universal condition template response is empty");
+            return generateFallbackUniversalTemplates();
+        } catch (Exception e) {
+            log.error("AI universal template generation failed", e);
+            return generateFallbackUniversalTemplates();
+        }
+    }
+
+    private List<ConditionTemplate> convertUniversalResponseToTemplates(
+            ConditionTemplateGenerationResponse response) {
+        List<ConditionTemplate> templates = new ArrayList<>();
+        Map<String, ConditionTemplateGenerationResponse.ConditionTemplateItem> batchResults =
+                response.toConditionTemplateMap();
+
+        for (Map.Entry<String, ConditionTemplateGenerationResponse.ConditionTemplateItem> entry
+                : batchResults.entrySet()) {
+            ConditionTemplateGenerationResponse.ConditionTemplateItem item = entry.getValue();
+            if (item.getSpelTemplate() != null && !item.getSpelTemplate().trim().isEmpty()) {
+                ConditionTemplate template = ConditionTemplate.builder()
+                        .name(item.getName())
+                        .description(item.getDescription())
+                        .spelTemplate(item.getSpelTemplate())
+                        .category(item.getCategory() != null ? item.getCategory() : "AI Generated")
+                        .classification(parseClassification(item.getClassification()))
+                        .sourceMethod("universal")
+                        .isAutoGenerated(true)
+                        .isUniversal(true)
+                        .templateType("ai_generated")
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                templates.add(template);
+            }
+        }
+
+        return templates;
+    }
+
+    private List<ConditionTemplate> processConditionBatch(List<ManagedResource> batch) {
+        List<String> methodSignatures = batch.stream()
+                .map(ManagedResource::getResourceIdentifier)
+                .toList();
+
+        List<Map<String, String>> resourceBatch = batch.stream()
+                .map(r -> Map.of(
+                        "identifier", r.getResourceIdentifier(),
+                        "owner", r.getServiceOwner() != null ? r.getServiceOwner() : "Unknown"
+                ))
+                .collect(Collectors.toList());
+
+        try {
+            ConditionTemplateContext context = ConditionTemplateContext.forSpecificBatch(resourceBatch);
+            ConditionTemplateGenerationRequest request = new ConditionTemplateGenerationRequest(context);
+            request.withParameter("methodSignatures", methodSignatures);
+
+            ConditionTemplateGenerationResponse response =
+                    aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
+
+            if (response != null && response.hasTemplates()) {
+                return convertBatchResponseToTemplates(response, methodSignatures);
+            }
+            log.error("Specific condition template batch response is empty for {} methods", batch.size());
+            return new ArrayList<>();
+
+        } catch (Exception e) {
+            log.error("Condition batch generation failed for {} methods", batch.size(), e);
+            return new ArrayList<>();
+        }
+    }
+
+    private List<ConditionTemplate> convertBatchResponseToTemplates(
+            ConditionTemplateGenerationResponse response, List<String> methodSignatures) {
+        List<ConditionTemplate> templates = new ArrayList<>();
+        Map<String, ConditionTemplateGenerationResponse.ConditionTemplateItem> batchResults =
+                response.toConditionTemplateMap();
+
+        for (String methodSignature : methodSignatures) {
+            ConditionTemplateGenerationResponse.ConditionTemplateItem item = batchResults.get(methodSignature);
+            if (item != null && item.getSpelTemplate() != null && !item.getSpelTemplate().trim().isEmpty()) {
+                ConditionTemplate template = ConditionTemplate.builder()
+                        .name(item.getName())
+                        .description(item.getDescription())
+                        .spelTemplate(item.getSpelTemplate())
+                        .category(item.getCategory() != null ? item.getCategory() : "AI Generated")
+                        .classification(parseClassification(item.getClassification()))
+                        .sourceMethod(methodSignature)
+                        .isAutoGenerated(true)
+                        .templateType("ai_generated")
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                templates.add(template);
+            } else {
+                log.error("No condition template generated for method: {}", methodSignature);
+            }
+        }
+
+        return templates;
+    }
 
     @Transactional
     public List<ConditionTemplate> saveDedupedTemplates(List<ConditionTemplate> templates) {
@@ -79,211 +236,8 @@ public class AutoConditionTemplateService {
         }
 
         String timestampName = baseName + " (" + System.currentTimeMillis() % 10000 + ")";
-        log.warn("고유 이름 생성을 위해 타임스탬프 사용: {}", timestampName);
+        log.error("Unique name generation required timestamp fallback: {}", timestampName);
         return timestampName;
-    }
-
-    @Transactional
-    public List<ConditionTemplate> generateConditionTemplates() {
-
-        List<ManagedResource> methodResources = managedResourceRepository.findAll()
-                .stream()
-                .filter(resource -> resource.getResourceType() == ManagedResource.ResourceType.METHOD)
-                .filter(resource -> resource.getStatus() != ManagedResource.Status.EXCLUDED)
-                .toList();
-
-        if (methodResources.isEmpty()) {
-            log.warn("METHOD 타입 리소스가 없습니다. 조건 템플릿을 생성하지 않습니다.");
-            return new ArrayList<>();
-        }
-
-        List<ConditionTemplate> templates = new ArrayList<>(generateAIUniversalTemplates());
-
-        Set<String> processedMethodSignatures = new HashSet<>();
-        int processedCount = 0;
-        int skippedCount = 0;
-
-        for (ManagedResource resource : methodResources) {
-            try {
-
-                String resourceKey = resource.getResourceIdentifier();
-
-                if (processedMethodSignatures.contains(resourceKey)) {
-                    log.warn("중복 리소스 건너뛰기: {}", resourceKey);
-                    skippedCount++;
-                    continue;
-                }
-
-                List<ConditionTemplate> methodTemplates = generateAISpecificTemplates(resource);
-                templates.addAll(methodTemplates);
-                processedMethodSignatures.add(resourceKey);
-                processedCount++;
-
-            } catch (Exception e) {
-                log.warn("AI 메서드 분석 실패: {} - {}", resource.getResourceIdentifier(), e.getMessage());
-                skippedCount++;
-            }
-        }
-
-        return saveDedupedTemplates(templates);
-    }
-
-    private List<ConditionTemplate> generateAIUniversalTemplates() {
-
-        String userPrompt = "서비스 레이어에서 정말 필요한 핵심 범용 조건 4-5개만 생성해주세요.";
-
-        try {
-            String aiResponse = callAI(userPrompt);
-            return parseAITemplateResponse(aiResponse, "범용");
-        } catch (Exception e) {
-            log.error("AI 범용 템플릿 생성 실패", e);
-            return generateFallbackUniversalTemplates();
-        }
-    }
-
-    private List<ConditionTemplate> generateAISpecificTemplates(ManagedResource resource) {
-
-        String parameterTypes = resource.getParameterTypes();
-        log.warn("DEBUG - AutoConditionTemplateService 파라미터 체크: resourceIdentifier={}, parameterTypes='{}'",
-                resource.getResourceIdentifier(), parameterTypes);
-
-        if (parameterTypes == null || parameterTypes.trim().isEmpty() ||
-                parameterTypes.equals("[]") || parameterTypes.equals("()")) {
-            log.warn("AutoConditionTemplateService - 파라미터 없는 메서드 건너뛰기: {}", resource.getResourceIdentifier());
-            return new ArrayList<>();
-        }
-
-        try {
-
-            ConditionTemplateGenerationRequest request = ConditionTemplateGenerationRequest.forSpecificTemplate(
-                    resource.getResourceIdentifier(), "AUTO_GENERATED");
-
-            ConditionTemplateGenerationResponse response = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
-
-            if (response != null && response.hasTemplates()) {
-                String templateResult = response.getTemplateResult();
-
-                List<ConditionTemplate> templates = parseAITemplateResponse(templateResult, resource.getResourceIdentifier());
-
-                if (templates.size() > 1) {
-                    log.warn("AI가 {} 개 조건 생성했지만 첫 번째만 사용: {}", templates.size(), resource.getResourceIdentifier());
-                    templates = List.of(templates.getFirst());
-                }
-
-                return templates;
-            } else {
-                log.warn("특화 조건 템플릿 응답이 비어있음");
-                return new ArrayList<>();
-            }
-
-        } catch (Exception e) {
-            log.warn("AI 특화 템플릿 생성 실패: {}", resource.getResourceIdentifier(), e);
-            return new ArrayList<>();
-        }
-    }
-
-    private String callAI(String userPrompt) {
-        try {
-
-            if (userPrompt.contains("범용") || userPrompt.contains("업무 환경에서 자주 사용되는")) {
-
-                ConditionTemplateGenerationRequest request = ConditionTemplateGenerationRequest.forUniversalTemplate();
-
-                ConditionTemplateGenerationResponse response = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
-
-                if (response != null && response.hasTemplates()) {
-                    return response.getTemplateResult();
-                } else {
-                    log.warn("범용 조건 템플릿 응답이 비어있음");
-                    return "[]";
-                }
-
-            } else {
-
-                ConditionTemplateGenerationRequest request = ConditionTemplateGenerationRequest.forSpecificTemplate(
-                        "METHOD", userPrompt);
-
-                ConditionTemplateGenerationResponse response = aiNativeProcessor.process(request, ConditionTemplateGenerationResponse.class).block();
-
-                if (response != null && response.hasTemplates()) {
-                    return response.getTemplateResult();
-                } else {
-                    log.warn("특화 조건 템플릿 응답이 비어있음");
-                    return "[]";
-                }
-            }
-
-        } catch (Exception e) {
-            log.error("AINativeIAMOperations 호출 실패", e);
-
-            return "[]";
-        }
-    }
-
-    private List<ConditionTemplate> parseAITemplateResponse(String aiResponse, String sourceMethod) {
-        List<ConditionTemplate> templates = new ArrayList<>();
-
-        try {
-
-            String cleanedJson = extractAndCleanJson(aiResponse);
-            List<Map<String, Object>> rawTemplates = objectMapper.readValue(cleanedJson, new TypeReference<>() {});
-
-            for (Map<String, Object> raw : rawTemplates) {
-                try {
-                    ConditionTemplate template = ConditionTemplate.builder()
-                            .name((String) raw.get("name"))
-                            .description((String) raw.get("description"))
-                            .spelTemplate((String) raw.get("spelTemplate"))
-                            .category((String) raw.getOrDefault("category", "AI 생성"))
-                            .classification(parseClassification((String) raw.get("classification")))
-                            .sourceMethod(sourceMethod)
-                            .isAutoGenerated(true)
-                            .templateType("ai_generated")
-                            .createdAt(LocalDateTime.now())
-                            .build();
-
-                    if (template.getSpelTemplate() != null && !template.getSpelTemplate().trim().isEmpty()) {
-                        templates.add(template);
-                    } else {
-                        log.warn("빈 SpEL 템플릿으로 인해 제외됨: {}", raw);
-                    }
-                } catch (Exception itemError) {
-                    log.error("템플릿 항목 파싱 실패: {}", raw, itemError);
-                }
-            }
-
-        } catch (Exception e) {
-            log.error("AI 응답 파싱 실패: {}", aiResponse, e);
-
-        }
-
-        return templates;
-    }
-
-    private String extractAndCleanJson(String aiResponse) {
-        if (aiResponse == null || aiResponse.trim().isEmpty()) {
-            return "[]";
-        }
-
-        String cleaned = aiResponse.replaceAll("```json\\s*", "").replaceAll("```\\s*", "");
-
-        int startIdx = cleaned.indexOf('[');
-        int endIdx = cleaned.lastIndexOf(']');
-
-        if (startIdx != -1 && endIdx != -1 && startIdx < endIdx) {
-            return cleaned.substring(startIdx, endIdx + 1).trim();
-        }
-
-        startIdx = cleaned.indexOf('{');
-        endIdx = cleaned.lastIndexOf('}');
-
-        if (startIdx != -1 && endIdx != -1 && startIdx < endIdx) {
-            String jsonObject = cleaned.substring(startIdx, endIdx + 1).trim();
-            return "[" + jsonObject + "]";
-        }
-
-        log.warn("AI 응답에서 유효한 JSON을 찾을 수 없음: {}", aiResponse.substring(0, Math.min(100, aiResponse.length())));
-        return "[]";
     }
 
     private ConditionTemplate.ConditionClassification parseClassification(String classification) {
@@ -306,7 +260,7 @@ public class AutoConditionTemplateService {
                 .category("권한 기반")
                 .classification(ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT)
                 .spelTemplate("hasPermission(#returnObject, 'READ')")
-                .sourceMethod("기본")
+                .sourceMethod("fallback")
                 .isAutoGenerated(true)
                 .templateType("fallback")
                 .createdAt(LocalDateTime.now())
@@ -318,7 +272,7 @@ public class AutoConditionTemplateService {
                 .category("인증 기반")
                 .classification(ConditionTemplate.ConditionClassification.UNIVERSAL)
                 .spelTemplate("isAuthenticated()")
-                .sourceMethod("기본")
+                .sourceMethod("fallback")
                 .isAutoGenerated(true)
                 .templateType("fallback")
                 .createdAt(LocalDateTime.now())

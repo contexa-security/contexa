@@ -7,7 +7,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
 import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationResponse;
-import io.contexa.contexaiam.domain.entity.ConditionTemplate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -77,12 +76,24 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
             metadata.put("documentType", VectorDocumentType.CONDITION_TEMPLATE_REQUEST.getValue());
             metadata.put("requestId", UUID.randomUUID().toString());
 
-            String requestText = String.format(
-                "Condition template generation request: type=%s, resource=%s, method=%s",
-                request.isUniversal() ? "universal" : "specific",
-                request.getResourceIdentifier() != null ? request.getResourceIdentifier() : "N/A",
-                request.getMethodInfo() != null ? request.getMethodInfo() : "N/A"
-            );
+            ConditionTemplateContext context = request.getContext();
+            String requestText;
+
+            if (context.getResourceBatch() != null && !context.getResourceBatch().isEmpty()) {
+                metadata.put("batchSize", context.getResourceBatch().size());
+                requestText = String.format(
+                    "Condition template generation request: type=%s, batchSize=%d",
+                    context.getTemplateType(),
+                    context.getResourceBatch().size()
+                );
+            } else {
+                requestText = String.format(
+                    "Condition template generation request: type=%s, resource=%s, method=%s",
+                    context.getTemplateType(),
+                    context.getResourceIdentifier() != null ? context.getResourceIdentifier() : "N/A",
+                    context.getMethodInfo() != null ? context.getMethodInfo() : "N/A"
+                );
+            }
 
             Document requestDoc = new Document(requestText, metadata);
             storeDocument(requestDoc);
@@ -97,9 +108,16 @@ public class ConditionTemplateVectorService extends AbstractVectorLabService {
                                        ConditionTemplateGenerationResponse response) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("templateType", request.isUniversal() ? "universal" : "specific");
+            metadata.put("templateType", request.getContext().getTemplateType());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", VectorDocumentType.GENERATED_TEMPLATE.getValue());
+
+            if (response.getBatchResults() != null) {
+                metadata.put("generatedCount", response.getBatchResults().size());
+            }
+            if (response.getFailedIdentifiers() != null && !response.getFailedIdentifiers().isEmpty()) {
+                metadata.put("failedCount", response.getFailedIdentifiers().size());
+            }
 
             String resultText = String.format(
                 "Condition template generation result: type=%s",

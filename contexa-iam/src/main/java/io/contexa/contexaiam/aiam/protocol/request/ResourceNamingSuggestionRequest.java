@@ -16,7 +16,6 @@ import java.util.Map;
 public class ResourceNamingSuggestionRequest extends AIRequest<ResourceNamingContext> {
 
     private List<ResourceItem> resources;
-    private int batchSize = 10;
     private RequestPriority priority = RequestPriority.NORMAL;
 
     public ResourceNamingSuggestionRequest(ResourceNamingContext context, TemplateType templateType, DiagnosisType diagnosisType) {

@@ -51,10 +51,9 @@ public class IamResourceAutoConfiguration {
     public AutoConditionTemplateService autoConditionTemplateService(
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
-            AICoreOperations aiNativeProcessor,
-            ObjectMapper objectMapper) {
+            AICoreOperations aiNativeProcessor) {
         return new AutoConditionTemplateService(
-                conditionTemplateRepository, managedResourceRepository, aiNativeProcessor, objectMapper);
+                conditionTemplateRepository, managedResourceRepository, aiNativeProcessor);
     }
 
     @Bean
