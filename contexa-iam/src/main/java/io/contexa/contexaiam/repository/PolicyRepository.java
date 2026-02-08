@@ -48,15 +48,6 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     @Query("SELECT p FROM Policy p JOIN FETCH p.targets t WHERE t.targetType = 'URL'")
     List<Policy> findAllUrlPoliciesWithDetails();
 
-    @Query("SELECT p FROM Policy p JOIN p.targets t " +
-            "LEFT JOIN FETCH p.rules r " +
-            "LEFT JOIN FETCH r.conditions c " +
-            "WHERE t.targetType = 'METHOD' AND t.targetIdentifier = :methodIdentifier " +
-            "AND c.authorizationPhase = :phase " + 
-            "ORDER BY p.priority ASC")
-    List<Policy> findByMethodIdentifierAndPhase(@Param("methodIdentifier") String methodIdentifier,
-                                                @Param("phase") PolicyCondition.AuthorizationPhase phase);
-
     @Query("SELECT DISTINCT p FROM Policy p " +
             "LEFT JOIN FETCH p.rules r " +
             "LEFT JOIN FETCH r.conditions " +

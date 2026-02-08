@@ -59,21 +59,6 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
     }
 
     @Override
-    public List<Policy> findMethodPolicies(String methodIdentifier, String phase) {
-        String cacheKey = METHOD_POLICIES_PREFIX + methodIdentifier + ":" + phase;
-
-        return cacheService.get(
-                cacheKey,
-                () -> {
-                    PolicyCondition.AuthorizationPhase authPhase = PolicyCondition.AuthorizationPhase.valueOf(phase);
-                    return policyRepository.findByMethodIdentifierAndPhase(methodIdentifier, authPhase);
-                },
-                POLICY_LIST_TYPE,
-                CACHE_DOMAIN
-        );
-    }
-
-    @Override
     public void clearMethodPoliciesCache() {
         cacheService.invalidate(METHOD_POLICIES_PREFIX + "*");
     }

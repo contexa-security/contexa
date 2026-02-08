@@ -13,6 +13,4 @@ public interface PolicyRetrievalPoint {
     List<Policy> findMethodPolicies(String methodIdentifier);
 
     void clearMethodPoliciesCache();
-
-    List<Policy> findMethodPolicies(String methodIdentifier, String phase);
 }

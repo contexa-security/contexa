@@ -53,9 +53,9 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final GroupRepository groupRepository;
 
     private final RedisTemplate<String, Double> redisTemplate;
-    private final StringRedisTemplate stringRedisTemplate;  
+    private final StringRedisTemplate stringRedisTemplate;
 
-    private final String zeroTrustMode; 
+    private final String zeroTrustMode;
 
     public CustomMethodSecurityExpressionHandler(
             @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
@@ -92,7 +92,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         super.setPermissionEvaluator(customPermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
 
-            }
+    }
 
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, MethodInvocation mi) {
@@ -101,26 +101,26 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
         Authentication auth = authentication.get();
         AuthorizationContext authorizationContext = contextHandler.create(auth, mi);
-        
+
         AbstractAISecurityExpressionRoot root;
 
         switch (zeroTrustMode) {
             case "TRUST":
-                
+
                 root = new TrustSecurityExpressionRoot(
-                    auth, attributePIP, aiNativeProcessor, authorizationContext,
-                    auditLogRepository, redisTemplate, stringRedisTemplate);
-                                break;
+                        auth, attributePIP, aiNativeProcessor, authorizationContext,
+                        auditLogRepository, redisTemplate, stringRedisTemplate);
+                break;
 
             case "STANDARD":
             default:
-                
+
                 CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot(
-                    auth, attributePIP, authorizationContext, aiNativeProcessor, auditLogRepository, mi);
+                        auth, attributePIP, authorizationContext, aiNativeProcessor, auditLogRepository, mi);
                 customRoot.setOwnerField(ownerField);
                 customRoot.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
                 root = customRoot;
-                                break;
+                break;
         }
 
         root.setPermissionEvaluator(getPermissionEvaluator());
@@ -136,10 +136,10 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
         ctx.setVariable("ai", root);
         ctx.setVariable("trust", root);
-        
+
         if (StringUtils.hasText(ownerField)) {
             ctx.setVariable("ownerField", ownerField);
-                    }
+        }
 
         Method method = mi.getMethod();
         String params = Arrays.stream(method.getParameterTypes())
@@ -147,13 +147,13 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
                 .collect(Collectors.joining(","));
         String methodIdentifier = String.format("%s.%s(%s)", method.getDeclaringClass().getName(), method.getName(), params);
 
-        List<Policy> protectablePolicies = policyRetrievalPoint.findMethodPolicies(methodIdentifier, "PROTECTABLE");
+        List<Policy> protectablePolicies = policyRetrievalPoint.findMethodPolicies(methodIdentifier);
         String protectableExpression = buildExpressionFromPoliciesWithDefault(protectablePolicies);
         Expression protectableRule = getExpressionParser().parseExpression(protectableExpression);
         ctx.setVariable("protectableRule", protectableRule);
 
         auditLogService.logDecision(auth.getName(), methodIdentifier, "METHOD_INVOCATION", "EVALUATING",
-            "Evaluating with protectableRule: " + protectableExpression, null);
+                "Evaluating with protectableRule: " + protectableExpression, null);
 
         return ctx;
     }
@@ -174,7 +174,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     }
 
     private String buildExpressionFromPolicies(List<Policy> policies) {
-        
+
         Policy policy = policies.getFirst();
 
         String conditionExpression = policy.getRules().stream()
