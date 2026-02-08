@@ -77,28 +77,37 @@ public class ResourceAdminController {
     }
 
     @PostMapping("/{id}/restore")
-    public String restoreResource(@PathVariable Long id, RedirectAttributes ra) {
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> restoreResource(@PathVariable Long id) {
         try {
             ResourceManagementDto dto = new ResourceManagementDto();
             dto.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
             resourceRegistryService.updateResourceManagementStatus(id, dto);
-            ra.addFlashAttribute("message", "리소스가 관리 대상으로 복원되었습니다.");
+            return ResponseEntity.ok(Map.of(
+                    "message", "Resource restored to management",
+                    "resourceId", id,
+                    "newStatus", "NEEDS_DEFINITION"
+            ));
         } catch (Exception e) {
             log.error("Resource restore failed for ID: {}", id, e);
-            ra.addFlashAttribute("errorMessage", "복원 중 오류 발생: " + e.getMessage());
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
-        return "redirect:/admin/workbench/resources";
     }
 
     @PostMapping("/{id}/exclude")
-    public String excludeResource(@PathVariable Long id, RedirectAttributes ra) {
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> excludeResource(@PathVariable Long id) {
         try {
             resourceRegistryService.excludeResourceFromManagement(id);
-            ra.addFlashAttribute("message", "리소스가 '관리 제외' 처리되었습니다.");
+            return ResponseEntity.ok(Map.of(
+                    "message", "Resource excluded from management",
+                    "resourceId", id,
+                    "newStatus", "EXCLUDED"
+            ));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "처리 중 오류 발생: " + e.getMessage());
+            log.error("Resource exclude failed for ID: {}", id, e);
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
-        return "redirect:/admin/workbench/resources";
     }
 
     @PostMapping("/{id}/manage")

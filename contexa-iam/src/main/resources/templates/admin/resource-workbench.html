@@ -547,21 +547,21 @@
                                     </div>
 
                                     <div th:if="${res.status?.name() != 'EXCLUDED'}">
-                                        <form th:action="@{/admin/workbench/resources/{id}/exclude(id=${res.id})}" method="post">
-                                            <button type="submit" class="action-badge-secondary w-full text-center">
-                                                <i class="fas fa-ban"></i>
-                                                <span>관리 제외</span>
-                                            </button>
-                                        </form>
+                                        <button type="button" class="action-badge-secondary w-full text-center"
+                                                th:attr="data-resource-id=${res.id}"
+                                                onclick="excludeResource(this)">
+                                            <i class="fas fa-ban"></i>
+                                            <span>관리 제외</span>
+                                        </button>
                                     </div>
 
                                     <div th:if="${res.status?.name() == 'EXCLUDED'}">
-                                        <form th:action="@{/admin/workbench/resources/{id}/restore(id=${res.id})}" method="post">
-                                            <button type="submit" class="action-badge-restore w-full text-center">
-                                                <i class="fas fa-undo"></i>
-                                                <span>관리 복원</span>
-                                            </button>
-                                        </form>
+                                        <button type="button" class="action-badge-restore w-full text-center"
+                                                th:attr="data-resource-id=${res.id}"
+                                                onclick="restoreResource(this)">
+                                            <i class="fas fa-undo"></i>
+                                            <span>관리 복원</span>
+                                        </button>
                                     </div>
                                 </div>
                             </td>
