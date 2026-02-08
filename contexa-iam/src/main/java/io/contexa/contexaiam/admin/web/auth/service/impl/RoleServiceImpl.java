@@ -1,16 +1,14 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
-import io.contexa.contexaiam.admin.web.auth.service.RoleService;
-import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
-import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
-import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
+import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -31,8 +29,6 @@ public class RoleServiceImpl implements RoleService {
 
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
-    private final PolicySynchronizationService policySyncService;
-    private final CustomDynamicAuthorizationManager authorizationManager;
     private final IntegrationEventBus eventBus;
 
     @Transactional(readOnly = true)

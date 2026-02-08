@@ -1,8 +1,14 @@
 package io.contexa.autoconfigure.iam.admin;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.repository.GroupRepository;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.web.auth.controller.*;
-import io.contexa.contexaiam.admin.web.auth.service.*;
+import io.contexa.contexaiam.admin.web.auth.service.GroupService;
+import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
+import io.contexa.contexaiam.admin.web.auth.service.RoleService;
+import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.*;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
@@ -10,11 +16,6 @@ import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
-import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.PermissionRepository;
-import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -111,12 +112,8 @@ public class IamAdminAuthAutoConfiguration {
     public RoleService roleService(
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
-            PolicySynchronizationService policySyncService,
-            CustomDynamicAuthorizationManager authorizationManager,
             IntegrationEventBus eventBus) {
-        return new RoleServiceImpl(
-                roleRepository, permissionRepository, policySyncService,
-                authorizationManager, eventBus);
+        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus);
     }
 
     @Bean

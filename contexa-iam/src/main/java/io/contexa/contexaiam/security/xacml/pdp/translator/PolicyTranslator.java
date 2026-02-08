@@ -38,11 +38,9 @@ public class PolicyTranslator {
             return "정의된 규칙이 없는 정책입니다.";
         }
 
-        String rulesDescription = policy.getRules().stream()
+        return policy.getRules().stream()
                 .map(this::translateRuleToString)
                 .collect(Collectors.joining(" 또는 "));
-
-        return rulesDescription;
     }
 
     private String translateRuleToString(PolicyRule rule) {
@@ -87,8 +85,7 @@ public class PolicyTranslator {
         if (node instanceof OpLT) return String.format("%s가 %s보다 작음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
         if (node instanceof OpLE) return String.format("%s가 %s보다 작거나 같음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
 
-        if (node instanceof MethodReference) {
-            MethodReference methodRef = (MethodReference) node;
+        if (node instanceof MethodReference methodRef) {
             String methodName = methodRef.getName();
             for (SpelFunctionTranslator translator : translators) {
                 if (translator.supports(methodName)) {
@@ -206,8 +203,7 @@ public class PolicyTranslator {
         if (node instanceof OpOr) return new LogicalNode("OR", getChildren(node));
         if (node instanceof OperatorNot) return new LogicalNode("NOT", getChildren(node));
 
-        if (node instanceof MethodReference) {
-            MethodReference methodRef = (MethodReference) node;
+        if (node instanceof MethodReference methodRef) {
             String methodName = methodRef.getName();
 
             for (SpelFunctionTranslator translator : translators) {

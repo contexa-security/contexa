@@ -20,7 +20,8 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
     private static final String URL_POLICIES_KEY = "policies:url:all";
     private static final String METHOD_POLICIES_PREFIX = "policies:method:";
 
-    private static final TypeReference<List<Policy>> POLICY_LIST_TYPE = new TypeReference<>() {};
+    private static final TypeReference<List<Policy>> POLICY_LIST_TYPE = new TypeReference<>() {
+    };
 
     private final PolicyRepository policyRepository;
     private final ContexaCacheService cacheService;
@@ -28,19 +29,19 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
     @Override
     public List<Policy> findUrlPolicies() {
         return cacheService.get(
-            URL_POLICIES_KEY,
-            () -> {
-                                List<Policy> policies = policyRepository.findByTargetTypeWithDetails("URL");
-                                return policies;
-            },
-            POLICY_LIST_TYPE,
-            CACHE_DOMAIN
+                URL_POLICIES_KEY,
+                () -> {
+                    List<Policy> policies = policyRepository.findByTargetTypeWithDetails("URL");
+                    return policies;
+                },
+                POLICY_LIST_TYPE,
+                CACHE_DOMAIN
         );
     }
 
     @Override
     public void clearUrlPoliciesCache() {
-                cacheService.invalidate(URL_POLICIES_KEY);
+        cacheService.invalidate(URL_POLICIES_KEY);
     }
 
     @Override
@@ -48,12 +49,12 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
         String cacheKey = METHOD_POLICIES_PREFIX + methodIdentifier;
 
         return cacheService.get(
-            cacheKey,
-            () -> {
-                                return policyRepository.findByMethodIdentifier(methodIdentifier);
-            },
-            POLICY_LIST_TYPE,
-            CACHE_DOMAIN
+                cacheKey,
+                () -> {
+                    return policyRepository.findByMethodIdentifier(methodIdentifier);
+                },
+                POLICY_LIST_TYPE,
+                CACHE_DOMAIN
         );
     }
 
@@ -62,18 +63,18 @@ public class DatabasePolicyRetrievalPoint implements PolicyRetrievalPoint {
         String cacheKey = METHOD_POLICIES_PREFIX + methodIdentifier + ":" + phase;
 
         return cacheService.get(
-            cacheKey,
-            () -> {
-                                PolicyCondition.AuthorizationPhase authPhase = PolicyCondition.AuthorizationPhase.valueOf(phase);
-                return policyRepository.findByMethodIdentifierAndPhase(methodIdentifier, authPhase);
-            },
-            POLICY_LIST_TYPE,
-            CACHE_DOMAIN
+                cacheKey,
+                () -> {
+                    PolicyCondition.AuthorizationPhase authPhase = PolicyCondition.AuthorizationPhase.valueOf(phase);
+                    return policyRepository.findByMethodIdentifierAndPhase(methodIdentifier, authPhase);
+                },
+                POLICY_LIST_TYPE,
+                CACHE_DOMAIN
         );
     }
 
     @Override
     public void clearMethodPoliciesCache() {
-                cacheService.invalidate(METHOD_POLICIES_PREFIX + "*");
+        cacheService.invalidate(METHOD_POLICIES_PREFIX + "*");
     }
 }

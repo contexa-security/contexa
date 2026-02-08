@@ -1,11 +1,13 @@
 package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.web.auth.service.GroupService;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
-import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
@@ -13,25 +15,12 @@ import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.PolicyTemplateRepository;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
-import io.contexa.contexaiam.security.xacml.pap.controller.BusinessPolicyController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
-import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyService;
-import io.contexa.contexaiam.security.xacml.pap.service.BusinessPolicyServiceImpl;
-import io.contexa.contexaiam.security.xacml.pap.service.DefaultPolicyService;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyBuilderService;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyBuilderServiceImpl;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyEnrichmentService;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyOptimizationService;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyOptimizationServiceImpl;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
-import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
+import io.contexa.contexaiam.security.xacml.pap.service.*;
 import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import io.contexa.contexacommon.repository.PermissionRepository;
-import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -51,14 +40,6 @@ public class IamXacmlPapAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PolicyOptimizationService policyOptimizationService(
-            PolicyRepository policyRepository,
-            ModelMapper modelMapper) {
-        return new PolicyOptimizationServiceImpl(policyRepository, modelMapper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public PolicySynchronizationService policySynchronizationService(
             PolicyRepository policyRepository,
             RoleRepository roleRepository,
@@ -73,12 +54,11 @@ public class IamXacmlPapAutoConfiguration {
             PolicyRetrievalPoint policyRetrievalPoint,
             CustomDynamicAuthorizationManager authorizationManager,
             PolicyEnrichmentService policyEnrichmentService,
-            ModelMapper modelMapper,
             IntegrationEventBus eventBus,
             PermissionRepository permissionRepository) {
         return new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
-                policyEnrichmentService, modelMapper, eventBus, permissionRepository);
+                policyEnrichmentService, eventBus, permissionRepository);
     }
 
     @Bean
@@ -111,15 +91,6 @@ public class IamXacmlPapAutoConfiguration {
                 conditionTemplateRepository, policyEnrichmentService, authorizationManager);
     }
 
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public BusinessPolicyController businessPolicyController(
-            BusinessPolicyService businessPolicyService,
-            BusinessMetadataService businessMetadataService) {
-        return new BusinessPolicyController(businessPolicyService, businessMetadataService);
-    }
-
     @Bean
     @ConditionalOnMissingBean
     public PolicyController policyController(
@@ -143,8 +114,7 @@ public class IamXacmlPapAutoConfiguration {
             ModelMapper modelMapper,
             ConditionCompatibilityService conditionCompatibilityService) {
         return new PolicyBuilderController(
-                policyBuilderService, userManagementService, groupService, roleService,
-                permissionCatalogService, conditionTemplateRepository, managedResourceRepository,
-                objectMapper, permissionService, modelMapper, conditionCompatibilityService);
+                roleService, permissionCatalogService, conditionTemplateRepository, managedResourceRepository,
+                objectMapper, permissionService, conditionCompatibilityService);
     }
 }

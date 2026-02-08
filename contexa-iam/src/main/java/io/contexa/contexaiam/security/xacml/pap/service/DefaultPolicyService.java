@@ -37,7 +37,6 @@ public class DefaultPolicyService implements PolicyService {
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final CustomDynamicAuthorizationManager authorizationManager;
     private final PolicyEnrichmentService policyEnrichmentService;
-    private final ModelMapper modelMapper;
     private final IntegrationEventBus eventBus;
     private final PermissionRepository permissionRepository;
 

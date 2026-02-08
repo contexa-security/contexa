@@ -1,5 +1,7 @@
 package io.contexa.contexaiam.service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.PolicyApprovedEvent;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
@@ -9,10 +11,7 @@ import io.contexa.contexaiam.security.xacml.prp.DatabasePolicyRetrievalPoint;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,16 +19,12 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.core.type.TypeReference;
 
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyService {
 
     private final PolicyRepository policyRepository;
-    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired(required = false)
     private DatabasePolicyRetrievalPoint policyRetrievalPoint;
@@ -43,133 +38,9 @@ public class PolicyService {
 
     @Transactional
     public Policy save(Policy policy) {
-        Policy savedPolicy = policyRepository.save(policy);
-
-        return savedPolicy;
+        return policyRepository.save(policy);
     }
 
-    @Transactional(readOnly = true)
-    public Page<Policy> findPendingAIPolicies(Pageable pageable) {
-        return policyRepository.findBySourceInAndApprovalStatus(
-            java.util.Arrays.asList(
-                Policy.PolicySource.AI_GENERATED,
-                Policy.PolicySource.AI_EVOLVED
-            ),
-            Policy.ApprovalStatus.PENDING,
-            pageable
-        );
-    }
-
-    @Transactional(readOnly = true)
-    public Page<Policy> findAIPolicies(Policy.PolicySource source,
-                                       Policy.ApprovalStatus status,
-                                       Pageable pageable) {
-        if (source != null && status != null) {
-            return policyRepository.findBySourceAndApprovalStatus(source, status, pageable);
-        } else if (source != null) {
-            return policyRepository.findBySource(source, pageable);
-        } else if (status != null) {
-            return policyRepository.findBySourceInAndApprovalStatus(
-                java.util.Arrays.asList(
-                    Policy.PolicySource.AI_GENERATED,
-                    Policy.PolicySource.AI_EVOLVED
-                ),
-                status,
-                pageable
-            );
-        } else {
-            return policyRepository.findBySourceIn(
-                java.util.Arrays.asList(
-                    Policy.PolicySource.AI_GENERATED,
-                    Policy.PolicySource.AI_EVOLVED
-                ),
-                pageable
-            );
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public long countAIPolicies() {
-        return policyRepository.countBySourceIn(
-            java.util.Arrays.asList(
-                Policy.PolicySource.AI_GENERATED,
-                Policy.PolicySource.AI_EVOLVED
-            )
-        );
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, Long> countAIPoliciesByStatus() {
-        Map<String, Long> counts = new HashMap<>();
-
-        for (Policy.ApprovalStatus status : Policy.ApprovalStatus.values()) {
-            long count = policyRepository.countBySourceInAndApprovalStatus(
-                java.util.Arrays.asList(
-                    Policy.PolicySource.AI_GENERATED,
-                    Policy.PolicySource.AI_EVOLVED
-                ),
-                status
-            );
-            counts.put(status.name(), count);
-        }
-
-        return counts;
-    }
-
-    @Transactional(readOnly = true)
-    public Map<String, Long> countAIPoliciesBySource() {
-        Map<String, Long> counts = new HashMap<>();
-
-        counts.put(Policy.PolicySource.AI_GENERATED.name(),
-            policyRepository.countBySource(Policy.PolicySource.AI_GENERATED));
-        counts.put(Policy.PolicySource.AI_EVOLVED.name(),
-            policyRepository.countBySource(Policy.PolicySource.AI_EVOLVED));
-
-        return counts;
-    }
-
-    @Transactional(readOnly = true)
-    public double calculateApprovalRate(int days) {
-        LocalDateTime since = LocalDateTime.now().minusDays(days);
-
-        long totalProcessed = policyRepository.countBySourceInAndApprovalStatusInAndUpdatedAtAfter(
-            java.util.Arrays.asList(
-                Policy.PolicySource.AI_GENERATED,
-                Policy.PolicySource.AI_EVOLVED
-            ),
-            java.util.Arrays.asList(
-                Policy.ApprovalStatus.APPROVED,
-                Policy.ApprovalStatus.REJECTED
-            ),
-            since
-        );
-
-        if (totalProcessed == 0) {
-            return 0.0;
-        }
-
-        long approved = policyRepository.countBySourceInAndApprovalStatusAndUpdatedAtAfter(
-            java.util.Arrays.asList(
-                Policy.PolicySource.AI_GENERATED,
-                Policy.PolicySource.AI_EVOLVED
-            ),
-            Policy.ApprovalStatus.APPROVED,
-            since
-        );
-
-        return (double) approved / totalProcessed * 100;
-    }
-
-    @Transactional(readOnly = true)
-    public double calculateAverageConfidenceScore() {
-        Double avg = policyRepository.calculateAverageConfidenceScoreForAIPolicies();
-        return avg != null ? avg : 0.0;
-    }
-
-    @Transactional
-    public void recordRejectionReason(Long policyId, String reason) {
-
-    }
 
     @EventListener
     @Async
@@ -264,7 +135,6 @@ public class PolicyService {
     private void createPolicyRulesAndTargets(Policy policy, Map<String, Object> policyRules) {
         try {
             
-            @SuppressWarnings("unchecked")
             Map<String, Object> targets = (Map<String, Object>) policyRules.get("targets");
             if (targets != null) {
                 for (Map.Entry<String, Object> targetEntry : targets.entrySet()) {
@@ -277,7 +147,6 @@ public class PolicyService {
                 }
             }
 
-            @SuppressWarnings("unchecked")
             Map<String, Object> rules = (Map<String, Object>) policyRules.getOrDefault("rules", new HashMap<>());
             for (Map.Entry<String, Object> ruleEntry : rules.entrySet()) {
                 PolicyRule rule = PolicyRule.builder()
