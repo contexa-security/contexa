@@ -45,6 +45,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -315,9 +316,19 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaSessionRepository sessionRepository,
             MfaStateMachineIntegrator stateMachineIntegrator,
             RedisDistributedLockService lockService) {
+
         return new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
                 sessionRepository, stateMachineIntegrator, lockService);
+    }
+
+    @Bean
+    @ConditionalOnBean(ZeroTrustChallengeFilter.class)
+    public FilterRegistrationBean zeroTrustChallengeFilterRegistrationBean(ZeroTrustChallengeFilter zeroTrustChallengeFilter){
+        FilterRegistrationBean filterRegistrationBean = new FilterRegistrationBean();
+        filterRegistrationBean.setFilter(zeroTrustChallengeFilter);
+        filterRegistrationBean.setEnabled(false);
+        return filterRegistrationBean;
     }
 
     @Bean

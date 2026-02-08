@@ -7,11 +7,14 @@ import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
@@ -48,5 +51,14 @@ public class CoreHCADAutoConfiguration {
     @ConditionalOnMissingBean
     public HCADFilter hcadFilter(HCADAnalysisService hcadAnalysisService) {
         return new HCADFilter(hcadAnalysisService);
+    }
+
+    @Bean
+    @ConditionalOnBean(HCADFilter.class)
+    public FilterRegistrationBean hcadFilterRegistrationBean(HCADFilter hcadFilter){
+        FilterRegistrationBean filterRegistrationBean = new FilterRegistrationBean();
+        filterRegistrationBean.setFilter(hcadFilter);
+        filterRegistrationBean.setEnabled(false);
+        return filterRegistrationBean;
     }
 }
