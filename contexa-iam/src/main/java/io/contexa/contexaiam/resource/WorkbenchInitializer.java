@@ -22,7 +22,7 @@ public class WorkbenchInitializer implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) throws Exception {
         try {
-            resourceRegistryService.refreshAndSynchronizeResources();
+//            resourceRegistryService.refreshAndSynchronizeResources();
             List<Policy> policiesToUpdate = policyRepository.findByFriendlyDescriptionIsNull();
 
             if (policiesToUpdate.isEmpty()) return;

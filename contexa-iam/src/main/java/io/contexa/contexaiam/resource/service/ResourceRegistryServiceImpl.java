@@ -91,7 +91,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         }
-        autoConditionTemplateService.generateConditionTemplates();
+//        autoConditionTemplateService.generateConditionTemplates();
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
