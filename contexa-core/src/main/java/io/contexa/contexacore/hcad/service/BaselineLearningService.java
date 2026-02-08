@@ -5,6 +5,7 @@ import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.hcad.util.UserAgentParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -34,25 +35,16 @@ public class BaselineLearningService {
 
     public boolean learnIfNormal(String userId, SecurityDecision decision, SecurityEvent event) {
         if (!learningEnabled) {
-                        return false;
+            return false;
         }
 
-        if (userId == null || decision == null) {
-                        return false;
-        }
-
-        if (!shouldLearnFromSecurityEvent(decision)) {
-                        return false;
-        }
+        if (userId == null || decision == null) return false;
+        if (!shouldLearnFromSecurityEvent(decision)) return false;
 
         try {
-            
             BaselineVector currentBaseline = getBaseline(userId);
-
             BaselineVector newBaseline = updateWithEMAFromSecurityEvent(currentBaseline, userId, decision, event);
-
             saveBaseline(userId, newBaseline);
-
             return true;
 
         } catch (Exception e) {
@@ -61,64 +53,15 @@ public class BaselineLearningService {
         }
     }
 
-    public boolean learnIfNormal(String userId, SecurityDecision decision, HCADAnalysisResult analysisResult) {
-        if (!learningEnabled) {
-                        return false;
-        }
-
-        if (userId == null || decision == null) {
-                        return false;
-        }
-
-        if (!shouldLearn(decision, analysisResult)) {
-                        return false;
-        }
-
-        try {
-            
-            BaselineVector currentBaseline = getBaseline(userId);
-
-            BaselineVector newBaseline = updateWithEMA(currentBaseline, userId, decision, analysisResult);
-
-            saveBaseline(userId, newBaseline);
-
-            return true;
-
-        } catch (Exception e) {
-            log.error("[BaselineLearningService] 학습 실패: userId={}", userId, e);
-            return false;
-        }
-    }
-
-    private boolean shouldLearn(SecurityDecision decision, HCADAnalysisResult analysisResult) {
-
-        if (analysisResult == null) {
-            log.warn("[BaselineLearningService][Zero Trust] analysisResult is null, skipping learning");
-            return false;
-        }
-
-        if (decision.getAction() != SecurityDecision.Action.ALLOW) {
-            return false;
-        }
-
-        if (analysisResult.isAnomaly()) {
-            return false;
-        }
-
-        return true;
-    }
-
     private boolean shouldLearnFromSecurityEvent(SecurityDecision decision) {
-
         return decision.getAction() == SecurityDecision.Action.ALLOW;
     }
 
     private BaselineVector updateWithEMAFromSecurityEvent(BaselineVector current, String userId,
-                                                           SecurityDecision decision, SecurityEvent event) {
+                                                          SecurityDecision decision, SecurityEvent event) {
 
         double rawTrustScore = 1.0 - decision.getRiskScore();
         double currentTrustScore = Math.max(0.0, Math.min(1.0, rawTrustScore));
-        double currentConfidence = decision.getConfidence();
 
         String currentIp = event != null ? event.getSourceIp() : null;
         Integer currentHour = extractHourFromSecurityEvent(event);
@@ -127,23 +70,23 @@ public class BaselineLearningService {
 
         if (currentUserAgent == null || currentUserAgent.isEmpty()) {
             log.warn("[Baseline][AI Native v8.5] UA 없음 - 학습 차단: userId={}", userId);
-            return current;  
+            return current;
         }
         String uaSignatureForValidation = extractUASignature(currentUserAgent);
         if ("Browser (Desktop)".equals(uaSignatureForValidation)) {
             log.warn("[Baseline][AI Native v8.5] UA 파싱 실패 - 학습 차단: userId={}, ua={}",
-                userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
-            return current;  
+                    userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
+            return current;
         }
 
         if (current == null) {
 
             BaselineVector.BaselineVectorBuilder builder = BaselineVector.builder()
-                .userId(userId)
-                .avgTrustScore(currentTrustScore)
-                .avgRequestCount(1L)
-                .updateCount(1L)
-                .lastUpdated(Instant.now());
+                    .userId(userId)
+                    .avgTrustScore(currentTrustScore)
+                    .avgRequestCount(1L)
+                    .updateCount(1L)
+                    .lastUpdated(Instant.now());
 
             if (currentIp != null) {
                 String ipRange = extractIpRange(currentIp);
@@ -156,23 +99,21 @@ public class BaselineLearningService {
                 builder.frequentPaths(new String[]{currentPath});
             }
 
-            if (currentUserAgent != null && !currentUserAgent.isEmpty()) {
-                String uaSignature = extractUASignature(currentUserAgent);
-                if (uaSignature != null && !uaSignature.equals("unknown") &&
+            String uaSignature = extractUASignature(currentUserAgent);
+            if (uaSignature != null && !uaSignature.equals("unknown") &&
                     !uaSignature.equals("unknown (unknown)")) {
-                    builder.normalUserAgents(new String[]{uaSignature});
-                                    } else {
-                    
-                    String truncatedUA = currentUserAgent.length() > 100
-                        ? currentUserAgent.substring(0, 100) : currentUserAgent;
-                    builder.normalUserAgents(new String[]{truncatedUA});
-                    log.warn("[Baseline] SecurityEvent 첫 학습 - UA 파싱 실패, 원본 저장: {}", truncatedUA);
-                }
+                builder.normalUserAgents(new String[]{uaSignature});
+            } else {
 
-                String os = extractOS(currentUserAgent);
-                if (os != null && !os.equals("Unknown")) {
-                    builder.normalOperatingSystems(new String[]{os});
-                                    }
+                String truncatedUA = currentUserAgent.length() > 100
+                        ? currentUserAgent.substring(0, 100) : currentUserAgent;
+                builder.normalUserAgents(new String[]{truncatedUA});
+                log.warn("[Baseline] SecurityEvent 첫 학습 - UA 파싱 실패, 원본 저장: {}", truncatedUA);
+            }
+
+            String os = extractOS(currentUserAgent);
+            if (!os.equals("Unknown")) {
+                builder.normalOperatingSystems(new String[]{os});
             }
 
             return builder.build();
@@ -190,27 +131,27 @@ public class BaselineLearningService {
 
         String normalizedUA = extractUASignature(currentUserAgent);
         String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
-                              !normalizedUA.equals("unknown (unknown)"))
-                             ? normalizedUA : currentUserAgent;
+                !normalizedUA.equals("unknown (unknown)"))
+                ? normalizedUA : currentUserAgent;
         String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate);
 
         String currentOS = extractOS(currentUserAgent);
         String[] normalOperatingSystems = updateNormalOperatingSystems(
-            current.getNormalOperatingSystems(), currentOS);
+                current.getNormalOperatingSystems(), currentOS);
 
         return BaselineVector.builder()
-            .userId(userId)
-            .avgTrustScore(newTrustScore)
-            .avgRequestCount(oldRequestCount + 1)
-            .updateCount(oldUpdateCount + 1)
-            .lastUpdated(Instant.now())
-            
-            .normalIpRanges(normalIpRanges)
-            .normalAccessHours(normalAccessHours)
-            .frequentPaths(frequentPaths)
-            .normalUserAgents(normalUserAgents)
-            .normalOperatingSystems(normalOperatingSystems)
-            .build();
+                .userId(userId)
+                .avgTrustScore(newTrustScore)
+                .avgRequestCount(oldRequestCount + 1)
+                .updateCount(oldUpdateCount + 1)
+                .lastUpdated(Instant.now())
+
+                .normalIpRanges(normalIpRanges)
+                .normalAccessHours(normalAccessHours)
+                .frequentPaths(frequentPaths)
+                .normalUserAgents(normalUserAgents)
+                .normalOperatingSystems(normalOperatingSystems)
+                .build();
     }
 
     private Integer extractHourFromSecurityEvent(SecurityEvent event) {
@@ -218,130 +159,6 @@ public class BaselineLearningService {
             return null;
         }
         return event.getTimestamp().getHour();
-    }
-
-    private BaselineVector updateWithEMA(BaselineVector current, String userId,
-                                          SecurityDecision decision, HCADAnalysisResult analysisResult) {
-
-        double rawTrustScore = analysisResult != null ? analysisResult.getTrustScore() : 0.5;
-        double currentTrustScore = Math.max(0.0, Math.min(1.0, rawTrustScore));
-        double currentConfidence = decision.getConfidence();
-
-        String currentIp = extractIpFromAnalysisResult(analysisResult);
-        Integer currentHour = extractHourFromAnalysisResult(analysisResult);
-        String currentPath = extractPathFromAnalysisResult(analysisResult);
-        String currentUserAgent = extractUserAgentFromAnalysisResult(analysisResult);
-
-        if (current == null) {
-
-            BaselineVector.BaselineVectorBuilder builder = BaselineVector.builder()
-                .userId(userId)
-                .avgTrustScore(currentTrustScore)
-                .avgRequestCount(1L)
-                .updateCount(1L)
-                .lastUpdated(Instant.now());
-
-            if (currentIp != null) {
-                String ipRange = extractIpRange(currentIp);
-                builder.normalIpRanges(new String[]{ipRange});
-            }
-            if (currentHour != null) {
-                builder.normalAccessHours(new Integer[]{currentHour});
-            }
-            if (currentPath != null) {
-                builder.frequentPaths(new String[]{currentPath});
-            }
-
-            if (currentUserAgent != null && !currentUserAgent.isEmpty()) {
-                String uaSignature = extractUASignature(currentUserAgent);
-                if (uaSignature != null && !uaSignature.equals("unknown") &&
-                    !uaSignature.equals("unknown (unknown)")) {
-                    builder.normalUserAgents(new String[]{uaSignature});
-                                    } else {
-                    
-                    String truncatedUA = currentUserAgent.length() > 100
-                        ? currentUserAgent.substring(0, 100) : currentUserAgent;
-                    builder.normalUserAgents(new String[]{truncatedUA});
-                    log.warn("[Baseline] HCAD 첫 학습 - UA 파싱 실패, 원본 저장: {}", truncatedUA);
-                }
-            }
-
-            return builder.build();
-        }
-
-        double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
-        double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
-
-        long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
-        long oldRequestCount = current.getAvgRequestCount() != null ? current.getAvgRequestCount() : 0L;
-
-        String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp);
-        Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
-        String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath);
-
-        String normalizedUA = extractUASignature(currentUserAgent);
-        String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
-                              !normalizedUA.equals("unknown (unknown)"))
-                             ? normalizedUA : currentUserAgent;
-        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate);
-
-        return BaselineVector.builder()
-            .userId(userId)
-            .avgTrustScore(newTrustScore)
-            .avgRequestCount(oldRequestCount + 1)
-            .updateCount(oldUpdateCount + 1)
-            .lastUpdated(Instant.now())
-            
-            .normalIpRanges(normalIpRanges)
-            .normalAccessHours(normalAccessHours)
-            .frequentPaths(frequentPaths)
-            .normalUserAgents(normalUserAgents)
-            .build();
-    }
-
-    private String extractIpFromAnalysisResult(HCADAnalysisResult analysisResult) {
-        if (analysisResult == null) {
-            return null;
-        }
-        
-        io.contexa.contexacommon.hcad.domain.HCADContext context = analysisResult.getContext();
-        if (context == null) {
-            return null;
-        }
-        return context.getRemoteIp();
-    }
-
-    private Integer extractHourFromAnalysisResult(HCADAnalysisResult analysisResult) {
-        if (analysisResult == null) {
-            return null;
-        }
-        io.contexa.contexacommon.hcad.domain.HCADContext context = analysisResult.getContext();
-        if (context == null || context.getTimestamp() == null) {
-            return null;
-        }
-        return context.getTimestamp().atZone(java.time.ZoneId.systemDefault()).getHour();
-    }
-
-    private String extractPathFromAnalysisResult(HCADAnalysisResult analysisResult) {
-        if (analysisResult == null) {
-            return null;
-        }
-        io.contexa.contexacommon.hcad.domain.HCADContext context = analysisResult.getContext();
-        if (context == null) {
-            return null;
-        }
-        return context.getRequestPath();
-    }
-
-    private String extractUserAgentFromAnalysisResult(HCADAnalysisResult analysisResult) {
-        if (analysisResult == null) {
-            return null;
-        }
-        io.contexa.contexacommon.hcad.domain.HCADContext context = analysisResult.getContext();
-        if (context == null) {
-            return null;
-        }
-        return context.getUserAgent();
     }
 
     private String extractIpRange(String ip) {
@@ -368,27 +185,17 @@ public class BaselineLearningService {
         if (ip == null) {
             return false;
         }
-        
+
         if ("127.0.0.1".equals(ip) || ip.startsWith("127.")) {
             return true;
         }
-        
+
         if ("::1".equals(ip) ||
-            "0:0:0:0:0:0:0:1".equals(ip) ||
-            "0000:0000:0000:0000:0000:0000:0000:0001".equals(ip)) {
+                "0:0:0:0:0:0:0:1".equals(ip) ||
+                "0000:0000:0000:0000:0000:0000:0000:0001".equals(ip)) {
             return true;
         }
         return false;
-    }
-
-    private String truncateForTable(String str, int maxLength) {
-        if (str == null) {
-            return "";
-        }
-        if (str.length() <= maxLength) {
-            return str;
-        }
-        return str.substring(0, maxLength - 3) + "...";
     }
 
     private String normalizeIPv6Range(String ipv6) {
@@ -401,10 +208,10 @@ public class BaselineLearningService {
 
         if (segments.length >= 4) {
             return String.format("%s:%s:%s:%s",
-                normalizeIPv6Segment(segments[0]),
-                normalizeIPv6Segment(segments[1]),
-                normalizeIPv6Segment(segments[2]),
-                normalizeIPv6Segment(segments[3]));
+                    normalizeIPv6Segment(segments[0]),
+                    normalizeIPv6Segment(segments[1]),
+                    normalizeIPv6Segment(segments[2]),
+                    normalizeIPv6Segment(segments[3]));
         }
         return ipv6;
     }
@@ -421,15 +228,15 @@ public class BaselineLearningService {
         StringBuilder expanded = new StringBuilder();
 
         for (String seg : leftSegments) {
-            if (expanded.length() > 0) expanded.append(":");
+            if (!expanded.isEmpty()) expanded.append(":");
             expanded.append(seg);
         }
         for (int i = 0; i < missingSegments; i++) {
-            if (expanded.length() > 0) expanded.append(":");
+            if (!expanded.isEmpty()) expanded.append(":");
             expanded.append("0");
         }
         for (String seg : rightSegments) {
-            if (expanded.length() > 0) expanded.append(":");
+            if (!expanded.isEmpty()) expanded.append(":");
             expanded.append(seg);
         }
         return expanded.toString();
@@ -439,7 +246,7 @@ public class BaselineLearningService {
         if (segment == null || segment.isEmpty()) {
             return "0";
         }
-        
+
         String normalized = segment.replaceFirst("^0+", "");
         return normalized.isEmpty() ? "0" : normalized;
     }
@@ -464,7 +271,7 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 5) {
-            
+
             String[] updated = new String[5];
             System.arraycopy(current, 1, updated, 0, 4);
             updated[4] = ipRange;
@@ -493,7 +300,7 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 24) {
-            return current;  
+            return current;
         }
 
         Integer[] updated = new Integer[current.length + 1];
@@ -518,7 +325,7 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 10) {
-            
+
             String[] updated = new String[10];
             System.arraycopy(current, 1, updated, 0, 9);
             updated[9] = newPath;
@@ -551,7 +358,7 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 5) {
-            
+
             String[] updated = new String[5];
             System.arraycopy(current, 1, updated, 0, 4);
             updated[4] = newUserAgent;
@@ -580,7 +387,7 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 5) {
-            
+
             String[] updated = new String[5];
             System.arraycopy(current, 1, updated, 0, 4);
             updated[4] = newOS;
@@ -605,20 +412,20 @@ public class BaselineLearningService {
 
         String organizationId = extractOrganizationId(userId);
         if (organizationId != null) {
-                        BaselineVector orgBaseline = getOrganizationBaseline(organizationId);
+            BaselineVector orgBaseline = getOrganizationBaseline(organizationId);
             if (orgBaseline != null) {
 
                 return BaselineVector.builder()
-                    .userId(userId)
-                    .avgTrustScore(orgBaseline.getAvgTrustScore())
-                    .avgRequestCount(orgBaseline.getAvgRequestCount())
-                    .updateCount(0L)  
-                    .lastUpdated(orgBaseline.getLastUpdated())
-                    .normalIpRanges(orgBaseline.getNormalIpRanges())
-                    .normalAccessHours(orgBaseline.getNormalAccessHours())
-                    .frequentPaths(orgBaseline.getFrequentPaths())
-                    .normalUserAgents(null)  
-                    .build();
+                        .userId(userId)
+                        .avgTrustScore(orgBaseline.getAvgTrustScore())
+                        .avgRequestCount(orgBaseline.getAvgRequestCount())
+                        .updateCount(0L)
+                        .lastUpdated(orgBaseline.getLastUpdated())
+                        .normalIpRanges(orgBaseline.getNormalIpRanges())
+                        .normalAccessHours(orgBaseline.getNormalAccessHours())
+                        .frequentPaths(orgBaseline.getFrequentPaths())
+                        .normalUserAgents(null)
+                        .build();
             }
         }
 
@@ -630,25 +437,25 @@ public class BaselineLearningService {
             String key = BASELINE_KEY_PREFIX + userId;
             Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
 
-            if (data == null || data.isEmpty()) {
+            if (data.isEmpty()) {
                 return null;
             }
 
             return BaselineVector.builder()
-                .userId(userId)
-                .avgTrustScore(parseDouble(data.get("avgTrustScore")))
-                .avgRequestCount(parseLong(data.get("avgRequestCount")))
-                .updateCount(parseLong(data.get("updateCount")))
-                .lastUpdated(parseInstant(data.get("lastUpdated")))
-                
-                .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
-                .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
-                .frequentPaths(parseStringArray(data.get("frequentPaths")))
-                
-                .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
-                
-                .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
-                .build();
+                    .userId(userId)
+                    .avgTrustScore(parseDouble(data.get("avgTrustScore")))
+                    .avgRequestCount(parseLong(data.get("avgRequestCount")))
+                    .updateCount(parseLong(data.get("updateCount")))
+                    .lastUpdated(parseInstant(data.get("lastUpdated")))
+
+                    .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
+                    .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
+                    .frequentPaths(parseStringArray(data.get("frequentPaths")))
+
+                    .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
+
+                    .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
+                    .build();
 
         } catch (Exception e) {
             log.error("[BaselineLearningService] 사용자 Baseline 조회 실패: userId={}", userId, e);
@@ -666,19 +473,19 @@ public class BaselineLearningService {
             Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
 
             if (data == null || data.isEmpty()) {
-                                return null;
+                return null;
             }
 
             return BaselineVector.builder()
-                .userId("org:" + organizationId)
-                .avgTrustScore(parseDouble(data.get("avgTrustScore")))
-                .avgRequestCount(parseLong(data.get("avgRequestCount")))
-                .updateCount(parseLong(data.get("updateCount")))
-                .lastUpdated(parseInstant(data.get("lastUpdated")))
-                .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
-                .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
-                .frequentPaths(parseStringArray(data.get("frequentPaths")))
-                .build();
+                    .userId("org:" + organizationId)
+                    .avgTrustScore(parseDouble(data.get("avgTrustScore")))
+                    .avgRequestCount(parseLong(data.get("avgRequestCount")))
+                    .updateCount(parseLong(data.get("updateCount")))
+                    .lastUpdated(parseInstant(data.get("lastUpdated")))
+                    .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
+                    .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
+                    .frequentPaths(parseStringArray(data.get("frequentPaths")))
+                    .build();
 
         } catch (Exception e) {
             log.error("[BaselineLearningService] 조직 Baseline 조회 실패: organizationId={}", organizationId, e);
@@ -704,15 +511,6 @@ public class BaselineLearningService {
         return "default";
     }
 
-    private double calculateAdaptiveAlpha(BaselineVector current) {
-        if (current == null || current.getUpdateCount() < 5) {
-            return 0.3;  
-        } else if (current.getUpdateCount() < 20) {
-            return 0.2;  
-        }
-        return alpha;  
-    }
-
     private String[] parseStringArray(Object value) {
         if (value instanceof String && !((String) value).isEmpty()) {
             return ((String) value).split(",");
@@ -724,8 +522,8 @@ public class BaselineLearningService {
         if (value instanceof String && !((String) value).isEmpty()) {
             try {
                 return Arrays.stream(((String) value).split(","))
-                    .map(Integer::parseInt)
-                    .toArray(Integer[]::new);
+                        .map(Integer::parseInt)
+                        .toArray(Integer[]::new);
             } catch (NumberFormatException e) {
                 log.warn("[BaselineLearningService] Integer 배열 파싱 실패: {}", value);
                 return null;
@@ -746,26 +544,26 @@ public class BaselineLearningService {
             data.put("avgTrustScore", baseline.getAvgTrustScore());
             data.put("avgRequestCount", baseline.getAvgRequestCount());
             data.put("updateCount", baseline.getUpdateCount());
-            
+
             data.put("lastUpdated", baseline.getLastUpdated() != null ?
-                baseline.getLastUpdated().toString() : Instant.now().toString());
+                    baseline.getLastUpdated().toString() : Instant.now().toString());
 
             if (baseline.getNormalIpRanges() != null && baseline.getNormalIpRanges().length > 0) {
                 data.put("normalIpRanges", String.join(",", baseline.getNormalIpRanges()));
             }
             if (baseline.getNormalAccessHours() != null && baseline.getNormalAccessHours().length > 0) {
                 data.put("normalAccessHours", Arrays.stream(baseline.getNormalAccessHours())
-                    .map(String::valueOf)
-                    .collect(java.util.stream.Collectors.joining(",")));
+                        .map(String::valueOf)
+                        .collect(java.util.stream.Collectors.joining(",")));
             }
             if (baseline.getFrequentPaths() != null && baseline.getFrequentPaths().length > 0) {
                 data.put("frequentPaths", String.join(",", baseline.getFrequentPaths()));
             }
-            
+
             if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
                 data.put("normalUserAgents", String.join(",", baseline.getNormalUserAgents()));
             }
-            
+
             if (baseline.getNormalOperatingSystems() != null && baseline.getNormalOperatingSystems().length > 0) {
                 data.put("normalOperatingSystems", String.join(",", baseline.getNormalOperatingSystems()));
             }
@@ -775,19 +573,6 @@ public class BaselineLearningService {
 
         } catch (Exception e) {
             log.error("[BaselineLearningService] Baseline 저장 실패: userId={}", userId, e);
-        }
-    }
-
-    public void deleteBaseline(String userId) {
-        if (redisTemplate == null || userId == null) {
-            return;
-        }
-
-        try {
-            String key = BASELINE_KEY_PREFIX + userId;
-            redisTemplate.delete(key);
-                    } catch (Exception e) {
-            log.error("[BaselineLearningService] Baseline 삭제 실패: userId={}", userId, e);
         }
     }
 
@@ -837,7 +622,7 @@ public class BaselineLearningService {
 
         BaselineVector baseline = getBaseline(userId);
         if (baseline == null) {
-            
+
             return buildNewUserWarning(userId, currentEvent);
         }
 
@@ -845,7 +630,7 @@ public class BaselineLearningService {
         Integer[] normalHours = baseline.getNormalAccessHours();
         String[] normalUserAgents = baseline.getNormalUserAgents();
         String baselineUASignature = normalUserAgents != null && normalUserAgents.length > 0
-            ? extractUASignature(normalUserAgents[0]) : "none";
+                ? extractUASignature(normalUserAgents[0]) : "none";
 
         StringBuilder sb = new StringBuilder();
 
@@ -865,78 +650,6 @@ public class BaselineLearningService {
         sb.append("Known UA: ").append(baselineUASignature).append("\n");
 
         return sb.toString();
-    }
-
-    private String determineRecommendation(boolean ipMatch, boolean hourMatch,
-                                           BaselineMatchStatus uaStatus, int matchCount, int totalCriteria) {
-
-        String ipStatus = ipMatch ? "MATCH" : "MISMATCH";
-        String hourStatus = hourMatch ? "MATCH" : "MISMATCH";
-        String uaStatusStr = uaStatus != null ? uaStatus.name() : "UNKNOWN";
-
-        return String.format("IP_STATUS=%s, HOUR_STATUS=%s, UA_STATUS=%s",
-            ipStatus, hourStatus, uaStatusStr);
-    }
-
-    private boolean isIpMatch(String[] normalIps, String currentIp) {
-        if (normalIps == null || normalIps.length == 0 || currentIp == null) {
-            return false;
-        }
-
-        for (String normalIp : normalIps) {
-            if (normalIp != null && normalIp.equals(currentIp)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private boolean isHourMatch(Integer[] normalHours, int currentHour) {
-        if (normalHours == null || normalHours.length == 0 || currentHour < 0) {
-            return false;
-        }
-        for (Integer normalHour : normalHours) {
-            if (normalHour != null && normalHour == currentHour) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private BaselineMatchStatus getUAMatchStatus(String[] normalUserAgents, String currentUserAgent) {
-        if (normalUserAgents == null || normalUserAgents.length == 0 || currentUserAgent == null) {
-            return BaselineMatchStatus.UNKNOWN;
-        }
-        String currentSig = extractUASignature(currentUserAgent);
-        if (currentSig == null || currentSig.equals("unknown") || currentSig.equals("unknown (unknown)")) {
-            return BaselineMatchStatus.UNKNOWN;
-        }
-        for (String normalUA : normalUserAgents) {
-            String normalSig = extractUASignature(normalUA);
-            if (normalSig != null && currentSig.equals(normalSig)) {
-                return BaselineMatchStatus.MATCH;
-            }
-
-            String currentBrowser = extractBrowserFromSignature(currentSig);  
-            String currentOS = extractOSFromSignature(currentSig);            
-            String normalBrowser = extractBrowserFromSignature(normalSig);    
-            String normalOS = extractOSFromSignature(normalSig);              
-
-            String currentBrowserName = currentBrowser != null && currentBrowser.contains("/")
-                ? currentBrowser.split("/")[0] : currentBrowser;
-            String normalBrowserName = normalBrowser != null && normalBrowser.contains("/")
-                ? normalBrowser.split("/")[0] : normalBrowser;
-
-            if (currentBrowserName != null && currentBrowserName.equals(normalBrowserName)) {
-
-                if (currentOS != null && normalOS != null && !currentOS.equals(normalOS)) {
-                                        return BaselineMatchStatus.MISMATCH;  
-                }
-                
-                return BaselineMatchStatus.PARTIAL;
-            }
-        }
-        return BaselineMatchStatus.MISMATCH;
     }
 
     private String buildNewUserWarning(String userId, SecurityEvent currentEvent) {
@@ -1034,45 +747,6 @@ public class BaselineLearningService {
         return "Unknown";
     }
 
-    private String detectOSChange(String[] normalUserAgents, String currentUserAgent) {
-        if (normalUserAgents == null || normalUserAgents.length == 0 || currentUserAgent == null) {
-            return null;
-        }
-
-        String currentOS = extractOS(currentUserAgent);
-        if ("Unknown".equals(currentOS)) {
-            return null; 
-        }
-
-        for (String normalUA : normalUserAgents) {
-            String normalOS = extractOS(normalUA);
-            if (!"Unknown".equals(normalOS) && !normalOS.equals(currentOS)) {
-                
-                StringBuilder warning = new StringBuilder();
-                warning.append("\n=== SESSION HIJACKING WARNING ===\n");
-                warning.append("OS CHANGED from baseline!\n");
-                warning.append(String.format("  Previous OS: %s\n", normalOS));
-                warning.append(String.format("  Current OS: %s\n", currentOS));
-                warning.append("  Previous UA: ").append(truncateUA(normalUA)).append("\n");
-                warning.append("  Current UA: ").append(truncateUA(currentUserAgent)).append("\n");
-                warning.append("\nCRITICAL INDICATOR:\n");
-                warning.append("- Same session with different OS is a strong indicator of session hijacking\n");
-                warning.append("- Legitimate users do NOT change operating systems mid-session\n");
-                warning.append("- Recommended action: CHALLENGE or BLOCK\n");
-                return warning.toString();
-            }
-        }
-
-        return null; 
-    }
-
-    private String truncateUA(String userAgent) {
-        if (userAgent == null) {
-            return "N/A";
-        }
-        return userAgent.length() > 80 ? userAgent.substring(0, 77) + "..." : userAgent;
-    }
-
     private String extractUASignature(String userAgent) {
         if (userAgent == null || userAgent.isEmpty()) {
             return "Browser";
@@ -1115,24 +789,4 @@ public class BaselineLearningService {
         String browserName = prefix.replace("/", "");
         return browserName + "/" + version;
     }
-
-    private String extractBrowserFromSignature(String signature) {
-        if (signature == null) return null;
-        int spaceIdx = signature.indexOf(" ");
-        if (spaceIdx > 0) {
-            return signature.substring(0, spaceIdx);
-        }
-        return signature;
-    }
-
-    private String extractOSFromSignature(String signature) {
-        if (signature == null) return null;
-        int openParen = signature.indexOf("(");
-        int closeParen = signature.indexOf(")");
-        if (openParen > 0 && closeParen > openParen) {
-            return signature.substring(openParen + 1, closeParen);
-        }
-        return null;
-    }
-
 }
