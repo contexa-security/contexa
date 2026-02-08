@@ -153,9 +153,9 @@ public class PolicyBuilderController {
 
         if (cond.getClassification() != null) {
             switch (cond.getClassification()) {
-                case UNIVERSAL -> desc.append(" 🟢 (즉시 사용 가능)");
-                case CONTEXT_DEPENDENT -> desc.append(" 🟡 (AI 검증 필요)");
-                case CUSTOM_COMPLEX -> desc.append(" 🔴 (전문가 검토)");
+                case UNIVERSAL -> desc.append(" [READY] (즉시 사용 가능)");
+                case CONTEXT_DEPENDENT -> desc.append(" [REVIEW] (AI 검증 필요)");
+                case CUSTOM_COMPLEX -> desc.append(" [EXPERT] (전문가 검토)");
             }
         }
 

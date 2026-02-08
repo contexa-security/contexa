@@ -62,7 +62,7 @@ public class ConditionTemplateDiagnosisStrategy
 
     @Override
     protected Object convertLabRequest(AIRequest<ConditionTemplateContext> request) {
-        return new ConditionTemplateGenerationRequest(request.getContext());
+        return request;
     }
 
     @Override

@@ -53,7 +53,6 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public String generateUserPrompt(AIRequest<? extends DomainContext> request, String contextInfo) {
         String templateType = extractTemplateType(request);
         if ("specific".equals(templateType)) {
