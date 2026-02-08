@@ -23,17 +23,7 @@ public class ZeroTrustSpringEvent extends ApplicationEvent {
     public static final String TYPE_AUTHENTICATION_SUCCESS = "SUCCESS";
     public static final String TYPE_AUTHENTICATION_FAILURE = "FAILURE";
     public static final String TYPE_AUTHENTICATION_MFA = "MFA";
-
-    public static final String TYPE_AUTHORIZATION_WEB = "WEB";
     public static final String TYPE_AUTHORIZATION_METHOD = "METHOD";
-
-    public static final String TYPE_SESSION_CREATED = "CREATED";
-    public static final String TYPE_SESSION_EXPIRED = "EXPIRED";
-    public static final String TYPE_SESSION_INVALIDATED = "INVALIDATED";
-
-    public static final String TYPE_THREAT_DETECTED = "DETECTED";
-    public static final String TYPE_THREAT_ANOMALY = "ANOMALY";
-    public static final String TYPE_THREAT_BLOCKED = "BLOCKED";
 
     private final ZeroTrustEventCategory category;
 

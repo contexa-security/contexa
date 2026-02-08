@@ -14,6 +14,7 @@ import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
 import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationService;
 import org.modelmapper.ModelMapper;
@@ -128,8 +129,10 @@ public class IamAdminAuthAutoConfiguration {
     @ConditionalOnMissingBean
     public PermissionService permissionService(
             PermissionRepository permissionRepository,
-            FunctionCatalogRepository functionCatalogRepository) {
-        return new PermissionServiceImpl(permissionRepository, functionCatalogRepository);
+            FunctionCatalogRepository functionCatalogRepository,
+            ManagedResourceRepository managedResourceRepository) {
+        return new PermissionServiceImpl(
+                permissionRepository, functionCatalogRepository, managedResourceRepository);
     }
 
     @Bean

@@ -21,7 +21,7 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             "AND mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.EXCLUDED")
     List<Permission> findDefinedPermissionsWithDetails();
 
-    
+
     @Query("SELECT p FROM Permission p " +
             "JOIN p.managedResource mr " +
             "WHERE mr.resourceType = :resourceType " +
@@ -30,4 +30,7 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             @org.springframework.data.repository.query.Param("resourceType") io.contexa.contexacommon.entity.ManagedResource.ResourceType resourceType,
             @org.springframework.data.repository.query.Param("resourceIdentifier") String resourceIdentifier
     );
+
+    @Query("SELECT COUNT(rp) FROM RolePermission rp WHERE rp.permission.id = :permissionId")
+    long countRoleAssignments(@org.springframework.data.repository.query.Param("permissionId") Long permissionId);
 }

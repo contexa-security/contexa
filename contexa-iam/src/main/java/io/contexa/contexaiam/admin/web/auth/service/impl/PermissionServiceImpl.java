@@ -4,6 +4,8 @@ import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +22,7 @@ import java.util.Optional;
 public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
     private final FunctionCatalogRepository functionCatalogRepository;
+    private final ManagedResourceRepository managedResourceRepository;
 
     @Transactional
     @Caching(
@@ -59,6 +62,21 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     @Protectable
     public void deletePermission(Long id) {
+        long roleCount = permissionRepository.countRoleAssignments(id);
+        if (roleCount > 0) {
+            throw new IllegalStateException(
+                    "Cannot delete: permission is assigned to " + roleCount + " role(s)");
+        }
+
+        Permission permission = permissionRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));
+
+        ManagedResource resource = permission.getManagedResource();
+        if (resource != null) {
+            resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
+            managedResourceRepository.save(resource);
+        }
+
         permissionRepository.deleteById(id);
     }
 

@@ -43,7 +43,7 @@ public class ManagedResource {
     @Builder.Default
     private Status status = Status.NEEDS_DEFINITION;
 
-    @OneToOne(mappedBy = "managedResource", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    @OneToOne(mappedBy = "managedResource", cascade = CascadeType.ALL)
     private Permission permission;
 
     @CreatedDate
