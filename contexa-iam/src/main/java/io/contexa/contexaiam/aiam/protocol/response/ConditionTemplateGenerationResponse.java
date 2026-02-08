@@ -67,7 +67,6 @@ public class ConditionTemplateGenerationResponse extends AIResponse {
         return batchResults != null ? batchResults : Map.of();
     }
 
-    @SuppressWarnings("unchecked")
     public static ConditionTemplateGenerationResponse fromMap(Map<String, Object> mapResponse) {
         Map<String, ConditionTemplateItem> results = new LinkedHashMap<>();
         List<String> failed = new ArrayList<>();

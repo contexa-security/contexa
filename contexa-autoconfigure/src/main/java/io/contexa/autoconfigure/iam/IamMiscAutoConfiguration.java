@@ -26,9 +26,8 @@ public class IamMiscAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public PolicyService policyService(
-            PolicyRepository policyRepository,
-            ApplicationEventPublisher eventPublisher) {
-        return new PolicyService(policyRepository, eventPublisher);
+            PolicyRepository policyRepository) {
+        return new PolicyService(policyRepository);
     }
 
     @Bean
