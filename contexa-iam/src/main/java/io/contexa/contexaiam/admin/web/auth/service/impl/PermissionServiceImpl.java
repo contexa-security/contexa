@@ -73,11 +73,13 @@ public class PermissionServiceImpl implements PermissionService {
 
         ManagedResource resource = permission.getManagedResource();
         if (resource != null) {
+            resource.setPermission(null);
             resource.setStatus(ManagedResource.Status.NEEDS_DEFINITION);
+            permission.setManagedResource(null);
             managedResourceRepository.save(resource);
         }
 
-        permissionRepository.deleteById(id);
+        permissionRepository.delete(permission);
     }
 
     @Caching(
