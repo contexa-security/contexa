@@ -64,7 +64,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
         return Mono.fromCallable(() -> enrichRequest(request, false))
                 .flatMap(enrichedRequest -> {
-                    return orchestrator.execute(enrichedRequest, createPolicyPipelineConfig(), PolicyResponse.class);
+                    return orchestrator.execute(enrichedRequest, createPipelineConfig(), PolicyResponse.class);
                 })
                 .map(response -> {
                     if (response == null) {
@@ -94,7 +94,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return Flux.defer(() -> {
             try {
                 PolicyGenerationRequest enrichedRequest = enrichRequest(request, true);
-                return orchestrator.executeStream(enrichedRequest, createPolicyStreamPipelineConfig())
+                return orchestrator.executeStream(enrichedRequest, createStreamPipelineConfig())
                         .map(this::cleanStreamingChunk)
                         .concatWith(Mono.just("[DONE]"))
                         .doOnError(error -> {
@@ -143,29 +143,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
 
         return request;
-    }
-
-    private PipelineConfiguration<PolicyContext> createPolicyPipelineConfig() {
-        return (PipelineConfiguration<PolicyContext>) PipelineConfiguration.builder()
-                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
-                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
-                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
-                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
-                .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
-                .timeoutSeconds(300)
-                .build();
-    }
-
-    private PipelineConfiguration<PolicyContext> createPolicyStreamPipelineConfig() {
-        return (PipelineConfiguration<PolicyContext>) PipelineConfiguration.builder()
-                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
-                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
-                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
-                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                .enableStreaming(true)
-                .timeoutSeconds(300)
-                .build();
     }
 
     private String buildSystemMetadataFromAvailableItems(PolicyGenerationItem.AvailableItems availableItems) {

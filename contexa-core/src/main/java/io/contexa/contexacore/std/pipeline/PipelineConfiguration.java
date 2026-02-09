@@ -10,11 +10,11 @@ import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Getter
-public class PipelineConfiguration<T extends DomainContext> {
+public class PipelineConfiguration {
 
     private List<PipelineStep> steps;
-    private List<io.contexa.contexacore.std.pipeline.step.PipelineStep> interfaceSteps; 
-    private Map<String, Object> parameters;
+    private List<PipelineStep> interfaceSteps;
+    private final Map<String, Object> parameters;
     private String name;
     private String description;
     private Map<String, Object> metadata;
@@ -22,7 +22,7 @@ public class PipelineConfiguration<T extends DomainContext> {
     private final boolean enableCaching;
     private final boolean enableParallelExecution;
     private final boolean enableStreaming;
-    private final Map<String, io.contexa.contexacore.std.pipeline.step.PipelineStep> customSteps;
+    private final Map<String, PipelineStep> customSteps;
 
     public PipelineConfiguration() {
         this.steps = new ArrayList<>();
@@ -54,13 +54,13 @@ public class PipelineConfiguration<T extends DomainContext> {
     }
 
     private PipelineConfiguration(List<PipelineStep> steps,
-                                 List<io.contexa.contexacore.std.pipeline.step.PipelineStep> interfaceSteps,
+                                 List<PipelineStep> interfaceSteps,
                                  Map<String, Object> parameters,
                                  int timeoutSeconds,
                                  boolean enableCaching,
                                  boolean enableParallelExecution,
                                  boolean enableStreaming,
-                                 Map<String, io.contexa.contexacore.std.pipeline.step.PipelineStep> customSteps) {
+                                 Map<String, PipelineStep> customSteps) {
         this.steps = steps;
         this.interfaceSteps = interfaceSteps;
         this.parameters = parameters;
@@ -84,11 +84,11 @@ public class PipelineConfiguration<T extends DomainContext> {
         this.steps = new ArrayList<>(steps);
     }
 
-    public void setInterfaceSteps(List<io.contexa.contexacore.std.pipeline.step.PipelineStep> steps) {
+    public void setInterfaceSteps(List<PipelineStep> steps) {
         this.interfaceSteps = steps;
     }
 
-    public List<io.contexa.contexacore.std.pipeline.step.PipelineStep> getInterfaceSteps() {
+    public List<PipelineStep> getInterfaceSteps() {
         return interfaceSteps;
     }
     
@@ -100,13 +100,13 @@ public class PipelineConfiguration<T extends DomainContext> {
         return steps.contains(step);
     }
 
-    public void addCustomStep(String stepName, io.contexa.contexacore.std.pipeline.step.PipelineStep step) {
+    public void addCustomStep(String stepName, PipelineStep step) {
         if (stepName != null && step != null) {
             customSteps.put(stepName, step);
         }
     }
 
-    public io.contexa.contexacore.std.pipeline.step.PipelineStep getCustomStep(String stepName) {
+    public PipelineStep getCustomStep(String stepName) {
         return customSteps.get(stepName);
     }
 
@@ -120,20 +120,15 @@ public class PipelineConfiguration<T extends DomainContext> {
     
     public static class Builder<T extends DomainContext> {
         private List<PipelineStep> steps = new ArrayList<>();
-        private List<io.contexa.contexacore.std.pipeline.step.PipelineStep> interfaceSteps = new ArrayList<>();
-        private Map<String, Object> parameters = new HashMap<>();
+        private final List<PipelineStep> interfaceSteps = new ArrayList<>();
+        private final Map<String, Object> parameters = new HashMap<>();
         private int timeoutSeconds = 300;
         private boolean enableCaching = false;
         private boolean enableParallelExecution = false;
         private boolean enableStreaming = false;
-        private Map<String, io.contexa.contexacore.std.pipeline.step.PipelineStep> customSteps = new HashMap<>();
+        private Map<String, PipelineStep> customSteps = new HashMap<>();
         
         public Builder addStep(PipelineStep step) {
-            this.steps.add(step);
-            return this;
-        }
-        
-        public Builder addStep(io.contexa.contexacore.std.pipeline.step.PipelineStep step) {
             
             this.interfaceSteps.add(step);
             return this;
@@ -169,19 +164,19 @@ public class PipelineConfiguration<T extends DomainContext> {
             return this;
         }
 
-        public Builder<T> customSteps(Map<String, io.contexa.contexacore.std.pipeline.step.PipelineStep> customSteps) {
+        public Builder<T> customSteps(Map<String, PipelineStep> customSteps) {
             this.customSteps = new HashMap<>(customSteps);
             return this;
         }
 
-        public Builder<T> addCustomStep(String stepName, io.contexa.contexacore.std.pipeline.step.PipelineStep step) {
+        public Builder<T> addCustomStep(String stepName, PipelineStep step) {
             this.customSteps.put(stepName, step);
             this.interfaceSteps.add(step);
             return this;
         }
 
-        public PipelineConfiguration<T> build() {
-            return new PipelineConfiguration<>(steps, interfaceSteps, parameters, timeoutSeconds,
+        public PipelineConfiguration build() {
+            return new PipelineConfiguration(steps, interfaceSteps, parameters, timeoutSeconds,
                     enableCaching, enableParallelExecution, enableStreaming, customSteps);
         }
     }

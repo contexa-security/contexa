@@ -68,8 +68,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
 
         return Mono.fromCallable(() -> enrichRequest(request, false))
                 .flatMap(enrichedRequest -> {
-                    PipelineConfiguration<StudioQueryContext> config = createStudioQueryPipelineConfig();
-                    return orchestrator.execute(enrichedRequest, config, StudioQueryResponse.class);
+                    return orchestrator.execute(enrichedRequest, createPipelineConfig(), StudioQueryResponse.class);
                 })
                 .map(response -> (StudioQueryResponse) response)
                 .doOnSuccess(response -> {
@@ -94,8 +93,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
         return Flux.defer(() -> {
             try {
                 StudioQueryRequest enrichedRequest = enrichRequest(request, true);
-                PipelineConfiguration<StudioQueryContext> pipelineConfig = createStudioQueryStreamPipelineConfig();
-                return orchestrator.executeStream(enrichedRequest, pipelineConfig)
+                return orchestrator.executeStream(enrichedRequest, createStreamPipelineConfig())
                         .doOnError(error -> {
                             log.error("[STREAMING] Streaming error: {}", error.getMessage(), error);
                         });
@@ -143,29 +141,5 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
             log.warn("Data collection plan creation failed, using fallback: {}", e.getMessage());
             return DataCollectionPlan.createFallback(query);
         }
-    }
-
-    private PipelineConfiguration<StudioQueryContext> createStudioQueryPipelineConfig() {
-        return (PipelineConfiguration<StudioQueryContext>) PipelineConfiguration.builder()
-                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
-                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
-                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
-                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
-                .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
-                .timeoutSeconds(300)
-                .build();
-    }
-
-    private PipelineConfiguration<StudioQueryContext> createStudioQueryStreamPipelineConfig() {
-        return (PipelineConfiguration<StudioQueryContext>) PipelineConfiguration.builder()
-                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
-                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
-                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
-                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
-                .enableStreaming(true)
-                .timeoutSeconds(300)
-                .build();
     }
 }

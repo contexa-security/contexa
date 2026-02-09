@@ -10,6 +10,8 @@ import io.contexa.contexaiam.aiam.protocol.response.ConditionTemplateGenerationR
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Mono;
 
+import java.util.Objects;
+
 @Slf4j
 public class ConditionTemplateGenerationLab
         extends AbstractIAMLab<ConditionTemplateGenerationRequest, ConditionTemplateGenerationResponse> {
@@ -22,8 +24,7 @@ public class ConditionTemplateGenerationLab
     }
 
     @Override
-    protected ConditionTemplateGenerationResponse doProcess(
-            ConditionTemplateGenerationRequest request) throws Exception {
+    protected ConditionTemplateGenerationResponse doProcess(ConditionTemplateGenerationRequest request) {
         return processConditionTemplateAsync(request).block();
     }
 
@@ -33,34 +34,16 @@ public class ConditionTemplateGenerationLab
         return processConditionTemplateAsync(request);
     }
 
-    private Mono<ConditionTemplateGenerationResponse> processConditionTemplateAsync(
-            ConditionTemplateGenerationRequest request) {
-
-        PipelineConfiguration<ConditionTemplateContext> config = createPipelineConfig();
-
+    private Mono<ConditionTemplateGenerationResponse> processConditionTemplateAsync(ConditionTemplateGenerationRequest request) {
+        PipelineConfiguration config = createPipelineConfig();
         return orchestrator.execute(request, config, ConditionTemplateGenerationResponse.class)
                 .map(response -> {
-                    if (response == null) {
-                        return createFailureResponse(request);
-                    }
-                    return response;
+                    return Objects.requireNonNullElseGet(response, () -> createFailureResponse(request));
                 })
                 .onErrorResume(error -> {
                     log.error("Condition template async generation failed", error);
                     return Mono.just(createFailureResponse(request));
                 });
-    }
-
-    private PipelineConfiguration<ConditionTemplateContext> createPipelineConfig() {
-        return (PipelineConfiguration<ConditionTemplateContext>) PipelineConfiguration.builder()
-                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
-                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
-                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
-                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
-                .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
-                .timeoutSeconds(30)
-                .build();
     }
 
     private ConditionTemplateGenerationResponse createFailureResponse(

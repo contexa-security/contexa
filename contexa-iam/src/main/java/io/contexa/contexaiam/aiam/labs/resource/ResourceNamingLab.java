@@ -32,15 +32,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     }
 
     private Mono<ResourceNamingSuggestionResponse> processResourceNamingAsync(ResourceNamingSuggestionRequest request) {
-        PipelineConfiguration config = PipelineConfiguration.builder()
-                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
-                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
-                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
-                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
-                .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
-                .timeoutSeconds(60)
-                .build();
+        PipelineConfiguration config = createPipelineConfig();
 
         return orchestrator.execute(request, config, ResourceNamingSuggestionResponse.class)
                 .onErrorResume(error -> {
