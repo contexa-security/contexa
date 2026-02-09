@@ -131,17 +131,13 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     private Object findEntityById(Serializable targetId, String targetType) {
         try {
-            switch (targetType.toUpperCase()) {
-                case "USER":
-                    return userRepository != null ? userRepository.findById((Long) targetId).orElse(null) : null;
-                case "GROUP":
-                    return groupRepository != null ? groupRepository.findById((Long) targetId).orElse(null) : null;
-                case "DOCUMENT":
-                                        return documentRepository != null ? documentRepository.findById((Long) targetId).orElse(null) : null;
-                default:
-                    
-                    return findEntityByDynamicRepository(targetId, targetType);
-            }
+            return switch (targetType.toUpperCase()) {
+                case "USER" -> userRepository != null ? userRepository.findById((Long) targetId).orElse(null) : null;
+                case "GROUP" -> groupRepository != null ? groupRepository.findById((Long) targetId).orElse(null) : null;
+                case "DOCUMENT" ->
+                        documentRepository != null ? documentRepository.findById((Long) targetId).orElse(null) : null;
+                default -> findEntityByDynamicRepository(targetId, targetType);
+            };
         } catch (Exception e) {
             log.warn("엔티티 조회 실패: targetId={}, targetType={}", targetId, targetType, e);
             return null;

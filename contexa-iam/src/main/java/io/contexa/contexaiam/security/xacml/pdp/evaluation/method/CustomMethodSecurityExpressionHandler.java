@@ -109,7 +109,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
                 root = new TrustSecurityExpressionRoot(
                         auth, attributePIP, aiNativeProcessor, authorizationContext,
-                        auditLogRepository, redisTemplate, stringRedisTemplate);
+                        auditLogRepository, stringRedisTemplate);
                 break;
 
             case "STANDARD":

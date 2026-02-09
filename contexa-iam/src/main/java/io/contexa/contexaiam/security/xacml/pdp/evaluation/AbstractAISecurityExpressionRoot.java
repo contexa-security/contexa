@@ -17,6 +17,7 @@ import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.SecurityExpressionRoot;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -587,7 +588,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
     }
 
     protected String getActionFromRedisHash(String userId, String redisKey,
-                                            org.springframework.data.redis.core.StringRedisTemplate stringRedisTemplate) {
+                                            StringRedisTemplate stringRedisTemplate) {
         if (userId == null || redisKey == null || stringRedisTemplate == null) {
             return "PENDING_ANALYSIS";
         }
@@ -596,8 +597,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
             Object actionValue = stringRedisTemplate.opsForHash().get(redisKey, "action");
 
             if (actionValue != null) {
-                String action = actionValue.toString();
-                return action;
+                return actionValue.toString();
             } else {
                 return "PENDING_ANALYSIS";
             }
