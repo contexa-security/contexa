@@ -70,7 +70,6 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
                 .flatMap(enrichedRequest -> {
                     return orchestrator.execute(enrichedRequest, createPipelineConfig(), StudioQueryResponse.class);
                 })
-                .map(response -> (StudioQueryResponse) response)
                 .doOnSuccess(response -> {
                     try {
                         vectorService.storeQueryResult(request.getRequestId(), response.toString());

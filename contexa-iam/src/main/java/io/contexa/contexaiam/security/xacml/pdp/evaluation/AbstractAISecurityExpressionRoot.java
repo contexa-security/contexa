@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation;
 
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -14,15 +15,18 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
     protected final AuthorizationContext authorizationContext;
     protected final AuditLogRepository auditLogRepository;
+    protected final StringRedisTemplate stringRedisTemplate;
 
     protected AbstractAISecurityExpressionRoot(Authentication authentication,
                                                AuthorizationContext authorizationContext,
-                                               AuditLogRepository auditLogRepository) {
+                                               AuditLogRepository auditLogRepository,
+                                               StringRedisTemplate stringRedisTemplate) {
         super(authentication);
         this.authorizationContext = authorizationContext;
         this.auditLogRepository = auditLogRepository;
-
+        this.stringRedisTemplate = stringRedisTemplate;
     }
+
     protected String extractUserId() {
         Authentication authentication = getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -31,7 +35,14 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         return authentication.getName();
     }
 
-    protected abstract String getCurrentAction();
+    protected String getCurrentAction() {
+        String userId = extractUserId();
+        if (userId == null) {
+            return "PENDING_ANALYSIS";
+        }
+        String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+        return getActionFromRedisHash(userId, redisKey, stringRedisTemplate);
+    }
 
     public boolean isAllowed() {
         return hasAction("ALLOW");
@@ -100,7 +111,7 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
                 return "PENDING_ANALYSIS";
             }
         } catch (Exception e) {
-            log.error("getActionFromRedisHash: Redis 조회 실패 - userId: {}, PENDING_ANALYSIS 반환", userId, e);
+            log.error("getActionFromRedisHash: Redis lookup failed - userId: {}, returning PENDING_ANALYSIS", userId, e);
             return "PENDING_ANALYSIS";
         }
     }

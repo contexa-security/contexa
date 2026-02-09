@@ -32,13 +32,20 @@ public class SpelValidationService {
     );
 
     private static final Set<String> AI_METHODS = Set.of(
-        "analyzeFraud",               
-        "detectAnomaly",              
-        "evaluateCriticalOperation",  
-        "evaluateDataExfiltration",   
-        "evaluatePrivilegeEscalation", 
-        "assessContext",              
-        "hasSafeBehavior"             
+        "analyzeFraud",
+        "detectAnomaly",
+        "evaluateCriticalOperation",
+        "evaluateDataExfiltration",
+        "evaluatePrivilegeEscalation",
+        "hasSafeBehavior",
+        "isAllowed",
+        "isBlocked",
+        "needsChallenge",
+        "needsEscalation",
+        "isPendingAnalysis",
+        "hasAction",
+        "hasActionIn",
+        "hasActionOrDefault"
     );
 
     private static final Set<String> SECURITY_METHODS = Set.of(
@@ -135,7 +142,7 @@ public class SpelValidationService {
 
     public ValidationResult validate(String spelExpression) {
         if (spelExpression == null || spelExpression.isBlank()) {
-            return ValidationResult.invalid(spelExpression, "SpEL 표현식이 비어있습니다");
+            return ValidationResult.invalid(spelExpression, "SpEL expression is empty");
         }
 
         String trimmed = spelExpression.trim();
@@ -163,7 +170,7 @@ public class SpelValidationService {
         if (errors.isEmpty()) {
                         return ValidationResult.valid(trimmed, warnings);
         } else {
-            log.warn("SpEL 검증 실패: {} - 오류: {}", trimmed, errors);
+            log.error("SpEL validation failed: {} - errors: {}", trimmed, errors);
             return ValidationResult.invalid(trimmed, errors);
         }
     }
@@ -173,10 +180,10 @@ public class SpelValidationService {
             Matcher matcher = pattern.matcher(expression);
             if (matcher.find()) {
                 String matched = matcher.group();
-                log.error("보안 위험 패턴 탐지: '{}' in expression: {}", matched, expression);
+                log.error("Security risk pattern detected: '{}' in expression: {}", matched, expression);
                 return ValidationResult.invalid(
                     expression,
-                    "보안 위험: 금지된 패턴 '" + matched + "' 이(가) 탐지되었습니다"
+                    "Security risk: prohibited pattern '" + matched + "' detected"
                 );
             }
         }
@@ -190,7 +197,7 @@ public class SpelValidationService {
         } catch (SpelParseException e) {
             return ValidationResult.invalid(
                 expression,
-                "SpEL 구문 오류: " + e.getMessage()
+                "SpEL syntax error: " + e.getMessage()
             );
         }
     }
@@ -202,7 +209,7 @@ public class SpelValidationService {
         while (matcher.find()) {
             String variable = matcher.group(1);
             if (!ALLOWED_VARIABLES.contains(variable)) {
-                errors.add("허용되지 않은 변수: #" + variable);
+                errors.add("Disallowed variable: #" + variable);
             }
         }
 
@@ -218,7 +225,7 @@ public class SpelValidationService {
             String method = methodMatcher.group(2);
 
             if (!isAllowedMethodCall(object, method)) {
-                errors.add("허용되지 않은 메서드 호출: " + object + "." + method + "()");
+                errors.add("Disallowed method call: " + object + "." + method + "()");
             }
         }
 
@@ -235,9 +242,6 @@ public class SpelValidationService {
             return AI_METHODS.contains(method);
         }
         
-        if ("assessContext".equals(object) && "score".equals(method)) {
-            return true;
-        }
         
         if (SECURITY_METHODS.contains(object)) {
             return true;
@@ -254,17 +258,17 @@ public class SpelValidationService {
         List<String> warnings = new ArrayList<>();
 
         if (expression.contains("#ai.")) {
-            warnings.add("주의: #ai 메서드는 실시간 AI 호출로 응답 시간이 길어질 수 있습니다 (Cold Path)");
+            warnings.add("Warning: #ai methods may have longer response times due to real-time AI calls (Cold Path)");
         }
 
         if (expression.length() > 200) {
-            warnings.add("주의: 복잡한 SpEL 표현식은 성능에 영향을 줄 수 있습니다");
+            warnings.add("Warning: Complex SpEL expression may affect performance");
         }
 
         long andCount = expression.chars().filter(ch -> ch == '&').count();
         long orCount = expression.chars().filter(ch -> ch == '|').count();
         if (andCount + orCount > 5) {
-            warnings.add("주의: 조건이 복잡합니다. 정책 분리를 고려하세요");
+            warnings.add("Warning: Complex conditions detected. Consider splitting into separate policies");
         }
 
         return warnings;

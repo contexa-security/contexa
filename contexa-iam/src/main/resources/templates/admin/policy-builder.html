@@ -1260,11 +1260,22 @@
                                         <span class="text-sm text-dark-primary">AI 실시간 리스크 평가</span>
                                         <input type="checkbox" id="aiEnabledCheckbox" class="modern-checkbox">
                                     </label>
-                                    <div id="trustScoreContainer" class="hidden mt-4">
-                                        <label for="trustScoreSlider" class="text-sm font-medium text-dark-muted mb-2 block">
-                                            허용 신뢰도: <span id="trustScoreValueSpan" class="font-bold text-indigo-400">70</span>점 이상
-                                        </label>
-                                        <input type="range" id="trustScoreSlider" min="0" max="100" value="70" class="modern-slider">
+                                    <div id="aiActionContainer" class="hidden mt-4">
+                                        <label class="text-sm font-medium text-dark-muted mb-2 block">허용 액션 선택</label>
+                                        <div class="space-y-2">
+                                            <label class="flex items-center gap-2 cursor-pointer text-sm text-dark-primary">
+                                                <input type="checkbox" class="ai-action-checkbox" value="ALLOW"> ALLOW - 위험도 낮음
+                                            </label>
+                                            <label class="flex items-center gap-2 cursor-pointer text-sm text-dark-primary">
+                                                <input type="checkbox" class="ai-action-checkbox" value="CHALLENGE"> CHALLENGE - 추가 검증 필요
+                                            </label>
+                                            <label class="flex items-center gap-2 cursor-pointer text-sm text-dark-primary">
+                                                <input type="checkbox" class="ai-action-checkbox" value="ESCALATE"> ESCALATE - 전문가 검토 필요
+                                            </label>
+                                            <label class="flex items-center gap-2 cursor-pointer text-sm text-dark-primary">
+                                                <input type="checkbox" class="ai-action-checkbox" value="BLOCK"> BLOCK - 즉시 차단
+                                            </label>
+                                        </div>
                                     </div>
                                 </div>
 

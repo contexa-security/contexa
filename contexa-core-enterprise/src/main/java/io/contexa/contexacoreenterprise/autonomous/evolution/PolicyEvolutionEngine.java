@@ -110,7 +110,7 @@ public class PolicyEvolutionEngine {
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
-            log.error(" Policy evolution failed - EventId: {}", event.getEventId(), e);
+            log.error("Policy evolution failed - EventId: {}", event.getEventId(), e);
 
             if (metricsCollector != null) {
                 metricsCollector.recordProposalCreation(
@@ -195,9 +195,7 @@ public class PolicyEvolutionEngine {
 
     public Mono<PolicyEvolutionProposal> evolvePolicyAsync(SecurityEvent event, LearningMetadata metadata) {
         return Mono.fromCallable(() -> evolvePolicy(event, metadata))
-                .doOnSubscribe(s -> log.info("🔄 Async policy evolution started"))
-                .doOnSuccess(p -> log.info("Async policy evolution completed"))
-                .doOnError(e -> log.error(" Async policy evolution failed", e));
+                .doOnError(e -> log.error("Async policy evolution failed", e));
     }
 
     private Map<String, Object> collectContext(SecurityEvent event, LearningMetadata metadata) {
@@ -240,7 +238,7 @@ public class PolicyEvolutionEngine {
                         return documents;
             
         } catch (Exception e) {
-            log.warn("Similar case search failed: {}", e.getMessage());
+            log.error("Similar case search failed: {}", e.getMessage());
             return new ArrayList<>();
         }
     }
@@ -311,7 +309,12 @@ public class PolicyEvolutionEngine {
         prompt.append("- #ai.detectAnomaly('operation') : 이상 행동 탐지\n");
         prompt.append("- #ai.evaluateCriticalOperation(#context) : 중요 작업 평가\n");
         prompt.append("- #ai.hasSafeBehavior(threshold) : 행동 안전성 평가\n");
-        prompt.append("- #ai.assessContext().score : AI 컨텍스트 신뢰도 점수\n");
+        prompt.append("- #ai.isAllowed() : ALLOW 판정 확인\n");
+        prompt.append("- #ai.isBlocked() : BLOCK 판정 확인\n");
+        prompt.append("- #ai.needsChallenge() : CHALLENGE 판정 확인\n");
+        prompt.append("- #ai.needsEscalation() : ESCALATE 판정 확인\n");
+        prompt.append("- #ai.hasAction('ACTION') : 특정 action 확인\n");
+        prompt.append("- #ai.hasActionIn('ACTION1', 'ACTION2') : 여러 action 확인\n");
         prompt.append("\n### Spring Security 기본 메서드\n");
         prompt.append("- hasRole('ROLE_XXX') : 역할 확인\n");
         prompt.append("- hasAnyRole('ROLE_A', 'ROLE_B') : 여러 역할 중 하나 확인\n");
@@ -449,7 +452,7 @@ public class PolicyEvolutionEngine {
             }
 
         } catch (Exception e) {
-            log.warn("SpEL expression extraction failed, 기본값 사용: {}", e.getMessage());
+            log.error("SpEL expression extraction failed, using default: {}", e.getMessage());
         }
 
         if (metricsCollector != null) {
@@ -490,7 +493,7 @@ public class PolicyEvolutionEngine {
         if (spelValidationService != null) {
             SpelValidationService.ValidationResult result = spelValidationService.validate(expression);
             if (!result.valid()) {
-                log.warn("AI-generated SpEL validation failed: {}, 오류: {}", expression, result.errors());
+                log.error("AI-generated SpEL validation failed: {}, errors: {}", expression, result.errors());
                 return false;
             }
             if (!result.warnings().isEmpty()) {
@@ -619,7 +622,7 @@ public class PolicyEvolutionEngine {
             }
 
         } catch (Exception e) {
-            log.warn("Impact extraction failed, 기본값 사용: {}", e.getMessage());
+            log.error("Impact extraction failed, using default: {}", e.getMessage());
         }
 
         return 0.7; 
@@ -869,7 +872,7 @@ public class PolicyEvolutionEngine {
             tuningService.learnFalsePositive(event, feedback).subscribe();
 
         } catch (Exception e) {
-            log.warn("학습 데이터 저장 실패: {}", e.getMessage());
+            log.error("Learning data storage failed: {}", e.getMessage());
         }
     }
 
@@ -911,7 +914,7 @@ public class PolicyEvolutionEngine {
             String redisKey = PROPOSAL_CACHE_KEY_PREFIX + cacheKey;
             return redisTemplate.opsForValue().get(redisKey);
         } catch (Exception e) {
-            log.error("Redis 캐시 조회 실패: key={}", cacheKey, e);
+            log.error("Redis cache lookup failed: key={}", cacheKey, e);
             return null;
         }
     }
@@ -927,7 +930,7 @@ public class PolicyEvolutionEngine {
             stringRedisTemplate.opsForSet().add(PROPOSAL_SET_KEY, cacheKey);
             
                     } catch (Exception e) {
-            log.error("Redis 캐시 저장 실패: key={}", cacheKey, e);
+            log.error("Redis cache save failed: key={}", cacheKey, e);
         }
     }
 
@@ -943,7 +946,7 @@ public class PolicyEvolutionEngine {
                 stringRedisTemplate.delete(PROPOSAL_SET_KEY);
             }
                     } catch (Exception e) {
-            log.error("Redis 캐시 정리 실패", e);
+            log.error("Redis cache cleanup failed", e);
         }
     }
 
@@ -952,7 +955,7 @@ public class PolicyEvolutionEngine {
             Long size = stringRedisTemplate.opsForSet().size(PROPOSAL_SET_KEY);
             return size != null ? size.intValue() : 0;
         } catch (Exception e) {
-            log.error("Redis 캐시 크기 조회 실패", e);
+            log.error("Redis cache size query failed", e);
             return 0;
         }
     }
@@ -965,7 +968,7 @@ public class PolicyEvolutionEngine {
                 redisTemplate.delete(keys);
                             }
         } catch (Exception e) {
-            log.error("제안 무효화 실패: proposalId={}", proposalId, e);
+            log.error("Proposal invalidation failed: proposalId={}", proposalId, e);
         }
     }
 
@@ -983,7 +986,7 @@ public class PolicyEvolutionEngine {
                 }
             }
                     } catch (Exception e) {
-            log.error("캐시된 제안 조회 실패", e);
+            log.error("Cached proposal retrieval failed", e);
         }
         return proposals;
     }
@@ -1027,7 +1030,7 @@ public class PolicyEvolutionEngine {
             metadata.addOutcome("learned", true);
 
         } catch (Exception e) {
-            log.error("거부 학습 실패: {}", policy.getName(), e);
+            log.error("Rejection learning failed: {}", policy.getName(), e);
         }
     }
 
@@ -1062,7 +1065,7 @@ public class PolicyEvolutionEngine {
             }
 
         } catch (Exception e) {
-            log.error("정책 진화 실패: {}", policy.getName(), e);
+            log.error("Policy evolution failed: {}", policy.getName(), e);
         }
     }
 

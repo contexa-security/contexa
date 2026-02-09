@@ -10,6 +10,7 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
+import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.repository.PermissionRepository;
@@ -21,6 +22,8 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -54,7 +57,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     @Override
     public Policy createPolicyFromBusinessRule(BusinessPolicyDto dto) {
         if (CollectionUtils.isEmpty(dto.getRoleIds()) || CollectionUtils.isEmpty(dto.getPermissionIds())) {
-            throw new IllegalArgumentException("정책을 생성하려면 최소 하나 이상의 역할과 권한이 선택되어야 합니다.");
+            throw new IllegalArgumentException("At least one role and one permission must be selected to create a policy.");
         }
 
         updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
@@ -111,7 +114,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         String spelCondition = buildSpelCondition(dto);
         if (StringUtils.hasText(spelCondition)) {
             PolicyRule rule = PolicyRule.builder()
-                    .description("지능형 빌더에서 생성/수정된 동적 규칙")
+                    .description("Dynamic rule created/modified by intelligent builder")
                     .build();
 
             PolicyCondition condition = PolicyCondition.builder()
@@ -151,8 +154,24 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             allConditions.add("(" + roleCondition + ")");
         }
 
-        if (dto.isAiRiskAssessmentEnabled()) {
-            allConditions.add(String.format("#ai.assessContext().score >= %.2f", dto.getRequiredTrustScore()));
+        if (dto.isAiActionEnabled() && !CollectionUtils.isEmpty(dto.getAllowedActions())) {
+            List<String> actions = dto.getAllowedActions();
+            if (actions.size() == 1) {
+                String action = actions.getFirst();
+                String expr = switch (action.toUpperCase()) {
+                    case "ALLOW" -> "#ai.isAllowed()";
+                    case "BLOCK" -> "#ai.isBlocked()";
+                    case "CHALLENGE" -> "#ai.needsChallenge()";
+                    case "ESCALATE" -> "#ai.needsEscalation()";
+                    default -> "#ai.hasAction('" + action + "')";
+                };
+                allConditions.add(expr);
+            } else {
+                String actionList = actions.stream()
+                        .map(a -> "'" + a.toUpperCase() + "'")
+                        .collect(Collectors.joining(","));
+                allConditions.add("#ai.hasActionIn(" + actionList + ")");
+            }
         }
         if (StringUtils.hasText(dto.getCustomConditionSpel())) {
             allConditions.add("(" + dto.getCustomConditionSpel() + ")");
@@ -206,8 +225,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         for (PolicyTarget target : policy.getTargets()) {
             
             try {
-                io.contexa.contexacommon.entity.ManagedResource.ResourceType resourceType =
-                        io.contexa.contexacommon.entity.ManagedResource.ResourceType.valueOf(target.getTargetType());
+                ManagedResource.ResourceType resourceType =
+                        ManagedResource.ResourceType.valueOf(target.getTargetType());
 
                 List<Permission> permissions = permissionRepository.findByResourceTypeAndIdentifier(
                     resourceType,
@@ -219,7 +238,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                     .forEach(permissionIds::add);
 
             } catch (IllegalArgumentException e) {
-                log.warn("알 수 없는 리소스 타입: {} (대상: {})", target.getTargetType(), target.getTargetIdentifier());
+                log.error("Unknown resource type: {} (target: {})", target.getTargetType(), target.getTargetIdentifier());
             }
         }
 
@@ -250,8 +269,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private Set<String> extractRoleNamesFromSpel(String spelExpression) {
         Set<String> roleNames = new HashSet<>();
 
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("hasAuthority\\('([^']+)'\\)");
-        java.util.regex.Matcher matcher = pattern.matcher(spelExpression);
+        Pattern pattern = Pattern.compile("hasAuthority\\('([^']+)'\\)");
+        Matcher matcher = pattern.matcher(spelExpression);
 
         while (matcher.find()) {
             roleNames.add(matcher.group(1));
@@ -266,7 +285,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                 String expression = condition.getExpression();
                 if (StringUtils.hasText(expression)) {
                     
-                    analyzeAiRiskCondition(expression, dto);
+                    analyzeAiCondition(expression, dto);
 
                     extractCustomSpelCondition(expression, dto);
                 }
@@ -274,31 +293,77 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         }
     }
 
-    private void analyzeAiRiskCondition(String expression, BusinessPolicyDto dto) {
-        
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("#ai\\.assessContext\\(\\)\\.score >= ([0-9\\.]+)");
-        java.util.regex.Matcher matcher = pattern.matcher(expression);
+    private void analyzeAiCondition(String expression, BusinessPolicyDto dto) {
+        if (expression.contains("#ai.isAllowed()")) {
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(List.of("ALLOW"));
+            return;
+        }
+        if (expression.contains("#ai.isBlocked()")) {
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(List.of("BLOCK"));
+            return;
+        }
+        if (expression.contains("#ai.needsChallenge()")) {
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(List.of("CHALLENGE"));
+            return;
+        }
+        if (expression.contains("#ai.needsEscalation()")) {
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(List.of("ESCALATE"));
+            return;
+        }
 
-        if (matcher.find()) {
-            dto.setAiRiskAssessmentEnabled(true);
-            try {
-                double trustScore = Double.parseDouble(matcher.group(1));
-                dto.setRequiredTrustScore(trustScore);
-            } catch (NumberFormatException e) {
-                log.warn("AI 신뢰도 점수 파싱 실패: {}", matcher.group(1));
-                dto.setRequiredTrustScore(0.75); 
+        Matcher multiMatcher = Pattern.compile("#ai\\.hasActionIn\\(([^)]+)\\)").matcher(expression);
+        if (multiMatcher.find()) {
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(extractActionValues(multiMatcher.group(1)));
+            return;
+        }
+
+        Matcher defaultMatcher = Pattern.compile("#ai\\.hasActionOrDefault\\(([^)]+)\\)").matcher(expression);
+        if (defaultMatcher.find()) {
+            dto.setAiActionEnabled(true);
+            List<String> allActions = extractActionValues(defaultMatcher.group(1));
+            if (allActions.size() > 1) {
+                dto.setAllowedActions(allActions.subList(1, allActions.size()));
+            } else {
+                dto.setAllowedActions(allActions);
             }
+            return;
+        }
+
+        Matcher singleMatcher = Pattern.compile("#ai\\.hasAction\\('([^']+)'\\)").matcher(expression);
+        if (singleMatcher.find()) {
+            dto.setAiActionEnabled(true);
+            dto.setAllowedActions(List.of(singleMatcher.group(1).toUpperCase()));
         }
     }
 
+    private List<String> extractActionValues(String actionsStr) {
+        Matcher valueMatcher = Pattern.compile("'([^']+)'").matcher(actionsStr);
+        List<String> actions = new ArrayList<>();
+        while (valueMatcher.find()) {
+            actions.add(valueMatcher.group(1).toUpperCase());
+        }
+        return actions;
+    }
+
     private void extractCustomSpelCondition(String expression, BusinessPolicyDto dto) {
-        
         String cleaned = expression;
 
         cleaned = cleaned.replaceAll("\\(hasAuthority\\('[^']++'\\)( or )?\\)+", "");
         cleaned = cleaned.replaceAll("hasAuthority\\('[^']++'\\)( or )?", "");
 
-        cleaned = cleaned.replaceAll("#ai\\.assessContext\\(\\)\\.score >= [0-9\\.]+", "");
+        cleaned = cleaned.replaceAll("#ai\\.isAllowed\\(\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.isBlocked\\(\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.needsChallenge\\(\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.needsEscalation\\(\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.isPendingAnalysis\\(\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.hasAction\\('[^']*'\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.hasActionIn\\([^)]*\\)", "");
+        cleaned = cleaned.replaceAll("#ai\\.hasActionOrDefault\\([^)]*\\)", "");
 
         cleaned = cleaned.replaceAll("\\s*and\\s+and\\s*", " and ");
         cleaned = cleaned.replaceAll("^\\s*and\\s*", "");

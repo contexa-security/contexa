@@ -41,7 +41,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
     }
 
     @Override
-    protected PolicyResponse doProcess(PolicyGenerationRequest request){
+    protected PolicyResponse doProcess(PolicyGenerationRequest request) {
         return processRequestAsync(request).block();
     }
 
@@ -67,10 +67,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                     return orchestrator.execute(enrichedRequest, createPipelineConfig(), PolicyResponse.class);
                 })
                 .map(response -> {
-                    if (response == null) {
-                        log.error("Null response received from async Pipeline, generating fallback");
-                        return createFallbackPolicyResponse(request.getNaturalLanguageQuery());
-                    }
+
                     try {
                         vectorService.storeGeneratedPolicy(request, response);
                         return response;
@@ -81,7 +78,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 })
                 .doOnError(error -> {
                     if (error instanceof Throwable) {
-                        log.error("[DIAGNOSIS] AI policy diagnosis generation failed: {}", error.getMessage(),error);
+                        log.error("[DIAGNOSIS] AI policy diagnosis generation failed: {}", error.getMessage(), error);
                     }
                 })
                 .onErrorResume(error -> {
@@ -111,19 +108,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         });
     }
 
-    /**
-     * Enriches the request with IAM data context and system metadata.
-     * Common logic extracted from processRequestAsync and processRequestAsyncStream.
-     * <p>
-     * This follows the same pattern as StudioQueryLab.enrichRequest():
-     * - "iamDataContext": Formatted IAM data for AbstractBasePromptTemplate.extractContextInfo()
-     * - "systemMetadata": System metadata for prompt generation
-     * </p>
-     *
-     * @param request the original request
-     * @param isStreaming true if streaming mode, false otherwise
-     * @return the enriched request
-     */
     private PolicyGenerationRequest enrichRequest(PolicyGenerationRequest request, boolean isStreaming) {
         if (request.getAvailableItems() == null) {
             PolicyGenerationItem.AvailableItems availableItems = dataCollectionService.policyCollectData();
@@ -133,15 +117,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         String formattedData = buildSystemMetadataFromAvailableItems(request.getAvailableItems());
         request.withParameter("iamDataContext", formattedData);
         request.withParameter("systemMetadata", formattedData);
-
-        if (isStreaming) {
-            request.withParameter("requestType", "policy_generation_streaming");
-            request.withParameter("outputFormat", "natural_language");
-        } else {
-            request.withParameter("requestType", "policy_generation");
-            request.withParameter("outputFormat", "json_object");
-        }
-
         return request;
     }
 

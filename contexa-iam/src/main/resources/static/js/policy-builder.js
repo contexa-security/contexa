@@ -13,8 +13,8 @@
                     this.roles = new Map();
                     this.permissions = new Map();
                     this.conditions = new Map();
-                    this.aiRiskAssessmentEnabled = false;
-                    this.requiredTrustScore = 0.7;
+                    this.aiActionEnabled = false;
+                    this.allowedActions = [];
                     this.customConditionSpel = "";
                 }
 
@@ -45,8 +45,8 @@
                             acc[templateId] = [];
                             return acc;
                         }, {}),
-                        aiRiskAssessmentEnabled: this.aiRiskAssessmentEnabled,
-                        requiredTrustScore: this.requiredTrustScore,
+                        aiActionEnabled: this.aiActionEnabled,
+                        allowedActions: this.allowedActions,
                         customConditionSpel: customSpelEl?.value?.trim() || ''
                     };
                 }
@@ -112,7 +112,7 @@
                     const rolesHtml = Array.from(state.roles.values()).map(r => `<span class="policy-chip-preview">${r.name}</span>`).join(' 또는 ') || '<span class="text-gray-400">모든 역할</span>';
                     const permissionsHtml = Array.from(state.permissions.values()).map(p => `<span class="policy-chip-preview">${p.name}</span>`).join(' 그리고 ') || '<span class="text-gray-400">모든 권한</span>';
                     const conditionsHtml = Array.from(state.conditions.values()).map(c => `<span class="policy-chip-preview condition">${c.name}</span>`).join(' 그리고 ');
-                    const aiConditionHtml = state.aiRiskAssessmentEnabled ? `<span class="policy-chip-preview ai">AI 신뢰도 ${Math.round(state.requiredTrustScore * 100)}점 이상</span>` : '';
+                    const aiConditionHtml = state.aiActionEnabled && state.allowedActions.length > 0 ? `<span class="policy-chip-preview ai">AI 허용 액션: ${state.allowedActions.join(', ')}</span>` : '';
                     let fullConditionHtml = [conditionsHtml, aiConditionHtml].filter(Boolean).join(' 그리고 ');
 
                     const effect = this.elements.policyEffectSelect?.value || 'ALLOW';
@@ -221,9 +221,7 @@
                         thoughtProcessContainer: 'ai-thought-process-container',
                         thoughtProcessLog: 'ai-thought-process',
                         aiEnabledCheckbox: 'aiEnabledCheckbox',
-                        trustScoreContainer: 'trustScoreContainer',
-                        trustScoreSlider: 'trustScoreSlider',
-                        trustScoreValueSpan: 'trustScoreValueSpan',
+                        aiActionContainer: 'aiActionContainer',
                         customSpelInput: 'customSpelInput',
 
                         rolesPalette: 'roles-palette',
@@ -367,9 +365,9 @@
                         this.elements.aiEnabledCheckbox.addEventListener('change', () => this.handleAiToggle());
                     }
 
-                    if (this.elements.trustScoreSlider) {
-                        this.elements.trustScoreSlider.addEventListener('input', () => this.handleTrustSlider());
-                    }
+                    document.querySelectorAll('.ai-action-checkbox').forEach(cb => {
+                        cb.addEventListener('change', () => this.handleAiActionChange());
+                    });
 
                     if (this.elements.savePolicyBtn) {
                         this.elements.savePolicyBtn.addEventListener('click', () => this.handleSavePolicy());
@@ -691,8 +689,8 @@
                         roleIds: [],
                         permissionIds: [],
                         conditions: {},
-                        aiRiskAssessmentEnabled: false,
-                        requiredTrustScore: 0.5,
+                        aiActionEnabled: false,
+                        allowedActions: [],
                         customConditionSpel: '',
                         roleIdToNameMap: {},
                         permissionIdToNameMap: {},
@@ -983,18 +981,14 @@
                         });
                     }
 
-                    this.state.aiRiskAssessmentEnabled = data.aiRiskAssessmentEnabled || false;
+                    this.state.aiActionEnabled = data.aiActionEnabled || false;
+                    this.state.allowedActions = data.allowedActions || [];
                     if (this.elements.aiEnabledCheckbox) {
-                        this.elements.aiEnabledCheckbox.checked = this.state.aiRiskAssessmentEnabled;
+                        this.elements.aiEnabledCheckbox.checked = this.state.aiActionEnabled;
                     }
-
-                    this.state.requiredTrustScore = data.requiredTrustScore || 0.7;
-                    if (this.elements.trustScoreSlider) {
-                        this.elements.trustScoreSlider.value = this.state.requiredTrustScore * 100;
-                    }
-                    if (this.elements.trustScoreValueSpan) {
-                        this.elements.trustScoreValueSpan.textContent = Math.round(this.state.requiredTrustScore * 100);
-                    }
+                    document.querySelectorAll('.ai-action-checkbox').forEach(cb => {
+                        cb.checked = this.state.allowedActions.includes(cb.value);
+                    });
 
                     this.handleAiToggle();
                     this.ui.renderAll(this.state);
@@ -1309,21 +1303,24 @@
 
                 handleAiToggle() {
                     if (this.elements.aiEnabledCheckbox) {
-                        this.state.aiRiskAssessmentEnabled = this.elements.aiEnabledCheckbox.checked;
+                        this.state.aiActionEnabled = this.elements.aiEnabledCheckbox.checked;
                     }
-                    if (this.elements.trustScoreContainer) {
-                        this.elements.trustScoreContainer.classList.toggle('hidden', !this.state.aiRiskAssessmentEnabled);
+                    if (this.elements.aiActionContainer) {
+                        this.elements.aiActionContainer.classList.toggle('hidden', !this.state.aiActionEnabled);
+                    }
+                    if (!this.state.aiActionEnabled) {
+                        this.state.allowedActions = [];
+                        document.querySelectorAll('.ai-action-checkbox').forEach(cb => cb.checked = false);
                     }
                     this.ui.updatePreview(this.state);
                 }
 
-                handleTrustSlider() {
-                    if (this.elements.trustScoreSlider) {
-                        this.state.requiredTrustScore = this.elements.trustScoreSlider.value / 100.0;
-                        if (this.elements.trustScoreValueSpan) {
-                            this.elements.trustScoreValueSpan.textContent = this.elements.trustScoreSlider.value;
-                        }
-                    }
+                handleAiActionChange() {
+                    const checked = [];
+                    document.querySelectorAll('.ai-action-checkbox:checked').forEach(cb => {
+                        checked.push(cb.value);
+                    });
+                    this.state.allowedActions = checked;
                     this.ui.updatePreview(this.state);
                 }
 
@@ -1549,18 +1546,13 @@
                         this.elements.customSpelInput.value = '';
                     }
 
-                    this.state.aiRiskAssessmentEnabled = false;
-                    this.state.requiredTrustScore = 0.7;
+                    this.state.aiActionEnabled = false;
+                    this.state.allowedActions = [];
 
                     if (this.elements.aiEnabledCheckbox) {
                         this.elements.aiEnabledCheckbox.checked = false;
                     }
-                    if (this.elements.trustScoreSlider) {
-                        this.elements.trustScoreSlider.value = 70;
-                    }
-                    if (this.elements.trustScoreValueSpan) {
-                        this.elements.trustScoreValueSpan.textContent = '70';
-                    }
+                    document.querySelectorAll('.ai-action-checkbox').forEach(cb => cb.checked = false);
 
                     const thoughtContainer = document.getElementById('ai-thought-process-container');
                     if (thoughtContainer) {

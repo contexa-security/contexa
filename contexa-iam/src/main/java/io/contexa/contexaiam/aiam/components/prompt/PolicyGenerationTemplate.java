@@ -67,7 +67,7 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
             자연어 요구사항을 기반으로 다음을 포함한 보안 정책을 생성합니다:
             - 역할 할당 및 권한 매핑
             - 조건 구성
-            - AI 기반 위험 평가 설정
+            - AI 기반 액션 평가 설정 (allowedActions: ALLOW, CHALLENGE, ESCALATE, BLOCK)
             - 컴플라이언스 검증
 
             **필수 규칙:**
@@ -99,9 +99,6 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
                   "301": ["true"],
                   "302": ["192.168.1.0/24"]
                 },
-                "aiRiskAssessmentEnabled": true,
-                "requiredTrustScore": 0.8,
-                "customConditionSpel": null
               },
               "roleIdToNameMap": {
                 "101": "Team Manager",
@@ -114,20 +111,6 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
               "conditionIdToNameMap": {
                 "301": "Within Business Hours",
                 "302": "Internal Network"
-              },
-              "recommendedActions": [
-                {
-                  "priority": "MEDIUM",
-                  "action": "Secondary review of the generated policy is recommended.",
-                  "reason": "High complexity due to combination of multiple roles and conditions."
-                }
-              ],
-              "policyScore": 92.5,
-              "securityLevel": "Strong",
-              "complianceCheck": {
-                "gdprCompliant": true,
-                "iso27001Compliant": true,
-                "zeroTrustCompliant": true
               },
               "generatedAt": "2023-10-27T10:00:00Z",
               "version": "1.0.0"

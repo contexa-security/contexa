@@ -111,7 +111,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             case "STANDARD":
             default:
 
-                CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, mi);
+                CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, stringRedisTemplate, mi);
                 customRoot.setOwnerField(ownerField);
                 customRoot.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
                 root = customRoot;

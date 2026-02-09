@@ -10,11 +10,10 @@ import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionOperations;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
@@ -36,8 +35,10 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     public CustomMethodSecurityExpressionRoot(Authentication authentication,
                                               AuthorizationContext authorizationContext,
-                                              AuditLogRepository auditLogRepository, MethodInvocation mi) {
-        super(authentication, authorizationContext, auditLogRepository);
+                                              AuditLogRepository auditLogRepository,
+                                              StringRedisTemplate stringRedisTemplate,
+                                              MethodInvocation mi) {
+        super(authentication, authorizationContext, auditLogRepository, stringRedisTemplate);
         this.invocation = mi;
     }
 
@@ -85,12 +86,12 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
             boolean isOwner = currentUsername.equals(ownerValue.toString());
             if (!isOwner) {
-                log.warn("🚫 객체 기반 소유자 확인 실패 - user: {}, owner: {}", currentUsername, ownerValue);
+                log.error("Ownership verification failed - user: {}, owner: {}", currentUsername, ownerValue);
             }
 
             return isOwner;
         } catch (Exception e) {
-            log.error("객체 기반 소유자 확인 오류: {}", e.getMessage());
+            log.error("Object-based ownership check error: {}", e.getMessage());
             return false;
         }
     }
@@ -104,7 +105,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             return checkOwnership(entity);
 
         } catch (Exception e) {
-            log.error("ID 기반 소유자 확인 오류: {}", e.getMessage());
+            log.error("ID-based ownership check error: {}", e.getMessage());
             return false;
         }
     }
@@ -119,7 +120,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
                 default -> findEntityByDynamicRepository(targetId, targetType);
             };
         } catch (Exception e) {
-            log.warn("엔티티 조회 실패: targetId={}, targetType={}", targetId, targetType, e);
+            log.error("Entity lookup failed: targetId={}, targetType={}", targetId, targetType, e);
             return null;
         }
     }
@@ -180,11 +181,4 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         return this.target;
     }
 
-    @Override
-    protected String getCurrentAction() {
-        if (this.invocation != null && this.invocation.getMethod() != null) {
-            return this.invocation.getMethod().getName();
-        }
-        return "UNKNOWN";
-    }
 }
