@@ -28,7 +28,7 @@ public class WizardSession {
     private String contextData;
 
     @Column(nullable = false)
-    private Long ownerUserId;
+    private String ownerUserId;
 
     @Column(nullable = false)
     private LocalDateTime createdAt;
@@ -36,7 +36,7 @@ public class WizardSession {
     @Column(nullable = false)
     private LocalDateTime expiresAt;
 
-    public static WizardSession create(String id, String contextData, Long ownerUserId, int expirationMinutes) {
+    public static WizardSession create(String id, String contextData, String ownerUserId, int expirationMinutes) {
         WizardSession session = new WizardSession();
         session.setId(id);
         session.setContextData(contextData);

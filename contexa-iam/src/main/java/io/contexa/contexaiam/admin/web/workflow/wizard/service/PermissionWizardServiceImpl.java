@@ -110,9 +110,7 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
         if (CollectionUtils.isEmpty(selectedRoleIds) || CollectionUtils.isEmpty(permissionIds)) {
             throw new IllegalStateException("역할과 권한이 반드시 선택되어야 합니다.");
         }
-
         Long permissionIdToAdd = permissionIds.iterator().next();
-
         for (Long roleId : selectedRoleIds) {
             Role role = roleService.getRole(roleId);
 
@@ -127,28 +125,15 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
                 roleService.updateRole(role, newPermissionIds);
             }
         }
-
         userContextService.clearWizardProgress(contextId);
     }
 
-    private Long getCurrentUserId() {
+    private String getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
             log.warn("No authenticated user found.");
             return null;
         }
-
-        Object principal = authentication.getPrincipal();
-
-        if (principal instanceof UnifiedCustomUserDetails userDetails) {
-            return userDetails.getAccount().getId();  
-        } else if (principal instanceof Users user) {
-            return user.getId();
-        } else if (principal instanceof UserDto userDto) {
-            return userDto.getId(); 
-        }
-
-        log.warn("Principal is not an instance of a recognized user type. Principal type: {}. Returning null.", principal.getClass().getName());
-        return null;
+        return authentication.getName();
     }
 }

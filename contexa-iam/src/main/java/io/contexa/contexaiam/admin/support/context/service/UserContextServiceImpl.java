@@ -26,7 +26,7 @@ public class UserContextServiceImpl implements UserContextService {
 
     @Override
     @Transactional
-    public void saveWizardProgress(String userSessionId, Long ownerUserId, WizardContext context) {
+    public void saveWizardProgress(String userSessionId, String ownerUserId, WizardContext context) {
         try {
             String contextAsJson = objectMapper.writeValueAsString(context);
             WizardSession session = WizardSession.create(userSessionId, contextAsJson, ownerUserId, 60);

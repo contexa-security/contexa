@@ -20,7 +20,6 @@ public class UserDto implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    
     private Long id;
     private String username;
     private String password;
@@ -31,16 +30,10 @@ public class UserDto implements Serializable {
     private LocalDateTime lastMfaUsedAt;
     private String preferredMfaFactor;
     private String lastUsedMfaFactor;
-
-    
     private Collection<? extends GrantedAuthority> authorities;
-
-    
     private java.util.List<String> roles;
     private java.util.List<String> permissions;
     private java.util.List<Long> selectedGroupIds;
-
-    
     private Double trustScore;
     private String trustTier;
     private Map<String, Object> trustMetadata;

@@ -22,7 +22,10 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.springframework.stereotype.Controller;
 
@@ -91,6 +94,28 @@ public class PolicyWizardController {
         model.addAttribute("allPermissions", permissionCatalogService.getAvailablePermissions());
         model.addAttribute("activePage", "policy-wizard");
         return "admin/policy-wizard";
+    }
+
+    @GetMapping("/{contextId}/available-permissions")
+    @ResponseBody
+    public ResponseEntity<List<PermissionDto>> getAvailablePermissions(
+            @PathVariable String contextId,
+            @RequestParam List<Long> roleIds) {
+
+        List<PermissionDto> allPermissions = permissionCatalogService.getAvailablePermissions();
+
+        Set<Long> existingPermissionIds = new HashSet<>();
+        for (Long roleId : roleIds) {
+            roleService.getRole(roleId).getRolePermissions().stream()
+                    .map(rp -> rp.getPermission().getId())
+                    .forEach(existingPermissionIds::add);
+        }
+
+        List<PermissionDto> filtered = allPermissions.stream()
+                .filter(p -> !existingPermissionIds.contains(p.getId()))
+                .toList();
+
+        return ResponseEntity.ok(filtered);
     }
 
     @PostMapping("/{contextId}/subjects")

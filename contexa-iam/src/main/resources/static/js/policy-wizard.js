@@ -137,9 +137,10 @@ class WizardApi {
             throw error;
         }
     }
-    // 이 API는 더 이상 사용되지 않음. commit 시 모든 정보를 한번에 전달.
-    // saveSubjects(data) { return this.fetchApi('/subjects', { body: JSON.stringify(data) }); }
-    // savePermissions(data) { return this.fetchApi('/permissions', { body: JSON.stringify(data) }); }
+    getFilteredPermissions(roleIds) {
+        const params = roleIds.map(id => `roleIds=${id}`).join('&');
+        return this.fetchApi(`/available-permissions?${params}`, { method: 'GET' });
+    }
     commitPolicy(data) { return this.fetchApi('/commit', { body: JSON.stringify(data) }); }
 }
 
@@ -165,16 +166,19 @@ class PolicyWizardApp {
         if (this.ui.elements.commitBtn) this.ui.elements.commitBtn.addEventListener('click', () => this.handleCommit());
     }
 
-    handleNextStep() {
+    async handleNextStep() {
         if (this.state.currentStep >= this.state.totalSteps) return;
 
         // Step 1에서 유효성 검사
         if (this.state.currentStep === 1 && !this.state.isPermissionPreselected) {
-            const selectedRoleIds = document.querySelectorAll('input[name="selectedRoleIds"]:checked');
-            if (selectedRoleIds.length === 0) {
+            const selectedRoleChecks = document.querySelectorAll('input[name="selectedRoleIds"]:checked');
+            if (selectedRoleChecks.length === 0) {
                 showToast('하나 이상의 역할을 선택해야 합니다.', 'error');
                 return;
             }
+            // Step 2로 이동 전, 선택된 역할에 이미 등록된 권한을 제외한 목록 로드
+            const roleIds = Array.from(selectedRoleChecks).map(chk => Number(chk.value));
+            await this.loadFilteredPermissions(roleIds);
         }
         // Step 2에서 유효성 검사 (isPermissionPreselected가 false일 때만 실행됨)
         else if (this.state.currentStep === 2) {
@@ -191,6 +195,35 @@ class PolicyWizardApp {
             this.ui.generateReviewSummary();
         }
         this.ui.updateView(this.state);
+    }
+
+    async loadFilteredPermissions(roleIds) {
+        try {
+            const permissions = await this.api.getFilteredPermissions(roleIds);
+            this.renderPermissionList(permissions);
+        } catch (error) {
+            showToast('권한 목록을 불러오는데 실패했습니다.', 'error');
+        }
+    }
+
+    renderPermissionList(permissions) {
+        const container = document.getElementById('permission-list-container');
+        if (!container) return;
+
+        if (permissions.length === 0) {
+            container.innerHTML = '<p class="text-center py-8" style="color: #94a3b8;">선택된 역할에 추가할 수 있는 권한이 없습니다.</p>';
+            return;
+        }
+
+        container.innerHTML = permissions.map(perm => `
+            <div class="flex items-start p-3 permission-item rounded-lg shadow-sm">
+                <input type="checkbox" name="permissions" id="perm-${perm.id}" value="${perm.id}" class="h-5 w-5 mt-1">
+                <label for="perm-${perm.id}" class="ml-4 flex-1 cursor-pointer">
+                    <p class="font-semibold" style="color: #e2e8f0;">${perm.friendlyName || perm.name}</p>
+                    <p class="text-xs font-mono" style="color: #94a3b8;">(ID: ${perm.name})</p>
+                </label>
+            </div>
+        `).join('');
     }
 
     handlePrevStep() {

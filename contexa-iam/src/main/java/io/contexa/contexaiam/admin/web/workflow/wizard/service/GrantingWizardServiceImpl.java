@@ -12,7 +12,6 @@ import io.contexa.contexaiam.admin.web.workflow.wizard.dto.AssignmentChangeDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.InitiateManagementRequestDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.VirtualSubject;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.WizardContext;
-import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.GroupRepository;
@@ -63,7 +62,7 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
                 .initialAssignmentIds(initialAssignmentIds)
                 .build();
 
-        Long adminUserId = getCurrentAdminId();
+        String adminUserId = getCurrentAdminId();
         userContextService.saveWizardProgress(contextId, adminUserId, initialContext);
 
         return new WizardInitiationDto(contextId, "/admin/granting-wizard/" + contextId);
@@ -182,17 +181,12 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
         return "알 수 없는 주체";
     }
 
-    private Long getCurrentAdminId() {
+    private String getCurrentAdminId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
-            log.warn("인증된 관리자 사용자를 찾을 수 없습니다. (No authenticated admin user found)");
-            throw new AuthenticationCredentialsNotFoundException("관리자 ID를 확인할 수 없습니다. 세션이 만료되었거나 비정상적인 접근입니다.");
+            throw new AuthenticationCredentialsNotFoundException("Cannot determine admin ID. Session may have expired or unauthorized access.");
         }
 
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof UnifiedCustomUserDetails userDetails) return userDetails.getAccount().getId();
-        if (principal instanceof UserDto userDto) return userDto.getId();
-        if (principal instanceof Users user) return user.getId();
-        throw new IllegalStateException("Cannot determine admin user ID from principal of type: " + principal.getClass().getName());
+        return authentication.getName();
     }
 }

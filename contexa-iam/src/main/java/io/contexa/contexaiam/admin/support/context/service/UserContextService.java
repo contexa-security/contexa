@@ -6,7 +6,7 @@ import java.util.List;
 
 public interface UserContextService {
 
-    void saveWizardProgress(String userSessionId, Long ownerUserId, WizardContext context);
+    void saveWizardProgress(String userSessionId, String ownerUserId, WizardContext context);
 
     WizardContext getWizardProgress(String userSessionId);
 
