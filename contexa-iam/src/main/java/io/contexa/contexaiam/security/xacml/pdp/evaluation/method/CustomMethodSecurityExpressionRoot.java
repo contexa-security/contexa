@@ -1,16 +1,12 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
-import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacommon.domain.UserDto;
-import io.contexa.contexaiam.repository.DocumentRepository;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
-import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
-import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
-import lombok.Setter;
+import io.contexa.contexaiam.repository.DocumentRepository;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
+import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.ApplicationContext;
