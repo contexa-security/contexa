@@ -26,7 +26,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
     @Override
     protected SoarResponse doProcess(SoarRequest request) throws Exception {
         
-        PipelineConfiguration<SoarContext> config = createPipelineConfiguration(request);
+        PipelineConfiguration config = createPipelineConfiguration(request);
 
         AIRequest<SoarContext> aiRequest = new AIRequest<>(request.getContext(), new TemplateType("Soar"), new DiagnosisType("Soar"))
                 .withParameter("query", request.getQuery())
@@ -38,7 +38,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
     @Override
     protected Mono<SoarResponse> doProcessAsync(SoarRequest request) {
         
-        PipelineConfiguration<SoarContext> config = createPipelineConfiguration(request);
+        PipelineConfiguration config = createPipelineConfiguration(request);
 
         return orchestrator.execute(request, config, SoarResponse.class)
                 .cast(SoarResponse.class)
@@ -51,7 +51,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
         return Flux.defer(() -> {
             try {
                 
-                PipelineConfiguration<SoarContext> config = createPipelineConfiguration(request);
+                PipelineConfiguration config = createPipelineConfiguration(request);
 
                 return orchestrator.executeStream(request, config)
                         .cast(String.class)

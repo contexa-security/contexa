@@ -22,24 +22,21 @@ public class SecurityPromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;
     private final TieredStrategyProperties tieredStrategyProperties;
-    
     private final BaselineLearningService baselineLearningService;
 
-    @Autowired
     public SecurityPromptTemplate(
-            @Autowired(required = false) SecurityEventEnricher eventEnricher,
-            @Autowired(required = false) TieredStrategyProperties tieredStrategyProperties,
-            @Autowired(required = false) BaselineLearningService baselineLearningService) {
+            SecurityEventEnricher eventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
+            BaselineLearningService baselineLearningService) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
-        this.tieredStrategyProperties = tieredStrategyProperties != null
-            ? tieredStrategyProperties : new TieredStrategyProperties();
+        this.tieredStrategyProperties = tieredStrategyProperties != null ? tieredStrategyProperties : new TieredStrategyProperties();
         this.baselineLearningService = baselineLearningService;
     }
 
     public String buildPrompt(SecurityEvent event,
-                               SessionContext sessionContext,
-                               BehaviorAnalysis behaviorAnalysis,
-                               List<Document> relatedDocuments) {
+                              SessionContext sessionContext,
+                              BehaviorAnalysis behaviorAnalysis,
+                              List<Document> relatedDocuments) {
 
         Optional<String> decodedPayload = eventEnricher.getDecodedPayload(event);
 
@@ -89,7 +86,7 @@ public class SecurityPromptTemplate {
                 Object docUserId = docMetadata.get("userId");
                 if (docUserId != null && !userId.equals(docUserId.toString())) {
                     filteredDocs++;
-                                        continue;  
+                    continue;
                 }
             }
 
@@ -102,8 +99,8 @@ public class SecurityPromptTemplate {
                 String docMeta = buildDocumentMetadata(doc, addedDocs + 1);
                 int maxLength = tieredStrategyProperties.getTruncation().getLayer1().getRagDocument();
                 String truncatedContent = content.length() > maxLength
-                    ? content.substring(0, maxLength) + "..."
-                    : content;
+                        ? content.substring(0, maxLength) + "..."
+                        : content;
 
                 relatedContextBuilder.append(docMeta).append(" ").append(truncatedContent);
 
@@ -135,7 +132,7 @@ public class SecurityPromptTemplate {
                 Object requestPath = docMetadata.get("requestPath");
                 if (requestPath != null && !requestPath.toString().isEmpty()) {
                     String pathStr = requestPath.toString();
-                    
+
                     int secondSlash = pathStr.indexOf('/', 1);
                     int thirdSlash = secondSlash > 0 ? pathStr.indexOf('/', secondSlash + 1) : -1;
                     if (thirdSlash > 0) {
@@ -152,7 +149,7 @@ public class SecurityPromptTemplate {
         if (userId != null && baselineLearningService != null) {
             BaselineVector baseline = baselineLearningService.getBaseline(userId);
             if (baseline != null) {
-                
+
                 if (baseline.getNormalIpRanges() != null) {
                     for (String ip : baseline.getNormalIpRanges()) {
                         if (ip != null && !ip.isEmpty()) {
@@ -160,7 +157,7 @@ public class SecurityPromptTemplate {
                         }
                     }
                 }
-                
+
                 if (baseline.getNormalAccessHours() != null) {
                     for (Integer hour : baseline.getNormalAccessHours()) {
                         if (hour != null) {
@@ -168,7 +165,7 @@ public class SecurityPromptTemplate {
                         }
                     }
                 }
-                
+
                 if (baseline.getNormalUserAgents() != null) {
                     for (String ua : baseline.getNormalUserAgents()) {
                         if (ua != null && !ua.isEmpty()) {
@@ -176,7 +173,7 @@ public class SecurityPromptTemplate {
                         }
                     }
                 }
-                
+
                 if (baseline.getFrequentPaths() != null) {
                     for (String path : baseline.getFrequentPaths()) {
                         if (path != null && !path.isEmpty()) {
@@ -184,7 +181,7 @@ public class SecurityPromptTemplate {
                         }
                     }
                 }
-                
+
                 if (baseline.getNormalOperatingSystems() != null) {
                     for (String os : baseline.getNormalOperatingSystems()) {
                         if (os != null && !os.isEmpty()) {
@@ -192,21 +189,21 @@ public class SecurityPromptTemplate {
                         }
                     }
                 }
-                            }
+            }
         }
 
         if (filteredDocs > 0) {
-                    }
+        }
         boolean hasRelatedDocs = relatedContextBuilder.length() > 0;
         String relatedContext = hasRelatedDocs ? relatedContextBuilder.toString() : null;
 
         StringBuilder prompt = new StringBuilder();
         prompt.append("""
-            You are a Zero Trust security analyst AI.
-            Analyze the security context and respond with ONLY a JSON object.
-            No explanation, no markdown.
-
-            """);
+                You are a Zero Trust security analyst AI.
+                Analyze the security context and respond with ONLY a JSON object.
+                No explanation, no markdown.
+                
+                """);
 
         prompt.append("=== EVENT ===\n");
         if (isValidData(event.getEventId())) {
@@ -227,7 +224,7 @@ public class SecurityPromptTemplate {
             if (httpMethod != null && !httpMethod.toString().isEmpty()) {
                 prompt.append("HttpMethod: ").append(httpMethod).append("\n");
             }
-            
+
             appendMetadataIfPresent(prompt, metadataObj, "auth.failure_count", "FailureCount");
         }
 
@@ -238,10 +235,10 @@ public class SecurityPromptTemplate {
 
         String currentOS = extractOSFromUserAgent(event.getUserAgent());
         String currentIP = normalizeIP(event.getSourceIp());
-        
+
         String currentHour = event.getTimestamp() != null
-            ? String.valueOf(event.getTimestamp().getHour())
-            : null;
+                ? String.valueOf(event.getTimestamp().getHour())
+                : null;
         String currentUA = extractUASignature(event.getUserAgent());
 
         prompt.append("\n=== CURRENT REQUEST ===\n");
@@ -288,7 +285,7 @@ public class SecurityPromptTemplate {
 
         prompt.append("\n=== SESSION ===\n");
         if (sessionContext != null) {
-            
+
             Integer sessionAge = sessionContext.getSessionAgeMinutes();
             if (sessionAge != null) {
                 prompt.append("SessionAge: ").append(sessionAge).append(" minutes\n");
@@ -306,7 +303,7 @@ public class SecurityPromptTemplate {
 
             appendZeroTrustSignals(prompt, event, behaviorAnalysis, baselineStatus);
         } else {
-            
+
             prompt.append("Session context not available (see DATA AVAILABILITY)\n");
         }
 
@@ -320,7 +317,7 @@ public class SecurityPromptTemplate {
                 prompt.append("Previous OS: ").append(previousSessionOS).append("\n");
                 prompt.append("Current OS: ").append(currentSessionOS).append("\n");
                 prompt.append("OS Transition: ").append(previousSessionOS).append(" -> ").append(currentSessionOS).append("\n");
-                
+
             }
         }
 
@@ -336,11 +333,11 @@ public class SecurityPromptTemplate {
                     prompt.append("  ").append(i + 1).append(". ").append(sanitizedEvent).append("\n");
                 }
             } else {
-                
+
                 prompt.append("No similar events in history (see DATA AVAILABILITY)\n");
             }
         } else {
-            
+
             prompt.append("Behavior analysis not available (see DATA AVAILABILITY)\n");
         }
 
@@ -350,7 +347,7 @@ public class SecurityPromptTemplate {
             String sanitizedContext = PromptTemplateUtils.sanitizeUserInput(relatedContext);
             prompt.append(sanitizedContext).append("\n");
         } else {
-            
+
             prompt.append("No related context found (see DATA AVAILABILITY)\n");
         }
 
@@ -359,21 +356,21 @@ public class SecurityPromptTemplate {
         }
 
         prompt.append("""
-
-            === DECISION ===
-
-            RESPOND WITH JSON ONLY:
-            {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
-
-            ACTIONS:
-            - ALLOW: Consistent with known patterns (low risk)
-            - CHALLENGE: Needs verification (moderate risk)
-            - BLOCK: Unauthorized access indicators (high risk)
-            - ESCALATE: Requires human review (critical risk)
-
-            MITRE (if applicable): T1078, T1110, T1185
-
-            """);
+                
+                === DECISION ===
+                
+                RESPOND WITH JSON ONLY:
+                {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
+                
+                ACTIONS:
+                - ALLOW: Consistent with known patterns (low risk)
+                - CHALLENGE: Needs verification (moderate risk)
+                - BLOCK: Unauthorized access indicators (high risk)
+                - ESCALATE: Requires human review (critical risk)
+                
+                MITRE (if applicable): T1078, T1110, T1185
+                
+                """);
 
         return prompt.toString();
     }
@@ -571,10 +568,10 @@ public class SecurityPromptTemplate {
         String trimmed = ip.trim().toLowerCase();
 
         if (trimmed.equals("loopback") ||
-            trimmed.equals("::1") ||
-            trimmed.equals("0:0:0:0:0:0:0:1") ||
-            trimmed.equals("127.0.0.1") ||
-            trimmed.equals("localhost")) {
+                trimmed.equals("::1") ||
+                trimmed.equals("0:0:0:0:0:0:0:1") ||
+                trimmed.equals("127.0.0.1") ||
+                trimmed.equals("localhost")) {
             return "loopback";
         }
 
@@ -594,7 +591,7 @@ public class SecurityPromptTemplate {
     }
 
     private BaselineStatus determineBaselineStatus(BehaviorAnalysis behaviorAnalysis, String baselineContext) {
-        
+
         if (behaviorAnalysis == null) {
             return BaselineStatus.ANALYSIS_UNAVAILABLE;
         }
@@ -617,7 +614,7 @@ public class SecurityPromptTemplate {
         }
 
         if (baselineContext != null &&
-            (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
+                (baselineContext.contains("CRITICAL") || baselineContext.contains("NO USER BASELINE"))) {
             return BaselineStatus.NEW_USER;
         }
 
@@ -633,17 +630,17 @@ public class SecurityPromptTemplate {
             return false;
         }
         if (baseline.startsWith("[SERVICE_UNAVAILABLE]") ||
-            baseline.startsWith("[NO_USER_ID]") ||
-            baseline.startsWith("[NO_DATA]")) {
+                baseline.startsWith("[NO_USER_ID]") ||
+                baseline.startsWith("[NO_DATA]")) {
             return false;
         }
         if (baseline.contains("CRITICAL") || baseline.contains("NO USER BASELINE") ||
-            baseline.contains("[NEW_USER]")) {
+                baseline.contains("[NEW_USER]")) {
             return false;
         }
         return !baseline.equalsIgnoreCase("Not available")
-            && !baseline.equalsIgnoreCase("none")
-            && !baseline.equalsIgnoreCase("N/A");
+                && !baseline.equalsIgnoreCase("none")
+                && !baseline.equalsIgnoreCase("N/A");
     }
 
     private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
@@ -737,13 +734,13 @@ public class SecurityPromptTemplate {
         }
 
         for (String knownPath : knownPaths) {
-            
+
             if (currentPath.equals(knownPath)) {
                 return true;
             }
 
             if (knownPath.endsWith("/*")) {
-                String prefix = knownPath.substring(0, knownPath.length() - 1); 
+                String prefix = knownPath.substring(0, knownPath.length() - 1);
                 if (currentPath.startsWith(prefix)) {
                     return true;
                 }
@@ -763,26 +760,56 @@ public class SecurityPromptTemplate {
         private String authMethod;
         private List<String> recentActions;
 
-        private Integer sessionAgeMinutes;    
-        private Integer requestCount;         
+        private Integer sessionAgeMinutes;
+        private Integer requestCount;
 
-        public String getSessionId() { return sessionId; }
-        public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+        public String getSessionId() {
+            return sessionId;
+        }
 
-        public String getUserId() { return userId; }
-        public void setUserId(String userId) { this.userId = userId; }
+        public void setSessionId(String sessionId) {
+            this.sessionId = sessionId;
+        }
 
-        public String getAuthMethod() { return authMethod; }
-        public void setAuthMethod(String authMethod) { this.authMethod = authMethod; }
+        public String getUserId() {
+            return userId;
+        }
 
-        public List<String> getRecentActions() { return recentActions != null ? recentActions : List.of(); }
-        public void setRecentActions(List<String> recentActions) { this.recentActions = recentActions; }
+        public void setUserId(String userId) {
+            this.userId = userId;
+        }
 
-        public Integer getSessionAgeMinutes() { return sessionAgeMinutes; }
-        public void setSessionAgeMinutes(Integer sessionAgeMinutes) { this.sessionAgeMinutes = sessionAgeMinutes; }
+        public String getAuthMethod() {
+            return authMethod;
+        }
 
-        public Integer getRequestCount() { return requestCount; }
-        public void setRequestCount(Integer requestCount) { this.requestCount = requestCount; }
+        public void setAuthMethod(String authMethod) {
+            this.authMethod = authMethod;
+        }
+
+        public List<String> getRecentActions() {
+            return recentActions != null ? recentActions : List.of();
+        }
+
+        public void setRecentActions(List<String> recentActions) {
+            this.recentActions = recentActions;
+        }
+
+        public Integer getSessionAgeMinutes() {
+            return sessionAgeMinutes;
+        }
+
+        public void setSessionAgeMinutes(Integer sessionAgeMinutes) {
+            this.sessionAgeMinutes = sessionAgeMinutes;
+        }
+
+        public Integer getRequestCount() {
+            return requestCount;
+        }
+
+        public void setRequestCount(Integer requestCount) {
+            this.requestCount = requestCount;
+        }
     }
 
     public static class BehaviorAnalysis {
@@ -797,28 +824,68 @@ public class SecurityPromptTemplate {
         private String previousUserAgentOS;
         private String currentUserAgentOS;
 
-        public List<String> getSimilarEvents() { return similarEvents != null ? similarEvents : List.of(); }
-        public void setSimilarEvents(List<String> events) { this.similarEvents = events; }
+        public List<String> getSimilarEvents() {
+            return similarEvents != null ? similarEvents : List.of();
+        }
 
-        public String getBaselineContext() { return baselineContext; }
-        public void setBaselineContext(String baselineContext) { this.baselineContext = baselineContext; }
+        public void setSimilarEvents(List<String> events) {
+            this.similarEvents = events;
+        }
 
-        public boolean isBaselineEstablished() { return baselineEstablished; }
-        public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
+        public String getBaselineContext() {
+            return baselineContext;
+        }
 
-        public Boolean getIsNewUser() { return isNewUser; }
-        public void setIsNewUser(Boolean isNewUser) { this.isNewUser = isNewUser; }
+        public void setBaselineContext(String baselineContext) {
+            this.baselineContext = baselineContext;
+        }
 
-        public Boolean getIsNewSession() { return isNewSession; }
-        public void setIsNewSession(Boolean isNewSession) { this.isNewSession = isNewSession; }
+        public boolean isBaselineEstablished() {
+            return baselineEstablished;
+        }
 
-        public Boolean getIsNewDevice() { return isNewDevice; }
-        public void setIsNewDevice(Boolean isNewDevice) { this.isNewDevice = isNewDevice; }
+        public void setBaselineEstablished(boolean baselineEstablished) {
+            this.baselineEstablished = baselineEstablished;
+        }
 
-        public String getPreviousUserAgentOS() { return previousUserAgentOS; }
-        public void setPreviousUserAgentOS(String previousUserAgentOS) { this.previousUserAgentOS = previousUserAgentOS; }
+        public Boolean getIsNewUser() {
+            return isNewUser;
+        }
 
-        public String getCurrentUserAgentOS() { return currentUserAgentOS; }
-        public void setCurrentUserAgentOS(String currentUserAgentOS) { this.currentUserAgentOS = currentUserAgentOS; }
+        public void setIsNewUser(Boolean isNewUser) {
+            this.isNewUser = isNewUser;
+        }
+
+        public Boolean getIsNewSession() {
+            return isNewSession;
+        }
+
+        public void setIsNewSession(Boolean isNewSession) {
+            this.isNewSession = isNewSession;
+        }
+
+        public Boolean getIsNewDevice() {
+            return isNewDevice;
+        }
+
+        public void setIsNewDevice(Boolean isNewDevice) {
+            this.isNewDevice = isNewDevice;
+        }
+
+        public String getPreviousUserAgentOS() {
+            return previousUserAgentOS;
+        }
+
+        public void setPreviousUserAgentOS(String previousUserAgentOS) {
+            this.previousUserAgentOS = previousUserAgentOS;
+        }
+
+        public String getCurrentUserAgentOS() {
+            return currentUserAgentOS;
+        }
+
+        public void setCurrentUserAgentOS(String currentUserAgentOS) {
+            this.currentUserAgentOS = currentUserAgentOS;
+        }
     }
 }

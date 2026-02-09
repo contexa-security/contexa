@@ -66,7 +66,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     @Override
     public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
             AIRequest<T> request,
-            PipelineConfiguration<T> configuration,
+            PipelineConfiguration configuration,
             Class<R> responseType) {
 
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
@@ -80,7 +80,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     }
 
     @Override
-    public <T extends DomainContext> Flux<String> executeStream(AIRequest<T> request, PipelineConfiguration<T> configuration) {
+    public <T extends DomainContext> Flux<String> executeStream(AIRequest<T> request, PipelineConfiguration configuration) {
         PipelineExecutionContext context = new PipelineExecutionContext(request.getRequestId());
         boolean isSoar = request.getContext() instanceof SoarContext;
 
@@ -98,7 +98,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
     private <T extends DomainContext, R extends AIResponse> Mono<PipelineExecutionContext> executeStepsSequentially(
             AIRequest<T> request,
-            PipelineConfiguration<T> configuration,
+            PipelineConfiguration configuration,
             PipelineExecutionContext context,
             Class<R> responseType) {
 
@@ -135,7 +135,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
      */
     protected <T extends DomainContext> Mono<PipelineExecutionContext> executeStepsWithConfig(
             AIRequest<T> request,
-            PipelineConfiguration<T> configuration,
+            PipelineConfiguration configuration,
             PipelineExecutionContext context,
             List<PipelineStep> stepsToExecute,
             boolean isSoar,
@@ -170,7 +170,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
 
     private <T extends DomainContext> Mono<PipelineExecutionContext> executePreStreamingSteps(
             AIRequest<T> request,
-            PipelineConfiguration<T> configuration,
+            PipelineConfiguration configuration,
             PipelineExecutionContext context,
             boolean isSoar) {
 
@@ -211,7 +211,7 @@ public class UniversalPipelineExecutor implements PipelineExecutor {
     }
 
     @Override
-    public <T extends DomainContext> boolean supportsConfiguration(PipelineConfiguration<T> configuration) {
+    public <T extends DomainContext> boolean supportsConfiguration(PipelineConfiguration configuration) {
         return SUPPORTED_STEPS.containsAll(configuration.getSteps());
     }
 

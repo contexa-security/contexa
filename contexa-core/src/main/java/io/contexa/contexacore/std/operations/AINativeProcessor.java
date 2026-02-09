@@ -37,10 +37,10 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
 
     @Override
     public <R extends AIResponse> Mono<R> process(AIRequest<T> request, Class<R> responseType) {
-        return executeWithAuditAsync(request, responseType);
+        return doProcess(request, responseType);
     }
 
-    private <R extends AIResponse> Mono<R> executeWithAuditAsync(AIRequest<T> request, Class<R> responseType) {
+    private <R extends AIResponse> Mono<R> doProcess(AIRequest<T> request, Class<R> responseType) {
         String strategyId = generateStrategyId(request, responseType);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 
@@ -54,9 +54,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     try {
                         String sessionId = sessionManager.createDistributedStrategySession(request, id);
                         String auditId = generateAuditId(request, id);
-                        return distributedStrategyExecutor.executeDistributedStrategyAsync(
-                                        request, responseType, sessionId, auditId
-                                )
+                        return distributedStrategyExecutor.executeDistributedStrategyAsync(request, responseType, sessionId)
                                 .doOnSuccess(result -> {
                                     sessionManager.completeDistributedExecution(sessionId, auditId, request, result, true);
                                 })
@@ -77,10 +75,10 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
 
     @Override
     public Flux<String> processStream(AIRequest<T> request) {
-        return executeStreamWithAudit(request);
+        return doProcessStream(request);
     }
 
-    private <R extends AIResponse> Flux<String> executeStreamWithAudit(AIRequest<T> request) {
+    private <R extends AIResponse> Flux<String> doProcessStream(AIRequest<T> request) {
         String strategyId = generateStrategyId(request, AIResponse.class);
         String lockKey = STRATEGIC_LOCK_PREFIX + strategyId;
 

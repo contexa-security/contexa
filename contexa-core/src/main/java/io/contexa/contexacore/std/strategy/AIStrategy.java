@@ -4,6 +4,7 @@ import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
+import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -21,10 +22,5 @@ public interface AIStrategy<T extends DomainContext, R extends AIResponse> {
 
     default boolean supportsStreaming() {
         return false;
-    }
-
-    default io.contexa.contexacore.std.pipeline.PipelineConfiguration<T> suggestPipelineConfiguration(
-            AIRequest<T> request) {
-        return null;
     }
 }

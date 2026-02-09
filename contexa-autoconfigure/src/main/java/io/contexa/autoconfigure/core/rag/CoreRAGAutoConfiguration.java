@@ -84,7 +84,7 @@ public class CoreRAGAutoConfiguration {
     public DistributedStrategyExecutor distributedStrategyExecutor(
             PipelineOrchestrator orchestrator,
             AIStrategyRegistry strategyRegistry) {
-        return new DistributedStrategyExecutor(orchestrator, strategyRegistry);
+        return new DistributedStrategyExecutor(strategyRegistry);
     }
 
     @Bean

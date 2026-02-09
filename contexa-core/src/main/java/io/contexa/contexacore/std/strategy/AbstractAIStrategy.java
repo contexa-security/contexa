@@ -154,7 +154,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
     }
 
     @Override
-    public final PipelineConfiguration<T> suggestPipelineConfiguration(AIRequest<T> request) {
+    public final PipelineConfiguration suggestPipelineConfiguration(AIRequest<T> request) {
         PipelineConfig config = getPipelineConfig();
         PipelineConfiguration.Builder<T> builder = PipelineConfiguration.builder();
         builder.addStep(PipelineStep.PREPROCESSING);

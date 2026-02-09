@@ -55,7 +55,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
     @Override
     public <T extends DomainContext> Flux<String> executeStream(
             AIRequest<T> request,
-            PipelineConfiguration<T> configuration) {
+            PipelineConfiguration configuration) {
 
         return Flux.defer(() -> {
             StreamingPipelineExecutionContext context =
@@ -96,7 +96,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
     private <T extends DomainContext> Mono<Void> executeFullPipelineWithStreaming(
             AIRequest<T> request,
-            PipelineConfiguration<T> configuration,
+            PipelineConfiguration configuration,
             StreamingPipelineExecutionContext context,
             boolean isSoar) {
 

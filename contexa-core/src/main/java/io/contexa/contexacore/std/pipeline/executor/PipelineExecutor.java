@@ -11,16 +11,16 @@ public interface PipelineExecutor {
 
     <T extends DomainContext, R extends AIResponse> Mono<R> execute(
             AIRequest<T> request,
-            PipelineConfiguration<T> configuration,
+            PipelineConfiguration configuration,
             Class<R> responseType);
 
     <T extends DomainContext> Flux<String> executeStream(
             AIRequest<T> request, 
-            PipelineConfiguration<T> configuration);
+            PipelineConfiguration configuration);
 
     String getSupportedDomain();
 
-    <T extends DomainContext> boolean supportsConfiguration(PipelineConfiguration<T> configuration);
+    <T extends DomainContext> boolean supportsConfiguration(PipelineConfiguration configuration);
 
     default int getPriority() {
         return 100;
