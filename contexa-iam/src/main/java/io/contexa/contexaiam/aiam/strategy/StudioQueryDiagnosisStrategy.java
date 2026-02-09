@@ -6,7 +6,6 @@ import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
-import io.contexa.contexacore.std.strategy.PipelineConfig;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryLab;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.protocol.request.StudioQueryRequest;
@@ -14,10 +13,6 @@ import io.contexa.contexaiam.aiam.protocol.response.StudioQueryResponse;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQueryContext, StudioQueryResponse> {
@@ -93,11 +88,5 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
                 .doOnError(error -> {
                     log.error("스트리밍 Studio Query 진단 전략 실행 실패 - 요청: {}", request.getRequestId(), error);
                 });
-    }
-
-    @Override
-    protected PipelineConfig getPipelineConfig() {
-
-        return PipelineConfig.fullPipeline();
     }
 }

@@ -6,7 +6,6 @@ import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
-import io.contexa.contexacore.std.strategy.PipelineConfig;
 import io.contexa.contexaiam.aiam.labs.condition.ConditionTemplateGenerationLab;
 import io.contexa.contexaiam.aiam.protocol.context.ConditionTemplateContext;
 import io.contexa.contexaiam.aiam.protocol.request.ConditionTemplateGenerationRequest;
@@ -83,14 +82,5 @@ public class ConditionTemplateDiagnosisStrategy
         ConditionTemplateGenerationRequest conditionRequest = (ConditionTemplateGenerationRequest) labRequest;
 
         return conditionLab.processAsync(conditionRequest);
-    }
-
-    @Override
-    protected PipelineConfig getPipelineConfig() {
-        return PipelineConfig.builder()
-                .contextRetrieval(PipelineConfig.ContextRetrievalStrategy.OPTIONAL)
-                .postProcessing(PipelineConfig.PostProcessingStrategy.DYNAMIC)
-                .description("Condition template generation - fast response oriented")
-                .build();
     }
 }

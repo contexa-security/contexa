@@ -6,11 +6,9 @@ import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacore.std.strategy.AbstractAIStrategy;
 import io.contexa.contexacore.std.strategy.DiagnosisException;
-import io.contexa.contexacore.std.strategy.PipelineConfig;
 import io.contexa.contexaiam.aiam.labs.policy.AdvancedPolicyGenerationLab;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationRequest;
-import io.contexa.contexaiam.aiam.protocol.request.PolicyGenerationItem;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
@@ -83,10 +81,5 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
         PolicyGenerationRequest policyGenerationRequest = (PolicyGenerationRequest) labRequest;
 
         return policyGenerationLab.processStream(policyGenerationRequest);
-    }
-
-    @Override
-    protected PipelineConfig getPipelineConfig() {
-        return PipelineConfig.fullPipeline();
     }
 }

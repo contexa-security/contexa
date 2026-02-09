@@ -5,8 +5,6 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.std.labs.AILab;
 import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
-import io.contexa.contexacore.std.pipeline.PipelineConfiguration.PipelineStep;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -136,38 +134,28 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
     }
 
     protected abstract void validateRequest(AIRequest<T> request) throws DiagnosisException;
+
     protected abstract Class<?> getLabType();
+
     protected abstract Object convertLabRequest(AIRequest<T> request) throws DiagnosisException;
+
     protected abstract R processLabExecution(Object lab, Object labRequest, AIRequest<T> request) throws Exception;
+
     protected abstract Mono<R> processLabExecutionAsync(Object lab, Object labRequest, AIRequest<T> originRequest);
+
     protected Flux<String> processLabExecutionStream(Object lab, Object labRequest, AIRequest<T> request) {
         return Flux.error(new UnsupportedOperationException("스트리밍이 지원되지 않습니다"));
     }
+
     protected String getExecutionErrorMessage() {
         return getSupportedType().name() + " 진단 실행 중 오류 발생: ";
     }
+
     protected String getAsyncExecutionErrorMessage() {
         return "비동기 " + getSupportedType().name() + " 진단 실행 중 오류 발생: ";
     }
+
     protected String getStreamExecutionErrorMessage() {
         return "스트리밍 " + getSupportedType().name() + " 진단 실행 중 오류 발생: ";
-    }
-
-    @Override
-    public final PipelineConfiguration suggestPipelineConfiguration(AIRequest<T> request) {
-        PipelineConfig config = getPipelineConfig();
-        PipelineConfiguration.Builder<T> builder = PipelineConfiguration.builder();
-        builder.addStep(PipelineStep.PREPROCESSING);
-        builder.addStep(PipelineStep.CONTEXT_RETRIEVAL);
-        builder.addStep(PipelineStep.PROMPT_GENERATION);
-        builder.addStep(PipelineStep.LLM_EXECUTION);
-        builder.addStep(PipelineStep.RESPONSE_PARSING);
-        builder.addStep(PipelineStep.POSTPROCESSING);
-        builder.timeoutSeconds(config.getTimeoutSeconds());
-        return builder.build();
-    }
-
-    protected PipelineConfig getPipelineConfig() {
-        return PipelineConfig.defaultConfig();
     }
 }
