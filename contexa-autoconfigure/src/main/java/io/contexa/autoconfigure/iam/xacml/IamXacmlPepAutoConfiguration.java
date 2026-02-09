@@ -55,6 +55,6 @@ public class IamXacmlPepAutoConfiguration {
     public ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager(
             @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler,
             RedisTemplate<String, Object> redisTemplate) {
-        return new ProtectableMethodAuthorizationManager(expressionHandler, redisTemplate);
+        return new ProtectableMethodAuthorizationManager(expressionHandler);
     }
 }

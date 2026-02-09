@@ -29,7 +29,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 공개 데이터 문자열
      */
-    @Protectable(analysisRequirement = AnalysisRequirement.NOT_REQUIRED)
+    @Protectable
     public String getPublicData(String resourceId) {
         log.info("공개 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -52,10 +52,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 일반 데이터 문자열
      */
-    @Protectable(
-        analysisRequirement = AnalysisRequirement.PREFERRED,
-        defaultAction = "ALLOW"
-    )
+    @Protectable
     public String getNormalData(String resourceId) {
         log.info("일반 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -79,10 +76,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 민감 데이터 문자열
      */
-    @Protectable(
-        analysisRequirement = AnalysisRequirement.REQUIRED,
-        analysisTimeout = 5000
-    )
+    @Protectable
     public String getSensitiveData(String resourceId) {
         log.info("민감 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -106,10 +100,7 @@ public class TestSecurityService {
      * @param resourceId 리소스 식별자
      * @return 중요 데이터 문자열
      */
-    @Protectable(
-        analysisRequirement = AnalysisRequirement.STRICT,
-        analysisTimeout = 10000
-    )
+    @Protectable
     public String getCriticalData(String resourceId) {
         log.info("중요 데이터 조회 요청 - resourceId: {}", resourceId);
 
@@ -132,9 +123,7 @@ public class TestSecurityService {
      *
      * @return 대량 데이터 문자열
      */
-    @Protectable(
-        analysisRequirement = AnalysisRequirement.PREFERRED
-    )
+    @Protectable
     public String getBulkData() {
         log.info("대량 데이터 조회 요청");
 
