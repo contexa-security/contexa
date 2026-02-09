@@ -181,16 +181,6 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     }
 
     @Override
-    protected String getRemoteIp() {
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attributes != null) {
-            return attributes.getRequest().getRemoteAddr();
-        }
-        log.warn("Could not retrieve remote IP address from RequestContextHolder. Returning default value.");
-        return "127.0.0.1";
-    }
-
-    @Override
     protected String getCurrentAction() {
         if (this.invocation != null && this.invocation.getMethod() != null) {
             return this.invocation.getMethod().getName();
