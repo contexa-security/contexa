@@ -1,14 +1,11 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 
-import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
+import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
-import io.contexa.contexacommon.repository.AuditLogRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -23,10 +20,7 @@ import java.util.function.Supplier;
 public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpressionHandler {
 
     private final ContextHandler contextHandler;
-    private final AttributeInformationPoint attributePIP;
-    private final AICoreOperations aiNativeProcessor;
     private final AuditLogRepository auditLogRepository;
-    private final ApplicationContext applicationContext;
 
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, RequestAuthorizationContext requestContext) {
@@ -36,7 +30,7 @@ public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpre
 
         AuthorizationContext authorizationContext = contextHandler.create(auth, request);
 
-        CustomWebSecurityExpressionRoot root = new CustomWebSecurityExpressionRoot(auth, request, attributePIP,aiNativeProcessor, authorizationContext, auditLogRepository);
+        CustomWebSecurityExpressionRoot root = new CustomWebSecurityExpressionRoot(auth, request, authorizationContext, auditLogRepository);
 
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(new AuthenticationTrustResolverImpl());

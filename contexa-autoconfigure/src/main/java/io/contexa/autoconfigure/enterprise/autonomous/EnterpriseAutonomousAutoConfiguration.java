@@ -148,13 +148,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public BehavioralAnalysisLabConnector behavioralAnalysisLabConnector() {
-        return new BehavioralAnalysisLabConnector();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionLabIntegration policyEvolutionLabIntegration(
             IPolicyProposalManagementService proposalManagementService,
             ApplicationEventPublisher eventPublisher) {

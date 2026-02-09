@@ -19,11 +19,9 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
     private final HttpServletRequest request;
 
     public CustomWebSecurityExpressionRoot(Authentication authentication, HttpServletRequest request,
-                                           AttributeInformationPoint attributePIP,
-                                           AICoreOperations aINativeProcessor,
                                            AuthorizationContext authorizationContext,
                                            AuditLogRepository auditLogRepository) {
-        super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
+        super(authentication, authorizationContext, auditLogRepository);
         this.request = request;
 
     }
@@ -36,6 +34,6 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
 
     @Override
     protected String getCurrentAction() {
-        return extractCurrentRequestAction();
+        return request.getMethod();
     }
 }

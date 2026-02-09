@@ -95,12 +95,9 @@ public class IamXacmlPdpAutoConfiguration {
     @ConditionalOnMissingBean
     public CustomWebSecurityExpressionHandler customWebSecurityExpressionHandler(
             ContextHandler contextHandler,
-            AttributeInformationPoint attributePIP,
-            AICoreOperations aiNativeProcessor,
-            AuditLogRepository auditLogRepository,
-            ApplicationContext applicationContext) {
+            AuditLogRepository auditLogRepository) {
         return new CustomWebSecurityExpressionHandler(
-                contextHandler, attributePIP, aiNativeProcessor, auditLogRepository, applicationContext);
+                contextHandler, auditLogRepository);
     }
 
     

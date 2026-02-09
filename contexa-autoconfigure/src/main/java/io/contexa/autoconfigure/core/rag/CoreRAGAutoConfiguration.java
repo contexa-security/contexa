@@ -2,19 +2,16 @@ package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
-import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
-import io.contexa.contexacore.std.labs.risk.RiskAssessmentVectorService;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexacore.std.operations.DistributedSessionManager;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
-import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
@@ -80,15 +77,6 @@ public class CoreRAGAutoConfiguration {
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
         return new BehaviorVectorService(vectorStore, vectorStoreMetrics);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RiskAssessmentVectorService riskAssessmentVectorService(
-            VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new RiskAssessmentVectorService(
-                vectorStore, vectorStoreMetrics);
     }
 
     @Bean

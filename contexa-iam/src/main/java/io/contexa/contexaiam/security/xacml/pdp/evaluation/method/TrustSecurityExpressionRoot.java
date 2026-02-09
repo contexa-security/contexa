@@ -33,7 +33,6 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         this.stringRedisTemplate = stringRedisTemplate;
     }
 
-    @Override
     protected String getCurrentAction() {
         String userId = extractUserId();
         if (userId == null) {

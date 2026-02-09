@@ -15,7 +15,6 @@ public class WebSpelExpressionEvaluator implements ExpressionEvaluator {
 
     @Override
     public AuthorizationManager<RequestAuthorizationContext> createManager(String expression) {
-
         return new WebExpressionAuthorizationManager(expression);
     }
 }
