@@ -15,6 +15,7 @@ import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.PolicyTemplateRepository;
 import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
+import io.contexa.contexaiam.security.xacml.pap.controller.PolicyApiController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyBuilderController;
 import io.contexa.contexaiam.security.xacml.pap.controller.PolicyController;
 import io.contexa.contexaiam.security.xacml.pap.service.*;
@@ -101,17 +102,21 @@ public class IamXacmlPapAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public PolicyApiController policyApiController(
+            BusinessPolicyService businessPolicyService,
+            ModelMapper modelMapper) {
+        return new PolicyApiController(businessPolicyService, modelMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public PolicyBuilderController policyBuilderController(
-            PolicyBuilderService policyBuilderService,
-            UserManagementService userManagementService,
-            GroupService groupService,
             RoleService roleService,
             PermissionCatalogService permissionCatalogService,
             ConditionTemplateRepository conditionTemplateRepository,
             ManagedResourceRepository managedResourceRepository,
             ObjectMapper objectMapper,
             PermissionService permissionService,
-            ModelMapper modelMapper,
             ConditionCompatibilityService conditionCompatibilityService) {
         return new PolicyBuilderController(
                 roleService, permissionCatalogService, conditionTemplateRepository, managedResourceRepository,
