@@ -127,7 +127,13 @@
 <div class="flex-1 flex items-center justify-center p-4">
     <div class="w-full max-w-4xl rounded-2xl shadow-xl p-8" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
 
-        <div class="text-center mb-8">
+        <div class="relative text-center mb-8">
+            <a href="/admin/workbench/resources" id="close-wizard-btn"
+               class="absolute top-0 right-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
+               style="background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3);"
+               title="마법사 종료">
+                <i class="fas fa-times"></i>
+            </a>
             <h1 class="text-3xl font-bold text-gradient">권한 부여 마법사</h1>
             <p class="text-dark-muted mt-2">3단계의 간단한 과정으로 새로운 인가 정책을 생성합니다.</p>
             <input type="hidden" id="wizardContextId" th:value="${wizardContext.contextId()}"/>

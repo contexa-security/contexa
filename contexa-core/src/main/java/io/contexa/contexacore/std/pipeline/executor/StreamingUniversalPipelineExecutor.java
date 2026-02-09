@@ -44,9 +44,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
                         contextRetrievalStep,
                         preprocessingStep,
                         promptGenerationStep,
-                        streamingLLMStep,
-                        responseParsingStep,
-                        postprocessingStep
+                        streamingLLMStep
                 )
                 .sorted((a, b) -> Integer.compare(a.getOrder(), b.getOrder()))
                 .toList();

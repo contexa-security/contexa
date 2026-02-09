@@ -13,11 +13,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PipelineConfiguration {
 
     private List<PipelineStep> steps;
-    private List<PipelineStep> interfaceSteps;
     private final Map<String, Object> parameters;
     private String name;
     private String description;
-    private Map<String, Object> metadata;
     private final int timeoutSeconds;
     private final boolean enableCaching;
     private final boolean enableParallelExecution;
@@ -26,9 +24,7 @@ public class PipelineConfiguration {
 
     public PipelineConfiguration() {
         this.steps = new ArrayList<>();
-        this.interfaceSteps = new ArrayList<>();
         this.parameters = new HashMap<>();
-        this.metadata = new HashMap<>();
         this.timeoutSeconds = 300;
         this.enableCaching = false;
         this.enableParallelExecution = false;
@@ -41,35 +37,15 @@ public class PipelineConfiguration {
                                 int timeoutSeconds,
                                 boolean enableCaching,
                                 boolean enableParallelExecution,
-                                boolean enableStreaming) {
+                                boolean enableStreaming,
+                                Map<String, PipelineStep> customSteps) {
         this.steps = steps;
-        this.interfaceSteps = new ArrayList<>();
         this.parameters = parameters;
-        this.metadata = new HashMap<>();
         this.timeoutSeconds = timeoutSeconds;
         this.enableCaching = enableCaching;
         this.enableParallelExecution = enableParallelExecution;
         this.enableStreaming = enableStreaming;
-        this.customSteps = new ConcurrentHashMap<>();
-    }
-
-    private PipelineConfiguration(List<PipelineStep> steps,
-                                 List<PipelineStep> interfaceSteps,
-                                 Map<String, Object> parameters,
-                                 int timeoutSeconds,
-                                 boolean enableCaching,
-                                 boolean enableParallelExecution,
-                                 boolean enableStreaming,
-                                 Map<String, PipelineStep> customSteps) {
-        this.steps = steps;
-        this.interfaceSteps = interfaceSteps;
-        this.parameters = parameters;
-        this.metadata = new HashMap<>();
-        this.timeoutSeconds = timeoutSeconds;
-        this.enableCaching = enableCaching;
-        this.enableParallelExecution = enableParallelExecution;
-        this.enableStreaming = enableStreaming;
-        this.customSteps = new ConcurrentHashMap<>(customSteps);
+        this.customSteps = customSteps;
     }
 
     public void setName(String name) {
@@ -82,18 +58,6 @@ public class PipelineConfiguration {
     
     public void setSteps(List<? extends PipelineStep> steps) {
         this.steps = new ArrayList<>(steps);
-    }
-
-    public void setInterfaceSteps(List<PipelineStep> steps) {
-        this.interfaceSteps = steps;
-    }
-
-    public List<PipelineStep> getInterfaceSteps() {
-        return interfaceSteps;
-    }
-    
-    public void setMetadata(Map<String, Object> metadata) {
-        this.metadata = metadata;
     }
 
     public boolean hasStep(PipelineStep step) {
@@ -120,7 +84,6 @@ public class PipelineConfiguration {
     
     public static class Builder<T extends DomainContext> {
         private List<PipelineStep> steps = new ArrayList<>();
-        private final List<PipelineStep> interfaceSteps = new ArrayList<>();
         private final Map<String, Object> parameters = new HashMap<>();
         private int timeoutSeconds = 300;
         private boolean enableCaching = false;
@@ -130,7 +93,7 @@ public class PipelineConfiguration {
         
         public Builder addStep(PipelineStep step) {
             
-            this.interfaceSteps.add(step);
+            this.steps.add(step);
             return this;
         }
         
@@ -171,13 +134,13 @@ public class PipelineConfiguration {
 
         public Builder<T> addCustomStep(String stepName, PipelineStep step) {
             this.customSteps.put(stepName, step);
-            this.interfaceSteps.add(step);
+            this.steps.add(step);
             return this;
         }
 
         public PipelineConfiguration build() {
-            return new PipelineConfiguration(steps, interfaceSteps, parameters, timeoutSeconds,
-                    enableCaching, enableParallelExecution, enableStreaming, customSteps);
+            return new PipelineConfiguration(steps, parameters, timeoutSeconds, enableCaching,
+                    enableParallelExecution, enableStreaming, customSteps);
         }
     }
 
