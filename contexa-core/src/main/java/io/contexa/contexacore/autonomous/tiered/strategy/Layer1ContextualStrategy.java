@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
-    // Layer1 only field
     private final SecurityDecisionPostProcessor postProcessor;
     private final Cache<String, SessionContext> sessionContextCache;
 

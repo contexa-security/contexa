@@ -131,8 +131,6 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
                 metricsCollector.recordAuthzDecision();
             }
 
-            String resource = mi.getMethod().getDeclaringClass().getSimpleName() + "." + mi.getMethod().getName();
-            
         } catch (Exception e) {
             log.error("Failed to publish authorization event", e);
         }
