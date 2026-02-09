@@ -163,7 +163,6 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
                 .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
                 .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
                 .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
                 .enableStreaming(true)
                 .timeoutSeconds(300)
                 .build();
