@@ -29,9 +29,9 @@ public class UserContextServiceImpl implements UserContextService {
     public void saveWizardProgress(String userSessionId, Long ownerUserId, WizardContext context) {
         try {
             String contextAsJson = objectMapper.writeValueAsString(context);
-            WizardSession session = WizardSession.create(userSessionId, contextAsJson, ownerUserId, 60); 
+            WizardSession session = WizardSession.create(userSessionId, contextAsJson, ownerUserId, 60);
             wizardSessionRepository.save(session);
-                    } catch (JsonProcessingException e) {
+        } catch (JsonProcessingException e) {
             log.error("Failed to serialize WizardContext for session: {}", userSessionId, e);
             throw new RuntimeException("마법사 진행 상태 저장에 실패했습니다.", e);
         }
@@ -56,7 +56,7 @@ public class UserContextServiceImpl implements UserContextService {
     public void clearWizardProgress(String userSessionId) {
         if (wizardSessionRepository.existsById(userSessionId)) {
             wizardSessionRepository.deleteById(userSessionId);
-                    }
+        }
     }
 
     @Override

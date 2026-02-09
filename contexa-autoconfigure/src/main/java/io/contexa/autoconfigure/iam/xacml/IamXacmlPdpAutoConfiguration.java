@@ -1,29 +1,18 @@
 package io.contexa.autoconfigure.iam.xacml;
 
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.PermissionRepository;
-import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacore.std.operations.AICoreOperations;
+import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomPermissionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthenticatedExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthorityExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.CustomWebSecurityExpressionHandler;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.WebSpelExpressionEvaluator;
-import io.contexa.contexaiam.security.xacml.pdp.translator.AuthenticationFunctionTranslator;
-import io.contexa.contexaiam.security.xacml.pdp.translator.AuthorityFunctionTranslator;
-import io.contexa.contexaiam.security.xacml.pdp.translator.DefaultFunctionTranslator;
-import io.contexa.contexaiam.security.xacml.pdp.translator.IpAddressFunctionTranslator;
-import io.contexa.contexaiam.security.xacml.pdp.translator.PolicyTranslator;
-import io.contexa.contexaiam.security.xacml.pdp.translator.RoleFunctionTranslator;
-import io.contexa.contexaiam.security.xacml.pdp.translator.SpelFunctionTranslator;
-import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
+import io.contexa.contexaiam.security.xacml.pdp.translator.*;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
@@ -95,9 +84,9 @@ public class IamXacmlPdpAutoConfiguration {
     @ConditionalOnMissingBean
     public CustomWebSecurityExpressionHandler customWebSecurityExpressionHandler(
             ContextHandler contextHandler,
-            AuditLogRepository auditLogRepository) {
-        return new CustomWebSecurityExpressionHandler(
-                contextHandler, auditLogRepository);
+            AuditLogRepository auditLogRepository,
+            StringRedisTemplate stringRedisTemplate) {
+        return new CustomWebSecurityExpressionHandler(contextHandler, auditLogRepository, stringRedisTemplate);
     }
 
     
