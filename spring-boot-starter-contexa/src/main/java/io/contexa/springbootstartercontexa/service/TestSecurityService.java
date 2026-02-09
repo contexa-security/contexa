@@ -1,6 +1,5 @@
 package io.contexa.springbootstartercontexa.service;
 
-import io.contexa.contexacommon.annotation.AnalysisRequirement;
 import io.contexa.contexacommon.annotation.Protectable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
