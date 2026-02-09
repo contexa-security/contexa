@@ -22,7 +22,6 @@ import org.springframework.security.web.access.intercept.RequestAuthorizationCon
 
 import java.util.List;
 
-
 @AutoConfiguration
 public class IamXacmlPepAutoConfiguration {
 
@@ -53,8 +52,7 @@ public class IamXacmlPepAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager(
-            @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler,
-            RedisTemplate<String, Object> redisTemplate) {
+            @Qualifier("methodSecurityExpressionHandler") MethodSecurityExpressionHandler expressionHandler) {
         return new ProtectableMethodAuthorizationManager(expressionHandler);
     }
 }
