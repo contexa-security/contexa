@@ -25,46 +25,12 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
             .expireAfterWrite(1, TimeUnit.SECONDS)
             .build();
 
-    private static final String THREAT_SCORE_PREFIX = "threat_score:";
-    private static final String THREAT_DETAIL_PREFIX = "threat_detail:";
-    private static final String THREAT_PATTERN_PREFIX = "threat_pattern:";
-
-    private static final Duration REDIS_TIMEOUT = Duration.ofMillis(5);
-
     public TrustSecurityExpressionRoot(Authentication authentication,
-                                       AttributeInformationPoint attributePIP,
-                                       AICoreOperations aINativeProcessor,
                                        AuthorizationContext authorizationContext,
                                        AuditLogRepository auditLogRepository,
                                        StringRedisTemplate stringRedisTemplate) {
-        super(authentication, attributePIP, aINativeProcessor, authorizationContext, auditLogRepository);
+        super(authentication, authorizationContext, auditLogRepository);
         this.stringRedisTemplate = stringRedisTemplate;
-    }
-
-    @Override
-    protected String getCurrentActivityDescription() {
-
-        if (authorizationContext != null) {
-            String action = authorizationContext.action();
-            if (authorizationContext.resource() != null) {
-                String resourceId = authorizationContext.resource().identifier();
-                return String.format("%s %s", action, resourceId);
-            }
-            return action;
-        }
-        return "unknown activity";
-    }
-
-    @Override
-    protected ContextExtractionResult extractCurrentContext() {
-
-        return extractContextFromAuthorizationContext();
-    }
-
-    @Override
-    protected String calculateContextHash() {
-
-        return calculateContextHashFromAuthorizationContext();
     }
 
     @Override
@@ -87,15 +53,13 @@ public class TrustSecurityExpressionRoot extends AbstractAISecurityExpressionRoo
         if (!"PENDING_ANALYSIS".equals(action)) {
             putActionToLocalCache(actionCacheKey, action);
         }
-
         return action;
     }
-
-
 
     private String getActionFromLocalCache(String key) {
         return actionLocalCache.getIfPresent(key);
     }
+
     private void putActionToLocalCache(String key, String action) {
         actionLocalCache.put(key, action);
     }

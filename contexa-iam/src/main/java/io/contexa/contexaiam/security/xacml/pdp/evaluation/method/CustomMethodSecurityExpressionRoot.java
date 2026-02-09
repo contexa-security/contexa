@@ -28,27 +28,20 @@ import java.util.Optional;
 @Slf4j
 public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpressionRoot implements MethodSecurityExpressionOperations {
 
-    private static final double SECURITY_THRESHOLD = 0.7;
     private final MethodInvocation invocation;
-
     private Object filterObject;
     private Object returnObject;
     private Object target;
-
-    @Setter
     private String ownerField;
-
     private UserRepository userRepository;
     private GroupRepository groupRepository;
     private DocumentRepository documentRepository;
     private ApplicationContext applicationContext;
 
     public CustomMethodSecurityExpressionRoot(Authentication authentication,
-                                              AttributeInformationPoint attributePIP,
                                               AuthorizationContext authorizationContext,
-                                              AICoreOperations aiNativeProcessor,
                                               AuditLogRepository auditLogRepository, MethodInvocation mi) {
-        super(authentication, attributePIP, aiNativeProcessor, authorizationContext, auditLogRepository);
+        super(authentication, authorizationContext, auditLogRepository);
         this.invocation = mi;
     }
 
@@ -61,17 +54,13 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     @Override
     public boolean hasPermission(Object target, Object permission) {
-        
         if (!super.hasPermission(target, permission)) {
             return false;
         }
 
         if (StringUtils.hasText(ownerField) && target != null) {
-            if (!checkOwnership(target)) {
-                return false;
-            }
+            return checkOwnership(target);
         }
-
         return true;
     }
 
@@ -83,30 +72,27 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
                 return false;
             }
         }
-
         return true;
     }
 
     private boolean checkOwnership(Object target) {
         try {
-            String currentUsername = ((UserDto)getAuthentication().getPrincipal()).getUsername();
+            String currentUsername = ((UserDto) getAuthentication().getPrincipal()).getUsername();
 
             Field field = target.getClass().getDeclaredField(ownerField);
             field.setAccessible(true);
             Object ownerValue = field.get(target);
-            
+
             if (ownerValue == null) {
                 return false;
             }
 
             boolean isOwner = currentUsername.equals(ownerValue.toString());
-            
             if (!isOwner) {
                 log.warn("🚫 객체 기반 소유자 확인 실패 - user: {}, owner: {}", currentUsername, ownerValue);
             }
-            
+
             return isOwner;
-            
         } catch (Exception e) {
             log.error("객체 기반 소유자 확인 오류: {}", e.getMessage());
             return false;
@@ -115,14 +101,12 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     private boolean checkOwnershipById(Serializable targetId, String targetType) {
         try {
-            
             Object entity = findEntityById(targetId, targetType);
             if (entity == null) {
-                                return false;
+                return false;
             }
-
             return checkOwnership(entity);
-            
+
         } catch (Exception e) {
             log.error("ID 기반 소유자 확인 오류: {}", e.getMessage());
             return false;
@@ -148,27 +132,22 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         if (applicationContext == null) {
             return null;
         }
-        
         try {
             String repositoryBeanName = targetType.toLowerCase() + "Repository";
-            
             if (applicationContext.containsBean(repositoryBeanName)) {
                 Object repository = applicationContext.getBean(repositoryBeanName);
-                
+
                 Method findByIdMethod = repository.getClass().getMethod("findById", Object.class);
                 Object result = findByIdMethod.invoke(repository, targetId);
-                
+
                 if (result instanceof Optional) {
                     return ((Optional<?>) result).orElse(null);
                 }
-                
                 return result;
             }
-            
             return null;
-            
         } catch (Exception e) {
-                        return null;
+            return null;
         }
     }
 
@@ -196,6 +175,10 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         this.target = target;
     }
 
+    public void setOwnerField(String ownerField) {
+        this.ownerField = ownerField;
+    }
+
     @Override
     public Object getThis() {
         return this.target;
@@ -212,27 +195,10 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     }
 
     @Override
-    protected String getCurrentActivityDescription() {
-        return String.format("Method execution: %s.%s",
-                this.invocation.getMethod().getDeclaringClass().getSimpleName(),
-                this.invocation.getMethod().getName());
-    }
-
-    @Override
-    protected ContextExtractionResult extractCurrentContext() {
-        return new ContextExtractionResult("127.0.0.1", "method", "call", "INVOKE");
-    }
-
-    @Override
-    protected String calculateContextHash() {
-        return "static";
-    }
-
-    @Override
     protected String getCurrentAction() {
         if (this.invocation != null && this.invocation.getMethod() != null) {
             return this.invocation.getMethod().getName();
         }
         return "UNKNOWN";
     }
-} 
+}

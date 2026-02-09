@@ -1,7 +1,10 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
+import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacommon.repository.GroupRepository;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.std.operations.AICoreOperations;
-import io.contexa.contexacore.std.operations.AINativeProcessor;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.DocumentRepository;
@@ -10,10 +13,6 @@ import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPo
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import io.contexa.contexacommon.annotation.Protectable;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.beans.factory.annotation.Value;
@@ -106,17 +105,13 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
         switch (zeroTrustMode) {
             case "TRUST":
-
-                root = new TrustSecurityExpressionRoot(
-                        auth, attributePIP, aiNativeProcessor, authorizationContext,
-                        auditLogRepository, stringRedisTemplate);
+                root = new TrustSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, stringRedisTemplate);
                 break;
 
             case "STANDARD":
             default:
 
-                CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot(
-                        auth, attributePIP, authorizationContext, aiNativeProcessor, auditLogRepository, mi);
+                CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, mi);
                 customRoot.setOwnerField(ownerField);
                 customRoot.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
                 root = customRoot;
