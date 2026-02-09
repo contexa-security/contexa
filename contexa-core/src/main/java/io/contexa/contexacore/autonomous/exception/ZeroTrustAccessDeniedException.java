@@ -1,8 +1,8 @@
 package io.contexa.contexacore.autonomous.exception;
 
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 
-public class ZeroTrustAccessDeniedException extends AccessDeniedException {
+public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException {
 
     private static final long serialVersionUID = 1L;
 

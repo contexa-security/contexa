@@ -33,13 +33,13 @@ public class ProtectableMethodAuthorizationManager {
 
     public void protectable(Supplier<Authentication> authentication, MethodInvocation mi) {
 
-        Protectable protectable = findProtectableAnnotation(mi);
+        /*Protectable protectable = findProtectableAnnotation(mi);
 
         if (protectable != null) {
             String userId = extractUserId(authentication.get());
             String resourceId = getResourceId(mi);
             handleAnalysisRequirement(protectable, userId, resourceId);
-        }
+        }*/
 
         EvaluationContext ctx = expressionHandler.createEvaluationContext(authentication, mi);
 
