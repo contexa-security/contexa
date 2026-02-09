@@ -52,7 +52,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
                 "conditions": {
                   "301": ["true"],
                   "302": ["192.168.1.0/24"]
-                },
+                }
               },
               "roleIdToNameMap": {
                 "101": "Team Manager",
