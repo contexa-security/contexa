@@ -47,24 +47,6 @@ public class PolicyContext extends DomainContext {
                naturalLanguageQuery != null && !naturalLanguageQuery.trim().isEmpty();
     }
 
-    public int calculateComplexity() {
-        int complexity = 1;
-
-        if (availableRoles != null) complexity += Math.min(availableRoles.size() / 5, 2);
-        if (availablePermissions != null) complexity += Math.min(availablePermissions.size() / 10, 2);
-        if (availableConditionTypes != null) complexity += Math.min(availableConditionTypes.size() / 3, 2);
-        if (businessRules != null) complexity += Math.min(businessRules.size() / 5, 2);
-        if (allowExperimentalFeatures) complexity += 1;
-
-        return Math.min(complexity, 10);
-    }
-
-    public boolean isStreamingRecommended() {
-        return calculateComplexity() >= 6 ||
-               (naturalLanguageQuery != null && naturalLanguageQuery.length() > 200) ||
-               generationMode == PolicyGenerationMode.AI_ASSISTED;
-    }
-
     public static class Builder {
         private final PolicyContext context;
 
@@ -129,14 +111,5 @@ public class PolicyContext extends DomainContext {
         public PolicyContext build() {
             return context;
         }
-    }
-
-    @Override
-    public String toString() {
-        return String.format("PolicyContext{id='%s', mode=%s, roles=%d, permissions=%d, complexity=%d}",
-                getContextId(), generationMode,
-                availableRoles != null ? availableRoles.size() : 0,
-                availablePermissions != null ? availablePermissions.size() : 0,
-                calculateComplexity());
     }
 }

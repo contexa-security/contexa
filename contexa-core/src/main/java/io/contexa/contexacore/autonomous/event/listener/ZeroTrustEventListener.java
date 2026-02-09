@@ -26,9 +26,6 @@ public class ZeroTrustEventListener {
     @Value("${security.zerotrust.enabled:true}")
     private boolean zeroTrustEnabled;
 
-    @Value("${security.zerotrust.sampling.rate:1.0}")
-    private double samplingRate;
-
     public ZeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
@@ -190,9 +187,7 @@ public class ZeroTrustEventListener {
 
             if (isAnalyzing) {
                 Long ttl = redisTemplate.getExpire(analysisKey);
-                if (ttl > 0) {
-                    return true;
-                }
+                return ttl > 0;
             }
 
             return false;
