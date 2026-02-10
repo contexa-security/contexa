@@ -1,7 +1,7 @@
 package io.contexa.autoconfigure.iam.xacml;
 
 import io.contexa.contexacommon.repository.*;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomPermissionEvaluator;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.*;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthenticatedExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.AuthorityExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.CustomWebSecurityExpressionHandler;
@@ -89,12 +89,42 @@ public class IamXacmlPdpAutoConfiguration {
         return new CustomWebSecurityExpressionHandler(contextHandler, auditLogRepository, stringRedisTemplate);
     }
 
-    
+
     @Bean
     @ConditionalOnMissingBean
-    public CustomPermissionEvaluator customPermissionEvaluator(
-            UserRepository userRepository,
-            ApplicationContext applicationContext) {
-        return new CustomPermissionEvaluator(userRepository, applicationContext);
+    public GroupPermissionEvaluator groupPermissionEvaluator(ApplicationContext ctx) {
+        return new GroupPermissionEvaluator(ctx);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public UserPermissionEvaluator userPermissionEvaluator(ApplicationContext ctx) {
+        return new UserPermissionEvaluator(ctx);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PermissionTargetPermissionEvaluator permissionTargetPermissionEvaluator(ApplicationContext ctx) {
+        return new PermissionTargetPermissionEvaluator(ctx);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RolePermissionEvaluator rolePermissionEvaluator(ApplicationContext ctx) {
+        return new RolePermissionEvaluator(ctx);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public RoleHierarchyPermissionEvaluator roleHierarchyPermissionEvaluator(ApplicationContext ctx) {
+        return new RoleHierarchyPermissionEvaluator(ctx);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CompositePermissionEvaluator compositePermissionEvaluator(
+            List<DomainPermissionEvaluator> evaluators,
+            UserRepository userRepository) {
+        return new CompositePermissionEvaluator(evaluators, userRepository);
     }
 }

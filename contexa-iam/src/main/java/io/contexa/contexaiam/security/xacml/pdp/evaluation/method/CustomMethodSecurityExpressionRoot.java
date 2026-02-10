@@ -7,15 +7,14 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionOperations;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 
 import java.io.Serializable;
-import java.lang.reflect.Method;
-import java.util.Optional;
+import java.lang.reflect.Field;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -30,7 +29,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     private Object returnObject;
     private Object target;
     private String ownerField;
-    private ApplicationContext applicationContext;
+    private PermissionEvaluator permissionEvaluatorRef;
 
     public CustomMethodSecurityExpressionRoot(Authentication authentication,
                                               AuthorizationContext authorizationContext,
@@ -39,8 +38,10 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         super(authentication, authorizationContext, auditLogRepository, stringRedisTemplate);
     }
 
-    public void setApplicationContext(ApplicationContext applicationContext) {
-        this.applicationContext = applicationContext;
+    @Override
+    public void setPermissionEvaluator(PermissionEvaluator permissionEvaluator) {
+        super.setPermissionEvaluator(permissionEvaluator);
+        this.permissionEvaluatorRef = permissionEvaluator;
     }
 
     protected String getCurrentAction() {
@@ -108,7 +109,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         try {
             String currentUsername = getAuthentication().getName();
 
-            java.lang.reflect.Field field = target.getClass().getDeclaredField(ownerField);
+            Field field = target.getClass().getDeclaredField(ownerField);
             field.setAccessible(true);
             Object ownerValue = field.get(target);
 
@@ -130,42 +131,15 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     private boolean checkOwnershipById(Serializable targetId, String targetType) {
         try {
-            Object entity = findEntityById(targetId, targetType);
-            if (entity == null) {
-                return false;
+            PermissionEvaluator evaluator = this.permissionEvaluatorRef;
+            if (evaluator instanceof CompositePermissionEvaluator composite) {
+                Object entity = composite.resolveEntity(targetId, targetType);
+                return entity != null && checkOwnership(entity);
             }
-            return checkOwnership(entity);
-
+            return false;
         } catch (Exception e) {
             log.error("ID-based ownership check error: {}", e.getMessage());
             return false;
-        }
-    }
-
-    private Object findEntityById(Serializable targetId, String targetType) {
-        if (applicationContext == null || targetType == null) {
-            return null;
-        }
-
-        try {
-            String repositoryBeanName = targetType.toLowerCase() + "Repository";
-
-            if (!applicationContext.containsBean(repositoryBeanName)) {
-                log.error("Repository bean not found: {}", repositoryBeanName);
-                return null;
-            }
-
-            Object repository = applicationContext.getBean(repositoryBeanName);
-            Method findByIdMethod = repository.getClass().getMethod("findById", Object.class);
-            Object result = findByIdMethod.invoke(repository, targetId);
-
-            if (result instanceof Optional<?> optional) {
-                return optional.orElse(null);
-            }
-            return result;
-        } catch (Exception e) {
-            log.error("Entity lookup failed: targetId={}, targetType={}", targetId, targetType, e);
-            return null;
         }
     }
 

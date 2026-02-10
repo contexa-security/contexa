@@ -2,38 +2,31 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationContext;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
-@RequiredArgsConstructor
-public class CustomPermissionEvaluator implements PermissionEvaluator {
+public class CompositePermissionEvaluator implements PermissionEvaluator {
 
+    private final List<DomainPermissionEvaluator> evaluators;
     private final UserRepository userRepository;
-    private final ApplicationContext applicationContext;
 
-    @Override
-    public boolean hasPermission(Authentication authentication, Serializable targetId,
-                                 String targetType, Object permissionAction) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return false;
-        }
-
-        Object targetDomainObject = resolveEntity(targetId, targetType);
-        if (targetDomainObject == null) {
-            log.error("Entity not found: type={}, id={}", targetType, targetId);
-            return false;
-        }
-
-        return hasPermission(authentication, targetDomainObject, permissionAction);
+    public CompositePermissionEvaluator(List<DomainPermissionEvaluator> evaluators,
+                                        UserRepository userRepository) {
+        this.evaluators = evaluators.stream()
+                .sorted(Comparator.comparingInt(
+                        (DomainPermissionEvaluator e) -> ((AbstractDomainPermissionEvaluator) e).domain().length()
+                ).reversed())
+                .toList();
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -43,7 +36,41 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             return false;
         }
 
+        if (permission != null) {
+            String permStr = permission.toString();
+            for (DomainPermissionEvaluator evaluator : evaluators) {
+                if (evaluator.supportsPermission(permStr)) {
+                    return evaluator.hasPermission(authentication, targetDomainObject, permission);
+                }
+            }
+        }
+
         return targetDomainObject != null;
+    }
+
+    @Override
+    public boolean hasPermission(Authentication authentication, Serializable targetId,
+                                 String targetType, Object permissionAction) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+
+        for (DomainPermissionEvaluator evaluator : evaluators) {
+            if (evaluator.supportsTargetType(targetType)) {
+                return evaluator.hasPermission(authentication, targetId, targetType, permissionAction);
+            }
+        }
+
+        throw new IllegalArgumentException("No DomainPermissionEvaluator found for targetType: " + targetType);
+    }
+
+    public Object resolveEntity(Serializable targetId, String targetType) {
+        for (DomainPermissionEvaluator evaluator : evaluators) {
+            if (evaluator.supportsTargetType(targetType)) {
+                return evaluator.resolveEntity(targetId);
+            }
+        }
+        throw new IllegalArgumentException("No DomainPermissionEvaluator found for targetType: " + targetType);
     }
 
     public boolean checkOwnership(Authentication authentication, Object targetDomainObject,
@@ -69,7 +96,6 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             }
 
             return currentUserName.equals(ownerUserId);
-
         } catch (Exception e) {
             log.error("Ownership verification failed", e);
             return false;
@@ -78,33 +104,6 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
 
     public boolean isOwner(Authentication authentication, Object targetObject, String ownerField) {
         return checkOwnership(authentication, targetObject, ownerField);
-    }
-
-    private Object resolveEntity(Serializable targetId, String targetType) {
-        if (targetId == null || targetType == null || applicationContext == null) {
-            return null;
-        }
-
-        try {
-            String repositoryBeanName = targetType.toLowerCase() + "Repository";
-
-            if (!applicationContext.containsBean(repositoryBeanName)) {
-                log.error("Repository bean not found: {}", repositoryBeanName);
-                return null;
-            }
-
-            Object repository = applicationContext.getBean(repositoryBeanName);
-            Method findByIdMethod = repository.getClass().getMethod("findById", Object.class);
-            Object result = findByIdMethod.invoke(repository, targetId);
-
-            if (result instanceof Optional<?> optional) {
-                return optional.orElse(null);
-            }
-            return result;
-        } catch (Exception e) {
-            log.error("Entity resolution failed: type={}, id={}", targetType, targetId, e);
-            return null;
-        }
     }
 
     private String getOwnerIdFromObject(Object object, String ownerField) {
@@ -121,7 +120,6 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             Method getter = object.getClass().getMethod(getterName);
             Object value = getter.invoke(object);
             return String.valueOf(value);
-
         } catch (Exception e) {
             log.error("Owner field access failed: field={}, object={}",
                     ownerField, object.getClass().getSimpleName(), e);

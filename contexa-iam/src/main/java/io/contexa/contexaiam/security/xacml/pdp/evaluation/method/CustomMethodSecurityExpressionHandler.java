@@ -40,7 +40,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
     public CustomMethodSecurityExpressionHandler(
             @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
-            CustomPermissionEvaluator customPermissionEvaluator,
+            CompositePermissionEvaluator compositePermissionEvaluator,
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
@@ -57,7 +57,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.auditLogRepository = auditLogRepository;
         this.applicationContext = applicationContext;
         this.stringRedisTemplate = stringRedisTemplate;
-        super.setPermissionEvaluator(customPermissionEvaluator);
+        super.setPermissionEvaluator(compositePermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
 
     }
@@ -72,7 +72,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
         CustomMethodSecurityExpressionRoot root = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, stringRedisTemplate);
         root.setOwnerField(ownerField);
-        root.setApplicationContext(applicationContext);
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(getTrustResolver());
         root.setRoleHierarchy(getRoleHierarchy());

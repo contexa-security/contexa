@@ -1,23 +1,16 @@
 package io.contexa.autoconfigure.iam;
 
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
-import io.contexa.contexaiam.repository.DocumentRepository;
+import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CompositePermissionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomMethodSecurityExpressionHandler;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CustomPermissionEvaluator;
-import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
@@ -29,7 +22,7 @@ public class IamSecurityAutoConfiguration {
     @ConditionalOnMissingBean
     public MethodSecurityExpressionHandler methodSecurityExpressionHandler(
             @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
-            CustomPermissionEvaluator customPermissionEvaluator,
+            CompositePermissionEvaluator compositePermissionEvaluator,
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
@@ -40,7 +33,7 @@ public class IamSecurityAutoConfiguration {
 
         return new CustomMethodSecurityExpressionHandler(
                 zeroTrustMode,
-                customPermissionEvaluator,
+                compositePermissionEvaluator,
                 roleHierarchy,
                 policyRetrievalPoint,
                 contextHandler,

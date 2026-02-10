@@ -178,6 +178,9 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
                         * **객체 파라미터 (예: `Group group`, `UserDto userDto`):** `hasPermission(#파라미터명, '리소스종류_액션')` 형식으로 2개의 인자를 사용합니다.
                     2.  `name` 필드는 "리소스종류 ~ 대상 검증/접근 확인" 형식으로 작성합니다. "권한" 단어는 절대 사용하지 마세요.
                     3.  입력이 "파라미터가 없는 메서드"인 경우, 해당 키의 값에 빈 조건을 반환합니다.
+                    4.  #p0, #p1 등 positional index 참조는 절대 사용하지 마세요. 반드시 메서드 시그니처에서 파라미터명을 추출하여 사용하세요.
+                        올바른 예: hasPermission(#id, 'GROUP', 'READ'), hasPermission(#role, 'ROLE_CREATE')
+                        잘못된 예: hasPermission(#p0, 'GROUP', 'READ')
                     </rules>
 
                     <examples>
@@ -278,7 +281,8 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
         prompt.append("\n생성 규칙:\n");
         prompt.append("- ID 파라미터: hasPermission(#파라미터명, '리소스종류', '액션')\n");
         prompt.append("- 객체 파라미터: hasPermission(#파라미터명, '리소스종류_액션')\n");
-        prompt.append("- 파라미터 없음: spelTemplate을 빈 문자열로 설정\n\n");
+        prompt.append("- 파라미터 없음: spelTemplate을 빈 문자열로 설정\n");
+        prompt.append("- #p0, #p1 등 positional index 절대 금지. 반드시 실제 파라미터명(#id, #group 등)을 사용하세요\n\n");
 
         prompt.append("중요 사항:\n");
         prompt.append("- 이름과 설명은 한국어로 작성하세요\n");
@@ -302,6 +306,7 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
             - ID 파라미터: hasPermission(#파라미터명, '리소스종류', '액션')
             - 객체 파라미터: hasPermission(#파라미터명, '리소스종류_액션')
             - 파라미터 없음: spelTemplate을 빈 문자열로 설정
+            - #p0, #p1 등 positional index 절대 금지. 반드시 실제 파라미터명(#id, #group 등)을 사용하세요
 
             중요 사항:
             - 이름과 설명은 한국어로 작성하세요
