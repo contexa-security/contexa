@@ -74,17 +74,17 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
 
         try {
             String username = authentication.getName();
-            Long currentUserId = getCurrentUserId(username);
-            if (currentUserId == null) {
+            String currentUserName = getCurrentUserName(username);
+            if (currentUserName == null) {
                 return false;
             }
 
-            Long ownerUserId = getOwnerIdFromObject(targetDomainObject, ownerField);
+            String ownerUserId = getOwnerIdFromObject(targetDomainObject, ownerField);
             if (ownerUserId == null) {
                 return true;
             }
 
-            return currentUserId.equals(ownerUserId);
+            return currentUserName.equals(ownerUserId);
 
         } catch (Exception e) {
             log.error("소유자 확인 중 오류 발생", e);
@@ -92,20 +92,20 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         }
     }
 
-    private Long getOwnerIdFromObject(Object object, String ownerField) {
+    private String getOwnerIdFromObject(Object object, String ownerField) {
         try {
 
             Field field = findField(object.getClass(), ownerField);
             if (field != null) {
                 field.setAccessible(true);
                 Object value = field.get(object);
-                return convertToLong(value);
+                return String.valueOf(value);
             }
 
             String getterName = "get" + ownerField.substring(0, 1).toUpperCase() + ownerField.substring(1);
             Method getter = object.getClass().getMethod(getterName);
             Object value = getter.invoke(object);
-            return convertToLong(value);
+            return String.valueOf(value);
 
         } catch (Exception e) {
             log.warn("소유자 필드 접근 실패: 필드={}, 객체={}", ownerField, object.getClass().getSimpleName(), e);
@@ -125,24 +125,10 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
         return null;
     }
 
-    private Long convertToLong(Object value) {
-        if (value == null) return null;
-        if (value instanceof Long) return (Long) value;
-        if (value instanceof Integer) return ((Integer) value).longValue();
-        if (value instanceof String) {
-            try {
-                return Long.parseLong((String) value);
-            } catch (NumberFormatException e) {
-                return null;
-            }
-        }
-        return null;
-    }
-
-    private Long getCurrentUserId(String username) {
+    private String getCurrentUserName(String username) {
         try {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
-            return userOpt.map(Users::getId).orElse(null);
+            return userOpt.map(Users::getUsername).orElse(null);
         } catch (Exception e) {
             log.error("사용자 ID 조회 실패: {}", username, e);
             return null;
