@@ -8,7 +8,6 @@ import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.repository.DocumentRepository;
-import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
@@ -41,20 +40,12 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ContextHandler contextHandler;
     private final DocumentRepository documentRepository;
-    private final AttributeInformationPoint attributePIP;
     private final AuditLogService auditLogService;
-
-    private final AICoreOperations aiNativeProcessor;
     private final AuditLogRepository auditLogRepository;
     private final ApplicationContext applicationContext;
-
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
-
-    private final RedisTemplate<String, Double> redisTemplate;
     private final StringRedisTemplate stringRedisTemplate;
-
-    private final String zeroTrustMode;
 
     public CustomMethodSecurityExpressionHandler(
             @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
@@ -75,18 +66,14 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(zeroTrustMode, "zeroTrustMode cannot be null");
 
-        this.zeroTrustMode = zeroTrustMode;
         this.policyRetrievalPoint = policyRetrievalPoint;
         this.contextHandler = contextHandler;
-        this.attributePIP = attributePIP;
         this.auditLogService = auditLogService;
-        this.aiNativeProcessor = aiNativeProcessor;
         this.auditLogRepository = auditLogRepository;
         this.applicationContext = applicationContext;
         this.userRepository = userRepository;
         this.documentRepository = documentRepository;
         this.groupRepository = groupRepository;
-        this.redisTemplate = redisTemplate;
         this.stringRedisTemplate = stringRedisTemplate;
         super.setPermissionEvaluator(customPermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
