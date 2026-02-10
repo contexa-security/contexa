@@ -129,10 +129,9 @@ public class IamAdminAuthAutoConfiguration {
     @ConditionalOnMissingBean
     public PermissionService permissionService(
             PermissionRepository permissionRepository,
-            FunctionCatalogRepository functionCatalogRepository,
             ManagedResourceRepository managedResourceRepository) {
         return new PermissionServiceImpl(
-                permissionRepository, functionCatalogRepository, managedResourceRepository);
+                permissionRepository, managedResourceRepository);
     }
 
     @Bean

@@ -21,7 +21,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class PermissionServiceImpl implements PermissionService {
     private final PermissionRepository permissionRepository;
-    private final FunctionCatalogRepository functionCatalogRepository;
     private final ManagedResourceRepository managedResourceRepository;
 
     @Transactional
