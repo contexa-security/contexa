@@ -68,6 +68,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     @Override
     public boolean hasPermission(Object target, Object permission) {
+
         if (!super.hasPermission(target, permission)) {
             return false;
         }
@@ -80,24 +81,19 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     @Override
     public boolean hasPermission(Object targetId, String targetType, Object permission) {
-        // Step 1: Delegate to PermissionEvaluator via super (entity existence check)
+
         if (!super.hasPermission(targetId, targetType, permission)) {
             return false;
         }
 
-        // Step 2: Action-based ownership policy
         if (StringUtils.hasText(ownerField) && targetId != null) {
             String action = permission != null ? permission.toString().toUpperCase() : "";
 
-            // READ/VIEW/GET actions do not require ownership
             if (isReadAction(action)) {
                 return true;
             }
-
-            // WRITE/UPDATE/DELETE actions require ownership
             return checkOwnershipById((Serializable) targetId, targetType);
         }
-
         return true;
     }
 
