@@ -145,29 +145,16 @@ public class CompositePermissionEvaluator implements PermissionEvaluator {
 
     private boolean checkActionAuthority(Authentication auth, String permission) {
         String action = permission.toUpperCase();
-        String httpMethod = mapToHttpMethod(action);
+        List<String> synonyms = AbstractDomainPermissionEvaluator.resolveCrudSynonyms(action);
 
         return auth.getAuthorities().stream()
                 .filter(PermissionAuthority.class::isInstance)
                 .map(PermissionAuthority.class::cast)
-                .anyMatch(pa -> matchesActionOnly(pa, action, httpMethod));
-    }
-
-    private boolean matchesActionOnly(PermissionAuthority pa, String action, String httpMethod) {
-        if ("URL".equalsIgnoreCase(pa.getTargetType()) && httpMethod != null) {
-            return httpMethod.equalsIgnoreCase(pa.getActionType());
-        }
-        return pa.getAuthority().toUpperCase().contains(action);
-    }
-
-    private String mapToHttpMethod(String action) {
-        return switch (action.toUpperCase()) {
-            case "READ", "VIEW", "GET" -> "GET";
-            case "CREATE", "WRITE", "POST" -> "POST";
-            case "UPDATE", "EDIT", "PUT" -> "PUT";
-            case "DELETE", "REMOVE" -> "DELETE";
-            default -> null;
-        };
+                .filter(pa -> "METHOD".equalsIgnoreCase(pa.getTargetType()))
+                .anyMatch(pa -> {
+                    String authority = pa.getAuthority().toUpperCase();
+                    return synonyms.stream().anyMatch(authority::contains);
+                });
     }
 
     private String getCurrentUserName(String username) {

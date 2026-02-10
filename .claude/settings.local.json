@@ -127,7 +127,8 @@
       "Bash(del \"d:\\\\projects\\\\contexa\\\\contexa-iam\\\\src\\\\main\\\\java\\\\io\\\\contexa\\\\contexaiam\\\\aiam\\\\components\\\\prompt\\\\UniversalConditionTemplate.java\")",
       "Bash(del:*)",
       "Bash(.\\\\gradlew build:*)",
-      "Bash(.\\\\gradlew.bat build:*)"
+      "Bash(.\\\\gradlew.bat build:*)",
+      "Bash(d:projectscontexagradlew.bat compileJava)"
     ],
     "deny": [],
     "ask": []

@@ -7,10 +7,28 @@ import org.springframework.security.core.Authentication;
 
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.Optional;
 
 @Slf4j
 public abstract class AbstractDomainPermissionEvaluator implements DomainPermissionEvaluator {
+
+    private static final List<List<String>> CRUD_GROUPS = List.of(
+            List.of("GET", "FIND", "READ", "FETCH", "VIEW", "RETRIEVE", "LIST", "SEARCH"),
+            List.of("CREATE", "SAVE", "ADD", "INSERT", "REGISTER", "POST"),
+            List.of("UPDATE", "EDIT", "MODIFY", "CHANGE", "PATCH", "PUT"),
+            List.of("DELETE", "REMOVE", "DESTROY", "DROP")
+    );
+
+    static List<String> resolveCrudSynonyms(String action) {
+        String upper = action.toUpperCase();
+        for (List<String> group : CRUD_GROUPS) {
+            if (group.contains(upper)) {
+                return group;
+            }
+        }
+        return List.of(upper);
+    }
 
     protected abstract String domain();
 
@@ -90,34 +108,17 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
                 ? permStr.substring(domainPrefix.length())
                 : permStr;
 
-        String httpMethod = mapToHttpMethod(action);
         String domainUpper = domain().toUpperCase();
+        List<String> synonyms = resolveCrudSynonyms(action);
 
         return auth.getAuthorities().stream()
                 .filter(PermissionAuthority.class::isInstance)
                 .map(PermissionAuthority.class::cast)
-                .anyMatch(pa -> matchesAction(pa, action, httpMethod)
-                                && containsDomain(pa.getAuthority(), domainUpper));
-    }
-
-    private boolean matchesAction(PermissionAuthority pa, String action, String httpMethod) {
-        if ("URL".equalsIgnoreCase(pa.getTargetType()) && httpMethod != null) {
-            return httpMethod.equalsIgnoreCase(pa.getActionType());
-        }
-        return pa.getAuthority().toUpperCase().contains(action);
-    }
-
-    private boolean containsDomain(String authority, String domain) {
-        return authority.toUpperCase().contains(domain);
-    }
-
-    private String mapToHttpMethod(String action) {
-        return switch (action.toUpperCase()) {
-            case "READ", "VIEW", "GET" -> "GET";
-            case "CREATE", "WRITE", "POST" -> "POST";
-            case "UPDATE", "EDIT", "PUT" -> "PUT";
-            case "DELETE", "REMOVE" -> "DELETE";
-            default -> null;
-        };
+                .filter(pa -> "METHOD".equalsIgnoreCase(pa.getTargetType()))
+                .anyMatch(pa -> {
+                    String authority = pa.getAuthority().toUpperCase();
+                    return synonyms.stream().anyMatch(authority::contains)
+                            && authority.contains(domainUpper);
+                });
     }
 }
