@@ -66,16 +66,7 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
             return false;
         }
 
-        if (!checkPermission(auth, permission)) {
-            return false;
-        }
-
-        if (target instanceof Number || target instanceof String) {
-            Object entity = resolveEntity((Serializable) target);
-            return entity != null;
-        }
-
-        return target != null;
+        return checkPermission(auth, permission);
     }
 
     @Override
@@ -84,16 +75,7 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
             return false;
         }
 
-        if (!checkPermission(auth, permission)) {
-            return false;
-        }
-
-        Object entity = resolveEntity(targetId);
-        if (entity == null) {
-            log.error("Entity not found: domain={}, id={}", domain(), targetId);
-            return false;
-        }
-        return true;
+        return checkPermission(auth, permission);
     }
 
     protected boolean checkPermission(Authentication auth, Object permission) {
