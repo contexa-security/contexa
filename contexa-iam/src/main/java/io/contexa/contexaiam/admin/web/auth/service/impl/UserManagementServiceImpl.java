@@ -36,7 +36,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable
-    public void modifyUser(@ModelAttribute UserDto userDto){
+    public void modifyUser(@ModelAttribute UserDto userDto) {
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userDto.getId()));
 
@@ -64,7 +64,7 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         userRepository.save(users);
 
-            }
+    }
 
     @Transactional(readOnly = true)
     @Protectable
@@ -85,7 +85,7 @@ public class UserManagementServiceImpl implements UserManagementService {
             userDto.setSelectedGroupIds(List.of());
         }
 
-                return userDto;
+        return userDto;
     }
 
     @Transactional(readOnly = true)
@@ -105,8 +105,8 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
+    @Protectable(ownerField = "id")
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
-            }
+    }
 }

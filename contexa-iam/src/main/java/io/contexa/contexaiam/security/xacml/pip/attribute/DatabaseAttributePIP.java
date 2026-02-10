@@ -58,7 +58,7 @@ public class DatabaseAttributePIP implements AttributeInformationPoint {
     private void enrichBasicUserAttributes(AuthorizationContext context, Map<String, Object> attributes) {
         if (context.subject() != null) {
             try {
-                String username = ((UserDto)(context.subject().getPrincipal())).getUsername();
+                String username = context.subject().getName();
                 attributes.put("username", username);
                 
                 Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);

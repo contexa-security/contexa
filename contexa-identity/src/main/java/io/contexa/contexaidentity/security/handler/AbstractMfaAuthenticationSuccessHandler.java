@@ -244,7 +244,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 return;
             }
 
-            UserDto userDto = (UserDto) authentication.getPrincipal();
+            String userName = authentication.getName();
 
             Map<String, Object> payload = new HashMap<>();
             payload.put("requestPath", request.getRequestURI());
@@ -263,7 +263,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
 
             zeroTrustEventPublisher.publishAuthenticationSuccess(
-                    userDto.getUsername(),
+                    userName,
                     request.getSession(false) != null ? request.getSession().getId() : null,
                     extractClientIp(request),
                     extractUserAgent(request),

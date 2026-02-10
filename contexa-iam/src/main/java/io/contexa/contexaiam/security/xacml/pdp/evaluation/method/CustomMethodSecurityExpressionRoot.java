@@ -23,7 +23,6 @@ import java.util.Optional;
 @Slf4j
 public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpressionRoot implements MethodSecurityExpressionOperations {
 
-    private final MethodInvocation invocation;
     private Object filterObject;
     private Object returnObject;
     private Object target;
@@ -36,10 +35,8 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     public CustomMethodSecurityExpressionRoot(Authentication authentication,
                                               AuthorizationContext authorizationContext,
                                               AuditLogRepository auditLogRepository,
-                                              StringRedisTemplate stringRedisTemplate,
-                                              MethodInvocation mi) {
+                                              StringRedisTemplate stringRedisTemplate) {
         super(authentication, authorizationContext, auditLogRepository, stringRedisTemplate);
-        this.invocation = mi;
     }
 
     public void setRepositories(UserRepository userRepository, GroupRepository groupRepository, DocumentRepository documentRepository, ApplicationContext applicationContext) {
@@ -65,16 +62,14 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     public boolean hasPermission(Object targetId, String targetType, Object permission) {
 
         if (StringUtils.hasText(ownerField) && targetId != null) {
-            if (!checkOwnershipById((Serializable) targetId, targetType)) {
-                return false;
-            }
+            return checkOwnershipById((Serializable) targetId, targetType);
         }
         return true;
     }
 
     private boolean checkOwnership(Object target) {
         try {
-            String currentUsername = ((UserDto) getAuthentication().getPrincipal()).getUsername();
+            String currentUsername = getAuthentication().getName();
 
             Field field = target.getClass().getDeclaredField(ownerField);
             field.setAccessible(true);
