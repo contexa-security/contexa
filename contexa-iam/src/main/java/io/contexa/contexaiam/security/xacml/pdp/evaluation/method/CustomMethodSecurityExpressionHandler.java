@@ -53,15 +53,12 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
-            AttributeInformationPoint attributePIP,
             AuditLogService auditLogService,
-            AICoreOperations aiNativeProcessor,
             AuditLogRepository auditLogRepository,
             ApplicationContext applicationContext,
             UserRepository userRepository,
             GroupRepository groupRepository,
             DocumentRepository documentRepository,
-            RedisTemplate<String, Double> redisTemplate,
             StringRedisTemplate stringRedisTemplate) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(zeroTrustMode, "zeroTrustMode cannot be null");

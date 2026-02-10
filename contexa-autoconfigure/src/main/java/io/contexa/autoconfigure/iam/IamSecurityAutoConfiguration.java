@@ -50,15 +50,12 @@ public class IamSecurityAutoConfiguration {
                 roleHierarchy,
                 policyRetrievalPoint,
                 contextHandler,
-                attributePIP,
                 auditLogService,
-                aiNativeProcessor,
                 auditLogRepository,
                 applicationContext,
                 userRepository,
                 groupRepository,
                 documentRepository,
-                redisTemplate,
                 stringRedisTemplate);
     }
 }

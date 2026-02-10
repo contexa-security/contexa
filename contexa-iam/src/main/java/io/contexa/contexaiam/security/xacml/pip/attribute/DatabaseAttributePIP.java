@@ -1,12 +1,11 @@
 package io.contexa.contexaiam.security.xacml.pip.attribute;
 
-import io.contexa.contexacommon.domain.UserDto;
-import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.entity.business.BusinessResource;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
