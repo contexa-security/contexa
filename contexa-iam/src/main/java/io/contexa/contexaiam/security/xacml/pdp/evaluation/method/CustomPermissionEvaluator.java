@@ -29,7 +29,7 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             return false;
         }
 
-        String username = ((UserDto) authentication.getPrincipal()).getUsername();
+        String username = authentication.getName();
         String action = permissionAction.toString().toUpperCase();
 
         try {
