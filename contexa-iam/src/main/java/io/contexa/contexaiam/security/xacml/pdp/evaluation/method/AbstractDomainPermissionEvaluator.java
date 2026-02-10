@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.core.Authentication;
@@ -65,6 +66,10 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
             return false;
         }
 
+        if (!checkPermission(auth, permission)) {
+            return false;
+        }
+
         if (target instanceof Number || target instanceof String) {
             Object entity = resolveEntity((Serializable) target);
             return entity != null;
@@ -79,11 +84,58 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
             return false;
         }
 
+        if (!checkPermission(auth, permission)) {
+            return false;
+        }
+
         Object entity = resolveEntity(targetId);
         if (entity == null) {
             log.error("Entity not found: domain={}, id={}", domain(), targetId);
             return false;
         }
         return true;
+    }
+
+    protected boolean checkPermission(Authentication auth, Object permission) {
+        if (permission == null) {
+            return true;
+        }
+
+        String permStr = permission.toString().toUpperCase();
+        String domainPrefix = domain().toUpperCase() + "_";
+
+        String action = permStr.startsWith(domainPrefix)
+                ? permStr.substring(domainPrefix.length())
+                : permStr;
+
+        String httpMethod = mapToHttpMethod(action);
+        String domainUpper = domain().toUpperCase();
+
+        return auth.getAuthorities().stream()
+                .filter(PermissionAuthority.class::isInstance)
+                .map(PermissionAuthority.class::cast)
+                .anyMatch(pa -> matchesAction(pa, action, httpMethod)
+                                && containsDomain(pa.getAuthority(), domainUpper));
+    }
+
+    private boolean matchesAction(PermissionAuthority pa, String action, String httpMethod) {
+        if ("URL".equalsIgnoreCase(pa.getTargetType()) && httpMethod != null) {
+            return httpMethod.equalsIgnoreCase(pa.getActionType());
+        }
+        return pa.getAuthority().toUpperCase().contains(action);
+    }
+
+    private boolean containsDomain(String authority, String domain) {
+        return authority.toUpperCase().contains(domain);
+    }
+
+    private String mapToHttpMethod(String action) {
+        return switch (action.toUpperCase()) {
+            case "READ", "VIEW", "GET" -> "GET";
+            case "CREATE", "WRITE", "POST" -> "POST";
+            case "UPDATE", "EDIT", "PUT" -> "PUT";
+            case "DELETE", "REMOVE" -> "DELETE";
+            default -> null;
+        };
     }
 }

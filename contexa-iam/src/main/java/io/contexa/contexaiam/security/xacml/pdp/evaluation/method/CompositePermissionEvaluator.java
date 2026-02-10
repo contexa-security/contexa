@@ -2,6 +2,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.core.Authentication;
@@ -41,6 +42,10 @@ public class CompositePermissionEvaluator implements PermissionEvaluator {
                 if (evaluator.supportsPermission(permStr)) {
                     return evaluator.hasPermission(authentication, targetDomainObject, permission);
                 }
+            }
+
+            if (!checkActionAuthority(authentication, permStr)) {
+                return false;
             }
         }
 
@@ -136,6 +141,33 @@ public class CompositePermissionEvaluator implements PermissionEvaluator {
             }
         }
         return null;
+    }
+
+    private boolean checkActionAuthority(Authentication auth, String permission) {
+        String action = permission.toUpperCase();
+        String httpMethod = mapToHttpMethod(action);
+
+        return auth.getAuthorities().stream()
+                .filter(PermissionAuthority.class::isInstance)
+                .map(PermissionAuthority.class::cast)
+                .anyMatch(pa -> matchesActionOnly(pa, action, httpMethod));
+    }
+
+    private boolean matchesActionOnly(PermissionAuthority pa, String action, String httpMethod) {
+        if ("URL".equalsIgnoreCase(pa.getTargetType()) && httpMethod != null) {
+            return httpMethod.equalsIgnoreCase(pa.getActionType());
+        }
+        return pa.getAuthority().toUpperCase().contains(action);
+    }
+
+    private String mapToHttpMethod(String action) {
+        return switch (action.toUpperCase()) {
+            case "READ", "VIEW", "GET" -> "GET";
+            case "CREATE", "WRITE", "POST" -> "POST";
+            case "UPDATE", "EDIT", "PUT" -> "PUT";
+            case "DELETE", "REMOVE" -> "DELETE";
+            default -> null;
+        };
     }
 
     private String getCurrentUserName(String username) {
