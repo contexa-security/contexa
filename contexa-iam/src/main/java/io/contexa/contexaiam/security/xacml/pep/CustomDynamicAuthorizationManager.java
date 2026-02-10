@@ -40,6 +40,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ExpressionAuthorizationManagerResolver managerResolver;
     private List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> mappings;
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("^[A-Z_]+$");
+    private static final Pattern HAS_PERMISSION_PATTERN = Pattern.compile("\\s*(?:and\\s+)?hasPermission\\([^)]*\\)(?:\\s*and)?\\s*");
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
     private final ContextHandler contextHandler;
@@ -83,11 +84,12 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
 
         for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
-            if (mapping.getRequestMatcher().matcher(context.getRequest()).isMatch()) {
-
+            RequestMatcher.MatchResult matchResult = mapping.getRequestMatcher().matcher(context.getRequest());
+            if (matchResult.isMatch()) {
                 AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
-
-                return manager.check(authenticationSupplier, context);
+                RequestAuthorizationContext enrichedContext =
+                        new RequestAuthorizationContext(context.getRequest(), matchResult.getVariables());
+                return manager.check(authenticationSupplier, enrichedContext);
             }
         }
         AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
@@ -140,9 +142,18 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         }
 
         if (policy.getEffect() == Policy.Effect.DENY) {
-            return "!(" + finalExpression + ")";
+            finalExpression = "!(" + finalExpression + ")";
         }
-        return finalExpression;
+        return stripHasPermissionForUrl(finalExpression);
+    }
+
+    private String stripHasPermissionForUrl(String expression) {
+        String cleaned = HAS_PERMISSION_PATTERN.matcher(expression).replaceAll(" ");
+        cleaned = cleaned.replaceAll("\\s+and\\s+and\\s+", " and ");
+        cleaned = cleaned.replaceAll("^\\s*and\\s+", "");
+        cleaned = cleaned.replaceAll("\\s+and\\s*$", "");
+        cleaned = cleaned.trim();
+        return cleaned.isEmpty() ? "permitAll" : cleaned;
     }
 
     private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context, AuthorizationDecision decision) {
