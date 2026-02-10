@@ -154,6 +154,15 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             allConditions.add("(" + roleCondition + ")");
         }
 
+        List<Permission> permissions = new ArrayList<>(permissionRepository.findAllById(dto.getPermissionIds()));
+        String permissionCondition = permissions.stream()
+                .map(Permission::getName)
+                .map(name -> String.format("hasAuthority('%s')", name))
+                .collect(Collectors.joining(" or "));
+        if (StringUtils.hasText(permissionCondition)) {
+            allConditions.add("(" + permissionCondition + ")");
+        }
+
         if (dto.isAiActionEnabled() && !CollectionUtils.isEmpty(dto.getAllowedActions())) {
             List<String> actions = dto.getAllowedActions();
             if (actions.size() == 1) {
@@ -273,10 +282,17 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Matcher matcher = pattern.matcher(spelExpression);
 
         while (matcher.find()) {
-            roleNames.add(matcher.group(1));
+            String name = matcher.group(1);
+            if (!isPermissionName(name)) {
+                roleNames.add(name);
+            }
         }
 
         return roleNames;
+    }
+
+    private boolean isPermissionName(String name) {
+        return name.startsWith("URL_") || name.startsWith("METHOD_");
     }
 
     private void analyzeConditions(Policy policy, BusinessPolicyDto dto) {

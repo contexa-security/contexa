@@ -2,13 +2,8 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.UserRepository;
-import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
-import io.contexa.contexaiam.repository.DocumentRepository;
-import io.contexa.contexaiam.security.xacml.pip.attribute.AttributeInformationPoint;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -17,7 +12,6 @@ import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
@@ -39,12 +33,9 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ContextHandler contextHandler;
-    private final DocumentRepository documentRepository;
     private final AuditLogService auditLogService;
     private final AuditLogRepository auditLogRepository;
     private final ApplicationContext applicationContext;
-    private final UserRepository userRepository;
-    private final GroupRepository groupRepository;
     private final StringRedisTemplate stringRedisTemplate;
 
     public CustomMethodSecurityExpressionHandler(
@@ -56,9 +47,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
             ApplicationContext applicationContext,
-            UserRepository userRepository,
-            GroupRepository groupRepository,
-            DocumentRepository documentRepository,
             StringRedisTemplate stringRedisTemplate) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(zeroTrustMode, "zeroTrustMode cannot be null");
@@ -68,9 +56,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.auditLogService = auditLogService;
         this.auditLogRepository = auditLogRepository;
         this.applicationContext = applicationContext;
-        this.userRepository = userRepository;
-        this.documentRepository = documentRepository;
-        this.groupRepository = groupRepository;
         this.stringRedisTemplate = stringRedisTemplate;
         super.setPermissionEvaluator(customPermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
@@ -87,7 +72,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
         CustomMethodSecurityExpressionRoot root = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, stringRedisTemplate);
         root.setOwnerField(ownerField);
-        root.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
+        root.setApplicationContext(applicationContext);
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(getTrustResolver());
         root.setRoleHierarchy(getRoleHierarchy());

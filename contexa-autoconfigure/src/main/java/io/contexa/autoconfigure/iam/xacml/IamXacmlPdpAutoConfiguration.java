@@ -93,7 +93,8 @@ public class IamXacmlPdpAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public CustomPermissionEvaluator customPermissionEvaluator(
-            UserRepository userRepository) {
-        return new CustomPermissionEvaluator(userRepository);
+            UserRepository userRepository,
+            ApplicationContext applicationContext) {
+        return new CustomPermissionEvaluator(userRepository, applicationContext);
     }
 }

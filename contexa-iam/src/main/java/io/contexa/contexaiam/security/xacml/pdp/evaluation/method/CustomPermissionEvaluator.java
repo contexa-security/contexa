@@ -1,8 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
-import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.Users;
-import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,57 +11,43 @@ import org.springframework.security.core.Authentication;
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
 
 @Slf4j
 @RequiredArgsConstructor
 public class CustomPermissionEvaluator implements PermissionEvaluator {
 
     private final UserRepository userRepository;
+    private final ApplicationContext applicationContext;
 
     @Override
-    public boolean hasPermission(Authentication authentication, Serializable targetId, String targetType, Object permissionAction) {
+    public boolean hasPermission(Authentication authentication, Serializable targetId,
+                                 String targetType, Object permissionAction) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
         }
 
-        String username = authentication.getName();
-        String action = permissionAction.toString().toUpperCase();
-
-        try {
-            Set<String> userPermissions = getUserPermissions(username);
-            String requiredPermission = buildPermissionName(targetType, action);
-
-            return userPermissions.contains(requiredPermission);
-
-        } catch (Exception e) {
-            log.error("권한 평가 중 오류 발생", e);
+        Object targetDomainObject = resolveEntity(targetId, targetType);
+        if (targetDomainObject == null) {
+            log.error("Entity not found: type={}, id={}", targetType, targetId);
             return false;
         }
+
+        return hasPermission(authentication, targetDomainObject, permissionAction);
     }
 
     @Override
-    public boolean hasPermission(Authentication authentication, Object targetDomainObject, Object permission) {
-        return checkBasicPermission(authentication, targetDomainObject, permission.toString());
-    }
-
-    private boolean checkBasicPermission(Authentication authentication, Object targetDomainObject, String permissionStr) {
-        Serializable id = extractObjectId(targetDomainObject);
-
-        if (permissionStr.contains("_")) {
-            String[] parts = permissionStr.split("_", 2);
-            String type = parts[0];
-            String action = parts[1];
-            return hasPermission(authentication, id, type, action);
-        } else {
-            String type = targetDomainObject.getClass().getSimpleName().toUpperCase();
-            return hasPermission(authentication, id, type, permissionStr);
+    public boolean hasPermission(Authentication authentication, Object targetDomainObject,
+                                 Object permission) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
         }
+
+        return targetDomainObject != null;
     }
 
-    public boolean checkOwnership(Authentication authentication, Object targetDomainObject, String ownerField) {
+    public boolean checkOwnership(Authentication authentication, Object targetDomainObject,
+                                  String ownerField) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
         }
@@ -87,14 +71,44 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             return currentUserName.equals(ownerUserId);
 
         } catch (Exception e) {
-            log.error("소유자 확인 중 오류 발생", e);
+            log.error("Ownership verification failed", e);
             return false;
+        }
+    }
+
+    public boolean isOwner(Authentication authentication, Object targetObject, String ownerField) {
+        return checkOwnership(authentication, targetObject, ownerField);
+    }
+
+    private Object resolveEntity(Serializable targetId, String targetType) {
+        if (targetId == null || targetType == null || applicationContext == null) {
+            return null;
+        }
+
+        try {
+            String repositoryBeanName = targetType.toLowerCase() + "Repository";
+
+            if (!applicationContext.containsBean(repositoryBeanName)) {
+                log.error("Repository bean not found: {}", repositoryBeanName);
+                return null;
+            }
+
+            Object repository = applicationContext.getBean(repositoryBeanName);
+            Method findByIdMethod = repository.getClass().getMethod("findById", Object.class);
+            Object result = findByIdMethod.invoke(repository, targetId);
+
+            if (result instanceof Optional<?> optional) {
+                return optional.orElse(null);
+            }
+            return result;
+        } catch (Exception e) {
+            log.error("Entity resolution failed: type={}, id={}", targetType, targetId, e);
+            return null;
         }
     }
 
     private String getOwnerIdFromObject(Object object, String ownerField) {
         try {
-
             Field field = findField(object.getClass(), ownerField);
             if (field != null) {
                 field.setAccessible(true);
@@ -102,13 +116,15 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
                 return String.valueOf(value);
             }
 
-            String getterName = "get" + ownerField.substring(0, 1).toUpperCase() + ownerField.substring(1);
+            String getterName = "get" + ownerField.substring(0, 1).toUpperCase()
+                    + ownerField.substring(1);
             Method getter = object.getClass().getMethod(getterName);
             Object value = getter.invoke(object);
             return String.valueOf(value);
 
         } catch (Exception e) {
-            log.warn("소유자 필드 접근 실패: 필드={}, 객체={}", ownerField, object.getClass().getSimpleName(), e);
+            log.error("Owner field access failed: field={}, object={}",
+                    ownerField, object.getClass().getSimpleName(), e);
             return null;
         }
     }
@@ -130,43 +146,8 @@ public class CustomPermissionEvaluator implements PermissionEvaluator {
             Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
             return userOpt.map(Users::getUsername).orElse(null);
         } catch (Exception e) {
-            log.error("사용자 ID 조회 실패: {}", username, e);
+            log.error("User lookup failed: {}", username, e);
             return null;
         }
-    }
-
-    private Set<String> getUserPermissions(String username) {
-        try {
-            Optional<Users> userOpt = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
-            if (userOpt.isEmpty()) {
-                return Set.of();
-            }
-
-            Users user = userOpt.get();
-            return new HashSet<>(user.getPermissionNames());
-
-        } catch (Exception e) {
-            log.error("사용자 권한 조회 실패: {}", username, e);
-            return Set.of();
-        }
-    }
-
-    private String buildPermissionName(String targetType, String action) {
-        return String.format("%s_%s", targetType.toUpperCase(), action.toUpperCase());
-    }
-
-    private Serializable extractObjectId(Object domainObject) {
-        try {
-            Method getIdMethod = domainObject.getClass().getMethod("getId");
-            Object id = getIdMethod.invoke(domainObject);
-            return (Serializable) id;
-        } catch (Exception e) {
-            log.warn("ID 추출 실패: {}", e.getMessage());
-            return null;
-        }
-    }
-
-    public boolean isOwner(Authentication authentication, Object targetObject, String ownerField) {
-        return checkOwnership(authentication, targetObject, ownerField);
     }
 }

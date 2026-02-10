@@ -33,15 +33,9 @@ public class IamSecurityAutoConfiguration {
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
-            AttributeInformationPoint attributePIP,
             AuditLogService auditLogService,
-            AICoreOperations aiNativeProcessor,
             AuditLogRepository auditLogRepository,
             ApplicationContext applicationContext,
-            UserRepository userRepository,
-            GroupRepository groupRepository,
-            DocumentRepository documentRepository,
-            @Qualifier("trustScoreRedisTemplate") RedisTemplate<String, Double> redisTemplate,
             StringRedisTemplate stringRedisTemplate) {
 
         return new CustomMethodSecurityExpressionHandler(
@@ -53,9 +47,6 @@ public class IamSecurityAutoConfiguration {
                 auditLogService,
                 auditLogRepository,
                 applicationContext,
-                userRepository,
-                groupRepository,
-                documentRepository,
                 stringRedisTemplate);
     }
 }

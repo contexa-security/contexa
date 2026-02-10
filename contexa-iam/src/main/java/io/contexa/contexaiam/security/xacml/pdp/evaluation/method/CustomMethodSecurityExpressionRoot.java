@@ -2,16 +2,11 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
-import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.ApplicationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionOperations;
@@ -19,7 +14,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 
 import java.io.Serializable;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -36,9 +30,6 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     private Object returnObject;
     private Object target;
     private String ownerField;
-    private UserRepository userRepository;
-    private GroupRepository groupRepository;
-    private DocumentRepository documentRepository;
     private ApplicationContext applicationContext;
 
     public CustomMethodSecurityExpressionRoot(Authentication authentication,
@@ -48,10 +39,7 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         super(authentication, authorizationContext, auditLogRepository, stringRedisTemplate);
     }
 
-    public void setRepositories(UserRepository userRepository, GroupRepository groupRepository, DocumentRepository documentRepository, ApplicationContext applicationContext) {
-        this.userRepository = userRepository;
-        this.groupRepository = groupRepository;
-        this.documentRepository = documentRepository;
+    public void setApplicationContext(ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
     }
 
@@ -91,18 +79,36 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     @Override
     public boolean hasPermission(Object targetId, String targetType, Object permission) {
+        // Step 1: Delegate to PermissionEvaluator via super (entity existence check)
+        if (!super.hasPermission(targetId, targetType, permission)) {
+            return false;
+        }
 
+        // Step 2: Action-based ownership policy
         if (StringUtils.hasText(ownerField) && targetId != null) {
+            String action = permission != null ? permission.toString().toUpperCase() : "";
+
+            // READ/VIEW/GET actions do not require ownership
+            if (isReadAction(action)) {
+                return true;
+            }
+
+            // WRITE/UPDATE/DELETE actions require ownership
             return checkOwnershipById((Serializable) targetId, targetType);
         }
+
         return true;
+    }
+
+    private boolean isReadAction(String action) {
+        return "READ".equals(action) || "VIEW".equals(action) || "GET".equals(action);
     }
 
     private boolean checkOwnership(Object target) {
         try {
             String currentUsername = getAuthentication().getName();
 
-            Field field = target.getClass().getDeclaredField(ownerField);
+            java.lang.reflect.Field field = target.getClass().getDeclaredField(ownerField);
             field.setAccessible(true);
             Object ownerValue = field.get(target);
 
@@ -137,39 +143,28 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     }
 
     private Object findEntityById(Serializable targetId, String targetType) {
-        try {
-            return switch (targetType.toUpperCase()) {
-                case "USER" -> userRepository != null ? userRepository.findById((Long) targetId).orElse(null) : null;
-                case "GROUP" -> groupRepository != null ? groupRepository.findById((Long) targetId).orElse(null) : null;
-                case "DOCUMENT" ->
-                        documentRepository != null ? documentRepository.findById((Long) targetId).orElse(null) : null;
-                default -> findEntityByDynamicRepository(targetId, targetType);
-            };
-        } catch (Exception e) {
-            log.error("Entity lookup failed: targetId={}, targetType={}", targetId, targetType, e);
+        if (applicationContext == null || targetType == null) {
             return null;
         }
-    }
 
-    private Object findEntityByDynamicRepository(Serializable targetId, String targetType) {
-        if (applicationContext == null) {
-            return null;
-        }
         try {
             String repositoryBeanName = targetType.toLowerCase() + "Repository";
-            if (applicationContext.containsBean(repositoryBeanName)) {
-                Object repository = applicationContext.getBean(repositoryBeanName);
 
-                Method findByIdMethod = repository.getClass().getMethod("findById", Object.class);
-                Object result = findByIdMethod.invoke(repository, targetId);
-
-                if (result instanceof Optional) {
-                    return ((Optional<?>) result).orElse(null);
-                }
-                return result;
+            if (!applicationContext.containsBean(repositoryBeanName)) {
+                log.error("Repository bean not found: {}", repositoryBeanName);
+                return null;
             }
-            return null;
+
+            Object repository = applicationContext.getBean(repositoryBeanName);
+            Method findByIdMethod = repository.getClass().getMethod("findById", Object.class);
+            Object result = findByIdMethod.invoke(repository, targetId);
+
+            if (result instanceof Optional<?> optional) {
+                return optional.orElse(null);
+            }
+            return result;
         } catch (Exception e) {
+            log.error("Entity lookup failed: targetId={}, targetType={}", targetId, targetType, e);
             return null;
         }
     }
