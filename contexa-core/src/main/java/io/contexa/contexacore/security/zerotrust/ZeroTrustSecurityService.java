@@ -35,9 +35,6 @@ public class ZeroTrustSecurityService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ThreatScoreOrchestrator threatScoreOrchestrator;
     private final ObjectMapper objectMapper;
-    private final BaselineLearningService baselineLearningService;
-    private final ZeroTrustEventPublisher zeroTrustEventPublisher;
-    private final TieredStrategyProperties tieredStrategyProperties;
 
     @Value("${zerotrust.enabled:true}")
     private boolean zeroTrustEnabled;
@@ -189,7 +186,8 @@ public class ZeroTrustSecurityService {
                 log.warn("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
             case "CHALLENGE" -> {
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
+                adjustedAuthorities.addAll(currentAuthorities);
+//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
             }
             case "ESCALATE" -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));

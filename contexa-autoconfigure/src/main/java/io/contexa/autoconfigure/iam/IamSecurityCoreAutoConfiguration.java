@@ -23,13 +23,9 @@ public class IamSecurityCoreAutoConfiguration {
     public ZeroTrustSecurityService zeroTrustSecurityService(
             RedisTemplate<String, Object> redisTemplate,
             ThreatScoreOrchestrator threatScoreOrchestrator,
-            ObjectMapper objectMapper,
-            BaselineLearningService baselineLearningService,
-            ZeroTrustEventPublisher zeroTrustEventPublisher,
-            TieredStrategyProperties tieredStrategyProperties) {
+            ObjectMapper objectMapper) {
         return new ZeroTrustSecurityService(redisTemplate,
-                threatScoreOrchestrator, objectMapper, baselineLearningService, zeroTrustEventPublisher,
-                tieredStrategyProperties);
+                threatScoreOrchestrator, objectMapper);
     }
 
     @Bean
