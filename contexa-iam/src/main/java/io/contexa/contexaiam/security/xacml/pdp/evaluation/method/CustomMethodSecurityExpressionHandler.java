@@ -101,37 +101,18 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         Authentication auth = authentication.get();
         AuthorizationContext authorizationContext = contextHandler.create(auth, mi);
 
-        AbstractAISecurityExpressionRoot root;
-
-        switch (zeroTrustMode) {
-            case "TRUST":
-                root = new TrustSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, stringRedisTemplate);
-                break;
-
-            case "STANDARD":
-            default:
-
-                CustomMethodSecurityExpressionRoot customRoot = new CustomMethodSecurityExpressionRoot
-                        (auth, authorizationContext, auditLogRepository, stringRedisTemplate);
-                customRoot.setOwnerField(ownerField);
-                customRoot.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
-                root = customRoot;
-                break;
-        }
-
+        CustomMethodSecurityExpressionRoot root = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, stringRedisTemplate);
+        root.setOwnerField(ownerField);
+        root.setRepositories(userRepository, groupRepository, documentRepository, applicationContext);
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(getTrustResolver());
         root.setRoleHierarchy(getRoleHierarchy());
         root.setDefaultRolePrefix(getDefaultRolePrefix());
-        if (root instanceof CustomMethodSecurityExpressionRoot) {
-            ((CustomMethodSecurityExpressionRoot) root).setThis(mi.getThis());
-        }
+        root.setThis(mi.getThis());
 
         MethodBasedEvaluationContext ctx = new MethodBasedEvaluationContext(root, mi.getMethod(), mi.getArguments(), getParameterNameDiscoverer());
         ctx.setBeanResolver(getBeanResolver());
-
         ctx.setVariable("ai", root);
-        ctx.setVariable("trust", root);
 
         if (StringUtils.hasText(ownerField)) {
             ctx.setVariable("ownerField", ownerField);
