@@ -87,18 +87,9 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         }
 
         if (StringUtils.hasText(ownerField) && targetId != null) {
-            String action = permission != null ? permission.toString().toUpperCase() : "";
-
-            if (isReadAction(action)) {
-                return true;
-            }
             return checkOwnershipById((Serializable) targetId, targetType);
         }
         return true;
-    }
-
-    private boolean isReadAction(String action) {
-        return "READ".equals(action) || "VIEW".equals(action) || "GET".equals(action);
     }
 
     private boolean checkOwnership(Object target) {

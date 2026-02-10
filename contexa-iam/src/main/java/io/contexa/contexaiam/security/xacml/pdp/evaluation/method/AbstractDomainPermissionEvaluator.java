@@ -17,7 +17,7 @@ public abstract class AbstractDomainPermissionEvaluator implements DomainPermiss
             List.of("GET", "FIND", "READ", "FETCH", "VIEW", "RETRIEVE", "LIST", "SEARCH"),
             List.of("CREATE", "SAVE", "ADD", "INSERT", "REGISTER", "POST"),
             List.of("UPDATE", "EDIT", "MODIFY", "CHANGE", "PATCH", "PUT"),
-            List.of("DELETE", "REMOVE", "DESTROY", "DROP")
+            List.of("DELETE", "REMOVE", "DESTROY", "DROP", "ERASE", "PURGE", "CLEAR", "TRUNCATE")
     );
 
     static List<String> resolveCrudSynonyms(String action) {
