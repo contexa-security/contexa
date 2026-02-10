@@ -15,6 +15,7 @@ import org.springframework.util.StringUtils;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -94,11 +95,14 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     private boolean checkOwnership(Object target) {
         try {
-            String currentUsername = getAuthentication().getName();
+            Authentication auth = getAuthentication();
 
-            Field field = target.getClass().getDeclaredField(ownerField);
-            field.setAccessible(true);
-            Object ownerValue = field.get(target);
+            if (hasAdminRole(auth)) {
+                return true;
+            }
+
+            String currentUsername = auth.getName();
+            Object ownerValue = getOwnerValue(target);
 
             if (ownerValue == null) {
                 return false;
@@ -114,6 +118,37 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             log.error("Object-based ownership check error: {}", e.getMessage());
             return false;
         }
+    }
+
+    private boolean hasAdminRole(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    private Object getOwnerValue(Object target) throws Exception {
+        Field field = findField(target.getClass(), ownerField);
+        if (field != null) {
+            field.setAccessible(true);
+            return field.get(target);
+        }
+
+        String getterName = "get" + ownerField.substring(0, 1).toUpperCase()
+                + ownerField.substring(1);
+        Method getter = target.getClass().getMethod(getterName);
+        return getter.invoke(target);
+    }
+
+    private Field findField(Class<?> clazz, String fieldName) {
+        Class<?> current = clazz;
+        while (current != null) {
+            try {
+                return current.getDeclaredField(fieldName);
+            } catch (NoSuchFieldException e) {
+                current = current.getSuperclass();
+            }
+        }
+        log.error("Owner field not found: field={}, class={}", fieldName, clazz.getSimpleName());
+        return null;
     }
 
     private boolean checkOwnershipById(Serializable targetId, String targetType) {

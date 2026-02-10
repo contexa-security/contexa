@@ -105,7 +105,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Override
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable(ownerField = "id")
+    @Protectable(ownerField = "username")
     public void deleteUser(Long id) {
         userRepository.deleteById(id);
     }
