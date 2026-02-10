@@ -123,8 +123,7 @@ public class IamXacmlPdpAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public CompositePermissionEvaluator compositePermissionEvaluator(
-            List<DomainPermissionEvaluator> evaluators,
-            UserRepository userRepository) {
-        return new CompositePermissionEvaluator(evaluators, userRepository);
+            List<DomainPermissionEvaluator> evaluators) {
+        return new CompositePermissionEvaluator(evaluators);
     }
 }
