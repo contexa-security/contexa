@@ -28,7 +28,6 @@ public class IamSecurityAutoConfiguration {
             ContextHandler contextHandler,
             AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
-            ApplicationContext applicationContext,
             StringRedisTemplate stringRedisTemplate) {
 
         return new CustomMethodSecurityExpressionHandler(
@@ -39,7 +38,6 @@ public class IamSecurityAutoConfiguration {
                 contextHandler,
                 auditLogService,
                 auditLogRepository,
-                applicationContext,
                 stringRedisTemplate);
     }
 }

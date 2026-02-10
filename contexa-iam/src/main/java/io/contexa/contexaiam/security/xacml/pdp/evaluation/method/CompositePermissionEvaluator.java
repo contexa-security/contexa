@@ -30,8 +30,7 @@ public class CompositePermissionEvaluator implements PermissionEvaluator {
     }
 
     @Override
-    public boolean hasPermission(Authentication authentication, Object targetDomainObject,
-                                 Object permission) {
+    public boolean hasPermission(Authentication authentication, Object targetDomainObject, Object permission) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
         }

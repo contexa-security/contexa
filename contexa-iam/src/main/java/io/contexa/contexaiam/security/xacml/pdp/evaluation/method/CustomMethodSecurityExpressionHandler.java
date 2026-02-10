@@ -35,7 +35,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final ContextHandler contextHandler;
     private final AuditLogService auditLogService;
     private final AuditLogRepository auditLogRepository;
-    private final ApplicationContext applicationContext;
     private final StringRedisTemplate stringRedisTemplate;
 
     public CustomMethodSecurityExpressionHandler(
@@ -46,7 +45,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
-            ApplicationContext applicationContext,
             StringRedisTemplate stringRedisTemplate) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(zeroTrustMode, "zeroTrustMode cannot be null");
@@ -55,7 +53,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.contextHandler = contextHandler;
         this.auditLogService = auditLogService;
         this.auditLogRepository = auditLogRepository;
-        this.applicationContext = applicationContext;
         this.stringRedisTemplate = stringRedisTemplate;
         super.setPermissionEvaluator(compositePermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
