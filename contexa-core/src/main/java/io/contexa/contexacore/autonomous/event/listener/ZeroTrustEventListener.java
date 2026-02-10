@@ -80,7 +80,6 @@ public class ZeroTrustEventListener {
                 return;
             }
         }
-
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
@@ -90,24 +89,18 @@ public class ZeroTrustEventListener {
         if (shouldSkipPublishing(userId)) {
             return;
         }
-
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processSessionEvent(ZeroTrustSpringEvent event) {
-
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processThreatEvent(ZeroTrustSpringEvent event) {
-        log.warn("[ZeroTrustEventListener] Processing threat event - type: {}, user: {}, resource: {}",
-                event.getEventType(), event.getUserId(), event.getResource());
-
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processCustomEvent(ZeroTrustSpringEvent event) {
-
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 

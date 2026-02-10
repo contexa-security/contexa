@@ -16,6 +16,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -39,6 +40,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
     @Autowired(required = false)
     private LlmAnalysisEventListener llmAnalysisEventListener;
+
+    @Autowired(required = false)
+    private StringRedisTemplate stringRedisTemplate;
 
     private final AtomicLong processedCount = new AtomicLong(0);
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
@@ -243,6 +247,12 @@ public class ColdPathEventProcessor implements IPathProcessor {
             redisTemplate.opsForHash().putAll(analysisKey, fields);
             if (ttl != null) {
                 redisTemplate.expire(analysisKey, ttl);
+            }
+
+            // Persist last verified action in separate key (survives hcadAnalysis TTL expiry)
+            if (stringRedisTemplate != null) {
+                String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+                stringRedisTemplate.opsForValue().set(lastActionKey, action, Duration.ofHours(24));
             }
 
             if ("BLOCK".equalsIgnoreCase(action) && adminOverrideService != null) {

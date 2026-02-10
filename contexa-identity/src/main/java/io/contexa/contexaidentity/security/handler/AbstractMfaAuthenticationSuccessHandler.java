@@ -22,7 +22,9 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -45,6 +47,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final RedisTemplate<String, Object> redisTemplate;
     private final BaselineLearningService baselineLearningService;
+
+    @Autowired(required = false)
+    private StringRedisTemplate stringRedisTemplate;
 
     @Value("${contexa.hcad.enable-simulated-user-agent:false}")
     private boolean enableSimulatedUserAgent;
@@ -358,6 +363,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             redisTemplate.opsForHash().put(analysisKey, "previousAction", previousAction != null ? previousAction.toString() : "NONE");
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
             redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
+
+            // Persist last verified action in separate key (survives hcadAnalysis TTL expiry)
+            if (stringRedisTemplate != null) {
+                String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+                stringRedisTemplate.opsForValue().set(lastActionKey, "ALLOW", Duration.ofHours(24));
+            }
 
             learnBaselineOnMfaSuccess(userId, request);
 

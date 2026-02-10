@@ -6,7 +6,9 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -19,6 +21,9 @@ public class AdminOverrideService {
     private final AdminOverrideRepository repository;
     private final BaselineLearningService baselineLearningService;
     private final RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired(required = false)
+    private StringRedisTemplate stringRedisTemplate;
 
     public AdminOverrideService(AdminOverrideRepository repository,
                                 BaselineLearningService baselineLearningService,
@@ -128,8 +133,14 @@ public class AdminOverrideService {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             redisTemplate.opsForHash().put(analysisKey, "action", action);
             redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
+
+            // Persist last verified action in separate key (survives hcadAnalysis TTL expiry)
+            if (stringRedisTemplate != null) {
+                String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+                stringRedisTemplate.opsForValue().set(lastActionKey, action, Duration.ofHours(24));
+            }
         } catch (Exception e) {
-            log.error("[AdminOverrideService] Redis analysis 키 업데이트 실패: userId={}", userId, e);
+            log.error("[AdminOverrideService] Redis analysis update failed: userId={}", userId, e);
         }
     }
     public Optional<AdminOverride> findByRequestId(String requestId) {

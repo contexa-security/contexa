@@ -107,9 +107,16 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
             if (actionValue != null) {
                 return actionValue.toString();
-            } else {
-                return "PENDING_ANALYSIS";
             }
+
+            // Fallback to last verified action during PENDING_ANALYSIS
+            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+            Object lastAction = stringRedisTemplate.opsForValue().get(lastActionKey);
+            if (lastAction != null) {
+                return lastAction.toString();
+            }
+
+            return "PENDING_ANALYSIS";
         } catch (Exception e) {
             log.error("getActionFromRedisHash: Redis lookup failed - userId: {}, returning PENDING_ANALYSIS", userId, e);
             return "PENDING_ANALYSIS";

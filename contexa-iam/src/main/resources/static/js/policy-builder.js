@@ -99,6 +99,14 @@
                             document.dispatchEvent(event);
                         });
 
+                        if (type === 'permission' && value.targetType) {
+                            const badge = document.createElement('span');
+                            badge.textContent = value.targetType;
+                            badge.style.cssText = value.targetType === 'URL'
+                                ? 'background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); padding: 1px 6px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-right: 4px;'
+                                : 'background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3); padding: 1px 6px; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; margin-right: 4px;';
+                            chip.appendChild(badge);
+                        }
                         chip.appendChild(document.createTextNode(value.name + ' '));
                         chip.appendChild(removeBtn);
 
@@ -110,7 +118,10 @@
                     if (!this.elements.policyPreview) return;
 
                     const rolesHtml = Array.from(state.roles.values()).map(r => `<span class="policy-chip-preview">${r.name}</span>`).join(' 또는 ') || '<span class="text-gray-400">모든 역할</span>';
-                    const permissionsHtml = Array.from(state.permissions.values()).map(p => `<span class="policy-chip-preview">${p.name}</span>`).join(' 그리고 ') || '<span class="text-gray-400">모든 권한</span>';
+                    const permissionsHtml = Array.from(state.permissions.values()).map(p => {
+                        const badge = p.targetType ? `<span style="${p.targetType === 'URL' ? 'background:rgba(59,130,246,0.2);color:#60a5fa;border:1px solid rgba(59,130,246,0.3)' : 'background:rgba(139,92,246,0.2);color:#a78bfa;border:1px solid rgba(139,92,246,0.3)'};padding:1px 6px;border-radius:9999px;font-size:0.7rem;font-weight:600;margin-right:4px;">${p.targetType}</span> ` : '';
+                        return `<span class="policy-chip-preview">${badge}${p.name}</span>`;
+                    }).join(' 그리고 ') || '<span class="text-gray-400">모든 권한</span>';
                     const conditionsHtml = Array.from(state.conditions.values()).map(c => `<span class="policy-chip-preview condition">${c.name}</span>`).join(' 그리고 ');
                     const aiConditionHtml = state.aiActionEnabled && state.allowedActions.length > 0 ? `<span class="policy-chip-preview ai">AI 허용 액션: ${state.allowedActions.join(', ')}</span>` : '';
                     let fullConditionHtml = [conditionsHtml, aiConditionHtml].filter(Boolean).join(' 그리고 ');
@@ -260,6 +271,7 @@
 
                     this.bindEventListeners();
                     this.initializeFromContext();
+                    this.syncAiActionsWithEffect();
                     this.ui.renderAll(this.state);
 
                     console.log('=== PolicyBuilderApp init 완료 ===');
@@ -365,16 +377,17 @@
                         this.elements.aiEnabledCheckbox.addEventListener('change', () => this.handleAiToggle());
                     }
 
-                    document.querySelectorAll('.ai-action-checkbox').forEach(cb => {
-                        cb.addEventListener('change', () => this.handleAiActionChange());
-                    });
+                    // AI action checkboxes removed - isAllowed() only
 
                     if (this.elements.savePolicyBtn) {
                         this.elements.savePolicyBtn.addEventListener('click', () => this.handleSavePolicy());
                     }
 
                     if (this.elements.policyEffectSelect) {
-                        this.elements.policyEffectSelect.addEventListener('change', () => this.ui.updatePreview(this.state));
+                        this.elements.policyEffectSelect.addEventListener('change', () => {
+                            this.syncAiActionsWithEffect();
+                            this.ui.updatePreview(this.state);
+                        });
                     }
 
                     ['rolesPalette', 'permissionsPalette', 'conditionsPalette'].forEach(jsKey => {
@@ -445,10 +458,19 @@
                     if (elementType !== type) return;
 
                     const info = e.dataTransfer.getData("text/plain");
-                    const [id, ...nameParts] = info.split(':');
-                    const name = nameParts.join(':');
+                    let id, name, targetType = '';
+                    if (type === 'permission') {
+                        const parts = info.split(':');
+                        id = parts[0];
+                        targetType = parts[1] || '';
+                        name = parts.slice(2).join(':');
+                    } else {
+                        const [first, ...rest] = info.split(':');
+                        id = first;
+                        name = rest.join(':');
+                    }
 
-                    this.state.add(type, id, { id, name });
+                    this.state.add(type, id, { id, name, targetType });
                     this.highlightPaletteItem(type, id);
                     this.ui.renderAll(this.state);
                 }
@@ -524,6 +546,7 @@
                         availableItems.permissions = window.allPermissions.map(perm => ({
                             id: perm.id,
                             name: perm.friendlyName,
+                            targetType: perm.targetType || '',
                             description: perm.description || ''
                         }));
                     }
@@ -965,8 +988,10 @@
                     if (data.permissionIds && Array.isArray(data.permissionIds)) {
                         data.permissionIds.forEach(id => {
                             const name = maps.permissions[id] || `권한 (ID: ${id})`;
+                            const permItem = window.allPermissions?.find(p => p.id == id);
+                            const targetType = permItem?.targetType || '';
                             console.log(`🔥 권한 추가: ID=${id}, Name=${name}`);
-                            this.state.add('permission', String(id), { id, name });
+                            this.state.add('permission', String(id), { id, name, targetType });
                             selectedPermissionIds.push(id);
                         });
                     }
@@ -982,13 +1007,10 @@
                     }
 
                     this.state.aiActionEnabled = data.aiActionEnabled || false;
-                    this.state.allowedActions = data.allowedActions || [];
+                    this.state.allowedActions = this.state.aiActionEnabled ? ['ALLOW'] : [];
                     if (this.elements.aiEnabledCheckbox) {
                         this.elements.aiEnabledCheckbox.checked = this.state.aiActionEnabled;
                     }
-                    document.querySelectorAll('.ai-action-checkbox').forEach(cb => {
-                        cb.checked = this.state.allowedActions.includes(cb.value);
-                    });
 
                     this.handleAiToggle();
                     this.ui.renderAll(this.state);
@@ -1308,20 +1330,17 @@
                     if (this.elements.aiActionContainer) {
                         this.elements.aiActionContainer.classList.toggle('hidden', !this.state.aiActionEnabled);
                     }
-                    if (!this.state.aiActionEnabled) {
-                        this.state.allowedActions = [];
-                        document.querySelectorAll('.ai-action-checkbox').forEach(cb => cb.checked = false);
-                    }
+                    // AI enabled = always use isAllowed() only
+                    this.state.allowedActions = this.state.aiActionEnabled ? ['ALLOW'] : [];
                     this.ui.updatePreview(this.state);
                 }
 
+                syncAiActionsWithEffect() {
+                    // AI action is always isAllowed(), no effect-based filtering needed
+                }
+
                 handleAiActionChange() {
-                    const checked = [];
-                    document.querySelectorAll('.ai-action-checkbox:checked').forEach(cb => {
-                        checked.push(cb.value);
-                    });
-                    this.state.allowedActions = checked;
-                    this.ui.updatePreview(this.state);
+                    // AI action is always isAllowed() only, no checkboxes to process
                 }
 
                 async handleSavePolicy() {
@@ -1374,7 +1393,7 @@
                     }
                     if (window.preselectedPermission) {
                         const perm = window.preselectedPermission;
-                        this.state.add('permission', String(perm.id), { id: perm.id, name: perm.friendlyName });
+                        this.state.add('permission', String(perm.id), { id: perm.id, name: perm.friendlyName, targetType: perm.targetType || '' });
                     }
                 }
 
@@ -1552,7 +1571,6 @@
                     if (this.elements.aiEnabledCheckbox) {
                         this.elements.aiEnabledCheckbox.checked = false;
                     }
-                    document.querySelectorAll('.ai-action-checkbox').forEach(cb => cb.checked = false);
 
                     const thoughtContainer = document.getElementById('ai-thought-process-container');
                     if (thoughtContainer) {
