@@ -2,7 +2,6 @@ package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -16,8 +15,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
-import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -31,7 +28,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final SecurityMonitoringService securityMonitor;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityPlaneAuditLogger auditLogger;
-    private final SecurityEventProcessor processingOrchestrator;
+    private final SecurityEventProcessor securityEventProcessor;
     private final SecurityPlaneProperties securityPlaneProperties;
 
     private AgentState currentState;
@@ -75,7 +72,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         String agentName = securityPlaneProperties.getAgent().getName();
         if (running.compareAndSet(false, true)) {
             currentState = AgentState.RUNNING;
-            Map<String, Object> config = createMonitoringConfig();
         } else {
             log.error("Agent {} is already running", agentName);
         }
@@ -94,17 +90,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     public void processSecurityEvent(SecurityEvent event) {
-        if (processingOrchestrator != null) {
-            processWithOrchestrator(event);
-        } else {
-            log.error("SecurityEventProcessingOrchestrator is not configured. Cannot process event: {}", event.getEventId());
-            throw new IllegalStateException("SecurityEventProcessingOrchestrator must be configured");
-        }
-    }
-
-    public void processWithOrchestrator(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
-        SecurityEventContext context = null;
 
         try {
             if (isEventAlreadyProcessed(event.getEventId())) {
@@ -112,22 +98,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         event.getEventId());
                 return;
             }
-            context = processingOrchestrator.process(event);
+            securityEventProcessor.process(event);
             markEventAsProcessed(event.getEventId());
 
         } catch (Exception e) {
-            log.error("[SecurityPlaneAgent] Error processing event with orchestrator: {}",
-                    event.getEventId(), e);
-
-            if (context == null) {
-                context = SecurityEventContext.builder()
-                        .securityEvent(event)
-                        .processingStatus(SecurityEventContext.ProcessingStatus.FAILED)
-                        .createdAt(LocalDateTime.now())
-                        .build();
-            }
-
-            context.markAsFailed("Processing error: " + e.getMessage());
+            log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
 
             if (auditLogger != null) {
                 Map<String, Object> errorContext = Map.of(
@@ -136,11 +111,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         "sourceIp", event.getSourceIp() != null ? event.getSourceIp() : "unknown",
                         "processingTime", System.currentTimeMillis() - startTime
                 );
-                auditLogger.auditError("SecurityPlaneAgent", "processWithOrchestrator", e, errorContext);
+                auditLogger.auditError("SecurityPlaneAgent", "processSecurityEvent", e, errorContext);
             }
-
             throw new RuntimeException("Event processing failed: " + event.getEventId(), e);
-
         }
     }
 
@@ -163,14 +136,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    private Map<String, Object> createMonitoringConfig() {
-        Map<String, Object> config = new HashMap<>();
-        config.put("agentId", securityPlaneProperties.getAgent().getName());
-        config.put("threatThreshold", securityPlaneProperties.getAgent().getThreatThreshold());
-        config.put("correlationWindow", 10);
-        return config;
-    }
-
     @Override
     public boolean isRunning() {
         return running.get() && currentState == AgentState.RUNNING;
@@ -183,9 +148,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private enum AgentState {
         INITIALIZING,
         RUNNING,
-        PAUSED,
-        STOPPING,
-        STOPPED,
-        ERROR
+        STOPPING
     }
 }

@@ -33,7 +33,6 @@ public class SecurityPlaneProperties {
     public static class AgentSettings {
         private String name = "SecurityPlaneAgent-1";
         private boolean autoStart = true;
-        private double threatThreshold = 0.7;
 
         private String organizationId = "default-org";
         private String executionMode = "ASYNC";
