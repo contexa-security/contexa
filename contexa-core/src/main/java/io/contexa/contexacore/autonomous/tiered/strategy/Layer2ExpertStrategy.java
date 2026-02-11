@@ -1,12 +1,10 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -24,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Mono;
 
@@ -37,33 +34,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     private final ApprovalService approvalService;
     private final SecurityDecisionPostProcessor postProcessor;
-
-    private static final Cache<String, SecurityPromptTemplate.SessionContext> SESSION_CONTEXT_CACHE =
-            Caffeine.newBuilder()
-                    .maximumSize(1000)
-                    .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
-                    .build();
-
-    private static final Cache<String, SecurityPromptTemplate.BehaviorAnalysis> BEHAVIOR_ANALYSIS_CACHE =
-            Caffeine.newBuilder()
-                    .maximumSize(1000)
-                    .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
-                    .build();
-
-    private static final Cache<String, List<Document>> RAG_DOCUMENTS_CACHE =
-            Caffeine.newBuilder()
-                    .maximumSize(500)
-                    .expireAfterWrite(5, java.util.concurrent.TimeUnit.MINUTES)
-                    .build();
-
-    @Value("${spring.ai.security.tiered.layer2.timeout-ms:30000}")
-    private long timeoutMs;
-
-    @Value("${spring.ai.security.tiered.layer2.enable-soar:false}")
-    private boolean enableSoar;
-
-    @Value("${spring.ai.security.tiered.layer2.rag.top-k:10}")
-    private int ragTopK;
 
     @Autowired
     public Layer2ExpertStrategy(UnifiedLLMOrchestrator llmOrchestrator,
@@ -121,7 +91,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         .prompt(new Prompt(promptText))
                         .tier(2)
                         .securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
-                        .timeoutMs((int) timeoutMs)
+                        .timeoutMs((int) tieredStrategyProperties.getLayer2().getTimeoutMs())
                         .requestId(event.getEventId())
                         .userId(event.getUserId())
                         .sessionId(event.getSessionId())
@@ -130,7 +100,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         .build();
 
                 String jsonResponse = llmOrchestrator.execute(context)
-                        .timeout(Duration.ofMillis(timeoutMs))
+                        .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .onErrorResume(Exception.class, e -> {
                             log.error("[Layer2] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
                             return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\"}");
@@ -145,7 +115,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
 
-            if (enableSoar && expertDecision.getAction() == SecurityDecision.Action.BLOCK) {
+            if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == SecurityDecision.Action.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
             }
 
@@ -175,7 +145,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     public Mono<SecurityDecision> performDeepAnalysisAsync(SecurityEvent event) {
         return Mono.fromCallable(() -> performDeepAnalysis(event))
-                .timeout(Duration.ofMillis(timeoutMs))
+                .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                 .onErrorResume(throwable -> {
                     log.error("[Layer2] Async analysis failed or timed out", throwable);
                     return Mono.just(createFailsafeDecision(event, System.currentTimeMillis()));
@@ -184,83 +154,40 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     private List<Document> searchRelatedContext(SecurityEvent event) {
         double similarityThreshold = tieredStrategyProperties.getLayer2().getRag().getSimilarityThreshold();
-        return searchRelatedContextBase(event, ragTopK, similarityThreshold);
+        return searchRelatedContextBase(event, tieredStrategyProperties.getLayer2().getRagTopK(), similarityThreshold);
     }
 
     private SecurityPromptTemplate.SessionContext getCachedOrBuildSessionContext(SecurityEvent event) {
-        String eventId = event.getEventId();
-        SecurityPromptTemplate.SessionContext cached = SESSION_CONTEXT_CACHE.getIfPresent(eventId);
+        SecurityPromptTemplate.SessionContext cached = getCachedSessionContext(event.getEventId());
         if (cached != null) {
             return cached;
         }
-        log.error("[Layer2] Session context cache miss for event {}, using empty context", eventId);
+        log.error("[Layer2] Session context cache miss for event {}, using empty context", event.getEventId());
         return new SecurityPromptTemplate.SessionContext();
     }
 
     private SecurityPromptTemplate.BehaviorAnalysis getCachedOrBuildBehaviorAnalysis(SecurityEvent event) {
-        String eventId = event.getEventId();
-        SecurityPromptTemplate.BehaviorAnalysis cached = BEHAVIOR_ANALYSIS_CACHE.getIfPresent(eventId);
+        SecurityPromptTemplate.BehaviorAnalysis cached = getCachedBehaviorAnalysis(event.getEventId());
         if (cached != null) {
             return cached;
         }
-        log.error("[Layer2] Behavior analysis cache miss for event {}, using empty analysis", eventId);
+        log.error("[Layer2] Behavior analysis cache miss for event {}, using empty analysis", event.getEventId());
         return new SecurityPromptTemplate.BehaviorAnalysis();
     }
 
     private List<Document> getCachedOrSearchRelatedContext(SecurityEvent event) {
-        String eventId = event.getEventId();
-        List<Document> cached = RAG_DOCUMENTS_CACHE.getIfPresent(eventId);
+        List<Document> cached = getCachedRagDocuments(event.getEventId());
         if (cached != null) {
             return cached;
         }
         return searchRelatedContext(event);
     }
 
-    public static void cachePromptContext(String eventId,
-                                          SecurityPromptTemplate.SessionContext sessionCtx,
-                                          SecurityPromptTemplate.BehaviorAnalysis behaviorCtx,
-                                          List<Document> ragDocuments) {
-        if (eventId == null) return;
-
-        if (sessionCtx != null) {
-            SESSION_CONTEXT_CACHE.put(eventId, sessionCtx);
-        }
-        if (behaviorCtx != null) {
-            BEHAVIOR_ANALYSIS_CACHE.put(eventId, behaviorCtx);
-        }
-        if (ragDocuments != null && !ragDocuments.isEmpty()) {
-            RAG_DOCUMENTS_CACHE.put(eventId, ragDocuments);
-        }
-    }
-
-    private SecurityResponse validateAndFixResponse(SecurityResponse response) {
-        if (response == null) {
-            return createDefaultResponse();
-        }
-        double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
-        response.setRiskScore(validated[0]);
-        response.setConfidence(validated[1]);
-        return response;
-    }
-
     private SecurityDecision convertToSecurityDecision(SecurityResponse response, SecurityEvent event) {
-        if (response == null) {
-            response = createDefaultResponse();
-        }
-        SecurityDecision.Action action = mapStringToAction(response.getAction());
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(action)
-                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
-                .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
-                .reasoning(response.getReasoning())
-                .eventId(event != null ? event.getEventId() : "unknown")
-                .analysisTime(System.currentTimeMillis())
-                .processingLayer(2)
-                .llmModel("tier-2-auto-selected")
-                .build();
-
-        if (response.getMitre() != null && !response.getMitre().isEmpty()) {
-            decision.setThreatCategory(response.getMitre());
+        SecurityDecision decision = convertToSecurityDecisionBase(response, event);
+        decision.setProcessingLayer(2);
+        decision.setLlmModel("tier-2-auto-selected");
+        if (response != null && response.getMitre() != null && !response.getMitre().isEmpty()) {
             Map<String, String> mitreMapping = new HashMap<>();
             mitreMapping.put(response.getMitre(), response.getMitre());
             decision.setMitreMapping(mitreMapping);
@@ -268,28 +195,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return decision;
     }
 
-    private SecurityResponse parseJsonResponse(String jsonResponse) {
-        SecurityResponse response = SecurityResponse.fromJson(jsonResponse);
-        if (response == null) {
-            log.error("[Layer2] Failed to parse JSON response from LLM: {}", jsonResponse);
-            return createDefaultResponse();
-        }
-        return validateAndFixResponse(response);
-    }
-
-    private SecurityResponse createDefaultResponse() {
-        return SecurityResponse.builder()
-                .riskScore(Double.NaN)
-                .confidence(Double.NaN)
-                .confidenceReasoning(null)
-                .action("ESCALATE")
-                .reasoning("Layer 2 LLM analysis unavailable")
-                .mitre(null)
-                .build();
-    }
-
     private void executeSoarPlaybook(SecurityDecision decision, SecurityEvent event) {
-        if (!enableSoar || decision.getSoarPlaybook() == null) {
+        if (!tieredStrategyProperties.getLayer2().isEnableSoar() || decision.getSoarPlaybook() == null) {
             return;
         }
         try {

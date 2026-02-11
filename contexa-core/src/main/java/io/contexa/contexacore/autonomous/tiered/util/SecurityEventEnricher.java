@@ -60,7 +60,7 @@ public class SecurityEventEnricher {
             try {
                 decoded = URLDecoder.decode(payload, StandardCharsets.UTF_8);
             } catch (Exception e) {
-                log.warn("Failed to decode URL-encoded payload: {}", truncateForLog(payload), e);
+                log.error("Failed to decode URL-encoded payload: {}", truncateForLog(payload), e);
             }
         }
 
@@ -125,7 +125,7 @@ public class SecurityEventEnricher {
                     return Optional.of((T) converted);
                 }
             } catch (Exception e) {
-                log.warn("[SecurityEventEnricher] Failed to convert number value for key '{}': {}", key, e.getMessage());
+                log.error("[SecurityEventEnricher] Failed to convert number value for key '{}': {}", key, e.getMessage());
             }
         }
 
@@ -136,7 +136,7 @@ public class SecurityEventEnricher {
                     return Optional.of((T) converted);
                 }
             } catch (Exception e) {
-                log.warn("[SecurityEventEnricher] Failed to parse string value for key '{}': {}", key, e.getMessage());
+                log.error("[SecurityEventEnricher] Failed to parse string value for key '{}': {}", key, e.getMessage());
             }
         }
 
@@ -144,7 +144,7 @@ public class SecurityEventEnricher {
             return Optional.of((T) value.toString());
         }
 
-        log.warn("[SecurityEventEnricher] Type mismatch for key '{}': expected {}, got {}",
+        log.error("[SecurityEventEnricher] Type mismatch for key '{}': expected {}, got {}",
                 key, type.getSimpleName(), value.getClass().getSimpleName());
         return Optional.empty();
     }

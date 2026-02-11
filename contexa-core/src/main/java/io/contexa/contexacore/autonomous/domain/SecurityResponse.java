@@ -15,8 +15,6 @@ public class SecurityResponse {
 
     private Double confidence;
 
-    private String confidenceReasoning;
-
     private String action;
 
     private String reasoning;
@@ -67,20 +65,12 @@ public class SecurityResponse {
             }
             response.setMitre(mitre);
 
-            String confReasoning = extractString(json, "\"confidenceReasoning\"");
-            response.setConfidenceReasoning(confReasoning);
-
         } catch (Exception e) {
             
             return null;
         }
 
         return response;
-    }
-
-    @Deprecated
-    public static SecurityResponse fromCompactJson(String json) {
-        return fromJson(json);
     }
 
     private static String expandAction(String shortAction) {
@@ -122,16 +112,12 @@ public class SecurityResponse {
         int startQuote = json.indexOf('"', colonIndex + 1);
         if (startQuote == -1) return null;
 
-        // 이스케이프된 따옴표 처리
         int endQuote = findEndQuote(json, startQuote + 1);
         if (endQuote == -1) return null;
 
         return json.substring(startQuote + 1, endQuote);
     }
 
-    /**
-     * 이스케이프된 따옴표를 고려하여 문자열의 끝 따옴표 위치 찾기
-     */
     private static int findEndQuote(String json, int start) {
         for (int i = start; i < json.length(); i++) {
             char c = json.charAt(i);
@@ -166,12 +152,4 @@ public class SecurityResponse {
             && !action.isBlank();
     }
 
-    public boolean hasValidAction() {
-        if (action == null) return false;
-        String normalized = action.toUpperCase().trim();
-        return "ALLOW".equals(normalized)
-            || "BLOCK".equals(normalized)
-            || "CHALLENGE".equals(normalized)
-            || "ESCALATE".equals(normalized);
-    }
 }

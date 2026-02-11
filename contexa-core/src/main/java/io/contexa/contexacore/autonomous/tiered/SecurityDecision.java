@@ -43,58 +43,6 @@ public class SecurityDecision {
     private boolean requiresApproval;              
     private String expertRecommendation;           
 
-    private String eventId;                        
-    private String analysisId;                     
-    private Map<String, Object> metadata;          
+    private String eventId;
 
-    public boolean shouldBlock() {
-        
-        if (action == null) {
-            return true;
-        }
-        
-        return action == Action.BLOCK;
-    }
-
-    public boolean shouldEscalate() {
-        return action == Action.ESCALATE;
-    }
-
-    public boolean isConfident() {
-
-        return !Double.isNaN(confidence);
-    }
-
-    public void calculateProcessingTime() {
-        if (analysisTime > 0) {
-            this.processingTimeMs = System.currentTimeMillis() - analysisTime;
-        }
-    }
-
-    public static SecurityDecision allow(double riskScore) {
-        return SecurityDecision.builder()
-                .action(Action.ALLOW)
-                .riskScore(riskScore)
-                .confidence(Double.NaN)
-                .analysisTime(System.currentTimeMillis())
-                .build();
-    }
-
-    public static SecurityDecision block(double riskScore) {
-        return SecurityDecision.builder()
-                .action(Action.BLOCK)
-                .riskScore(riskScore)
-                .confidence(Double.NaN)
-                .analysisTime(System.currentTimeMillis())
-                .build();
-    }
-
-    public static SecurityDecision escalate(double riskScore) {
-        return SecurityDecision.builder()
-                .action(Action.ESCALATE)
-                .riskScore(riskScore)
-                .confidence(Double.NaN)
-                .analysisTime(System.currentTimeMillis())
-                .build();
-    }
 }

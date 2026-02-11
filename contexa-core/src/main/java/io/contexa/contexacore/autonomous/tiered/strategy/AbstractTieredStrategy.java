@@ -1,6 +1,9 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -19,8 +22,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -34,6 +37,24 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final UnifiedVectorService unifiedVectorService;
     protected final BaselineLearningService baselineLearningService;
     protected final TieredStrategyProperties tieredStrategyProperties;
+
+    private static final Cache<String, SecurityPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
+            Caffeine.newBuilder()
+                    .maximumSize(1000)
+                    .expireAfterWrite(30, TimeUnit.MINUTES)
+                    .build();
+
+    private static final Cache<String, SecurityPromptTemplate.BehaviorAnalysis> ESCALATION_BEHAVIOR_CACHE =
+            Caffeine.newBuilder()
+                    .maximumSize(1000)
+                    .expireAfterWrite(30, TimeUnit.MINUTES)
+                    .build();
+
+    private static final Cache<String, List<Document>> ESCALATION_RAG_CACHE =
+            Caffeine.newBuilder()
+                    .maximumSize(500)
+                    .expireAfterWrite(30, TimeUnit.MINUTES)
+                    .build();
 
     protected AbstractTieredStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
@@ -61,6 +82,83 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     public String getStrategyName() {
         return getLayerName();
     }
+
+    protected static void cacheEscalationContext(String eventId,
+                                                  SecurityPromptTemplate.SessionContext sessionCtx,
+                                                  SecurityPromptTemplate.BehaviorAnalysis behaviorCtx,
+                                                  List<Document> ragDocuments) {
+        if (eventId == null) return;
+        if (sessionCtx != null) ESCALATION_SESSION_CACHE.put(eventId, sessionCtx);
+        if (behaviorCtx != null) ESCALATION_BEHAVIOR_CACHE.put(eventId, behaviorCtx);
+        if (ragDocuments != null && !ragDocuments.isEmpty()) ESCALATION_RAG_CACHE.put(eventId, ragDocuments);
+    }
+
+    protected static SecurityPromptTemplate.SessionContext getCachedSessionContext(String eventId) {
+        return eventId != null ? ESCALATION_SESSION_CACHE.getIfPresent(eventId) : null;
+    }
+
+    protected static SecurityPromptTemplate.BehaviorAnalysis getCachedBehaviorAnalysis(String eventId) {
+        return eventId != null ? ESCALATION_BEHAVIOR_CACHE.getIfPresent(eventId) : null;
+    }
+
+    protected static List<Document> getCachedRagDocuments(String eventId) {
+        return eventId != null ? ESCALATION_RAG_CACHE.getIfPresent(eventId) : null;
+    }
+
+    protected SecurityResponse parseJsonResponse(String jsonResponse) {
+        try {
+            String cleanedJson = extractJsonObject(jsonResponse);
+            SecurityResponse response = SecurityResponse.fromJson(cleanedJson);
+            if (response != null && response.isValid()) {
+                return validateAndFixResponse(response);
+            }
+            log.error("[{}] JSON parsing failed, returning default response", getLayerName());
+            return createDefaultResponse();
+        } catch (Exception e) {
+            log.error("[{}] JSON response parsing failed", getLayerName(), e);
+            return createDefaultResponse();
+        }
+    }
+
+    protected SecurityResponse validateAndFixResponse(SecurityResponse response) {
+        if (response == null) return createDefaultResponse();
+        double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
+        response.setRiskScore(validated[0]);
+        response.setConfidence(validated[1]);
+        if (response.getAction() == null || response.getAction().isBlank()) {
+            response.setAction("ESCALATE");
+        }
+        return response;
+    }
+
+    protected SecurityResponse createDefaultResponse() {
+        return SecurityResponse.builder()
+                .riskScore(null)
+                .confidence(null)
+                .action("ESCALATE")
+                .reasoning("[AI Native] " + getLayerName() + " LLM analysis unavailable")
+                .mitre(null)
+                .build();
+    }
+
+    protected SecurityDecision convertToSecurityDecisionBase(SecurityResponse response, SecurityEvent event) {
+        if (response == null) response = createDefaultResponse();
+        SecurityDecision.Action action = mapStringToAction(response.getAction());
+        SecurityDecision decision = SecurityDecision.builder()
+                .action(action)
+                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
+                .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
+                .reasoning(response.getReasoning())
+                .eventId(event != null ? event.getEventId() : "unknown")
+                .analysisTime(System.currentTimeMillis())
+                .build();
+        if (response.getMitre() != null && !response.getMitre().isBlank()) {
+            decision.setThreatCategory(response.getMitre());
+        }
+        return decision;
+    }
+
+    // --- Shared utilities ---
 
     protected List<String> extractSimilarEventsSummary(List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
@@ -174,7 +272,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 queryBuilder.append("Path: ").append(targetResource);
             }
 
-            String currentOS = extractOSFromUserAgent(event.getUserAgent());
+            String currentOS = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
             if (currentOS != null && !"Desktop".equals(currentOS)) {
                 if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
                 queryBuilder.append("OS: ").append(currentOS);
@@ -207,11 +305,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
 
-            return documents != null ? documents : java.util.Collections.emptyList();
+            return documents != null ? documents : Collections.emptyList();
 
         } catch (Exception e) {
             log.error("[{}] Vector store context search failed", getLayerName(), e);
-            return java.util.Collections.emptyList();
+            return Collections.emptyList();
         }
     }
 
@@ -275,10 +373,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         public void setBaselineEstablished(boolean baselineEstablished) { this.baselineEstablished = baselineEstablished; }
     }
 
-
-    protected String extractOSFromUserAgent(String userAgent) {
-        return SecurityEventEnricher.extractOSFromUserAgent(userAgent);
-    }
 
     protected String extractJsonObject(String response) {
         if (response == null || response.isEmpty()) {

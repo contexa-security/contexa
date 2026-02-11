@@ -124,12 +124,13 @@ public class SecurityPromptTemplate {
     }
 
     private String buildCurrentRequestSection(SecurityEvent event) {
-        String currentOS = extractOSFromUserAgent(event.getUserAgent());
-        String currentIP = normalizeIP(event.getSourceIp());
+        String currentOS = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
+        String currentIP = SecurityEventEnricher.normalizeIP(event.getSourceIp());
         String currentHour = event.getTimestamp() != null
                 ? String.valueOf(event.getTimestamp().getHour())
                 : null;
-        String currentUA = extractUASignature(event.getUserAgent());
+        String browserSig = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
+        String currentUA = browserSig != null ? browserSig : "Browser";
 
         StringBuilder section = new StringBuilder();
         section.append("\n=== CURRENT REQUEST ===\n");
@@ -384,12 +385,7 @@ public class SecurityPromptTemplate {
 
         Object sourceIp = metadata.get("sourceIp");
         if (sourceIp != null && !sourceIp.toString().isEmpty()) {
-            String ipStr = sourceIp.toString();
-            if (ipStr.contains("127.0.0.1") || ipStr.contains("0:0:0:0:0:0:0:1")) {
-                patterns.ipSet.add("loopback");
-            } else {
-                patterns.ipSet.add(ipStr);
-            }
+            patterns.ipSet.add(SecurityEventEnricher.normalizeIP(sourceIp.toString()));
         }
 
         Object hour = metadata.get("hour");
@@ -521,13 +517,13 @@ public class SecurityPromptTemplate {
             String sanitizedUa = PromptTemplateUtils.sanitizeAndTruncate(ua, maxUserAgent);
             network.append("UserAgent: ").append(sanitizedUa).append("\n");
 
-            String currentOS = extractOSFromUserAgent(ua);
+            String currentOS = SecurityEventEnricher.extractOSFromUserAgent(ua);
             if (currentOS != null) {
                 network.append("CurrentOS: ").append(currentOS).append("\n");
             }
 
-            String currentUA = extractUASignature(ua);
-            network.append("CurrentUA: ").append(currentUA).append("\n");
+            String sig = SecurityEventEnricher.extractBrowserSignature(ua);
+            network.append("CurrentUA: ").append(sig != null ? sig : "Browser").append("\n");
         }
 
         return network.toString().trim();
@@ -601,14 +597,6 @@ public class SecurityPromptTemplate {
         return PromptTemplateUtils.isValidData(value);
     }
 
-    private String extractOSFromUserAgent(String userAgent) {
-        return SecurityEventEnricher.extractOSFromUserAgent(userAgent);
-    }
-
-    private String normalizeIP(String ip) {
-        return SecurityEventEnricher.normalizeIP(ip);
-    }
-
     private Set<String> normalizeIPSet(Set<String> ipSet) {
         if (ipSet == null || ipSet.isEmpty()) {
             return ipSet;
@@ -616,14 +604,9 @@ public class SecurityPromptTemplate {
 
         Set<String> normalized = new LinkedHashSet<>();
         for (String ip : ipSet) {
-            normalized.add(normalizeIP(ip));
+            normalized.add(SecurityEventEnricher.normalizeIP(ip));
         }
         return normalized;
-    }
-
-    private String extractUASignature(String userAgent) {
-        String signature = SecurityEventEnricher.extractBrowserSignature(userAgent);
-        return signature != null ? signature : "Browser";
     }
 
     private String extractRequestPath(SecurityEvent event) {
@@ -800,7 +783,6 @@ public class SecurityPromptTemplate {
         private String baselineContext;
         private boolean baselineEstablished;
 
-        private Boolean isNewUser;
         private Boolean isNewSession;
         private Boolean isNewDevice;
 
@@ -835,14 +817,6 @@ public class SecurityPromptTemplate {
 
         public void setBaselineEstablished(boolean baselineEstablished) {
             this.baselineEstablished = baselineEstablished;
-        }
-
-        public Boolean getIsNewUser() {
-            return isNewUser;
-        }
-
-        public void setIsNewUser(Boolean isNewUser) {
-            this.isNewUser = isNewUser;
         }
 
         public Boolean getIsNewSession() {

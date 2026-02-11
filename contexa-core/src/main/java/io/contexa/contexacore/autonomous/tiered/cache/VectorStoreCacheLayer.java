@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous.tiered.cache;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.stats.CacheStats;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -36,9 +37,9 @@ public class VectorStoreCacheLayer {
 
     private Cache<String, List<Document>> cache;
 
-    @jakarta.annotation.PostConstruct
+    @PostConstruct
     public void init() {
-        
+
         Caffeine<Object, Object> builder = Caffeine.newBuilder()
                 .maximumSize(maxCacheSize)
                 .expireAfterWrite(expireMinutes, TimeUnit.MINUTES);
@@ -49,7 +50,7 @@ public class VectorStoreCacheLayer {
 
         cache = builder.build();
 
-            }
+    }
 
     public List<Document> similaritySearch(SearchRequest request) {
         if (!cacheEnabled || vectorStore == null) {
@@ -83,21 +84,19 @@ public class VectorStoreCacheLayer {
     }
 
     private String generateCacheKey(SearchRequest request) {
-        
-        int initialCapacity = 50 + (request.getQuery() != null ? request.getQuery().length() : 0);
+
+        int initialCapacity = 50 + request.getQuery().length();
         StringBuilder keyBuilder = new StringBuilder(initialCapacity);
 
         keyBuilder.append("q:");
-        if (request.getQuery() != null) {
-            keyBuilder.append(request.getQuery());
-        }
+        keyBuilder.append(request.getQuery());
 
         keyBuilder.append("|k:").append(request.getTopK());
 
         keyBuilder.append("|t:").append(request.getSimilarityThreshold());
 
         if (request.getFilterExpression() != null) {
-            
+
             keyBuilder.append("|f:").append(request.getFilterExpression().hashCode());
         }
 
@@ -106,7 +105,7 @@ public class VectorStoreCacheLayer {
 
     private List<Document> fallbackSearch(SearchRequest request) {
         if (vectorStore == null) {
-            log.warn("[VectorStoreCacheLayer] VectorStore not available");
+            log.error("[VectorStoreCacheLayer] VectorStore not available");
             return List.of();
         }
 
@@ -120,7 +119,7 @@ public class VectorStoreCacheLayer {
 
     public void add(List<Document> documents) {
         if (vectorStore == null) {
-            log.warn("[VectorStoreCacheLayer] VectorStore not available for adding documents");
+            log.error("[VectorStoreCacheLayer] VectorStore not available for adding documents");
             return;
         }
 
@@ -140,7 +139,7 @@ public class VectorStoreCacheLayer {
                 .filter(key -> key.startsWith("q:" + query))
                 .forEach(cache::invalidate);
 
-            }
+    }
 
     public void invalidateAll() {
         if (!cacheEnabled) {
@@ -148,7 +147,7 @@ public class VectorStoreCacheLayer {
         }
 
         cache.invalidateAll();
-            }
+    }
 
     public CacheStatistics getStatistics() {
         if (!cacheEnabled || !recordStats) {
@@ -201,22 +200,48 @@ public class VectorStoreCacheLayer {
             return new Builder().build();
         }
 
-        public long getHitCount() { return hitCount; }
-        public long getMissCount() { return missCount; }
-        public double getHitRate() { return hitRate; }
-        public double getMissRate() { return missRate; }
-        public long getLoadSuccessCount() { return loadSuccessCount; }
-        public long getLoadFailureCount() { return loadFailureCount; }
-        public Duration getAverageLoadPenalty() { return averageLoadPenalty; }
-        public long getEvictionCount() { return evictionCount; }
-        public long getEstimatedSize() { return estimatedSize; }
+        public long getHitCount() {
+            return hitCount;
+        }
+
+        public long getMissCount() {
+            return missCount;
+        }
+
+        public double getHitRate() {
+            return hitRate;
+        }
+
+        public double getMissRate() {
+            return missRate;
+        }
+
+        public long getLoadSuccessCount() {
+            return loadSuccessCount;
+        }
+
+        public long getLoadFailureCount() {
+            return loadFailureCount;
+        }
+
+        public Duration getAverageLoadPenalty() {
+            return averageLoadPenalty;
+        }
+
+        public long getEvictionCount() {
+            return evictionCount;
+        }
+
+        public long getEstimatedSize() {
+            return estimatedSize;
+        }
 
         @Override
         public String toString() {
             return String.format(
-                "CacheStatistics{hitRate=%.2f%%, missRate=%.2f%%, size=%d, evictions=%d, avgLoadTime=%dms}",
-                hitRate * 100, missRate * 100, estimatedSize, evictionCount,
-                averageLoadPenalty != null ? averageLoadPenalty.toMillis() : 0
+                    "CacheStatistics{hitRate=%.2f%%, missRate=%.2f%%, size=%d, evictions=%d, avgLoadTime=%dms}",
+                    hitRate * 100, missRate * 100, estimatedSize, evictionCount,
+                    averageLoadPenalty != null ? averageLoadPenalty.toMillis() : 0
             );
         }
 

@@ -128,7 +128,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             SecurityDecision decision = convertToSecurityDecision(response, event);
 
             if (decision.getAction() == SecurityDecision.Action.ESCALATE) {
-                Layer2ExpertStrategy.cachePromptContext(
+                cacheEscalationContext(
                         event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
             }
 
@@ -246,7 +246,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
 
         if (event != null && event.getUserAgent() != null) {
-            String currentOS = extractOSFromUserAgent(event.getUserAgent());
+            String currentOS = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
             ctx.setCurrentUserAgentOS(currentOS);
         }
 
@@ -315,47 +315,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private SecurityDecision convertToSecurityDecision(SecurityResponse response,
                                                        SecurityEvent event) {
-        SecurityDecision.Action action = mapStringToAction(response.getAction());
-        SecurityDecision decision = SecurityDecision.builder()
-                .action(action)
-                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
-                .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
-                .reasoning(response.getReasoning())
-                .eventId(event.getEventId())
-                .analysisTime(System.currentTimeMillis())
-                .build();
-
-        if (response.getMitre() != null && !response.getMitre().isBlank()) {
-            decision.setThreatCategory(response.getMitre());
-        }
-        return decision;
-    }
-
-    private SecurityResponse parseJsonResponse(String jsonResponse) {
-        try {
-            String cleanedJson = extractJsonObject(jsonResponse);
-            SecurityResponse response = SecurityResponse.fromJson(cleanedJson);
-            if (response != null && response.isValid()) {
-                return validateAndFixResponse(response);
-            }
-
-            log.error("[Layer1] JSON parsing failed, returning default response: {}", cleanedJson);
-            return createDefaultResponse();
-
-        } catch (Exception e) {
-            log.error("[Layer1] JSON response parsing failed: {}", jsonResponse, e);
-            return createDefaultResponse();
-        }
-    }
-
-    private SecurityResponse createDefaultResponse() {
-        return SecurityResponse.builder()
-                .riskScore(null)
-                .confidence(null)
-                .action("ESCALATE")
-                .reasoning("[AI Native] Layer 1 LLM analysis unavailable - escalating to Layer 2")
-                .mitre(null)
-                .build();
+        return convertToSecurityDecisionBase(response, event);
     }
 
     private void enrichDecisionWithContext(SecurityDecision decision,
@@ -415,18 +375,4 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
     }
 
-    private SecurityResponse validateAndFixResponse(SecurityResponse response) {
-        if (response == null) {
-            return createDefaultResponse();
-        }
-
-        double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
-        response.setRiskScore(validated[0]);
-        response.setConfidence(validated[1]);
-
-        if (response.getAction() == null || response.getAction().isBlank()) {
-            response.setAction("ESCALATE");
-        }
-        return response;
-    }
 }

@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.tiered.service;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -118,7 +119,7 @@ public class SecurityDecisionPostProcessor {
             content.append("Path: ").append(path);
         }
 
-        String os = extractOSFromUserAgent(event.getUserAgent());
+        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
         if (os != null && !"Desktop".equals(os)) {
             if (!content.isEmpty()) content.append(", ");
             content.append("OS: ").append(os);
@@ -212,12 +213,12 @@ public class SecurityDecisionPostProcessor {
 
         if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
             metadata.put("userAgent", event.getUserAgent());
-            String userAgentOS = extractOSFromUserAgent(event.getUserAgent());
+            String userAgentOS = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
             if (userAgentOS != null) {
                 metadata.put("userAgentOS", userAgentOS);
             }
 
-            String browser = extractBrowserSignature(event.getUserAgent());
+            String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
             if (browser != null) {
                 metadata.put("userAgentBrowser", browser);
             }
@@ -226,106 +227,4 @@ public class SecurityDecisionPostProcessor {
         return metadata;
     }
 
-    private String extractOSFromUserAgent(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return null;
-        }
-
-        if (userAgent.contains("Android")) {
-            return "Android";
-        }
-        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iOS")) {
-            return "iOS";
-        }
-
-        if (userAgent.contains("Windows NT") || userAgent.contains("Windows")) {
-            return "Windows";
-        }
-        if (userAgent.contains("Mac OS X") || userAgent.contains("Macintosh")) {
-            return "Mac";
-        }
-        if (userAgent.contains("CrOS")) {
-            return "ChromeOS";
-        }
-        if (userAgent.contains("Linux")) {
-            return "Linux";
-        }
-
-        if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
-            return "Mobile";
-        }
-
-        return "Desktop";
-    }
-
-    private String extractBrowserSignature(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return null;
-        }
-
-        if (userAgent.contains("Edg/") || userAgent.contains("Edge/")) {
-            String version = extractBrowserVersion(userAgent, "Edg/");
-            if (version == null) {
-                version = extractBrowserVersion(userAgent, "Edge/");
-            }
-            return "Edge/" + (version != null ? version : "unknown");
-        }
-
-        if (userAgent.contains("Chrome/")) {
-            String version = extractBrowserVersion(userAgent, "Chrome/");
-            return "Chrome/" + (version != null ? version : "unknown");
-        }
-
-        if (userAgent.contains("Firefox/")) {
-            String version = extractBrowserVersion(userAgent, "Firefox/");
-            return "Firefox/" + (version != null ? version : "unknown");
-        }
-
-        if (userAgent.contains("Safari/") && !userAgent.contains("Chrome")) {
-
-            String version = extractBrowserVersion(userAgent, "Version/");
-            return "Safari/" + (version != null ? version : "unknown");
-        }
-
-        if (userAgent.contains("OPR/") || userAgent.contains("Opera/")) {
-            String version = extractBrowserVersion(userAgent, "OPR/");
-            if (version == null) {
-                version = extractBrowserVersion(userAgent, "Opera/");
-            }
-            return "Opera/" + (version != null ? version : "unknown");
-        }
-
-        return null;
-    }
-
-    private String extractBrowserVersion(String userAgent, String prefix) {
-        int startIndex = userAgent.indexOf(prefix);
-        if (startIndex == -1) {
-            return null;
-        }
-
-        startIndex += prefix.length();
-        int endIndex = startIndex;
-
-        while (endIndex < userAgent.length()) {
-            char c = userAgent.charAt(endIndex);
-            if (Character.isDigit(c) || c == '.') {
-                endIndex++;
-            } else {
-                break;
-            }
-        }
-
-        if (endIndex > startIndex) {
-            String fullVersion = userAgent.substring(startIndex, endIndex);
-
-            int dotIndex = fullVersion.indexOf('.');
-            if (dotIndex > 0) {
-                return fullVersion.substring(0, dotIndex);
-            }
-            return fullVersion;
-        }
-
-        return null;
-    }
 }

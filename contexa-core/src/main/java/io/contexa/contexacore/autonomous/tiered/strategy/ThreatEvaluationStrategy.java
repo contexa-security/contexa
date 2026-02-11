@@ -7,28 +7,6 @@ public interface ThreatEvaluationStrategy {
 
     ThreatAssessment evaluate(SecurityEvent event);
 
-    default boolean isEnabled() {
-        return true;
-    }
-
-    default int getPriority() {
-        return 100;
-    }
-
-    default String getDescription() {
-        return "Threat evaluation strategy";
-    }
-
-    default String getStrategyName() {
-        return getClass().getSimpleName();
-    }
-
-    default boolean supports(SecurityEvent event) {
-        return true;
-    }
-
-    default int getStrategyPriority() {
-        return getPriority();
-    }
+    String getStrategyName();
 
 }
