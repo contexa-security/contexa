@@ -360,7 +360,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         try {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
-            redisTemplate.opsForHash().put(analysisKey, "previousAction", previousAction != null ? previousAction.toString() : "NONE");
+            String previousActionStr = previousAction != null ? previousAction.toString() : "NONE";
+
+            redisTemplate.opsForHash().put(analysisKey, "previousAction", previousActionStr);
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
             redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
 
@@ -369,7 +371,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 stringRedisTemplate.opsForValue().set(lastActionKey, "ALLOW", Duration.ofHours(24));
             }
 
-            learnBaselineOnMfaSuccess(userId, request);
+            boolean isLlmTriggeredMfa = "CHALLENGE".equals(previousActionStr)
+                    || "ESCALATE".equals(previousActionStr);
+            if (!isLlmTriggeredMfa) {
+                learnBaselineOnMfaSuccess(userId, request);
+            }
 
         } catch (Exception e) {
             log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
