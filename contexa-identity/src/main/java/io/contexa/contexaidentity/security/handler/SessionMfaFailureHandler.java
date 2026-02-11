@@ -20,7 +20,7 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
     private final AuthContextProperties authContextProperties;
 
     public SessionMfaFailureHandler(AuthResponseWriter responseWriter,
-                                   AuthContextProperties authContextProperties) {
+                                    AuthContextProperties authContextProperties) {
         super(responseWriter);
         this.authContextProperties = authContextProperties;
     }
@@ -35,7 +35,7 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, @Nullable FactorContext factorContext,
                                         @Nullable FailureType failureType, @Nullable Map<String, Object> errorDetails)
-            throws IOException, ServletException {
+            throws IOException {
 
         if (response.isCommitted()) {
             log.warn("Response already committed for MFA authentication failure");
@@ -45,7 +45,7 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
         String errorCode = determineErrorCode(failureType, factorContext);
         String errorMessage = determineErrorMessage(failureType, exception);
 
-        String mfaFailureUrl = authContextProperties.getUrls().getMfa().getFailure();
+        String mfaFailureUrl = getDefaultTargetUrl(request);
         String failureUrl = request.getContextPath() + mfaFailureUrl;
 
         if (!mfaFailureUrl.contains("?")) {
@@ -55,7 +55,7 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
         }
 
         if (isApiRequest(request)) {
-            
+
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("authenticated", false);
             responseData.put("mfaCompleted", false);
@@ -76,10 +76,9 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
                     errorCode, errorMessage, request.getRequestURI(), responseData);
 
-                    } else {
-            
+        } else {
             response.sendRedirect(failureUrl);
-                    }
+        }
     }
 
     private String determineErrorCode(FailureType failureType, FactorContext factorContext) {
@@ -122,5 +121,11 @@ public class SessionMfaFailureHandler extends SessionBasedFailureHandler {
             default:
                 return exception.getMessage() != null ? exception.getMessage() : "MFA 인증에 실패했습니다.";
         }
+    }
+
+    @Override
+    protected String getDefaultTargetUrl(HttpServletRequest request) {
+        if (defaultTargetUrl != null) return defaultTargetUrl;
+        return authContextProperties.getUrls().getMfa().getFailure();
     }
 }

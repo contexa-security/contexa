@@ -30,7 +30,7 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, @Nullable FactorContext factorContext,
                                         @Nullable FailureType failureType, @Nullable Map<String, Object> errorDetails)
-            throws IOException, ServletException {
+            throws IOException{
 
         if (response.isCommitted()) {
             log.warn("Response already committed for authentication failure");
@@ -56,8 +56,6 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
         if (errorDetails != null && !errorDetails.isEmpty()) {
             responseData.put("errorDetails", errorDetails);
         }
-
         writeErrorResponse(request, response, errorCode, errorMessage, responseData);
-
     }
 }

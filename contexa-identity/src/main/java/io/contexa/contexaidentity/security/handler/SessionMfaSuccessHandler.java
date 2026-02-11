@@ -60,6 +60,7 @@ public class SessionMfaSuccessHandler extends SessionBasedSuccessHandler {
 
     @Override
     protected String getDefaultTargetUrl(HttpServletRequest request) {
+        if(defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
         return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
     }
 }

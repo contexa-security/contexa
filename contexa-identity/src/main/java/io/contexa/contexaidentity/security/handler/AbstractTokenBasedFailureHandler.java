@@ -15,7 +15,6 @@ import java.util.Map;
 public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthenticationFailureHandler {
 
     protected final AuthResponseWriter responseWriter;
-
     private PlatformAuthenticationFailureHandler delegateHandler;
 
     protected AbstractTokenBasedFailureHandler(AuthResponseWriter responseWriter) {
@@ -25,7 +24,7 @@ public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthen
     public void setDelegateHandler(@Nullable PlatformAuthenticationFailureHandler delegateHandler) {
         this.delegateHandler = delegateHandler;
         if (delegateHandler != null) {
-                    }
+        }
     }
 
     protected void writeErrorResponse(HttpServletRequest request, HttpServletResponse response,
@@ -36,11 +35,11 @@ public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthen
     }
 
     protected final boolean executeDelegateHandler(HttpServletRequest request,
-                                                    HttpServletResponse response,
-                                                    AuthenticationException exception,
-                                                    @Nullable FactorContext factorContext,
-                                                    PlatformAuthenticationFailureHandler.FailureType failureType,
-                                                    Map<String, Object> errorDetails) {
+                                                   HttpServletResponse response,
+                                                   AuthenticationException exception,
+                                                   @Nullable FactorContext factorContext,
+                                                   PlatformAuthenticationFailureHandler.FailureType failureType,
+                                                   Map<String, Object> errorDetails) {
         if (delegateHandler != null && !response.isCommitted()) {
             try {
                 delegateHandler.onAuthenticationFailure(request, response, exception,

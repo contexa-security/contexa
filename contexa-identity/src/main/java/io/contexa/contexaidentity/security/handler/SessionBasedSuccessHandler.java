@@ -15,11 +15,17 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
     protected final AuthResponseWriter responseWriter;
     protected final AuthContextProperties authContextProperties;
     protected final RequestCache requestCache = new HttpSessionRequestCache();
+    protected String defaultTargetUrl;
 
     protected SessionBasedSuccessHandler(AuthResponseWriter responseWriter,
                                          AuthContextProperties authContextProperties) {
         this.responseWriter = responseWriter;
         this.authContextProperties = authContextProperties;
+    }
+
+    @Override
+    public void setDefaultTargetUrl(String defaultTargetUrl) {
+        this.defaultTargetUrl = defaultTargetUrl;
     }
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {

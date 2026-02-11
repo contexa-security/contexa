@@ -8,10 +8,18 @@ import lombok.extern.slf4j.Slf4j;
 public abstract class SessionBasedFailureHandler implements PlatformAuthenticationFailureHandler {
 
     protected final AuthResponseWriter responseWriter;
+    protected String defaultTargetUrl;
 
     protected SessionBasedFailureHandler(AuthResponseWriter responseWriter) {
         this.responseWriter = responseWriter;
     }
+
+    @Override
+    public void setDefaultTargetUrl(String defaultTargetUrl) {
+        this.defaultTargetUrl = defaultTargetUrl;
+    }
+
+    protected abstract String getDefaultTargetUrl(HttpServletRequest request);
 
     protected boolean isApiRequest(HttpServletRequest request) {
         String acceptHeader = request.getHeader("Accept");

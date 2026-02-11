@@ -72,7 +72,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
     @Override
     protected String determineTargetUrl(HttpServletRequest request) {
-        
+        if(defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
         String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();
         return request.getContextPath() + successUrl;
     }

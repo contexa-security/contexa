@@ -21,12 +21,12 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
     protected final TokenService tokenService;
     protected final AuthResponseWriter responseWriter;
     protected final AuthContextProperties authContextProperties;
-
     private PlatformAuthenticationSuccessHandler delegateHandler;
+    protected String defaultTargetUrl;
 
     protected AbstractTokenBasedSuccessHandler(TokenService tokenService,
-                                                AuthResponseWriter responseWriter,
-                                                AuthContextProperties authContextProperties) {
+                                               AuthResponseWriter responseWriter,
+                                               AuthContextProperties authContextProperties) {
         this.tokenService = tokenService;
         this.responseWriter = responseWriter;
         this.authContextProperties = authContextProperties;
@@ -35,7 +35,12 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
     public void setDelegateHandler(@Nullable PlatformAuthenticationSuccessHandler delegateHandler) {
         this.delegateHandler = delegateHandler;
         if (delegateHandler != null) {
-                    }
+        }
+    }
+
+    @Override
+    public void setDefaultTargetUrl(String defaultTargetUrl) {
+        this.defaultTargetUrl = defaultTargetUrl;
     }
 
     protected TokenPair createTokenPair(Authentication authentication, String deviceId,
@@ -60,15 +65,15 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
     }
 
     protected abstract Map<String, Object> buildResponseData(TokenTransportResult transportResult,
-                                                              Authentication authentication,
-                                                              HttpServletRequest request);
+                                                             Authentication authentication,
+                                                             HttpServletRequest request);
 
     protected abstract String determineTargetUrl(HttpServletRequest request);
 
     protected final boolean executeDelegateHandler(HttpServletRequest request,
-                                                    HttpServletResponse response,
-                                                    Authentication authentication,
-                                                    @Nullable TokenTransportResult result) throws IOException {
+                                                   HttpServletResponse response,
+                                                   Authentication authentication,
+                                                   @Nullable TokenTransportResult result) throws IOException {
         if (delegateHandler != null && !response.isCommitted()) {
             try {
                 delegateHandler.onAuthenticationSuccess(request, response, authentication, result);

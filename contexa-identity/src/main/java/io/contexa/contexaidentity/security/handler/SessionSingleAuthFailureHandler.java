@@ -35,7 +35,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
                                         AuthenticationException exception, @Nullable FactorContext factorContext,
                                         @Nullable FailureType failureType, @Nullable Map<String, Object> errorDetails)
-            throws IOException, ServletException {
+            throws IOException {
 
         if (response.isCommitted()) {
             log.warn("Response already committed for authentication failure");
@@ -52,7 +52,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             errorMessage = exception.getMessage();
         }
 
-        String loginFailureUrl = authContextProperties.getUrls().getSingle().getLoginFailure();
+        String loginFailureUrl = getDefaultTargetUrl(request);
         String failureUrl = request.getContextPath() + loginFailureUrl;
 
         if (!loginFailureUrl.contains("?")) {
@@ -79,5 +79,11 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
         } else {
             response.sendRedirect(failureUrl);
         }
+    }
+
+    @Override
+    protected String getDefaultTargetUrl(HttpServletRequest request) {
+        if (defaultTargetUrl != null) return defaultTargetUrl;
+        return authContextProperties.getUrls().getMfa().getSuccess();
     }
 }
