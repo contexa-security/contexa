@@ -28,7 +28,6 @@ public class AdminOverrideRepository {
 
     public void save(AdminOverride override) {
         if (override == null || override.getRequestId() == null) {
-            log.warn("[AdminOverrideRepository] null override 또는 requestId로 저장 시도");
             return;
         }
 
@@ -46,14 +45,13 @@ public class AdminOverrideRepository {
             }
 
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] Redis 저장 실패: requestId={}",
+            log.error("[AdminOverrideRepository] Failed to save override: requestId={}",
                     override.getRequestId(), e);
         }
     }
 
     public void savePending(String requestId, String userId, Map<String, Object> analysisData) {
         if (requestId == null) {
-            log.warn("[AdminOverrideRepository] null requestId로 pending 저장 시도");
             return;
         }
 
@@ -73,13 +71,12 @@ public class AdminOverrideRepository {
             redisTemplate.expire(key, PENDING_TTL);
 
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] pending 저장 실패: requestId={}", requestId, e);
+            log.error("[AdminOverrideRepository] Failed to save pending: requestId={}", requestId, e);
         }
     }
 
     public void saveSecurityEvent(String requestId, SecurityEvent event) {
         if (requestId == null || event == null) {
-            log.warn("[AdminOverrideRepository] null requestId 또는 event로 saveSecurityEvent 시도");
             return;
         }
 
@@ -91,7 +88,7 @@ public class AdminOverrideRepository {
             redisTemplate.expire(key, PENDING_TTL);
 
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] SecurityEvent 저장 실패: requestId={}", requestId, e);
+            log.error("[AdminOverrideRepository] Failed to save SecurityEvent: requestId={}", requestId, e);
         }
     }
 
@@ -112,7 +109,7 @@ public class AdminOverrideRepository {
             return Optional.of(securityEventFromMap(data));
 
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] SecurityEvent 조회 실패: requestId={}", requestId, e);
+            log.error("[AdminOverrideRepository] Failed to find SecurityEvent: requestId={}", requestId, e);
             return Optional.empty();
         }
     }
@@ -125,7 +122,7 @@ public class AdminOverrideRepository {
         try {
             redisTemplate.delete(key);
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] SecurityEvent 삭제 실패: requestId={}", requestId, e);
+            log.error("[AdminOverrideRepository] Failed to delete SecurityEvent: requestId={}", requestId, e);
         }
     }
 
@@ -146,7 +143,7 @@ public class AdminOverrideRepository {
             return Optional.of(fromMap(data));
 
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] 조회 실패: requestId={}", requestId, e);
+            log.error("[AdminOverrideRepository] Failed to find override: requestId={}", requestId, e);
             return Optional.empty();
         }
     }
@@ -163,7 +160,7 @@ public class AdminOverrideRepository {
             return data.isEmpty() ? Optional.empty() : Optional.of(data);
 
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] pending 조회 실패: requestId={}", requestId, e);
+            log.error("[AdminOverrideRepository] Failed to find pending: requestId={}", requestId, e);
             return Optional.empty();
         }
     }
@@ -174,12 +171,9 @@ public class AdminOverrideRepository {
         }
         String key = PENDING_PREFIX + requestId;
         try {
-            Boolean deleted = redisTemplate.delete(key);
-            if (deleted) {
-            }
-
+            redisTemplate.delete(key);
         } catch (Exception e) {
-            log.error("[AdminOverrideRepository] pending 삭제 실패: requestId={}", requestId, e);
+            log.error("[AdminOverrideRepository] Failed to delete pending: requestId={}", requestId, e);
         }
     }
 
@@ -229,7 +223,6 @@ public class AdminOverrideRepository {
         try {
             return Instant.parse(value);
         } catch (Exception e) {
-            log.warn("[AdminOverrideRepository] Instant 파싱 실패: {}", value);
             return null;
         }
     }
@@ -245,7 +238,6 @@ public class AdminOverrideRepository {
         try {
             return Double.parseDouble(value);
         } catch (NumberFormatException e) {
-            log.warn("[AdminOverrideRepository] double 파싱 실패: {}", value);
             return 0.0;
         }
     }
@@ -278,7 +270,7 @@ public class AdminOverrideRepository {
                 sb.append("}");
                 map.put("metadata", sb.toString());
             } catch (Exception e) {
-                log.warn("[AdminOverrideRepository] metadata 변환 실패: {}", e.getMessage());
+                log.error("[AdminOverrideRepository] Failed to serialize metadata", e);
             }
         }
 
@@ -301,8 +293,7 @@ public class AdminOverrideRepository {
         if (sourceStr != null && !sourceStr.isEmpty()) {
             try {
                 builder.source(SecurityEvent.EventSource.valueOf(sourceStr));
-            } catch (IllegalArgumentException e) {
-                log.warn("[AdminOverrideRepository] EventSource 파싱 실패: {}", sourceStr);
+            } catch (IllegalArgumentException ignored) {
             }
         }
 
@@ -310,8 +301,7 @@ public class AdminOverrideRepository {
         if (severityStr != null && !severityStr.isEmpty()) {
             try {
                 builder.severity(SecurityEvent.Severity.valueOf(severityStr));
-            } catch (IllegalArgumentException e) {
-                log.warn("[AdminOverrideRepository] Severity 파싱 실패: {}", severityStr);
+            } catch (IllegalArgumentException ignored) {
             }
         }
 
@@ -319,8 +309,7 @@ public class AdminOverrideRepository {
         if (timestampStr != null && !timestampStr.isEmpty()) {
             try {
                 builder.timestamp(LocalDateTime.parse(timestampStr));
-            } catch (Exception e) {
-                log.warn("[AdminOverrideRepository] LocalDateTime 파싱 실패: {}", timestampStr);
+            } catch (Exception ignored) {
             }
         }
 
@@ -342,7 +331,7 @@ public class AdminOverrideRepository {
                 }
                 builder.metadata(metadata);
             } catch (Exception e) {
-                log.warn("[AdminOverrideRepository] metadata 파싱 실패: {}", e.getMessage());
+                log.error("[AdminOverrideRepository] Failed to deserialize metadata", e);
             }
         }
         return builder.build();

@@ -39,11 +39,11 @@ public class AdminOverrideService {
                                  SecurityEvent originalEvent) {
 
         if (reason == null || reason.isBlank()) {
-            throw new IllegalArgumentException("관리자 승인 시 사유는 필수입니다.");
+            throw new IllegalArgumentException("Reason is required for admin approval");
         }
 
         if (requestId == null || requestId.isBlank()) {
-            throw new IllegalArgumentException("requestId는 필수입니다.");
+            throw new IllegalArgumentException("requestId is required");
         }
 
         AdminOverride override = AdminOverride.builder()
@@ -69,8 +69,8 @@ public class AdminOverrideService {
             triggerBaselineUpdate(userId, originalEvent, override);
         }
 
-        if ("ALLOW".equalsIgnoreCase(overriddenAction) && userId != null) {
-            updateAnalysisAction(userId, "ALLOW");
+        if (userId != null && overriddenAction != null) {
+            updateAnalysisAction(userId, overriddenAction);
         }
         return override;
     }
@@ -80,11 +80,11 @@ public class AdminOverrideService {
                                 String reason) {
 
         if (reason == null || reason.isBlank()) {
-            throw new IllegalArgumentException("관리자 거부 시 사유는 필수입니다.");
+            throw new IllegalArgumentException("Reason is required for admin rejection");
         }
 
         if (requestId == null || requestId.isBlank()) {
-            throw new IllegalArgumentException("requestId는 필수입니다.");
+            throw new IllegalArgumentException("requestId is required");
         }
 
         AdminOverride override = AdminOverride.builder()
@@ -119,7 +119,7 @@ public class AdminOverrideService {
             baselineLearningService.learnIfNormal(userId, adminApprovedDecision, event);
 
         } catch (Exception e) {
-            log.error("[AdminOverrideService] 기준선 업데이트 중 예외 발생: userId={}, overrideId={}",
+            log.error("[AdminOverrideService] Baseline update failed: userId={}, overrideId={}",
                     userId, override.getOverrideId(), e);
         }
     }
@@ -134,21 +134,29 @@ public class AdminOverrideService {
             redisTemplate.opsForHash().put(analysisKey, "action", action);
             redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
 
-            // Persist last verified action in separate key (survives hcadAnalysis TTL expiry)
             if (stringRedisTemplate != null) {
                 String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
                 stringRedisTemplate.opsForValue().set(lastActionKey, action, Duration.ofHours(24));
+            }
+
+            if ("ALLOW".equalsIgnoreCase(action) || "PENDING_ANALYSIS".equalsIgnoreCase(action)
+                    || "CHALLENGE".equalsIgnoreCase(action)) {
+                String userBlockedKey = ZeroTrustRedisKeys.userBlocked(userId);
+                redisTemplate.delete(userBlockedKey);
             }
         } catch (Exception e) {
             log.error("[AdminOverrideService] Redis analysis update failed: userId={}", userId, e);
         }
     }
+
     public Optional<AdminOverride> findByRequestId(String requestId) {
         return repository.findByRequestId(requestId);
     }
+
     public boolean isPendingReview(String requestId) {
         return repository.findPending(requestId).isPresent();
     }
+
     public void addToPendingReview(String requestId, String userId,
                                    double riskScore, double confidence, String reasoning) {
         addToPendingReview(requestId, userId, riskScore, confidence, reasoning, null);

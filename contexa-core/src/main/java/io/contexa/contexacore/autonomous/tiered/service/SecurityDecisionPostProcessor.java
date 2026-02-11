@@ -73,22 +73,17 @@ public class SecurityDecisionPostProcessor {
         try {
             SecurityDecision.Action action = decision.getAction();
 
-            double confidence = decision.getConfidence();
-            if (Double.isNaN(confidence)) {
-
-            }
-
             if (action == SecurityDecision.Action.ALLOW) {
                 storeBehaviorDocument(event, decision);
             }
 
             if (action == SecurityDecision.Action.BLOCK) {
-                storeBehaviorDocument(event, decision);
                 String content = buildBehaviorContent(event, decision);
                 storeThreatDocument(event, decision, content);
             }
 
         } catch (Exception e) {
+            log.error(e.getMessage(), e);
         }
     }
 
@@ -130,17 +125,6 @@ public class SecurityDecisionPostProcessor {
         }
 
         return content.toString();
-    }
-
-    private String extractHttpMethod(SecurityEvent event) {
-        Map<String, Object> metadataObj = event.getMetadata();
-        if (metadataObj instanceof Map) {
-            Object method = metadataObj.get("httpMethod");
-            if (method != null) {
-                return method.toString();
-            }
-        }
-        return null;
     }
 
     private String extractPath(SecurityEvent event) {
@@ -186,7 +170,7 @@ public class SecurityDecisionPostProcessor {
             unifiedVectorService.storeDocument(threatDoc);
 
         } catch (Exception e) {
-            log.warn("[SecurityDecisionPostProcessor] 위협 패턴 저장 실패: eventId={}", event.getEventId(), e);
+            log.error("[SecurityDecisionPostProcessor] Failed to store threat document: eventId={}", event.getEventId(), e);
         }
     }
 

@@ -48,8 +48,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SecurityDecisionPostProcessor postProcessor,
                                     TieredStrategyProperties tieredStrategyProperties) {
         super(llmOrchestrator, redisTemplate, eventEnricher, promptTemplate,
-              behaviorVectorService, unifiedVectorService, baselineLearningService,
-              tieredStrategyProperties);
+                behaviorVectorService, unifiedVectorService, baselineLearningService,
+                tieredStrategyProperties);
 
         this.postProcessor = postProcessor;
 
@@ -88,22 +88,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         try {
 
             SessionContext sessionContext = buildSessionContext(event);
-
             List<Document> relatedDocuments = searchRelatedContext(event);
             List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
             BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
 
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
-
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
-
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
-
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
-
                 ExecutionContext context = ExecutionContext.builder()
                         .prompt(new Prompt(promptText))
                         .tier(1)
@@ -170,10 +165,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private SessionContext buildSessionContext(SecurityEvent event) {
         String sessionId = event.getSessionId();
-
-        // AI Native v12.0: Rule-based IP/UA change detection removed
-        // LLM analyzes IP/UA changes via SecurityPromptTemplate (SIGNAL COMPARISON section)
-        // Cache retained for session context reuse (performance optimization only)
         if (sessionId != null) {
             SessionContext cached = sessionContextCache.getIfPresent(sessionId);
             if (cached != null && cached.isValid()) {
@@ -186,11 +177,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         context.setSessionId(sessionId);
         context.setUserId(event.getUserId());
         context.setIpAddress(event.getSourceIp());
-
         context.setStartTime(LocalDateTime.now());
 
         if (event.getMetadata() != null) {
-
             Object authMethodObj = event.getMetadata().get("authMethod");
             if (authMethodObj instanceof String) {
                 context.setAuthMethod((String) authMethodObj);
@@ -208,22 +197,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
         if (sessionId != null && redisTemplate != null) {
             try {
-                @SuppressWarnings("unchecked")
                 List<String> recentActions = (List<String>) (List<?>) redisTemplate.opsForList()
                         .range(ZeroTrustRedisKeys.sessionActions(sessionId), -10, -1);
                 if (recentActions != null && !recentActions.isEmpty()) {
                     context.setRecentActions(recentActions);
                 }
             } catch (Exception e) {
+                log.error("[Layer1] Failed to retrieve recent actions from Redis: {}", e.getMessage());
             }
         }
-
         context.addEvent(event);
-
         if (sessionId != null && context.getUserId() != null) {
             sessionContextCache.put(sessionId, context);
         }
-
         return context;
     }
 
@@ -247,9 +233,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             ).toMinutes();
             ctx.setSessionAgeMinutes((int) Math.max(0, minutes));
         }
-
         ctx.setRequestCount(sessionContext.getAccessFrequency());
-
         return ctx;
     }
 
@@ -257,7 +241,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             BaseBehaviorAnalysis behaviorAnalysis,
             SecurityEvent event) {
         SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
-
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
@@ -271,7 +254,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
             ctx.setPreviousUserAgentOS(baselineOS);
         }
-
         return ctx;
     }
 
@@ -281,14 +263,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         }
 
         try {
-
             int uaRowIdx = baselineContext.indexOf("| UA");
             if (uaRowIdx != -1) {
 
                 int rowEndIdx = baselineContext.indexOf("\n", uaRowIdx);
                 if (rowEndIdx == -1) rowEndIdx = baselineContext.length();
                 String uaRow = baselineContext.substring(uaRowIdx, rowEndIdx);
-
                 String[] columns = uaRow.split("\\|");
                 if (columns.length >= 4) {
 
@@ -297,7 +277,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     int endParen = baselineColumn.lastIndexOf(")");
                     if (startParen != -1 && endParen > startParen) {
                         String os = baselineColumn.substring(startParen + 1, endParen);
-
                         return os.replace("...", "");
                     }
                 }
@@ -312,15 +291,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 }
             }
         } catch (Exception e) {
+            log.error("[Layer1] Failed to extract OS from baseline context: {}", e.getMessage());
         }
-
         return null;
     }
 
     private SecurityDecision convertToSecurityDecision(SecurityResponse response,
                                                        SecurityEvent event) {
         SecurityDecision.Action action = mapStringToAction(response.getAction());
-
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
                 .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
@@ -333,17 +311,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (response.getMitre() != null && !response.getMitre().isBlank()) {
             decision.setThreatCategory(response.getMitre());
         }
-
         return decision;
     }
 
     private SecurityResponse parseJsonResponse(String jsonResponse) {
         try {
-
             String cleanedJson = extractJsonObject(jsonResponse);
-
             SecurityResponse response = SecurityResponse.fromJson(cleanedJson);
-
             if (response != null && response.isValid()) {
                 return validateAndFixResponse(response);
             }
@@ -401,17 +375,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return "Layer1";
     }
 
-    public List<String> getRecommendedActions(SecurityEvent event) {
-        List<String> actions = new ArrayList<>();
-        actions.add("ANALYZE_SESSION_CONTEXT");
-        actions.add("CHECK_BEHAVIOR_BASELINE");
-        return actions;
-    }
-
-    public double calculateRiskScore(List<ThreatIndicator> indicators) {
-        return Double.NaN;
-    }
-
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         return switch (action) {
             case ALLOW -> "ALLOW";
@@ -447,8 +410,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         if (response.getAction() == null || response.getAction().isBlank()) {
             response.setAction("ESCALATE");
         }
-
         return response;
     }
-
 }

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='Blocked User Detail')}"></head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1">
+    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+
+    <main class="flex-1 p-6 md:p-10">
+        <div class="mx-auto max-w-4xl">
+
+            <div class="mb-6">
+                <a th:href="@{/admin/blacklist}" class="text-sm transition-all duration-300"
+                   style="color: #818cf8;">&larr; Back to Blocked Users</a>
+            </div>
+
+            <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+                <h1 class="text-2xl font-bold text-gradient mb-6">Blocked User Detail</h1>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">User Information</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <span class="text-xs" style="color: #64748b;">User ID</span>
+                                <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.userId}"></p>
+                            </div>
+                            <div>
+                                <span class="text-xs" style="color: #64748b;">Username</span>
+                                <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.username ?: 'N/A'}"></p>
+                            </div>
+                            <div>
+                                <span class="text-xs" style="color: #64748b;">Source IP</span>
+                                <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.sourceIp ?: 'N/A'}"></p>
+                            </div>
+                            <div>
+                                <span class="text-xs" style="color: #64748b;">User Agent</span>
+                                <p class="text-xs break-all" style="color: #e2e8f0;" th:text="${blocked.userAgent ?: 'N/A'}"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">AI Analysis Result</h3>
+                        <div class="space-y-3">
+                            <div>
+                                <span class="text-xs" style="color: #64748b;">Risk Score</span>
+                                <p class="text-sm font-mono"
+                                   th:text="${blocked.riskScore != null} ? ${#numbers.formatDecimal(blocked.riskScore, 1, 4)} : 'N/A'"
+                                   th:style="${blocked.riskScore != null AND blocked.riskScore >= 0.8} ? 'color: #f87171;' : (${blocked.riskScore != null AND blocked.riskScore >= 0.5} ? 'color: #fbbf24;' : 'color: #4ade80;')"></p>
+                            </div>
+                            <div>
+                                <span class="text-xs" style="color: #64748b;">Confidence</span>
+                                <p class="text-sm font-mono" style="color: #e2e8f0;"
+                                   th:text="${blocked.confidence != null} ? ${#numbers.formatDecimal(blocked.confidence, 1, 4)} : 'N/A'"></p>
+                            </div>
+                            <div>
+                                <span class="text-xs" style="color: #64748b;">Request ID</span>
+                                <p class="text-xs font-mono break-all" style="color: #e2e8f0;" th:text="${blocked.requestId}"></p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">Threat Analysis Reasoning</h3>
+                <div class="p-4 rounded-lg" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(71, 85, 105, 0.3);">
+                    <p class="text-sm whitespace-pre-wrap" style="color: #e2e8f0;" th:text="${blocked.reasoning ?: 'No reasoning provided.'}"></p>
+                </div>
+            </div>
+
+            <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">Block History</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">Blocked At</span>
+                        <p class="text-sm" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.blockedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">Total Block Count</span>
+                        <p class="text-sm font-semibold" style="color: #f87171;" th:text="${blocked.blockCount}"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">Status</span>
+                        <p>
+                            <span th:if="${blocked.status.name() == 'BLOCKED'}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">BLOCKED</span>
+                            <span th:if="${blocked.status.name() == 'RESOLVED'}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">RESOLVED</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${blocked.status.name() == 'RESOLVED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">Resolution Details</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">Resolved At</span>
+                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolvedAt != null} ? ${#temporals.format(blocked.resolvedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">Resolved By</span>
+                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolvedBy ?: 'N/A'}"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">Resolved Action</span>
+                        <p class="text-sm font-semibold" style="color: #38bdf8;" th:text="${blocked.resolvedAction ?: 'N/A'}"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">Resolve Reason</span>
+                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolveReason ?: 'N/A'}"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${blocked.status.name() == 'BLOCKED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+                <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;">Resolve Block</h3>
+                <form th:action="@{/admin/blacklist/{id}/resolve(id=${blocked.id})}" method="post" id="resolveForm">
+
+                    <div class="mb-5">
+                        <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Resolve Action</label>
+                        <div class="flex flex-col gap-3">
+                            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
+                                   style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
+                                <input type="radio" name="resolvedAction" value="ALLOW" required
+                                       class="w-4 h-4" style="accent-color: #6366f1;">
+                                <div>
+                                    <span class="text-sm font-medium" style="color: #e2e8f0;">ALLOW</span>
+                                    <span class="text-xs ml-2" style="color: #94a3b8;">- Immediately allow access</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
+                                   style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
+                                <input type="radio" name="resolvedAction" value="PENDING_ANALYSIS"
+                                       class="w-4 h-4" style="accent-color: #6366f1;">
+                                <div>
+                                    <span class="text-sm font-medium" style="color: #e2e8f0;">PENDING_ANALYSIS</span>
+                                    <span class="text-xs ml-2" style="color: #94a3b8;">- Re-analyze on next access</span>
+                                </div>
+                            </label>
+                            <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
+                                   style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
+                                <input type="radio" name="resolvedAction" value="CHALLENGE"
+                                       class="w-4 h-4" style="accent-color: #6366f1;">
+                                <div>
+                                    <span class="text-sm font-medium" style="color: #e2e8f0;">CHALLENGE</span>
+                                    <span class="text-xs ml-2" style="color: #94a3b8;">- Require MFA verification</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="mb-5">
+                        <label for="reason" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Reason (Required)</label>
+                        <textarea id="reason" name="reason" rows="3" required minlength="5"
+                                  class="w-full px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2"
+                                  style="background: rgba(15, 23, 42, 0.8); color: #e2e8f0; border: 1px solid rgba(71, 85, 105, 0.3); focus-ring-color: #6366f1;"
+                                  placeholder="Enter the reason for resolving this block..."></textarea>
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer"
+                               style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
+                            <input type="checkbox" name="baselineUpdateAllowed" value="true"
+                                   class="w-4 h-4" style="accent-color: #6366f1;">
+                            <div>
+                                <span class="text-sm font-medium" style="color: #e2e8f0;">Allow Baseline Learning</span>
+                                <span class="text-xs block" style="color: #94a3b8;">Enable AI to learn from this override decision</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <button type="submit"
+                            class="px-6 py-3 rounded-xl font-semibold text-white transition-all duration-300"
+                            style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                        Resolve Block
+                    </button>
+                </form>
+            </div>
+
+            <div th:if="${message}" class="mt-6 text-center" style="color: #4ade80;">
+                <p th:text="${message}"></p>
+            </div>
+            <div th:if="${errorMessage}" class="mt-6 text-center" style="color: #f87171;">
+                <p th:text="${errorMessage}"></p>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:inline="javascript">
+    /*<![CDATA[*/
+    document.addEventListener('DOMContentLoaded', () => {
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+
+        const form = document.getElementById('resolveForm');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                const reason = document.getElementById('reason').value.trim();
+                if (reason.length < 5) {
+                    e.preventDefault();
+                    showToast('Reason must be at least 5 characters.', 'error');
+                    return;
+                }
+                const checked = form.querySelector('input[name="resolvedAction"]:checked');
+                if (!checked) {
+                    e.preventDefault();
+                    showToast('Please select a resolve action.', 'error');
+                }
+            });
+        }
+    });
+    /*]]>*/
+</script>
+
+</body>
+</html>

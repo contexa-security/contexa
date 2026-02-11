@@ -32,27 +32,27 @@ import java.util.stream.Collectors;
 public class SoarContextRetriever extends ContextRetriever {
 
     private final ContextRetrieverRegistry registry;
-    
+
     @Autowired(required = false)
     private ChatClient.Builder chatClientBuilder;
-    
+
     @Autowired(required = false)
     @Qualifier("riskScoreAggregator")
     private DocumentPostProcessor riskScoreAggregator;
-    
+
     @Autowired(required = false)
     @Qualifier("threatCorrelator")
     private DocumentPostProcessor threatCorrelator;
-    
+
     @Value("${spring.ai.rag.soar.similarity-threshold:0.75}")
     private double soarSimilarityThreshold;
-    
+
     @Value("${spring.ai.rag.soar.top-k:20}")
     private int soarTopK;
-    
+
     @Value("${spring.ai.rag.soar.lookback-hours:24}")
     private int lookbackHours;
-    
+
     private RetrievalAugmentationAdvisor soarAdvisor;
 
     public SoarContextRetriever(
@@ -64,13 +64,13 @@ public class SoarContextRetriever extends ContextRetriever {
 
     @PostConstruct
     public void registerSelf() {
-        
+
         if (chatClientBuilder != null) {
             createSoarAdvisor();
         }
 
         registry.registerRetriever(SoarContext.class, this);
-            }
+    }
 
     @Override
     public ContextRetrievalResult retrieveContext(AIRequest<?> request) {
@@ -81,45 +81,45 @@ public class SoarContextRetriever extends ContextRetriever {
     }
 
     private void createSoarAdvisor() {
-        
+
         QueryTransformer soarQueryTransformer = new SoarQueryTransformer(chatClientBuilder);
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
         var filter = filterBuilder.and(
-            filterBuilder.in("documentType",
-                "incident",  
-                VectorDocumentType.THREAT.getValue(),
-                "security_alert",  
-                "soar_playbook"),  
-            filterBuilder.gte("severity", 0.5)
+                filterBuilder.in("documentType",
+                        "incident",
+                        VectorDocumentType.THREAT.getValue(),
+                        "security_alert",
+                        "soar_playbook"),
+                filterBuilder.gte("severity", 0.5)
         ).build();
 
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
-            .vectorStore(vectorStore)
-            .similarityThreshold(soarSimilarityThreshold)
-            .topK(soarTopK)
-            .filterExpression(filter)
-            .build();
+                .vectorStore(vectorStore)
+                .similarityThreshold(soarSimilarityThreshold)
+                .topK(soarTopK)
+                .filterExpression(filter)
+                .build();
 
         soarAdvisor = RetrievalAugmentationAdvisor.builder()
-            .documentRetriever(retriever)
-            .queryTransformers(soarQueryTransformer)
-            .build();
+                .documentRetriever(retriever)
+                .queryTransformers(soarQueryTransformer)
+                .build();
 
     }
 
     private ContextRetrievalResult retrieveSoarContextWithRAG(AIRequest<SoarContext> request) {
-        
+
         try {
-            
+
             ContextRetrievalResult baseResult = super.retrieveContext(request);
-            
+
             SoarContext context = request.getContext();
 
             String enhancedContext = buildComprehensiveContext(
-                context, 
-                baseResult.getContextInfo(),
-                baseResult.getDocuments()
+                    context,
+                    baseResult.getContextInfo(),
+                    baseResult.getDocuments()
             );
 
             Map<String, Object> metadata = new HashMap<>(baseResult.getMetadata());
@@ -147,13 +147,13 @@ public class SoarContextRetriever extends ContextRetriever {
     }
 
     private List<Document> searchSecurityKnowledge(SoarContext context) {
-        
+
         String searchQuery = buildSearchQuery(context);
 
         SearchRequest searchRequest = SearchRequest.builder()
                 .query(searchQuery)
-                .topK(5)  
-                .similarityThreshold(0.7)  
+                .topK(5)
+                .similarityThreshold(0.7)
                 .build();
 
         List<Document> documents = vectorStore.similaritySearch(searchRequest);
@@ -191,7 +191,7 @@ public class SoarContextRetriever extends ContextRetriever {
         return documents.stream()
                 .map(doc -> {
                     String content = doc.getText();
-                    
+
                     if (doc.getMetadata() != null && !doc.getMetadata().isEmpty()) {
                         String source = doc.getMetadata().getOrDefault("source", "unknown").toString();
                         return String.format("[출처: %s]\n%s", source, content);
@@ -236,47 +236,47 @@ public class SoarContextRetriever extends ContextRetriever {
 
     private static class SoarQueryTransformer implements QueryTransformer {
         private final ChatClient chatClient;
-        
+
         public SoarQueryTransformer(ChatClient.Builder chatClientBuilder) {
             this.chatClient = chatClientBuilder.build();
         }
-        
+
         @Override
         public Query transform(Query originalQuery) {
             if (originalQuery == null || originalQuery.text() == null) {
                 return originalQuery;
             }
-            
+
             String prompt = String.format("""
-                보안 인시던트 대응을 위한 검색 쿼리를 최적화하세요:
-                
-                원본 쿼리: %s
-                
-                최적화 지침:
-                1. 보안 위협 지표(IOC)를 포함하세요
-                2. MITRE ATT&CK 프레임워크 용어를 추가하세요
-                3. 관련 CVE, CWE 참조를 포함하세요
-                4. 위협 액터 및 캠페인 이름을 포함하세요
-                5. 시간적 컨텍스트를 명확히 하세요
-                
-                최적화된 쿼리만 반환하세요.
-                """, originalQuery.text());
-            
+                    보안 인시던트 대응을 위한 검색 쿼리를 최적화하세요:
+                    
+                    원본 쿼리: %s
+                    
+                    최적화 지침:
+                    1. 보안 위협 지표(IOC)를 포함하세요
+                    2. MITRE ATT&CK 프레임워크 용어를 추가하세요
+                    3. 관련 CVE, CWE 참조를 포함하세요
+                    4. 위협 액터 및 캠페인 이름을 포함하세요
+                    5. 시간적 컨텍스트를 명확히 하세요
+                    
+                    최적화된 쿼리만 반환하세요.
+                    """, originalQuery.text());
+
             String transformedText = chatClient.prompt()
-                .user(prompt)
-                .call()
-                .content();
-                
+                    .user(prompt)
+                    .call()
+                    .content();
+
             return new Query(transformedText);
         }
     }
 
     private String getDefaultContext() {
         return """
-        ## 기본 SOAR 컨텍스트
-        
-        SOAR 분석을 위한 충분한 데이터가 없습니다.
-        기본적인 인시던트 대응 절차를 따릅니다.
-        """;
+                ## 기본 SOAR 컨텍스트
+                
+                SOAR 분석을 위한 충분한 데이터가 없습니다.
+                기본적인 인시던트 대응 절차를 따릅니다.
+                """;
     }
 }

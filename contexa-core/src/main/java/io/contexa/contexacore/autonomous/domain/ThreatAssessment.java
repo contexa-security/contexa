@@ -19,23 +19,15 @@ public class ThreatAssessment {
 
     private String assessmentId;
     private String eventId;
-
     private double riskScore;
-
     private String description;
     private String evaluator;
     private LocalDateTime assessedAt;
-
     private List<String> indicators;
-
     private List<String> recommendedActions;
-    
     private String strategyName;
-
     private double confidence;
-
     private String action;
-
     private String reasoning;
 
     @Builder.Default
