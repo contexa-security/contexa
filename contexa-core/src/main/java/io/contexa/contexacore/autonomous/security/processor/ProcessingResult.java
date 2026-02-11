@@ -4,7 +4,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -25,6 +24,12 @@ public class ProcessingResult {
 
     private ProcessingPath processingPath;
 
+    private String action;
+
+    private double confidence;
+
+    private String reasoning;
+
     @Builder.Default
     private Map<String, Object> analysisData = new HashMap<>();
 
@@ -34,8 +39,6 @@ public class ProcessingResult {
 
     private LocalDateTime processedAt;
 
-    private boolean aiAnalysisPerformed;
-
     private int aiAnalysisLevel;
 
     private List<String> recommendedActions;
@@ -43,13 +46,6 @@ public class ProcessingResult {
     private ProcessingStatus status;
 
     private String errorMessage;
-
-    private boolean anomaly;
-
-    private List<String> executedActions;
-
-    @Builder.Default
-    private Map<String, Object> metadata = new HashMap<>();
 
     private String message;
 
@@ -74,13 +70,13 @@ public class ProcessingResult {
         FAILED("Processing failed"),
         TIMEOUT("Processing timeout"),
         SKIPPED("Processing skipped");
-        
+
         private final String description;
-        
+
         ProcessingStatus(String description) {
             this.description = description;
         }
-        
+
         public String getDescription() {
             return description;
         }
@@ -106,18 +102,6 @@ public class ProcessingResult {
                 .build();
     }
 
-    public boolean isSuccess() {
-        return success;
-    }
-
-    public List<String> getExecutedActions() {
-        return executedActions;
-    }
-
-    public Map<String, Object> getMetadata() {
-        return metadata;
-    }
-
     public void addAnalysisData(String key, Object value) {
         if (this.analysisData == null) {
             this.analysisData = new HashMap<>();
@@ -128,13 +112,5 @@ public class ProcessingResult {
     public void setProcessingComplete(long startTimeMs) {
         this.processingTimeMs = System.currentTimeMillis() - startTimeMs;
         this.processedAt = LocalDateTime.now();
-    }
-
-    public boolean isAnomaly() {
-        return anomaly;
-    }
-
-    public void setAnomaly(boolean anomaly) {
-        this.anomaly = anomaly;
     }
 }

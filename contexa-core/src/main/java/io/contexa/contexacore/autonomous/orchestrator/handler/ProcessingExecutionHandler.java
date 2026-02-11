@@ -31,7 +31,6 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
         }
 
         try {
-
             ProcessingStrategy strategy = selectStrategy(mode);
             long startTime = System.currentTimeMillis();
             ProcessingResult result = strategy.process(context);
@@ -58,24 +57,9 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
     }
 
     private void handleProcessingResult(SecurityEventContext context, ProcessingResult result, long executionTime) {
-
         context.addMetadata("processingResult", result);
 
-        if (result.getExecutedActions() != null && !result.getExecutedActions().isEmpty()) {
-            for (String action : result.getExecutedActions()) {
-                context.addResponseAction(action, "Executed by " + result.getProcessingPath());
-            }
-        }
-
-        if (result.getMetadata() != null) {
-            result.getMetadata().forEach(context::addMetadata);
-        }
-
-        if (result.isSuccess()) {
-            if (context.getProcessingStatus() != SecurityEventContext.ProcessingStatus.AWAITING_APPROVAL) {
-                context.updateProcessingStatus(SecurityEventContext.ProcessingStatus.RESPONDING);
-            }
-        } else {
+        if (!result.isSuccess()) {
             context.markAsFailed(result.getMessage());
         }
 

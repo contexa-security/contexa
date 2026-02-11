@@ -3,47 +3,28 @@ package io.contexa.contexacore.autonomous.security.processor;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
-import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @RequiredArgsConstructor
 public class ColdPathEventProcessor implements IPathProcessor {
 
-    private final RedisTemplate<String, Object> redisTemplate;
     private final Layer1ContextualStrategy contextualStrategy;
     private final Layer2ExpertStrategy expertStrategy;
-    private final BaselineLearningService baselineLearningService;
-    private final AdminOverrideService adminOverrideService;
     private final LlmAnalysisEventListener llmAnalysisEventListener;
-    private final StringRedisTemplate stringRedisTemplate;
-
-    @Setter
-    @Autowired(required = false)
-    private IBlockedUserRecorder blockedUserRecorder;
-
-    private final AtomicLong processedCount = new AtomicLong(0);
-    private final AtomicLong totalProcessingTime = new AtomicLong(0);
-    private volatile long lastProcessedTimestamp = 0;
 
     @Override
     public ProcessingResult processEvent(SecurityEvent event, double riskScore) {
@@ -66,35 +47,20 @@ public class ColdPathEventProcessor implements IPathProcessor {
             ProcessingResult result = ProcessingResult.builder()
                     .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                     .currentRiskLevel(riskScore)
-                    .aiAnalysisPerformed(true)
                     .success(true)
                     .build();
 
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore);
             result.setRiskScore(analysisResult.getFinalScore());
-            result.addAnalysisData("aiAssessment", analysisResult);
-            result.addAnalysisData("action", analysisResult.getAction());
+            result.setAction(analysisResult.getAction());
+            result.setConfidence(analysisResult.getConfidence());
+            result.setReasoning(analysisResult.getReasoning());
+            result.setThreatIndicators(analysisResult.getIndicators());
+            result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
-
-            final String finalUserId = userId;
-            final SecurityEvent finalEvent = event;
-            try {
-                saveAnalysisToRedis(finalUserId, finalEvent, analysisResult);
-            } catch (Exception ex) {
-                log.error("[ColdPath] Failed to save analysis to Redis (sync): userId={}, eventId={}",
-                        userId, event.getEventId(), ex);
-            }
-
-            CompletableFuture.runAsync(() -> {
-                learnFromAnalysisResult(finalUserId, finalEvent, analysisResult);
-            }).exceptionally(ex -> {
-                log.error("[ColdPath] Baseline learning failed (non-critical): userId={}", finalUserId, ex);
-                return null;
-            });
+            result.addAnalysisData("aiAssessment", analysisResult);
 
             long processingTime = System.currentTimeMillis() - startTime;
-            updateStatistics(processingTime);
-
             result.setProcessingTimeMs(processingTime);
             result.setProcessedAt(LocalDateTime.now());
             result.setStatus(ProcessingResult.ProcessingStatus.SUCCESS);
@@ -190,104 +156,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
     }
 
-    private synchronized void updateStatistics(long processingTime) {
-        processedCount.incrementAndGet();
-        totalProcessingTime.addAndGet(processingTime);
-        lastProcessedTimestamp = System.currentTimeMillis();
-    }
-
-    private void saveAnalysisToRedis(String userId, SecurityEvent event, ThreatAnalysisResult analysisResult) {
-        if (userId == null || userId.isBlank()) {
-            return;
-        }
-        try {
-            String action = analysisResult.getAction();
-            if (action == null || action.isBlank()) {
-                action = "ESCALATE";
-                log.error("[ColdPath] LLM returned no action, defaulting to ESCALATE: userId={}", userId);
-            }
-
-            Duration ttl = switch (action.toUpperCase()) {
-                case "BLOCK" -> null;
-                case "ESCALATE" -> Duration.ofMinutes(5);
-                case "CHALLENGE" -> Duration.ofMinutes(30);
-                default -> Duration.ofSeconds(30);
-            };
-
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Map<String, Object> fields = new HashMap<>();
-            fields.put("action", action);
-            fields.put("riskScore", analysisResult.getFinalScore());
-            fields.put("confidence", analysisResult.getConfidence());
-            fields.put("threatEvidence", String.join(", ", analysisResult.getIndicators()));
-            fields.put("analysisDepth", analysisResult.getAnalysisDepth());
-            fields.put("updatedAt", java.time.Instant.now().toString());
-
-            redisTemplate.opsForHash().putAll(analysisKey, fields);
-            if (ttl != null) {
-                redisTemplate.expire(analysisKey, ttl);
-            }
-            if (stringRedisTemplate != null) {
-                String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-                stringRedisTemplate.opsForValue().set(lastActionKey, action, Duration.ofHours(24));
-            }
-            if ("BLOCK".equalsIgnoreCase(action)) {
-                String requestId = UUID.randomUUID().toString();
-                String reasoning = String.join(", ", analysisResult.getReasoning());
-
-                String userBlockedKey = ZeroTrustRedisKeys.userBlocked(userId);
-                stringRedisTemplate.opsForValue().set(userBlockedKey, "true");
-
-                if (adminOverrideService != null) {
-                    adminOverrideService.addToPendingReview(
-                            requestId, userId,
-                            analysisResult.getFinalScore(),
-                            analysisResult.getConfidence(),
-                            reasoning
-                    );
-                }
-
-                if (blockedUserRecorder != null) {
-                    try {
-                        String sourceIp = event.getSourceIp();
-                        String userAgent = event.getUserAgent();
-                        String username = event.getUserName();
-                        blockedUserRecorder.recordBlock(
-                                requestId, userId, username,
-                                analysisResult.getFinalScore(),
-                                analysisResult.getConfidence(),
-                                reasoning, sourceIp, userAgent
-                        );
-                    } catch (Exception ex) {
-                        log.error("[ColdPath] Failed to record block to DB: userId={}", userId, ex);
-                    }
-                }
-            }
-
-        } catch (Exception e) {
-            log.error("[ColdPath] Failed to save analysis to Redis: userId={}", userId, e);
-        }
-    }
-
-    private void learnFromAnalysisResult(String userId, SecurityEvent event, ThreatAnalysisResult analysisResult) {
-        if (baselineLearningService == null) {
-            return;
-        }
-
-        if (userId == null || userId.isBlank() || analysisResult == null) {
-            return;
-        }
-
-        try {
-            SecurityDecision decision = analysisResult.getFinalDecision();
-            baselineLearningService.learnIfNormal(userId, decision, event);
-
-        } catch (Exception e) {
-            log.error("[ColdPath] Baseline learning failed (non-critical): userId={}", userId, e);
-
-        }
-    }
-
     @Override
     public ProcessingMode getProcessingMode() {
         return ProcessingMode.AI_ANALYSIS;
@@ -296,19 +164,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
     @Override
     public String getProcessorName() {
         return "ColdPathEventProcessor-AI";
-    }
-
-    @Override
-    public ProcessorStatistics getStatistics() {
-        ProcessorStatistics stats = new ProcessorStatistics();
-        stats.setProcessedCount(processedCount.get());
-
-        long count = processedCount.get();
-        if (count > 0) {
-            stats.setAverageProcessingTime((double) totalProcessingTime.get() / count);
-        }
-        stats.setLastProcessedTimestamp(lastProcessedTimestamp);
-        return stats;
     }
 
     @Getter
@@ -340,12 +195,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
 
         public SecurityDecision getFinalDecision() {
-
             SecurityDecision.Action decisionAction;
             String reasoningPrefix;
 
             if (action != null && !action.isBlank()) {
-
                 reasoningPrefix = "AI Native Decision: ";
                 decisionAction = switch (action.toUpperCase()) {
                     case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
@@ -434,7 +287,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
                                        Double confidence, String reasoning, String mitre, Long elapsedMs) {
         llmAnalysisEventListener.onLayer2Complete(userId, action, riskScore, confidence, reasoning, mitre, elapsedMs);
     }
-
 
     private void publishDecisionApplied(String userId, String action, String layer, String requestPath) {
         llmAnalysisEventListener.onDecisionApplied(userId, action, layer, requestPath);

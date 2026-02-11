@@ -123,7 +123,7 @@ public class HCADAnalysisService {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Map<Object, Object> analysis = redisTemplate.opsForHash().entries(analysisKey);
 
-            if (analysis != null && !analysis.isEmpty()) {
+            if (!analysis.isEmpty()) {
                 
                 boolean isStale = false;
                 if (analysis.containsKey("analyzedAt")) {

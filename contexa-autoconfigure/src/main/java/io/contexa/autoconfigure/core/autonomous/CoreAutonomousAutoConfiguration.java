@@ -174,8 +174,9 @@ public class CoreAutonomousAutoConfiguration {
             SecurityMonitoringService securityMonitor,
             RedisTemplate<String, Object> redisTemplate,
             SecurityPlaneAuditLogger auditLogger,
-            SecurityEventProcessingOrchestrator processingOrchestrator) {
+            SecurityEventProcessingOrchestrator processingOrchestrator,
+            SecurityPlaneProperties securityPlaneProperties) {
         return new SecurityPlaneAgent(
-                securityMonitor, redisTemplate, auditLogger, processingOrchestrator);
+                securityMonitor, redisTemplate, auditLogger, processingOrchestrator, securityPlaneProperties);
     }
 }

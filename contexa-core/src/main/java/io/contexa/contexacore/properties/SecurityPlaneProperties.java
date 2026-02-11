@@ -33,8 +33,8 @@ public class SecurityPlaneProperties {
     public static class AgentSettings {
         private String name = "SecurityPlaneAgent-1";
         private boolean autoStart = true;
-        private int maxConcurrentIncidents = 10;
-        
+        private double threatThreshold = 0.7;
+
         private String organizationId = "default-org";
         private String executionMode = "ASYNC";
     }
@@ -61,8 +61,7 @@ public class SecurityPlaneProperties {
         private int queueSize = 10000;
         private int workerThreads = 5;
         private int correlationWindowMinutes = 10;
-        
-        private boolean autoIncidentCreation = true;
+
         private int dedupWindowMinutes = 5;
     }
 
@@ -70,7 +69,7 @@ public class SecurityPlaneProperties {
     public static class NotifierSettings {
         private int batchSize = 10;
         private boolean asyncEnabled = true;
-        
+
     }
 
     @Data
@@ -92,13 +91,12 @@ public class SecurityPlaneProperties {
         public static class ChannelSettings {
             private String securityEvents = "security:events";
             private String threatAlerts = "security:threats";
-            private String incidents = "security:incidents";
         }
     }
 
     @Data
     public static class LlmExecutorSettings {
-        
+
         private int corePoolSize = 10;
 
         private int maxPoolSize = 10;
@@ -108,7 +106,7 @@ public class SecurityPlaneProperties {
 
     @Data
     public static class DeduplicationSettings {
-        
+
         private boolean enabled = true;
 
         private int windowMinutes = 5;

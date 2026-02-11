@@ -25,9 +25,7 @@ public class SecurityEventProcessingOrchestrator {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        context.addMetadata("startTime", startTime);
         context.addMetadata("agentId", "security-plane-agent");
-        context.addMetadata("orchestratorVersion", "1.0");
 
         try {
 
@@ -48,7 +46,6 @@ public class SecurityEventProcessingOrchestrator {
                     event.getEventId(), e);
             context.markAsFailed("Orchestrator error: " + e.getMessage());
         } finally {
-
             recordProcessingMetrics(context, startTime);
         }
 
@@ -98,27 +95,5 @@ public class SecurityEventProcessingOrchestrator {
 
         metrics.setTotalTimeMs(totalTime);
         metrics.setProcessingNode(System.getProperty("node.id", "local"));
-
-        context.addMetadata("totalProcessingTime", totalTime);
-        context.addMetadata("completedAt", LocalDateTime.now());
-
-    }
-
-    public void addHandler(SecurityEventHandler handler) {
-        if (handler != null && !handlers.contains(handler)) {
-            handlers.add(handler);
-        }
-    }
-
-    public void removeHandler(SecurityEventHandler handler) {
-        if (handler != null) {
-            handlers.remove(handler);
-        }
-    }
-
-    public List<String> getHandlerNames() {
-        return getSortedHandlers().stream()
-                .map(SecurityEventHandler::getName)
-                .toList();
     }
 }

@@ -17,6 +17,7 @@ import io.contexa.contexacore.autonomous.event.monitoring.RedisMemoryMonitor;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutionHandler;
+import io.contexa.contexacore.autonomous.orchestrator.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
@@ -114,15 +115,21 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ColdPathEventProcessor coldPathEventProcessor(
-            RedisTemplate<String, Object> redisTemplate,
             Layer1ContextualStrategy contextualStrategy,
             Layer2ExpertStrategy expertStrategy,
-            BaselineLearningService baselineLearningService,
+            LlmAnalysisEventListener llmAnalysisEventListener) {
+        return new ColdPathEventProcessor(contextualStrategy, expertStrategy, llmAnalysisEventListener);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
+            RedisTemplate<String, Object> redisTemplate,
+            StringRedisTemplate stringRedisTemplate,
             AdminOverrideService adminOverrideService,
-            LlmAnalysisEventListener llmAnalysisEventListener,
-            StringRedisTemplate stringRedisTemplate) {
-        return new ColdPathEventProcessor(redisTemplate, contextualStrategy, expertStrategy,
-        baselineLearningService, adminOverrideService, llmAnalysisEventListener, stringRedisTemplate);
+            BaselineLearningService baselineLearningService) {
+        return new SecurityDecisionEnforcementHandler(
+                redisTemplate, stringRedisTemplate, adminOverrideService, baselineLearningService);
     }
 
     @Bean

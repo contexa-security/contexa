@@ -1,6 +1,5 @@
 package io.contexa.contexacore.autonomous.orchestrator.strategy;
 
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
@@ -16,56 +15,17 @@ public class ColdPathStrategy implements ProcessingStrategy {
 
     @Override
     public ProcessingResult process(SecurityEventContext context) {
-        SecurityEvent event = context.getSecurityEvent();
-        
         try {
-            
-            double riskScore = extractRiskScore(context);
-
-            ProcessingResult result = coldPathProcessor.processEvent(event, riskScore);
-
-            context.addMetadata("aiAnalysisComplete", true);
-            context.addMetadata("coldPathResult", result.isSuccess());
-            context.addMetadata("riskScore", result.getRiskScore());
-
-            return ProcessingResult.builder()
-                .success(result.isSuccess())
-                .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
-                .riskScore(result.getRiskScore())  
-                .currentRiskLevel(result.getCurrentRiskLevel())
-                .executedActions(result.getExecutedActions())
-                .metadata(result.getMetadata())
-                .message(result.getMessage())
-                .threatIndicators(result.getThreatIndicators())
-                .recommendedActions(result.getRecommendedActions())
-                .aiAnalysisPerformed(result.isAiAnalysisPerformed())
-                .aiAnalysisLevel(result.getAiAnalysisLevel())
-                .analysisData(result.getAnalysisData())
-                .processingTimeMs(result.getProcessingTimeMs())
-                .processedAt(result.getProcessedAt())
-                .status(result.getStatus())
-                .build();
-
+            return coldPathProcessor.processEvent(context.getSecurityEvent(), 0.0);
         } catch (Exception e) {
-            
-            log.error("[ColdPathStrategy] Error processing event: {}", event.getEventId(), e);
+            log.error("[ColdPathStrategy] Error processing event: {}", context.getSecurityEvent().getEventId(), e);
             return ProcessingResult.builder()
                 .success(false)
                 .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .message("AI analysis processing failed")
-                .riskScore(0.0)  
+                .riskScore(0.0)
                 .build();
         }
-    }
-
-    private double extractRiskScore(SecurityEventContext context) {
-        if (context.getAiAnalysisResult() == null) {
-            
-            return 0.0;
-        }
-
-        double threatLevel = context.getAiAnalysisResult().getThreatLevel();
-                return threatLevel;
     }
 
     @Override

@@ -6,16 +6,15 @@ import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -34,15 +33,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityPlaneAuditLogger auditLogger;
     private final SecurityEventProcessingOrchestrator processingOrchestrator;
-
-    @Value("${security.plane.agent.name:SecurityPlaneAgent-1}")
-    private String agentName;
-
-    @Value("${security.plane.agent.auto-start:true}")
-    private boolean autoStart;
-
-    @Value("${security.plane.agent.threat-threshold:0.7}")
-    private double threatThreshold;
+    private final SecurityPlaneProperties securityPlaneProperties;
 
     private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
@@ -50,6 +41,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     @PostConstruct
     public void initialize() {
+        String agentName = securityPlaneProperties.getAgent().getName();
         if (auditLogger != null) {
             auditLogger.auditAgentStateChange(agentName, "UNINITIALIZED", "INITIALIZING",
                     "Security Plane Agent initialization started", null);
@@ -81,13 +73,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Override
     public void run(String... args) throws Exception {
 
-        if (autoStart) {
+        if (securityPlaneProperties.getAgent().isAutoStart()) {
             start();
         }
     }
 
     @Override
     public void start() {
+        String agentName = securityPlaneProperties.getAgent().getName();
         if (running.compareAndSet(false, true)) {
             currentState = AgentState.RUNNING;
             Map<String, Object> config = createMonitoringConfig();
@@ -99,6 +92,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     @Override
     public void stop() {
+        String agentName = securityPlaneProperties.getAgent().getName();
         if (running.compareAndSet(true, false)) {
             currentState = AgentState.STOPPING;
             securityMonitor.stopMonitoring(agentName);
@@ -120,7 +114,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public void processWithOrchestrator(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
         SecurityEventContext context = null;
@@ -133,12 +126,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             }
 
             context = processingOrchestrator.process(event);
-
-            long processingTime = System.currentTimeMillis() - startTime;
-            if (context.getProcessingMetrics() == null) {
-                context.setProcessingMetrics(new SecurityEventContext.ProcessingMetrics());
-            }
-            context.getProcessingMetrics().setResponseTimeMs(processingTime);
 
             markEventAsProcessed(event.getEventId());
 
@@ -194,8 +181,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     private Map<String, Object> createMonitoringConfig() {
         Map<String, Object> config = new HashMap<>();
-        config.put("agentId", agentName);
-        config.put("threatThreshold", threatThreshold);
+        config.put("agentId", securityPlaneProperties.getAgent().getName());
+        config.put("threatThreshold", securityPlaneProperties.getAgent().getThreatThreshold());
         config.put("correlationWindow", 10);
         return config;
     }

@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
+import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -14,7 +15,6 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 @Slf4j
-
 @RequiredArgsConstructor
 public class AuditingHandler implements SecurityEventHandler {
 
@@ -33,15 +33,11 @@ public class AuditingHandler implements SecurityEventHandler {
             auditSecurityEvent(context);
             auditThreatAssessment(context);
             auditProcessingDecision(context);
-            context.addMetadata("auditRecorded", true);
-            context.addMetadata("auditTimestamp", System.currentTimeMillis());
 
             return true;
 
         } catch (Exception e) {
             log.error("[AuditingHandler] Error recording audit logs for event: {}", event.getEventId(), e);
-
-            context.addMetadata("auditError", e.getMessage());
             return true;
         }
     }
@@ -66,30 +62,26 @@ public class AuditingHandler implements SecurityEventHandler {
 
     private void auditThreatAssessment(SecurityEventContext context) {
         try {
-            SecurityEventContext.AIAnalysisResult aiResult = context.getAiAnalysisResult();
-            if (aiResult == null) {
+            Object resultObj = context.getMetadata().get("processingResult");
+            if (!(resultObj instanceof ProcessingResult result)) {
                 return;
             }
+
             SecurityEvent event = context.getSecurityEvent();
-            Object actionObj = context.getMetadata().get("action");
-            String action = actionObj != null ? actionObj.toString() : "ALLOW";
+            String action = result.getAction() != null ? result.getAction() : "ALLOW";
 
             ThreatAssessment assessment = ThreatAssessment.builder()
-                    .assessmentId((String) context.getMetadata().get("threatAssessmentId"))
-                    .riskScore(aiResult.getThreatLevel())
-                    .confidence(aiResult.getConfidenceScore())
-                    .description(aiResult.getSummary())
-                    .evaluator(aiResult.getAiModel())
+                    .assessmentId(event.getEventId() + "-assessment")
+                    .riskScore(result.getRiskScore())
+                    .confidence(result.getConfidence())
+                    .description(result.getReasoning())
+                    .evaluator("ColdPathEventProcessor-AI")
                     .action(action)
                     .assessedAt(LocalDateTime.now())
                     .build();
 
-            String evaluator = (String) context.getMetadata().get("evaluator");
-            if (evaluator == null) {
-                evaluator = aiResult.getAiModel();
-            }
-
-            long processingTime = aiResult.getAnalysisTimeMs();
+            String evaluator = "Layer" + result.getAiAnalysisLevel();
+            long processingTime = result.getProcessingTimeMs();
 
             auditLogger.auditThreatAssessment(event, assessment, evaluator, processingTime);
 
@@ -100,20 +92,24 @@ public class AuditingHandler implements SecurityEventHandler {
 
     private void auditProcessingDecision(SecurityEventContext context) {
         try {
-            ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
-            if (mode == null) {
+            Object resultObj = context.getMetadata().get("processingResult");
+            if (!(resultObj instanceof ProcessingResult result)) {
                 return;
             }
 
             SecurityEvent event = context.getSecurityEvent();
+            ProcessingMode mode = (ProcessingMode) context.getMetadata().get("processingMode");
+            if (mode == null) {
+                mode = ProcessingMode.AI_ANALYSIS;
+            }
+
             String router = "ProcessingExecutionHandler";
             String reason = "AI Native - LLM analysis";
 
             Map<String, Object> decisionContext = Map.of(
-                    "riskScore", context.getAiAnalysisResult() != null ?
-                            context.getAiAnalysisResult().getThreatLevel() : 0.0,
-                    "confidence", context.getAiAnalysisResult() != null ?
-                            context.getAiAnalysisResult().getConfidenceScore() : 0.0,
+                    "riskScore", result.getRiskScore(),
+                    "confidence", result.getConfidence(),
+                    "action", result.getAction() != null ? result.getAction() : "UNKNOWN",
                     "processingMode", mode.toString(),
                     "timestamp", System.currentTimeMillis()
             );
@@ -132,6 +128,6 @@ public class AuditingHandler implements SecurityEventHandler {
 
     @Override
     public int getOrder() {
-        return 45;
+        return 60;
     }
 }

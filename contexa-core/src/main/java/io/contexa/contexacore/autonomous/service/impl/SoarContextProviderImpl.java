@@ -7,10 +7,7 @@ import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -68,10 +65,6 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         );
 
         context.setExecutionMode(SoarExecutionMode.valueOf(defaultExecutionMode));
-
-        if (autoApproveLowRisk && "LOW".equals(severity)) {
-            
-        }
 
         logger.error("Created SOAR context from {} events: incidentId={}, severity={}, mode={}",
                 events.size(), incidentId, severity, context.getExecutionMode());
