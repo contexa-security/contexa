@@ -48,7 +48,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate != null ? promptTemplate
-            : new SecurityPromptTemplate(this.eventEnricher, tieredStrategyProperties, baselineLearningService);
+            : new SecurityPromptTemplate(this.eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
@@ -94,7 +94,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
             default -> {
                 if (!"ESCALATE".equals(upperAction) && !"E".equals(upperAction)) {
-                    log.warn("[{}][AI Native] Unknown action '{}' detected. Converting to ESCALATE",
+                    log.error("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
                             getLayerName(), action);
                 }
                 yield SecurityDecision.Action.ESCALATE;
@@ -107,51 +107,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         double validatedConfidence = (confidence != null) ? confidence : Double.NaN;
 
         if (riskScore == null) {
-            log.warn("[{}][AI Native] LLM이 riskScore 미반환 (가공 없이 NaN 사용)", getLayerName());
+            log.error("[{}] LLM returned no riskScore, using NaN", getLayerName());
         }
         if (confidence == null) {
-            log.warn("[{}][AI Native] LLM이 confidence 미반환 (가공 없이 NaN 사용)", getLayerName());
+            log.error("[{}] LLM returned no confidence, using NaN", getLayerName());
         }
 
         return new double[]{validatedRiskScore, validatedConfidence};
-    }
-
-    protected Map<String, Object> buildBaseMetadata(SecurityEvent event, SecurityDecision decision, String documentType) {
-        Map<String, Object> metadata = new HashMap<>();
-
-        metadata.put("documentType", documentType);
-        String eventTimestamp = event.getTimestamp() != null
-            ? event.getTimestamp().toString()
-            : LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-        metadata.put("timestamp", eventTimestamp);
-        if (event.getTimestamp() != null) {
-            metadata.put("hour", event.getTimestamp().getHour());
-        }
-        if (event.getEventId() != null) {
-            metadata.put("eventId", event.getEventId());
-        }
-        if (event.getUserId() != null) {
-            metadata.put("userId", event.getUserId());
-        }
-        if (event.getSourceIp() != null) {
-            metadata.put("sourceIp", event.getSourceIp());
-        }
-        if (event.getSessionId() != null) {
-            metadata.put("sessionId", event.getSessionId());
-        }
-
-        if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
-            metadata.put("userAgent", event.getUserAgent());
-            String userAgentOS = extractOSFromUserAgent(event.getUserAgent());
-            if (userAgentOS != null) {
-                metadata.put("userAgentOS", userAgentOS);
-            }
-        }
-        if (decision.getThreatCategory() != null) {
-            metadata.put("threatCategory", decision.getThreatCategory());
-        }
-
-        return metadata;
     }
 
     protected BaseBehaviorAnalysis analyzeBehaviorPatternsBase(SecurityEvent event,
@@ -176,12 +138,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     analysis.setBaselineContext("[NO_DATA] Baseline service returned empty response");
                 } else {
                     analysis.setBaselineContext(baselineContext);
-                    log.debug("[{}] Baseline context generated for user {}", getLayerName(), userId);
                 }
                 analysis.setBaselineEstablished(baselineLearningService.getBaseline(userId) != null);
 
             } catch (Exception e) {
-                log.warn("[{}] Baseline service error for user {}: {}", getLayerName(), userId, e.getMessage());
+                log.error("[{}] Baseline service error for user {}: {}", getLayerName(), userId, e.getMessage());
                 analysis.setBaselineContext("[SERVICE_ERROR] Baseline service error: " + e.getMessage());
                 analysis.setBaselineEstablished(false);
             }
@@ -223,14 +184,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             String query = queryBuilder.toString().trim();
             if (query.isEmpty()) {
-                log.debug("[{}][AI Native] Empty query, skipping vector search for event {}",
-                    getLayerName(), event.getEventId());
                 return Collections.emptyList();
             }
 
             String userId = event.getUserId();
             if (userId == null || userId.isEmpty() || "unknown".equals(userId)) {
-                log.warn("[{}][AI Native v8.5] userId 없음 - RAG 검색 스킵 (계정 격리 보호)",
+                log.error("[{}] userId missing - skipping RAG search for account isolation",
                     getLayerName());
                 return Collections.emptyList();
             }
@@ -240,7 +199,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
                 filterBuilder.eq("userId", userId)
             ).build();
-            log.debug("[{}][AI Native v8.5] RAG search with userId filter: {}", getLayerName(), userId);
 
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
@@ -251,13 +209,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
 
-            log.debug("[{}] RAG behavioral context search: {} documents found for event {}",
-                getLayerName(), documents != null ? documents.size() : 0, event.getEventId());
-
             return documents != null ? documents : java.util.Collections.emptyList();
 
         } catch (Exception e) {
-            log.debug("[{}] Vector store context search failed", getLayerName(), e);
+            log.error("[{}] Vector store context search failed", getLayerName(), e);
             return java.util.Collections.emptyList();
         }
     }
@@ -268,7 +223,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         protected String authMethod;
         protected LocalDateTime startTime;
         protected String ipAddress;
-        protected String userAgent;  // AI Native v6.0: 세션 하이재킹 탐지용
+        protected String userAgent;
         protected List<String> recentActions = new ArrayList<>();
         protected int accessFrequency = 0;
 
@@ -324,99 +279,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
 
     protected String extractOSFromUserAgent(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return null;
-        }
-
-        // 모바일 OS 우선 검사 (Android가 Linux를 포함하므로)
-        if (userAgent.contains("Android")) {
-            return "Android";
-        }
-        // AI Native v8.8: iPod 추가 (드물지만 존재)
-        if (userAgent.contains("iPhone") || userAgent.contains("iPad")
-                || userAgent.contains("iPod") || userAgent.contains("iOS")) {
-            return "iOS";
-        }
-
-        // 데스크톱 OS
-        if (userAgent.contains("Windows NT") || userAgent.contains("Windows")) {
-            return "Windows";
-        }
-        if (userAgent.contains("Mac OS X") || userAgent.contains("Macintosh")) {
-            return "Mac";
-        }
-        if (userAgent.contains("CrOS")) {
-            return "ChromeOS";
-        }
-        if (userAgent.contains("Linux")) {
-            return "Linux";
-        }
-
-        // 모바일 패턴 감지 (OS 특정 불가 시)
-        if (userAgent.contains("Mobile") || userAgent.contains("Tablet")) {
-            return "Mobile";
-        }
-
-        // 기본값: Desktop (unknown 대신)
-        return "Desktop";
+        return SecurityEventEnricher.extractOSFromUserAgent(userAgent);
     }
 
     protected String extractBrowserSignature(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return null;
-        }
-
-        // Edge (Chromium 기반이므로 Chrome보다 먼저 검사)
-        if (userAgent.contains("Edg/")) {
-            return extractBrowserVersion(userAgent, "Edg/", "Edge");
-        }
-
-        // Chrome
-        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
-            return extractBrowserVersion(userAgent, "Chrome/", "Chrome");
-        }
-
-        // Firefox
-        if (userAgent.contains("Firefox/")) {
-            return extractBrowserVersion(userAgent, "Firefox/", "Firefox");
-        }
-
-        // Safari (Chrome, Edge가 아닌 경우만)
-        if (userAgent.contains("Safari/") && userAgent.contains("Version/")) {
-            return extractBrowserVersion(userAgent, "Version/", "Safari");
-        }
-
-        // Opera
-        if (userAgent.contains("OPR/")) {
-            return extractBrowserVersion(userAgent, "OPR/", "Opera");
-        }
-
-        return null;
-    }
-
-    /**
-     * AI Native v11.0: User-Agent에서 브라우저 버전 추출 (메이저 버전만)
-     */
-    private String extractBrowserVersion(String userAgent, String prefix, String browserName) {
-        int idx = userAgent.indexOf(prefix);
-        if (idx == -1) return null;
-
-        int start = idx + prefix.length();
-        if (start >= userAgent.length()) return null;
-
-        int end = start;
-        while (end < userAgent.length()) {
-            char c = userAgent.charAt(end);
-            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
-                break;
-            }
-            end++;
-        }
-
-        if (end == start) return null;
-
-        String version = userAgent.substring(start, end);
-        return browserName + "/" + version;
+        return SecurityEventEnricher.extractBrowserSignature(userAgent);
     }
 
     protected String extractJsonObject(String response) {
@@ -469,7 +336,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return response.substring(startIndex, endIndex + 1);
         }
 
-        // fallback: 기존 로직 (마지막 } 사용)
+        // fallback: use last '}' character
         endIndex = response.lastIndexOf('}');
         if (endIndex > startIndex) {
             return response.substring(startIndex, endIndex + 1);

@@ -11,7 +11,7 @@ import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProc
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexacore.domain.entity.ThreatIndicator;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
@@ -114,14 +114,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 String jsonResponse = llmOrchestrator.execute(context)
                         .timeout(Duration.ofMillis(llmTimeoutMs))
                         .onErrorResume(Exception.class, e -> {
-                            log.warn("[Layer1][AI Native] LLM execution failed, escalating to Layer 2: {}", event.getEventId(), e);
+                            log.error("[Layer1] LLM execution failed, escalating to Layer 2: {}", event.getEventId(), e);
                             return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\",\"threatCategory\":\"UNKNOWN\"}");
                         })
                         .block();
 
                 response = parseJsonResponse(jsonResponse);
             } else {
-                log.warn("UnifiedLLMOrchestrator not available for Layer 1 analysis");
+                log.error("[Layer1] UnifiedLLMOrchestrator not available");
                 response = createDefaultResponse();
             }
 
@@ -254,6 +254,23 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             String baselineOS = extractOSFromBaselineContext(behaviorAnalysis.getBaselineContext());
             ctx.setPreviousUserAgentOS(baselineOS);
         }
+
+        if (event != null && event.getUserId() != null && baselineLearningService != null) {
+            try {
+                BaselineVector baseline = baselineLearningService.getBaseline(event.getUserId());
+                if (baseline != null) {
+                    ctx.setBaselineIpRanges(baseline.getNormalIpRanges());
+                    ctx.setBaselineOperatingSystems(baseline.getNormalOperatingSystems());
+                    ctx.setBaselineUserAgents(baseline.getNormalUserAgents());
+                    ctx.setBaselineFrequentPaths(baseline.getFrequentPaths());
+                    ctx.setBaselineAccessHours(baseline.getNormalAccessHours());
+                }
+            } catch (Exception e) {
+                log.error("[Layer1] Failed to load baseline patterns for user {}: {}",
+                        event.getUserId(), e.getMessage());
+            }
+        }
+
         return ctx;
     }
 
@@ -322,11 +339,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 return validateAndFixResponse(response);
             }
 
-            log.warn("[Layer1] JSON 파싱 실패, 기본 응답 반환: {}", cleanedJson);
+            log.error("[Layer1] JSON parsing failed, returning default response: {}", cleanedJson);
             return createDefaultResponse();
 
         } catch (Exception e) {
-            log.error("[Layer1] JSON 응답 파싱 실패: {}", jsonResponse, e);
+            log.error("[Layer1] JSON response parsing failed: {}", jsonResponse, e);
             return createDefaultResponse();
         }
     }

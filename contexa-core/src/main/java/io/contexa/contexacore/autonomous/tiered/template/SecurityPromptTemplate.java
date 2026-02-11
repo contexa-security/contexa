@@ -1,10 +1,8 @@
 package io.contexa.contexacore.autonomous.tiered.template;
 
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -29,18 +27,13 @@ public class SecurityPromptTemplate {
 
     private final SecurityEventEnricher eventEnricher;
     private final TieredStrategyProperties tieredStrategyProperties;
-    private final BaselineLearningService baselineLearningService;
 
     public SecurityPromptTemplate(
             SecurityEventEnricher eventEnricher,
-            TieredStrategyProperties tieredStrategyProperties,
-            BaselineLearningService baselineLearningService) {
+            TieredStrategyProperties tieredStrategyProperties) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.tieredStrategyProperties = tieredStrategyProperties != null ? tieredStrategyProperties : new TieredStrategyProperties();
-        this.baselineLearningService = baselineLearningService;
     }
-
-    // ===== Entry Point =====
 
     /**
      * Builds the complete security analysis prompt by assembling all sections.
@@ -61,7 +54,7 @@ public class SecurityPromptTemplate {
         BaselineStatus baselineStatus = determineBaselineStatus(behaviorAnalysis, baselineContext);
 
         DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId);
-        enrichPatternsFromBaseline(patterns, userId);
+        enrichPatternsFromBaseline(patterns, behaviorAnalysis);
 
         StringBuilder prompt = new StringBuilder();
         prompt.append(buildSystemInstruction());
@@ -81,8 +74,6 @@ public class SecurityPromptTemplate {
         return prompt.toString();
     }
 
-    // ===== Data Extraction =====
-
     private String extractUserId(SessionContext sessionContext) {
         return (sessionContext != null) ? sessionContext.getUserId() : null;
     }
@@ -91,11 +82,6 @@ public class SecurityPromptTemplate {
         return (behaviorAnalysis != null) ? behaviorAnalysis.getBaselineContext() : null;
     }
 
-    // ===== Prompt Section Builders =====
-
-    /**
-     * Builds the system instruction for Zero Trust analysis.
-     */
     private String buildSystemInstruction() {
         return """
                 You are a Zero Trust security analyst AI.
@@ -105,9 +91,6 @@ public class SecurityPromptTemplate {
                 """;
     }
 
-    /**
-     * Builds the EVENT section with event identification and metadata.
-     */
     private String buildEventSection(SecurityEvent event, String userId) {
         StringBuilder section = new StringBuilder();
         section.append("=== EVENT ===\n");
@@ -140,9 +123,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the CURRENT REQUEST section with OS, IP, hour, and UA signals.
-     */
     private String buildCurrentRequestSection(SecurityEvent event) {
         String currentOS = extractOSFromUserAgent(event.getUserAgent());
         String currentIP = normalizeIP(event.getSourceIp());
@@ -161,9 +141,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the KNOWN PATTERNS section from collected historical patterns.
-     */
     private String buildKnownPatternsSection(DetectedPatterns patterns) {
         String knownOSStr = !patterns.osSet.isEmpty() ? String.join(", ", patterns.osSet) : "N/A";
         String knownIPStr = !patterns.ipSet.isEmpty() ? String.join(", ", normalizeIPSet(patterns.ipSet)) : "N/A";
@@ -182,9 +159,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the SIGNAL COMPARISON instruction section for LLM guidance.
-     */
     private String buildSignalComparisonSection() {
         StringBuilder section = new StringBuilder();
         section.append("\n=== SIGNAL COMPARISON ===\n");
@@ -205,9 +179,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the NETWORK section wrapping network detail data.
-     */
     private String buildNetworkPromptSection(SecurityEvent event) {
         String networkDetails = buildNetworkDetails(event);
 
@@ -218,11 +189,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the PAYLOAD section if payload data exists.
-     *
-     * @return the payload section or null if no payload
-     */
     private String buildPayloadSection(SecurityEvent event) {
         Optional<String> decodedPayload = eventEnricher.getDecodedPayload(event);
         Optional<String> payloadSummary = summarizePayload(decodedPayload.orElse(null));
@@ -234,9 +200,6 @@ public class SecurityPromptTemplate {
         return "\n=== PAYLOAD ===\n" + payloadSummary.get() + "\n";
     }
 
-    /**
-     * Builds the SESSION section with session context and zero trust signals.
-     */
     private String buildSessionSection(SessionContext sessionContext, SecurityEvent event,
                                        BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
         StringBuilder section = new StringBuilder();
@@ -268,11 +231,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the SESSION DEVICE CHANGE section if device change is detected.
-     *
-     * @return the device change section or null if no change
-     */
     private String buildSessionDeviceChangeSection(BehaviorAnalysis behaviorAnalysis) {
         if (behaviorAnalysis == null) {
             return null;
@@ -295,9 +253,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the BEHAVIOR section with similar event history.
-     */
     private String buildBehaviorSection(BehaviorAnalysis behaviorAnalysis) {
         StringBuilder section = new StringBuilder();
         section.append("\n=== BEHAVIOR ===\n");
@@ -324,9 +279,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the RELATED CONTEXT section with historical event data.
-     */
     private String buildRelatedContextSection(DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
         section.append("\n=== RELATED CONTEXT ===\n");
@@ -342,11 +294,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the BASELINE section for new users without established baseline.
-     *
-     * @return the baseline section or null if not a new user
-     */
     private String buildNewUserBaselineSection(BaselineStatus baselineStatus) {
         if (baselineStatus != BaselineStatus.NEW_USER) {
             return null;
@@ -365,9 +312,6 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    /**
-     * Builds the DECISION section with JSON response format and action instructions.
-     */
     private String buildDecisionSection() {
         return """
 
@@ -387,11 +331,6 @@ public class SecurityPromptTemplate {
                 """;
     }
 
-    // ===== Pattern Collection =====
-
-    /**
-     * Collects detected patterns from RAG documents with user filtering.
-     */
     private DetectedPatterns collectDetectedPatterns(List<Document> relatedDocuments, String userId) {
         DetectedPatterns patterns = new DetectedPatterns();
         StringBuilder relatedContextBuilder = new StringBuilder();
@@ -437,9 +376,6 @@ public class SecurityPromptTemplate {
         return patterns;
     }
 
-    /**
-     * Collects pattern signals from a single document's metadata.
-     */
     private void collectPatternFromDocument(Map<String, Object> metadata, DetectedPatterns patterns) {
         Object userAgentOS = metadata.get("userAgentOS");
         if (userAgentOS != null && !userAgentOS.toString().isEmpty()) {
@@ -479,26 +415,18 @@ public class SecurityPromptTemplate {
         }
     }
 
-    /**
-     * Enriches detected patterns with baseline data from the learning service.
-     */
-    private void enrichPatternsFromBaseline(DetectedPatterns patterns, String userId) {
-        if (userId == null || baselineLearningService == null) {
+    private void enrichPatternsFromBaseline(DetectedPatterns patterns, BehaviorAnalysis behaviorAnalysis) {
+        if (behaviorAnalysis == null) {
             return;
         }
 
-        BaselineVector baseline = baselineLearningService.getBaseline(userId);
-        if (baseline == null) {
-            return;
-        }
+        addAllNonEmpty(patterns.ipSet, behaviorAnalysis.getBaselineIpRanges());
+        addAllNonEmpty(patterns.osSet, behaviorAnalysis.getBaselineOperatingSystems());
+        addAllNonEmpty(patterns.uaSet, behaviorAnalysis.getBaselineUserAgents());
+        addAllNonEmpty(patterns.pathSet, behaviorAnalysis.getBaselineFrequentPaths());
 
-        addAllNonEmpty(patterns.ipSet, baseline.getNormalIpRanges());
-        addAllNonEmpty(patterns.osSet, baseline.getNormalOperatingSystems());
-        addAllNonEmpty(patterns.uaSet, baseline.getNormalUserAgents());
-        addAllNonEmpty(patterns.pathSet, baseline.getFrequentPaths());
-
-        if (baseline.getNormalAccessHours() != null) {
-            for (Integer hour : baseline.getNormalAccessHours()) {
+        if (behaviorAnalysis.getBaselineAccessHours() != null) {
+            for (Integer hour : behaviorAnalysis.getBaselineAccessHours()) {
                 if (hour != null) {
                     patterns.hourSet.add(hour.toString());
                 }
@@ -516,8 +444,6 @@ public class SecurityPromptTemplate {
             }
         }
     }
-
-    // ===== Zero Trust Signal Helpers =====
 
     private void appendZeroTrustSignals(StringBuilder prompt, SecurityEvent event,
                                         BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
@@ -551,7 +477,6 @@ public class SecurityPromptTemplate {
 
         Object metadataObj = event.getMetadata();
         if (metadataObj instanceof Map) {
-            @SuppressWarnings("unchecked")
             Map<String, Object> metadata = (Map<String, Object>) metadataObj;
             Object value = metadata.get("isNewSession");
             if (value instanceof Boolean) {
@@ -577,8 +502,6 @@ public class SecurityPromptTemplate {
         }
         return null;
     }
-
-    // ===== Network & Payload Helpers =====
 
     private String buildNetworkDetails(SecurityEvent event) {
         StringBuilder network = new StringBuilder();
@@ -674,56 +597,16 @@ public class SecurityPromptTemplate {
         return meta.toString();
     }
 
-    // ===== Data Extraction Utilities =====
-
     private boolean isValidData(String value) {
         return PromptTemplateUtils.isValidData(value);
     }
 
     private String extractOSFromUserAgent(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return null;
-        }
-
-        if (userAgent.contains("Android")) {
-            return "Android";
-        }
-        if (userAgent.contains("iPhone") || userAgent.contains("iPad") || userAgent.contains("iPod")) {
-            return "iOS";
-        }
-
-        if (userAgent.contains("Windows")) {
-            return "Windows";
-        }
-        if (userAgent.contains("Mac OS") || userAgent.contains("Macintosh")) {
-            return "Mac";
-        }
-        if (userAgent.contains("Linux") && !userAgent.contains("Android")) {
-            return "Linux";
-        }
-        if (userAgent.contains("CrOS")) {
-            return "ChromeOS";
-        }
-
-        return null;
+        return SecurityEventEnricher.extractOSFromUserAgent(userAgent);
     }
 
     private String normalizeIP(String ip) {
-        if (ip == null || ip.isEmpty()) {
-            return ip;
-        }
-
-        String trimmed = ip.trim().toLowerCase();
-
-        if (trimmed.equals("loopback") ||
-                trimmed.equals("::1") ||
-                trimmed.equals("0:0:0:0:0:0:0:1") ||
-                trimmed.equals("127.0.0.1") ||
-                trimmed.equals("localhost")) {
-            return "loopback";
-        }
-
-        return ip;
+        return SecurityEventEnricher.normalizeIP(ip);
     }
 
     private Set<String> normalizeIPSet(Set<String> ipSet) {
@@ -739,46 +622,8 @@ public class SecurityPromptTemplate {
     }
 
     private String extractUASignature(String userAgent) {
-        if (userAgent == null || userAgent.isEmpty()) {
-            return "Browser";
-        }
-
-        if (userAgent.contains("Chrome/") && !userAgent.contains("Edg/")) {
-            return extractBrowserVersion(userAgent, "Chrome/");
-        } else if (userAgent.contains("Edg/")) {
-            String browser = extractBrowserVersion(userAgent, "Edg/");
-            return browser.replace("Edg", "Edge");
-        } else if (userAgent.contains("Firefox/")) {
-            return extractBrowserVersion(userAgent, "Firefox/");
-        } else if (userAgent.contains("Safari/") && !userAgent.contains("Chrome") && !userAgent.contains("Edg")) {
-            String browser = extractBrowserVersion(userAgent, "Version/");
-            return browser.replace("Version", "Safari");
-        }
-
-        return "Browser";
-    }
-
-    private String extractBrowserVersion(String userAgent, String prefix) {
-        int idx = userAgent.indexOf(prefix);
-        if (idx == -1) return "Browser";
-
-        int start = idx + prefix.length();
-        if (start >= userAgent.length()) return "Browser";
-
-        int end = start;
-        while (end < userAgent.length()) {
-            char c = userAgent.charAt(end);
-            if (c == '.' || c == ' ' || !Character.isDigit(c)) {
-                break;
-            }
-            end++;
-        }
-
-        if (end == start) return "Browser";
-
-        String version = userAgent.substring(start, end);
-        String browserName = prefix.replace("/", "");
-        return browserName + "/" + version;
+        String signature = SecurityEventEnricher.extractBrowserSignature(userAgent);
+        return signature != null ? signature : "Browser";
     }
 
     private String extractRequestPath(SecurityEvent event) {
@@ -813,35 +658,7 @@ public class SecurityPromptTemplate {
         return null;
     }
 
-    private boolean matchesPathPattern(String currentPath, Set<String> knownPaths) {
-        if (currentPath == null || knownPaths == null || knownPaths.isEmpty()) {
-            return false;
-        }
-
-        for (String knownPath : knownPaths) {
-
-            if (currentPath.equals(knownPath)) {
-                return true;
-            }
-
-            if (knownPath.endsWith("/*")) {
-                String prefix = knownPath.substring(0, knownPath.length() - 1);
-                if (currentPath.startsWith(prefix)) {
-                    return true;
-                }
-            }
-
-            if (currentPath.startsWith(knownPath) || knownPath.startsWith(currentPath)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    // ===== Baseline Status =====
-
-    private BaselineStatus determineBaselineStatus(BehaviorAnalysis behaviorAnalysis, String baselineContext) {
+      private BaselineStatus determineBaselineStatus(BehaviorAnalysis behaviorAnalysis, String baselineContext) {
 
         if (behaviorAnalysis == null) {
             return BaselineStatus.ANALYSIS_UNAVAILABLE;
@@ -894,8 +711,6 @@ public class SecurityPromptTemplate {
                 && !baseline.equalsIgnoreCase("N/A");
     }
 
-    // ===== General Utilities =====
-
     private void appendMetadataIfPresent(StringBuilder sb, Map<String, Object> metadata, String metadataKey, String promptLabel) {
         if (metadata == null) {
             return;
@@ -912,11 +727,6 @@ public class SecurityPromptTemplate {
         }
     }
 
-    // ===== Inner Data Classes =====
-
-    /**
-     * Holds detected behavioral patterns collected from RAG documents and baseline data.
-     */
     private static class DetectedPatterns {
         final Set<String> osSet = new HashSet<>();
         final Set<String> ipSet = new HashSet<>();
@@ -997,6 +807,12 @@ public class SecurityPromptTemplate {
         private String previousUserAgentOS;
         private String currentUserAgentOS;
 
+        private String[] baselineIpRanges;
+        private String[] baselineOperatingSystems;
+        private String[] baselineUserAgents;
+        private String[] baselineFrequentPaths;
+        private Integer[] baselineAccessHours;
+
         public List<String> getSimilarEvents() {
             return similarEvents != null ? similarEvents : List.of();
         }
@@ -1059,6 +875,46 @@ public class SecurityPromptTemplate {
 
         public void setCurrentUserAgentOS(String currentUserAgentOS) {
             this.currentUserAgentOS = currentUserAgentOS;
+        }
+
+        public String[] getBaselineIpRanges() {
+            return baselineIpRanges;
+        }
+
+        public void setBaselineIpRanges(String[] baselineIpRanges) {
+            this.baselineIpRanges = baselineIpRanges;
+        }
+
+        public String[] getBaselineOperatingSystems() {
+            return baselineOperatingSystems;
+        }
+
+        public void setBaselineOperatingSystems(String[] baselineOperatingSystems) {
+            this.baselineOperatingSystems = baselineOperatingSystems;
+        }
+
+        public String[] getBaselineUserAgents() {
+            return baselineUserAgents;
+        }
+
+        public void setBaselineUserAgents(String[] baselineUserAgents) {
+            this.baselineUserAgents = baselineUserAgents;
+        }
+
+        public String[] getBaselineFrequentPaths() {
+            return baselineFrequentPaths;
+        }
+
+        public void setBaselineFrequentPaths(String[] baselineFrequentPaths) {
+            this.baselineFrequentPaths = baselineFrequentPaths;
+        }
+
+        public Integer[] getBaselineAccessHours() {
+            return baselineAccessHours;
+        }
+
+        public void setBaselineAccessHours(Integer[] baselineAccessHours) {
+            this.baselineAccessHours = baselineAccessHours;
         }
     }
 }

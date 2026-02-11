@@ -82,9 +82,8 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityPromptTemplate securityPromptTemplate(
             SecurityEventEnricher securityEventEnricher,
-            TieredStrategyProperties tieredStrategyProperties,
-            BaselineLearningService baselineLearningService) {
-        return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties, baselineLearningService);
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties);
     }
 
     @Bean
@@ -156,11 +155,12 @@ public class CoreAutonomousAutoConfiguration {
             UnifiedVectorService unifiedVectorService,
             BehaviorVectorService behaviorVectorService,
             BaselineLearningService baselineLearningService,
-            TieredStrategyProperties tieredStrategyProperties) {
+            TieredStrategyProperties tieredStrategyProperties,
+            SecurityDecisionPostProcessor securityDecisionPostProcessor) {
         return new Layer2ExpertStrategy(
                 llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
                 securityPromptTemplate, unifiedVectorService, behaviorVectorService,
-                baselineLearningService, tieredStrategyProperties);
+                baselineLearningService, tieredStrategyProperties, securityDecisionPostProcessor);
     }
 
     @Bean

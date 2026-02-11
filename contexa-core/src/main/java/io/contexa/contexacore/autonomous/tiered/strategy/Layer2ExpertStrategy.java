@@ -7,13 +7,12 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
+import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.SoarContext;
-import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.domain.entity.SecurityIncident;
-import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
@@ -37,6 +36,7 @@ import java.util.*;
 public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     private final ApprovalService approvalService;
+    private final SecurityDecisionPostProcessor postProcessor;
 
     private static final Cache<String, SecurityPromptTemplate.SessionContext> SESSION_CONTEXT_CACHE =
             Caffeine.newBuilder()
@@ -74,20 +74,19 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 UnifiedVectorService unifiedVectorService,
                                 BehaviorVectorService behaviorVectorService,
                                 BaselineLearningService baselineLearningService,
-                                TieredStrategyProperties tieredStrategyProperties) {
+                                TieredStrategyProperties tieredStrategyProperties,
+                                SecurityDecisionPostProcessor postProcessor) {
         super(llmOrchestrator, redisTemplate, eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
               tieredStrategyProperties);
 
         this.approvalService = approvalService;
+        this.postProcessor = postProcessor;
     }
 
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
-        log.warn("Layer 2 Expert Strategy evaluating event: {}", event.getEventId());
-
-        SecurityDecision layer2Decision = extractLayer2Decision(event);
-        SecurityDecision expertDecision = performDeepAnalysis(event, layer2Decision);
+        SecurityDecision expertDecision = performDeepAnalysis(event);
         String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "ESCALATE";
 
         return ThreatAssessment.builder()
@@ -103,25 +102,19 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    public SecurityDecision performDeepAnalysis(SecurityEvent event, SecurityDecision layer2Decision) {
+    public SecurityDecision performDeepAnalysis(SecurityEvent event) {
         if (event == null) {
-            log.error("Layer 2 analysis failed: event is null");
-            return createFailsafeDecision(null, layer2Decision, System.currentTimeMillis());
+            log.error("[Layer2] Analysis failed: event is null");
+            return createFailsafeDecision(null, System.currentTimeMillis());
         }
 
-        if (layer2Decision == null) {
-            log.warn("Layer 2 analysis: layer2Decision is null, creating default");
-            layer2Decision = createDefaultLayer2Decision();
-        }
         long startTime = System.currentTimeMillis();
         try {
-            log.warn("[Layer2] Expert Analysis initiated for critical event {}",
-                    event.getEventId() != null ? event.getEventId() : "unknown");
-
             SecurityPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event);
             List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
+
             SecurityResponse response;
             if (llmOrchestrator != null) {
                 ExecutionContext context = ExecutionContext.builder()
@@ -139,15 +132,14 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 String jsonResponse = llmOrchestrator.execute(context)
                         .timeout(Duration.ofMillis(timeoutMs))
                         .onErrorResume(Exception.class, e -> {
-                            log.warn("[Layer2][AI Native] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
-
+                            log.error("[Layer2] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
                             return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\"}");
                         })
                         .block();
 
                 response = parseJsonResponse(jsonResponse);
             } else {
-                log.warn("UnifiedLLMOrchestrator not available for Layer 2 analysis");
+                log.error("[Layer2] UnifiedLLMOrchestrator not available");
                 response = createDefaultResponse();
             }
 
@@ -165,73 +157,29 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 createSecurityIncident(expertDecision, event);
             }
 
-            storeInVectorDatabase(event, expertDecision, response);
-            SecurityDecision.Action expertAction = expertDecision.getAction();
-            if (expertAction == SecurityDecision.Action.BLOCK) {
-                String sourceIp = event.getSourceIp();
-                if (sourceIp != null && !sourceIp.isEmpty()) {
-                    incrementAttackCount(sourceIp);
-                }
+            if (postProcessor != null) {
+                postProcessor.updateSessionContext(event, expertDecision);
+                postProcessor.storeInVectorDatabase(event, expertDecision);
             }
 
             expertDecision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             expertDecision.setProcessingLayer(2);
 
-            log.warn("Layer 2 Expert Analysis completed in {}ms - Final Risk: {}, Action: {}",
-                    expertDecision.getProcessingTimeMs(),
-                    expertDecision.getRiskScore(),
-                    expertDecision.getAction() != null ? expertDecision.getAction() : "UNKNOWN");
-
             return expertDecision;
 
         } catch (Exception e) {
-            log.error("Layer 2 expert analysis failed for event {}", event.getEventId() != null ? event.getEventId() : "unknown", e);
-            return createFailsafeDecision(event, layer2Decision, startTime);
+            log.error("[Layer2] Expert analysis failed for event {}", event.getEventId() != null ? event.getEventId() : "unknown", e);
+            return createFailsafeDecision(event, startTime);
         }
     }
 
-    public Mono<SecurityDecision> performDeepAnalysisAsync(SecurityEvent event,
-                                                           SecurityDecision layer2Decision) {
-        return Mono.fromCallable(() -> performDeepAnalysis(event, layer2Decision))
+    public Mono<SecurityDecision> performDeepAnalysisAsync(SecurityEvent event) {
+        return Mono.fromCallable(() -> performDeepAnalysis(event))
                 .timeout(Duration.ofMillis(timeoutMs))
                 .onErrorResume(throwable -> {
-                    log.error("Layer 2 async analysis failed or timed out", throwable);
-                    return Mono.just(createFailsafeDecision(event, layer2Decision, System.currentTimeMillis()));
+                    log.error("[Layer2] Async analysis failed or timed out", throwable);
+                    return Mono.just(createFailsafeDecision(event, System.currentTimeMillis()));
                 });
-    }
-
-    private BaseSessionContext buildSessionContext(SecurityEvent event) {
-        String sessionId = event.getSessionId();
-
-        BaseSessionContext context = new BaseSessionContext();
-        context.setSessionId(sessionId);
-        context.setUserId(event.getUserId());
-        context.setIpAddress(event.getSourceIp());
-        context.setStartTime(LocalDateTime.now());
-
-        if (event.getMetadata() != null) {
-            Object recentRequestCountObj = event.getMetadata().get("recentRequestCount");
-            if (recentRequestCountObj instanceof Number) {
-                context.setAccessFrequency(((Number) recentRequestCountObj).intValue());
-            }
-        }
-
-        if (event.getUserAgent() != null) {
-            context.setUserAgent(event.getUserAgent());
-        }
-
-        if (sessionId != null && redisTemplate != null) {
-            try {
-                List<String> recentActions = (List<String>) (List<?>) redisTemplate.opsForList()
-                        .range(ZeroTrustRedisKeys.sessionActions(sessionId), -10, -1);
-                if (recentActions != null && !recentActions.isEmpty()) {
-                    context.setRecentActions(recentActions);
-                }
-            } catch (Exception e) {
-                log.error("Failed to retrieve recent actions from Redis", e);
-            }
-        }
-        return context;
     }
 
     private List<Document> searchRelatedContext(SecurityEvent event) {
@@ -245,33 +193,18 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         if (cached != null) {
             return cached;
         }
-        BaseSessionContext baseCtx = buildSessionContext(event);
-        SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
-        ctx.setSessionId(baseCtx.getSessionId());
-        ctx.setUserId(baseCtx.getUserId());
-        ctx.setAuthMethod(baseCtx.getAuthMethod());
-        ctx.setRecentActions(baseCtx.getRecentActions());
-
-        return ctx;
+        log.error("[Layer2] Session context cache miss for event {}, using empty context", eventId);
+        return new SecurityPromptTemplate.SessionContext();
     }
 
     private SecurityPromptTemplate.BehaviorAnalysis getCachedOrBuildBehaviorAnalysis(SecurityEvent event) {
         String eventId = event.getEventId();
-
         SecurityPromptTemplate.BehaviorAnalysis cached = BEHAVIOR_ANALYSIS_CACHE.getIfPresent(eventId);
         if (cached != null) {
             return cached;
         }
-        List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
-        List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
-        BaseBehaviorAnalysis baseAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
-
-        SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
-        ctx.setSimilarEvents(baseAnalysis.getSimilarEvents());
-        ctx.setBaselineContext(baseAnalysis.getBaselineContext());
-        ctx.setBaselineEstablished(baseAnalysis.isBaselineEstablished());
-
-        return ctx;
+        log.error("[Layer2] Behavior analysis cache miss for event {}, using empty analysis", eventId);
+        return new SecurityPromptTemplate.BehaviorAnalysis();
     }
 
     private List<Document> getCachedOrSearchRelatedContext(SecurityEvent event) {
@@ -300,7 +233,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         }
     }
 
-
     private SecurityResponse validateAndFixResponse(SecurityResponse response) {
         if (response == null) {
             return createDefaultResponse();
@@ -308,47 +240,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
         response.setRiskScore(validated[0]);
         response.setConfidence(validated[1]);
-
         return response;
-    }
-
-    private SecurityDecision extractLayer2Decision(SecurityEvent event) {
-        if (event == null || event.getMetadata() == null) {
-            log.warn("[Layer2] event or metadata is null, using default Layer2 decision");
-            return createDefaultLayer2Decision();
-        }
-
-        Object layer2Result = event.getMetadata().get("layer2Assessment");
-        if (layer2Result == null) {
-            return createDefaultLayer2Decision();
-        }
-
-        if (layer2Result instanceof ThreatAssessment layer2Assessment) {
-            SecurityDecision.Action action = mapStringToAction(layer2Assessment.getAction());
-            return SecurityDecision.builder()
-                    .action(action)
-                    .riskScore(layer2Assessment.getRiskScore())
-                    .confidence(layer2Assessment.getConfidence())
-                    .processingTimeMs(100L)
-                    .processingLayer(2)
-                    .reasoning("Layer2 분석 결과 전달됨")
-                    .iocIndicators(layer2Assessment.getIndicators() != null ?
-                            layer2Assessment.getIndicators() : new ArrayList<>())
-                    .build();
-        }
-
-        log.warn("[Layer2] layer2Assessment is not ThreatAssessment type: {}", layer2Result.getClass().getName());
-        return createDefaultLayer2Decision();
-    }
-
-    private SecurityDecision createDefaultLayer2Decision() {
-        return SecurityDecision.builder()
-                .action(SecurityDecision.Action.ESCALATE)
-                .riskScore(Double.NaN)
-                .confidence(Double.NaN)
-                .processingTimeMs(100L)
-                .processingLayer(2)
-                .build();
     }
 
     private SecurityDecision convertToSecurityDecision(SecurityResponse response, SecurityEvent event) {
@@ -364,10 +256,11 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .eventId(event != null ? event.getEventId() : "unknown")
                 .analysisTime(System.currentTimeMillis())
                 .processingLayer(2)
-                .llmModel("tier-2-auto-selected")  // 자동 상속 방식: tier 기반 자동 선택
+                .llmModel("tier-2-auto-selected")
                 .build();
 
         if (response.getMitre() != null && !response.getMitre().isEmpty()) {
+            decision.setThreatCategory(response.getMitre());
             Map<String, String> mitreMapping = new HashMap<>();
             mitreMapping.put(response.getMitre(), response.getMitre());
             decision.setMitreMapping(mitreMapping);
@@ -378,7 +271,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private SecurityResponse parseJsonResponse(String jsonResponse) {
         SecurityResponse response = SecurityResponse.fromJson(jsonResponse);
         if (response == null) {
-            log.error("Failed to parse JSON response from Layer2 LLM: {}", jsonResponse);
+            log.error("[Layer2] Failed to parse JSON response from LLM: {}", jsonResponse);
             return createDefaultResponse();
         }
         return validateAndFixResponse(response);
@@ -400,8 +293,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             return;
         }
         try {
-            log.warn("Executing SOAR playbook: {}", decision.getSoarPlaybook());
-
             List<Map<String, Object>> actions = new ArrayList<>();
 
             if (decision.getAction() == SecurityDecision.Action.BLOCK) {
@@ -440,13 +331,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             }
 
         } catch (Exception e) {
-            log.error("Failed to execute SOAR playbook", e);
+            log.error("[Layer2] Failed to execute SOAR playbook", e);
         }
     }
 
     private void handleApprovalProcess(SecurityDecision decision, SecurityEvent event) {
         if (approvalService == null) {
-            log.warn("Approval service not available");
+            log.error("[Layer2] Approval service not available");
             return;
         }
         try {
@@ -470,9 +361,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                     metadata
             );
             approvalService.requestApproval(soarContext, details);
-            log.warn("Approval requested for critical action on event {}", event.getEventId());
         } catch (Exception e) {
-            log.error("Failed to request approval", e);
+            log.error("[Layer2] Failed to request approval", e);
         }
     }
 
@@ -501,15 +391,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         Duration.ofDays(30)
                 );
             }
-            log.warn("Security Incident created: {}", incident.getIncidentId());
         } catch (Exception e) {
-            log.error("Failed to create security incident", e);
+            log.error("[Layer2] Failed to create security incident", e);
         }
     }
 
-    private SecurityDecision createFailsafeDecision(SecurityEvent event,
-                                                    SecurityDecision layer2Decision,
-                                                    long startTime) {
+    private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime) {
         return SecurityDecision.builder()
                 .action(SecurityDecision.Action.BLOCK)
                 .riskScore(Double.NaN)
@@ -533,6 +420,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     public String getStrategyName() {
         return "Layer2-Expert-Strategy";
     }
+
     private String mapActionToRecommendation(SecurityDecision.Action action) {
         return switch (action) {
             case ALLOW -> "ALLOW_WITH_MONITORING";
@@ -540,123 +428,5 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             case CHALLENGE -> "REQUIRE_REAUTHENTICATION";
             case ESCALATE -> "ESCALATE_TO_SOC";
         };
-    }
-
-    private void storeInVectorDatabase(SecurityEvent event, SecurityDecision decision, SecurityResponse response) {
-        if (unifiedVectorService == null) return;
-        try {
-            StringBuilder content = new StringBuilder();
-            if (event.getUserId() != null) {
-                content.append("User: ").append(event.getUserId());
-            }
-            if (event.getSourceIp() != null) {
-                if (!content.isEmpty()) content.append(", ");
-                content.append("IP: ").append(event.getSourceIp());
-            }
-
-            String path = eventEnricher.getTargetResource(event).orElse(null);
-            if (path != null && !path.isEmpty()) {
-                if (!content.isEmpty()) content.append(", ");
-                content.append("Path: ").append(path);
-            }
-
-            String os = extractOSFromUserAgent(event.getUserAgent());
-            if (os != null) {
-                if (!content.isEmpty()) content.append(", ");
-                content.append("OS: ").append(os);
-            }
-
-            Map<String, Object> metadata = new HashMap<>();
-
-            SecurityDecision.Action storeAction = decision.getAction();
-
-            if (storeAction == SecurityDecision.Action.BLOCK) {
-                storeThreatDocument(event, decision, response, content.toString());
-            } else {
-                metadata.put("documentType", VectorDocumentType.BEHAVIOR.getValue());
-                if (event.getEventId() != null) {
-                    metadata.put("eventId", event.getEventId());
-                }
-                metadata.put("timestamp", LocalDateTime.now().format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME));
-                if (event.getUserId() != null) {
-                    metadata.put("userId", event.getUserId());
-                }
-
-                if (event.getSourceIp() != null) {
-                    metadata.put("sourceIp", event.getSourceIp());
-                }
-                if (event.getSessionId() != null) {
-                    metadata.put("sessionId", event.getSessionId());
-                }
-
-                if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
-                    metadata.put("userAgent", event.getUserAgent());
-                    if (os != null) {
-                        metadata.put("userAgentOS", os);
-                    }
-                    String browser = extractBrowserSignature(event.getUserAgent());
-                    if (browser != null) {
-                        metadata.put("userAgentBrowser", browser);
-                    }
-                }
-
-                if (event.getTimestamp() != null) {
-                    metadata.put("hour", event.getTimestamp().getHour());
-                }
-
-                if (path != null && !path.isEmpty()) {
-                    metadata.put("requestPath", path);
-                }
-
-                if (decision.getThreatCategory() != null) {
-                    metadata.put("threatCategory", decision.getThreatCategory());
-                }
-
-                if (response.getMitre() != null && !response.getMitre().isEmpty()) {
-                    metadata.put("mitreTactic", response.getMitre());
-                }
-
-                Document document = new Document(content.toString(), metadata);
-                unifiedVectorService.storeDocument(document);
-            }
-
-        } catch (Exception e) {
-            log.error("Failed to store document in vector database", e);
-        }
-    }
-
-    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, SecurityResponse response, String analysisContent) {
-        try {
-            Map<String, Object> threatMetadata = buildBaseMetadata(event, decision, VectorDocumentType.THREAT.getValue());
-            if (response.getMitre() != null && !response.getMitre().isEmpty()) {
-                threatMetadata.put("mitreTactic", response.getMitre());
-            }
-
-            StringBuilder threatDesc = new StringBuilder("Layer2 Expert Threat:");
-            if (event.getUserId() != null) {
-                threatDesc.append(" User=").append(event.getUserId());
-            }
-            if (event.getSourceIp() != null) {
-                threatDesc.append(", IP=").append(event.getSourceIp());
-            }
-            if (response.getMitre() != null && !response.getMitre().isEmpty()) {
-                threatDesc.append(", MITRE=").append(response.getMitre());
-            }
-
-            Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
-            unifiedVectorService.storeDocument(threatDoc);
-
-        } catch (Exception e) {
-            log.error("[Layer2] Failed to store threat document: eventId={}", event.getEventId(), e);
-        }
-    }
-
-    private void incrementAttackCount(String sourceIp) {
-        if (redisTemplate == null || sourceIp == null || sourceIp.isEmpty()) {
-            return;
-        }
-        String attackCountKey = ZeroTrustRedisKeys.attackCount(sourceIp);
-        redisTemplate.opsForValue().increment(attackCountKey);
-        redisTemplate.expire(attackCountKey, Duration.ofDays(7));
     }
 }
