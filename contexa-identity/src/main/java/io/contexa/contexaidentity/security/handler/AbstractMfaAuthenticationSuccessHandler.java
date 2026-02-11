@@ -364,7 +364,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
             redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
 
-            // Persist last verified action in separate key (survives hcadAnalysis TTL expiry)
             if (stringRedisTemplate != null) {
                 String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
                 stringRedisTemplate.opsForValue().set(lastActionKey, "ALLOW", Duration.ofHours(24));
@@ -381,9 +380,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         if (baselineLearningService == null) {
             return;
         }
-
         try {
-
             SecurityDecision decision = SecurityDecision.builder()
                     .action(SecurityDecision.Action.ALLOW)
                     .confidence(1.0)
@@ -403,11 +400,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     .description("MFA authentication success - baseline learning")
                     .build();
 
-            boolean learned = baselineLearningService.learnIfNormal(userId, decision, event);
-
-            if (learned) {
-            } else {
-            }
+            baselineLearningService.learnIfNormal(userId, decision, event);
 
         } catch (Exception e) {
             log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
