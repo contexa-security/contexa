@@ -35,7 +35,7 @@ public class AdminOverrideService {
 
     public AdminOverride approve(String requestId, String userId, String adminId,
                                  String originalAction, double originalRiskScore, double originalConfidence,
-                                 String overriddenAction, String reason, boolean allowBaselineUpdate,
+                                 String overriddenAction, String reason,
                                  SecurityEvent originalEvent) {
 
         if (reason == null || reason.isBlank()) {
@@ -56,7 +56,6 @@ public class AdminOverrideService {
                 .overriddenAction(overriddenAction)
                 .reason(reason)
                 .approved(true)
-                .baselineUpdateAllowed(allowBaselineUpdate)
                 .originalRiskScore(originalRiskScore)
                 .originalConfidence(originalConfidence)
                 .build();
@@ -97,7 +96,6 @@ public class AdminOverrideService {
                 .overriddenAction(originalAction)
                 .reason(reason)
                 .approved(false)
-                .baselineUpdateAllowed(false)
                 .originalRiskScore(originalRiskScore)
                 .originalConfidence(originalConfidence)
                 .build();
@@ -110,8 +108,8 @@ public class AdminOverrideService {
         try {
             SecurityDecision adminApprovedDecision = SecurityDecision.builder()
                     .action(SecurityDecision.Action.ALLOW)
-                    .riskScore(0.0)
-                    .confidence(1.0)
+                    .riskScore(override.getOriginalRiskScore())
+                    .confidence(0.95)
                     .reasoning("Admin approved: " + override.getReason())
                     .analysisTime(System.currentTimeMillis())
                     .build();

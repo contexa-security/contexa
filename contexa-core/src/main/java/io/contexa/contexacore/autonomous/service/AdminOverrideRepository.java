@@ -188,7 +188,6 @@ public class AdminOverrideRepository {
         map.put("overriddenAction", override.getOverriddenAction());
         map.put("reason", override.getReason());
         map.put("approved", String.valueOf(override.isApproved()));
-        map.put("baselineUpdateAllowed", String.valueOf(override.isBaselineUpdateAllowed()));
         map.put("originalRiskScore", String.valueOf(override.getOriginalRiskScore()));
         map.put("originalConfidence", String.valueOf(override.getOriginalConfidence()));
         return map;
@@ -205,7 +204,6 @@ public class AdminOverrideRepository {
                 .overriddenAction(getStringFromMap(data, "overriddenAction"))
                 .reason(getStringFromMap(data, "reason"))
                 .approved(parseBoolean(getStringFromMap(data, "approved")))
-                .baselineUpdateAllowed(parseBoolean(getStringFromMap(data, "baselineUpdateAllowed")))
                 .originalRiskScore(parseDouble(getStringFromMap(data, "originalRiskScore")))
                 .originalConfidence(parseDouble(getStringFromMap(data, "originalConfidence")))
                 .build();

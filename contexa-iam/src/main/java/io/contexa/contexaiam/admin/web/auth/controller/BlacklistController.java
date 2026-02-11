@@ -58,12 +58,10 @@ public class BlacklistController {
     public String resolveBlock(@PathVariable Long id,
                                @RequestParam("resolvedAction") String resolvedAction,
                                @RequestParam("reason") String reason,
-                               @RequestParam(value = "baselineUpdateAllowed", required = false,
-                                       defaultValue = "false") boolean baselineUpdateAllowed,
                                RedirectAttributes ra) {
         try {
             String adminId = extractCurrentUserId();
-            blockedUserService.resolveBlockById(id, adminId, resolvedAction, reason, baselineUpdateAllowed);
+            blockedUserService.resolveBlockById(id, adminId, resolvedAction, reason);
             ra.addFlashAttribute("message", "Block resolved successfully.");
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to resolve block: id={}", id, e);

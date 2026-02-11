@@ -56,11 +56,13 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             log.error("[SecurityDecisionEnforcementHandler] Error enforcing decision: eventId={}", event.getEventId(), e);
         }
 
-        CompletableFuture.runAsync(() -> learnFromResult(userId, event, result))
-                .exceptionally(ex -> {
-                    log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, ex);
-                    return null;
-                });
+        if ("ALLOW".equalsIgnoreCase(result.getAction())) {
+            CompletableFuture.runAsync(() -> learnFromResult(userId, event, result))
+                    .exceptionally(ex -> {
+                        log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, ex);
+                        return null;
+                    });
+        }
 
         return true;
     }

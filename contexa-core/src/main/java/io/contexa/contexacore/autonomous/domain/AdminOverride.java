@@ -26,29 +26,21 @@ public class AdminOverride {
 
     private final boolean approved;
 
-    private final boolean baselineUpdateAllowed;
-
     private final double originalRiskScore;
 
     private final double originalConfidence;
 
     public boolean canUpdateBaseline() {
-        return approved
-            && baselineUpdateAllowed
-            && "ALLOW".equalsIgnoreCase(overriddenAction);
-    }
-
-    public boolean isBaselineUpdateAllowed() {
-        return baselineUpdateAllowed;
+        return approved && "ALLOW".equalsIgnoreCase(overriddenAction);
     }
 
     @Override
     public String toString() {
         return String.format(
             "AdminOverride{overrideId='%s', requestId='%s', userId='%s', adminId='%s', " +
-            "originalAction='%s', overriddenAction='%s', approved=%s, baselineUpdateAllowed=%s}",
+            "originalAction='%s', overriddenAction='%s', approved=%s}",
             overrideId, requestId, userId, adminId,
-            originalAction, overriddenAction, approved, baselineUpdateAllowed
+            originalAction, overriddenAction, approved
         );
     }
 }

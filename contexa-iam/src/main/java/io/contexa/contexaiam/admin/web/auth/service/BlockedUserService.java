@@ -65,8 +65,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     }
 
     @Transactional
-    public void resolveBlockById(Long id, String adminId, String resolvedAction,
-                                 String reason, boolean baselineUpdateAllowed) {
+    public void resolveBlockById(Long id, String adminId, String resolvedAction, String reason) {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Blocked user not found: id=" + id));
 
@@ -86,15 +85,13 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     blocked.getConfidence() != null ? blocked.getConfidence() : 0.0,
                     resolvedAction,
                     reason,
-                    baselineUpdateAllowed,
                     adminOverrideService.getSecurityEvent(blocked.getRequestId()).orElse(null)
             );
         } catch (Exception e) {
             log.error("[BlockedUserService] Failed to sync AdminOverride: requestId={}",
                     blocked.getRequestId(), e);
+            clearRedisBlockKeys(blocked.getUserId(), resolvedAction);
         }
-
-        clearRedisBlockKeys(blocked.getUserId(), resolvedAction);
     }
 
     @Transactional(readOnly = true)

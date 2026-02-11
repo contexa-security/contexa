@@ -389,9 +389,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         try {
             SecurityDecision decision = SecurityDecision.builder()
                     .action(SecurityDecision.Action.ALLOW)
-                    .confidence(1.0)
-                    .riskScore(0.0)
-                    .reasoning("MFA authentication completed successfully")
+                    .confidence(0.85)
+                    .riskScore(0.1)
+                    .reasoning("Regular MFA authentication completed - identity verified")
                     .build();
 
             SecurityEvent event = SecurityEvent.builder()

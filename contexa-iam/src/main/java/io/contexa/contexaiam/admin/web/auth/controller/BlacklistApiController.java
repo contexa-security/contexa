@@ -60,7 +60,7 @@ public class BlacklistApiController {
         try {
             String adminId = extractCurrentUserId();
             blockedUserService.resolveBlockById(id, adminId, request.resolvedAction,
-                    request.reason, request.baselineUpdateAllowed);
+                    request.reason);
 
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("success", true);
@@ -98,13 +98,10 @@ public class BlacklistApiController {
     public static class ResolveRequest {
         public String resolvedAction;
         public String reason;
-        public boolean baselineUpdateAllowed;
 
         public String getResolvedAction() { return resolvedAction; }
         public void setResolvedAction(String resolvedAction) { this.resolvedAction = resolvedAction; }
         public String getReason() { return reason; }
         public void setReason(String reason) { this.reason = reason; }
-        public boolean isBaselineUpdateAllowed() { return baselineUpdateAllowed; }
-        public void setBaselineUpdateAllowed(boolean baselineUpdateAllowed) { this.baselineUpdateAllowed = baselineUpdateAllowed; }
     }
 }

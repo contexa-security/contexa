@@ -32,7 +32,6 @@ public class AdminOverrideController {
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
     @GetMapping("/pending/{requestId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> getPendingRequest(@PathVariable String requestId) {
         Optional<Map<Object, Object>> pendingOpt = adminOverrideService.getPendingReview(requestId);
 
@@ -90,7 +89,6 @@ public class AdminOverrideController {
     }
 
     @PostMapping("/approve")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> approveRequest(@RequestBody ApproveRequest request) {
         String adminId = extractCurrentUserId();
 
@@ -121,7 +119,6 @@ public class AdminOverrideController {
                 request.getOriginalConfidence(),
                 "ALLOW",
                 request.getReason(),
-                request.isBaselineUpdateAllowed(),
                 originalEvent
             );
 
@@ -134,7 +131,6 @@ public class AdminOverrideController {
             response.put("adminId", override.getAdminId());
             response.put("originalAction", override.getOriginalAction());
             response.put("overriddenAction", override.getOverriddenAction());
-            response.put("baselineUpdateAllowed", override.isBaselineUpdateAllowed());
             response.put("baselineLearned", override.canUpdateBaseline() && originalEvent != null);
 
             return ResponseEntity.ok(response);
@@ -154,7 +150,6 @@ public class AdminOverrideController {
     }
 
     @PostMapping("/reject")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Map<String, Object>> rejectRequest(@RequestBody RejectRequest request) {
         String adminId = extractCurrentUserId();
 
@@ -210,7 +205,6 @@ public class AdminOverrideController {
     }
 
     @GetMapping("/history")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> getOverrideHistory(@RequestParam(required = false) String userId) {
         return ResponseEntity.status(301)
             .header("Location", "/api/admin/blacklist")
@@ -243,7 +237,6 @@ public class AdminOverrideController {
         private double originalRiskScore;
         private double originalConfidence;
         private String reason;
-        private boolean baselineUpdateAllowed;
 
         public String getRequestId() { return requestId; }
         public void setRequestId(String requestId) { this.requestId = requestId; }
@@ -257,8 +250,6 @@ public class AdminOverrideController {
         public void setOriginalConfidence(double originalConfidence) { this.originalConfidence = originalConfidence; }
         public String getReason() { return reason; }
         public void setReason(String reason) { this.reason = reason; }
-        public boolean isBaselineUpdateAllowed() { return baselineUpdateAllowed; }
-        public void setBaselineUpdateAllowed(boolean baselineUpdateAllowed) { this.baselineUpdateAllowed = baselineUpdateAllowed; }
     }
 
     public static class RejectRequest {
