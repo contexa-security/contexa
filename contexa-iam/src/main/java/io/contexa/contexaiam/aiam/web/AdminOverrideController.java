@@ -1,4 +1,4 @@
-package io.contexa.springbootstartercontexa.web;
+package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * 관리자 개입 REST API 컨트롤러 (AI Native v3.5.0)
@@ -43,7 +46,6 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/admin/override")
 @RequiredArgsConstructor
-@ConditionalOnBean(AdminOverrideService.class)
 public class AdminOverrideController {
 
     private final AdminOverrideService adminOverrideService;

@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.aiam;
 
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
@@ -13,6 +14,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 
 @AutoConfiguration
@@ -33,5 +35,13 @@ public class IamAiamWebAutoConfiguration {
             AICoreOperations<PolicyContext> aiNativeProcessor,
             StandardStreamingService streamingService) {
         return new AiApiController(aiNativeProcessor, streamingService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AdminOverrideController adminOverrideController(
+            AdminOverrideService adminOverrideService,
+            StringRedisTemplate stringRedisTemplate) {
+        return new AdminOverrideController(adminOverrideService, stringRedisTemplate);
     }
 }
