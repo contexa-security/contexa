@@ -51,7 +51,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
 
         for (SecurityEvent event : events) {
-
             llmAnalysisExecutor.execute(() -> {
                 try {
                     processSecurityEvent(event);
@@ -61,7 +60,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                 }
             });
         }
-
     }
 
     @Override
@@ -118,9 +116,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                         event.getEventId());
                 return;
             }
-
             context = processingOrchestrator.process(event);
-
             markEventAsProcessed(event.getEventId());
 
         } catch (Exception e) {
@@ -165,7 +161,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private void markEventAsProcessed(String eventId) {
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
-
             redisTemplate.opsForValue().set(processingKey, "1", Duration.ofHours(24));
         } catch (Exception e) {
             log.error("[SecurityPlaneAgent] Failed to mark event as processed: {}", eventId, e);
