@@ -2,7 +2,6 @@ package io.contexa.contexacore.autonomous.service.impl;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
-import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -10,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -28,7 +26,6 @@ public class SecurityMonitoringService {
     }
 
     private final KafkaSecurityEventCollector kafkaCollector;
-    private final Map<String, MonitoringSession> activeSessions;
     private final ScheduledExecutorService scheduler;
     private final AtomicLong eventCounter;
 
@@ -36,7 +33,6 @@ public class SecurityMonitoringService {
 
     public SecurityMonitoringService(KafkaSecurityEventCollector kafkaCollector) {
         this.kafkaCollector = kafkaCollector;
-        this.activeSessions = new ConcurrentHashMap<>();
         this.scheduler = Executors.newScheduledThreadPool(2);
         this.eventCounter = new AtomicLong(0);
     }
@@ -47,7 +43,7 @@ public class SecurityMonitoringService {
 
     @PostConstruct
     public void initialize() {
-        kafkaCollector.registerListener(new DirectBatchListener());
+        kafkaCollector.registerListener(new DefaultBatchEventListener());
     }
 
     @PreDestroy
@@ -64,25 +60,6 @@ public class SecurityMonitoringService {
         }
     }
 
-    public void startMonitoring(String sessionId, Map<String, Object> config) {
-        if (activeSessions.containsKey(sessionId)) {
-            log.error("Monitoring session already exists for: {}", sessionId);
-            return;
-        }
-        MonitoringSession session = new MonitoringSession(sessionId, config);
-        activeSessions.put(sessionId, session);
-    }
-
-    public void stopMonitoring(String sessionId) {
-        MonitoringSession session = activeSessions.remove(sessionId);
-        if (session != null) {
-            session.stop();
-
-        } else {
-            log.error("No active monitoring session found for: {}", sessionId);
-        }
-    }
-
     private SecurityEvent preprocessEvent(SecurityEvent event) {
         if (event == null) {
             return null;
@@ -91,7 +68,7 @@ public class SecurityMonitoringService {
         return event;
     }
 
-    private class DirectBatchListener implements BatchSecurityEventListener {
+    private class DefaultBatchEventListener implements BatchSecurityEventListener {
 
         @Override
         public void onBatchEvents(List<SecurityEvent> events) {
@@ -100,7 +77,7 @@ public class SecurityMonitoringService {
             }
             SecurityMonitoringService.log.error("[DirectBatchListener] Received batch of {} events", events.size());
             List<SecurityEvent> processedList = events.stream()
-                    .map(DirectBatchListener.this::preprocessEventSafe)
+                    .map(DefaultBatchEventListener.this::preprocessEventSafe)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
 
@@ -138,24 +115,5 @@ public class SecurityMonitoringService {
                 return null;
             }
         }
-    }
-
-    private static class MonitoringSession {
-        private final String id;
-        private final Map<String, Object> config;
-        private final LocalDateTime startTime;
-        private volatile boolean active;
-
-        public MonitoringSession(String id, Map<String, Object> config) {
-            this.id = id;
-            this.config = config;
-            this.startTime = LocalDateTime.now();
-            this.active = true;
-        }
-
-        public void stop() {
-            active = false;
-        }
-
     }
 }

@@ -76,7 +76,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         if (running.compareAndSet(false, true)) {
             currentState = AgentState.RUNNING;
             Map<String, Object> config = createMonitoringConfig();
-            securityMonitor.startMonitoring(agentName, config);
         } else {
             log.error("Agent {} is already running", agentName);
         }
@@ -84,11 +83,8 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     @Override
     public void stop() {
-        String agentName = securityPlaneProperties.getAgent().getName();
         if (running.compareAndSet(true, false)) {
             currentState = AgentState.STOPPING;
-            securityMonitor.stopMonitoring(agentName);
-            currentState = AgentState.STOPPED;
         }
     }
 
@@ -166,7 +162,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
             log.error("[SecurityPlaneAgent] Failed to mark event as processed: {}", eventId, e);
         }
     }
-
 
     private Map<String, Object> createMonitoringConfig() {
         Map<String, Object> config = new HashMap<>();
