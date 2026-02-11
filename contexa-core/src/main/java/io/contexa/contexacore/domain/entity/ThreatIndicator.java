@@ -134,15 +134,6 @@ public class ThreatIndicator {
     
     @ManyToMany
     @JoinTable(
-        name = "indicator_incidents",
-        joinColumns = @JoinColumn(name = "indicator_id"),
-        inverseJoinColumns = @JoinColumn(name = "incident_id")
-    )
-    @Builder.Default
-    private Set<SecurityIncident> incidents = new HashSet<>();
-    
-    @ManyToMany
-    @JoinTable(
         name = "related_indicators",
         joinColumns = @JoinColumn(name = "indicator_id"),
         inverseJoinColumns = @JoinColumn(name = "related_indicator_id")

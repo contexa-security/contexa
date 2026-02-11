@@ -111,7 +111,8 @@ public class SecurityEventProcessingOrchestrator {
     }
 
     public void removeHandler(SecurityEventHandler handler) {
-        if (handler != null && handlers.remove(handler)) {
+        if (handler != null) {
+            handlers.remove(handler);
         }
     }
 

@@ -38,6 +38,8 @@ import io.contexa.contexacoreenterprise.autonomous.service.AsyncResultDeliverySe
 import io.contexa.contexacoreenterprise.autonomous.service.impl.SoarNotifierImpl;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
+import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
+import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
@@ -119,14 +121,11 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AutonomousLearningCoordinator autonomousLearningCoordinator(
-            ISecurityPlaneAgent securityPlaneAgent,
             PolicyEvolutionEngine evolutionEngine,
             AITuningService tuningService,
             PolicyProposalRepository proposalRepository,
-            ApplicationEventPublisher eventPublisher) {
-        return new AutonomousLearningCoordinator(
-                securityPlaneAgent, evolutionEngine, tuningService,
-                proposalRepository, eventPublisher);
+            EvolutionMetricsCollector evolutionMetricsCollector) {
+        return new AutonomousLearningCoordinator(evolutionEngine, tuningService, proposalRepository, evolutionMetricsCollector);
     }
 
     @Bean

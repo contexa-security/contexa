@@ -30,10 +30,6 @@ public class SecurityAction {
     @Column(name = "action_id")
     private String actionId;
     
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "incident_id")
-    private SecurityIncident incident;
-    
     @Column(name = "action_type", nullable = false)
     private String actionType;
     

@@ -4,8 +4,6 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
-import io.contexa.contexacore.domain.entity.SecurityIncident;
-import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -30,27 +28,17 @@ public class SecurityMonitoringService {
     }
 
     private final KafkaSecurityEventCollector kafkaCollector;
-    private final SecurityIncidentRepository securityIncidentRepository;
-    private final List<SecurityEventListener> eventListeners;
     private final Map<String, MonitoringSession> activeSessions;
-    private final Map<String, SecurityIncident> activeIncidents;
     private final ScheduledExecutorService scheduler;
     private final AtomicLong eventCounter;
-    private final AtomicLong incidentCounter;
 
     private volatile SecurityEventBatchProcessor batchProcessor;
 
-    public SecurityMonitoringService(
-            KafkaSecurityEventCollector kafkaCollector,
-            SecurityIncidentRepository securityIncidentRepository) {
+    public SecurityMonitoringService(KafkaSecurityEventCollector kafkaCollector) {
         this.kafkaCollector = kafkaCollector;
-        this.securityIncidentRepository = securityIncidentRepository;
-        this.eventListeners = new CopyOnWriteArrayList<>();
         this.activeSessions = new ConcurrentHashMap<>();
-        this.activeIncidents = new ConcurrentHashMap<>();
         this.scheduler = Executors.newScheduledThreadPool(2);
         this.eventCounter = new AtomicLong(0);
-        this.incidentCounter = new AtomicLong(0);
     }
 
     public void setBatchProcessor(SecurityEventBatchProcessor processor) {
@@ -60,7 +48,6 @@ public class SecurityMonitoringService {
     @PostConstruct
     public void initialize() {
         kafkaCollector.registerListener(new DirectBatchListener());
-        loadActiveIncidents();
     }
 
     @PreDestroy
@@ -79,7 +66,7 @@ public class SecurityMonitoringService {
 
     public void startMonitoring(String sessionId, Map<String, Object> config) {
         if (activeSessions.containsKey(sessionId)) {
-            log.warn("Monitoring session already exists for: {}", sessionId);
+            log.error("Monitoring session already exists for: {}", sessionId);
             return;
         }
         MonitoringSession session = new MonitoringSession(sessionId, config);
@@ -91,11 +78,8 @@ public class SecurityMonitoringService {
         if (session != null) {
             session.stop();
 
-            if (activeSessions.isEmpty()) {
-                            }
-
-                    } else {
-            log.warn("No active monitoring session found for: {}", sessionId);
+        } else {
+            log.error("No active monitoring session found for: {}", sessionId);
         }
     }
 
@@ -107,27 +91,6 @@ public class SecurityMonitoringService {
         return event;
     }
 
-    public Map<String, Object> getMonitoringStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-
-        stats.put("total_events", eventCounter.get());
-        stats.put("total_incidents", incidentCounter.get());
-        stats.put("active_sessions", activeSessions.size());
-        stats.put("active_incidents", activeIncidents.size());
-        stats.put("event_listeners", eventListeners.size());
-        stats.put("batch_processor_registered", batchProcessor != null);
-        stats.put("kafka_stats", kafkaCollector.getStatistics());
-
-        return stats;
-    }
-
-    private void loadActiveIncidents() {
-        List<SecurityIncident> incidents = securityIncidentRepository.findActiveIncidents();
-        for (SecurityIncident incident : incidents) {
-            activeIncidents.put(incident.getIncidentId(), incident);
-        }
-    }
-
     private class DirectBatchListener implements BatchSecurityEventListener {
 
         @Override
@@ -135,14 +98,14 @@ public class SecurityMonitoringService {
             if (events == null || events.isEmpty()) {
                 return;
             }
-            SecurityMonitoringService.log.debug("[DirectBatchListener] Received batch of {} events", events.size());
+            SecurityMonitoringService.log.error("[DirectBatchListener] Received batch of {} events", events.size());
             List<SecurityEvent> processedList = events.stream()
                     .map(DirectBatchListener.this::preprocessEventSafe)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
 
             if (processedList.isEmpty()) {
-                SecurityMonitoringService.log.debug("[DirectBatchListener] All events filtered during preprocessing");
+                SecurityMonitoringService.log.error("[DirectBatchListener] All events filtered during preprocessing");
                 return;
             }
             if (batchProcessor != null) {
@@ -153,13 +116,12 @@ public class SecurityMonitoringService {
                     throw new RuntimeException("Batch processing failed", e);
                 }
             } else {
-                SecurityMonitoringService.log.warn("[DirectBatchListener] No batch processor registered, {} events dropped", processedList.size());
+                SecurityMonitoringService.log.error("[DirectBatchListener] No batch processor registered, {} events dropped", processedList.size());
             }
         }
 
         @Override
         public void onSecurityEvent(SecurityEvent event) {
-            
             onBatchEvents(List.of(event));
         }
 

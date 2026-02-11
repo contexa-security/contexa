@@ -10,7 +10,6 @@ import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.SoarContext;
-import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
@@ -121,10 +120,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             if (expertDecision.isRequiresApproval() && approvalService != null) {
                 handleApprovalProcess(expertDecision, event);
-            }
-
-            if (expertDecision.getAction() == SecurityDecision.Action.BLOCK) {
-                createSecurityIncident(expertDecision, event);
             }
 
             if (postProcessor != null) {
@@ -270,36 +265,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             approvalService.requestApproval(soarContext, details);
         } catch (Exception e) {
             log.error("[Layer2] Failed to request approval", e);
-        }
-    }
-
-    private void createSecurityIncident(SecurityDecision decision, SecurityEvent event) {
-        try {
-            SecurityIncident incident = SecurityIncident.builder()
-                    .incidentId("L3-" + event.getEventId())
-                    .type(SecurityIncident.IncidentType.INTRUSION_ATTEMPT)
-                    .threatLevel(SecurityIncident.ThreatLevel.CRITICAL)
-                    .status(SecurityIncident.IncidentStatus.CONFIRMED)
-                    .description(decision.getAttackScenario())
-                    .sourceIp(event.getSourceIp())
-                    .detectedBy("Layer2ExpertSystem")
-                    .detectionSource("Expert AI Analysis")
-                    .detectedAt(LocalDateTime.now())
-                    .riskScore(decision.getRiskScore())
-                    .autoResponseEnabled(true)
-                    .requiresApproval(decision.isRequiresApproval())
-                    .build();
-
-            if (redisTemplate != null) {
-                String incidentKey = ZeroTrustRedisKeys.incident(incident.getIncidentId());
-                redisTemplate.opsForValue().set(
-                        incidentKey,
-                        incident,
-                        Duration.ofDays(30)
-                );
-            }
-        } catch (Exception e) {
-            log.error("[Layer2] Failed to create security incident", e);
         }
     }
 

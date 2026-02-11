@@ -1,7 +1,6 @@
 package io.contexa.contexacore.autonomous.domain;
 
 import io.contexa.contexacore.autonomous.event.domain.AuthorizationDecisionEvent;
-import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,9 +26,6 @@ public class SecurityContext {
 
     @Builder.Default
     private List<Document> behaviorPatterns = new ArrayList<>();
-
-    @Builder.Default
-    private List<SecurityIncident> incidents = new ArrayList<>();
 
     @Builder.Default
     private List<ThreatIndicator> threatIndicators = new ArrayList<>();
@@ -65,14 +61,6 @@ public class SecurityContext {
             behaviorPatterns = new ArrayList<>();
         }
         behaviorPatterns.add(pattern);
-        updateTimestamp();
-    }
-
-    public void addIncident(SecurityIncident incident) {
-        if (incidents == null) {
-            incidents = new ArrayList<>();
-        }
-        incidents.add(incident);
         updateTimestamp();
     }
 
@@ -122,16 +110,6 @@ public class SecurityContext {
             return new HashMap<>(userSecurityContext.getThreatIndicators());
         }
         return new HashMap<>();
-    }
-
-    public Map<String, Object> getSecurityIncidents() {
-        Map<String, Object> incidentMap = new HashMap<>();
-        if (incidents != null && !incidents.isEmpty()) {
-            for (int i = 0; i < incidents.size(); i++) {
-                incidentMap.put("incident_" + i, incidents.get(i));
-            }
-        }
-        return incidentMap;
     }
 
     public Map<String, Object> getAccessPatterns() {
@@ -212,10 +190,6 @@ public class SecurityContext {
         if (other.getBehaviorPatterns() != null) {
             this.behaviorPatterns.addAll(other.getBehaviorPatterns());
         }
-        
-        if (other.getIncidents() != null) {
-            this.incidents.addAll(other.getIncidents());
-        }
 
         if (other.threatIndicators != null) {
             this.threatIndicators.addAll(other.threatIndicators);
@@ -246,7 +220,6 @@ public class SecurityContext {
 
     public void reset() {
         this.behaviorPatterns.clear();
-        this.incidents.clear();
         this.threatIndicators.clear();
         this.protectableAccessHistory.clear();
         this.metadata.clear();
@@ -265,7 +238,6 @@ public class SecurityContext {
         summary.put("trustScore", getCurrentTrustScore());
         summary.put("riskLevel", getCurrentRiskLevel());
         summary.put("behaviorPatternCount", behaviorPatterns != null ? behaviorPatterns.size() : 0);
-        summary.put("incidentCount", incidents != null ? incidents.size() : 0);
         summary.put("threatIndicatorCount", threatIndicators != null ? threatIndicators.size() : 0);
         summary.put("protectableAccessCount", protectableAccessHistory != null ? protectableAccessHistory.size() : 0);
         summary.put("recentAccessDenied", getRecentAccessDeniedCount(60));

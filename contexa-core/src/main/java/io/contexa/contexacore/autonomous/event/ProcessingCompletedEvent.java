@@ -82,10 +82,6 @@ public class ProcessingCompletedEvent extends ApplicationEvent {
             return true;
         }
 
-        if (result != null && result.isRequiresIncident()) {
-            return true;
-        }
-
         return false;
     }
 

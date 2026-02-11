@@ -4,7 +4,6 @@ import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.autonomous.service.ISoarNotifier;
 import io.contexa.contexacore.autonomous.domain.NotificationResult;
-import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarRequest;
 import io.contexa.contexacore.domain.SoarResponse;
@@ -61,90 +60,11 @@ public class SoarNotifierImpl implements ISoarNotifier {
     
     @Override
     @Transactional
-    public CompletableFuture<NotificationResult> notifyIncident(SecurityIncident incident, SoarContext context) {
-        String requestId = generateRequestId(incident.getIncidentId());
-        totalNotifications.incrementAndGet();
-        
-        logger.info("Notifying SOAR about incident: {} with requestId: {}", incident.getIncidentId(), requestId);
-        
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                
-                if (soarLab != null) {
-                    String prompt = buildIncidentPrompt(incident);
-
-                    if (asyncEnabled && notificationRepository != null) {
-                        ApprovalNotification notification = createNotification(
-                            requestId, 
-                            incident.getIncidentId(),
-                            "INCIDENT",
-                            prompt,
-                            context
-                        );
-                        notificationRepository.save(notification);
-                        logger.info("Saved async notification for incident: {}", incident.getIncidentId());
-                    }
-
-                    SoarRequest soarRequest = SoarRequest.builder()
-                        .context(context)
-                        .templateType(new TemplateType("Soar"))
-                        .diagnosisType(new DiagnosisType("Soar"))
-                        .initialQuery(prompt)
-                        .build();
-                    SoarResponse soarResponse = (SoarResponse) soarLab.processAsync(soarRequest)
-                        .cast(SoarResponse.class)
-                        .block();
-                    String analysisResult = soarResponse != null ? soarResponse.toString() : "No response";
-
-                    successfulNotifications.incrementAndGet();
-                    updateNotificationStatus(requestId, NotificationStatus.DELIVERED);
-                    
-                    return NotificationResult.success(requestId, analysisResult);
-                    
-                } else if (aiProcessor != null) {
-                    
-                    logger.info("Using AI Processor for incident analysis: {}", incident.getIncidentId());
-
-                    Map<String, Object> analysisRequest = buildAnalysisRequest(incident, context);
-
-                    if (asyncEnabled && notificationRepository != null) {
-                        saveAsyncAnalysisRequest(requestId, incident, analysisRequest);
-                    }
-                    
-                    successfulNotifications.incrementAndGet();
-                    updateNotificationStatus(requestId, NotificationStatus.PENDING);
-                    
-                    return NotificationResult.success(requestId, "AI analysis request queued");
-                    
-                } else {
-                    
-                    if (notificationService != null) {
-                        logger.info("Incident notification sent for incident: {} with description: {} and threat level: {}", 
-                            incident.getIncidentId(), incident.getDescription(), incident.getThreatLevel().toString());
-                    }
-                    
-                    successfulNotifications.incrementAndGet();
-                    updateNotificationStatus(requestId, NotificationStatus.DELIVERED);
-                    
-                    return NotificationResult.success(requestId, "Notification sent");
-                }
-                
-            } catch (Exception e) {
-                logger.error("Failed to notify SOAR about incident: {}", incident.getIncidentId(), e);
-                failedNotifications.incrementAndGet();
-                updateNotificationStatus(requestId, NotificationStatus.FAILED);
-                return NotificationResult.failure(requestId, e.getMessage());
-            }
-        });
-    }
-    
-    @Override
-    @Transactional
     public CompletableFuture<NotificationResult> notifyHighRiskTool(String toolName, Map<String, Object> toolParameters, SoarContext context) {
         String requestId = generateRequestId(toolName);
         totalNotifications.incrementAndGet();
         
-        logger.info("Notifying about high-risk tool execution: {} with requestId: {}", toolName, requestId);
+        logger.error("Notifying about high-risk tool execution: {} with requestId: {}", toolName, requestId);
         
         return CompletableFuture.supplyAsync(() -> {
             try {
@@ -175,7 +95,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
 
                 if (notificationService != null) {
                     
-                    logger.info("High-risk tool notification sent for tool: {} with parameters: {}", toolName, toolParameters);
+                    logger.error("High-risk tool notification sent for tool: {} with parameters: {}", toolName, toolParameters);
                 }
                 
                 successfulNotifications.incrementAndGet();
@@ -195,7 +115,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
     @Override
     public CompletableFuture<NotificationResult> notifyCriticalSituation(SoarContext context) {
         return CompletableFuture.supplyAsync(() -> {
-        logger.warn("CRITICAL SITUATION detected for incident: {}", context.getIncidentId());
+        logger.error("CRITICAL SITUATION detected for incident: {}", context.getIncidentId());
         
         try {
             
@@ -218,7 +138,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     .cast(SoarResponse.class)
                     .block();
                 String result = soarResponse != null ? soarResponse.toString() : "No response";
-                logger.info("Critical situation analysis completed: {}", result);
+                logger.error("Critical situation analysis completed: {}", result);
                 
             } else if (notificationService != null) {
 
@@ -254,29 +174,6 @@ public class SoarNotifierImpl implements ISoarNotifier {
         return String.format("SOAR-%s-%s", 
             identifier.replace("-", ""), 
             UUID.randomUUID().toString().substring(0, 8));
-    }
-    
-    private String buildIncidentPrompt(SecurityIncident incident) {
-        return String.format(
-            "Analyze security incident %s: Type=%s, Severity=%s, Source=%s, Description=%s. " +
-            "Determine appropriate SOAR tools to execute for response and remediation.",
-            incident.getIncidentId(),
-            incident.getType().toString(),
-            incident.getThreatLevel().toString(),
-            incident.getSource(),
-            incident.getDescription()
-        );
-    }
-    
-    private Map<String, Object> buildAnalysisRequest(SecurityIncident incident, SoarContext context) {
-        Map<String, Object> request = new HashMap<>();
-        request.put("incident_id", incident.getIncidentId());
-        request.put("incident_type", incident.getType().toString());
-        request.put("severity", incident.getThreatLevel().toString());
-        request.put("context", context);
-        request.put("timestamp", LocalDateTime.now());
-        request.put("agent_mode", "ASYNC");
-        return request;
     }
     
     private String generateNotificationTitle(String type, String incidentId) {
@@ -316,31 +213,6 @@ public class SoarNotifierImpl implements ISoarNotifier {
         data.put("severity", context.getSeverity());
         notification.setNotificationData(data);
         return notification;
-    }
-    
-    @Transactional
-    public void saveAsyncAnalysisRequest(String requestId, SecurityIncident incident,
-                                         Map<String, Object> analysisRequest) {
-        if (notificationRepository == null) {
-            return;
-        }
-        
-        ApprovalNotification notification = new ApprovalNotification();
-        notification.setRequestId(requestId);
-        notification.setNotificationType("AI_ANALYSIS");
-        notification.setTitle("AI 분석 요청: " + incident.getIncidentId()); 
-        notification.setMessage("AI analysis request for incident: " + incident.getIncidentId());
-        notification.setPriority(incident.getThreatLevel().toString());
-        notification.setCreatedAt(LocalDateTime.now());
-        
-        Map<String, Object> data = new HashMap<>();
-        data.put("incidentId", incident.getIncidentId());
-        data.put("status", "QUEUED");
-        data.put("analysisRequest", analysisRequest.toString());
-        notification.setNotificationData(data);
-        
-        notificationRepository.save(notification);
-        logger.debug("Saved async AI analysis request: {}", requestId);
     }
     
     private void updateNotificationStatus(String requestId, NotificationStatus status) {

@@ -3,7 +3,6 @@ package io.contexa.autoconfigure.core.autonomous;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
@@ -17,7 +16,6 @@ import io.contexa.contexacore.autonomous.event.monitoring.DeadLetterQueueMonitor
 import io.contexa.contexacore.autonomous.event.monitoring.RedisMemoryMonitor;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.orchestrator.SecurityPlaneEventListener;
 import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.orchestrator.strategy.ProcessingStrategy;
@@ -103,15 +101,8 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ProcessingExecutionHandler processingExecutionHandler(
-            List<ProcessingStrategy> processingStrategies,
-            ApplicationEventPublisher applicationEventPublisher) {
-        return new ProcessingExecutionHandler(processingStrategies, applicationEventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityPlaneEventListener securityPlaneEventListener(ISecurityPlaneAgent securityPlaneAgent) {
-        return new SecurityPlaneEventListener(securityPlaneAgent);
+            List<ProcessingStrategy> processingStrategies) {
+        return new ProcessingExecutionHandler(processingStrategies);
     }
 
     @Bean

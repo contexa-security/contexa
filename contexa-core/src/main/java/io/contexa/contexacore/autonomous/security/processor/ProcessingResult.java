@@ -30,10 +30,6 @@ public class ProcessingResult {
 
     private List<String> threatIndicators;
 
-    private boolean requiresIncident;
-
-    private IncidentSeverity incidentSeverity;
-
     private long processingTimeMs;
 
     private LocalDateTime processedAt;
@@ -67,29 +63,6 @@ public class ProcessingResult {
             this.description = description;
         }
 
-        public String getDescription() {
-            return description;
-        }
-    }
-
-    public enum IncidentSeverity {
-        LOW(1, "Low severity incident"),
-        MEDIUM(2, "Medium severity incident"),
-        HIGH(3, "High severity incident"),
-        CRITICAL(4, "Critical severity incident");
-        
-        private final int level;
-        private final String description;
-        
-        IncidentSeverity(int level, String description) {
-            this.level = level;
-            this.description = description;
-        }
-        
-        public int getLevel() {
-            return level;
-        }
-        
         public String getDescription() {
             return description;
         }
@@ -143,13 +116,6 @@ public class ProcessingResult {
 
     public Map<String, Object> getMetadata() {
         return metadata;
-    }
-
-    public String getIncidentSeverity() {
-        if (incidentSeverity != null) {
-            return incidentSeverity.name();
-        }
-        return null;
     }
 
     public void addAnalysisData(String key, Object value) {

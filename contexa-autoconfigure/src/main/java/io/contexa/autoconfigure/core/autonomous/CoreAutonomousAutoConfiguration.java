@@ -21,7 +21,6 @@ import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.*;
-import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
@@ -33,7 +32,6 @@ import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
 
@@ -122,9 +120,9 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityMonitoringService securityMonitoringService(
-            KafkaSecurityEventCollector kafkaCollector,
-            SecurityIncidentRepository securityIncidentRepository) {
-        return new SecurityMonitoringService(kafkaCollector, securityIncidentRepository);}
+            KafkaSecurityEventCollector kafkaCollector) {
+        return new SecurityMonitoringService(kafkaCollector);
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -175,10 +173,9 @@ public class CoreAutonomousAutoConfiguration {
     public SecurityPlaneAgent securityPlaneAgent(
             SecurityMonitoringService securityMonitor,
             RedisTemplate<String, Object> redisTemplate,
-            ApplicationEventPublisher eventPublisher,
             SecurityPlaneAuditLogger auditLogger,
             SecurityEventProcessingOrchestrator processingOrchestrator) {
         return new SecurityPlaneAgent(
-                securityMonitor, redisTemplate, eventPublisher, auditLogger, processingOrchestrator);
+                securityMonitor, redisTemplate, auditLogger, processingOrchestrator);
     }
 }

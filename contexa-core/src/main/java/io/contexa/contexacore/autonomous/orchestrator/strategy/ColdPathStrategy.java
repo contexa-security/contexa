@@ -36,8 +36,6 @@ public class ColdPathStrategy implements ProcessingStrategy {
                 .executedActions(result.getExecutedActions())
                 .metadata(result.getMetadata())
                 .message(result.getMessage())
-                .requiresIncident(result.isRequiresIncident())
-                .incidentSeverity(parseIncidentSeverity(result.getIncidentSeverity()))
                 .threatIndicators(result.getThreatIndicators())
                 .recommendedActions(result.getRecommendedActions())
                 .aiAnalysisPerformed(result.isAiAnalysisPerformed())
@@ -60,22 +58,10 @@ public class ColdPathStrategy implements ProcessingStrategy {
         }
     }
 
-    private ProcessingResult.IncidentSeverity parseIncidentSeverity(String severity) {
-        if (severity == null || severity.isBlank()) {
-            return null;
-        }
-        try {
-            return ProcessingResult.IncidentSeverity.valueOf(severity);
-        } catch (IllegalArgumentException e) {
-            log.error("[ColdPathStrategy] Invalid incident severity: {}", severity);
-            return null;
-        }
-    }
-
     private double extractRiskScore(SecurityEventContext context) {
         if (context.getAiAnalysisResult() == null) {
             
-                        return -1.0;
+            return 0.0;
         }
 
         double threatLevel = context.getAiAnalysisResult().getThreatLevel();

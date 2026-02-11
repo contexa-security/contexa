@@ -2,11 +2,9 @@ package io.contexa.contexacore.autonomous.service.impl;
 
 import io.contexa.contexacore.autonomous.service.ISoarContextProvider;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.domain.entity.SecurityIncident;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
-import io.contexa.contexacore.repository.SecurityIncidentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +20,6 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(SoarContextProviderImpl.class);
 
-    @Autowired
-    private SecurityIncidentRepository securityIncidentRepository;
-
     @Value("${security.plane.agent.organization-id:default-org}")
     private String defaultOrganizationId;
 
@@ -37,7 +32,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
     @Override
     public SoarContext createContextFromEvents(List<SecurityEvent> events) {
         if (events == null || events.isEmpty()) {
-            logger.warn("No events provided to create SOAR context");
+            logger.error("No events provided to create SOAR context");
             return createDefaultContext();
         }
 
@@ -78,75 +73,8 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             
         }
 
-        logger.info("Created SOAR context from {} events: incidentId={}, severity={}, mode={}",
+        logger.error("Created SOAR context from {} events: incidentId={}, severity={}, mode={}",
                 events.size(), incidentId, severity, context.getExecutionMode());
-
-        return context;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public SoarContext createContextFromIncident(SecurityIncident incident) {
-        if (incident == null) {
-            logger.warn("No incident provided to create SOAR context");
-            return createDefaultContext();
-        }
-
-        SecurityIncident fullIncident = securityIncidentRepository
-                .findWithTagsByIncidentId(incident.getIncidentId())
-                .orElse(incident); 
-
-        incident = fullIncident;
-
-        String severity = mapIncidentSeverity(incident.getThreatLevel());
-
-        List<String> affectedSystems = new ArrayList<>();
-        if (incident.getAffectedSystem() != null) {
-            affectedSystems.add(incident.getAffectedSystem());
-        }
-
-        Map<String, Object> additionalInfo = new HashMap<>();
-        additionalInfo.put("incident_type", incident.getType().toString());
-        additionalInfo.put("source", incident.getSource());
-        additionalInfo.put("detection_time", incident.getDetectedAt());
-        additionalInfo.put("status", incident.getStatus());
-
-        try {
-            if (incident.getTags() != null && !incident.getTags().isEmpty()) {
-                
-                Set<String> tags = new HashSet<>(incident.getTags());
-                additionalInfo.put("tags", tags);
-            }
-        } catch (org.hibernate.LazyInitializationException e) {
-            logger.warn("Failed to load tags for incident {}: {}", incident.getIncidentId(), e.getMessage());
-            additionalInfo.put("tags", new HashSet<>());
-        }
-
-        if (incident.getRelatedEventIds() != null && !incident.getRelatedEventIds().isEmpty()) {
-            additionalInfo.put("related_events", incident.getRelatedEventIds());
-        }
-
-        SoarContext context = new SoarContext(
-                incident.getIncidentId(),
-                "ACTIVE",
-                severity,
-                incident.getDescription(),
-                incident.getStatus().toString(),
-                incident.getDetectedAt(),
-                affectedSystems,
-                additionalInfo,
-                defaultOrganizationId
-        );
-
-        context.setExecutionMode(SoarExecutionMode.ASYNC);
-
-        if ("CRITICAL".equals(severity)) {
-            context.setHumanApprovalNeeded(true);
-            context.setHumanApprovalMessage("Critical incident requires human approval before tool execution");
-        }
-
-        logger.info("Created SOAR context from incident: {}, severity={}, approval_needed={}",
-                incident.getIncidentId(), severity, context.isHumanApprovalNeeded());
 
         return context;
     }
@@ -154,7 +82,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
     @Override
     public SoarContext enrichContext(SoarContext context, Map<String, Object> additionalInfo) {
         if (context == null) {
-            logger.warn("Cannot enrich null context");
+            logger.error("Cannot enrich null context");
             return context;
         }
 
@@ -171,13 +99,13 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
         if (additionalInfo.containsKey("severity")) {
             String newSeverity = additionalInfo.get("severity").toString();
             context.setSeverity(newSeverity);
-            logger.debug("Updated context severity to: {}", newSeverity);
+            logger.error("Updated context severity to: {}", newSeverity);
         }
 
         if (additionalInfo.containsKey("executionMode")) {
             String mode = additionalInfo.get("executionMode").toString();
             context.setExecutionMode(SoarExecutionMode.valueOf(mode));
-            logger.debug("Updated context execution mode to: {}", mode);
+            logger.error("Updated context execution mode to: {}", mode);
         }
 
         if (additionalInfo.containsKey("affectedSystems")) {
@@ -199,7 +127,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             }
         }
 
-        logger.debug("Enriched SOAR context with {} additional fields", additionalInfo.size());
+        logger.error("Enriched SOAR context with {} additional fields", additionalInfo.size());
 
         return context;
     }
@@ -222,7 +150,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
         context.setExecutionMode(SoarExecutionMode.ASYNC);
 
-        logger.debug("Created default SOAR context: {}", incidentId);
+        logger.error("Created default SOAR context: {}", incidentId);
 
         return context;
     }
@@ -272,27 +200,6 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 .collect(Collectors.toList());
     }
 
-    private String mapIncidentSeverity(SecurityIncident.ThreatLevel threatLevel) {
-        if (threatLevel == null) {
-            return "MEDIUM";
-        }
-
-        switch (threatLevel) {
-            case CRITICAL:
-                return "CRITICAL";
-            case HIGH:
-                return "HIGH";
-            case MEDIUM:
-                return "MEDIUM";
-            case LOW:
-                return "LOW";
-            case INFO:
-                return "LOW";
-            default:
-                return "MEDIUM";
-        }
-    }
-
     private boolean isHighRiskAction(String action) {
         
         Set<String> highRiskActions = Set.of(
@@ -306,7 +213,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
     @Override
     public SoarContext createEmergencyContext(String incidentId, String description) {
-        logger.warn("Creating emergency SOAR context for incident: {}", incidentId);
+        logger.error("Creating emergency SOAR context for incident: {}", incidentId);
 
         SoarContext context = new SoarContext(
                 incidentId,
@@ -331,7 +238,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
     @Override
     public SoarContext createContextFromThreatIndicators(List<ThreatIndicator> threatIndicators) {
         if (threatIndicators == null || threatIndicators.isEmpty()) {
-            logger.warn("No threat indicators provided to create SOAR context");
+            logger.error("No threat indicators provided to create SOAR context");
             return createDefaultContext();
         }
 
@@ -356,7 +263,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
             .anyMatch(indicator -> indicator.getSeverity() == ThreatIndicator.Severity.CRITICAL &&
                                    indicator.getConfidence() > 0.8));
 
-        logger.info("Created SOAR context from {} threat indicators: {}", threatIndicators.size(), incidentId);
+        logger.error("Created SOAR context from {} threat indicators: {}", threatIndicators.size(), incidentId);
 
         return context;
     }
