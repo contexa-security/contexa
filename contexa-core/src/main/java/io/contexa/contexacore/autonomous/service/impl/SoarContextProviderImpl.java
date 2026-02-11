@@ -5,9 +5,9 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacore.domain.entity.ThreatIndicator;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -17,14 +17,11 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(SoarContextProviderImpl.class);
 
-    @Value("${security.plane.agent.organization-id:default-org}")
-    private String defaultOrganizationId;
+    private final SecurityPlaneProperties securityPlaneProperties;
 
-    @Value("${security.plane.agent.execution-mode:ASYNC}")
-    private String defaultExecutionMode;
-
-    @Value("${security.plane.agent.auto-approve-low-risk:false}")
-    private boolean autoApproveLowRisk;
+    public SoarContextProviderImpl(SecurityPlaneProperties securityPlaneProperties) {
+        this.securityPlaneProperties = securityPlaneProperties;
+    }
 
     @Override
     public SoarContext createContextFromEvents(List<SecurityEvent> events) {
@@ -61,10 +58,10 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 "SecurityPlaneAgent",         
                 severity,                     
                 String.join(", ", affectedSystems), 
-                defaultOrganizationId         
+                securityPlaneProperties.getAgent().getOrganizationId()         
         );
 
-        context.setExecutionMode(SoarExecutionMode.valueOf(defaultExecutionMode));
+        context.setExecutionMode(SoarExecutionMode.valueOf(securityPlaneProperties.getAgent().getExecutionMode()));
 
         logger.error("Created SOAR context from {} events: incidentId={}, severity={}, mode={}",
                 events.size(), incidentId, severity, context.getExecutionMode());
@@ -138,7 +135,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 "SecurityPlaneAgent",                          
                 "LOW",                                          
                 "Monitor and observe",                         
-                defaultOrganizationId                          
+                securityPlaneProperties.getAgent().getOrganizationId()                          
         );
 
         context.setExecutionMode(SoarExecutionMode.ASYNC);
@@ -217,7 +214,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 LocalDateTime.now(),
                 List.of("unknown"),
                 Map.of("emergency", true, "auto_created", true),
-                defaultOrganizationId
+                securityPlaneProperties.getAgent().getOrganizationId()
         );
 
         context.setExecutionMode(SoarExecutionMode.SYNC);
@@ -247,7 +244,7 @@ public class SoarContextProviderImpl implements ISoarContextProvider {
                 LocalDateTime.now(),
                 List.of("network", "endpoints"),
                 Map.of("indicator_count", threatIndicators.size(), "primary_type", primaryIndicator.getType()),
-                defaultOrganizationId
+                securityPlaneProperties.getAgent().getOrganizationId()
         );
 
         context.setExecutionMode(SoarExecutionMode.ASYNC);

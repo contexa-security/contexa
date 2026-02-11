@@ -9,6 +9,7 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
+import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.components.prompt.*;
@@ -56,13 +57,13 @@ import java.util.Optional;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "contexa.std", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ContexaProperties.class, StreamingProperties.class})
+@EnableConfigurationProperties({ContexaProperties.class, StreamingProperties.class, ContexaAdvisorProperties.class})
 public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityContextAdvisor securityContextAdvisor() {
-        return new SecurityContextAdvisor();
+    public SecurityContextAdvisor securityContextAdvisor(ContexaAdvisorProperties contexaAdvisorProperties) {
+        return new SecurityContextAdvisor(contexaAdvisorProperties);
     }
 
     @Bean

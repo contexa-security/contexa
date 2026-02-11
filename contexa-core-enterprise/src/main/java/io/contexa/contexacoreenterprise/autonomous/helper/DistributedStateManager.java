@@ -3,8 +3,8 @@ package io.contexa.contexacoreenterprise.autonomous.helper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import lombok.*;
+import io.contexa.contexacoreenterprise.properties.StateProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -25,16 +25,9 @@ public class DistributedStateManager {
     private final RedisDistributedLockService lockService;
     private final ObjectMapper objectMapper;
 
+    private final StateProperties stateProperties;
+
     private static final String STATE_PREFIX = "security:state:";
-
-    @Value("${security.state.ttl-seconds:3600}")
-    private int stateTtlSeconds;
-
-    @Value("${security.state.instance-id:#{T(java.util.UUID).randomUUID().toString()}}")
-    private String instanceId;
-
-    @Value("${security.state.changes.channel:state:changes}")
-    private String stateChangesChannel;
 
     private final Map<String, StateSnapshot> localCache = new ConcurrentHashMap<>();
 
@@ -43,7 +36,7 @@ public class DistributedStateManager {
             String redisKey = STATE_PREFIX + key;
             String lockKey = redisKey + ":lock";
 
-            return Mono.fromCallable(() -> lockService.tryLock(lockKey, instanceId, Duration.ofSeconds(5)))
+            return Mono.fromCallable(() -> lockService.tryLock(lockKey, stateProperties.getInstanceId(), Duration.ofSeconds(5)))
                 .flatMap(acquired -> {
                     if (!acquired) {
                         log.error("[DistributedStateManager] Failed to save state - lock acquisition failed: {}", key);
@@ -52,12 +45,12 @@ public class DistributedStateManager {
 
                     try {
                         state.setLastModified(LocalDateTime.now());
-                        state.setModifiedBy(instanceId);
+                        state.setModifiedBy(stateProperties.getInstanceId());
 
                         redisTemplate.opsForValue().set(
                             redisKey,
                             state,
-                            stateTtlSeconds,
+                            stateProperties.getTtlSeconds(),
                             TimeUnit.SECONDS
                         );
 
@@ -67,7 +60,7 @@ public class DistributedStateManager {
                         return Mono.just(true);
 
                     } finally {
-                        lockService.unlock(lockKey, instanceId);
+                        lockService.unlock(lockKey, stateProperties.getInstanceId());
                     }
                 })
                 .block();
@@ -116,11 +109,11 @@ public class DistributedStateManager {
     private void publishStateChange(String key, SecurityState state) {
         Map<String, Object> event = new HashMap<>();
         event.put("key", key);
-        event.put("nodeId", instanceId);
+        event.put("nodeId", stateProperties.getInstanceId());
         event.put("timestamp", LocalDateTime.now().toString());
         event.put("action", "UPDATE");
 
-        redisTemplate.convertAndSend(stateChangesChannel, event);
+        redisTemplate.convertAndSend(stateProperties.getChanges().getChannel(), event);
     }
 
     @Data

@@ -4,7 +4,6 @@ import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
@@ -20,8 +19,7 @@ public class TieredLLMProperties {
     public static final String DEFAULT_LAYER2_MODEL = "exaone3.5:latest";
     public static final String DEFAULT_PROVIDER_PRIORITY = "ollama,anthropic,openai";
 
-    @Value("${spring.ai.chat.model.priority:" + DEFAULT_PROVIDER_PRIORITY + "}")
-    private String providerPriority;
+    private String providerPriority = DEFAULT_PROVIDER_PRIORITY;
 
     @NestedConfigurationProperty
     private LayerConfig layer1 = new LayerConfig();

@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
-
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -21,7 +21,6 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -51,8 +50,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     @Autowired(required = false)
     private StringRedisTemplate stringRedisTemplate;
 
-    @Value("${contexa.hcad.enable-simulated-user-agent:false}")
-    private boolean enableSimulatedUserAgent;
+    @Autowired(required = false)
+    private HcadProperties hcadProperties;
 
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
@@ -276,7 +275,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private String extractUserAgent(HttpServletRequest request) {
-        if (enableSimulatedUserAgent) {
+        if (hcadProperties != null && hcadProperties.isEnableSimulatedUserAgent()) {
             String simulated = request.getHeader("X-Simulated-User-Agent");
             if (simulated != null && !simulated.isEmpty()) {
                 return simulated;

@@ -3,9 +3,9 @@ package io.contexa.contexacore.autonomous.event.monitoring;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -28,15 +28,7 @@ public class DeadLetterQueueMonitor {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
     private final MeterRegistry meterRegistry;
-
-    @Value("${security.kafka.dlq.max-retries:3}")
-    private int maxRetries;
-
-    @Value("${security.kafka.dlq.retry-delay-ms:5000}")
-    private long retryDelayMs;
-
-    @Value("${security.kafka.dlq.alert-threshold:10}")
-    private int alertThreshold;
+    private final SecurityKafkaProperties securityKafkaProperties;
 
     private final Map<String, DLQMessage> dlqMessages = new ConcurrentHashMap<>();
     private final Map<String, AtomicLong> errorCountByType = new ConcurrentHashMap<>();
@@ -107,12 +99,12 @@ public class DeadLetterQueueMonitor {
     }
 
     private void scheduleRetry(DLQMessage message) {
-        if (message.getRetryCount() >= maxRetries) {
+        if (message.getRetryCount() >= securityKafkaProperties.getDlq().getMaxRetries()) {
             handlePermanentFailure(message);
             return;
         }
 
-        long backoffDelay = retryDelayMs * (long) Math.pow(2, message.getRetryCount());
+        long backoffDelay = securityKafkaProperties.getDlq().getRetryDelayMs() * (long) Math.pow(2, message.getRetryCount());
 
         message.setNextRetryAt(Instant.now().plusMillis(backoffDelay));
     }
@@ -183,8 +175,8 @@ public class DeadLetterQueueMonitor {
     public void generateMonitoringReport() {
         int currentDLQSize = dlqMessages.size();
 
-        if (currentDLQSize > alertThreshold) {
-            log.warn("DLQ size exceeded threshold: {} > {}", currentDLQSize, alertThreshold);
+        if (currentDLQSize > securityKafkaProperties.getDlq().getAlertThreshold()) {
+            log.warn("DLQ size exceeded threshold: {} > {}", currentDLQSize, securityKafkaProperties.getDlq().getAlertThreshold());
             sendThresholdAlert(currentDLQSize);
         }
 
@@ -193,7 +185,7 @@ public class DeadLetterQueueMonitor {
 
     private void sendThresholdAlert(int currentSize) {
         log.error("ALERT: DLQ size threshold exceeded - current={}, threshold={}",
-            currentSize, alertThreshold);
+            currentSize, securityKafkaProperties.getDlq().getAlertThreshold());
 
     }
 

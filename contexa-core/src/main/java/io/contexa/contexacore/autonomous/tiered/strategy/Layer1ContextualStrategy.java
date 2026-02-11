@@ -20,7 +20,6 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Mono;
 
@@ -34,9 +33,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private final SecurityDecisionPostProcessor postProcessor;
     private final Cache<String, SessionContext> sessionContextCache;
-
-    @Value("${spring.ai.security.tiered.layer1.vector-search-limit:10}")
-    private int vectorSearchLimit;
 
     public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
                                     UnifiedVectorService unifiedVectorService,
@@ -215,7 +211,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private List<Document> searchRelatedContext(SecurityEvent event) {
         double similarityThreshold = tieredStrategyProperties.getLayer1().getRag().getSimilarityThreshold();
-        int topK = Math.min(15, vectorSearchLimit * 2);
+        int topK = Math.min(15, tieredStrategyProperties.getLayer1().getVectorSearchLimit() * 2);
         return searchRelatedContextBase(event, topK, similarityThreshold);
     }
 

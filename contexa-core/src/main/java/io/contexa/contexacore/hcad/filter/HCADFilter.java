@@ -6,8 +6,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import io.contexa.contexacore.properties.HcadProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
@@ -20,14 +20,13 @@ import java.io.IOException;
 public class HCADFilter extends OncePerRequestFilter {
 
     private final HCADAnalysisService hcadAnalysisService;
+    private final HcadProperties hcadProperties;
 
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
-    @Value("${hcad.enabled:true}")
-    private boolean enabled;
-
-    public HCADFilter(HCADAnalysisService hcadAnalysisService) {
+    public HCADFilter(HCADAnalysisService hcadAnalysisService, HcadProperties hcadProperties) {
         this.hcadAnalysisService = hcadAnalysisService;
+        this.hcadProperties = hcadProperties;
     }
 
     @Override
@@ -36,7 +35,7 @@ public class HCADFilter extends OncePerRequestFilter {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         boolean isAuthenticated = this.trustResolver.isAuthenticated(authentication);
 
-        if (!enabled || !isAuthenticated) {
+        if (!hcadProperties.isEnabled() || !isAuthenticated) {
             filterChain.doFilter(request, response);
             return;
         }

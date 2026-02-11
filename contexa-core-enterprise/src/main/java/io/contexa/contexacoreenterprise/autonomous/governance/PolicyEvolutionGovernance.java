@@ -4,9 +4,9 @@ import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
+import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,23 +22,9 @@ public class PolicyEvolutionGovernance {
     private final PolicyActivationService activationService;
     private final PolicyApprovalService approvalService;
     private final ApplicationEventPublisher eventPublisher;
+    private final GovernanceProperties governanceProperties;
 
     private final Map<String, GovernanceRule> governanceRules = new ConcurrentHashMap<>();
-
-    @Value("${governance.auto-approve.enabled:false}")
-    private boolean autoApproveEnabled;
-    
-    @Value("${governance.auto-approve.max-risk:LOW}")
-    private String autoApproveMaxRisk;
-    
-    @Value("${governance.auto-approve.min-confidence:0.9}")
-    private double autoApproveMinConfidence;
-    
-    @Value("${governance.multi-approval.threshold:MEDIUM}")
-    private String multiApprovalThreshold;
-    
-    @Value("${governance.critical.min-approvers:3}")
-    private int criticalMinApprovers;
 
     @Transactional
     public GovernanceDecision evaluateProposal(Long proposalId) {
@@ -185,17 +171,17 @@ public class PolicyEvolutionGovernance {
     }
 
     private boolean canAutoApprove(PolicyEvolutionProposal proposal, RiskAssessment riskAssessment) {
-        if (!autoApproveEnabled) {
+        if (!governanceProperties.getAutoApprove().isEnabled()) {
             return false;
         }
 
-        PolicyEvolutionProposal.RiskLevel maxRisk = PolicyEvolutionProposal.RiskLevel.valueOf(autoApproveMaxRisk);
+        PolicyEvolutionProposal.RiskLevel maxRisk = PolicyEvolutionProposal.RiskLevel.valueOf(governanceProperties.getAutoApprove().getMaxRisk());
         if (riskAssessment.getAdjustedRisk().ordinal() > maxRisk.ordinal()) {
             return false;
         }
 
         Double confidence = proposal.getConfidenceScore();
-        if (confidence == null || confidence < autoApproveMinConfidence) {
+        if (confidence == null || confidence < governanceProperties.getAutoApprove().getMinConfidence()) {
             return false;
         }
 
@@ -209,15 +195,15 @@ public class PolicyEvolutionGovernance {
     }
 
     private boolean needsMultiApproval(PolicyEvolutionProposal.RiskLevel riskLevel) {
-        PolicyEvolutionProposal.RiskLevel threshold = 
-            PolicyEvolutionProposal.RiskLevel.valueOf(multiApprovalThreshold);
+        PolicyEvolutionProposal.RiskLevel threshold =
+            PolicyEvolutionProposal.RiskLevel.valueOf(governanceProperties.getMultiApproval().getThreshold());
         return riskLevel.ordinal() >= threshold.ordinal();
     }
 
     private int calculateRequiredApprovers(PolicyEvolutionProposal.RiskLevel riskLevel) {
         switch (riskLevel) {
             case CRITICAL:
-                return criticalMinApprovers;
+                return governanceProperties.getCritical().getMinApprovers();
             case HIGH:
                 return 2;
             case MEDIUM:

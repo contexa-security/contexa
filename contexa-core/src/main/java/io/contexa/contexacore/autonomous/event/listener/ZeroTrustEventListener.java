@@ -6,8 +6,8 @@ import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPubli
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
 
@@ -22,17 +22,17 @@ public class ZeroTrustEventListener {
     private final KafkaSecurityEventPublisher kafkaSecurityEventPublisher;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityDecisionPostProcessor postProcessor;
-
-    @Value("${security.zerotrust.enabled:true}")
-    private boolean zeroTrustEnabled;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     public ZeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
-            SecurityDecisionPostProcessor postProcessor) {
+            SecurityDecisionPostProcessor postProcessor,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         this.kafkaSecurityEventPublisher = kafkaSecurityEventPublisher;
         this.redisTemplate = redisTemplate;
         this.postProcessor = postProcessor;
+        this.securityZeroTrustProperties = securityZeroTrustProperties;
     }
 
     @EventListener
@@ -40,7 +40,7 @@ public class ZeroTrustEventListener {
         long startTime = System.currentTimeMillis();
 
         try {
-            if (!zeroTrustEnabled) {
+            if (!securityZeroTrustProperties.isEnabled()) {
                 return;
             }
 

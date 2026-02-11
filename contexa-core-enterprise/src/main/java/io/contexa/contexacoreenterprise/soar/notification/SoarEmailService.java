@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.soar.notification;
 
+import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,22 +23,17 @@ public class SoarEmailService {
     
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
-    
+    private final SoarProperties soarProperties;
+
     @Value("${spring.mail.username:noreply@contexa.com}")
     private String fromAddress;
-    
-    @Value("${soar.notification.email.enabled:true}")
-    private boolean emailEnabled;
-    
-    @Value("${soar.notification.email.base-url:http://localhost:8080}")
-    private String baseUrl;
     
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Async
     @Retryable(value = MessagingException.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public void sendApprovalRequestEmail(NotificationTarget target, ApprovalNotification notification) {
-        if (!emailEnabled) {
+        if (!soarProperties.getNotification().getEmail().isEnabled()) {
                         return;
         }
         
@@ -57,7 +53,7 @@ public class SoarEmailService {
     @Retryable(retryFor = MessagingException.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public void sendApprovalCompletedEmail(NotificationTarget target, String approvalId, 
                                           boolean approved, String reviewer, String comment) {
-        if (!emailEnabled) {
+        if (!soarProperties.getNotification().getEmail().isEnabled()) {
                         return;
         }
         
@@ -71,7 +67,7 @@ public class SoarEmailService {
             context.setVariable("reviewer", reviewer);
             context.setVariable("comment", comment);
             context.setVariable("timestamp", LocalDateTime.now().format(DATE_FORMATTER));
-            context.setVariable("baseUrl", baseUrl);
+            context.setVariable("soarProperties.getNotification().getEmail().getBaseUrl()", soarProperties.getNotification().getEmail().getBaseUrl());
             
             String htmlContent = templateEngine.process("email/approval-completed", context);
             
@@ -84,7 +80,7 @@ public class SoarEmailService {
 
     @Async
     public void sendApprovalTimeoutEmail(NotificationTarget target, String approvalId, String toolName) {
-        if (!emailEnabled) {
+        if (!soarProperties.getNotification().getEmail().isEnabled()) {
             return;
         }
         
@@ -95,7 +91,7 @@ public class SoarEmailService {
             context.setVariable("approvalId", approvalId);
             context.setVariable("toolName", toolName);
             context.setVariable("timestamp", LocalDateTime.now().format(DATE_FORMATTER));
-            context.setVariable("baseUrl", baseUrl);
+            context.setVariable("soarProperties.getNotification().getEmail().getBaseUrl()", soarProperties.getNotification().getEmail().getBaseUrl());
             
             String htmlContent = templateEngine.process("email/approval-timeout", context);
             
@@ -107,7 +103,7 @@ public class SoarEmailService {
     }
 
     public void sendEmail(String to, String subject, String content) {
-        if (!emailEnabled) {
+        if (!soarProperties.getNotification().getEmail().isEnabled()) {
                         return;
         }
         
@@ -151,15 +147,15 @@ public class SoarEmailService {
 
         context.setVariable("toolArguments", notification.getToolArguments());
 
-        String approveUrl = String.format("%s/api/soar/approval/%s/approve", baseUrl, notification.getApprovalId());
-        String rejectUrl = String.format("%s/api/soar/approval/%s/reject", baseUrl, notification.getApprovalId());
+        String approveUrl = String.format("%s/api/soar/approval/%s/approve", soarProperties.getNotification().getEmail().getBaseUrl(), notification.getApprovalId());
+        String rejectUrl = String.format("%s/api/soar/approval/%s/reject", soarProperties.getNotification().getEmail().getBaseUrl(), notification.getApprovalId());
         context.setVariable("approveUrl", approveUrl);
         context.setVariable("rejectUrl", rejectUrl);
 
         long timeoutMinutes = notification.getTimeoutSeconds() / 60;
         context.setVariable("timeoutMinutes", timeoutMinutes);
 
-        context.setVariable("baseUrl", baseUrl);
+        context.setVariable("soarProperties.getNotification().getEmail().getBaseUrl()", soarProperties.getNotification().getEmail().getBaseUrl());
         context.setVariable("timestamp", LocalDateTime.now().format(DATE_FORMATTER));
         
         return templateEngine.process("email/approval-request", context);
@@ -186,13 +182,13 @@ public class SoarEmailService {
     }
 
     public boolean isEmailEnabled() {
-        return emailEnabled;
+        return soarProperties.getNotification().getEmail().isEnabled();
     }
 
     public void validateEmailConfiguration() {
-        if (emailEnabled && mailSender == null) {
+        if (soarProperties.getNotification().getEmail().isEnabled() && mailSender == null) {
             log.warn("이메일이 활성화되어 있지만 JavaMailSender가 구성되지 않았습니다.");
-            emailEnabled = false;
+            soarProperties.getNotification().getEmail().setEnabled(false);
         }
     }
 }

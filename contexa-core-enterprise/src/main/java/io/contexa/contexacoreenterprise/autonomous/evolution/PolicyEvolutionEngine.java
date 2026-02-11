@@ -15,8 +15,8 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Mono;
 
@@ -35,17 +35,10 @@ public class PolicyEvolutionEngine {
     @Autowired(required = false)
     private EvolutionMetricsCollector metricsCollector;
 
+    private final PolicyEvolutionProperties policyEvolutionProperties;
+
     @Autowired(required = false)
     private SpelValidationService spelValidationService;
-    
-    @Value("${policy.evolution.confidence.threshold:0.7}")
-    private double confidenceThreshold;
-    
-    @Value("${policy.evolution.max.context.size:10}")
-    private int maxContextSize;
-    
-    @Value("${policy.evolution.enable.caching:true}")
-    private boolean enableCaching;
 
     private final RedisTemplate<String, PolicyEvolutionProposal> redisTemplate;
     private final RedisTemplate<String, String> stringRedisTemplate;
@@ -61,7 +54,7 @@ public class PolicyEvolutionEngine {
         try {
             
             String cacheKey = generateCacheKey(event, metadata);
-            if (enableCaching) {
+            if (policyEvolutionProperties.getEnable().isCaching()) {
                 PolicyEvolutionProposal cachedProposal = getFromRedisCache(cacheKey);
                 if (cachedProposal != null) {
                                         return cachedProposal;
@@ -82,7 +75,7 @@ public class PolicyEvolutionEngine {
 
             assessRiskLevel(proposal, event, metadata);
 
-            if (enableCaching) {
+            if (policyEvolutionProperties.getEnable().isCaching()) {
                 saveToRedisCache(cacheKey, proposal);
             }
 
@@ -226,13 +219,13 @@ public class PolicyEvolutionEngine {
 
             SearchRequest searchRequest = SearchRequest.builder()
                 .query(query)
-                .topK(maxContextSize)
+                .topK(policyEvolutionProperties.getMax().getContextSize())
                 .similarityThreshold(0.7)
                 .build();
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
 
-            if (documents.size() > maxContextSize) {
-                documents = documents.subList(0, maxContextSize);
+            if (documents.size() > policyEvolutionProperties.getMax().getContextSize()) {
+                documents = documents.subList(0, policyEvolutionProperties.getMax().getContextSize());
             }
             
                         return documents;

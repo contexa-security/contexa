@@ -12,9 +12,9 @@ import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
@@ -40,27 +40,13 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     @Autowired private SessionIdResolver sessionIdResolver;
     @Autowired private RedisTemplate<String, Object> redisTemplate;
     @Autowired private AsyncSecurityContextProvider asyncSecurityContextProvider;
+    @Autowired private SecurityZeroTrustProperties securityZeroTrustProperties;
     private Cache<String, Boolean> invalidatedSessionsCache;
     private Cache<String, Set<String>> userSessionsCache;
     private Cache<String, String> sessionToUserCache;
     private Cache<String, Instant> lastRedisUpdateCache;
     private Cache<String, String> previousAuthCache;
     private ScheduledExecutorService cacheCleanupScheduler;
-
-    @Value("${zerotrust.enabled:true}")
-    private boolean zeroTrustEnabled;
-
-    @Value("${zerotrust.session.tracking.enabled:true}")
-    private boolean sessionTrackingEnabled;
-
-    @Value("${zerotrust.cache.session.ttl-minutes:30}")
-    private int sessionCacheTtlMinutes;
-
-    @Value("${zerotrust.cache.invalidated.ttl-minutes:60}")
-    private int invalidatedCacheTtlMinutes;
-
-    @Value("${zerotrust.redis.update-interval-seconds:30}")
-    private int redisUpdateIntervalSeconds;
 
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
@@ -79,17 +65,17 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
 
         invalidatedSessionsCache = Caffeine.newBuilder()
                 .maximumSize(10000)
-                .expireAfterWrite(invalidatedCacheTtlMinutes, TimeUnit.MINUTES)
+                .expireAfterWrite(securityZeroTrustProperties.getCache().getInvalidatedTtlMinutes(), TimeUnit.MINUTES)
                 .build();
 
         userSessionsCache = Caffeine.newBuilder()
                 .maximumSize(5000)
-                .expireAfterAccess(sessionCacheTtlMinutes, TimeUnit.MINUTES)
+                .expireAfterAccess(securityZeroTrustProperties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
                 .build();
 
         sessionToUserCache = Caffeine.newBuilder()
                 .maximumSize(10000)
-                .expireAfterAccess(sessionCacheTtlMinutes, TimeUnit.MINUTES)
+                .expireAfterAccess(securityZeroTrustProperties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
                 .build();
 
         lastRedisUpdateCache = Caffeine.newBuilder()
@@ -99,7 +85,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
 
         previousAuthCache = Caffeine.newBuilder()
                 .maximumSize(10000)
-                .expireAfterAccess(sessionCacheTtlMinutes, TimeUnit.MINUTES)
+                .expireAfterAccess(securityZeroTrustProperties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
                 .build();
 
         cacheCleanupScheduler = Executors.newSingleThreadScheduledExecutor(r -> {
@@ -135,7 +121,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     @Override
     public DeferredSecurityContext loadDeferredContext(HttpServletRequest request) {
         DeferredSecurityContext parentContext = super.loadDeferredContext(request);
-        if (!zeroTrustEnabled) {
+        if (!securityZeroTrustProperties.isEnabled()) {
             return parentContext;
         }
         return new ZeroTrustDeferredSecurityContext(parentContext, request);
@@ -182,7 +168,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     @Override
     public void saveContext(SecurityContext context, HttpServletRequest request, HttpServletResponse response) {
         String sessionId = extractSessionId(request);
-        if (zeroTrustEnabled && sessionId != null) {
+        if (securityZeroTrustProperties.isEnabled() && sessionId != null) {
             Boolean isInvalidated = invalidatedSessionsCache.getIfPresent(sessionId);
             if (isInvalidated != null && isInvalidated) {
                 return;
@@ -194,7 +180,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
             }
         }
         super.saveContext(context, request, response);
-        if (zeroTrustEnabled && sessionId != null) {
+        if (securityZeroTrustProperties.isEnabled() && sessionId != null) {
             Authentication auth = context.getAuthentication();
 
             try {
@@ -202,7 +188,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
                     String userId = auth.getName();
                     previousAuthCache.put(sessionId, userId);
                     saveAsyncAuthenticationContext(auth, sessionId);
-                    if (sessionTrackingEnabled && shouldUpdateRedis(sessionId)) {
+                    if (securityZeroTrustProperties.getSession().isTrackingEnabled() && shouldUpdateRedis(sessionId)) {
                         updateUserSessionMapping(userId, sessionId);
                         updateUserContext(userId, sessionId, request);
                         lastRedisUpdateCache.put(sessionId, Instant.now());
@@ -250,7 +236,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
             return true;
         }
 
-        return Instant.now().isAfter(lastUpdate.plusSeconds(redisUpdateIntervalSeconds));
+        return Instant.now().isAfter(lastUpdate.plusSeconds(securityZeroTrustProperties.getRedis().getUpdateIntervalSeconds()));
     }
 
     private String extractSessionId(HttpServletRequest request) {
@@ -372,7 +358,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     }
 
     public void invalidateAllUserSessions(String userId, String reason) {
-        if (!zeroTrustEnabled) {
+        if (!securityZeroTrustProperties.isEnabled()) {
             return;
         }
 

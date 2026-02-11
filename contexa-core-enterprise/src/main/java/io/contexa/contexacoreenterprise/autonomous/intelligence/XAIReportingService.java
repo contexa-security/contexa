@@ -6,10 +6,10 @@ import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacommon.domain.response.RiskAssessmentResponse;
 import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
+import io.contexa.contexacoreenterprise.properties.XaiProperties;
 import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -27,27 +27,7 @@ import java.util.stream.Collectors;
 public class XAIReportingService {
 
     private final RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${xai.enabled:true}")
-    private boolean xaiEnabled;
-    
-    @Value("${xai.detail.level:MEDIUM}")
-    private DetailLevel defaultDetailLevel;
-    
-    @Value("${xai.cache.ttl-hours:24}")
-    private int cacheTtlHours;
-    
-    @Value("${xai.feature.importance.threshold:0.1}")
-    private double featureImportanceThreshold;
-    
-    @Value("${xai.confidence.threshold:0.7}")
-    private double confidenceThreshold;
-    
-    @Value("${xai.max.alternatives:5}")
-    private int maxAlternatives;
-    
-    @Value("${xai.visualization.enabled:true}")
-    private boolean visualizationEnabled;
+    private final XaiProperties xaiProperties;
 
     private final Map<String, CachedReport> reportCache = new ConcurrentHashMap<>();
 
@@ -59,7 +39,7 @@ public class XAIReportingService {
     
     @PostConstruct
     public void initialize() {
-        if (!xaiEnabled) {
+        if (!xaiProperties.isEnabled()) {
                         return;
         }
 
@@ -74,7 +54,7 @@ public class XAIReportingService {
         RiskAssessmentResponse riskAssessment,
         SecurityEvent event
     ) {
-        if (!xaiEnabled) {
+        if (!xaiProperties.isEnabled()) {
             return Mono.just(XAIReport.disabled());
         }
 
@@ -113,7 +93,7 @@ public class XAIReportingService {
                 .alternativeHypotheses(alternatives.stream()
                     .map(AlternativeScenario::getDescription)
                     .collect(Collectors.toList()))
-                .detailLevel(defaultDetailLevel)
+                .detailLevel(DetailLevel.valueOf(xaiProperties.getDetail().getLevel()))
                 .visualizations(generateVisualizations(featureImportance, confidence))
                 .metadata(createMetadata(event, riskAssessment))
                 .timestamp(LocalDateTime.now())
@@ -122,7 +102,7 @@ public class XAIReportingService {
             cacheReport(assessmentId, report);
 
             totalReportsGenerated.incrementAndGet();
-            detailLevelStats.computeIfAbsent(defaultDetailLevel, k -> new AtomicLong())
+            detailLevelStats.computeIfAbsent(DetailLevel.valueOf(xaiProperties.getDetail().getLevel()), k -> new AtomicLong())
                 .incrementAndGet();
             
             return report;
@@ -135,7 +115,7 @@ public class XAIReportingService {
         BehavioralAnalysisResponse behaviorAnalysis,
         SecurityEvent event
     ) {
-        if (!xaiEnabled) {
+        if (!xaiProperties.isEnabled()) {
             return Mono.just(XAIReport.disabled());
         }
         
@@ -162,7 +142,7 @@ public class XAIReportingService {
                 .reasoningChain(anomalyExplanation)
                 .featureImportance(features)
                 .alternativeHypotheses(generateBehaviorAlternatives(pattern))
-                .detailLevel(defaultDetailLevel)
+                .detailLevel(DetailLevel.valueOf(xaiProperties.getDetail().getLevel()))
                 .visualizations(generateBehaviorVisualizations(pattern, temporal))
                 .metadata(createBehaviorMetadata(behaviorAnalysis))
                 .timestamp(LocalDateTime.now())
@@ -181,7 +161,7 @@ public class XAIReportingService {
         SoarResponse soarResponse,
         Map<String, Object> context
     ) {
-        if (!xaiEnabled) {
+        if (!xaiProperties.isEnabled()) {
             return Mono.just(XAIReport.disabled());
         }
         
@@ -217,7 +197,7 @@ public class XAIReportingService {
                 ))
                 .featureImportance(extractSoarFeatures(soarResponse, context))
                 .alternativeHypotheses(alternativeActions)
-                .detailLevel(defaultDetailLevel)
+                .detailLevel(DetailLevel.valueOf(xaiProperties.getDetail().getLevel()))
                 .visualizations(generateSoarVisualizations(recAnalysis, riskJustification))
                 .metadata(createSoarMetadata(soarResponse))
                 .timestamp(LocalDateTime.now())
@@ -236,7 +216,7 @@ public class XAIReportingService {
         List<SecurityEvent> correlatedEvents,
         ThreatIndicators indicators
     ) {
-        if (!xaiEnabled) {
+        if (!xaiProperties.isEnabled()) {
             return Mono.just(XAIReport.disabled());
         }
         
@@ -264,7 +244,7 @@ public class XAIReportingService {
                 ))
                 .featureImportance(correlation.getImportanceScores())
                 .alternativeHypotheses(causal.getAlternativeHypotheses())
-                .detailLevel(defaultDetailLevel)
+                .detailLevel(DetailLevel.valueOf(xaiProperties.getDetail().getLevel()))
                 .visualizations(generateCorrelationVisualizations(correlation, temporal))
                 .metadata(createCorrelationMetadata(correlatedEvents, indicators))
                 .timestamp(LocalDateTime.now())
@@ -362,7 +342,7 @@ public class XAIReportingService {
         }
 
         importance.entrySet().removeIf(e -> 
-            Math.abs(e.getValue()) < featureImportanceThreshold
+            Math.abs(e.getValue()) < xaiProperties.getFeature().getImportance().getThreshold()
         );
         
         return importance;
@@ -404,7 +384,7 @@ public class XAIReportingService {
 
         features.entrySet().stream()
             .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
-            .limit(maxAlternatives)
+            .limit(xaiProperties.getMax().getAlternatives())
             .forEach(entry -> {
                 String feature = entry.getKey();
                 double value = entry.getValue();
@@ -426,7 +406,7 @@ public class XAIReportingService {
         
         return alternatives.stream()
             .sorted(Comparator.comparing(AlternativeScenario::getImpact).reversed())
-            .limit(maxAlternatives)
+            .limit(xaiProperties.getMax().getAlternatives())
             .collect(Collectors.toList());
     }
 
@@ -461,7 +441,7 @@ public class XAIReportingService {
         Map<String, Double> importance,
         ConfidenceAnalysis confidence
     ) {
-        if (!visualizationEnabled) {
+        if (!xaiProperties.getVisualization().isEnabled()) {
             return Collections.emptyMap();
         }
         
@@ -907,12 +887,12 @@ public class XAIReportingService {
     private void cacheReport(String id, XAIReport report) {
         CachedReport cached = new CachedReport(
             report,
-            LocalDateTime.now().plusHours(cacheTtlHours)
+            LocalDateTime.now().plusHours(xaiProperties.getCache().getTtlHours())
         );
         reportCache.put(id, cached);
 
         String key = "xai:report:" + id;
-        redisTemplate.opsForValue().set(key, report, Duration.ofHours(cacheTtlHours));
+        redisTemplate.opsForValue().set(key, report, Duration.ofHours(xaiProperties.getCache().getTtlHours()));
     }
 
     private void startCacheCleaner() {
@@ -925,7 +905,7 @@ public class XAIReportingService {
 
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
-        metrics.put("enabled", xaiEnabled);
+        metrics.put("enabled", xaiProperties.isEnabled());
         metrics.put("totalReportsGenerated", totalReportsGenerated.get());
         metrics.put("cachedReportsServed", cachedReportsServed.get());
         

@@ -11,8 +11,8 @@ import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacoreenterprise.autonomous.metrics.PolicyUsageMetricsService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
+import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 
@@ -29,25 +29,19 @@ public class AutonomousLearningCoordinator {
     private final AITuningService tuningService;
     private final PolicyProposalRepository proposalRepository;
     private final EvolutionMetricsCollector evolutionMetricsCollector;
+    private final SecurityAutonomousProperties securityAutonomousProperties;
 
     public AutonomousLearningCoordinator(PolicyEvolutionEngine evolutionEngine,
                                          AITuningService tuningService,
                                          PolicyProposalRepository proposalRepository,
-                                         EvolutionMetricsCollector evolutionMetricsCollector) {
+                                         EvolutionMetricsCollector evolutionMetricsCollector,
+                                         SecurityAutonomousProperties securityAutonomousProperties) {
         this.evolutionEngine = evolutionEngine;
         this.tuningService = tuningService;
         this.proposalRepository = proposalRepository;
         this.evolutionMetricsCollector = evolutionMetricsCollector;
+        this.securityAutonomousProperties = securityAutonomousProperties;
     }
-
-    @Value("${security.autonomous.learning.enabled:true}")
-    private boolean enabled;
-
-    @Value("${security.autonomous.learning.evolution.confidence-threshold:0.8}")
-    private double confidenceThreshold;
-
-    @Value("${security.autonomous.learning.evolution.max-proposals:100}")
-    private int maxProposalsPerDay;
 
     private final AtomicLong totalEventsProcessed = new AtomicLong(0);
     private final AtomicLong totalProposalsGenerated = new AtomicLong(0);
@@ -58,7 +52,7 @@ public class AutonomousLearningCoordinator {
     @EventListener
     @Async
     public void onIncidentResolved(IncidentResolvedEvent event) {
-        if (!enabled) {
+        if (!securityAutonomousProperties.getLearning().isEnabled()) {
             return;
         }
         try {
@@ -210,7 +204,7 @@ public class AutonomousLearningCoordinator {
 
     private boolean canLearn(LearningMetadata metadata) {
         return metadata.isLearnable() &&
-                metadata.getConfidenceScore() >= confidenceThreshold &&
+                metadata.getConfidenceScore() >= securityAutonomousProperties.getLearning().getEvolution().getConfidenceThreshold() &&
                 metadata.getStatus() == LearningMetadata.LearningStatus.PENDING;
     }
 
@@ -218,7 +212,7 @@ public class AutonomousLearningCoordinator {
         String today = LocalDateTime.now().toLocalDate().toString();
         int count = dailyProposalCount.getOrDefault(today, 0);
 
-        if (count >= maxProposalsPerDay) {
+        if (count >= securityAutonomousProperties.getLearning().getEvolution().getMaxProposals()) {
             return false;
         }
 
@@ -254,8 +248,8 @@ public class AutonomousLearningCoordinator {
         stats.put("dailyProposalCount", dailyProposalCount.getOrDefault(
                 LocalDateTime.now().toLocalDate().toString(), 0
         ));
-        stats.put("enabled", enabled);
-        stats.put("confidenceThreshold", confidenceThreshold);
+        stats.put("enabled", securityAutonomousProperties.getLearning().isEnabled());
+        stats.put("confidenceThreshold", securityAutonomousProperties.getLearning().getEvolution().getConfidenceThreshold());
         return stats;
     }
 }

@@ -1,11 +1,9 @@
 package io.contexa.contexacoreenterprise.mcp.cache;
 
 import io.contexa.contexacoreenterprise.mcp.tool.execution.ToolExecutor;
-import lombok.RequiredArgsConstructor;
+import io.contexa.contexacoreenterprise.properties.ToolProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Map;
@@ -14,19 +12,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-@RequiredArgsConstructor
 public class ToolResultCache {
-    
+
     private final RedisTemplate<String, Object> redisTemplate;
-    
-    @Value("${tool.cache.enabled:true}")
-    private boolean cacheEnabled;
-    
-    @Value("${tool.cache.local-max-size:1000}")
-    private int localMaxSize;
-    
-    @Value("${tool.cache.default-ttl:300}")
-    private long defaultTtlSeconds;
+    private final ToolProperties toolProperties;
+
+    public ToolResultCache(RedisTemplate<String, Object> redisTemplate, ToolProperties toolProperties) {
+        this.redisTemplate = redisTemplate;
+        this.toolProperties = toolProperties;
+    }
 
     private final Map<String, CacheEntry> localCache = new ConcurrentHashMap<>();
 
@@ -36,7 +30,7 @@ public class ToolResultCache {
     private final AtomicLong evictionCount = new AtomicLong(0);
 
     public ToolExecutor.ToolResult get(String key) {
-        if (!cacheEnabled) {
+        if (!toolProperties.getCache().isEnabled()) {
             return null;
         }
 
@@ -68,11 +62,11 @@ public class ToolResultCache {
     }
 
     public void put(String key, ToolExecutor.ToolResult value) {
-        put(key, value, Duration.ofSeconds(defaultTtlSeconds));
+        put(key, value, Duration.ofSeconds(toolProperties.getCache().getDefaultTtl()));
     }
 
     public void put(String key, ToolExecutor.ToolResult value, Duration ttl) {
-        if (!cacheEnabled || value == null) {
+        if (!toolProperties.getCache().isEnabled() || value == null) {
             return;
         }
         
@@ -163,11 +157,11 @@ public class ToolResultCache {
 
     private void putToLocalCache(String key, ToolExecutor.ToolResult value) {
         
-        if (localCache.size() >= localMaxSize) {
+        if (localCache.size() >= toolProperties.getCache().getLocalMaxSize()) {
             evictOldestFromLocalCache();
         }
         
-        localCache.put(key, new CacheEntry(value, System.currentTimeMillis() + (defaultTtlSeconds * 1000)));
+        localCache.put(key, new CacheEntry(value, System.currentTimeMillis() + (toolProperties.getCache().getDefaultTtl() * 1000L)));
     }
 
     private void evictOldestFromLocalCache() {

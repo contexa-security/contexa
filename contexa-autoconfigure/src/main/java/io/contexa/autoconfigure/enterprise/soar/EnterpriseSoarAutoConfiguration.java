@@ -169,8 +169,9 @@ public class EnterpriseSoarAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SoarEmailService soarEmailService(
             org.springframework.mail.javamail.JavaMailSender mailSender,
-            org.thymeleaf.TemplateEngine templateEngine) {
-        return new SoarEmailService(mailSender, templateEngine);
+            org.thymeleaf.TemplateEngine templateEngine,
+            SoarProperties soarProperties) {
+        return new SoarEmailService(mailSender, templateEngine, soarProperties);
     }
 
     @Bean
@@ -212,8 +213,9 @@ public class EnterpriseSoarAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SoarContextRetriever soarContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry registry) {
-        return new SoarContextRetriever(vectorStore, registry);
+            ContextRetrieverRegistry registry,
+            SoarProperties soarProperties) {
+        return new SoarContextRetriever(vectorStore, registry, soarProperties);
     }
 
     @Bean
@@ -257,9 +259,10 @@ public class EnterpriseSoarAutoConfiguration {
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerMessagingTemplate,
             SoarEmailService emailService,
             McpApprovalNotificationService mcpNotificationService,
-            NotificationTargetManager targetManager) {
+            NotificationTargetManager targetManager,
+            SoarProperties soarProperties) {
         return new SoarApprovalNotifierImpl(
-                brokerMessagingTemplate, emailService, mcpNotificationService, targetManager);
+                brokerMessagingTemplate, emailService, mcpNotificationService, targetManager, soarProperties);
     }
 
     @Bean

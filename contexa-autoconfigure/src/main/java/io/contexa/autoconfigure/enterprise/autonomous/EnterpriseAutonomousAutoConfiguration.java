@@ -40,8 +40,21 @@ import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationServ
 import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
+import io.contexa.contexacoreenterprise.properties.NotificationProperties;
+import io.contexa.contexacoreenterprise.properties.AccessGovernanceProperties;
+import io.contexa.contexacoreenterprise.properties.AiTuningProperties;
+import io.contexa.contexacoreenterprise.properties.ApprovalProperties;
+import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
+import io.contexa.contexacoreenterprise.properties.LearningEngineProperties;
+import io.contexa.contexacoreenterprise.properties.MemoryProperties;
+import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
+import io.contexa.contexacoreenterprise.properties.ResultDeliveryProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
+import io.contexa.contexacoreenterprise.properties.SlackProperties;
+import io.contexa.contexacoreenterprise.properties.SmsProperties;
+import io.contexa.contexacoreenterprise.properties.StateProperties;
+import io.contexa.contexacoreenterprise.properties.XaiProperties;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
@@ -67,7 +80,11 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties({ ContexaProperties.class, SecurityAutonomousProperties.class,
-        SecurityEvaluatorProperties.class })
+        SecurityEvaluatorProperties.class, PolicyEvolutionProperties.class, GovernanceProperties.class,
+        AiTuningProperties.class, AccessGovernanceProperties.class, LearningEngineProperties.class,
+        MemoryProperties.class, XaiProperties.class, SlackProperties.class, SmsProperties.class,
+        ApprovalProperties.class, ResultDeliveryProperties.class, StateProperties.class,
+        NotificationProperties.class })
 public class EnterpriseAutonomousAutoConfiguration {
 
     public EnterpriseAutonomousAutoConfiguration() {
@@ -91,11 +108,12 @@ public class EnterpriseAutonomousAutoConfiguration {
             ChatModel chatModel,
             UnifiedVectorService unifiedVectorService,
             AITuningService tuningService,
+            PolicyEvolutionProperties policyEvolutionProperties,
             RedisTemplate<String, PolicyEvolutionProposal> policyEvolutionRedisTemplate,
             RedisTemplate<String, String> stringRedisTemplate) {
         return new PolicyEvolutionEngine(
                 chatModel, unifiedVectorService, tuningService,
-                policyEvolutionRedisTemplate, stringRedisTemplate);
+                policyEvolutionProperties, policyEvolutionRedisTemplate, stringRedisTemplate);
     }
 
     @Bean
@@ -105,9 +123,10 @@ public class EnterpriseAutonomousAutoConfiguration {
             PolicyProposalRepository proposalRepository,
             PolicyActivationService activationService,
             PolicyApprovalService approvalService,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher,
+            GovernanceProperties governanceProperties) {
         return new PolicyEvolutionGovernance(
-                proposalRepository, activationService, approvalService, eventPublisher);
+                proposalRepository, activationService, approvalService, eventPublisher, governanceProperties);
     }
 
     @Bean
@@ -124,8 +143,9 @@ public class EnterpriseAutonomousAutoConfiguration {
             PolicyEvolutionEngine evolutionEngine,
             AITuningService tuningService,
             PolicyProposalRepository proposalRepository,
-            EvolutionMetricsCollector evolutionMetricsCollector) {
-        return new AutonomousLearningCoordinator(evolutionEngine, tuningService, proposalRepository, evolutionMetricsCollector);
+            EvolutionMetricsCollector evolutionMetricsCollector,
+            SecurityAutonomousProperties securityAutonomousProperties) {
+        return new AutonomousLearningCoordinator(evolutionEngine, tuningService, proposalRepository, evolutionMetricsCollector, securityAutonomousProperties);
     }
 
     @Bean
@@ -133,15 +153,16 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AITuningService aiTuningService(
             VectorStore vectorStore,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new AITuningService(vectorStore, redisTemplate);
+            RedisTemplate<String, Object> redisTemplate,
+            AiTuningProperties aiTuningProperties) {
+        return new AITuningService(vectorStore, redisTemplate, aiTuningProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public AccessGovernanceLabConnector accessGovernanceLabConnector() {
-        return new AccessGovernanceLabConnector();
+    public AccessGovernanceLabConnector accessGovernanceLabConnector(AccessGovernanceProperties accessGovernanceProperties) {
+        return new AccessGovernanceLabConnector(accessGovernanceProperties);
     }
 
     @Bean
@@ -170,8 +191,8 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionHelper policyEvolutionHelper(
             UnifiedVectorService unifiedVectorService,
-            AITuningService tuningService) {
-        return new PolicyEvolutionHelper(unifiedVectorService);
+            PolicyEvolutionProperties policyEvolutionProperties) {
+        return new PolicyEvolutionHelper(unifiedVectorService, policyEvolutionProperties);
     }
 
     @Bean
@@ -179,8 +200,9 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public LearningEngineHelper learningEngineHelper(
             AITuningService tuningService,
-            DistributedStateManager stateManager) {
-        return new LearningEngineHelper(tuningService, stateManager);
+            DistributedStateManager stateManager,
+            LearningEngineProperties learningEngineProperties) {
+        return new LearningEngineHelper(tuningService, stateManager, learningEngineProperties);
     }
 
     @Bean
@@ -189,16 +211,18 @@ public class EnterpriseAutonomousAutoConfiguration {
     public MemorySystemHelper memorySystemHelper(
             UnifiedVectorService unifiedVectorService,
             DistributedStateManager stateManager,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new MemorySystemHelper(unifiedVectorService, stateManager, redisTemplate);
+            RedisTemplate<String, Object> redisTemplate,
+            MemoryProperties memoryProperties) {
+        return new MemorySystemHelper(unifiedVectorService, stateManager, redisTemplate, memoryProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public XAIReportingService xaiReportingService(
-            RedisTemplate<String, Object> redisTemplate) {
-        return new XAIReportingService(redisTemplate);
+            RedisTemplate<String, Object> redisTemplate,
+            XaiProperties xaiProperties) {
+        return new XAIReportingService(redisTemplate, xaiProperties);
     }
 
     @Bean
@@ -222,16 +246,18 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SlackNotificationAdapter slackNotificationAdapter(
-            ObjectMapper objectMapper) {
-        return new SlackNotificationAdapter(objectMapper);
+            ObjectMapper objectMapper,
+            SlackProperties slackProperties) {
+        return new SlackNotificationAdapter(objectMapper, slackProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SmsNotificationAdapter smsNotificationAdapter(
-            ObjectMapper objectMapper) {
-        return new SmsNotificationAdapter(objectMapper);
+            ObjectMapper objectMapper,
+            SmsProperties smsProperties) {
+        return new SmsNotificationAdapter(objectMapper, smsProperties);
     }
 
     @Bean
@@ -256,8 +282,8 @@ public class EnterpriseAutonomousAutoConfiguration {
             McpApprovalNotificationService websocketService,
             SlackNotificationAdapter slackAdapter,
             SmsNotificationAdapter smsAdapter,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new UnifiedNotificationService(emailService, websocketService, slackAdapter, smsAdapter, redisTemplate);
+            NotificationProperties notificationProperties) {
+        return new UnifiedNotificationService(emailService, websocketService, slackAdapter, smsAdapter, notificationProperties);
     }
 
     @Bean
@@ -276,8 +302,9 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public ApprovalWorkflow approvalWorkflow(
             RedisTemplate<String, Object> redisTemplate,
-            ToolAuthorizationService authService) {
-        return new ApprovalWorkflow(redisTemplate, authService);
+            ToolAuthorizationService authService,
+            ApprovalProperties approvalProperties) {
+        return new ApprovalWorkflow(redisTemplate, authService, approvalProperties);
     }
 
     @Bean
@@ -288,10 +315,11 @@ public class EnterpriseAutonomousAutoConfiguration {
             UnifiedNotificationService notificationService,
             RedisTemplate<String, Object> redisTemplate,
             SimpMessagingTemplate messagingTemplate,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            ResultDeliveryProperties resultDeliveryProperties) {
         return new AsyncResultDeliveryService(
                 executionRepository, notificationService,
-                redisTemplate, messagingTemplate, objectMapper);
+                redisTemplate, messagingTemplate, objectMapper, resultDeliveryProperties);
     }
 
     @Bean
@@ -371,7 +399,8 @@ public class EnterpriseAutonomousAutoConfiguration {
     public DistributedStateManager distributedStateManager(
             RedisTemplate<String, Object> redisTemplate,
             RedisDistributedLockService redisDistributedLockService,
-            ObjectMapper objectMapper) {
-        return new DistributedStateManager(redisTemplate, redisDistributedLockService, objectMapper);
+            ObjectMapper objectMapper,
+            StateProperties stateProperties) {
+        return new DistributedStateManager(redisTemplate, redisDistributedLockService, objectMapper, stateProperties);
     }
 }

@@ -3,6 +3,7 @@ package io.contexa.contexacoreenterprise.autonomous.helper;
 import io.contexa.contexacore.autonomous.MemorySystem;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacoreenterprise.properties.MemoryProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -10,7 +11,6 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,30 +30,7 @@ public class MemorySystemHelper implements MemorySystem {
     private final UnifiedVectorService unifiedVectorService;
     private final DistributedStateManager stateManager;
     private final RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${memory.system.enabled:true}")
-    private boolean memoryEnabled;
-    
-    @Value("${memory.stm.capacity:1000}")
-    private int stmCapacity;
-    
-    @Value("${memory.stm.ttl-minutes:30}")
-    private int stmTtlMinutes;
-    
-    @Value("${memory.ltm.consolidation-threshold:0.7}")
-    private double ltmConsolidationThreshold;
-    
-    @Value("${memory.ltm.retention-days:365}")
-    private int ltmRetentionDays;
-    
-    @Value("${memory.wm.capacity:100}")
-    private int wmCapacity;
-    
-    @Value("${memory.wm.ttl-seconds:300}")
-    private int wmTtlSeconds;
-    
-    @Value("${memory.consolidation.interval-minutes:15}")
-    private int consolidationIntervalMinutes;
+    private final MemoryProperties memoryProperties;
 
     private final Map<String, MemoryItem> shortTermMemory = new ConcurrentHashMap<>();
 
@@ -70,7 +47,7 @@ public class MemorySystemHelper implements MemorySystem {
     
     @PostConstruct
     public void initialize() {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
                         return;
         }
 
@@ -90,13 +67,13 @@ public class MemorySystemHelper implements MemorySystem {
 
     @Override
     public Mono<Void> storeInSTM(String key, Object value, Map<String, Object> metadata) {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return Mono.empty();
         }
 
         return Mono.defer(() -> {
             
-            if (shortTermMemory.size() >= stmCapacity) {
+            if (shortTermMemory.size() >= memoryProperties.getStm().getCapacity()) {
                 evictOldestFromSTM();
             }
 
@@ -118,13 +95,13 @@ public class MemorySystemHelper implements MemorySystem {
 
     @Override
     public Mono<Void> storeInWM(String key, Object value, String namespace) {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return Mono.empty();
         }
 
         return Mono.defer(() -> {
             
-            if (workingMemory.size() >= wmCapacity) {
+            if (workingMemory.size() >= memoryProperties.getWm().getCapacity()) {
                 evictOldestFromWM();
             }
 
@@ -135,7 +112,7 @@ public class MemorySystemHelper implements MemorySystem {
             workingMemory.put(key, item);
 
             String redisKey = "wm:" + key;
-            redisTemplate.opsForValue().set(redisKey, value, wmTtlSeconds, TimeUnit.SECONDS);
+            redisTemplate.opsForValue().set(redisKey, value, memoryProperties.getWm().getTtlSeconds(), TimeUnit.SECONDS);
 
             totalMemoryWrites.incrementAndGet();
 
@@ -144,7 +121,7 @@ public class MemorySystemHelper implements MemorySystem {
     }
 
     public Mono<MemoryResult> storeInLTM(String key, String content, Map<String, Object> metadata) {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return Mono.just(MemoryResult.disabled());
         }
 
@@ -190,7 +167,7 @@ public class MemorySystemHelper implements MemorySystem {
     }
 
     public Mono<MemoryItem> retrieve(String key) {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return Mono.empty();
         }
         
@@ -218,7 +195,7 @@ public class MemorySystemHelper implements MemorySystem {
     }
 
     public Flux<MemoryItem> searchSimilar(String query, int topK) {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return Flux.empty();
         }
         
@@ -243,7 +220,7 @@ public class MemorySystemHelper implements MemorySystem {
     }
 
     public void consolidateMemory() {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return;
         }
 
@@ -270,18 +247,18 @@ public class MemorySystemHelper implements MemorySystem {
             }
 
     public void cleanupMemory() {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return;
         }
 
-        LocalDateTime stmExpiry = LocalDateTime.now().minusMinutes(stmTtlMinutes);
+        LocalDateTime stmExpiry = LocalDateTime.now().minusMinutes(memoryProperties.getStm().getTtlMinutes());
         shortTermMemory.entrySet().removeIf(entry -> {
             boolean expired = entry.getValue().getTimestamp().isBefore(stmExpiry);
             if (expired) evictionCount.incrementAndGet();
             return expired;
         });
 
-        LocalDateTime wmExpiry = LocalDateTime.now().minusSeconds(wmTtlSeconds);
+        LocalDateTime wmExpiry = LocalDateTime.now().minusSeconds(memoryProperties.getWm().getTtlSeconds());
         workingMemory.entrySet().removeIf(entry -> {
             boolean expired = entry.getValue().getTimestamp().isBefore(wmExpiry);
             if (expired) evictionCount.incrementAndGet();
@@ -290,7 +267,7 @@ public class MemorySystemHelper implements MemorySystem {
     }
 
     public void saveMemoryState() {
-        if (!memoryEnabled) {
+        if (!memoryProperties.getSystem().isEnabled()) {
             return;
         }
         
@@ -377,7 +354,7 @@ public class MemorySystemHelper implements MemorySystem {
         }
 
         double score = pattern.calculateImportanceScore();
-        return score >= ltmConsolidationThreshold;
+        return score >= memoryProperties.getLtm().getConsolidationThreshold();
     }
     
     private Mono<MemoryItem> searchInLTM(String key) {

@@ -2,11 +2,11 @@ package io.contexa.contexacoreenterprise.autonomous.evolution;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacoreenterprise.properties.AccessGovernanceProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -15,17 +15,10 @@ import java.util.*;
 @RequiredArgsConstructor
 public class AccessGovernanceLabConnector {
 
+    private final AccessGovernanceProperties accessGovernanceProperties;
+
     @Autowired(required = false)
     private UnifiedVectorService unifiedVectorService;
-
-    @Value("${access.governance.enabled:true}")
-    private boolean enabled;
-
-    @Value("${access.governance.search.limit:20}")
-    private int searchLimit;
-
-    @Value("${access.governance.risk.threshold:0.7}")
-    private double riskThreshold;
 
     public List<SecurityEvent> analyzeExcessivePermissions() {
         List<SecurityEvent> events = new ArrayList<>();
@@ -69,7 +62,7 @@ public class AccessGovernanceLabConnector {
     }
 
     private Map<String, Object> runAccessGovernanceAnalysis() {
-        if (!enabled || unifiedVectorService == null) {
+        if (!accessGovernanceProperties.isEnabled() || unifiedVectorService == null) {
             log.warn("[AccessGovernanceConnector] Vector Store가 비활성화되거나 사용 불가");
             return createEmptyResult();
         }
@@ -100,7 +93,7 @@ public class AccessGovernanceLabConnector {
             org.springframework.ai.vectorstore.SearchRequest searchRequest =
                 org.springframework.ai.vectorstore.SearchRequest.builder()
                     .query(query)
-                    .topK(searchLimit)
+                    .topK(accessGovernanceProperties.getSearch().getLimit())
                     .filterExpression("documentType == 'access_governance_analysis'")
                     .build();
 
@@ -130,7 +123,7 @@ public class AccessGovernanceLabConnector {
 
             double riskScore = extractRiskScore(metadata);
 
-            if (riskScore < riskThreshold) {
+            if (riskScore < accessGovernanceProperties.getRisk().getThreshold()) {
                 continue; 
             }
 

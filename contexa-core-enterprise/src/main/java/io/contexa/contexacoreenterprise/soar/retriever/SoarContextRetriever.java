@@ -5,6 +5,7 @@ import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -19,7 +20,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 public class SoarContextRetriever extends ContextRetriever {
 
     private final ContextRetrieverRegistry registry;
+    private final SoarProperties soarProperties;
 
     @Autowired(required = false)
     private ChatClient.Builder chatClientBuilder;
@@ -44,22 +45,15 @@ public class SoarContextRetriever extends ContextRetriever {
     @Qualifier("threatCorrelator")
     private DocumentPostProcessor threatCorrelator;
 
-    @Value("${spring.ai.rag.soar.similarity-threshold:0.75}")
-    private double soarSimilarityThreshold;
-
-    @Value("${spring.ai.rag.soar.top-k:20}")
-    private int soarTopK;
-
-    @Value("${spring.ai.rag.soar.lookback-hours:24}")
-    private int lookbackHours;
-
     private RetrievalAugmentationAdvisor soarAdvisor;
 
     public SoarContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry registry) {
+            ContextRetrieverRegistry registry,
+            SoarProperties soarProperties) {
         super(vectorStore);
         this.registry = registry;
+        this.soarProperties = soarProperties;
     }
 
     @PostConstruct
@@ -96,8 +90,8 @@ public class SoarContextRetriever extends ContextRetriever {
 
         VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
                 .vectorStore(vectorStore)
-                .similarityThreshold(soarSimilarityThreshold)
-                .topK(soarTopK)
+                .similarityThreshold(soarProperties.getSimilarityThreshold())
+                .topK(soarProperties.getTopK())
                 .filterExpression(filter)
                 .build();
 

@@ -3,9 +3,9 @@ package io.contexa.contexacore.hcad.service;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
+import io.contexa.contexacore.properties.HcadProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import java.time.Duration;
@@ -19,9 +19,7 @@ import java.util.concurrent.TimeUnit;
 public class HCADContextExtractor {
 
     private final RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${contexa.hcad.enable-simulated-user-agent:false}")
-    private boolean enableSimulatedUserAgent;
+    private final HcadProperties hcadProperties;
 
     public HCADContext extractContext(HttpServletRequest request, Authentication authentication) {
         long startTime = System.nanoTime();
@@ -48,7 +46,7 @@ public class HCADContextExtractor {
             context.setRemoteIp(clientIp);
             
             String userAgent;
-            if (enableSimulatedUserAgent) {
+            if (hcadProperties.isEnableSimulatedUserAgent()) {
                 userAgent = request.getHeader("X-Simulated-User-Agent");
                 if (userAgent == null || userAgent.isEmpty()) {
                     userAgent = request.getHeader("User-Agent");

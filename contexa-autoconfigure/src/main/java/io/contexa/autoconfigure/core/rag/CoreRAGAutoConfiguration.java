@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.core.rag;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.std.components.event.AuditLogger;
@@ -89,8 +90,9 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore) {
-        return new VectorStoreCacheLayer(vectorStore);
+    public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
     }
 
     @Bean

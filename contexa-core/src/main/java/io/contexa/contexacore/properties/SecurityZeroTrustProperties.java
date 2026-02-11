@@ -24,6 +24,32 @@ public class SecurityZeroTrustProperties {
     @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
 
+    @NestedConfigurationProperty
+    private ThreatSettings threat = new ThreatSettings();
+
+    @NestedConfigurationProperty
+    private CacheSettings cache = new CacheSettings();
+
+    @NestedConfigurationProperty
+    private SessionSettings session = new SessionSettings();
+
+    @Data
+    public static class ThreatSettings {
+        private double initial = 0.3;
+    }
+
+    @Data
+    public static class CacheSettings {
+        private int ttlHours = 24;
+        private int sessionTtlMinutes = 30;
+        private int invalidatedTtlMinutes = 60;
+    }
+
+    @Data
+    public static class SessionSettings {
+        private boolean trackingEnabled = true;
+    }
+
     @Data
     public static class SamplingSettings {
         private double rate = 1.0;
@@ -45,5 +71,6 @@ public class SecurityZeroTrustProperties {
     @Data
     public static class RedisSettings {
         private int timeout = 5;
+        private int updateIntervalSeconds = 30;
     }
 }

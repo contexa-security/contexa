@@ -1,9 +1,9 @@
 package io.contexa.contexacoreenterprise.autonomous.notification;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacoreenterprise.properties.SlackProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -22,41 +22,9 @@ import java.util.concurrent.atomic.AtomicLong;
 public class SlackNotificationAdapter {
     
     private final ObjectMapper objectMapper;
+    private final SlackProperties slackProperties;
 
     private WebClient slackWebClient;
-
-    @Value("${slack.webhook.url:}")
-    private String webhookUrl;
-    
-    @Value("${slack.api.token:}")
-    private String apiToken;
-    
-    @Value("${slack.channel.default:#security-alerts}")
-    private String defaultChannel;
-    
-    @Value("${slack.channel.urgent:#security-urgent}")
-    private String urgentChannel;
-    
-    @Value("${slack.channel.approval:#security-approvals}")
-    private String approvalChannel;
-    
-    @Value("${slack.username:contexa Bot}")
-    private String botUsername;
-    
-    @Value("${slack.icon.emoji::shield:}")
-    private String botIconEmoji;
-    
-    @Value("${slack.retry.max-attempts:3}")
-    private int maxRetryAttempts;
-    
-    @Value("${slack.retry.delay-seconds:2}")
-    private int retryDelaySeconds;
-    
-    @Value("${slack.rate-limit.messages-per-minute:20}")
-    private int rateLimitPerMinute;
-    
-    @Value("${slack.enabled:false}")
-    private boolean slackEnabled;
 
     private final Map<String, MessageTemplate> messageTemplates = new ConcurrentHashMap<>();
 
@@ -68,7 +36,7 @@ public class SlackNotificationAdapter {
     
     @PostConstruct
     public void initialize() {
-        if (!slackEnabled) {
+        if (!slackProperties.isEnabled()) {
                         return;
         }
 
@@ -83,7 +51,7 @@ public class SlackNotificationAdapter {
     }
 
     public Mono<Boolean> sendToChannel(String channel, String title, Map<String, Object> context, UnifiedNotificationService.NotificationPriority priority) {
-        if (!slackEnabled) {
+        if (!slackProperties.isEnabled()) {
             return Mono.just(false);
         }
         
@@ -102,7 +70,7 @@ public class SlackNotificationAdapter {
     }
 
     public Mono<Boolean> sendMessage(String text, String content, UnifiedNotificationService.NotificationPriority priority) {
-        if (!slackEnabled) {
+        if (!slackProperties.isEnabled()) {
             return Mono.just(false);
         }
         
@@ -110,8 +78,8 @@ public class SlackNotificationAdapter {
         
         SlackMessage message = SlackMessage.builder()
             .channel(channel)
-            .username(botUsername)
-            .iconEmoji(botIconEmoji)
+            .username(slackProperties.getUsername())
+            .iconEmoji(slackProperties.getIcon().getEmoji())
             .text(text)
             .blocks(createTextBlocks(text, content, priority))
             .build();
@@ -120,7 +88,7 @@ public class SlackNotificationAdapter {
     }
 
     public Mono<Boolean> sendApprovalRequest(String requestId, String toolName, String riskLevel, Map<String, Object> context) {
-        if (!slackEnabled) {
+        if (!slackProperties.isEnabled()) {
             return Mono.just(false);
         }
         
@@ -152,8 +120,8 @@ public class SlackNotificationAdapter {
         ));
         
         SlackMessage message = SlackMessage.builder()
-            .channel(approvalChannel)
-            .username(botUsername)
+            .channel(slackProperties.getChannel().getApproval())
+            .username(slackProperties.getUsername())
             .iconEmoji(":warning:")
             .text("도구 실행 승인이 필요합니다")
             .blocks(blocks)
@@ -163,7 +131,7 @@ public class SlackNotificationAdapter {
     }
 
     public Mono<Boolean> sendSecurityAlert(String title, String severity, Map<String, String> details, List<String> recommendations) {
-        if (!slackEnabled) {
+        if (!slackProperties.isEnabled()) {
             return Mono.just(false);
         }
         
@@ -200,8 +168,8 @@ public class SlackNotificationAdapter {
         ));
         
         SlackMessage message = SlackMessage.builder()
-            .channel("CRITICAL".equals(severity) ? urgentChannel : defaultChannel)
-            .username(botUsername)
+            .channel("CRITICAL".equals(severity) ? slackProperties.getChannel().getUrgent() : slackProperties.getChannel().getDefaultChannel())
+            .username(slackProperties.getUsername())
             .iconEmoji(":rotating_light:")
             .text(title)
             .blocks(blocks)
@@ -218,11 +186,11 @@ public class SlackNotificationAdapter {
 
     private Mono<Boolean> sendMessage(SlackMessage message) {
         
-        if (webhookUrl != null && !webhookUrl.isEmpty()) {
+        if (slackProperties.getWebhook().getUrl() != null && !slackProperties.getWebhook().getUrl().isEmpty()) {
             return sendViaWebhook(message);
         }
 
-        if (apiToken != null && !apiToken.isEmpty()) {
+        if (slackProperties.getApi().getToken() != null && !slackProperties.getApi().getToken().isEmpty()) {
             return sendViaApi(message);
         }
         
@@ -232,7 +200,7 @@ public class SlackNotificationAdapter {
 
     private Mono<Boolean> sendViaWebhook(SlackMessage message) {
         return slackWebClient.post()
-            .uri(webhookUrl)
+            .uri(slackProperties.getWebhook().getUrl())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(message)
             .retrieve()
@@ -244,7 +212,7 @@ public class SlackNotificationAdapter {
                 recordMessageTime();
                                 return true;
             })
-            .retryWhen(Retry.backoff(maxRetryAttempts, Duration.ofSeconds(retryDelaySeconds)))
+            .retryWhen(Retry.backoff(slackProperties.getRetry().getMaxAttempts(), Duration.ofSeconds(slackProperties.getRetry().getDelaySeconds())))
             .onErrorResume(error -> {
                 failedMessages.incrementAndGet();
                 log.error("Slack 메시지 전송 실패", error);
@@ -255,7 +223,7 @@ public class SlackNotificationAdapter {
     private Mono<Boolean> sendViaApi(SlackMessage message) {
         return slackWebClient.post()
             .uri("https://slack.com/api/chat.postMessage")
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiToken)
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + slackProperties.getApi().getToken())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(message)
             .retrieve()
@@ -273,7 +241,7 @@ public class SlackNotificationAdapter {
                     return false;
                 }
             })
-            .retryWhen(Retry.backoff(maxRetryAttempts, Duration.ofSeconds(retryDelaySeconds)))
+            .retryWhen(Retry.backoff(slackProperties.getRetry().getMaxAttempts(), Duration.ofSeconds(slackProperties.getRetry().getDelaySeconds())))
             .onErrorResume(error -> {
                 failedMessages.incrementAndGet();
                 log.error("Slack API 메시지 전송 실패", error);
@@ -284,8 +252,8 @@ public class SlackNotificationAdapter {
     private void initializeWebClient() {
         WebClient.Builder builder = WebClient.builder();
 
-        if (webhookUrl != null && !webhookUrl.isEmpty()) {
-            builder.baseUrl(webhookUrl);
+        if (slackProperties.getWebhook().getUrl() != null && !slackProperties.getWebhook().getUrl().isEmpty()) {
+            builder.baseUrl(slackProperties.getWebhook().getUrl());
         }
         
         slackWebClient = builder
@@ -329,8 +297,8 @@ public class SlackNotificationAdapter {
         ));
         
         return SlackMessage.builder()
-            .username(botUsername)
-            .iconEmoji(botIconEmoji)
+            .username(slackProperties.getUsername())
+            .iconEmoji(slackProperties.getIcon().getEmoji())
             .text(title)
             .blocks(blocks)
             .build();
@@ -350,9 +318,9 @@ public class SlackNotificationAdapter {
 
     private String selectChannel(UnifiedNotificationService.NotificationPriority priority) {
         return switch (priority) {
-            case URGENT -> urgentChannel;
-            case HIGH -> urgentChannel;
-            default -> defaultChannel;
+            case URGENT -> slackProperties.getChannel().getUrgent();
+            case HIGH -> slackProperties.getChannel().getUrgent();
+            default -> slackProperties.getChannel().getDefaultChannel();
         };
     }
 
@@ -383,7 +351,7 @@ public class SlackNotificationAdapter {
 
             messageTimes.removeIf(time -> time < oneMinuteAgo);
 
-            if (messageTimes.size() >= rateLimitPerMinute) {
+            if (messageTimes.size() >= slackProperties.getRateLimit().getMessagesPerMinute()) {
                 return false;
             }
             
@@ -396,16 +364,16 @@ public class SlackNotificationAdapter {
     }
 
     private Mono<Boolean> testConnection() {
-        if (webhookUrl != null && !webhookUrl.isEmpty()) {
+        if (slackProperties.getWebhook().getUrl() != null && !slackProperties.getWebhook().getUrl().isEmpty()) {
             
             return Mono.just(true);
         }
         
-        if (apiToken != null && !apiToken.isEmpty()) {
+        if (slackProperties.getApi().getToken() != null && !slackProperties.getApi().getToken().isEmpty()) {
             
             return slackWebClient.get()
                 .uri("https://slack.com/api/auth.test")
-                .header(HttpHeaders.AUTHORIZATION, "Bearer " + apiToken)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + slackProperties.getApi().getToken())
                 .retrieve()
                 .bodyToMono(SlackApiResponse.class)
                 .map(SlackApiResponse::isOk)
@@ -417,7 +385,7 @@ public class SlackNotificationAdapter {
 
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
-        metrics.put("enabled", slackEnabled);
+        metrics.put("enabled", slackProperties.isEnabled());
         metrics.put("totalSent", totalMessagesSent.get());
         metrics.put("totalFailed", failedMessages.get());
         
@@ -428,7 +396,7 @@ public class SlackNotificationAdapter {
         metrics.put("channelStats", channelStats);
         
         metrics.put("currentRateUsage", messageTimes.size());
-        metrics.put("rateLimit", rateLimitPerMinute);
+        metrics.put("rateLimit", slackProperties.getRateLimit().getMessagesPerMinute());
         
         return metrics;
     }

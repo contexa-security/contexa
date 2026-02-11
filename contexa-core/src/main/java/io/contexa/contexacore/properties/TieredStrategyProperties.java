@@ -44,6 +44,16 @@ public class TieredStrategyProperties {
 
     }
 
+    private VectorCache vectorCache = new VectorCache();
+
+    @Data
+    public static class VectorCache {
+        private int maxSize = 10000;
+        private int expireMinutes = 5;
+        private boolean enabled = true;
+        private boolean recordStats = true;
+    }
+
     @Data
     public static class Layer1 {
         private Rag rag = new Rag();
@@ -51,6 +61,7 @@ public class TieredStrategyProperties {
         private Cache cache = new Cache();
         private Timeout timeout = new Timeout();
         private Prompt prompt = new Prompt();
+        private int vectorSearchLimit = 10;
 
         @Data
         public static class Prompt {

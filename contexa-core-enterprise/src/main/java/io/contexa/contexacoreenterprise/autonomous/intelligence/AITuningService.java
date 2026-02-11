@@ -4,9 +4,9 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import io.contexa.contexacoreenterprise.properties.AiTuningProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import reactor.core.publisher.Mono;
@@ -26,30 +26,7 @@ public class AITuningService {
 
     private final VectorStore vectorStore;
     private final RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${ai.tuning.enabled:true}")
-    private boolean tuningEnabled;
-    
-    @Value("${ai.tuning.learning.rate:0.01}")
-    private double learningRate;
-    
-    @Value("${ai.tuning.batch.size:100}")
-    private int batchSize;
-    
-    @Value("${ai.tuning.evaluation.interval-hours:6}")
-    private int evaluationIntervalHours;
-    
-    @Value("${ai.tuning.min.samples:50}")
-    private int minSamplesForTuning;
-    
-    @Value("${ai.tuning.confidence.threshold:0.8}")
-    private double confidenceThreshold;
-    
-    @Value("${ai.tuning.false.positive.penalty:0.3}")
-    private double falsePositivePenalty;
-    
-    @Value("${ai.tuning.false.negative.penalty:0.7}")
-    private double falseNegativePenalty;
+    private final AiTuningProperties aiTuningProperties;
 
     private final Map<String, LearningData> learningDataStore = new ConcurrentHashMap<>();
 
@@ -66,7 +43,7 @@ public class AITuningService {
     
     @PostConstruct
     public void initialize() {
-        if (!tuningEnabled) {
+        if (!aiTuningProperties.isEnabled()) {
                         return;
         }
 
@@ -79,7 +56,7 @@ public class AITuningService {
             }
 
     public Mono<LearningResult> learnFalsePositive(SecurityEvent event, UserFeedback feedback) {
-        if (!tuningEnabled) {
+        if (!aiTuningProperties.isEnabled()) {
             return Mono.just(LearningResult.disabled());
         }
         
@@ -102,7 +79,7 @@ public class AITuningService {
     }
 
     public Mono<LearningResult> learnFalseNegative(SecurityEvent missedEvent, ThreatIndicators indicators) {
-        if (!tuningEnabled) {
+        if (!aiTuningProperties.isEnabled()) {
             return Mono.just(LearningResult.disabled());
         }
         
@@ -181,14 +158,14 @@ public class AITuningService {
     }
 
     public void performBatchTuning() {
-        if (!tuningEnabled) {
+        if (!aiTuningProperties.isEnabled()) {
             return;
         }
         
                 totalTuningCycles.incrementAndGet();
         
         learningDataStore.forEach((modelId, data) -> {
-            if (data.getSampleCount() >= minSamplesForTuning) {
+            if (data.getSampleCount() >= aiTuningProperties.getMin().getSamples()) {
                 performTuning(modelId, data)
                     .subscribe(
                         result -> {
@@ -239,22 +216,22 @@ public class AITuningService {
     private Map<String, Double> calculateGradients(LearningData data, ModelParameters params) {
         Map<String, Double> gradients = new HashMap<>();
 
-        double fpLoss = data.getFalsePositiveCount() * falsePositivePenalty;
-        double fnLoss = data.getFalseNegativeCount() * falseNegativePenalty;
+        double fpLoss = data.getFalsePositiveCount() * aiTuningProperties.getFalsePositive().getPenalty();
+        double fnLoss = data.getFalseNegativeCount() * aiTuningProperties.getFalseNegative().getPenalty();
         double totalLoss = fpLoss + fnLoss;
 
         double thresholdGradient = 0.0;
         if (fpLoss > fnLoss) {
-            thresholdGradient = learningRate * 0.1;  
+            thresholdGradient = aiTuningProperties.getLearning().getRate() * 0.1;  
         } else if (fnLoss > fpLoss) {
-            thresholdGradient = -learningRate * 0.1;  
+            thresholdGradient = -aiTuningProperties.getLearning().getRate() * 0.1;  
         }
         gradients.put("threshold", thresholdGradient);
 
-        double sensitivityGradient = -learningRate * (fpLoss - fnLoss) / totalLoss;
+        double sensitivityGradient = -aiTuningProperties.getLearning().getRate() * (fpLoss - fnLoss) / totalLoss;
         gradients.put("sensitivity", sensitivityGradient);
 
-        double specificityGradient = learningRate * fpLoss / totalLoss;
+        double specificityGradient = aiTuningProperties.getLearning().getRate() * fpLoss / totalLoss;
         gradients.put("specificity", specificityGradient);
 
         gradients.replaceAll((k, v) -> v * Math.exp(-data.getSampleCount() / 1000.0));
@@ -370,7 +347,7 @@ public class AITuningService {
         
         return data.getFalsePositiveCount() > 10 || 
                data.getFalseNegativeCount() > 5 ||
-               data.getSampleCount() > minSamplesForTuning * 2;
+               data.getSampleCount() > aiTuningProperties.getMin().getSamples() * 2;
     }
 
     private void initializeModelParameters() {
@@ -533,7 +510,7 @@ public class AITuningService {
     }
 
     public Mono<LearningResult> tuneFromIncident(Object incident, Map<String, Object> metadata) {
-        if (!tuningEnabled) {
+        if (!aiTuningProperties.isEnabled()) {
             return Mono.just(LearningResult.disabled());
         }
 
@@ -565,7 +542,7 @@ public class AITuningService {
 
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
-        metrics.put("enabled", tuningEnabled);
+        metrics.put("enabled", aiTuningProperties.isEnabled());
         metrics.put("totalTuningCycles", totalTuningCycles.get());
         metrics.put("successfulTunings", successfulTunings.get());
         metrics.put("falsePositivesLearned", falsePositivesLearned.get());

@@ -8,7 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Value;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 
 import java.time.Duration;
 import java.util.List;
@@ -18,33 +18,24 @@ import java.util.concurrent.TimeUnit;
 public class VectorStoreCacheLayer {
 
     private final VectorStore vectorStore;
+    private final TieredStrategyProperties tieredStrategyProperties;
 
-    public VectorStoreCacheLayer(VectorStore vectorStore) {
+    public VectorStoreCacheLayer(VectorStore vectorStore, TieredStrategyProperties tieredStrategyProperties) {
         this.vectorStore = vectorStore;
+        this.tieredStrategyProperties = tieredStrategyProperties;
     }
-
-    @Value("${spring.ai.security.vector-cache.max-size:10000}")
-    private long maxCacheSize;
-
-    @Value("${spring.ai.security.vector-cache.expire-minutes:5}")
-    private int expireMinutes;
-
-    @Value("${spring.ai.security.vector-cache.enabled:true}")
-    private boolean cacheEnabled;
-
-    @Value("${spring.ai.security.vector-cache.record-stats:true}")
-    private boolean recordStats;
 
     private Cache<String, List<Document>> cache;
 
     @PostConstruct
     public void init() {
+        TieredStrategyProperties.VectorCache vectorCache = tieredStrategyProperties.getVectorCache();
 
         Caffeine<Object, Object> builder = Caffeine.newBuilder()
-                .maximumSize(maxCacheSize)
-                .expireAfterWrite(expireMinutes, TimeUnit.MINUTES);
+                .maximumSize(vectorCache.getMaxSize())
+                .expireAfterWrite(vectorCache.getExpireMinutes(), TimeUnit.MINUTES);
 
-        if (recordStats) {
+        if (vectorCache.isRecordStats()) {
             builder.recordStats();
         }
 
@@ -53,7 +44,7 @@ public class VectorStoreCacheLayer {
     }
 
     public List<Document> similaritySearch(SearchRequest request) {
-        if (!cacheEnabled || vectorStore == null) {
+        if (!tieredStrategyProperties.getVectorCache().isEnabled() || vectorStore == null) {
             return fallbackSearch(request);
         }
 
@@ -131,7 +122,7 @@ public class VectorStoreCacheLayer {
     }
 
     public void invalidate(String query) {
-        if (!cacheEnabled) {
+        if (!tieredStrategyProperties.getVectorCache().isEnabled()) {
             return;
         }
 
@@ -142,7 +133,7 @@ public class VectorStoreCacheLayer {
     }
 
     public void invalidateAll() {
-        if (!cacheEnabled) {
+        if (!tieredStrategyProperties.getVectorCache().isEnabled()) {
             return;
         }
 
@@ -150,7 +141,7 @@ public class VectorStoreCacheLayer {
     }
 
     public CacheStatistics getStatistics() {
-        if (!cacheEnabled || !recordStats) {
+        if (!tieredStrategyProperties.getVectorCache().isEnabled() || !tieredStrategyProperties.getVectorCache().isRecordStats()) {
             return CacheStatistics.empty();
         }
 

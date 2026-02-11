@@ -36,6 +36,7 @@ public class SecurityPlaneProperties {
 
         private String organizationId = "default-org";
         private String executionMode = "ASYNC";
+        private boolean autoApproveLowRisk = false;
     }
 
     @Data
@@ -68,7 +69,7 @@ public class SecurityPlaneProperties {
     public static class NotifierSettings {
         private int batchSize = 10;
         private boolean asyncEnabled = true;
-
+        private double criticalThreshold = 0.8;
     }
 
     @Data

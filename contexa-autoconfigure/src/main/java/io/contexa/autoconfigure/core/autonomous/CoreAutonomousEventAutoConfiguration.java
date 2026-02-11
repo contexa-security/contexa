@@ -8,6 +8,10 @@ import io.contexa.contexacore.autonomous.domain.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.properties.BackpressureProperties;
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
+import io.contexa.contexacore.properties.SecurityRedisProperties;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
@@ -42,7 +46,7 @@ import java.util.List;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class })
+@EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class, BackpressureProperties.class })
 public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
@@ -56,15 +60,17 @@ public class CoreAutonomousEventAutoConfiguration {
     public ZeroTrustEventListener zeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
-            SecurityDecisionPostProcessor securityDecisionPostProcessor) {
-        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, redisTemplate, securityDecisionPostProcessor);
+            SecurityDecisionPostProcessor securityDecisionPostProcessor,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, redisTemplate, securityDecisionPostProcessor, securityZeroTrustProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
-            KafkaTemplate<String, Object> kafkaTemplate) {
-        return new KafkaSecurityEventPublisher(kafkaTemplate);
+            KafkaTemplate<String, Object> kafkaTemplate,
+            SecurityKafkaProperties securityKafkaProperties) {
+        return new KafkaSecurityEventPublisher(kafkaTemplate, securityKafkaProperties);
     }
 
     @Bean
@@ -79,24 +85,27 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public DeadLetterQueueMonitor deadLetterQueueMonitor(
             KafkaTemplate<String, Object> kafkaTemplate,
-            MeterRegistry meterRegistry) {
-        return new DeadLetterQueueMonitor(kafkaTemplate, meterRegistry);
+            MeterRegistry meterRegistry,
+            SecurityKafkaProperties securityKafkaProperties) {
+        return new DeadLetterQueueMonitor(kafkaTemplate, meterRegistry, securityKafkaProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public RedisMemoryMonitor redisMemoryMonitor(
             RedisTemplate<String, Object> redisTemplate,
-            MeterRegistry meterRegistry) {
-        return new RedisMemoryMonitor(redisTemplate, meterRegistry);
+            MeterRegistry meterRegistry,
+            SecurityRedisProperties securityRedisProperties) {
+        return new RedisMemoryMonitor(redisTemplate, meterRegistry, securityRedisProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public BackpressureManager backpressureManager(
             MeterRegistry meterRegistry,
-            CircuitBreakerRegistry circuitBreakerRegistry) {
-        return new BackpressureManager(meterRegistry, circuitBreakerRegistry);
+            CircuitBreakerRegistry circuitBreakerRegistry,
+            BackpressureProperties backpressureProperties) {
+        return new BackpressureManager(meterRegistry, circuitBreakerRegistry, backpressureProperties);
     }
 
     @Bean

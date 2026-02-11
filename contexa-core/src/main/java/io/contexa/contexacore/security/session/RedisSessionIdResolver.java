@@ -2,6 +2,7 @@ package io.contexa.contexacore.security.session;
 
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import io.contexa.contexacore.properties.SecuritySessionProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -21,16 +22,13 @@ public class RedisSessionIdResolver implements SessionIdResolver {
     @Value("${server.servlet.session.cookie.name:SESSION}")
     private String sessionCookieName;
 
-    @Value("${security.session.header.name:X-Auth-Token}")
-    private String sessionHeaderName;
-
-    @Value("${security.session.bearer.enabled:true}")
-    private boolean bearerTokenEnabled;
-
     private final RedisTemplate<String, Object> redisTemplate;
+    private final SecuritySessionProperties securitySessionProperties;
 
-    public RedisSessionIdResolver(RedisTemplate<String, Object> redisTemplate) {
+    public RedisSessionIdResolver(RedisTemplate<String, Object> redisTemplate,
+                                  SecuritySessionProperties securitySessionProperties) {
         this.redisTemplate = redisTemplate;
+        this.securitySessionProperties = securitySessionProperties;
     }
 
     @Override
@@ -46,7 +44,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
             return sessionId;
         }
 
-        if (bearerTokenEnabled) {
+        if (securitySessionProperties.getBearer().isEnabled()) {
             sessionId = extractFromBearerToken(request);
             if (StringUtils.hasText(sessionId)) {
                 return sessionId;
@@ -94,7 +92,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         if (extractFromHeader(request) != null) {
             return SessionSource.HEADER;
         }
-        if (bearerTokenEnabled && extractFromBearerToken(request) != null) {
+        if (securitySessionProperties.getBearer().isEnabled() && extractFromBearerToken(request) != null) {
             return SessionSource.BEARER;
         }
         if (extractFromAttribute(request) != null) {
@@ -127,7 +125,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
     }
 
     private String extractFromHeader(HttpServletRequest request) {
-        String sessionId = request.getHeader(sessionHeaderName);
+        String sessionId = request.getHeader(securitySessionProperties.getHeader().getName());
         if (StringUtils.hasText(sessionId)) {
 
             if (sessionId.startsWith("Bearer ")) {

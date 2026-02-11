@@ -2,13 +2,13 @@ package io.contexa.contexacoreenterprise.autonomous.service;
 
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
+import io.contexa.contexacoreenterprise.properties.ResultDeliveryProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacoreenterprise.domain.entity.ToolExecutionContext;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import reactor.core.publisher.Flux;
@@ -33,30 +33,7 @@ public class AsyncResultDeliveryService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final SimpMessagingTemplate messagingTemplate;
     private final ObjectMapper objectMapper;
-
-    @Value("${result.delivery.retry.max-attempts:3}")
-    private int maxRetryAttempts;
-    
-    @Value("${result.delivery.retry.delay-seconds:5}")
-    private int retryDelaySeconds;
-    
-    @Value("${result.delivery.ttl-hours:24}")
-    private int resultTtlHours;
-    
-    @Value("${result.delivery.batch.size:50}")
-    private int batchSize;
-    
-    @Value("${result.delivery.batch.interval-ms:1000}")
-    private int batchIntervalMs;
-    
-    @Value("${result.delivery.websocket.enabled:true}")
-    private boolean websocketEnabled;
-    
-    @Value("${result.delivery.notification.enabled:true}")
-    private boolean notificationEnabled;
-    
-    @Value("${result.delivery.event.enabled:true}")
-    private boolean eventPublishingEnabled;
+    private final ResultDeliveryProperties resultDeliveryProperties;
 
     private final List<PendingResult> resultQueue = Collections.synchronizedList(new ArrayList<>());
 
@@ -96,7 +73,7 @@ public class AsyncResultDeliveryService {
 
                     List<Mono<Boolean>> deliveries = new ArrayList<>();
 
-                    if (eventPublishingEnabled) {
+                    if (resultDeliveryProperties.getEvent().isEnabled()) {
                         deliveries.add(publishToRedis(requestId, response)
                             .doOnSuccess(success -> {
                                 if (success) status.markEventDelivered();
@@ -104,7 +81,7 @@ public class AsyncResultDeliveryService {
                             }));
                     }
 
-                    if (websocketEnabled) {
+                    if (resultDeliveryProperties.getWebsocket().isEnabled()) {
                         deliveries.add(pushToWebSocket(requestId, response)
                             .doOnSuccess(success -> {
                                 if (success) status.markWebSocketDelivered();
@@ -112,7 +89,7 @@ public class AsyncResultDeliveryService {
                             }));
                     }
 
-                    if (notificationEnabled) {
+                    if (resultDeliveryProperties.getNotification().isEnabled()) {
                         deliveries.add(sendNotification(requestId, response)
                             .doOnSuccess(success -> {
                                 if (success) status.markNotificationDelivered();
@@ -233,7 +210,7 @@ public class AsyncResultDeliveryService {
         return Mono.fromCallable(() -> {
             try {
                 String key = "soar:result:" + requestId;
-                redisTemplate.opsForValue().set(key, response, resultTtlHours, TimeUnit.HOURS);
+                redisTemplate.opsForValue().set(key, response, resultDeliveryProperties.getTtlHours(), TimeUnit.HOURS);
 
                 channelMetrics.computeIfAbsent(DeliveryChannel.REDIS, k -> new AtomicLong()).incrementAndGet();
                 return true;
@@ -304,14 +281,14 @@ public class AsyncResultDeliveryService {
                 List<PendingResult> batch;
                 synchronized (resultQueue) {
                     batch = resultQueue.stream()
-                        .limit(batchSize)
+                        .limit(resultDeliveryProperties.getBatch().getSize())
                         .collect(Collectors.toList());
                     resultQueue.removeAll(batch);
                 }
                 
                 processBatch(batch);
             }
-        }, batchIntervalMs, batchIntervalMs, TimeUnit.MILLISECONDS);
+        }, resultDeliveryProperties.getBatch().getIntervalMs(), resultDeliveryProperties.getBatch().getIntervalMs(), TimeUnit.MILLISECONDS);
     }
 
     private void processBatch(List<PendingResult> batch) {
@@ -329,7 +306,7 @@ public class AsyncResultDeliveryService {
             
             deliveryStatuses.entrySet().stream()
                 .filter(entry -> !entry.getValue().isCompleted() && 
-                        entry.getValue().getRetryCount() < maxRetryAttempts)
+                        entry.getValue().getRetryCount() < resultDeliveryProperties.getRetry().getMaxAttempts())
                 .forEach(entry -> {
                     String requestId = entry.getKey();
                     DeliveryStatus status = entry.getValue();
@@ -346,7 +323,7 @@ public class AsyncResultDeliveryService {
                                 );
                     }
                 });
-        }, retryDelaySeconds, retryDelaySeconds * 2, TimeUnit.SECONDS);
+        }, resultDeliveryProperties.getRetry().getDelaySeconds(), resultDeliveryProperties.getRetry().getDelaySeconds() * 2, TimeUnit.SECONDS);
     }
 
     private void startCacheCleaner() {
@@ -364,7 +341,7 @@ public class AsyncResultDeliveryService {
             if (removed > 0) {
                             }
 
-            LocalDateTime cutoff = LocalDateTime.now().minusHours(resultTtlHours);
+            LocalDateTime cutoff = LocalDateTime.now().minusHours(resultDeliveryProperties.getTtlHours());
             deliveryStatuses.entrySet().removeIf(entry -> 
                 entry.getValue().getCreatedAt().isBefore(cutoff)
             );

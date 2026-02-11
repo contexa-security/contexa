@@ -95,8 +95,9 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore) {
-        return new VectorStoreCacheLayer(vectorStore);
+    public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
     }
 
     @Bean
@@ -107,14 +108,15 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ThreatScoreUtil threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate) {
-        return new ThreatScoreUtil(redisTemplate);
+    public ThreatScoreUtil threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ThreatScoreUtil(redisTemplate, securityZeroTrustProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public SoarContextProviderImpl soarContextProviderImpl() {
-        return new SoarContextProviderImpl();
+    public SoarContextProviderImpl soarContextProviderImpl(SecurityPlaneProperties securityPlaneProperties) {
+        return new SoarContextProviderImpl(securityPlaneProperties);
     }
 
     @Bean

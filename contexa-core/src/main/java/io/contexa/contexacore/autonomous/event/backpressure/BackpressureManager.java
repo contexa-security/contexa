@@ -5,9 +5,8 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.contexa.contexacore.properties.BackpressureProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
@@ -21,18 +20,9 @@ public class BackpressureManager {
 
     private final MeterRegistry meterRegistry;
     private final CircuitBreakerRegistry circuitBreakerRegistry;
+    private final BackpressureProperties backpressureProperties;
 
-    @Value("${security.backpressure.max-concurrent-requests:100}")
     private int maxConcurrentRequests;
-
-    @Value("${security.backpressure.timeout-ms:5000}")
-    private long timeoutMs;
-
-    @Value("${security.backpressure.circuit-breaker.failure-rate:50}")
-    private float circuitBreakerFailureRate;
-
-    @Value("${security.backpressure.circuit-breaker.wait-duration-open:60}")
-    private int circuitBreakerWaitDurationOpen;
 
     private Semaphore requestSemaphore;
 
@@ -44,19 +34,21 @@ public class BackpressureManager {
     private final AtomicLong rejectedRequests = new AtomicLong(0);
     private final AtomicLong timeoutRequests = new AtomicLong(0);
 
-    public BackpressureManager(MeterRegistry meterRegistry, CircuitBreakerRegistry circuitBreakerRegistry) {
+    public BackpressureManager(MeterRegistry meterRegistry, CircuitBreakerRegistry circuitBreakerRegistry,
+                               BackpressureProperties backpressureProperties) {
         this.meterRegistry = meterRegistry;
         this.circuitBreakerRegistry = circuitBreakerRegistry;
+        this.backpressureProperties = backpressureProperties;
     }
 
     @PostConstruct
     public void initialize() {
-        
+        this.maxConcurrentRequests = backpressureProperties.getMaxConcurrentRequests();
         requestSemaphore = new Semaphore(maxConcurrentRequests);
 
         CircuitBreakerConfig config = CircuitBreakerConfig.custom()
-            .failureRateThreshold(circuitBreakerFailureRate)
-            .waitDurationInOpenState(Duration.ofSeconds(circuitBreakerWaitDurationOpen))
+            .failureRateThreshold(backpressureProperties.getCircuitBreaker().getFailureRate())
+            .waitDurationInOpenState(Duration.ofSeconds(backpressureProperties.getCircuitBreaker().getWaitDurationOpen()))
             .slidingWindowSize(100)
             .minimumNumberOfCalls(10)
             .permittedNumberOfCallsInHalfOpenState(5)
@@ -87,7 +79,7 @@ public class BackpressureManager {
 
     public boolean tryAcquire() {
         try {
-            boolean acquired = requestSemaphore.tryAcquire(timeoutMs, TimeUnit.MILLISECONDS);
+            boolean acquired = requestSemaphore.tryAcquire(backpressureProperties.getTimeoutMs(), TimeUnit.MILLISECONDS);
             if (acquired) {
                 activeRequests.incrementAndGet();
                                 return true;

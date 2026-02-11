@@ -2,6 +2,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
@@ -9,8 +10,6 @@ import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.expression.EvaluationContext;
@@ -38,7 +37,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final StringRedisTemplate stringRedisTemplate;
 
     public CustomMethodSecurityExpressionHandler(
-            @Value("${security.zerotrust.mode:TRUST}") String zeroTrustMode,
+            SecurityZeroTrustProperties securityZeroTrustProperties,
             CompositePermissionEvaluator compositePermissionEvaluator,
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
@@ -47,7 +46,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             AuditLogRepository auditLogRepository,
             StringRedisTemplate stringRedisTemplate) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
-        Assert.notNull(zeroTrustMode, "zeroTrustMode cannot be null");
+        Assert.notNull(securityZeroTrustProperties, "SecurityZeroTrustProperties cannot be null");
 
         this.policyRetrievalPoint = policyRetrievalPoint;
         this.contextHandler = contextHandler;

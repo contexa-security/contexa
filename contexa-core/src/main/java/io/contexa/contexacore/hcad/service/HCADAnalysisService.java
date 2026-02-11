@@ -7,10 +7,10 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.HashMap;
 import java.util.Map;
+import io.contexa.contexacore.properties.HcadProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 
@@ -18,13 +18,12 @@ import org.springframework.security.core.Authentication;
 public class HCADAnalysisService {
 
     private final HCADContextExtractor contextExtractor;
+    private final HcadProperties hcadProperties;
     private RedisTemplate<String, Object> redisTemplate;
 
-    @Value("${hcad.analysis.max-age-ms:3600000}")
-    private long analysisMaxAgeMs;
-
-    public HCADAnalysisService(HCADContextExtractor contextExtractor) {
+    public HCADAnalysisService(HCADContextExtractor contextExtractor, HcadProperties hcadProperties) {
         this.contextExtractor = contextExtractor;
+        this.hcadProperties = hcadProperties;
     }
 
     @Autowired
@@ -129,10 +128,10 @@ public class HCADAnalysisService {
                 if (analysis.containsKey("analyzedAt")) {
                     long analyzedAt = parseLong(analysis.get("analyzedAt"));
                     long ageMs = System.currentTimeMillis() - analyzedAt;
-                    if (ageMs > analysisMaxAgeMs) {
+                    if (ageMs > hcadProperties.getAnalysis().getMaxAgeMs()) {
                         isStale = true;
                         log.warn("[HCADAnalysisService][D3] Stale LLM analysis detected: userId={}, age={}ms, maxAge={}ms",
-                            userId, ageMs, analysisMaxAgeMs);
+                            userId, ageMs, hcadProperties.getAnalysis().getMaxAgeMs());
                     }
                 } else {
                     

@@ -4,11 +4,11 @@ import io.contexa.contexacore.security.async.AsyncAuthenticationData;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.std.advisor.core.AdvisorException;
 import io.contexa.contexacore.std.advisor.core.BaseAdvisor;
+import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -22,27 +22,21 @@ public class SecurityContextAdvisor extends BaseAdvisor {
     @Autowired(required = false)
     private AsyncSecurityContextProvider asyncSecurityContextProvider;
 
-    @Value("${contexa.advisor.security.order:50}")
-    private int advisorOrder;
+    private final ContexaAdvisorProperties contexaAdvisorProperties;
 
-    @Value("${contexa.advisor.security.enabled:true}")
-    private boolean advisorEnabled;
-
-    @Value("${contexa.advisor.security.require-authentication:false}")
-    private boolean requireAuthentication;
-
-    public SecurityContextAdvisor() {
+    public SecurityContextAdvisor(ContexaAdvisorProperties contexaAdvisorProperties) {
         super(DOMAIN_NAME, ADVISOR_NAME, 50);
+        this.contexaAdvisorProperties = contexaAdvisorProperties;
     }
 
     @Override
     public int getOrder() {
-        return advisorOrder;
+        return contexaAdvisorProperties.getSecurity().getOrder();
     }
 
     @Override
     public boolean isEnabled() {
-        return advisorEnabled;
+        return contexaAdvisorProperties.getSecurity().isEnabled();
     }
 
     @Override
@@ -87,7 +81,7 @@ public class SecurityContextAdvisor extends BaseAdvisor {
         request.context().put("timestamp", System.currentTimeMillis());
 
         boolean isAuthenticated = asyncAuth.isPresent() || (eventUserId != null && !eventUserId.isEmpty());
-        if (requireAuthentication && !isAuthenticated) {
+        if (contexaAdvisorProperties.getSecurity().isRequireAuthentication() && !isAuthenticated) {
             log.error("Authentication required but request has no authentication context");
             throw AdvisorException.blocking(DOMAIN_NAME, ADVISOR_NAME, "Authentication required");
         }

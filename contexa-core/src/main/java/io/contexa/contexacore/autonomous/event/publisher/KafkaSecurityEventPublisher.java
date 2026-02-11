@@ -3,11 +3,11 @@ package io.contexa.contexacore.autonomous.event.publisher;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -18,9 +18,7 @@ import java.util.concurrent.CompletableFuture;
 public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;
-
-    @Value("${security.kafka.topic.dlq:security-events-dlq}")
-    private String deadLetterTopic;
+    private final SecurityKafkaProperties securityKafkaProperties;
 
     @Override
     public void publishGenericSecurityEvent(ZeroTrustSpringEvent event) {
@@ -60,7 +58,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
                     .errorType(exception.getClass().getName())
                     .build();
 
-            kafkaTemplate.send(deadLetterTopic, dlqEvent);
+            kafkaTemplate.send(securityKafkaProperties.getTopic().getDlq(), dlqEvent);
             log.warn("Event sent to Dead Letter Queue: {}", event);
         } catch (Exception e) {
             log.error("Failed to send event to Dead Letter Queue", e);

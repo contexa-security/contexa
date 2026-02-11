@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -13,7 +14,6 @@ import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,21 +30,10 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PolicyEvolutionHelper implements PolicyEvolutionService {
 
     private final UnifiedVectorService unifiedVectorService;
+    private final PolicyEvolutionProperties policyEvolutionProperties;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${policy.evolution.enabled:true}")
-    private boolean evolutionEnabled;
-    
-    @Value("${policy.evolution.threshold:0.75}")
-    private double evolutionThreshold;
-    
-    @Value("${policy.evolution.min-samples:10}")
-    private int minSamplesForEvolution;
-    
-    @Value("${policy.evolution.retention-days:90}")
-    private int policyRetentionDays;
 
     private final Map<String, EvolvingPolicy> evolvingPolicies = new ConcurrentHashMap<>();
 
@@ -58,7 +47,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
     
     @PostConstruct
     public void initialize() {
-        if (!evolutionEnabled) {
+        if (!policyEvolutionProperties.isEnabled()) {
                         return;
         }
 
@@ -72,7 +61,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             String decision,
             String outcome) {
         
-        if (!evolutionEnabled) {
+        if (!policyEvolutionProperties.isEnabled()) {
             return Mono.just(PolicyLearningResult.disabled());
         }
         
@@ -153,7 +142,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             Map<String, Object> context,
             List<String> requirements) {
         
-        if (!evolutionEnabled) {
+        if (!policyEvolutionProperties.isEnabled()) {
             return Mono.empty();
         }
         
@@ -187,7 +176,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
         thresholds.put("mediumThreshold", 0.4);
         thresholds.put("highThreshold", 0.2);
         
-        if (!evolutionEnabled) {
+        if (!policyEvolutionProperties.isEnabled()) {
             return thresholds;
         }
         
@@ -299,8 +288,8 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             return false;
         }
 
-        return metrics.getTotalSamples() >= minSamplesForEvolution &&
-               metrics.calculateScore() < evolutionThreshold;
+        return metrics.getTotalSamples() >= policyEvolutionProperties.getMinSamples() &&
+               metrics.calculateScore() < policyEvolutionProperties.getThreshold();
     }
 
     private void adjustPolicyParameters(

@@ -8,9 +8,12 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatIndicators;
 import io.contexa.contexacore.autonomous.domain.NotificationResult;
 import io.contexa.contexacore.autonomous.service.ISoarNotifier;
+import io.contexa.contexacoreenterprise.properties.NotificationProperties;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -30,38 +33,9 @@ public class UnifiedNotificationService {
 
     private final SoarEmailService emailService;
     private final McpApprovalNotificationService websocketService;
-
     private final SlackNotificationAdapter slackAdapter;
     private final SmsNotificationAdapter smsAdapter;
-
-    private final RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${notification.enabled.email:true}")
-    private boolean emailEnabled;
-    
-    @Value("${notification.enabled.websocket:true}")
-    private boolean websocketEnabled;
-    
-    @Value("${notification.enabled.slack:false}")
-    private boolean slackEnabled;
-    
-    @Value("${notification.enabled.sms:false}")
-    private boolean smsEnabled;
-    
-    @Value("${notification.retry.max-attempts:3}")
-    private int maxRetryAttempts;
-    
-    @Value("${notification.retry.delay-seconds:5}")
-    private int retryDelaySeconds;
-    
-    @Value("${notification.priority.threshold:HIGH}")
-    private String priorityThreshold;
-    
-    @Value("${notification.batch.size:100}")
-    private int batchSize;
-    
-    @Value("${notification.batch.delay-ms:1000}")
-    private int batchDelayMs;
+    private final NotificationProperties notificationProperties;
 
     private final Map<NotificationChannel, Integer> channelPriorities = new ConcurrentHashMap<>();
 
@@ -88,7 +62,7 @@ public class UnifiedNotificationService {
                 
         List<Mono<ChannelResult>> notifications = new ArrayList<>();
 
-        if (emailEnabled && shouldNotifyByEmail(request)) {
+        if (notificationProperties.getEnabled().isEmail() && shouldNotifyByEmail(request)) {
             notifications.add(
                 sendEmailNotification(request)
                     .map(success -> new ChannelResult(NotificationChannel.EMAIL, success, null))
@@ -99,7 +73,7 @@ public class UnifiedNotificationService {
             );
         }
 
-        if (websocketEnabled) {
+        if (notificationProperties.getEnabled().isWebsocket()) {
             notifications.add(
                 sendWebSocketNotification(request)
                     .map(success -> new ChannelResult(NotificationChannel.WEBSOCKET, success, null))
@@ -110,7 +84,7 @@ public class UnifiedNotificationService {
             );
         }
 
-        if (slackEnabled && shouldNotifyBySlack(request)) {
+        if (notificationProperties.getEnabled().isSlack() && shouldNotifyBySlack(request)) {
             notifications.add(
                 sendSlackNotification(request)
                     .map(success -> new ChannelResult(NotificationChannel.SLACK, success, null))
@@ -121,7 +95,7 @@ public class UnifiedNotificationService {
             );
         }
 
-        if (smsEnabled && isUrgentRequest(request)) {
+        if (notificationProperties.getEnabled().isSms() && isUrgentRequest(request)) {
             notifications.add(
                 sendSmsNotification(request)
                     .map(success -> new ChannelResult(NotificationChannel.SMS, success, null))
@@ -147,25 +121,6 @@ public class UnifiedNotificationService {
             });
     }
 
-    public Mono<NotificationResult> sendSecurityEventNotification(SecurityEvent event, ThreatIndicators indicators) {
-                
-        NotificationPriority priority = calculatePriority(indicators);
-        Set<NotificationChannel> channels = selectChannels(priority, event.getSeverity().name());
-        
-        List<Mono<ChannelResult>> notifications = new ArrayList<>();
-        
-        for (NotificationChannel channel : channels) {
-            notifications.add(
-                sendToChannel(channel, event, indicators, priority)
-                    .retryWhen(Retry.backoff(maxRetryAttempts, Duration.ofSeconds(retryDelaySeconds)))
-            );
-        }
-        
-        return Flux.merge(notifications)
-            .collectList()
-            .map(results -> createNotificationResult(event.getEventId(), results));
-    }
-
     public Mono<NotificationResult> sendCompletionNotification(String requestId, SoarResponse response) {
                 
         Map<String, Object> context = new HashMap<>();
@@ -180,21 +135,6 @@ public class UnifiedNotificationService {
             context,
             NotificationPriority.MEDIUM
         );
-    }
-
-    public Mono<List<NotificationResult>> sendBatchNotifications(List<NotificationRequest> requests) {
-                
-        return Flux.fromIterable(requests)
-            .window(batchSize)
-            .flatMap(batch -> 
-                batch.flatMap(request -> 
-                    sendNotification(request)
-                        .delayElement(Duration.ofMillis(batchDelayMs))
-                )
-                .collectList()
-            )
-            .flatMapIterable(list -> list)
-            .collectList();
     }
 
     private Mono<NotificationResult> sendNotification(NotificationRequest request) {
@@ -232,26 +172,6 @@ public class UnifiedNotificationService {
         return Flux.merge(notifications)
             .collectList()
             .map(results -> createNotificationResult(UUID.randomUUID().toString(), results));
-    }
-
-    private Mono<ChannelResult> sendToChannel(
-        NotificationChannel channel,
-        SecurityEvent event,
-        ThreatIndicators indicators,
-        NotificationPriority priority
-    ) {
-        Map<String, Object> context = new HashMap<>();
-        context.put("event", event);
-        context.put("indicators", indicators);
-        context.put("priority", priority);
-        
-        String subject = String.format("[%s] 보안 이벤트 감지 - %s",
-            indicators.getRiskLevel(), event.getSeverity());
-        
-        NotificationTemplate template = templates.get("SECURITY_EVENT");
-        String content = template != null ? template.render(context) : createDefaultContent(event, indicators);
-        
-        return sendToChannel(channel, subject, content, context, priority);
     }
 
     private Mono<ChannelResult> sendToChannel(
@@ -373,43 +293,33 @@ public class UnifiedNotificationService {
         .subscribeOn(Schedulers.boundedElastic());
     }
 
-    private NotificationPriority calculatePriority(ThreatIndicators indicators) {
-        int urgency = indicators.getUrgencyLevel();
-        
-        if (urgency >= 5) return NotificationPriority.URGENT;
-        if (urgency >= 4) return NotificationPriority.HIGH;
-        if (urgency >= 3) return NotificationPriority.MEDIUM;
-        if (urgency >= 2) return NotificationPriority.LOW;
-        return NotificationPriority.INFO;
-    }
-
     private Set<NotificationChannel> selectChannels(NotificationPriority priority, String eventType) {
         Set<NotificationChannel> channels = new HashSet<>();
 
         switch (priority) {
             case URGENT:
-                if (smsEnabled) channels.add(NotificationChannel.SMS);
-                if (slackEnabled) channels.add(NotificationChannel.SLACK);
+                if (notificationProperties.getEnabled().isSms()) channels.add(NotificationChannel.SMS);
+                if (notificationProperties.getEnabled().isSlack()) channels.add(NotificationChannel.SLACK);
                 
             case HIGH:
-                if (emailEnabled) channels.add(NotificationChannel.EMAIL);
+                if (notificationProperties.getEnabled().isEmail()) channels.add(NotificationChannel.EMAIL);
                 
             case MEDIUM:
-                if (websocketEnabled) channels.add(NotificationChannel.WEBSOCKET);
+                if (notificationProperties.getEnabled().isWebsocket()) channels.add(NotificationChannel.WEBSOCKET);
                 
             case LOW:
             case INFO:
                 
-                if (websocketEnabled) channels.add(NotificationChannel.WEBSOCKET);
+                if (notificationProperties.getEnabled().isWebsocket()) channels.add(NotificationChannel.WEBSOCKET);
                 break;
         }
 
         if (eventType != null) {
             if (eventType.contains("CRITICAL") || eventType.contains("BREACH")) {
-                if (smsEnabled) channels.add(NotificationChannel.SMS);
+                if (notificationProperties.getEnabled().isSms()) channels.add(NotificationChannel.SMS);
             }
             if (eventType.contains("POLICY") || eventType.contains("COMPLIANCE")) {
-                if (emailEnabled) channels.add(NotificationChannel.EMAIL);
+                if (notificationProperties.getEnabled().isEmail()) channels.add(NotificationChannel.EMAIL);
             }
         }
         
@@ -428,101 +338,6 @@ public class UnifiedNotificationService {
     private boolean shouldNotifyBySlack(ApprovalRequest request) {
         return request.getRiskLevel() != null && 
                (request.getRiskLevel().equals("HIGH") || request.getRiskLevel().equals("CRITICAL"));
-    }
-
-    private String createDefaultContent(SecurityEvent event, ThreatIndicators indicators) {
-        StringBuilder content = new StringBuilder();
-        content.append("보안 이벤트 상세:\n");
-        content.append("- 이벤트 ID: ").append(event.getEventId()).append("\n");
-        content.append("- 이벤트 심각도: ").append(event.getSeverity()).append("\n");
-        content.append("- 위험 수준: ").append(indicators.getRiskLevel()).append("\n");
-        content.append("- 위협 점수: ").append(indicators.calculateThreatScore()).append("\n");
-        content.append("- 감지 시각: ").append(event.getTimestamp()).append("\n");
-        
-        if (!indicators.generateRecommendations().isEmpty()) {
-            content.append("\n권장 조치:\n");
-            indicators.generateRecommendations().forEach(rec -> 
-                content.append("- ").append(rec).append("\n")
-            );
-        }
-        
-        return content.toString();
-    }
-
-    public Mono<Boolean> sendApprovalReminder(String approvalId) {
-                
-        return Mono.fromCallable(() -> {
-            
-            Map<String, Object> reminderContext = new HashMap<>();
-            reminderContext.put("approvalId", approvalId);
-            reminderContext.put("type", "APPROVAL_REMINDER");
-            reminderContext.put("timestamp", LocalDateTime.now());
-            reminderContext.put("reminderCount", getReminderCount(approvalId));
-
-            Set<NotificationChannel> channels = selectChannels(NotificationPriority.HIGH, "APPROVAL_REMINDER");
-            
-            String subject = String.format("[재알림] 승인 요청 대기 중 - ID: %s", 
-                approvalId.length() > 8 ? approvalId.substring(0, 8) : approvalId);
-            
-            String content = String.format(
-                "승인 요청이 대기 중입니다.\n" +
-                "승인 ID: %s\n" +
-                "재알림 횟수: %d\n" +
-                "처리 방법: 승인 콘솔에서 확인하시거나 API를 통해 처리하세요.",
-                approvalId,
-                getReminderCount(approvalId)
-            );
-
-            List<Mono<Boolean>> notifications = new ArrayList<>();
-            
-            for (NotificationChannel channel : channels) {
-                notifications.add(sendReminderToChannel(channel, subject, content, reminderContext));
-            }
-
-            incrementReminderCount(approvalId);
-            
-            return true;
-        })
-        .flatMap(success -> {
-            if (success) {
-                                return Mono.just(true);
-            } else {
-                log.warn("승인 알림 재전송 실패: approvalId={}", approvalId);
-                return Mono.just(false);
-            }
-        })
-        .onErrorResume(error -> {
-            log.error("승인 알림 재전송 중 오류 발생: approvalId={}", approvalId, error);
-            return Mono.just(false);
-        });
-    }
-
-    private Mono<Boolean> sendReminderToChannel(NotificationChannel channel, String subject, 
-                                                String content, Map<String, Object> context) {
-        return (switch (channel) {
-            case EMAIL -> sendEmail(subject, content, context);
-            case WEBSOCKET -> sendWebSocket(subject, content, context);
-            case SLACK -> slackAdapter.sendMessage(subject, content, NotificationPriority.HIGH);
-            case SMS -> smsAdapter.sendSms(subject, content, NotificationPriority.HIGH);
-            default -> Mono.just(false);
-        })
-        .onErrorResume(error -> {
-            log.error("리마인더 발송 실패 - 채널: {}", channel, error);
-            return Mono.just(false);
-        });
-    }
-
-    private int getReminderCount(String approvalId) {
-        String key = "approval:reminder:count:" + approvalId;
-        Object countObj = redisTemplate.opsForValue().get(key);
-        String count = countObj != null ? countObj.toString() : "0";
-        return count != null ? Integer.parseInt(count) : 0;
-    }
-
-    private void incrementReminderCount(String approvalId) {
-        String key = "approval:reminder:count:" + approvalId;
-        redisTemplate.opsForValue().increment(key);
-        redisTemplate.expire(key, Duration.ofHours(24));
     }
 
     private void initializeChannelPriorities() {
@@ -577,7 +392,7 @@ public class UnifiedNotificationService {
                 
                 processBatch(batch);
             }
-        }, batchDelayMs, batchDelayMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        }, notificationProperties.getBatch().getDelayMs(), notificationProperties.getBatch().getDelayMs(), java.util.concurrent.TimeUnit.MILLISECONDS);
     }
 
     private void processBatch(List<PendingNotification> batch) {
@@ -643,7 +458,7 @@ public class UnifiedNotificationService {
         URGENT, HIGH, MEDIUM, LOW, INFO
     }
 
-    @lombok.Data
+    @Data
     public static class NotificationResult {
         private String requestId;
         private LocalDateTime timestamp;
@@ -652,16 +467,16 @@ public class UnifiedNotificationService {
         private Map<String, Object> metadata;
     }
 
-    @lombok.Data
-    @lombok.AllArgsConstructor
+    @Data
+    @AllArgsConstructor
     public static class ChannelResult {
         private NotificationChannel channel;
         private boolean success;
         private String errorMessage;
     }
 
-    @lombok.Data
-    @lombok.Builder
+    @Data
+    @Builder
     public static class NotificationRequest {
         private String type;
         private String subject;
@@ -670,8 +485,8 @@ public class UnifiedNotificationService {
         private Set<NotificationChannel> channels;
     }
 
-    @lombok.Data
-    @lombok.AllArgsConstructor
+    @Data
+    @AllArgsConstructor
     private static class PendingNotification {
         private String type;
         private String subject;
@@ -679,7 +494,7 @@ public class UnifiedNotificationService {
         private NotificationPriority priority;
     }
 
-    @lombok.AllArgsConstructor
+    @AllArgsConstructor
     private static class NotificationTemplate {
         private final String name;
         private final String template;

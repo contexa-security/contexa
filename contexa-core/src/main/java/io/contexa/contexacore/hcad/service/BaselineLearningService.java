@@ -6,10 +6,10 @@ import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.hcad.util.UserAgentParser;
+import io.contexa.contexacore.properties.HcadProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
@@ -23,18 +23,13 @@ import java.util.Map;
 public class BaselineLearningService {
 
     private final @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate;
+    private final HcadProperties hcadProperties;
 
     private static final String BASELINE_KEY_PREFIX = "security:hcad:baseline:";
     private static final Duration BASELINE_TTL = Duration.ofDays(30);
 
-    @Value("${hcad.baseline.learning.alpha:0.1}")
-    private double alpha = 0.1;
-
-    @Value("${hcad.baseline.learning.enabled:true}")
-    private boolean learningEnabled = true;
-
     public boolean learnIfNormal(String userId, SecurityDecision decision, SecurityEvent event) {
-        if (!learningEnabled) {
+        if (!hcadProperties.getBaseline().getLearning().isEnabled()) {
             return false;
         }
 
@@ -120,6 +115,7 @@ public class BaselineLearningService {
         }
 
         double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
+        double alpha = hcadProperties.getBaseline().getLearning().getAlpha();
         double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
 
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;

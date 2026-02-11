@@ -1,10 +1,12 @@
 package io.contexa.contexaidentity.config;
 
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.lettuce.core.ClientOptions;
 import io.lettuce.core.SocketOptions;
 import io.lettuce.core.TimeoutOptions;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,19 +21,19 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import java.time.Duration;
 
 @Configuration
+@RequiredArgsConstructor
 public class ZeroTrustRedisConfig {
-    
+
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
+
     @Value("${spring.data.redis.host:localhost}")
     private String redisHost;
-    
+
     @Value("${spring.data.redis.port:6379}")
     private int redisPort;
-    
+
     @Value("${spring.data.redis.password:}")
     private String redisPassword;
-    
-    @Value("${security.zerotrust.redis.timeout:5}")
-    private long redisTimeoutMs;
 
     @Bean
     public ClientResources clientResources() {
@@ -45,7 +47,7 @@ public class ZeroTrustRedisConfig {
     public LettuceClientConfiguration lettuceClientConfiguration(ClientResources clientResources) {
         
         SocketOptions socketOptions = SocketOptions.builder()
-                .connectTimeout(Duration.ofMillis(redisTimeoutMs))  
+                .connectTimeout(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout()))  
                 .keepAlive(true)  
                 .tcpNoDelay(true)  
                 .build();
@@ -54,7 +56,7 @@ public class ZeroTrustRedisConfig {
                 .socketOptions(socketOptions)
                 .autoReconnect(true)  
                 .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS)  
-                .timeoutOptions(TimeoutOptions.enabled(Duration.ofMillis(redisTimeoutMs)))  
+                .timeoutOptions(TimeoutOptions.enabled(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout())))  
                 .build();
 
         org.apache.commons.pool2.impl.GenericObjectPoolConfig poolConfig = 
@@ -62,7 +64,7 @@ public class ZeroTrustRedisConfig {
         poolConfig.setMaxTotal(100);  
         poolConfig.setMaxIdle(50);    
         poolConfig.setMinIdle(10);    
-        poolConfig.setMaxWaitMillis(redisTimeoutMs);  
+        poolConfig.setMaxWaitMillis(securityZeroTrustProperties.getRedis().getTimeout());  
         poolConfig.setTestOnBorrow(false);  
         poolConfig.setTestOnReturn(false);  
         poolConfig.setTestWhileIdle(true);  
@@ -72,7 +74,7 @@ public class ZeroTrustRedisConfig {
                         .poolConfig(poolConfig)
                         .clientOptions(clientOptions)
                         .clientResources(clientResources)
-                        .commandTimeout(Duration.ofMillis(redisTimeoutMs))
+                        .commandTimeout(Duration.ofMillis(securityZeroTrustProperties.getRedis().getTimeout()))
                         .build();
     }
 

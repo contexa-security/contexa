@@ -8,6 +8,7 @@ import io.contexa.contexacoreenterprise.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
 import io.contexa.contexacoreenterprise.mcp.cache.ToolResultCache;
 import io.contexa.contexacoreenterprise.mcp.event.ToolEventPublisher;
+import io.contexa.contexacoreenterprise.properties.ToolProperties;
 import io.contexa.contexacoreenterprise.mcp.integration.*;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProvider;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProviderImpl;
@@ -461,8 +462,9 @@ public class EnterpriseToolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ToolResultCache.class)
-    public ToolResultCache toolResultCache(RedisTemplate<String, Object> redisTemplate) {
-        return new ToolResultCache(redisTemplate);
+    public ToolResultCache toolResultCache(RedisTemplate<String, Object> redisTemplate,
+            ToolProperties toolProperties) {
+        return new ToolResultCache(redisTemplate, toolProperties);
     }
 
     @Bean

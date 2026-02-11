@@ -5,9 +5,9 @@ import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -29,21 +29,10 @@ public class ZeroTrustSecurityService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ThreatScoreUtil threatScoreUtil;
     private final ObjectMapper objectMapper;
-
-    @Value("${zerotrust.enabled:true}")
-    private boolean zeroTrustEnabled;
-
-    @Value("${zerotrust.threat.initial:0.3}")
-    private double initialThreatScore;
-
-    @Value("${zerotrust.cache.ttl.hours:24}")
-    private long cacheTtlHours;
-
-    @Value("${zerotrust.session.tracking.enabled:true}")
-    private boolean sessionTrackingEnabled;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     public void applyZeroTrustToContext(SecurityContext context, String userId, String sessionId, HttpServletRequest request) {
-        if (!zeroTrustEnabled || context == null || userId == null) {
+        if (!securityZeroTrustProperties.isEnabled() || context == null || userId == null) {
             return;
         }
         try {
@@ -57,7 +46,7 @@ public class ZeroTrustSecurityService {
                 userContext = createInitialUserContext(userId, sessionId);
             }
 
-            if (sessionTrackingEnabled && sessionId != null) {
+            if (securityZeroTrustProperties.getSession().isTrackingEnabled() && sessionId != null) {
                 trackUserSession(userId, sessionId);
             }
 
@@ -82,8 +71,8 @@ public class ZeroTrustSecurityService {
             invalidationRecord.put("reason", reason);
             invalidationRecord.put("timestamp", System.currentTimeMillis());
 
-            redisTemplate.opsForValue().set(invalidKey, invalidationRecord, Duration.ofHours(cacheTtlHours));
-            if (sessionTrackingEnabled && userId != null) {
+            redisTemplate.opsForValue().set(invalidKey, invalidationRecord, Duration.ofHours(securityZeroTrustProperties.getCache().getTtlHours()));
+            if (securityZeroTrustProperties.getSession().isTrackingEnabled() && userId != null) {
                 removeUserSession(userId, sessionId);
             }
 
@@ -247,7 +236,7 @@ public class ZeroTrustSecurityService {
     private UserSecurityContext createInitialUserContext(String userId, String sessionId) {
         UserSecurityContext context = UserSecurityContext.builder()
                 .userId(userId)
-                .currentThreatScore(initialThreatScore)
+                .currentThreatScore(securityZeroTrustProperties.getThreat().getInitial())
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -266,7 +255,7 @@ public class ZeroTrustSecurityService {
         try {
             String contextKey = ZeroTrustRedisKeys.userContext(userId);
             redisTemplate.opsForValue().set(contextKey, context,
-                    Duration.ofHours(cacheTtlHours));
+                    Duration.ofHours(securityZeroTrustProperties.getCache().getTtlHours()));
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to save initial user context for: {}", userId, e);
         }
@@ -278,11 +267,11 @@ public class ZeroTrustSecurityService {
         try {
             String sessionsKey = ZeroTrustRedisKeys.userSessions(userId);
             redisTemplate.opsForSet().add(sessionsKey, sessionId);
-            redisTemplate.expire(sessionsKey, cacheTtlHours, TimeUnit.HOURS);
+            redisTemplate.expire(sessionsKey, securityZeroTrustProperties.getCache().getTtlHours(), TimeUnit.HOURS);
 
             String sessionUserKey = ZeroTrustRedisKeys.sessionUser(sessionId);
             redisTemplate.opsForValue().set(sessionUserKey, userId,
-                    Duration.ofHours(cacheTtlHours));
+                    Duration.ofHours(securityZeroTrustProperties.getCache().getTtlHours()));
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to track user session: {} -> {}", userId, sessionId, e);

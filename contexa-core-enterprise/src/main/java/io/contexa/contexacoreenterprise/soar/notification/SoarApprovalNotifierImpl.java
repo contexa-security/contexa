@@ -6,12 +6,12 @@ import io.contexa.contexacoreenterprise.config.NotificationConfig.NotificationTa
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
+import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalRequestFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Async;
 
@@ -28,18 +28,10 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     private final SoarEmailService emailService;
     private final McpApprovalNotificationService mcpNotificationService;
     private final NotificationTargetManager targetManager;
-    
+    private final SoarProperties soarProperties;
+
     @Autowired
     private ApprovalRequestFactory approvalRequestFactory;
-    
-    @Value("${soar.notification.websocket.enabled:true}")
-    private boolean webSocketEnabled;
-    
-    @Value("${soar.notification.sse.enabled:true}")
-    private boolean sseEnabled;
-    
-    @Value("${soar.notification.websocket.topic-prefix:/topic/soar}")
-    private String topicPrefix;
 
     @Async
     public void notifyApprovalRequest(ApprovalNotification notification) {
@@ -81,7 +73,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     private CompletableFuture<Void> sendWebSocketNotification(ApprovalNotification notification, 
                                                               List<NotificationTarget> targets) {
         return CompletableFuture.runAsync(() -> {
-            if (!webSocketEnabled) {
+            if (!soarProperties.getNotification().getWebsocket().isEnabled()) {
                                 return;
             }
             
@@ -89,7 +81,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
                 
                 Map<String, Object> message = buildApprovalRequestMessage(notification);
 
-                String topic = topicPrefix + "/approvals";
+                String topic = soarProperties.getNotification().getWebsocket().getTopicPrefix() + "/approvals";
                 brokerMessagingTemplate.convertAndSend(topic, (Object)message);
 
                 for (NotificationTarget target : targets) {
@@ -129,7 +121,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
 
     private CompletableFuture<Void> sendSSENotification(ApprovalNotification notification) {
         return CompletableFuture.runAsync(() -> {
-            if (!sseEnabled) {
+            if (!soarProperties.getNotification().getSse().isEnabled()) {
                                 return;
             }
             
@@ -146,7 +138,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     @Async
     public void notifyApprovalCompleted(String approvalId, boolean approved, String reason) {
 
-        if (webSocketEnabled) {
+        if (soarProperties.getNotification().getWebsocket().isEnabled()) {
             Map<String, Object> message = Map.of(
                 "type", "APPROVAL_COMPLETED",
                 "approvalId", approvalId,
@@ -155,11 +147,11 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
                 "timestamp", LocalDateTime.now()
             );
             
-            String topic = topicPrefix + "/approvals";
+            String topic = soarProperties.getNotification().getWebsocket().getTopicPrefix() + "/approvals";
             brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
 
-        if (sseEnabled) {
+        if (soarProperties.getNotification().getSse().isEnabled()) {
             if (approved) {
                 mcpNotificationService.sendApprovalGranted(approvalId);
             } else {
@@ -173,18 +165,18 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     public void notifyApprovalTimeout(String approvalId) {
         log.warn("⏰ 승인 타임아웃 알림: {}", approvalId);
 
-        if (webSocketEnabled) {
+        if (soarProperties.getNotification().getWebsocket().isEnabled()) {
             Map<String, Object> message = Map.of(
                 "type", "APPROVAL_TIMEOUT",
                 "approvalId", approvalId,
                 "timestamp", LocalDateTime.now()
             );
             
-            String topic = topicPrefix + "/approvals";
+            String topic = soarProperties.getNotification().getWebsocket().getTopicPrefix() + "/approvals";
             brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
 
-        if (sseEnabled) {
+        if (soarProperties.getNotification().getSse().isEnabled()) {
             mcpNotificationService.sendApprovalTimeout(approvalId);
         }
     }
@@ -299,12 +291,12 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             "timestamp", LocalDateTime.now()
         );
 
-        if (webSocketEnabled) {
-            String topic = topicPrefix + "/approvals";
+        if (soarProperties.getNotification().getWebsocket().isEnabled()) {
+            String topic = soarProperties.getNotification().getWebsocket().getTopicPrefix() + "/approvals";
             brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
 
-        if (sseEnabled) {
+        if (soarProperties.getNotification().getSse().isEnabled()) {
             mcpNotificationService.sendApprovalReminder(approvalId);
         }
     }

@@ -1,8 +1,8 @@
 package io.contexa.contexacore.autonomous.utils;
 
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 
 @Slf4j
@@ -10,13 +10,11 @@ import org.springframework.data.redis.core.RedisTemplate;
 public class ThreatScoreUtil {
 
     private final RedisTemplate<String, Object> redisTemplate;
-
-    @Value("${threat.score.initial:0.3}")
-    private double initialThreatScore;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     public double getThreatScore(String userId) {
         if (userId == null || userId.isEmpty()) {
-            return initialThreatScore;
+            return securityZeroTrustProperties.getThreat().getInitial();
         }
         try {
             String threatScoreKey = ZeroTrustRedisKeys.threatScore(userId);
@@ -29,6 +27,6 @@ public class ThreatScoreUtil {
             log.error("[ThreatScoreOrchestrator] Failed to retrieve threat score: userId={}", userId, e);
         }
 
-        return initialThreatScore;
+        return securityZeroTrustProperties.getThreat().getInitial();
     }
 }

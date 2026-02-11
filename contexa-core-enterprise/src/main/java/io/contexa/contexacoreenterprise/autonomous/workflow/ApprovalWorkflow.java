@@ -1,12 +1,12 @@
 package io.contexa.contexacoreenterprise.autonomous.workflow;
 
 import io.contexa.contexacoreenterprise.mcp.tool.execution.ToolExecutor;
+import io.contexa.contexacoreenterprise.properties.ApprovalProperties;
 import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
 import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Async;
 
@@ -21,15 +21,10 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalWorkflow {
-    
+
     private final RedisTemplate<String, Object> redisTemplate;
     private final ToolAuthorizationService authService;
-    
-    @Value("${approval.timeout:60}")
-    private long approvalTimeoutSeconds;
-    
-    @Value("${approval.auto-approve.enabled:false}")
-    private boolean autoApproveEnabled;
+    private final ApprovalProperties approvalProperties;
 
     private final Map<String, ApprovalRequest> pendingApprovals = new ConcurrentHashMap<>();
     private final Map<String, CompletableFuture<ApprovalResult>> approvalFutures = new ConcurrentHashMap<>();
@@ -144,7 +139,7 @@ public class ApprovalWorkflow {
         approvalFutures.put(request.getId(), future);
         
         try {
-            return future.get(approvalTimeoutSeconds, TimeUnit.SECONDS);
+            return future.get(approvalProperties.getTimeout(), TimeUnit.SECONDS);
         } catch (TimeoutException e) {
             log.warn("승인 타임아웃: {}", request.getId());
             request.setStatus(ApprovalStatus.TIMEOUT);
@@ -159,7 +154,7 @@ public class ApprovalWorkflow {
     }
 
     private boolean shouldAutoApprove(ApprovalRequest request) {
-        if (!autoApproveEnabled) {
+        if (!approvalProperties.getAutoApprove().isEnabled()) {
             return false;
         }
 

@@ -2,9 +2,9 @@ package io.contexa.contexacore.autonomous.event.monitoring;
 
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.contexa.contexacore.properties.SecurityRedisProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,15 +20,7 @@ public class RedisMemoryMonitor {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final MeterRegistry meterRegistry;
-
-    @Value("${security.redis.memory.max-mb:1024}")
-    private long maxMemoryMb;
-
-    @Value("${security.redis.memory.warning-threshold:0.8}")
-    private double warningThreshold;
-
-    @Value("${security.redis.memory.critical-threshold:0.9}")
-    private double criticalThreshold;
+    private final SecurityRedisProperties securityRedisProperties;
 
     private final AtomicLong usedMemoryBytes = new AtomicLong(0);
     private final AtomicLong totalKeys = new AtomicLong(0);
@@ -55,7 +47,7 @@ public class RedisMemoryMonitor {
 
         Gauge.builder("redis.memory.utilization", this, monitor -> {
             long used = monitor.usedMemoryBytes.get();
-            long max = monitor.maxMemoryMb * 1024 * 1024;
+            long max = monitor.securityRedisProperties.getMemory().getMaxMb() * 1024 * 1024;
             return max > 0 ? (double) used / max : 0.0;
         })
             .description("Redis memory utilization ratio (0-1)")
@@ -74,7 +66,7 @@ public class RedisMemoryMonitor {
                 peakMemoryBytes.set(memoryInfo.getUsedMemory());
             }
 
-            double utilizationRatio = (double) memoryInfo.getUsedMemory() / (maxMemoryMb * 1024 * 1024);
+            double utilizationRatio = (double) memoryInfo.getUsedMemory() / (securityRedisProperties.getMemory().getMaxMb() * 1024 * 1024);
 
             Map<String, Long> keysByPattern = analyzeKeyPatterns();
 
@@ -155,14 +147,14 @@ public class RedisMemoryMonitor {
     }
 
     private void checkThresholds(double utilizationRatio, RedisMemoryInfo memoryInfo) {
-        if (utilizationRatio >= criticalThreshold) {
+        if (utilizationRatio >= securityRedisProperties.getMemory().getCriticalThreshold()) {
             log.error("CRITICAL: Redis memory usage at {:.1f}% (threshold: {:.1f}%)",
-                utilizationRatio * 100, criticalThreshold * 100);
+                utilizationRatio * 100, securityRedisProperties.getMemory().getCriticalThreshold() * 100);
             sendCriticalAlert(utilizationRatio, memoryInfo);
 
-        } else if (utilizationRatio >= warningThreshold) {
+        } else if (utilizationRatio >= securityRedisProperties.getMemory().getWarningThreshold()) {
             log.warn("WARNING: Redis memory usage at {:.1f}% (threshold: {:.1f}%)",
-                utilizationRatio * 100, warningThreshold * 100);
+                utilizationRatio * 100, securityRedisProperties.getMemory().getWarningThreshold() * 100);
             sendWarningAlert(utilizationRatio, memoryInfo);
         }
 

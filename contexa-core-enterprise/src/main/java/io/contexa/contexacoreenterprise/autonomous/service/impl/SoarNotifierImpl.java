@@ -12,10 +12,10 @@ import io.contexa.contexacore.repository.ApprovalNotificationRepository;
 import io.contexa.contexacore.soar.SoarLab;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
+import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,15 +43,9 @@ public class SoarNotifierImpl implements ISoarNotifier {
     
     @Autowired
     private ApplicationEventPublisher eventPublisher;
-    
-    @Value("${security.plane.notifier.batch-size:10}")
-    private int batchSize;
-    
-    @Value("${security.plane.notifier.async-enabled:true}")
-    private boolean asyncEnabled;
-    
-    @Value("${security.plane.notifier.critical-threshold:0.8}")
-    private double criticalThreshold;
+
+    @Autowired
+    private SecurityPlaneProperties securityPlaneProperties;
 
     private final AtomicLong totalNotifications = new AtomicLong(0);
     private final AtomicLong successfulNotifications = new AtomicLong(0);
@@ -74,7 +68,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     toolName, toolParameters, context.getIncidentId()
                 );
 
-                if (asyncEnabled && notificationRepository != null) {
+                if (securityPlaneProperties.getNotifier().isAsyncEnabled() && notificationRepository != null) {
                     ApprovalNotification notification = createNotification(
                         requestId,
                         context.getIncidentId(),

@@ -29,28 +29,32 @@ public class CoreHCADAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public HCADContextExtractor hcadContextExtractor(
-            RedisTemplate<String, Object> redisTemplate) {
-        return new HCADContextExtractor(redisTemplate);
+            RedisTemplate<String, Object> redisTemplate,
+            HcadProperties hcadProperties) {
+        return new HCADContextExtractor(redisTemplate, hcadProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public BaselineLearningService baselineLearningService(
-            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
-        return new BaselineLearningService(redisTemplate);
+            @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate,
+            HcadProperties hcadProperties) {
+        return new BaselineLearningService(redisTemplate, hcadProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public HCADAnalysisService hcadAnalysisService(
-            HCADContextExtractor hcadContextExtractor) {
-        return new HCADAnalysisService(hcadContextExtractor);
+            HCADContextExtractor hcadContextExtractor,
+            HcadProperties hcadProperties) {
+        return new HCADAnalysisService(hcadContextExtractor, hcadProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public HCADFilter hcadFilter(HCADAnalysisService hcadAnalysisService) {
-        return new HCADFilter(hcadAnalysisService);
+    public HCADFilter hcadFilter(HCADAnalysisService hcadAnalysisService,
+            HcadProperties hcadProperties) {
+        return new HCADFilter(hcadAnalysisService, hcadProperties);
     }
 
     @Bean

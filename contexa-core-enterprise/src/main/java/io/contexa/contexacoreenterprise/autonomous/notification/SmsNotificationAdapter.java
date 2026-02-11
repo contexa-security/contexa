@@ -1,9 +1,9 @@
 package io.contexa.contexacoreenterprise.autonomous.notification;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacoreenterprise.properties.SmsProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -24,48 +24,13 @@ import java.util.regex.Pattern;
 public class SmsNotificationAdapter {
     
     private final ObjectMapper objectMapper;
+    private final SmsProperties smsProperties;
 
     private WebClient smsWebClient;
 
     public enum SmsProvider {
         TWILIO, AWS_SNS, ALIGO, COOLSMS, CUSTOM
     }
-
-    @Value("${sms.provider:TWILIO}")
-    private SmsProvider provider;
-    
-    @Value("${sms.api.url:}")
-    private String apiUrl;
-    
-    @Value("${sms.api.key:}")
-    private String apiKey;
-    
-    @Value("${sms.api.secret:}")
-    private String apiSecret;
-    
-    @Value("${sms.sender.number:}")
-    private String senderNumber;
-    
-    @Value("${sms.sender.id:contexa}")
-    private String senderId;
-    
-    @Value("${sms.max.length:140}")
-    private int maxMessageLength;
-    
-    @Value("${sms.retry.max-attempts:2}")
-    private int maxRetryAttempts;
-    
-    @Value("${sms.retry.delay-seconds:3}")
-    private int retryDelaySeconds;
-    
-    @Value("${sms.rate-limit.messages-per-hour:100}")
-    private int rateLimitPerHour;
-    
-    @Value("${sms.enabled:false}")
-    private boolean smsEnabled;
-    
-    @Value("${sms.emergency.only:true}")
-    private boolean emergencyOnly;
 
     private final Map<String, RecipientInfo> recipientRegistry = new ConcurrentHashMap<>();
 
@@ -82,7 +47,7 @@ public class SmsNotificationAdapter {
     
     @PostConstruct
     public void initialize() {
-        if (!smsEnabled) {
+        if (!smsProperties.isEnabled()) {
                         return;
         }
 
@@ -92,7 +57,7 @@ public class SmsNotificationAdapter {
 
         loadRecipients();
 
-        if (!emergencyOnly) {
+        if (!smsProperties.isEmergencyOnly()) {
             testConnection().subscribe(
                     success -> log.info("SMS 게이트웨이 연결 테스트 성공"),
                     error -> log.error("SMS 게이트웨이 연결 테스트 실패", error)
@@ -102,11 +67,11 @@ public class SmsNotificationAdapter {
     }
 
     public Mono<Boolean> sendToPhone(String phoneNumber, String message, UnifiedNotificationService.NotificationPriority priority) {
-        if (!smsEnabled) {
+        if (!smsProperties.isEnabled()) {
             return Mono.just(false);
         }
 
-        if (emergencyOnly && priority != UnifiedNotificationService.NotificationPriority.URGENT) {
+        if (smsProperties.isEmergencyOnly() && priority != UnifiedNotificationService.NotificationPriority.URGENT) {
                         return Mono.just(false);
         }
         
@@ -125,7 +90,7 @@ public class SmsNotificationAdapter {
     }
 
     public Mono<Boolean> sendSms(String subject, String content, UnifiedNotificationService.NotificationPriority priority) {
-        if (!smsEnabled) {
+        if (!smsProperties.isEnabled()) {
             return Mono.just(false);
         }
 
@@ -144,7 +109,7 @@ public class SmsNotificationAdapter {
     }
 
     public Mono<Boolean> sendSecurityAlert(String alertType, String severity, String description, String action) {
-        if (!smsEnabled) {
+        if (!smsProperties.isEnabled()) {
             return Mono.just(false);
         }
         
@@ -170,7 +135,7 @@ public class SmsNotificationAdapter {
     }
 
     public Mono<Boolean> sendApprovalRequest(String requestId, String toolName, String riskLevel, String approverPhone) {
-        if (!smsEnabled) {
+        if (!smsProperties.isEnabled()) {
             return Mono.just(false);
         }
         
@@ -186,7 +151,7 @@ public class SmsNotificationAdapter {
     }
 
     public Mono<List<SmsResult>> sendBatchSms(List<SmsRequest> requests) {
-        if (!smsEnabled) {
+        if (!smsProperties.isEnabled()) {
             return Mono.just(Collections.emptyList());
         }
         
@@ -202,6 +167,7 @@ public class SmsNotificationAdapter {
     private Mono<Boolean> sendSmsMessage(String phoneNumber, String message, UnifiedNotificationService.NotificationPriority priority) {
         recordSmsTime();
         
+        SmsProvider provider = SmsProvider.valueOf(smsProperties.getProvider());
         return (switch (provider) {
             case TWILIO -> sendViaTwilio(phoneNumber, message);
             case AWS_SNS -> sendViaAwsSns(phoneNumber, message);
@@ -218,7 +184,7 @@ public class SmsNotificationAdapter {
                 failedSms.incrementAndGet();
             }
         })
-        .retryWhen(Retry.backoff(maxRetryAttempts, Duration.ofSeconds(retryDelaySeconds)))
+        .retryWhen(Retry.backoff(smsProperties.getRetry().getMaxAttempts(), Duration.ofSeconds(smsProperties.getRetry().getDelaySeconds())))
         .onErrorResume(error -> {
             failedSms.incrementAndGet();
             log.error("SMS 발송 실패 - To: {}", maskPhoneNumber(phoneNumber), error);
@@ -229,15 +195,15 @@ public class SmsNotificationAdapter {
     private Mono<Boolean> sendViaTwilio(String phoneNumber, String message) {
         Map<String, String> body = new HashMap<>();
         body.put("To", phoneNumber);
-        body.put("From", senderNumber);
+        body.put("From", smsProperties.getSender().getNumber());
         body.put("Body", message);
         
         String auth = Base64.getEncoder().encodeToString(
-            (apiKey + ":" + apiSecret).getBytes()
+            (smsProperties.getApi().getKey() + ":" + smsProperties.getApi().getSecret()).getBytes()
         );
         
         return smsWebClient.post()
-            .uri("/2010-04-01/Accounts/" + apiKey + "/Messages.json")
+            .uri("/2010-04-01/Accounts/" + smsProperties.getApi().getKey() + "/Messages.json")
             .header(HttpHeaders.AUTHORIZATION, "Basic " + auth)
             .contentType(MediaType.APPLICATION_FORM_URLENCODED)
             .bodyValue(body)
@@ -251,7 +217,7 @@ public class SmsNotificationAdapter {
         request.put("PhoneNumber", phoneNumber);
         request.put("Message", message);
         request.put("MessageAttributes", Map.of(
-            "AWS.SNS.SMS.SenderID", Map.of("DataType", "String", "StringValue", senderId),
+            "AWS.SNS.SMS.SenderID", Map.of("DataType", "String", "StringValue", smsProperties.getSender().getId()),
             "AWS.SNS.SMS.SMSType", Map.of("DataType", "String", "StringValue", "Transactional")
         ));
         
@@ -267,9 +233,9 @@ public class SmsNotificationAdapter {
 
     private Mono<Boolean> sendViaAligo(String phoneNumber, String message) {
         Map<String, String> params = new HashMap<>();
-        params.put("key", apiKey);
-        params.put("user_id", apiSecret);
-        params.put("sender", senderNumber);
+        params.put("key", smsProperties.getApi().getKey());
+        params.put("user_id", smsProperties.getApi().getSecret());
+        params.put("sender", smsProperties.getSender().getNumber());
         params.put("receiver", phoneNumber);
         params.put("msg", message);
         params.put("testmode_yn", "N");
@@ -286,13 +252,13 @@ public class SmsNotificationAdapter {
     private Mono<Boolean> sendViaCoolSms(String phoneNumber, String message) {
         Map<String, Object> params = new HashMap<>();
         params.put("to", phoneNumber);
-        params.put("from", senderNumber);
+        params.put("from", smsProperties.getSender().getNumber());
         params.put("text", message);
         params.put("type", "SMS");
         
         return smsWebClient.post()
             .uri("/messages/v4/send")
-            .header(HttpHeaders.AUTHORIZATION, "HMAC-SHA256 apiKey=" + apiKey + ", date=" + 
+            .header(HttpHeaders.AUTHORIZATION, "HMAC-SHA256 apiKey=" + smsProperties.getApi().getKey() + ", date=" +
                 LocalDateTime.now() + ", salt=" + UUID.randomUUID())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(params)
@@ -304,12 +270,12 @@ public class SmsNotificationAdapter {
     private Mono<Boolean> sendViaCustom(String phoneNumber, String message) {
         Map<String, Object> request = new HashMap<>();
         request.put("to", phoneNumber);
-        request.put("from", senderNumber);
+        request.put("from", smsProperties.getSender().getNumber());
         request.put("message", message);
-        request.put("apiKey", apiKey);
+        request.put("apiKey", smsProperties.getApi().getKey());
         
         return smsWebClient.post()
-            .uri(apiUrl)
+            .uri(smsProperties.getApi().getUrl())
             .contentType(MediaType.APPLICATION_JSON)
             .bodyValue(request)
             .retrieve()
@@ -321,16 +287,17 @@ public class SmsNotificationAdapter {
     }
 
     private void initializeWebClient() {
-        String baseUrl = switch (provider) {
+        SmsProvider provider = SmsProvider.valueOf(smsProperties.getProvider());
+        String clientBaseUrl = switch (provider) {
             case TWILIO -> "https://api.twilio.com";
             case AWS_SNS -> "https://sns." + getAwsRegion() + ".amazonaws.com";
             case ALIGO -> "https://apis.aligo.in";
             case COOLSMS -> "https://api.coolsms.co.kr";
-            case CUSTOM -> apiUrl;
+            case CUSTOM -> smsProperties.getApi().getUrl();
         };
         
         smsWebClient = WebClient.builder()
-            .baseUrl(baseUrl)
+            .baseUrl(clientBaseUrl)
             .defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
             .build();
     }
@@ -390,11 +357,11 @@ public class SmsNotificationAdapter {
     private String truncateMessage(String message) {
         if (message == null) return "";
         
-        if (message.length() <= maxMessageLength) {
+        if (message.length() <= smsProperties.getMax().getLength()) {
             return message;
         }
         
-        return message.substring(0, maxMessageLength - 3) + "...";
+        return message.substring(0, smsProperties.getMax().getLength() - 3) + "...";
     }
 
     private String formatSmsMessage(String subject, String content) {
@@ -419,7 +386,7 @@ public class SmsNotificationAdapter {
 
             smsTimes.removeIf(time -> time < oneHourAgo);
 
-            if (smsTimes.size() >= rateLimitPerHour) {
+            if (smsTimes.size() >= smsProperties.getRateLimit().getMessagesPerHour()) {
                 return false;
             }
             
@@ -451,20 +418,21 @@ public class SmsNotificationAdapter {
 
     private Mono<Boolean> testConnection() {
         
+        SmsProvider provider = SmsProvider.valueOf(smsProperties.getProvider());
         return switch (provider) {
             case TWILIO -> testTwilioConnection();
             case AWS_SNS -> testAwsSnsConnection();
-            case ALIGO, COOLSMS, CUSTOM -> Mono.just(true);  
+            case ALIGO, COOLSMS, CUSTOM -> Mono.just(true);
         };
     }
 
     private Mono<Boolean> testTwilioConnection() {
         String auth = Base64.getEncoder().encodeToString(
-            (apiKey + ":" + apiSecret).getBytes()
+            (smsProperties.getApi().getKey() + ":" + smsProperties.getApi().getSecret()).getBytes()
         );
         
         return smsWebClient.get()
-            .uri("/2010-04-01/Accounts/" + apiKey + ".json")
+            .uri("/2010-04-01/Accounts/" + smsProperties.getApi().getKey() + ".json")
             .header(HttpHeaders.AUTHORIZATION, "Basic " + auth)
             .retrieve()
             .bodyToMono(Map.class)
@@ -486,8 +454,8 @@ public class SmsNotificationAdapter {
 
     public Map<String, Object> getMetrics() {
         Map<String, Object> metrics = new HashMap<>();
-        metrics.put("enabled", smsEnabled);
-        metrics.put("provider", provider.name());
+        metrics.put("enabled", smsProperties.isEnabled());
+        metrics.put("provider", smsProperties.getProvider());
         metrics.put("totalSent", totalSmsSent.get());
         metrics.put("totalFailed", failedSms.get());
         
@@ -498,7 +466,7 @@ public class SmsNotificationAdapter {
         metrics.put("providerStats", providerStats);
         
         metrics.put("currentHourUsage", smsTimes.size());
-        metrics.put("hourlyLimit", rateLimitPerHour);
+        metrics.put("hourlyLimit", smsProperties.getRateLimit().getMessagesPerHour());
         metrics.put("recipientGroups", recipientRegistry.size());
         
         return metrics;

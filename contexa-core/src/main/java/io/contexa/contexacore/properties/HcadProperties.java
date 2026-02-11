@@ -10,6 +10,11 @@ public class HcadProperties {
 
     private boolean enabled = true;
 
+    private boolean enableSimulatedUserAgent = false;
+
+    @NestedConfigurationProperty
+    private AnalysisSettings analysis = new AnalysisSettings();
+
     @NestedConfigurationProperty
     private ThresholdSettings threshold = new ThresholdSettings();
 
@@ -72,12 +77,26 @@ public class HcadProperties {
     }
 
     @Data
+    public static class AnalysisSettings {
+        private long maxAgeMs = 3600000L;
+    }
+
+    @Data
     public static class BaselineSettings {
         private double minConfidence = 0.3;
         private double updateAlpha = 0.1;
 
         @NestedConfigurationProperty
+        private LearningSettings learning = new LearningSettings();
+
+        @NestedConfigurationProperty
         private BootstrapSettings bootstrap = new BootstrapSettings();
+
+        @Data
+        public static class LearningSettings {
+            private double alpha = 0.1;
+            private boolean enabled = true;
+        }
 
         @NestedConfigurationProperty
         private StatisticalSettings statistical = new StatisticalSettings();
