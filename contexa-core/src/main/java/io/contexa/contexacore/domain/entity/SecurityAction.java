@@ -175,52 +175,6 @@ public class SecurityAction {
     @Builder.Default
     private List<String> auditLog = new ArrayList<>();
 
-    public enum ActionType {
-        
-        BLOCK_NETWORK("네트워크 차단"),
-        ISOLATE_HOST("호스트 격리"),
-        BLOCK_IP("IP 차단"),
-        BLOCK_DOMAIN("도메인 차단"),
-
-        KILL_PROCESS("프로세스 종료"),
-        QUARANTINE_FILE("파일 격리"),
-        DELETE_FILE("파일 삭제"),
-
-        DISABLE_USER("사용자 비활성화"),
-        RESET_PASSWORD("비밀번호 재설정"),
-        REVOKE_ACCESS("접근 권한 철회"),
-
-        PATCH_SYSTEM("시스템 패치"),
-        RESTART_SERVICE("서비스 재시작"),
-        UPDATE_CONFIGURATION("설정 업데이트"),
-
-        COLLECT_LOGS("로그 수집"),
-        CAPTURE_MEMORY("메모리 캡처"),
-        FORENSIC_ANALYSIS("포렌식 분석"),
-
-        SEND_ALERT("알림 발송"),
-        ESCALATE_INCIDENT("인시던트 에스컬레이션"),
-        CREATE_TICKET("티켓 생성");
-        
-        private final String description;
-        
-        ActionType(String description) {
-            this.description = description;
-        }
-        
-        public String getDescription() {
-            return description;
-        }
-        
-        public boolean isDestructive() {
-            return this == DELETE_FILE || this == KILL_PROCESS;
-        }
-        
-        public boolean isReversible() {
-            return this != DELETE_FILE && this != FORENSIC_ANALYSIS;
-        }
-    }
-
     public enum ActionStatus {
         PENDING("대기중"),
         AWAITING_APPROVAL("승인 대기"),

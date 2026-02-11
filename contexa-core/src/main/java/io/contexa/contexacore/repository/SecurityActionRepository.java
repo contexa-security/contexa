@@ -6,15 +6,10 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
 public interface SecurityActionRepository extends JpaRepository<SecurityAction, String> {
-
-    @Query("SELECT a FROM SecurityAction a WHERE a.incident.incidentId = :incidentId")
-    List<SecurityAction> findByIncidentId(@Param("incidentId") String incidentId);
 
     List<SecurityAction> findByStatus(SecurityAction.ActionStatus status);
 
@@ -94,9 +89,6 @@ public interface SecurityActionRepository extends JpaRepository<SecurityAction, 
     @Query("UPDATE SecurityAction a SET a.status = 'EXPIRED' WHERE a.status IN ('PENDING', 'SCHEDULED') AND a.expiresAt < :expirationTime")
     int expireOldActions(@Param("expirationTime") LocalDateTime expirationTime);
 
-    @Query("SELECT a.status, COUNT(a) FROM SecurityAction a WHERE a.incident.incidentId = :incidentId GROUP BY a.status")
-    List<Object[]> getActionStatisticsByIncident(@Param("incidentId") String incidentId);
-
     @Query("SELECT a.approvalStatus, COUNT(a) FROM SecurityAction a " +
            "WHERE a.requiresApproval = true AND a.createdAt BETWEEN :startDate AND :endDate " +
            "GROUP BY a.approvalStatus")
@@ -119,9 +111,6 @@ public interface SecurityActionRepository extends JpaRepository<SecurityAction, 
 
     @Query("SELECT a FROM SecurityAction a WHERE a.parentActionId = :parentActionId ORDER BY a.executionOrder ASC")
     List<SecurityAction> findChainedActions(@Param("parentActionId") String parentActionId);
-
-    @Query("SELECT a FROM SecurityAction a WHERE a.incident.incidentId = :incidentId AND a.status = 'COMPLETED' AND a.rollbackable = true ORDER BY a.executedAt DESC")
-    List<SecurityAction> findRollbackableActions(@Param("incidentId") String incidentId);
 
     @Query("SELECT a FROM SecurityAction a WHERE a.actionType = :actionType AND a.status IN ('COMPLETED', 'FAILED') ORDER BY a.executedAt DESC")
     List<SecurityAction> findExecutionHistory(
