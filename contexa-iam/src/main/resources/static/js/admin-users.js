@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
 
         const refreshToken = window.TokenMemory.refreshToken;
-        const refreshUrl = "/api/auth/refresh";
+        const refreshUrl = "/api/refresh";
         const refreshOptions = {
             method: "POST",
             headers: {

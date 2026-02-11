@@ -24,7 +24,7 @@ public class OAuth2PreAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        if ("/api/auth/logout".equals(request.getRequestURI())) {
+        if ("/api/logout".equals(request.getRequestURI())) {
             String token = tokenService.resolveAccessToken(request);
             if (StringUtils.hasText(token) && tokenService.validateAccessToken(token)) {
                 Authentication authentication = tokenService.getAuthentication(token);

@@ -13,7 +13,7 @@ public class SingleAuthUrls {
     private String formLoginPage = "/login";
 
     
-    private String restLoginProcessing = "/api/auth/login";
+    private String restLoginProcessing = "/api/login";
 
     
     private String loginFailure = "/login?error";

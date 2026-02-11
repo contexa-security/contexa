@@ -14,10 +14,9 @@ import java.io.PrintWriter;
 @Slf4j
 public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
-    private String loginPageUrl = "/login";
+    private String loginPageUrl = "/api/login";
 
-    public DefaultRestLoginPageGeneratingFilter() {
-    }
+    public DefaultRestLoginPageGeneratingFilter() {}
 
     public DefaultRestLoginPageGeneratingFilter(String loginPageUrl) {
         this.loginPageUrl = loginPageUrl;

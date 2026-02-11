@@ -44,7 +44,7 @@ public class PlatformSecurityConfig {
                                     "/mfa/select-factor","/mfa/ott/request-code-ui", "/mfa/challenge/ott",
                                     "/mfa/challenge/passkey", "/mfa/failure","/mfa/ott/generate-code","/mfa/ott/code-sent",
                                     "/api/register",
-                                    "/api/auth/login", "/api/auth/refresh",
+                                    "/api/login", "/api/refresh",
                                     "/api/ott/generate",
                                     "/webauthn/register/options", "/webauthn/register","/login/mfa-webauthn",
                                     "/webauthn/authenticate/options", "/login/webauthn",
@@ -68,8 +68,8 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-                .form(form -> form.loginPage("/admin/login").order(20).defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
-//                .rest(rest -> rest.order(10)).session(Customizer.withDefaults())
+                .form(form -> form.order(10).defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
+                .rest(rest -> rest.order(20)).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
 

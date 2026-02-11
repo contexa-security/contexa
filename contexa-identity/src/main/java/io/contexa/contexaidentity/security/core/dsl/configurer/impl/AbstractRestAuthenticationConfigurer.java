@@ -25,7 +25,7 @@ import java.util.Objects;
 public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRestAuthenticationConfigurer<T, H>, H extends HttpSecurityBuilder<H>>
         extends AbstractHttpConfigurer<T, H> {
 
-    protected String loginProcessingUrl = "/api/auth/login";
+    protected String loginProcessingUrl = "/api/login";
     protected RequestMatcher requestMatcher;
     protected PlatformAuthenticationSuccessHandler successHandler;
     protected PlatformAuthenticationFailureHandler failureHandler;

@@ -52,7 +52,7 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
         super.configureHttpSecurity(http, opts, currentFlow, successHandler, failureHandler);
 
-        DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter();
+        DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter("/api/login");
         http.addFilterBefore(loginPageFilter, UsernamePasswordAuthenticationFilter.class);
     }
 }

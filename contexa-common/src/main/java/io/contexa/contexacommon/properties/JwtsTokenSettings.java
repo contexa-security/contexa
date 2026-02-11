@@ -5,7 +5,7 @@ import lombok.Data;
 @Data
 public class JwtsTokenSettings {
 
-    private String loginUri = "/api/auth/login";
-    private String logoutUri = "/api/auth/logout";
-    private String refreshUri = "/api/auth/refresh";
+    private String loginUri = "/api/login";
+    private String logoutUri = "/api/logout";
+    private String refreshUri = "/api/refresh";
 }

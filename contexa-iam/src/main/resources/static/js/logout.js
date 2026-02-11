@@ -29,7 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
         try {
-            const response = await fetch("/api/auth/logout", {
+            const response = await fetch("/api/logout", {
                 method: "POST",
                 credentials: "same-origin", // 쿠키 방식 로그아웃을 위해
                 headers: headers
