@@ -121,14 +121,9 @@ public class AdminOverrideRepository {
         if (requestId == null) {
             return;
         }
-
         String key = EVENT_PREFIX + requestId;
-
         try {
-            Boolean deleted = redisTemplate.delete(key);
-            if (Boolean.TRUE.equals(deleted)) {
-            }
-
+            redisTemplate.delete(key);
         } catch (Exception e) {
             log.error("[AdminOverrideRepository] SecurityEvent 삭제 실패: requestId={}", requestId, e);
         }
@@ -177,43 +172,14 @@ public class AdminOverrideRepository {
         if (requestId == null) {
             return;
         }
-
         String key = PENDING_PREFIX + requestId;
-
         try {
             Boolean deleted = redisTemplate.delete(key);
-            if (Boolean.TRUE.equals(deleted)) {
+            if (deleted) {
             }
 
         } catch (Exception e) {
             log.error("[AdminOverrideRepository] pending 삭제 실패: requestId={}", requestId, e);
-        }
-    }
-
-    public List<AdminOverride> findByUserId(String userId) {
-        if (userId == null) {
-            return Collections.emptyList();
-        }
-
-        String userIndexKey = USER_INDEX_PREFIX + userId;
-        List<AdminOverride> results = new ArrayList<>();
-
-        try {
-            Set<Object> requestIds = redisTemplate.opsForSet().members(userIndexKey);
-
-            if (requestIds == null || requestIds.isEmpty()) {
-                return Collections.emptyList();
-            }
-
-            for (Object reqId : requestIds) {
-                findByRequestId((String) reqId).ifPresent(results::add);
-            }
-
-            return results;
-
-        } catch (Exception e) {
-            log.error("[AdminOverrideRepository] 사용자별 조회 실패: userId={}", userId, e);
-            return Collections.emptyList();
         }
     }
 
@@ -284,7 +250,6 @@ public class AdminOverrideRepository {
         }
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, Object> securityEventToMap(SecurityEvent event) {
         Map<String, Object> map = new HashMap<>();
         map.put("eventId", event.getEventId());
@@ -360,7 +325,7 @@ public class AdminOverrideRepository {
         }
 
         String metadataStr = getStringFromMap(data, "metadata");
-        if (metadataStr != null && !metadataStr.isEmpty() && metadataStr.startsWith("{")) {
+        if (metadataStr != null && metadataStr.startsWith("{")) {
             try {
                 Map<String, Object> metadata = new HashMap<>();
                 String content = metadataStr.substring(1, metadataStr.length() - 1);
@@ -380,7 +345,6 @@ public class AdminOverrideRepository {
                 log.warn("[AdminOverrideRepository] metadata 파싱 실패: {}", e.getMessage());
             }
         }
-
         return builder.build();
     }
 }
