@@ -1,14 +1,9 @@
 package io.contexa.contexacore.security.zerotrust;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
-import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
-import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +16,6 @@ import org.springframework.security.core.context.SecurityContext;
 
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 
-import java.net.InetAddress;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -33,7 +27,7 @@ import java.util.stream.Collectors;
 public class ZeroTrustSecurityService {
 
     private final RedisTemplate<String, Object> redisTemplate;
-    private final ThreatScoreOrchestrator threatScoreOrchestrator;
+    private final ThreatScoreUtil threatScoreUtil;
     private final ObjectMapper objectMapper;
 
     @Value("${zerotrust.enabled:true}")
@@ -55,7 +49,7 @@ public class ZeroTrustSecurityService {
         try {
 
             String action = getLatestAction(userId);
-            double threatScore = threatScoreOrchestrator.getThreatScore(userId);
+            double threatScore = threatScoreUtil.getThreatScore(userId);
             double trustScore = 1.0 - threatScore;
 
             UserSecurityContext userContext = getUserContext(userId);
@@ -201,8 +195,8 @@ public class ZeroTrustSecurityService {
         }
 
         if (!adjustedAuthorities.equals(new HashSet<>(currentAuthorities))) {
-            double trustScore = 1.0 - threatScoreOrchestrator.getThreatScore(userId);
-            double threatScore = threatScoreOrchestrator.getThreatScore(userId);
+            double trustScore = 1.0 - threatScoreUtil.getThreatScore(userId);
+            double threatScore = threatScoreUtil.getThreatScore(userId);
 
             Authentication adjustedAuth = new ZeroTrustAuthenticationToken(
                     auth.getPrincipal(),
@@ -325,6 +319,6 @@ public class ZeroTrustSecurityService {
     }
 
     public double getThreatScore(String userId) {
-        return threatScoreOrchestrator.getThreatScore(userId);
+        return threatScoreUtil.getThreatScore(userId);
     }
 }

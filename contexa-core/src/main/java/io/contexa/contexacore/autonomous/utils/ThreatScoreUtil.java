@@ -1,6 +1,5 @@
-package io.contexa.contexacore.autonomous.orchestrator;
+package io.contexa.contexacore.autonomous.utils;
 
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,7 +7,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 @Slf4j
 @RequiredArgsConstructor
-public class ThreatScoreOrchestrator {
+public class ThreatScoreUtil {
 
     private final RedisTemplate<String, Object> redisTemplate;
 
@@ -19,7 +18,6 @@ public class ThreatScoreOrchestrator {
         if (userId == null || userId.isEmpty()) {
             return initialThreatScore;
         }
-
         try {
             String threatScoreKey = ZeroTrustRedisKeys.threatScore(userId);
             Object threatScoreObj = redisTemplate.opsForValue().get(threatScoreKey);

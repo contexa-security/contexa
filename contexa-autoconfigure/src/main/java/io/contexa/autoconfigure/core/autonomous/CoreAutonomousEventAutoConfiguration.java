@@ -16,10 +16,10 @@ import io.contexa.contexacore.autonomous.event.monitoring.DeadLetterQueueMonitor
 import io.contexa.contexacore.autonomous.event.monitoring.RedisMemoryMonitor;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.orchestrator.handler.ProcessingExecutionHandler;
-import io.contexa.contexacore.autonomous.orchestrator.handler.SecurityDecisionEnforcementHandler;
-import io.contexa.contexacore.autonomous.orchestrator.strategy.ColdPathStrategy;
-import io.contexa.contexacore.autonomous.orchestrator.strategy.ProcessingStrategy;
+import io.contexa.contexacore.autonomous.handler.handler.ProcessingExecutionHandler;
+import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
+import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
+import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;

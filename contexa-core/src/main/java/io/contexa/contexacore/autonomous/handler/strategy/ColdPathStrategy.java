@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.orchestrator.strategy;
+package io.contexa.contexacore.autonomous.handler.strategy;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;

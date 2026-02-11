@@ -1,7 +1,8 @@
-package io.contexa.contexacore.autonomous.orchestrator;
+package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -12,7 +13,7 @@ import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
-public class SecurityEventProcessingOrchestrator {
+public class SecurityEventProcessor {
 
     private final List<SecurityEventHandler> handlers;
 

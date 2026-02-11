@@ -1,9 +1,9 @@
-package io.contexa.contexacore.autonomous.orchestrator.handler;
+package io.contexa.contexacore.autonomous.handler.handler;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
-import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
-import io.contexa.contexacore.autonomous.orchestrator.strategy.ProcessingStrategy;
+import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
+import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import lombok.RequiredArgsConstructor;

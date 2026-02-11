@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.orchestrator;
+package io.contexa.contexacore.autonomous.handler;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 

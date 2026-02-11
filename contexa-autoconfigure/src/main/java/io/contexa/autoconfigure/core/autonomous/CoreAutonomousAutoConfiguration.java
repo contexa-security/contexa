@@ -5,10 +5,10 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
-import io.contexa.contexacore.autonomous.orchestrator.SecurityEventHandler;
-import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
-import io.contexa.contexacore.autonomous.orchestrator.ThreatScoreOrchestrator;
-import io.contexa.contexacore.autonomous.orchestrator.handler.AuditingHandler;
+import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
+import io.contexa.contexacore.autonomous.SecurityEventProcessor;
+import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
+import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
@@ -107,8 +107,8 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ThreatScoreOrchestrator threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate) {
-        return new ThreatScoreOrchestrator(redisTemplate);
+    public ThreatScoreUtil threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate) {
+        return new ThreatScoreUtil(redisTemplate);
     }
 
     @Bean
@@ -163,9 +163,9 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityEventProcessingOrchestrator securityEventProcessingOrchestrator(
+    public SecurityEventProcessor securityEventProcessingOrchestrator(
             List<SecurityEventHandler> handlers) {
-        return new SecurityEventProcessingOrchestrator(handlers);
+        return new SecurityEventProcessor(handlers);
     }
 
     @Bean
@@ -174,7 +174,7 @@ public class CoreAutonomousAutoConfiguration {
             SecurityMonitoringService securityMonitor,
             RedisTemplate<String, Object> redisTemplate,
             SecurityPlaneAuditLogger auditLogger,
-            SecurityEventProcessingOrchestrator processingOrchestrator,
+            SecurityEventProcessor processingOrchestrator,
             SecurityPlaneProperties securityPlaneProperties) {
         return new SecurityPlaneAgent(
                 securityMonitor, redisTemplate, auditLogger, processingOrchestrator, securityPlaneProperties);

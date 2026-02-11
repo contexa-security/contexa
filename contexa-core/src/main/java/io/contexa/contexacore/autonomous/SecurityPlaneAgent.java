@@ -3,7 +3,6 @@ package io.contexa.contexacore.autonomous;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
-import io.contexa.contexacore.autonomous.orchestrator.SecurityEventProcessingOrchestrator;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -32,7 +31,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final SecurityMonitoringService securityMonitor;
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecurityPlaneAuditLogger auditLogger;
-    private final SecurityEventProcessingOrchestrator processingOrchestrator;
+    private final SecurityEventProcessor processingOrchestrator;
     private final SecurityPlaneProperties securityPlaneProperties;
 
     private AgentState currentState;
