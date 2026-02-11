@@ -157,10 +157,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (unifiedVectorService == null) {
             return Collections.emptyList();
         }
-
         try {
             StringBuilder queryBuilder = new StringBuilder();
-
             if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
                 queryBuilder.append("User: ").append(event.getUserId());
             }
@@ -282,10 +280,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return SecurityEventEnricher.extractOSFromUserAgent(userAgent);
     }
 
-    protected String extractBrowserSignature(String userAgent) {
-        return SecurityEventEnricher.extractBrowserSignature(userAgent);
-    }
-
     protected String extractJsonObject(String response) {
         if (response == null || response.isEmpty()) {
             return "{}";
@@ -331,17 +325,13 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 }
             }
         }
-
         if (endIndex != -1) {
             return response.substring(startIndex, endIndex + 1);
         }
-
-        // fallback: use last '}' character
         endIndex = response.lastIndexOf('}');
         if (endIndex > startIndex) {
             return response.substring(startIndex, endIndex + 1);
         }
-
         return response;
     }
 }

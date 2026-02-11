@@ -16,28 +16,11 @@ import java.util.regex.Pattern;
 public class SecurityEventEnricher {
 
     private static final Pattern BASE64_PATTERN = Pattern.compile("^[A-Za-z0-9+/=]{4,}$");
-
     private static final Pattern URL_ENCODED_PATTERN = Pattern.compile(".*%[0-9A-Fa-f]{2}.*");
-
     public static final String TARGET_RESOURCE = "targetResource";
-
     public static final String REQUEST_PAYLOAD = "requestPayload";
-    public static final String USER_BEHAVIOR = "userBehavior";
     public static final String PATTERN_SCORE = "patternScore";
     public static final String RISK_INDICATORS = "riskIndicators";
-    public static final String CONTEXT_EMBEDDINGS = "contextEmbeddings";
-    public static final String LAYER_DECISIONS = "layerDecisions";
-    public static final String CORRELATION_ID = "correlationId";
-
-    public void enrichEvent(SecurityEvent event, String key, Object value) {
-        if (event == null) {
-            return;
-        }
-        if (event.getMetadata() == null) {
-            event.setMetadata(new HashMap<>());
-        }
-        event.getMetadata().put(key, value);
-    }
 
     public Optional<String> getTargetResource(SecurityEvent event) {
 
@@ -119,21 +102,6 @@ public class SecurityEventEnricher {
         if (str == null) return "null";
         if (str.length() <= 50) return str;
         return str.substring(0, 47) + "...";
-    }
-
-    public Optional<Double> getPatternScore(SecurityEvent event) {
-        return getMetadataValue(event, PATTERN_SCORE, Double.class);
-    }
-
-    public Optional<Map<String, Object>> getRiskIndicators(SecurityEvent event) {
-        if (event.getMetadata() == null || !event.getMetadata().containsKey(RISK_INDICATORS)) {
-            return Optional.empty();
-        }
-        Object value = event.getMetadata().get(RISK_INDICATORS);
-        if (value instanceof Map) {
-            return Optional.of((Map<String, Object>) value);
-        }
-        return Optional.empty();
     }
 
     private <T> Optional<T> getMetadataValue(SecurityEvent event, String key, Class<T> type) {
