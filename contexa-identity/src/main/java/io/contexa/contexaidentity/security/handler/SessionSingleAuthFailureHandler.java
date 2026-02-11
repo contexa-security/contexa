@@ -27,7 +27,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
 
     @Override
     public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response,
-                                        AuthenticationException exception) throws IOException, ServletException {
+                                        AuthenticationException exception) throws IOException{
         onAuthenticationFailure(request, response, exception, null, null, null);
     }
 
