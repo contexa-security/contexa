@@ -52,11 +52,9 @@ public class ZeroTrustSecurityService {
         if (!zeroTrustEnabled || context == null || userId == null) {
             return;
         }
-
         try {
 
             String action = getLatestAction(userId);
-
             double threatScore = threatScoreOrchestrator.getThreatScore(userId);
             double trustScore = 1.0 - threatScore;
 
@@ -70,7 +68,6 @@ public class ZeroTrustSecurityService {
             }
 
             adjustAuthoritiesByAction(context, action, userId, request);
-
             setZeroTrustMetadata(context, trustScore, threatScore, userContext, action);
 
         } catch (Exception e) {
@@ -82,7 +79,6 @@ public class ZeroTrustSecurityService {
         if (sessionId == null) {
             return;
         }
-
         try {
             String invalidKey = ZeroTrustRedisKeys.invalidSession(sessionId);
 
@@ -92,9 +88,7 @@ public class ZeroTrustSecurityService {
             invalidationRecord.put("reason", reason);
             invalidationRecord.put("timestamp", System.currentTimeMillis());
 
-            redisTemplate.opsForValue().set(invalidKey, invalidationRecord,
-                    Duration.ofHours(cacheTtlHours));
-
+            redisTemplate.opsForValue().set(invalidKey, invalidationRecord, Duration.ofHours(cacheTtlHours));
             if (sessionTrackingEnabled && userId != null) {
                 removeUserSession(userId, sessionId);
             }
@@ -324,11 +318,9 @@ public class ZeroTrustSecurityService {
                         .map(Object::toString)
                         .collect(Collectors.toSet());
             }
-
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to get user sessions for: {}", userId, e);
         }
-
         return new HashSet<>();
     }
 
