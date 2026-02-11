@@ -6,6 +6,9 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.RiskAssessment;
+import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
@@ -33,6 +36,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
@@ -121,8 +125,13 @@ public class CoreAutonomousEventAutoConfiguration {
     public ColdPathEventProcessor coldPathEventProcessor(
             RedisTemplate<String, Object> redisTemplate,
             Layer1ContextualStrategy contextualStrategy,
-            Layer2ExpertStrategy expertStrategy) {
-        return new ColdPathEventProcessor(redisTemplate, contextualStrategy, expertStrategy);
+            Layer2ExpertStrategy expertStrategy,
+            BaselineLearningService baselineLearningService,
+            AdminOverrideService adminOverrideService,
+            LlmAnalysisEventListener llmAnalysisEventListener,
+            StringRedisTemplate stringRedisTemplate) {
+        return new ColdPathEventProcessor(redisTemplate, contextualStrategy, expertStrategy,
+        baselineLearningService, adminOverrideService, llmAnalysisEventListener, stringRedisTemplate);
     }
 
     @Bean

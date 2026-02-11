@@ -3,18 +3,17 @@ package io.contexa.contexacore.autonomous.security.processor;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
-import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -31,18 +30,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private final RedisTemplate<String, Object> redisTemplate;
     private final Layer1ContextualStrategy contextualStrategy;
     private final Layer2ExpertStrategy expertStrategy;
-
-    @Autowired(required = false)
-    private BaselineLearningService baselineLearningService;
-
-    @Autowired(required = false)
-    private AdminOverrideService adminOverrideService;
-
-    @Autowired(required = false)
-    private LlmAnalysisEventListener llmAnalysisEventListener;
-
-    @Autowired(required = false)
-    private StringRedisTemplate stringRedisTemplate;
+    private final BaselineLearningService baselineLearningService;
+    private final AdminOverrideService adminOverrideService;
+    private final LlmAnalysisEventListener llmAnalysisEventListener;
+    private final StringRedisTemplate stringRedisTemplate;
 
     private final AtomicLong processedCount = new AtomicLong(0);
     private final AtomicLong totalProcessingTime = new AtomicLong(0);
@@ -74,13 +65,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     .build();
 
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore);
-
             result.setRiskScore(analysisResult.getFinalScore());
-
             result.addAnalysisData("aiAssessment", analysisResult);
-
             result.addAnalysisData("action", analysisResult.getAction());
-
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
 
             final String finalUserId = userId;
@@ -92,7 +79,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
             } catch (Exception ex) {
                 log.error("[ColdPath][CRITICAL] Redis 분석 결과 저장 실패 (동기): userId={}, eventId={}",
                         userId, event.getEventId(), ex);
-
             }
 
             CompletableFuture.runAsync(() -> {
@@ -123,18 +109,13 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private ThreatAnalysisResult performTieredAIAnalysis(SecurityEvent event, double riskScore) {
         ThreatAnalysisResult result = new ThreatAnalysisResult();
         result.setBaseScore(riskScore);
-
-        long startTime = System.currentTimeMillis();
         String userId = event.getUserId();
         String requestPath = extractRequestPath(event);
 
         try {
-
             ThreatAssessment layer1Assessment = null;
             if (contextualStrategy != null) {
-
                 publishLayer1Start(userId, requestPath);
-
                 long layer1StartTime = System.currentTimeMillis();
                 layer1Assessment = contextualStrategy.evaluate(event);
                 long layer1ElapsedMs = System.currentTimeMillis() - layer1StartTime;
@@ -218,12 +199,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
         if (userId == null || userId.isBlank()) {
             return;
         }
-
         try {
-
             String action = analysisResult.getAction();
             if (action == null || action.isBlank()) {
-
                 action = "ESCALATE";
                 log.warn("[ColdPath][AI Native] LLM action 미반환, ESCALATE 설정 - userId: {}", userId);
             }
@@ -248,13 +226,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
             if (ttl != null) {
                 redisTemplate.expire(analysisKey, ttl);
             }
-
-            // Persist last verified action in separate key (survives hcadAnalysis TTL expiry)
             if (stringRedisTemplate != null) {
                 String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
                 stringRedisTemplate.opsForValue().set(lastActionKey, action, Duration.ofHours(24));
             }
-
             if ("BLOCK".equalsIgnoreCase(action) && adminOverrideService != null) {
                 String requestId = (String) fields.get("requestId");
                 if (requestId == null) {
@@ -315,9 +290,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
         if (count > 0) {
             stats.setAverageProcessingTime((double) totalProcessingTime.get() / count);
         }
-
         stats.setLastProcessedTimestamp(lastProcessedTimestamp);
-
         return stats;
     }
 
@@ -330,7 +303,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private Set<String> indicators = new HashSet<>();
         private Set<String> recommendedActions = new HashSet<>();
         private int analysisDepth = 0;
-
         private String action;
 
         public List<String> getIndicators() {
@@ -364,11 +336,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     default -> SecurityDecision.Action.ESCALATE;
                 };
             } else {
-
                 decisionAction = SecurityDecision.Action.ESCALATE;
                 reasoningPrefix = "AI Analysis Incomplete: ";
             }
-
             return SecurityDecision.builder()
                     .action(decisionAction)
                     .riskScore(finalScore)
