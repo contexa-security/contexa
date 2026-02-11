@@ -41,11 +41,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
 
     @PostConstruct
     public void initialize() {
-        String agentName = securityPlaneProperties.getAgent().getName();
-        if (auditLogger != null) {
-            auditLogger.auditAgentStateChange(agentName, "UNINITIALIZED", "INITIALIZING",
-                    "Security Plane Agent initialization started", null);
-        }
         currentState = AgentState.INITIALIZING;
         securityMonitor.setBatchProcessor(this::processBatch);
     }

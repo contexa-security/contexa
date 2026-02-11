@@ -12,9 +12,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     
     List<AuditLog> findTop5ByPrincipalNameOrderByIdDesc(String principalName);
 
-    
-
-    
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.resourceIdentifier = :resourceId")
     long countByResourceIdentifier(@Param("resourceId") String resourceId);
 
@@ -62,7 +59,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
         return findRecentActivitiesByUserId(userId, since);
     }
 
-    
     @Query("SELECT a FROM AuditLog a WHERE a.principalName = :userId " +
             "AND a.outcome = 'FAILURE' " +
             "AND a.timestamp >= :since " +
@@ -70,7 +66,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findRecentFailedAttemptsByUser(@Param("userId") String userId,
                                                   @Param("since") LocalDateTime since);
 
-    
     @Query(value = """
     SELECT *
       FROM audit_log a
