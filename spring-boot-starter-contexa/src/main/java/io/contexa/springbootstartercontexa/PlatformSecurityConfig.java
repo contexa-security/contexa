@@ -68,8 +68,8 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-                .form(form -> form.order(10).defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
-                .rest(rest -> rest.order(20)).session(Customizer.withDefaults())
+//                .form(form -> form.order(10).loginPage("/admin/login").defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
+//                .rest(rest -> rest.order(20)).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
 
@@ -77,17 +77,17 @@ public class PlatformSecurityConfig {
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
-                /*.mfa(mfa -> mfa
+                .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.defaultSuccessUrl("/test/security").securityContextRepository(new HttpSessionSecurityContextRepository())))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        *//*.mfaPage(page ->
+                        .mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))*//*
+                                        .passkeyChallengePages("/custom/challenge/passkey"))
                         .order(60)
-                ).session(Customizer.withDefaults())*/
+                ).session(Customizer.withDefaults())
                 .build();
     }
 }

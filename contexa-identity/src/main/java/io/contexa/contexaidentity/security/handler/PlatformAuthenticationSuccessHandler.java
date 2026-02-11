@@ -6,6 +6,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.util.UrlUtils;
+import org.springframework.util.Assert;
 
 import java.io.IOException;
 
@@ -22,5 +24,9 @@ public interface PlatformAuthenticationSuccessHandler extends AuthenticationSucc
                                          HttpServletResponse response,
                                          Authentication authentication) throws IOException, ServletException {
 
+    }
+
+    default void setDefaultTargetUrl(String defaultTargetUrl) {
+        Assert.isTrue(UrlUtils.isValidRedirectUrl(defaultTargetUrl),"defaultTarget must start with '/' or with 'http(s)'");
     }
 }

@@ -7,6 +7,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+import org.springframework.security.web.util.UrlUtils;
+import org.springframework.util.Assert;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,6 +29,10 @@ public interface PlatformAuthenticationFailureHandler extends AuthenticationFail
                                          HttpServletResponse response,
                                          AuthenticationException exception) throws IOException, ServletException {
         
+    }
+
+    default void setDefaultTargetUrl(String defaultTargetUrl) {
+        Assert.isTrue(UrlUtils.isValidRedirectUrl(defaultTargetUrl),"defaultTarget must start with '/' or with 'http(s)'");
     }
 
     enum FailureType {

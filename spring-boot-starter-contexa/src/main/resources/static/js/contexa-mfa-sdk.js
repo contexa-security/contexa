@@ -438,7 +438,7 @@
         _getDefaultEndpoints() {
             return {
                 primary: {
-                    restLoginProcessing: '/api/auth/login',
+                    restLoginProcessing: '/api/login',
                     formLoginProcessing: '/mfa/login'
                 },
                 ott: {

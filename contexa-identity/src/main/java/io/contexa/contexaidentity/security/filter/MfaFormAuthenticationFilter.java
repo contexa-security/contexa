@@ -59,7 +59,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         this.sessionIdGenerator = KeyGenerators.secureRandom(32);
         this.secureRandom = new SecureRandom();
 
-            }
+    }
 
     @Override
     protected Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
@@ -85,8 +85,8 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
 
     @Override
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
-                                          Authentication authentication) throws IOException, ServletException {
-        
+                                         Authentication authentication) throws IOException, ServletException {
+
         SecurityContext context = securityContextHolderStrategy.createEmptyContext();
         context.setAuthentication(authentication);
         securityContextHolderStrategy.setContext(context);
@@ -107,7 +107,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         enhanceFactorContextWithSecurityInfo(factorContext, request);
 
         try {
-            
+
             stateMachineIntegrator.initializeStateMachine(factorContext, request, response);
 
             MfaState actualState = stateMachineIntegrator.getCurrentState(factorContext.getMfaSessionId());
@@ -124,7 +124,8 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
             cleanupFailedSession(mfaSessionId, request, response);
 
             unsuccessfulAuthentication(request, response,
-                    new AuthenticationException("State Machine initialization failed", e) {});
+                    new AuthenticationException("State Machine initialization failed", e) {
+                    });
         }
     }
 
@@ -137,7 +138,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
     }
 
     private String generateDistributedUniqueSessionId(HttpServletRequest request) {
-        
+
         for (int attempt = 0; attempt < MAX_SESSION_ID_GENERATION_ATTEMPTS; attempt++) {
             try {
                 String baseId = generateSecureSessionId();
@@ -164,7 +165,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
     }
 
     private String resolveSessionIdGenerationFailure(HttpServletRequest request) {
-        
+
         try {
             String originalId = generateSecureSessionId();
             return sessionRepository.resolveSessionIdCollision(originalId, request, MAX_COLLISION_RESOLUTION_ATTEMPTS);
@@ -178,19 +179,19 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         String deviceId = getOrCreateDeviceId(request);
         factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID, deviceId);
         factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP,
-                                  getClientIpAddress(request));
+                getClientIpAddress(request));
         factorContext.setAttribute(FactorContextAttributes.DeviceAndSession.USER_AGENT,
-                                  request.getHeader("User-Agent"));
+                request.getHeader("User-Agent"));
         factorContext.setAttribute(FactorContextAttributes.Timestamps.LOGIN_TIMESTAMP,
-                                  System.currentTimeMillis());
+                System.currentTimeMillis());
 
-            }
+    }
 
     private void cleanupFailedSession(String mfaSessionId, HttpServletRequest request, HttpServletResponse response) {
         try {
             if (sessionRepository.existsSession(mfaSessionId)) {
                 sessionRepository.removeSession(mfaSessionId, request, response);
-                            }
+            }
         } catch (Exception e) {
             log.warn("Failed to cleanup failed session: {}", mfaSessionId, e);
         }
@@ -198,7 +199,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
 
     @Override
     public void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
-                                            AuthenticationException failed) throws IOException, ServletException {
+                                           AuthenticationException failed) throws IOException, ServletException {
         securityContextHolderStrategy.clearContext();
         stateMachineIntegrator.cleanupSession(request, response);
 
@@ -213,7 +214,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
     private void cleanupExistingSession(HttpServletRequest request, HttpServletResponse response) {
         try {
             stateMachineIntegrator.cleanupSession(request, response);
-                    } catch (Exception e) {
+        } catch (Exception e) {
             log.warn("Failed to cleanup existing session using {}: {}", sessionRepository.getRepositoryType(), e.getMessage());
         }
     }
@@ -235,7 +236,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
             deviceId = generateSecureDeviceId();
         }
 
-                return deviceId;
+        return deviceId;
     }
 
     private String generateDistributedDeviceId(HttpServletRequest request) {
