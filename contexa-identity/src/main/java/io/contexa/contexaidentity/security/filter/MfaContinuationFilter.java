@@ -77,13 +77,11 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         }
 
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
-
         if (ctx != null) {
             request.setAttribute(FACTOR_CONTEXT_ATTR, ctx);
         }
 
         ValidationResult validation = MfaContextValidator.validateFactorSelectionContext(ctx, sessionRepository);
-
         request.setAttribute(VALIDATION_RESULT_ATTR, validation);
 
         if (validation.hasErrors()) {

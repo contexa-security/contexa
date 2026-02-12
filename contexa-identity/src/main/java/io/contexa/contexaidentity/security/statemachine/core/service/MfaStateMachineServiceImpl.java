@@ -88,7 +88,6 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                         machineId, restoredContext != null ? "exists (version " + restoredContext.getVersion() + ")" : "NULL");
                 updateAndStartStateMachine(stateMachine, machineId, initialStateIfNotRestored, initialFactorContextForReset);
             } else {
-                // Ensure StateMachine is started after restore (restore does not auto-start)
                 try {
                     stateMachine.startReactively().block();
                 } catch (Exception startEx) {

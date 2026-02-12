@@ -32,23 +32,22 @@ public class RestAuthenticationFilter extends BaseAuthenticationFilter {
         Assert.notNull(tokenService, "tokenService cannot be null");
         Assert.notNull(responseWriter, "responseWriter cannot be null");
 
-            }
+    }
 
     @Override
     public void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain,
-                                          Authentication authentication) throws IOException, ServletException {
+                                         Authentication authentication) throws IOException, ServletException {
 
         SecurityContext context = securityContextHolderStrategy.createEmptyContext();
         context.setAuthentication(authentication);
         securityContextHolderStrategy.setContext(context);
         securityContextRepository.saveContext(context, request, response);
-
-                successHandler.onAuthenticationSuccess(request, response, authentication);
+        successHandler.onAuthenticationSuccess(request, response, authentication);
     }
 
     @Override
     public void unsuccessfulAuthentication(HttpServletRequest request, HttpServletResponse response,
-                                            AuthenticationException failed) throws IOException, ServletException {
+                                           AuthenticationException failed) throws IOException, ServletException {
         securityContextHolderStrategy.clearContext();
 
         log.warn("REST authentication failed from IP: {}. Error: {}",

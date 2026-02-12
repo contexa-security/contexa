@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
+import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexacommon.entity.Users;
@@ -65,6 +66,7 @@ public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSer
         MinimalAuthenticationSerializer minimalAuthenticationSerializer = new MinimalAuthenticationSerializer();
         kryo.register(Authentication.class, minimalAuthenticationSerializer);
         kryo.register(UsernamePasswordAuthenticationToken.class, minimalAuthenticationSerializer);
+        kryo.register(RestAuthenticationToken.class, minimalAuthenticationSerializer);
         kryo.register(ZeroTrustAuthenticationToken.class, minimalAuthenticationSerializer);
         try {
             Class<?> unmodifiableListClass = Collections.unmodifiableList(new ArrayList<>()).getClass();

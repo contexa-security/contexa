@@ -25,13 +25,6 @@ public class RestAuthenticationToken extends AbstractAuthenticationToken {
         super.setAuthenticated(false);
     }
 
-    public RestAuthenticationToken(Object principal, Object credentials, Collection<? extends GrantedAuthority> authorities) {
-        super(authorities);
-        this.principal = principal;
-        this.credentials = credentials;
-        super.setAuthenticated(true);
-    }
-
     public RestAuthenticationToken( Object principal, Collection<? extends GrantedAuthority> authorities) {
         super(authorities);
         this.principal = principal;
