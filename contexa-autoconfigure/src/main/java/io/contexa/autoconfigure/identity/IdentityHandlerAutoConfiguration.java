@@ -52,22 +52,6 @@ public class IdentityHandlerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SessionMfaFailureHandler sessionMfaFailureHandler(
-            AuthResponseWriter responseWriter,
-            AuthContextProperties authContextProperties) {
-        return new SessionMfaFailureHandler(responseWriter, authContextProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SessionMfaSuccessHandler sessionMfaSuccessHandler(
-            AuthResponseWriter responseWriter,
-            AuthContextProperties authContextProperties) {
-        return new SessionMfaSuccessHandler(responseWriter, authContextProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public OAuth2SingleAuthSuccessHandler oauth2SingleAuthSuccessHandler(
             TokenService tokenService,
             AuthResponseWriter responseWriter,

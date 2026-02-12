@@ -163,18 +163,13 @@ public class SecurityFilterChainRegistrar {
                         StateType stateType = (flowConfig.getStateConfig() != null && flowConfig.getStateConfig().stateType() != null) ?
                                 flowConfig.getStateConfig().stateType() : authProps.getStateType();
 
-                        PlatformAuthenticationSuccessHandler customSuccessHandler = null;
-                        PlatformAuthenticationFailureHandler customFailureHandler = null;
+                        PlatformAuthenticationSuccessHandler customSuccessHandler;
+                        PlatformAuthenticationFailureHandler customFailureHandler;
 
                         if (isMfaFlow) {
 
-                            if (stateType == StateType.SESSION) {
-                                customSuccessHandler = appContext.getBean(SessionMfaSuccessHandler.class);
-                                customFailureHandler = appContext.getBean(SessionMfaFailureHandler.class);
-                            } else {
-                                customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
-                                customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
-                            }
+                            customSuccessHandler = appContext.getBean(MfaFactorProcessingSuccessHandler.class);
+                            customFailureHandler = appContext.getBean(UnifiedAuthenticationFailureHandler.class);
                         } else {
 
                             if (stateType == StateType.SESSION) {

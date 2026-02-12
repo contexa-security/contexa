@@ -32,8 +32,8 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
     @Override
     protected void configureHttpSecurity(HttpSecurity http, RestOptions opts,
                                          AuthenticationFlowConfig currentFlow,
-                                         PlatformAuthenticationSuccessHandler  successHandler,
-                                         PlatformAuthenticationFailureHandler  failureHandler) throws Exception {
+                                         PlatformAuthenticationSuccessHandler successHandler,
+                                         PlatformAuthenticationFailureHandler failureHandler) throws Exception {
 
         T configurer = createConfigurer();
 
@@ -59,15 +59,12 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
-            
             return super.resolveSuccessHandler(options, currentFlow, myStepConfig, allSteps, stateConfig, appContext);
         } else {
-            
             if (stateType == StateType.SESSION) {
-                                return appContext.getBean(SessionSingleAuthSuccessHandler.class);
+                return appContext.getBean(SessionSingleAuthSuccessHandler.class);
             } else {
-                
-                                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
+                return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
             }
         }
     }
@@ -83,15 +80,15 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
-            
+
             return super.resolveFailureHandler(options, currentFlow, stateConfig, appContext);
         } else {
-            
+
             if (stateType == StateType.SESSION) {
-                                return appContext.getBean(SessionSingleAuthFailureHandler.class);
+                return appContext.getBean(SessionSingleAuthFailureHandler.class);
             } else {
-                
-                                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
+
+                return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
             }
         }
     }
@@ -99,7 +96,7 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
     protected abstract T createConfigurer();
 
     protected abstract void configureRestAuthentication(T configurer, RestOptions opts,
-                                                        PlatformAuthenticationSuccessHandler  successHandler,
+                                                        PlatformAuthenticationSuccessHandler successHandler,
                                                         PlatformAuthenticationFailureHandler failureHandler);
 
     protected abstract void configureSecurityContext(T configurer, RestOptions opts);

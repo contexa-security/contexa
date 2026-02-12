@@ -46,13 +46,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final RedisTemplate<String, Object> redisTemplate;
     private final BaselineLearningService baselineLearningService;
-
-    @Autowired(required = false)
-    private StringRedisTemplate stringRedisTemplate;
-
-    @Autowired(required = false)
-    private HcadProperties hcadProperties;
-
+    private final StringRedisTemplate stringRedisTemplate;
+    private final HcadProperties hcadProperties;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
@@ -61,13 +56,15 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       AuthContextProperties authContextProperties,
                                                       ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                       RedisTemplate<String, Object> redisTemplate,
-                                                      BaselineLearningService baselineLearningService) {
+                                                      BaselineLearningService baselineLearningService, StringRedisTemplate stringRedisTemplate, HcadProperties hcadProperties) {
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
         this.redisTemplate = redisTemplate;
         this.baselineLearningService = baselineLearningService;
+        this.stringRedisTemplate = stringRedisTemplate;
+        this.hcadProperties = hcadProperties;
     }
 
     protected final void handleFinalAuthenticationSuccess(HttpServletRequest request,
@@ -124,7 +121,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         if (!response.isCommitted()) {
-            processDefaultResponse(response, finalResult);
+            processDefaultResponse(request, response, finalAuthentication, stateType, finalResult);
         }
 
         if (factorContext != null && factorContext.isCompleted()) {
@@ -139,12 +136,31 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     }
 
-    private void processDefaultResponse(HttpServletResponse response, TokenTransportResult result)
-            throws IOException {
+    private void processDefaultResponse(HttpServletRequest request, HttpServletResponse response,
+                                        Authentication authentication, StateType stateType,
+                                        TokenTransportResult result) throws IOException {
 
         setCookies(response, result);
 
-        writeJsonResponse(response, result.getBody());
+        if (stateType == StateType.SESSION && !isApiRequest(request)) {
+            String targetUrl = determineTargetUrl(request, response, authentication);
+            response.sendRedirect(targetUrl);
+        } else {
+            writeJsonResponse(response, result.getBody());
+        }
+    }
+
+    private boolean isApiRequest(HttpServletRequest request) {
+        String acceptHeader = request.getHeader("Accept");
+        if (acceptHeader != null && acceptHeader.contains("application/json")) {
+            return true;
+        }
+        String contentType = request.getContentType();
+        if (contentType != null && contentType.contains("application/json")) {
+            return true;
+        }
+        String requestURI = request.getRequestURI();
+        return requestURI != null && requestURI.contains("/api/");
     }
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response,

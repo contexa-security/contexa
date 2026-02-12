@@ -7,6 +7,7 @@ import io.contexa.contexacore.autonomous.security.identification.UserIdentificat
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.FlowConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.GlobalConfigurer;
@@ -49,6 +50,7 @@ import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
@@ -252,10 +254,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthContextProperties authContextProperties,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
-            BaselineLearningService baselineLearningService) {
+            BaselineLearningService baselineLearningService,
+            StringRedisTemplate stringRedisTemplate,
+            HcadProperties hcadProperties) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
-                authUrlProvider, zeroTrustEventPublisher, redisTemplate, baselineLearningService);
+                authUrlProvider, zeroTrustEventPublisher, redisTemplate, baselineLearningService,stringRedisTemplate,hcadProperties);
     }
 
     @Bean
@@ -283,10 +287,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             TokenService tokenService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
-            BaselineLearningService baselineLearningService) {
+            BaselineLearningService baselineLearningService,
+            StringRedisTemplate stringRedisTemplate,
+            HcadProperties hcadProperties) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider,
-                zeroTrustEventPublisher, redisTemplate,baselineLearningService);
+                zeroTrustEventPublisher, redisTemplate,baselineLearningService,stringRedisTemplate,hcadProperties);
     }
 
     @Bean

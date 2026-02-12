@@ -13,7 +13,7 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
 
     @Override
     public int getOrder() {
-        return 100; 
+        return 100;
     }
 
     @Override

@@ -34,8 +34,6 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
 
     public void setDelegateHandler(@Nullable PlatformAuthenticationSuccessHandler delegateHandler) {
         this.delegateHandler = delegateHandler;
-        if (delegateHandler != null) {
-        }
     }
 
     @Override
@@ -45,10 +43,20 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
 
     protected TokenPair createTokenPair(Authentication authentication, String deviceId,
                                         HttpServletRequest request, HttpServletResponse response) {
+        if (tokenService == null) {
+            throw new IllegalStateException(
+                    "TokenService is required for token creation but not configured. "
+                            + "Ensure OAuth2 state configuration is enabled.");
+        }
         return tokenService.createTokenPair(authentication, deviceId, request, response);
     }
 
     protected TokenTransportResult prepareTokenTransport(String accessToken, String refreshToken) {
+        if (tokenService == null) {
+            throw new IllegalStateException(
+                    "TokenService is required for token transport but not configured. "
+                            + "Ensure OAuth2 state configuration is enabled.");
+        }
         return tokenService.prepareTokensForTransport(accessToken, refreshToken);
     }
 

@@ -78,5 +78,5 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
         ServletServerHttpResponse httpResponse = new ServletServerHttpResponse(response);
         this.accessTokenResponseConverter.write(tokenResponse, MediaType.APPLICATION_JSON, httpResponse);
 
-            }
+    }
 }
