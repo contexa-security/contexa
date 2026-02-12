@@ -1,12 +1,8 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationConverter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationProvider;
-import io.contexa.contexaidentity.security.filter.OAuth2PreAuthenticationFilter;
-import io.contexa.contexaidentity.security.filter.OAuth2RefreshAuthenticationFilter;
-import io.contexa.contexaidentity.security.token.service.TokenService;
-import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
-import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
@@ -19,8 +15,6 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.logout.LogoutFilter;
-import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
@@ -38,37 +32,6 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         }
         configureResourceServer(http);
         configureAuthorizationServer(http);
-    }
-
-    @Override
-    public void configure(HttpSecurity http) throws Exception {
-
-        TokenService tokenService = http.getSharedObject(TokenService.class);
-        ApplicationContext context = http.getSharedObject(ApplicationContext.class);
-
-        if (tokenService != null) {
-
-            OAuth2PreAuthenticationFilter preAuthFilter = new OAuth2PreAuthenticationFilter(tokenService);
-            http.addFilterBefore(postProcess(preAuthFilter), LogoutFilter.class);
-
-            if (context != null) {
-                try {
-                    LogoutHandler logoutHandler = context.getBean("oauth2LogoutHandler", LogoutHandler.class);
-                    AuthResponseWriter responseWriter = context.getBean(AuthResponseWriter.class);
-
-                    OAuth2RefreshAuthenticationFilter refreshFilter =
-                            new OAuth2RefreshAuthenticationFilter(tokenService, logoutHandler, responseWriter);
-                    http.addFilterBefore(postProcess(refreshFilter), LogoutFilter.class);
-
-                } catch (Exception e) {
-                    log.warn("OAuth2StateConfigurer: Failed to register OAuth2RefreshAuthenticationFilter. " +
-                            "LogoutHandler or AuthResponseWriter not found: {}", e.getMessage());
-                }
-            }
-        } else {
-            log.warn("OAuth2StateConfigurer: TokenService not found in SharedObjects. OAuth2 filters not registered.");
-        }
-
     }
 
     private void configureResourceServer(HttpSecurity http) throws Exception {
@@ -148,9 +111,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                     }
                 }
             });
-
             authzServer.oidc(Customizer.withDefaults());
         });
-
     }
 }

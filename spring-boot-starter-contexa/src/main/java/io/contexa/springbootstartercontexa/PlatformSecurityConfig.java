@@ -91,7 +91,7 @@ public class PlatformSecurityConfig {
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
                                         .passkeyChallengePages("/custom/challenge/passkey"))*/
                         .order(60)
-                ).oauth2(Customizer.withDefaults())
+                ).session(Customizer.withDefaults())
                 .build();
     }
 }
