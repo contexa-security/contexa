@@ -80,27 +80,20 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         );
 
         enhanceFactorContextWithSecurityInfo(factorContext, request);
-
         try {
-
             stateMachineIntegrator.initializeStateMachine(factorContext, request, response);
-
             MfaState actualState = stateMachineIntegrator.getCurrentState(factorContext.getMfaSessionId());
             if (actualState != factorContext.getCurrentState()) {
                 log.warn("State mismatch! FactorContext: {}, StateMachine: {} for session: {}",
                         factorContext.getCurrentState(), actualState, factorContext.getMfaSessionId());
             }
-
             successHandler.onAuthenticationSuccess(request, response, authentication);
 
         } catch (Exception e) {
             log.error("Failed to initialize unified State Machine for session: {}", mfaSessionId, e);
-
             cleanupFailedSession(mfaSessionId, request, response);
-
-            unsuccessfulAuthentication(request, response,
-                    new AuthenticationException("State Machine initialization failed", e) {
-                    });
+            unsuccessfulAuthentication(request, response, new AuthenticationException("State Machine initialization failed", e) {
+            });
         }
     }
 

@@ -38,9 +38,7 @@ public class MfaStateMachineIntegrator {
         String sessionId = context.getMfaSessionId();
 
         try {
-
             stateMachineService.initializeStateMachine(context, request);
-
             sessionRepository.storeSession(sessionId, request, response);
 
         } catch (Exception e) {
@@ -58,10 +56,9 @@ public class MfaStateMachineIntegrator {
 
         try {
             sessionRepository.refreshSession(sessionId);
-
             boolean accepted = stateMachineService.sendEvent(event, context, request, additionalHeaders);
-
             if (accepted) {
+                log.debug("Event {} accepted by State Machine for session: {}", event, sessionId);
             } else {
                 String rejectionReason = analyzeEventRejectionReason(context, event);
                 log.warn("Event {} rejected by State Machine for session: {} - Reason: {}", event, sessionId, rejectionReason);

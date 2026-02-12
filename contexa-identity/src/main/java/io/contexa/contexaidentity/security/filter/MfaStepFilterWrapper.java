@@ -44,8 +44,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
         this.mfaSettings = authContextProperties.getMfa();
         this.responseWriter = responseWriter;
-
-            }
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -61,12 +60,12 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         FactorContext ctx = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
 
         if (ctx == null) {
-                        ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+            ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
             if (ctx != null) {
                 request.setAttribute("io.contexa.mfa.FactorContext", ctx);
             }
         } else {
-                    }
+        }
 
         ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx, sessionRepository);
         if (validation.hasErrors()) {
@@ -127,13 +126,9 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             }
             return;
         }
-
         FactorIdentifier factorIdentifier = FactorIdentifier.of(ctx.getFlowTypeName(), ctx.getCurrentStepId());
-
         Filter delegateFactorFilter = configuredFactorFilterProvider.getFilter(factorIdentifier);
-
         if (delegateFactorFilter != null) {
-            
             delegateFactorFilter.doFilter(request, response, chain);
 
         } else {
