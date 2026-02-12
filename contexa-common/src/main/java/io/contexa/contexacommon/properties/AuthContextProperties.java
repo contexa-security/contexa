@@ -9,34 +9,25 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
 @ConfigurationProperties(prefix = "spring.auth")
 public class AuthContextProperties {
 
-    
     private StateType stateType = StateType.OAUTH2;
 
-    
     private TokenTransportType tokenTransportType = TokenTransportType.HEADER;
 
-    
     private TokenIssuer tokenIssuer = TokenIssuer.INTERNAL;
 
-    
     private TokenStoreType tokenStoreType = TokenStoreType.REDIS;
+
     private FactorSelectionType factorSelectionType = FactorSelectionType.SELECT;
 
-    
     @NestedConfigurationProperty
     private AuthUrlConfig urls = new AuthUrlConfig();
 
-    
     @NestedConfigurationProperty
     private MfaSettings mfa = new MfaSettings(); 
 
-    
     @NestedConfigurationProperty
     private JwtsTokenSettings internal = new JwtsTokenSettings();
 
-
-
-    
     @NestedConfigurationProperty
     private OAuth2TokenSettings oauth2 = new OAuth2TokenSettings();
 
@@ -48,7 +39,6 @@ public class AuthContextProperties {
     private boolean allowMultipleLogins = false;
     private int maxConcurrentLogins = 3;
     private boolean cookieSecure = false;
-
 
     private String tokenPrefix = "Bearer ";
     private String rolesClaim = "roles";

@@ -15,6 +15,9 @@ spring:
     password: 1111
     driver-class-name: org.postgresql.Driver
 
+  auth:
+    token-transport-type: header_cookie
+
   ai:
     chat:
       model:
