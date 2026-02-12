@@ -16,8 +16,6 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
     private String loginPageUrl = "/api/login";
 
-    public DefaultRestLoginPageGeneratingFilter() {}
-
     public DefaultRestLoginPageGeneratingFilter(String loginPageUrl) {
         this.loginPageUrl = loginPageUrl;
     }
