@@ -32,6 +32,7 @@ public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAd
                 .loginPage(opts.getLoginPage())
                 .failureUrl(opts.getFailureUrl())
                 .successUrl(opts.getDefaultSuccessUrl())
+                .successUrl(opts.getDefaultSuccessUrl(), opts.isAlwaysUseDefaultSuccessUrl())
                 .successHandler(successHandler)
                 .failureHandler(failureHandler)
                 .permitAll(opts.isPermitAll());

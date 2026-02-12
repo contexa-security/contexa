@@ -23,6 +23,7 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
     protected final AuthContextProperties authContextProperties;
     private PlatformAuthenticationSuccessHandler delegateHandler;
     protected String defaultTargetUrl;
+    protected boolean alwaysUse;
 
     protected AbstractTokenBasedSuccessHandler(TokenService tokenService,
                                                AuthResponseWriter responseWriter,
@@ -39,6 +40,11 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
     @Override
     public void setDefaultTargetUrl(String defaultTargetUrl) {
         this.defaultTargetUrl = defaultTargetUrl;
+    }
+
+    @Override
+    public void setAlwaysUse(boolean alwaysUse) {
+        this.alwaysUse = alwaysUse;
     }
 
     protected TokenPair createTokenPair(Authentication authentication, String deviceId,
@@ -74,9 +80,10 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
 
     protected abstract Map<String, Object> buildResponseData(TokenTransportResult transportResult,
                                                              Authentication authentication,
-                                                             HttpServletRequest request);
+                                                             HttpServletRequest request,
+                                                             HttpServletResponse response);
 
-    protected abstract String determineTargetUrl(HttpServletRequest request);
+    protected abstract String determineTargetUrl(HttpServletRequest request, HttpServletResponse response);
 
     protected final boolean executeDelegateHandler(HttpServletRequest request,
                                                    HttpServletResponse response,

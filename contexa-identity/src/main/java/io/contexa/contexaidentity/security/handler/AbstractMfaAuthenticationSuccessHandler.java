@@ -1,19 +1,18 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacommon.domain.UserDto;
+import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
-import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -22,6 +21,7 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -100,9 +100,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             resetActionOnMfaSuccess(userId, request);
         }
 
-        Map<String, Object> responseData = buildResponseData(
-                stateType, transportResult, finalAuthentication, request, response);
-
+        Map<String, Object> responseData = buildResponseData(stateType, transportResult, request, response);
         TokenTransportResult finalResult = TokenTransportResult.builder()
                 .body(responseData)
                 .cookiesToSet(transportResult != null ? transportResult.getCookiesToSet() : null)
@@ -137,9 +135,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                         TokenTransportResult result) throws IOException {
 
         setCookies(response, result);
-
         if (stateType == StateType.SESSION && !isApiRequest(request)) {
-            String targetUrl = determineTargetUrl(request, response, authentication);
+            String targetUrl = determineTargetUrl(request, response);
             response.sendRedirect(targetUrl);
         } else {
             writeJsonResponse(response, result.getBody());
@@ -159,28 +156,31 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return requestURI != null && requestURI.contains("/api/");
     }
 
-    protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) {
+    protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
+
+        if (alwaysUse && defaultTargetUrl != null) {
+            return request.getContextPath() + defaultTargetUrl;
+        }
+
         SavedRequest savedRequest = this.requestCache.getRequest(request, response);
         if (savedRequest != null) {
             this.requestCache.removeRequest(request, response);
             String redirectUrl = savedRequest.getRedirectUrl();
-
             if (isValidRedirectUrl(redirectUrl)) {
                 return redirectUrl;
-            } else {
-                log.warn("Invalid saved redirect URL ignored: {}", redirectUrl);
             }
         }
 
-        return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
+        if(defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
+
+        String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();
+        return request.getContextPath() + successUrl;
     }
 
     private boolean isValidRedirectUrl(String url) {
         if (url == null || url.isBlank()) {
             return false;
         }
-
         String[] invalidPatterns = {
                 "/.well-known/",
                 "/favicon.ico",
@@ -196,19 +196,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 return false;
             }
         }
-
         return true;
-    }
-
-    @Override
-    protected String determineTargetUrl(HttpServletRequest request) {
-        return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
     }
 
     @Override
     protected Map<String, Object> buildResponseData(TokenTransportResult transportResult,
                                                     Authentication authentication,
-                                                    HttpServletRequest request) {
+                                                    HttpServletRequest request,
+                                                    HttpServletResponse response) {
 
         return new HashMap<>();
     }
@@ -225,7 +220,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private Map<String, Object> buildResponseData(
             StateType stateType,
             @Nullable TokenTransportResult transportResult,
-            Authentication authentication,
             HttpServletRequest request,
             HttpServletResponse response) {
 
@@ -240,7 +234,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         responseData.put("authenticated", true);
         responseData.put("status", "MFA_COMPLETED");
         responseData.put("message", "인증이 완료되었습니다.");
-        responseData.put("redirectUrl", determineTargetUrl(request, response, authentication));
+        responseData.put("redirectUrl", determineTargetUrl(request, response));
         responseData.put("stateType", stateType.name());
 
         return responseData;

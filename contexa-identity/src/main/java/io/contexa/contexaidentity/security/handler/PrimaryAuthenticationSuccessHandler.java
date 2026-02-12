@@ -1,5 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -11,9 +13,7 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -25,18 +25,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
-import org.springframework.security.web.savedrequest.RequestCache;
-import org.springframework.security.web.savedrequest.SavedRequest;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 @Slf4j
 
@@ -44,7 +36,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
     private final MfaPolicyProvider mfaPolicyProvider;
     private final AuthResponseWriter responseWriter;
-    private final RequestCache requestCache = new HttpSessionRequestCache();
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
@@ -256,96 +247,6 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                     authUrlProvider.getPasskeyChallengeUi();
             default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         };
-    }
-
-    protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication) {
-        String dslDefaultSuccessUrl = getDslDefaultSuccessUrl();
-        boolean alwaysUseDslUrl = isDslAlwaysUseDefaultSuccessUrl();
-
-        if (alwaysUseDslUrl && dslDefaultSuccessUrl != null) {
-            return request.getContextPath() + dslDefaultSuccessUrl;
-        }
-
-        SavedRequest savedRequest = this.requestCache.getRequest(request, response);
-        if (savedRequest != null) {
-            this.requestCache.removeRequest(request, response);
-            String redirectUrl = savedRequest.getRedirectUrl();
-            if (isValidRedirectUrl(redirectUrl)) {
-                return redirectUrl;
-            }
-        }
-
-        if (dslDefaultSuccessUrl != null) {
-            return request.getContextPath() + dslDefaultSuccessUrl;
-        }
-
-        String defaultTargetUrl = authUrlProvider.getMfaSuccess();
-        return request.getContextPath() + defaultTargetUrl;
-    }
-
-    private String getDslDefaultSuccessUrl() {
-        try {
-            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
-                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
-                    .findFirst()
-                    .orElse(null);
-
-            if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
-                var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
-                if (formOptions != null) {
-                    return formOptions.getDefaultSuccessUrl();
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to get DSL defaultSuccessUrl: {}", e.getMessage());
-        }
-        return null;
-    }
-
-    private boolean isDslAlwaysUseDefaultSuccessUrl() {
-        try {
-            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
-                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
-                    .findFirst()
-                    .orElse(null);
-
-            if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
-                var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
-                if (formOptions != null) {
-                    return formOptions.isAlwaysUseDefaultSuccessUrl();
-                }
-            }
-        } catch (Exception e) {
-            log.warn("Failed to get DSL alwaysUseDefaultSuccessUrl: {}", e.getMessage());
-        }
-        return false;
-    }
-
-    private boolean isValidRedirectUrl(String url) {
-        if (url == null || url.isBlank()) {
-            return false;
-        }
-
-        String[] invalidPatterns = {
-                "/.well-known/",
-                "/favicon.ico",
-                "chrome-extension://",
-                "about:",
-                "data:",
-                "blob:",
-                "javascript:"
-        };
-
-        for (String pattern : invalidPatterns) {
-            if (url.contains(pattern)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private void handleAuthenticationBlocked(HttpServletRequest request,

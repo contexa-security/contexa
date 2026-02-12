@@ -29,4 +29,6 @@ public interface PlatformAuthenticationSuccessHandler extends AuthenticationSucc
     default void setDefaultTargetUrl(String defaultTargetUrl) {
         Assert.isTrue(UrlUtils.isValidRedirectUrl(defaultTargetUrl),"defaultTarget must start with '/' or with 'http(s)'");
     }
+
+    default void setAlwaysUse(boolean alwaysUse) {}
 }

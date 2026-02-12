@@ -44,7 +44,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         TokenTransportResult transportResult = prepareTokenTransport(
                 tokenPair.getAccessToken(), tokenPair.getRefreshToken());
 
-        Map<String, Object> responseData = buildResponseData(transportResult, authentication, request);
+        Map<String, Object> responseData = buildResponseData(transportResult, authentication, request, response);
 
         setCookies(response, transportResult);
         writeJsonResponse(response, responseData);
@@ -53,8 +53,9 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
     @Override
     protected Map<String, Object> buildResponseData(TokenTransportResult transportResult,
-                                                     Authentication authentication,
-                                                     HttpServletRequest request) {
+                                                    Authentication authentication,
+                                                    HttpServletRequest request,
+                                                    HttpServletResponse response) {
 
         Map<String, Object> responseData = new HashMap<>();
 
@@ -63,7 +64,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         }
 
         responseData.put("authenticated", true);
-        responseData.put("redirectUrl", determineTargetUrl(request));
+        responseData.put("redirectUrl", determineTargetUrl(request, response));
         responseData.put("message", "로그인 성공!");
         responseData.put("username", authentication.getName());
 
@@ -71,7 +72,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
     }
 
     @Override
-    protected String determineTargetUrl(HttpServletRequest request) {
+    protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
         if(defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
         String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();
         return request.getContextPath() + successUrl;

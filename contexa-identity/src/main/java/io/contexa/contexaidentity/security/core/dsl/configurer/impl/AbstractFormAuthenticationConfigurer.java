@@ -27,6 +27,7 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
     protected String passwordParameter = "password";
     protected String loginPage;
     protected String successUrl;
+    protected boolean alwaysUse;
     protected String failureUrl;
     protected boolean permitAll = false;
     protected RequestMatcher requestMatcher;
@@ -118,6 +119,13 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
         return (T) this;
     }
 
+    public T successUrl(String successUrl, boolean alwaysUse) {
+        Assert.hasText(successUrl, "loginPage must not be null or empty");
+        this.successUrl = successUrl;
+        this.alwaysUse = alwaysUse;
+        return (T) this;
+    }
+
     public T permitAll(boolean permitAll) {
         this.permitAll = permitAll;
         return (T) this;
@@ -125,7 +133,8 @@ public abstract class AbstractFormAuthenticationConfigurer<T extends AbstractFor
 
     public T successHandler(PlatformAuthenticationSuccessHandler successHandler) {
         this.successHandler = successHandler;
-        this.successHandler.setDefaultTargetUrl(Objects.requireNonNullElse(this.successUrl, "/"));
+        this.successHandler.setDefaultTargetUrl(this.successUrl);
+        this.successHandler.setAlwaysUse(alwaysUse);
         return (T) this;
     }
 
