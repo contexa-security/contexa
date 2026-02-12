@@ -1,5 +1,6 @@
 package io.contexa.springbootstartercontexa.web;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.springbootstartercontexa.event.LlmAnalysisEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -124,7 +125,7 @@ public class LlmAnalysisSseController {
             case "LAYER1_COMPLETE":
                 eventPublisher.publishLayer1Complete(
                         userId,
-                        action != null ? action : "ALLOW",
+                        action != null ? action : ZeroTrustAction.ALLOW.name(),
                         riskScore != null ? riskScore : 0.2,
                         confidence != null ? confidence : 0.85,
                         "Test reasoning for Layer1 analysis",
@@ -138,7 +139,7 @@ public class LlmAnalysisSseController {
             case "LAYER2_COMPLETE":
                 eventPublisher.publishLayer2Complete(
                         userId,
-                        action != null ? action : "CHALLENGE",
+                        action != null ? action : ZeroTrustAction.CHALLENGE.name(),
                         riskScore != null ? riskScore : 0.6,
                         confidence != null ? confidence : 0.75,
                         "Test reasoning for Layer2 analysis",
@@ -149,7 +150,7 @@ public class LlmAnalysisSseController {
             case "DECISION_APPLIED":
                 eventPublisher.publishDecisionApplied(
                         userId,
-                        action != null ? action : "ALLOW",
+                        action != null ? action : ZeroTrustAction.ALLOW.name(),
                         "LAYER1",
                         "/api/test/resource"
                 );
@@ -208,7 +209,7 @@ public class LlmAnalysisSseController {
                 if (escalate) {
                     // 3a. Layer1 Complete (Escalate)
                     eventPublisher.publishLayer1Complete(
-                            userId, "ESCALATE", 0.5, 0.35,
+                            userId, ZeroTrustAction.ESCALATE.name(), 0.5, 0.35,
                             "Insufficient confidence, escalating to Layer2", "none", 1000L);
                     Thread.sleep(500);
 
@@ -227,8 +228,8 @@ public class LlmAnalysisSseController {
 
                 } else {
                     // 3b. Layer1 Complete (No Escalation)
-                    double riskScore = "BLOCK".equals(finalAction) ? 0.9 :
-                            "CHALLENGE".equals(finalAction) ? 0.6 : 0.2;
+                    double riskScore = ZeroTrustAction.BLOCK.name().equals(finalAction) ? 0.9 :
+                            ZeroTrustAction.CHALLENGE.name().equals(finalAction) ? 0.6 : 0.2;
                     double confidence = 0.85;
 
                     eventPublisher.publishLayer1Complete(

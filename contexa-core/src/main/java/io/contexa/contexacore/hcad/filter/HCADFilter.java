@@ -1,5 +1,6 @@
 package io.contexa.contexacore.hcad.filter;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import jakarta.servlet.FilterChain;
@@ -51,7 +52,7 @@ public class HCADFilter extends OncePerRequestFilter {
             }
 
             String action = result.getAction();
-            if ("BLOCK".equalsIgnoreCase(action) || "ESCALATE".equalsIgnoreCase(action)) {
+            if (ZeroTrustAction.fromString(action).isBlocking()) {
                 log.error("[HCADFilter] Security action: {} - userId: {}, riskScore: {}, threatType: {}",
                     action, result.getUserId(), String.format("%.3f", result.getAnomalyScore()), result.getThreatType());
             }

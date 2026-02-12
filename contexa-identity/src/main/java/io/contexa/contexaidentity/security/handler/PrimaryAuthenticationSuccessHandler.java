@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -22,8 +23,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -56,12 +55,11 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator,
                                                MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider,
                                                ZeroTrustEventPublisher zeroTrustEventPublisher,
-                                               RedisTemplate<String, Object> redisTemplate,
+                                               ZeroTrustActionRedisRepository actionRedisRepository,
                                                BaselineLearningService baselineLearningService,
-                                               StringRedisTemplate stringRedisTemplate,
                                                HcadProperties hcadProperties) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,
-                zeroTrustEventPublisher, redisTemplate, baselineLearningService,stringRedisTemplate,hcadProperties);
+                zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = stateMachineIntegrator;

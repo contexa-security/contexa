@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -116,9 +116,9 @@ public class SecurityEvent {
         addMetadata(key, (Object) value);
     }
 
-    public boolean isHighRiskByAction(SecurityDecision.Action action) {
-        return action == SecurityDecision.Action.BLOCK ||
-               action == SecurityDecision.Action.ESCALATE;
+    public boolean isHighRiskByAction(ZeroTrustAction action) {
+        return action == ZeroTrustAction.BLOCK ||
+               action == ZeroTrustAction.ESCALATE;
     }
 
     public boolean isBlockable() {

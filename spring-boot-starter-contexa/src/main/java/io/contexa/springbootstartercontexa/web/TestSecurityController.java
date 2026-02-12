@@ -1,5 +1,6 @@
 package io.contexa.springbootstartercontexa.web;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.springbootstartercontexa.service.TestSecurityService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -377,10 +378,10 @@ public class TestSecurityController {
         if (message == null) {
             return "Unknown";
         }
-        if (message.contains("BLOCK")) {
+        if (message.contains(ZeroTrustAction.BLOCK.name())) {
             return "LLM Action: BLOCK";
         }
-        if (message.contains("PENDING_ANALYSIS")) {
+        if (message.contains(ZeroTrustAction.PENDING_ANALYSIS.name())) {
             return "Analysis not completed (timeout)";
         }
         if (message.contains("MONITOR") && message.contains("STRICT")) {

@@ -1,12 +1,13 @@
 package io.contexa.contexacore.autonomous.exception;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 
 public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException {
 
     private static final long serialVersionUID = 1L;
 
-    private final String action;
+    private final ZeroTrustAction action;
 
     private final String resourceId;
 
@@ -19,7 +20,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
     public ZeroTrustAccessDeniedException(String action, String resourceId,
                                           double riskScore, String reason) {
         super(formatMessage(action, reason));
-        this.action = action;
+        this.action = ZeroTrustAction.fromString(action);
         this.resourceId = resourceId;
         this.riskScore = riskScore;
         this.reason = reason;
@@ -30,7 +31,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
                                           double riskScore, String reason,
                                           boolean analysisTimeout) {
         super(formatMessage(action, reason));
-        this.action = action;
+        this.action = ZeroTrustAction.fromString(action);
         this.resourceId = resourceId;
         this.riskScore = riskScore;
         this.reason = reason;
@@ -39,7 +40,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     public static ZeroTrustAccessDeniedException analysisTimeout(String resourceId, long timeoutMs) {
         return new ZeroTrustAccessDeniedException(
-            "PENDING_ANALYSIS",
+            ZeroTrustAction.PENDING_ANALYSIS.name(),
             resourceId,
             0.5,
             String.format("Security analysis timeout after %dms", timeoutMs),
@@ -49,7 +50,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     public static ZeroTrustAccessDeniedException analysisRequired(String resourceId) {
         return new ZeroTrustAccessDeniedException(
-            "PENDING_ANALYSIS",
+            ZeroTrustAction.PENDING_ANALYSIS.name(),
             resourceId,
             0.5,
             "Security analysis required but not completed"
@@ -58,7 +59,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     public static ZeroTrustAccessDeniedException blocked(String resourceId, double riskScore) {
         return new ZeroTrustAccessDeniedException(
-            "BLOCK",
+            ZeroTrustAction.BLOCK.name(),
             resourceId,
             riskScore,
             "Access blocked by AI security analysis"
@@ -67,7 +68,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     public static ZeroTrustAccessDeniedException challengeRequired(String resourceId, double riskScore) {
         return new ZeroTrustAccessDeniedException(
-            "CHALLENGE",
+            ZeroTrustAction.CHALLENGE.name(),
             resourceId,
             riskScore,
             "Additional authentication required"
@@ -76,7 +77,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     public static ZeroTrustAccessDeniedException pendingReview(String resourceId, double riskScore) {
         return new ZeroTrustAccessDeniedException(
-            "ESCALATE",
+            ZeroTrustAction.ESCALATE.name(),
             resourceId,
             riskScore,
             "Access pending security review"
@@ -91,22 +92,18 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
         if (action == null) {
             return 403;
         }
-        
-        return switch (action.toUpperCase()) {
-            case "BLOCK" -> 403;           
-            case "CHALLENGE" -> 401;       
-            case "ESCALATE" -> 423;        
-            case "PENDING_ANALYSIS" -> analysisTimeout ? 408 : 503; 
-            default -> 403;
-        };
+        if (action == ZeroTrustAction.PENDING_ANALYSIS && analysisTimeout) {
+            return 408;
+        }
+        return action.getHttpStatus();
     }
 
     public String getErrorCode() {
-        return "ZERO_TRUST_" + (action != null ? action.toUpperCase() : "UNKNOWN");
+        return "ZERO_TRUST_" + (action != null ? action.name() : "UNKNOWN");
     }
 
     public String getAction() {
-        return action;
+        return action != null ? action.name() : null;
     }
 
     public String getResourceId() {

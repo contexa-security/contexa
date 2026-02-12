@@ -1,12 +1,12 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -22,7 +22,7 @@ public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpre
 
     private final ContextHandler contextHandler;
     private final AuditLogRepository auditLogRepository;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
 
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, RequestAuthorizationContext requestContext) {
@@ -32,7 +32,7 @@ public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpre
 
         AuthorizationContext authorizationContext = contextHandler.create(auth, request);
 
-        CustomWebSecurityExpressionRoot root = new CustomWebSecurityExpressionRoot(auth, request, authorizationContext, auditLogRepository, stringRedisTemplate);
+        CustomWebSecurityExpressionRoot root = new CustomWebSecurityExpressionRoot(auth, request, authorizationContext, auditLogRepository, actionRedisRepository);
 
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(new AuthenticationTrustResolverImpl());

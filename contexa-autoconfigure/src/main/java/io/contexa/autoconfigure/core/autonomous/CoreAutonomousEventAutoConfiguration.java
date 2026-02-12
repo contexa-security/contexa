@@ -6,6 +6,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.BackpressureProperties;
@@ -133,12 +134,11 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
-            RedisTemplate<String, Object> redisTemplate,
-            StringRedisTemplate stringRedisTemplate,
+            ZeroTrustActionRedisRepository actionRedisRepository,
             AdminOverrideService adminOverrideService,
             BaselineLearningService baselineLearningService) {
         return new SecurityDecisionEnforcementHandler(
-                redisTemplate, stringRedisTemplate, adminOverrideService, baselineLearningService);
+                actionRedisRepository, adminOverrideService, baselineLearningService);
     }
 
     @Bean

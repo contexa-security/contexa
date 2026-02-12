@@ -52,6 +52,7 @@ public final class FactorContextAttributes {
         public static final String REQUIRED_FACTORS = "requiredFactors";
         public static final String RISK_SCORE = "riskScore";
         public static final String AI_RISK_SCORE = "aiRiskScore";
+        public static final String ZERO_TRUST_ACTION = "zeroTrustAction";
 
         private Policy() {
             throw new AssertionError("Utility class cannot be instantiated");

@@ -2,12 +2,12 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionOperations;
 import org.springframework.security.core.Authentication;
@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpressionRoot implements MethodSecurityExpressionOperations {
 
-    private static final Cache<String, String> actionLocalCache = Caffeine.newBuilder()
+    private static final Cache<String, ZeroTrustAction> actionLocalCache = Caffeine.newBuilder()
             .maximumSize(10000)
             .expireAfterWrite(5, TimeUnit.SECONDS)
             .build();
@@ -35,8 +35,8 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
     public CustomMethodSecurityExpressionRoot(Authentication authentication,
                                               AuthorizationContext authorizationContext,
                                               AuditLogRepository auditLogRepository,
-                                              StringRedisTemplate stringRedisTemplate) {
-        super(authentication, authorizationContext, auditLogRepository, stringRedisTemplate);
+                                              ZeroTrustActionRedisRepository actionRedisRepository) {
+        super(authentication, authorizationContext, auditLogRepository, actionRedisRepository);
     }
 
     @Override
@@ -45,23 +45,23 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         this.permissionEvaluatorRef = permissionEvaluator;
     }
 
-    protected String getCurrentAction() {
+    @Override
+    protected ZeroTrustAction getCurrentAction() {
         String userId = extractUserId();
         if (userId == null) {
             log.error("getCurrentAction: Unable to extract user ID - returning PENDING_ANALYSIS");
-            return "PENDING_ANALYSIS";
+            return ZeroTrustAction.PENDING_ANALYSIS;
         }
 
         String actionCacheKey = "action:" + userId;
-        String cachedAction = getActionFromLocalCache(actionCacheKey);
+        ZeroTrustAction cachedAction = getActionFromLocalCache(actionCacheKey);
         if (cachedAction != null) {
             return cachedAction;
         }
 
-        String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-        String action = getActionFromRedisHash(userId, redisKey, stringRedisTemplate);
+        ZeroTrustAction action = actionRedisRepository.getCurrentAction(userId);
 
-        if (!"PENDING_ANALYSIS".equals(action)) {
+        if (action != ZeroTrustAction.PENDING_ANALYSIS) {
             putActionToLocalCache(actionCacheKey, action);
         }
         return action;
@@ -165,11 +165,11 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
         }
     }
 
-    private String getActionFromLocalCache(String key) {
+    private ZeroTrustAction getActionFromLocalCache(String key) {
         return actionLocalCache.getIfPresent(key);
     }
 
-    private void putActionToLocalCache(String key, String action) {
+    private void putActionToLocalCache(String key, ZeroTrustAction action) {
         actionLocalCache.put(key, action);
     }
 

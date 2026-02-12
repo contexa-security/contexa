@@ -6,17 +6,15 @@ import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,8 +26,7 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class SecurityDecisionEnforcementHandler implements SecurityEventHandler {
 
-    private final RedisTemplate<String, Object> redisTemplate;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
     private final AdminOverrideService adminOverrideService;
     private final BaselineLearningService baselineLearningService;
 
@@ -56,7 +53,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             log.error("[SecurityDecisionEnforcementHandler] Error enforcing decision: eventId={}", event.getEventId(), e);
         }
 
-        if ("ALLOW".equalsIgnoreCase(result.getAction())) {
+        if (ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {
             CompletableFuture.runAsync(() -> learnFromResult(userId, event, result))
                     .exceptionally(ex -> {
                         log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, ex);
@@ -69,39 +66,24 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     private void enforceDecision(String userId, SecurityEvent event, ProcessingResult result) {
         String action = result.getAction();
+        ZeroTrustAction ztAction;
         if (action == null || action.isBlank()) {
-            action = "ESCALATE";
+            ztAction = ZeroTrustAction.ESCALATE;
             log.error("[SecurityDecisionEnforcementHandler] LLM returned no action, defaulting to ESCALATE: userId={}", userId);
+        } else {
+            ztAction = ZeroTrustAction.fromString(action);
         }
 
-        Duration ttl = switch (action.toUpperCase()) {
-            case "BLOCK" -> null;
-            case "ESCALATE" -> Duration.ofMinutes(5);
-            case "CHALLENGE" -> Duration.ofMinutes(30);
-            default -> Duration.ofSeconds(30);
-        };
-
-        String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-        Map<String, Object> fields = new HashMap<>();
-        fields.put("action", action);
-        fields.put("riskScore", result.getRiskScore());
-        fields.put("confidence", result.getConfidence());
-        fields.put("threatEvidence", result.getThreatIndicators() != null
+        Map<String, Object> additionalFields = new HashMap<>();
+        additionalFields.put("riskScore", result.getRiskScore());
+        additionalFields.put("confidence", result.getConfidence());
+        additionalFields.put("threatEvidence", result.getThreatIndicators() != null
                 ? String.join(", ", result.getThreatIndicators()) : "");
-        fields.put("analysisDepth", result.getAiAnalysisLevel());
-        fields.put("updatedAt", java.time.Instant.now().toString());
+        additionalFields.put("analysisDepth", result.getAiAnalysisLevel());
 
-        redisTemplate.opsForHash().putAll(analysisKey, fields);
-        if (ttl != null) {
-            redisTemplate.expire(analysisKey, ttl);
-        }
+        actionRedisRepository.saveAction(userId, ztAction, additionalFields);
 
-        if (stringRedisTemplate != null) {
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-            stringRedisTemplate.opsForValue().set(lastActionKey, action, Duration.ofHours(24));
-        }
-
-        if ("BLOCK".equalsIgnoreCase(action)) {
+        if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
         }
     }
@@ -110,8 +92,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         String requestId = UUID.randomUUID().toString();
         String reasoning = result.getReasoning() != null ? result.getReasoning() : "";
 
-        String userBlockedKey = ZeroTrustRedisKeys.userBlocked(userId);
-        stringRedisTemplate.opsForValue().set(userBlockedKey, "true");
+        actionRedisRepository.setBlockedFlag(userId);
 
         if (adminOverrideService != null) {
             adminOverrideService.addToPendingReview(
@@ -155,20 +136,15 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private SecurityDecision buildSecurityDecision(ProcessingResult result) {
-        SecurityDecision.Action decisionAction;
+        ZeroTrustAction decisionAction;
         String reasoningPrefix;
         String action = result.getAction();
 
         if (action != null && !action.isBlank()) {
             reasoningPrefix = "AI Native Decision: ";
-            decisionAction = switch (action.toUpperCase()) {
-                case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
-                case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
-                case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
-                default -> SecurityDecision.Action.ESCALATE;
-            };
+            decisionAction = ZeroTrustAction.fromString(action);
         } else {
-            decisionAction = SecurityDecision.Action.ESCALATE;
+            decisionAction = ZeroTrustAction.ESCALATE;
             reasoningPrefix = "AI Analysis Incomplete: ";
         }
 

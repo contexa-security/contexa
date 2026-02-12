@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -61,7 +62,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     public ThreatAssessment evaluate(SecurityEvent event) {
 
         SecurityDecision decision = analyzeWithContext(event);
-        boolean shouldEscalate = decision.getAction() == SecurityDecision.Action.ESCALATE;
+        boolean shouldEscalate = decision.getAction() == ZeroTrustAction.ESCALATE;
         String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
 
         return ThreatAssessment.builder()
@@ -123,7 +124,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SecurityDecision decision = convertToSecurityDecision(response, event);
 
-            if (decision.getAction() == SecurityDecision.Action.ESCALATE) {
+            if (decision.getAction() == ZeroTrustAction.ESCALATE) {
                 cacheEscalationContext(
                         event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
             }
@@ -333,7 +334,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private SecurityDecision createFallbackDecision(long startTime) {
         return SecurityDecision.builder()
-                .action(SecurityDecision.Action.ESCALATE)
+                .action(ZeroTrustAction.ESCALATE)
                 .riskScore(Double.NaN)
                 .confidence(Double.NaN)
                 .analysisTime(startTime)
@@ -348,12 +349,12 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return "Layer1";
     }
 
-    private String mapActionToRecommendation(SecurityDecision.Action action) {
+    private String mapActionToRecommendation(ZeroTrustAction action) {
         return switch (action) {
             case ALLOW -> "ALLOW";
             case BLOCK -> "BLOCK_IMMEDIATELY";
             case CHALLENGE -> "REQUIRE_MFA";
-            case ESCALATE -> "ESCALATE_TO_EXPERT";
+            case ESCALATE, PENDING_ANALYSIS -> "ESCALATE_TO_EXPERT";
         };
     }
 

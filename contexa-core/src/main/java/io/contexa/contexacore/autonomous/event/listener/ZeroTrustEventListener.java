@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous.event.listener;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -61,7 +62,7 @@ public class ZeroTrustEventListener {
                     processCustomEvent(event);
                     break;
                 default:
-                    log.warn("[ZeroTrustEventListener] Unhandled event category: {}", event.getCategory());
+                    log.error("[ZeroTrustEventListener] Unhandled event category: {}", event.getCategory());
             }
 
         } catch (Exception e) {
@@ -114,7 +115,8 @@ public class ZeroTrustEventListener {
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "previousAction");
 
             String actionStr = String.valueOf(previousAction);
-            boolean isLlmAction = "CHALLENGE".equals(actionStr) || "ESCALATE".equals(actionStr);
+            ZeroTrustAction previousZtAction = ZeroTrustAction.fromString(actionStr);
+            boolean isLlmAction = previousZtAction == ZeroTrustAction.CHALLENGE || previousZtAction == ZeroTrustAction.ESCALATE;
 
             if (isLlmAction) {
                 redisTemplate.opsForHash().delete(analysisKey, "previousAction");
@@ -160,7 +162,7 @@ public class ZeroTrustEventListener {
 
     private SecurityDecision createMfaSuccessDecision(ZeroTrustSpringEvent event) {
         return SecurityDecision.builder()
-                .action(SecurityDecision.Action.ALLOW)
+                .action(ZeroTrustAction.ALLOW)
                 .riskScore(0.0)
                 .confidence(1.0)
                 .reasoning("MFA verification completed successfully")

@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.event;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import org.slf4j.Logger;
@@ -24,21 +25,21 @@ public interface SecurityEventListener {
     }
 
     default void onBlockEvent(SecurityEvent event, SecurityDecision decision) {
-        if (decision != null && decision.getAction() == SecurityDecision.Action.BLOCK) {
+        if (decision != null && decision.getAction() == ZeroTrustAction.BLOCK) {
             onSecurityEvent(event);
         }
     }
 
     default void onChallengeEvent(SecurityEvent event, SecurityDecision decision) {
-        if (decision != null && decision.getAction() == SecurityDecision.Action.CHALLENGE) {
+        if (decision != null && decision.getAction() == ZeroTrustAction.CHALLENGE) {
             onSecurityEvent(event);
         }
     }
 
     default void onHighRiskEventByAction(SecurityEvent event, SecurityDecision decision) {
         if (decision != null &&
-            (decision.getAction() == SecurityDecision.Action.BLOCK ||
-             decision.getAction() == SecurityDecision.Action.ESCALATE)) {
+            (decision.getAction() == ZeroTrustAction.BLOCK ||
+             decision.getAction() == ZeroTrustAction.ESCALATE)) {
             onSecurityEvent(event);
         }
     }

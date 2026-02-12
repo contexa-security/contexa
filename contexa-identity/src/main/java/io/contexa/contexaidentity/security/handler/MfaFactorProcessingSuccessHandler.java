@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacommon.domain.UserDto;
@@ -21,8 +22,6 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -49,12 +48,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              TokenService tokenService,
                                              AuthUrlProvider authUrlProvider,
                                              ZeroTrustEventPublisher zeroTrustEventPublisher,
-                                             RedisTemplate<String, Object> redisTemplate,
+                                             ZeroTrustActionRedisRepository actionRedisRepository,
                                              BaselineLearningService baselineLearningService,
-                                             StringRedisTemplate StringRedisTemplate,
                                              HcadProperties hcadProperties) {
         super(tokenService, responseWriter, sessionRepository, mfaStateMachineIntegrator, authContextProperties,
-              zeroTrustEventPublisher, redisTemplate, baselineLearningService, StringRedisTemplate, hcadProperties);
+              zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;

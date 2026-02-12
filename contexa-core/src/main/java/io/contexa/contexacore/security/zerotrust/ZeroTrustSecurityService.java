@@ -2,6 +2,8 @@ package io.contexa.contexacore.security.zerotrust;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.domain.UserSecurityContext;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,6 +32,7 @@ public class ZeroTrustSecurityService {
     private final ThreatScoreUtil threatScoreUtil;
     private final ObjectMapper objectMapper;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
 
     public void applyZeroTrustToContext(SecurityContext context, String userId, String sessionId, HttpServletRequest request) {
         if (!securityZeroTrustProperties.isEnabled() || context == null || userId == null) {
@@ -37,7 +40,7 @@ public class ZeroTrustSecurityService {
         }
         try {
 
-            String action = getLatestAction(userId);
+            ZeroTrustAction action = getLatestAction(userId);
             double threatScore = threatScoreUtil.getThreatScore(userId);
             double trustScore = 1.0 - threatScore;
 
@@ -115,31 +118,11 @@ public class ZeroTrustSecurityService {
         }
     }
 
-    private String getLatestAction(String userId) {
-        try {
-
-            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
-            Boolean isBlocked = (Boolean) redisTemplate.opsForValue().get(blockKey);
-            if (Boolean.TRUE.equals(isBlocked)) {
-                return "BLOCK";
-            }
-
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object action = redisTemplate.opsForHash().get(analysisKey, "action");
-            if (action != null) {
-                return action.toString();
-            }
-
-            return "PENDING_ANALYSIS";
-
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to get action for user: {}", userId, e);
-
-            return "PENDING_ANALYSIS";
-        }
+    private ZeroTrustAction getLatestAction(String userId) {
+        return actionRedisRepository.getCurrentAction(userId);
     }
 
-    private void adjustAuthoritiesByAction(SecurityContext context, String action, String userId, HttpServletRequest request) {
+    private void adjustAuthoritiesByAction(SecurityContext context, ZeroTrustAction action, String userId, HttpServletRequest request) {
         Authentication auth = context.getAuthentication();
         if (auth == null || !auth.isAuthenticated()) {
             return;
@@ -150,7 +133,7 @@ public class ZeroTrustSecurityService {
         Set<GrantedAuthority> adjustedAuthorities = new HashSet<>();
 
         switch (action) {
-            case "ALLOW" -> {
+            case ALLOW -> {
                 Object principal = auth.getPrincipal();
                 if (principal instanceof UnifiedCustomUserDetails userDetails) {
                     adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
@@ -158,28 +141,22 @@ public class ZeroTrustSecurityService {
                     adjustedAuthorities.addAll(currentAuthorities);
                 }
             }
-            case "BLOCK" -> {
+            case BLOCK -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
-                log.warn("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
+                log.error("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
-            case "CHALLENGE" -> {
+            case CHALLENGE -> {
                 adjustedAuthorities.addAll(currentAuthorities);
-//                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
             }
-            case "ESCALATE" -> {
+            case ESCALATE -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));
-                log.warn("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
+                log.error("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
             }
-            case "PENDING_ANALYSIS" -> {
+            case PENDING_ANALYSIS -> {
                 if (auth.getPrincipal() instanceof UnifiedCustomUserDetails userDetails) {
                     adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
                 }
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
-            }
-            default -> {
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_USER"));
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_LIMITED"));
-                log.warn("[ZeroTrust][AI Native] Unknown action '{}', limited to ROLE_USER: {}", action, userId);
             }
         }
 
@@ -199,7 +176,7 @@ public class ZeroTrustSecurityService {
     }
 
     private void setZeroTrustMetadata(SecurityContext context, double trustScore,
-                                      double threatScore, UserSecurityContext userContext, String action) {
+                                      double threatScore, UserSecurityContext userContext, ZeroTrustAction action) {
         if (context.getAuthentication() instanceof ZeroTrustAuthenticationToken zeroTrustAuth) {
 
             zeroTrustAuth.setTrustScore(trustScore);
@@ -208,7 +185,7 @@ public class ZeroTrustSecurityService {
             zeroTrustAuth.setLastEvaluated(LocalDateTime.now());
 
             Map<String, Object> details = new HashMap<>();
-            details.put("action", action);
+            details.put("action", action.name());
             details.put("trustScore", trustScore);
             details.put("threatScore", threatScore);
             zeroTrustAuth.setDetails(details);

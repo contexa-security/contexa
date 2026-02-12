@@ -1,10 +1,10 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.SecurityExpressionRoot;
 import org.springframework.security.core.Authentication;
 
@@ -15,16 +15,16 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
     protected final AuthorizationContext authorizationContext;
     protected final AuditLogRepository auditLogRepository;
-    protected final StringRedisTemplate stringRedisTemplate;
+    protected final ZeroTrustActionRedisRepository actionRedisRepository;
 
     protected AbstractAISecurityExpressionRoot(Authentication authentication,
                                                AuthorizationContext authorizationContext,
                                                AuditLogRepository auditLogRepository,
-                                               StringRedisTemplate stringRedisTemplate) {
+                                               ZeroTrustActionRedisRepository actionRedisRepository) {
         super(authentication);
         this.authorizationContext = authorizationContext;
         this.auditLogRepository = auditLogRepository;
-        this.stringRedisTemplate = stringRedisTemplate;
+        this.actionRedisRepository = actionRedisRepository;
     }
 
     protected String extractUserId() {
@@ -35,91 +35,52 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
         return authentication.getName();
     }
 
-    protected String getCurrentAction() {
+    protected ZeroTrustAction getCurrentAction() {
         String userId = extractUserId();
         if (userId == null) {
-            return "PENDING_ANALYSIS";
+            return ZeroTrustAction.PENDING_ANALYSIS;
         }
-        String redisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-        return getActionFromRedisHash(userId, redisKey, stringRedisTemplate);
+        return actionRedisRepository.getCurrentAction(userId);
     }
 
     public boolean isAllowed() {
-        return hasAction("ALLOW");
+        return getCurrentAction() == ZeroTrustAction.ALLOW;
     }
 
     public boolean isBlocked() {
-        return hasAction("BLOCK");
+        return getCurrentAction() == ZeroTrustAction.BLOCK;
     }
 
     public boolean needsChallenge() {
-        return hasAction("CHALLENGE");
+        return getCurrentAction() == ZeroTrustAction.CHALLENGE;
     }
 
     public boolean needsEscalation() {
-        return hasAction("ESCALATE");
+        return getCurrentAction() == ZeroTrustAction.ESCALATE;
     }
 
     public boolean isPendingAnalysis() {
-        String action = getCurrentAction();
-        return action == null || action.isEmpty() || "PENDING_ANALYSIS".equalsIgnoreCase(action);
+        return getCurrentAction() == ZeroTrustAction.PENDING_ANALYSIS;
     }
 
     public boolean hasAction(String expectedAction) {
-        String action = getCurrentAction();
-
-        if (action == null || action.isEmpty()) {
-            return false;
-        }
-        return expectedAction.equalsIgnoreCase(action);
+        return ZeroTrustAction.fromString(expectedAction) == getCurrentAction();
     }
 
     public boolean hasActionIn(String... allowedActions) {
-        String action = getCurrentAction();
-
-        if (action == null || action.isEmpty()) {
-            return false;
-        }
+        ZeroTrustAction action = getCurrentAction();
         return Arrays.stream(allowedActions)
-                .anyMatch(a -> a.equalsIgnoreCase(action));
+                .anyMatch(a -> ZeroTrustAction.fromString(a) == action);
     }
 
     public boolean hasActionOrDefault(String defaultAction, String... allowedActions) {
-        String action = getCurrentAction();
-        if (action == null || action.isEmpty() || "PENDING_ANALYSIS".equalsIgnoreCase(action)) {
-
-            action = defaultAction;
+        ZeroTrustAction action = getCurrentAction();
+        if (action == ZeroTrustAction.PENDING_ANALYSIS) {
+            action = ZeroTrustAction.fromString(defaultAction);
         }
 
-        final String finalAction = action;
+        final ZeroTrustAction finalAction = action;
         return Arrays.stream(allowedActions)
-                .anyMatch(a -> a.equalsIgnoreCase(finalAction));
-    }
-
-    protected String getActionFromRedisHash(String userId, String redisKey,
-                                            StringRedisTemplate stringRedisTemplate) {
-        if (userId == null || redisKey == null || stringRedisTemplate == null) {
-            return "PENDING_ANALYSIS";
-        }
-
-        try {
-            Object actionValue = stringRedisTemplate.opsForHash().get(redisKey, "action");
-
-            if (actionValue != null) {
-                return actionValue.toString();
-            }
-
-            // Fallback to last verified action during PENDING_ANALYSIS
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-            Object lastAction = stringRedisTemplate.opsForValue().get(lastActionKey);
-            if (lastAction != null) {
-                return lastAction.toString();
-            }
-
-            return "PENDING_ANALYSIS";
-        } catch (Exception e) {
-            log.error("getActionFromRedisHash: Redis lookup failed - userId: {}, returning PENDING_ANALYSIS", userId, e);
-            return "PENDING_ANALYSIS";
-        }
+                .anyMatch(a -> ZeroTrustAction.fromString(a) == finalAction);
     }
 }

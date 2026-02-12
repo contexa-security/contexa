@@ -12,13 +12,5 @@ public interface MfaPolicyProvider {
 
     boolean isFactorAvailableForUser(String username, AuthType factorType, FactorContext ctx);
 
-    default Integer getRequiredFactorCount(String userId, String flowType) {
-        
-        if ("mfa".equalsIgnoreCase(flowType)) {
-            return 2;
-        } else if ("mfa-stepup".equalsIgnoreCase(flowType)) {
-            return 1;
-        }
-        return 1;
-    }
+    Integer getRequiredFactorCount(String userId, String flowType);
 }

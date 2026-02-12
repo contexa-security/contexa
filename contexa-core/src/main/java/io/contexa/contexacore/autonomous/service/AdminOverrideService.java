@@ -1,16 +1,13 @@
 package io.contexa.contexacore.autonomous.service;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,17 +17,14 @@ public class AdminOverrideService {
 
     private final AdminOverrideRepository repository;
     private final BaselineLearningService baselineLearningService;
-    private final RedisTemplate<String, Object> redisTemplate;
-
-    @Autowired(required = false)
-    private StringRedisTemplate stringRedisTemplate;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
 
     public AdminOverrideService(AdminOverrideRepository repository,
                                 BaselineLearningService baselineLearningService,
-                                RedisTemplate<String, Object> redisTemplate) {
+                                ZeroTrustActionRedisRepository actionRedisRepository) {
         this.repository = repository;
         this.baselineLearningService = baselineLearningService;
-        this.redisTemplate = redisTemplate;
+        this.actionRedisRepository = actionRedisRepository;
     }
 
     public AdminOverride approve(String requestId, String userId, String adminId,
@@ -107,7 +101,7 @@ public class AdminOverrideService {
     private void triggerBaselineUpdate(String userId, SecurityEvent event, AdminOverride override) {
         try {
             SecurityDecision adminApprovedDecision = SecurityDecision.builder()
-                    .action(SecurityDecision.Action.ALLOW)
+                    .action(ZeroTrustAction.ALLOW)
                     .riskScore(override.getOriginalRiskScore())
                     .confidence(0.95)
                     .reasoning("Admin approved: " + override.getReason())
@@ -123,24 +117,16 @@ public class AdminOverrideService {
     }
 
     private void updateAnalysisAction(String userId, String action) {
-        if (userId == null || userId.isBlank() || redisTemplate == null) {
+        if (userId == null || userId.isBlank()) {
             return;
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            redisTemplate.opsForHash().put(analysisKey, "action", action);
-            redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
+            ZeroTrustAction ztAction = ZeroTrustAction.fromString(action);
+            actionRedisRepository.saveAction(userId, ztAction, null);
 
-            if (stringRedisTemplate != null) {
-                String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-                stringRedisTemplate.opsForValue().set(lastActionKey, action, Duration.ofHours(24));
-            }
-
-            if ("ALLOW".equalsIgnoreCase(action) || "PENDING_ANALYSIS".equalsIgnoreCase(action)
-                    || "CHALLENGE".equalsIgnoreCase(action)) {
-                String userBlockedKey = ZeroTrustRedisKeys.userBlocked(userId);
-                redisTemplate.delete(userBlockedKey);
+            if (!ztAction.isBlocking()) {
+                actionRedisRepository.removeBlockedFlag(userId);
             }
         } catch (Exception e) {
             log.error("[AdminOverrideService] Redis analysis update failed: userId={}", userId, e);
@@ -167,7 +153,7 @@ public class AdminOverrideService {
         analysisData.put("riskScore", riskScore);
         analysisData.put("confidence", confidence);
         analysisData.put("reasoning", reasoning);
-        analysisData.put("originalAction", "BLOCK");
+        analysisData.put("originalAction", ZeroTrustAction.BLOCK.name());
 
         repository.savePending(requestId, userId, analysisData);
 

@@ -4,6 +4,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -126,7 +127,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         response.setRiskScore(validated[0]);
         response.setConfidence(validated[1]);
         if (response.getAction() == null || response.getAction().isBlank()) {
-            response.setAction("ESCALATE");
+            response.setAction(ZeroTrustAction.ESCALATE.name());
         }
         return response;
     }
@@ -135,7 +136,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return SecurityResponse.builder()
                 .riskScore(null)
                 .confidence(null)
-                .action("ESCALATE")
+                .action(ZeroTrustAction.ESCALATE.name())
                 .reasoning("[AI Native] " + getLayerName() + " LLM analysis unavailable")
                 .mitre(null)
                 .build();
@@ -143,7 +144,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     protected SecurityDecision convertToSecurityDecisionBase(SecurityResponse response, SecurityEvent event) {
         if (response == null) response = createDefaultResponse();
-        SecurityDecision.Action action = mapStringToAction(response.getAction());
+        ZeroTrustAction action = mapStringToAction(response.getAction());
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
                 .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
@@ -181,23 +182,16 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .collect(Collectors.toList());
     }
 
-    protected SecurityDecision.Action mapStringToAction(String action) {
-        if (action == null) return SecurityDecision.Action.ESCALATE;
-
-        String upperAction = action.toUpperCase().trim();
-
-        return switch (upperAction) {
-            case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
-            case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
-            case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
-            default -> {
-                if (!"ESCALATE".equals(upperAction) && !"E".equals(upperAction)) {
-                    log.error("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
-                            getLayerName(), action);
-                }
-                yield SecurityDecision.Action.ESCALATE;
+    protected ZeroTrustAction mapStringToAction(String action) {
+        ZeroTrustAction zta = ZeroTrustAction.fromString(action);
+        if (zta == ZeroTrustAction.ESCALATE && action != null && !action.isBlank()) {
+            String upper = action.trim().toUpperCase();
+            if (!ZeroTrustAction.ESCALATE.name().equals(upper) && !"E".equals(upper)) {
+                log.error("[{}] Unknown action '{}' from LLM, converting to ESCALATE",
+                        getLayerName(), action);
             }
-        };
+        }
+        return zta;
     }
 
     protected double[] validateResponseBase(Double riskScore, Double confidence) {

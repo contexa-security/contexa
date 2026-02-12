@@ -1,5 +1,6 @@
 package io.contexa.springbootstartercontexa.web;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -82,7 +83,7 @@ public class TestActionController {
         if (fields.isEmpty()) {
             log.info("[Action 상태 조회] 분석 결과 없음 - userId: {}", userId);
 
-            response.put("action", "PENDING_ANALYSIS");
+            response.put("action", ZeroTrustAction.PENDING_ANALYSIS.name());
             response.put("riskScore", 0.0);
             response.put("confidence", 0.0);
             response.put("threatLevel", "UNKNOWN");
@@ -93,7 +94,7 @@ public class TestActionController {
             return ResponseEntity.ok(response);
         }
 
-        String action = (String) fields.getOrDefault("action", "PENDING_ANALYSIS");
+        String action = (String) fields.getOrDefault("action", ZeroTrustAction.PENDING_ANALYSIS.name());
         String riskScoreStr = (String) fields.getOrDefault("riskScore", "0.0");
         String confidenceStr = (String) fields.getOrDefault("confidence", "0.0");
         String threatLevel = (String) fields.getOrDefault("threatLevel", "UNKNOWN");
@@ -160,7 +161,7 @@ public class TestActionController {
         response.put("userId", userId);
         response.put("hcadAnalysisDeleted", Boolean.TRUE.equals(hcadDeleted));
         response.put("threatScoreDeleted", Boolean.TRUE.equals(threatDeleted));
-        response.put("currentAction", "PENDING_ANALYSIS");
+        response.put("currentAction", ZeroTrustAction.PENDING_ANALYSIS.name());
         response.put("message", "분석 결과가 초기화되었습니다. 새로운 시나리오 테스트를 시작할 수 있습니다.");
 
         return ResponseEntity.ok(response);

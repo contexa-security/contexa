@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.event.decision;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+
 public enum EventTier {
 
     CRITICAL(0.8, 1.0, 1.0, true),
@@ -24,20 +26,24 @@ public enum EventTier {
         this.immediatePublishing = immediatePublishing;
     }
 
+    public static EventTier fromAction(ZeroTrustAction action, Boolean isAnomaly) {
+        if (action == null) {
+            return CRITICAL;
+        }
+        return switch (action) {
+            case BLOCK -> CRITICAL;
+            case ESCALATE -> HIGH;
+            case CHALLENGE -> MEDIUM;
+            case PENDING_ANALYSIS -> MEDIUM;
+            case ALLOW -> Boolean.TRUE.equals(isAnomaly) ? LOW : BENIGN;
+        };
+    }
+
     public static EventTier fromAction(String action, Boolean isAnomaly) {
-        
         if (action == null || action.isEmpty()) {
             return CRITICAL;
         }
-
-        return switch (action.toUpperCase()) {
-            case "BLOCK" -> CRITICAL;
-            case "ESCALATE" -> HIGH;
-            case "CHALLENGE" -> MEDIUM;
-            case "PENDING_ANALYSIS" -> MEDIUM;  
-            case "ALLOW" -> Boolean.TRUE.equals(isAnomaly) ? LOW : BENIGN;
-            default -> MEDIUM; 
-        };
+        return fromAction(ZeroTrustAction.fromString(action), isAnomaly);
     }
 
     @Deprecated

@@ -9,6 +9,7 @@ import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
@@ -34,6 +35,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
 
@@ -78,6 +80,14 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
+            RedisTemplate<String, Object> redisTemplate,
+            StringRedisTemplate stringRedisTemplate) {
+        return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public SecurityPromptTemplate securityPromptTemplate(
             SecurityEventEnricher securityEventEnricher,
             TieredStrategyProperties tieredStrategyProperties) {
@@ -89,8 +99,8 @@ public class CoreAutonomousAutoConfiguration {
     public AdminOverrideService adminOverrideService(
             AdminOverrideRepository adminOverrideRepository,
             BaselineLearningService baselineLearningService,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new AdminOverrideService(adminOverrideRepository, baselineLearningService, redisTemplate);
+            ZeroTrustActionRedisRepository actionRedisRepository) {
+        return new AdminOverrideService(adminOverrideRepository, baselineLearningService, actionRedisRepository);
     }
 
     @Bean

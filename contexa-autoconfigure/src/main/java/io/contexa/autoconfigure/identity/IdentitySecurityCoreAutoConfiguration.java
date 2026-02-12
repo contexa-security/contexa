@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.identity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
@@ -253,13 +254,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             TokenService tokenService,
             AuthContextProperties authContextProperties,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            RedisTemplate<String, Object> redisTemplate,
+            ZeroTrustActionRedisRepository actionRedisRepository,
             BaselineLearningService baselineLearningService,
-            StringRedisTemplate stringRedisTemplate,
             HcadProperties hcadProperties) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
-                authUrlProvider, zeroTrustEventPublisher, redisTemplate, baselineLearningService,stringRedisTemplate,hcadProperties);
+                authUrlProvider, zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
     }
 
     @Bean
@@ -286,13 +286,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthContextProperties authContextProperties,
             TokenService tokenService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            RedisTemplate<String, Object> redisTemplate,
+            ZeroTrustActionRedisRepository actionRedisRepository,
             BaselineLearningService baselineLearningService,
-            StringRedisTemplate stringRedisTemplate,
             HcadProperties hcadProperties) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider,
-                zeroTrustEventPublisher, redisTemplate,baselineLearningService,stringRedisTemplate,hcadProperties);
+                zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
     }
 
     @Bean

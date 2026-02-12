@@ -1,13 +1,17 @@
 package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
+import io.contexa.contexaidentity.security.core.mfa.util.ZeroTrustActionMfaMapper;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
@@ -16,10 +20,15 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
+    @Nullable
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
+
     public DefaultMfaPolicyEvaluator(
             UserRepository userRepository,
-            ApplicationContext applicationContext) {
+            ApplicationContext applicationContext,
+            @Nullable ZeroTrustActionRedisRepository actionRedisRepository) {
         super(userRepository, applicationContext);
+        this.actionRedisRepository = actionRedisRepository;
     }
 
     @Override
@@ -34,7 +43,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
         Optional<Users> userOptional = userRepository.findByUsernameWithGroupsRolesAndPermissions(username);
         if (userOptional.isEmpty()) {
-            log.warn("User not found for MFA evaluation: {}", username);
+            log.error("User not found for MFA evaluation: {}", username);
             return MfaDecision.noMfaRequired();
         }
         Users user = userOptional.get();
@@ -43,13 +52,26 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         if (!mfaRequired) {
             return MfaDecision.noMfaRequired();
         }
+
         Set<AuthType> availableFactors = getAvailableFactorsFromDsl(context);
         if (CollectionUtils.isEmpty(availableFactors)) {
-            log.warn("MFA required but no factors defined in DSL for user: {}", username);
+            log.error("MFA required but no factors defined in DSL for user: {}", username);
             return MfaDecision.noMfaRequired();
         }
 
         int requiredFactorCount = determineFactorCount(user, context);
+        MfaDecision.DecisionType decisionType = determineDecisionType(user, context);
+
+        if (decisionType == MfaDecision.DecisionType.BLOCKED) {
+            return MfaDecision.blocked(buildReason(user, context, decisionType));
+        }
+        if (decisionType == MfaDecision.DecisionType.ESCALATED) {
+            return MfaDecision.escalated(buildReason(user, context, decisionType));
+        }
+        if (decisionType == MfaDecision.DecisionType.NO_MFA_REQUIRED) {
+            return MfaDecision.noMfaRequired();
+        }
+
         List<AuthType> availableFactorsList = new ArrayList<>(availableFactors);
         List<AuthType> requiredFactors = determineRequiredFactors(
                 user,
@@ -58,9 +80,8 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
                 requiredFactorCount
         );
 
-        MfaDecision.DecisionType decisionType = determineDecisionType(user, context, requiredFactorCount);
         String reason = buildReason(user, context, decisionType);
-        Map<String, Object> metadata = buildMetadata(user, context, availableFactors, requiredFactors);
+        Map<String, Object> metadata = buildMetadata(context, availableFactors, requiredFactors);
 
         return MfaDecision.builder()
                 .required(true)
@@ -85,10 +106,23 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         return isAdminUser(user);
     }
 
-    private MfaDecision.DecisionType determineDecisionType(
-            Users user,
-            FactorContext context,
-            int requiredFactorCount) {
+    private MfaDecision.DecisionType determineDecisionType(Users user, FactorContext context) {
+        String actionStr = (String) context.getAttribute(FactorContextAttributes.Policy.ZERO_TRUST_ACTION);
+        ZeroTrustAction action = null;
+
+        if (actionStr != null) {
+            action = ZeroTrustAction.fromString(actionStr);
+        } else if (actionRedisRepository != null) {
+            try {
+                action = actionRedisRepository.getActionFromHash(user.getUsername());
+            } catch (Exception e) {
+                log.error("Failed to read action from Redis for user: {}", user.getUsername(), e);
+            }
+        }
+
+        if (action != null) {
+            return ZeroTrustActionMfaMapper.toDecisionType(action);
+        }
 
         return MfaDecision.DecisionType.CHALLENGED;
     }
@@ -128,7 +162,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         return reason.toString();
     }
 
-    private Map<String, Object> buildMetadata(Users user, FactorContext context,
+    private Map<String, Object> buildMetadata(FactorContext context,
                                               Set<AuthType> availableFactors,
                                               List<AuthType> requiredFactors) {
         Map<String, Object> metadata = new HashMap<>();

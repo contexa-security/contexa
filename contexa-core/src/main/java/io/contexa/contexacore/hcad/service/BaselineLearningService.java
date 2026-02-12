@@ -4,6 +4,7 @@ import io.contexa.contexacommon.hcad.domain.BaselineMatchStatus;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.hcad.util.UserAgentParser;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -49,7 +50,7 @@ public class BaselineLearningService {
     }
 
     private boolean shouldLearnFromSecurityEvent(SecurityDecision decision) {
-        return decision.getAction() == SecurityDecision.Action.ALLOW;
+        return decision.getAction() == ZeroTrustAction.ALLOW;
     }
 
     private BaselineVector updateWithEMAFromSecurityEvent(BaselineVector current, String userId,
@@ -64,12 +65,12 @@ public class BaselineLearningService {
         String currentUserAgent = event != null ? event.getUserAgent() : null;
 
         if (currentUserAgent == null || currentUserAgent.isEmpty()) {
-            log.warn("[Baseline][AI Native v8.5] UA 없음 - 학습 차단: userId={}", userId);
+            log.error("[Baseline][AI Native v8.5] UA missing - learning blocked: userId={}", userId);
             return current;
         }
         String uaSignatureForValidation = extractUASignature(currentUserAgent);
         if ("Browser (Desktop)".equals(uaSignatureForValidation)) {
-            log.warn("[Baseline][AI Native v8.5] UA 파싱 실패 - 학습 차단: userId={}, ua={}",
+            log.error("[Baseline][AI Native v8.5] UA parsing failed - learning blocked: userId={}, ua={}",
                     userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
             return current;
         }
@@ -103,7 +104,7 @@ public class BaselineLearningService {
                 String truncatedUA = currentUserAgent.length() > 100
                         ? currentUserAgent.substring(0, 100) : currentUserAgent;
                 builder.normalUserAgents(new String[]{truncatedUA});
-                log.warn("[Baseline] SecurityEvent 첫 학습 - UA 파싱 실패, 원본 저장: {}", truncatedUA);
+                log.error("[Baseline] SecurityEvent first learning - UA parsing failed, storing raw: {}", truncatedUA);
             }
 
             String os = extractOS(currentUserAgent);
@@ -521,7 +522,7 @@ public class BaselineLearningService {
                         .map(Integer::parseInt)
                         .toArray(Integer[]::new);
             } catch (NumberFormatException e) {
-                log.warn("[BaselineLearningService] Integer 배열 파싱 실패: {}", value);
+                log.error("[BaselineLearningService] Integer array parsing failed: {}", value);
                 return null;
             }
         }

@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.domain;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
@@ -75,14 +76,7 @@ public class SecurityResponse {
 
     private static String expandAction(String shortAction) {
         if (shortAction == null) return null;
-
-        return switch (shortAction.toUpperCase().trim()) {
-            case "A", "ALLOW" -> "ALLOW";
-            case "B", "BLOCK" -> "BLOCK";
-            case "C", "CHALLENGE" -> "CHALLENGE";
-            case "E", "ESCALATE" -> "ESCALATE";
-            default -> shortAction;
-        };
+        return ZeroTrustAction.fromString(shortAction).name();
     }
 
     private static Double extractDouble(String json, String key) {

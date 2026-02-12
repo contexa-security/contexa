@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.tiered.service;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
@@ -52,8 +53,8 @@ public class SecurityDecisionPostProcessor {
                 redisTemplate.opsForList().leftPop(sessionActionsKey);
             }
 
-            SecurityDecision.Action sessionAction = decision.getAction();
-            if (sessionAction == SecurityDecision.Action.BLOCK) {
+            ZeroTrustAction sessionAction = decision.getAction();
+            if (sessionAction == ZeroTrustAction.BLOCK) {
                 redisTemplate.opsForValue().set(
                         ZeroTrustRedisKeys.sessionRisk(sessionId),
                         decision.getRiskScore(),
@@ -72,13 +73,13 @@ public class SecurityDecisionPostProcessor {
         }
 
         try {
-            SecurityDecision.Action action = decision.getAction();
+            ZeroTrustAction action = decision.getAction();
 
-            if (action == SecurityDecision.Action.ALLOW) {
+            if (action == ZeroTrustAction.ALLOW) {
                 storeBehaviorDocument(event, decision);
             }
 
-            if (action == SecurityDecision.Action.BLOCK) {
+            if (action == ZeroTrustAction.BLOCK) {
                 String content = buildBehaviorContent(event, decision);
                 storeThreatDocument(event, decision, content);
             }

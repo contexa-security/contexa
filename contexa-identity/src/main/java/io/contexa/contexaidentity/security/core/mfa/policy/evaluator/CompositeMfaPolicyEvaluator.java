@@ -43,7 +43,7 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
         }
 
         log.error("No suitable evaluator found for user: {}", context.getUsername());
-        return MfaDecision.noMfaRequired();
+        return MfaDecision.challenged("No suitable evaluator found - conservative MFA required");
     }
 
     private Optional<MfaPolicyEvaluator> findSuitableEvaluator(FactorContext context) {
@@ -57,7 +57,7 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     private MfaDecision fallbackEvaluation(FactorContext context, MfaPolicyEvaluator failedEvaluator) {
-        log.warn("Falling back from {} to next available evaluator", failedEvaluator.getName());
+        log.error("Falling back from {} to next available evaluator", failedEvaluator.getName());
 
         boolean skipNext = true;
         for (MfaPolicyEvaluator evaluator : evaluators) {

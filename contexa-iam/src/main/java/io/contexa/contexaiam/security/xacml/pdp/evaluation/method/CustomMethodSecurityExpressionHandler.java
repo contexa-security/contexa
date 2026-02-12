@@ -2,6 +2,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -11,7 +12,6 @@ import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.context.expression.MethodBasedEvaluationContext;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
 import org.springframework.security.access.expression.method.DefaultMethodSecurityExpressionHandler;
@@ -34,7 +34,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final ContextHandler contextHandler;
     private final AuditLogService auditLogService;
     private final AuditLogRepository auditLogRepository;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
 
     public CustomMethodSecurityExpressionHandler(
             SecurityZeroTrustProperties securityZeroTrustProperties,
@@ -44,7 +44,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
-            StringRedisTemplate stringRedisTemplate) {
+            ZeroTrustActionRedisRepository actionRedisRepository) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(securityZeroTrustProperties, "SecurityZeroTrustProperties cannot be null");
 
@@ -52,7 +52,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         this.contextHandler = contextHandler;
         this.auditLogService = auditLogService;
         this.auditLogRepository = auditLogRepository;
-        this.stringRedisTemplate = stringRedisTemplate;
+        this.actionRedisRepository = actionRedisRepository;
         super.setPermissionEvaluator(compositePermissionEvaluator);
         super.setRoleHierarchy(roleHierarchy);
 
@@ -66,7 +66,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         Authentication auth = authentication.get();
         AuthorizationContext authorizationContext = contextHandler.create(auth, mi);
 
-        CustomMethodSecurityExpressionRoot root = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, stringRedisTemplate);
+        CustomMethodSecurityExpressionRoot root = new CustomMethodSecurityExpressionRoot(auth, authorizationContext, auditLogRepository, actionRedisRepository);
         root.setOwnerField(ownerField);
         root.setPermissionEvaluator(getPermissionEvaluator());
         root.setTrustResolver(getTrustResolver());

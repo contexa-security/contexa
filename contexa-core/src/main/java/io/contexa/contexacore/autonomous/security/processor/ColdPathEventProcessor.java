@@ -3,6 +3,7 @@ package io.contexa.contexacore.autonomous.security.processor;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
@@ -109,7 +110,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     return result;
                 }
 
-                publishLayer1Complete(userId, "ESCALATE",
+                publishLayer1Complete(userId, ZeroTrustAction.ESCALATE.name(),
                         layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
                         "Escalating to Layer2 for deeper analysis", "none", layer1ElapsedMs);
 
@@ -149,7 +150,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
         } catch (Exception e) {
             log.error("[ColdPath] Tiered AI analysis failed, using fallback riskScore: eventId={}", event.getEventId(), e);
             result.setFinalScore(riskScore);
-            result.setAction("ESCALATE");
+            result.setAction(ZeroTrustAction.ESCALATE.name());
             result.setConfidence(Double.NaN);
             result.setAnalysisDepth(0);
             return result;
@@ -195,19 +196,14 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
 
         public SecurityDecision getFinalDecision() {
-            SecurityDecision.Action decisionAction;
+            ZeroTrustAction decisionAction;
             String reasoningPrefix;
 
             if (action != null && !action.isBlank()) {
                 reasoningPrefix = "AI Native Decision: ";
-                decisionAction = switch (action.toUpperCase()) {
-                    case "ALLOW", "A" -> SecurityDecision.Action.ALLOW;
-                    case "BLOCK", "B" -> SecurityDecision.Action.BLOCK;
-                    case "CHALLENGE", "C" -> SecurityDecision.Action.CHALLENGE;
-                    default -> SecurityDecision.Action.ESCALATE;
-                };
+                decisionAction = ZeroTrustAction.fromString(action);
             } else {
-                decisionAction = SecurityDecision.Action.ESCALATE;
+                decisionAction = ZeroTrustAction.ESCALATE;
                 reasoningPrefix = "AI Analysis Incomplete: ";
             }
             return SecurityDecision.builder()

@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -80,7 +81,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     blocked.getRequestId(),
                     blocked.getUserId(),
                     adminId,
-                    "BLOCK",
+                    ZeroTrustAction.BLOCK.name(),
                     blocked.getRiskScore() != null ? blocked.getRiskScore() : 0.0,
                     blocked.getConfidence() != null ? blocked.getConfidence() : 0.0,
                     resolvedAction,

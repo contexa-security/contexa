@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.event;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import lombok.Builder;
 import lombok.Getter;
 import org.springframework.context.ApplicationEvent;
@@ -53,11 +54,11 @@ public class SecurityAnalysisCompletedEvent extends ApplicationEvent {
     }
 
     public boolean requiresBlocking() {
-        return "BLOCK".equalsIgnoreCase(action);
+        return ZeroTrustAction.fromString(action) == ZeroTrustAction.BLOCK;
     }
 
     public boolean isHighRisk() {
-        return "BLOCK".equalsIgnoreCase(action) || "ESCALATE".equalsIgnoreCase(action);
+        return ZeroTrustAction.fromString(action).isBlocking();
     }
 
     @Override

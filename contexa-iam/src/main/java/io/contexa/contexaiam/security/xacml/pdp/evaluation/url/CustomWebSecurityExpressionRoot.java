@@ -3,9 +3,9 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.util.matcher.IpAddressMatcher;
 
@@ -17,8 +17,8 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
     public CustomWebSecurityExpressionRoot(Authentication authentication, HttpServletRequest request,
                                            AuthorizationContext authorizationContext,
                                            AuditLogRepository auditLogRepository,
-                                           StringRedisTemplate stringRedisTemplate) {
-        super(authentication, authorizationContext, auditLogRepository, stringRedisTemplate);
+                                           ZeroTrustActionRedisRepository actionRedisRepository) {
+        super(authentication, authorizationContext, auditLogRepository, actionRedisRepository);
         this.request = request;
     }
 

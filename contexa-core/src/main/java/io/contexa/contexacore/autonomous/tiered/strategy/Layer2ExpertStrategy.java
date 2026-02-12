@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
@@ -114,7 +115,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
 
-            if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == SecurityDecision.Action.BLOCK) {
+            if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
             }
 
@@ -197,7 +198,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         try {
             List<Map<String, Object>> actions = new ArrayList<>();
 
-            if (decision.getAction() == SecurityDecision.Action.BLOCK) {
+            if (decision.getAction() == ZeroTrustAction.BLOCK) {
                 Map<String, Object> blockAction = Map.of(
                         "actionType", "BLOCK_IP",
                         "parameters", Map.of("ip", event.getSourceIp())
@@ -270,7 +271,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime) {
         return SecurityDecision.builder()
-                .action(SecurityDecision.Action.BLOCK)
+                .action(ZeroTrustAction.BLOCK)
                 .riskScore(Double.NaN)
                 .confidence(Double.NaN)
                 .analysisTime(startTime)
@@ -293,12 +294,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return "Layer2-Expert-Strategy";
     }
 
-    private String mapActionToRecommendation(SecurityDecision.Action action) {
+    private String mapActionToRecommendation(ZeroTrustAction action) {
         return switch (action) {
             case ALLOW -> "ALLOW_WITH_MONITORING";
             case BLOCK -> "BLOCK_WITH_INCIDENT_RESPONSE";
             case CHALLENGE -> "REQUIRE_REAUTHENTICATION";
-            case ESCALATE -> "ESCALATE_TO_SOC";
+            case ESCALATE, PENDING_ANALYSIS -> "ESCALATE_TO_SOC";
         };
     }
 }

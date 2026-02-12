@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.tiered;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,14 +15,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class SecurityDecision {
 
-    public enum Action {
-        ALLOW,           
-        BLOCK,           
-        CHALLENGE,       
-        ESCALATE         
-    }
-
-    private Action action;                    
+    private ZeroTrustAction action;
     private double riskScore;                 
     private double confidence;                
     private long analysisTime;                

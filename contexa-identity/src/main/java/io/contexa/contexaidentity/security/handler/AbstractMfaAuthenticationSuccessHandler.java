@@ -1,9 +1,10 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -21,9 +22,6 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -31,7 +29,6 @@ import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -44,9 +41,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final RequestCache requestCache = new HttpSessionRequestCache();
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
     private final BaselineLearningService baselineLearningService;
-    private final StringRedisTemplate stringRedisTemplate;
     private final HcadProperties hcadProperties;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
@@ -55,15 +51,15 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       MfaStateMachineIntegrator stateMachineIntegrator,
                                                       AuthContextProperties authContextProperties,
                                                       ZeroTrustEventPublisher zeroTrustEventPublisher,
-                                                      RedisTemplate<String, Object> redisTemplate,
-                                                      BaselineLearningService baselineLearningService, StringRedisTemplate stringRedisTemplate, HcadProperties hcadProperties) {
+                                                      ZeroTrustActionRedisRepository actionRedisRepository,
+                                                      BaselineLearningService baselineLearningService,
+                                                      HcadProperties hcadProperties) {
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
-        this.redisTemplate = redisTemplate;
+        this.actionRedisRepository = actionRedisRepository;
         this.baselineLearningService = baselineLearningService;
-        this.stringRedisTemplate = stringRedisTemplate;
         this.hcadProperties = hcadProperties;
     }
 
@@ -368,26 +364,16 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {
-        if (userId == null || userId.isBlank() || redisTemplate == null) {
+        if (userId == null || userId.isBlank() || actionRedisRepository == null) {
             return;
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
-            String previousActionStr = previousAction != null ? previousAction.toString() : "NONE";
+            ZeroTrustAction previousAction = actionRedisRepository.getActionFromHash(userId);
+            actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW);
 
-            redisTemplate.opsForHash().put(analysisKey, "previousAction", previousActionStr);
-            redisTemplate.opsForHash().put(analysisKey, "action", "ALLOW");
-            redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
-
-            if (stringRedisTemplate != null) {
-                String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-                stringRedisTemplate.opsForValue().set(lastActionKey, "ALLOW", Duration.ofHours(24));
-            }
-
-            boolean isLlmTriggeredMfa = "CHALLENGE".equals(previousActionStr)
-                    || "ESCALATE".equals(previousActionStr);
+            boolean isLlmTriggeredMfa = previousAction == ZeroTrustAction.CHALLENGE
+                    || previousAction == ZeroTrustAction.ESCALATE;
             if (!isLlmTriggeredMfa) {
                 learnBaselineOnMfaSuccess(userId, request);
             }
@@ -403,7 +389,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
         try {
             SecurityDecision decision = SecurityDecision.builder()
-                    .action(SecurityDecision.Action.ALLOW)
+                    .action(ZeroTrustAction.ALLOW)
                     .confidence(0.85)
                     .riskScore(0.1)
                     .reasoning("Regular MFA authentication completed - identity verified")
@@ -424,7 +410,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             baselineLearningService.learnIfNormal(userId, decision, event);
 
         } catch (Exception e) {
-            log.warn("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
+            log.error("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
 
         }
     }

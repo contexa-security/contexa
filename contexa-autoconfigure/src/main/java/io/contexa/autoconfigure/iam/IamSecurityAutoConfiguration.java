@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam;
 
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CompositePermissionEvaluator;
@@ -10,7 +11,6 @@ import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionHandler;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 
@@ -27,7 +27,7 @@ public class IamSecurityAutoConfiguration {
             ContextHandler contextHandler,
             AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
-            StringRedisTemplate stringRedisTemplate) {
+            ZeroTrustActionRedisRepository actionRedisRepository) {
 
         return new CustomMethodSecurityExpressionHandler(
                 securityZeroTrustProperties,
@@ -37,6 +37,6 @@ public class IamSecurityAutoConfiguration {
                 contextHandler,
                 auditLogService,
                 auditLogRepository,
-                stringRedisTemplate);
+                actionRedisRepository);
     }
 }

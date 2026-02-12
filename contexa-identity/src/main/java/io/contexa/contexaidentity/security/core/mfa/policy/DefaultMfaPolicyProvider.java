@@ -5,21 +5,18 @@ import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
+import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.AbstractMfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.MfaPolicyEvaluator;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
-import org.springframework.util.StringUtils;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -56,9 +53,8 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                         .findFirst()
                         .orElse(null);
 
-                if (cachedMfaFlowConfig != null) {
-                } else {
-                    log.warn("No MFA flow configuration found during initialization");
+                if (cachedMfaFlowConfig == null) {
+                    log.error("No MFA flow configuration found during initialization");
                 }
             }
         } catch (Exception e) {
@@ -84,43 +80,42 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
         if (ctx != null) {
             Set<AuthType> availableFactors = ctx.getAvailableFactors();
             if (availableFactors != null && !availableFactors.isEmpty()) {
-                boolean available = availableFactors.contains(factorType);
-                return available;
+                return availableFactors.contains(factorType);
             }
         }
 
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
         if (mfaFlowConfig == null) {
-            log.warn("MFA flow config not found. Factor {} not available for user: {}", factorType, username);
+            log.error("MFA flow config not found. Factor {} not available for user: {}", factorType, username);
             return false;
         }
 
         Map<AuthType, ?> factorOptions = mfaFlowConfig.getRegisteredFactorOptions();
-        if (!factorOptions.containsKey(factorType)) {
-            return false;
-        }
-
-        return true;
+        return factorOptions.containsKey(factorType);
     }
 
     @Override
     public Integer getRequiredFactorCount(String userId, String flowType) {
-        Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(userId).orElse(null);
-
-        if (user != null) {
-            int baseCount = 1;
-            return adjustRequiredFactorCount(baseCount, userId, flowType);
+        int baseCount = 1;
+        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
+        if (mfaFlowConfig != null) {
+            long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
+                    .filter(step -> !step.isPrimary())
+                    .count();
+            if (mfaStepCount > 0) {
+                baseCount = (int) mfaStepCount;
+            }
         }
 
-        return switch (flowType.toLowerCase()) {
-            case "mfa" -> 2;
-            case "mfa-stepup" -> 1;
-            case "mfa-transactional" -> 1;
-            default -> 1;
-        };
-    }
+        Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(userId).orElse(null);
+        if (user != null) {
+            List<String> roles = user.getRoleNames();
+            if (roles != null && roles.stream().anyMatch(r ->
+                    r != null && AbstractMfaPolicyEvaluator.ADMIN_ROLES.contains(r.toUpperCase()))) {
+                baseCount = Math.max(baseCount, 2);
+            }
+        }
 
-    protected int adjustRequiredFactorCount(int baseCount, String userId, String flowType) {
         return baseCount;
     }
 
@@ -175,7 +170,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
         Set<AuthType> availableFactors = ctx.getAvailableFactors();
         if (availableFactors == null || availableFactors.isEmpty()) {
-            log.warn("No available factors, all factors may be completed");
+            log.error("No available factors, all factors may be completed");
             return NextFactorDecision.noMoreFactors();
         }
 

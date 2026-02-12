@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -312,22 +313,22 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private void analyzeAiCondition(String expression, BusinessPolicyDto dto) {
         if (expression.contains("#ai.isAllowed()")) {
             dto.setAiActionEnabled(true);
-            dto.setAllowedActions(List.of("ALLOW"));
+            dto.setAllowedActions(List.of(ZeroTrustAction.ALLOW.name()));
             return;
         }
         if (expression.contains("#ai.isBlocked()")) {
             dto.setAiActionEnabled(true);
-            dto.setAllowedActions(List.of("BLOCK"));
+            dto.setAllowedActions(List.of(ZeroTrustAction.BLOCK.name()));
             return;
         }
         if (expression.contains("#ai.needsChallenge()")) {
             dto.setAiActionEnabled(true);
-            dto.setAllowedActions(List.of("CHALLENGE"));
+            dto.setAllowedActions(List.of(ZeroTrustAction.CHALLENGE.name()));
             return;
         }
         if (expression.contains("#ai.needsEscalation()")) {
             dto.setAiActionEnabled(true);
-            dto.setAllowedActions(List.of("ESCALATE"));
+            dto.setAllowedActions(List.of(ZeroTrustAction.ESCALATE.name()));
             return;
         }
 

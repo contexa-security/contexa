@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.exception;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -44,7 +45,7 @@ public class ZeroTrustExceptionHandler {
             .status(403)
             .code("ZERO_TRUST_ANOMALY_DETECTED")
             .message(ex.getMessage())
-            .action("BLOCK")
+            .action(ZeroTrustAction.BLOCK.name())
             .resourceId("unknown")
             .riskScore(1.0)
             .analysisTimeout(false)

@@ -19,6 +19,12 @@ import java.util.*;
 @Slf4j
 public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
+    public static final Set<String> ADMIN_ROLES = Set.of(
+            "ROLE_ADMIN", "ADMIN",
+            "ROLE_SYSTEM_ADMIN", "SYSTEM_ADMIN",
+            "ROLE_SUPER_ADMIN", "SUPER_ADMIN"
+    );
+
     protected final UserRepository userRepository;
     protected final ApplicationContext applicationContext;
 
@@ -59,7 +65,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
     @Nullable
     protected AuthenticationFlowConfig findMfaFlowConfigFromContext() {
         if (applicationContext == null) {
-            log.warn("ApplicationContext is not available in {}", getName());
+            log.error("ApplicationContext is not available in {}", getName());
             return null;
         }
 
@@ -72,7 +78,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
                     })
                     .findFirst()
                     .orElseGet(() -> {
-                        log.warn("No MFA AuthenticationFlowConfig found in PlatformConfig");
+                        log.error("No MFA AuthenticationFlowConfig found in PlatformConfig");
                         return null;
                     });
         } catch (Exception e) {
@@ -118,13 +124,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return roles.stream()
                 .filter(Objects::nonNull)
                 .map(String::toUpperCase)
-                .anyMatch(role ->
-                        role.equals("ROLE_ADMIN") ||
-                                role.equals("ADMIN") ||
-                                role.equals("ROLE_SYSTEM_ADMIN") ||
-                                role.equals("SYSTEM_ADMIN") ||
-                                role.equals("ROLE_SUPER_ADMIN") ||
-                                role.equals("SUPER_ADMIN"));
+                .anyMatch(ADMIN_ROLES::contains);
     }
 
     protected Set<AuthType> getAvailableFactorsFromDsl(FactorContext context) {
@@ -145,22 +145,31 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
             }
         }
 
-        log.warn("No factors found in DSL for evaluator: {}", getName());
+        log.error("No factors found in DSL for evaluator: {}", getName());
         return Collections.emptySet();
     }
 
     protected int determineFactorCount(@Nullable Users user, FactorContext context) {
-        int baseCount = 1;
+        int baseCount = getBaseFactorCountFromConfig();
 
         if (user != null && isAdminUser(user)) {
-            return Math.max(baseCount, 2);
+            baseCount = Math.max(baseCount, 2);
         }
 
-        String securityLevel = (String) context.getAttribute("transactionSecurityLevel");
-        if ("CRITICAL".equalsIgnoreCase(securityLevel)) {
-            return Math.max(baseCount, 2);
-        }
         return baseCount;
+    }
+
+    private int getBaseFactorCountFromConfig() {
+        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext();
+        if (mfaFlowConfig != null) {
+            long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
+                    .filter(step -> !step.isPrimary())
+                    .count();
+            if (mfaStepCount > 0) {
+                return (int) mfaStepCount;
+            }
+        }
+        return 1;
     }
 
     protected List<AuthType> prioritizeFactors(
@@ -195,12 +204,12 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
                     preferredFactor = AuthType.valueOf(preferredFactorStr.toUpperCase());
 
                     if (!availableFactors.contains(preferredFactor)) {
-                        log.warn("User preferred factor {} not available, ignoring preference for user: {}",
+                        log.error("User preferred factor {} not available, ignoring preference for user: {}",
                                 preferredFactor, user.getUsername());
                         preferredFactor = null;
                     }
                 } catch (IllegalArgumentException e) {
-                    log.warn("Invalid preferred MFA factor '{}' for user: {}", preferredFactorStr, user.getUsername());
+                    log.error("Invalid preferred MFA factor '{}' for user: {}", preferredFactorStr, user.getUsername());
                 }
             }
         }

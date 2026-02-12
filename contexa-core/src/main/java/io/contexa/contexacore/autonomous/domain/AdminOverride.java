@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.domain;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import lombok.Builder;
 import lombok.Getter;
 import java.time.Instant;
@@ -31,7 +32,7 @@ public class AdminOverride {
     private final double originalConfidence;
 
     public boolean canUpdateBaseline() {
-        return approved && "ALLOW".equalsIgnoreCase(overriddenAction);
+        return approved && ZeroTrustAction.ALLOW.name().equalsIgnoreCase(overriddenAction);
     }
 
     @Override

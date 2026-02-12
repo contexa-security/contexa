@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.aiam.web;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
@@ -69,10 +70,8 @@ public class AdminOverrideController {
             return ResponseEntity.ok(response);
         }
 
-        String action = (String) analysisData.getOrDefault("action", "PENDING_ANALYSIS");
-        boolean isBlocked = "BLOCK".equalsIgnoreCase(action) ||
-                           "CHALLENGE".equalsIgnoreCase(action) ||
-                           "ESCALATE".equalsIgnoreCase(action);
+        String action = (String) analysisData.getOrDefault("action", ZeroTrustAction.PENDING_ANALYSIS.name());
+        boolean isBlocked = ZeroTrustAction.fromString(action).isAccessRestricted();
 
         response.put("hasPending", isBlocked);
         response.put("action", action);
@@ -117,7 +116,7 @@ public class AdminOverrideController {
                 request.getOriginalAction(),
                 request.getOriginalRiskScore(),
                 request.getOriginalConfidence(),
-                "ALLOW",
+                ZeroTrustAction.ALLOW.name(),
                 request.getReason(),
                 originalEvent
             );
