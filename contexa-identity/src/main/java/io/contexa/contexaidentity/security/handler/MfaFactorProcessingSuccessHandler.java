@@ -52,9 +52,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              ZeroTrustEventPublisher zeroTrustEventPublisher,
                                              ZeroTrustActionRedisRepository actionRedisRepository,
                                              SecurityLearningService securityLearningService,
-                                             HcadProperties hcadProperties) {
+                                             HcadProperties hcadProperties,
+                                             ApplicationContext applicationContext,
+                                             AuthUrlProvider authUrlProvider1) {
         super(tokenService, responseWriter, sessionRepository, mfaStateMachineIntegrator, authContextProperties,
-                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties);
+                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties, applicationContext, authUrlProvider1);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;

@@ -288,10 +288,10 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRedisRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
-            HcadProperties hcadProperties) {
+            HcadProperties hcadProperties, ApplicationContext applicationContext) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider,
-                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties);
+                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties, applicationContext, authUrlProvider);
     }
 
     @Bean

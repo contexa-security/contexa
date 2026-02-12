@@ -50,7 +50,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                SecurityLearningService securityLearningService,
                                                HcadProperties hcadProperties) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,
-                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties);
+                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties, applicationContext, authUrlProvider);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = stateMachineIntegrator;

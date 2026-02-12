@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -10,9 +11,12 @@ import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -44,6 +48,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final ZeroTrustActionRedisRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
     private final HcadProperties hcadProperties;
+    private final ApplicationContext applicationContext;
+    private final AuthUrlProvider authUrlProvider;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
@@ -53,7 +59,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                       ZeroTrustActionRedisRepository actionRedisRepository,
                                                       SecurityLearningService securityLearningService,
-                                                      HcadProperties hcadProperties) {
+                                                      HcadProperties hcadProperties,
+                                                      ApplicationContext applicationContext,
+                                                      AuthUrlProvider authUrlProvider) {
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
@@ -61,6 +69,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
         this.hcadProperties = hcadProperties;
+        this.applicationContext = applicationContext;
+        this.authUrlProvider = authUrlProvider;
     }
 
     protected final void handleFinalAuthenticationSuccess(HttpServletRequest request,
@@ -115,7 +125,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         if (!response.isCommitted()) {
-            processDefaultResponse(request, response, finalAuthentication, stateType, finalResult);
+            processDefaultResponse(request, response, stateType, finalResult);
         }
 
         if (factorContext != null && factorContext.isCompleted()) {
@@ -130,8 +140,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     }
 
-    private void processDefaultResponse(HttpServletRequest request, HttpServletResponse response,
-                                        Authentication authentication, StateType stateType,
+    private void processDefaultResponse(HttpServletRequest request, HttpServletResponse response, StateType stateType,
                                         TokenTransportResult result) throws IOException {
 
         setCookies(response, result);
@@ -162,6 +171,13 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return request.getContextPath() + defaultTargetUrl;
         }
 
+        String dslDefaultSuccessUrl = getDslDefaultSuccessUrl();
+        boolean alwaysUseDslUrl = isDslAlwaysUseDefaultSuccessUrl();
+
+        if (alwaysUseDslUrl && dslDefaultSuccessUrl != null) {
+            return request.getContextPath() + dslDefaultSuccessUrl;
+        }
+
         SavedRequest savedRequest = this.requestCache.getRequest(request, response);
         if (savedRequest != null) {
             this.requestCache.removeRequest(request, response);
@@ -171,10 +187,50 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
         }
 
-        if(defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
+        if (dslDefaultSuccessUrl != null) {
+            return request.getContextPath() + dslDefaultSuccessUrl;
+        }
+        return request.getContextPath() + authUrlProvider.getMfaSuccess();
+    }
 
-        String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();
-        return request.getContextPath() + successUrl;
+    private String getDslDefaultSuccessUrl() {
+        try {
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
+                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
+                var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
+                if (formOptions != null) {
+                    return formOptions.getDefaultSuccessUrl();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get DSL defaultSuccessUrl: {}", e.getMessage());
+        }
+        return null;
+    }
+
+    private boolean isDslAlwaysUseDefaultSuccessUrl() {
+        try {
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
+                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
+                    .findFirst()
+                    .orElse(null);
+
+            if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
+                var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
+                if (formOptions != null) {
+                    return formOptions.isAlwaysUseDefaultSuccessUrl();
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get DSL alwaysUseDefaultSuccessUrl: {}", e.getMessage());
+        }
+        return false;
     }
 
     private boolean isValidRedirectUrl(String url) {
