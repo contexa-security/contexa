@@ -95,7 +95,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         cleanupExistingSession(request, response);
 
         String mfaSessionId = generateSecureDistributedSessionId(request);
-        String flowTypeNameForContext = AuthType.MFA_FORM.name().toLowerCase();
+        String flowTypeNameForContext = AuthType.MFA.name().toLowerCase();
 
         FactorContext factorContext = new FactorContext(
                 mfaSessionId,
