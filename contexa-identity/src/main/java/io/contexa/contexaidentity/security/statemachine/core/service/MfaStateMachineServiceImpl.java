@@ -23,7 +23,9 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -62,12 +64,10 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
     private void releaseStateMachineInstance(StateMachine<MfaState, MfaEvent> sm, String sessionId) {
         if (sm != null) {
             try {
-
                 sm.stopReactively().block(Duration.ofSeconds(5));
             } catch (Exception e) {
                 log.warn("[MFA SM Service] [{}] Error during StateMachine cleanup (ignored): {}", sessionId, e.getMessage());
             }
-
         }
     }
 
@@ -113,15 +113,12 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         }
 
         StateMachineContext<MfaState, MfaEvent> newContext = new DefaultStateMachineContext<>(
-                targetState, null, null, extendedState, null, machineId
-        );
+                targetState, null, null, extendedState, null, machineId);
+
         stateMachine.getStateMachineAccessor()
                 .doWithAllRegions(access -> access.resetStateMachineReactively(newContext).block());
 
         stateMachine.startReactively().block();
-
-        ExtendedState finalExtendedState = stateMachine.getExtendedState();
-        FactorContext finalContext = StateContextHelper.getFactorContext(stateMachine);
     }
 
     private void resetAndStartStateMachine(StateMachine<MfaState, MfaEvent> stateMachine, String machineId, MfaState targetState, FactorContext factorContext) {
@@ -137,8 +134,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         }
 
         StateMachineContext<MfaState, MfaEvent> newContext = new DefaultStateMachineContext<>(
-                targetState, null, null, extendedState, null, machineId
-        );
+                targetState, null, null, extendedState, null, machineId);
+
         stateMachine.getStateMachineAccessor()
                 .doWithAllRegions(access -> access.resetStateMachineReactively(newContext).block());
         stateMachine.startReactively().block();
@@ -167,12 +164,11 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
 
             stateMachine = acquireStateMachine(sessionId);
-
             resetAndStartStateMachine(stateMachine, sessionId, context.getCurrentState(), context);
 
             context.incrementVersion();
-            StateContextHelper.setFactorContext(stateMachine, context);
 
+            StateContextHelper.setFactorContext(stateMachine, context);
             persistStateMachine(stateMachine, sessionId);
 
         } catch (InterruptedException e) {
@@ -212,12 +208,10 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
 
             stateMachine = getAndPrepareStateMachine(sessionId, context.getCurrentState(), context);
-
             context.incrementVersion();
             StateContextHelper.setFactorContext(stateMachine, context);
 
             Message<MfaEvent> message = createEventMessage(event, context, request, additionalHeaders);
-
             eventProcessingResult = sendEventInternal(stateMachine, message, context);
 
             if (eventProcessingResult.eventAccepted()) {
@@ -226,9 +220,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
 
             synchronizeExternalContext(context, eventProcessingResult.contextFromSmAfterEvent(), eventProcessingResult.smCurrentStateAfterEvent());
-
             StateContextHelper.setFactorContext(stateMachine, context);
-
             persistStateMachine(stateMachine, sessionId);
 
             return eventProcessingResult.eventAccepted();
@@ -256,10 +248,9 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         int timeoutSeconds = properties.getMfa().getTransitionTimeoutSeconds() != null ?
                 properties.getMfa().getTransitionTimeoutSeconds() : 10;
 
-        log.error("[SM Internal] sendEventInternal START - Event: {}, CurrentState: {}, Session: {}",
-                event, currentState, sessionId);
+        log.error("[SM Internal] sendEventInternal START - Event: {}, CurrentState: {}, Session: {}", event, currentState, sessionId);
 
-        Boolean accepted = null;
+        Boolean accepted;
         try {
             accepted = stateMachine.sendEvent(Mono.just(message))
                     .doOnNext(result -> log.error("[SM Internal] Event result received - ResultType: {}, Session: {}",
@@ -281,7 +272,6 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             FactorContext fallbackContext = StateContextHelper.getFactorContext(stateMachine);
             return new Result(false, fallbackState, fallbackContext != null ? fallbackContext : originalExternalContext);
         }
-
         log.error("[SM Internal] blockFirst() returned - accepted: {}, Event: {}, Session: {}",
                 accepted, event, sessionId);
 
@@ -369,14 +359,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 log.warn("[MFA SM Service] [{}] Failed to acquire lock for FactorContext retrieval. Returning null.", sessionId);
                 return null;
             }
-
             stateMachine = getAndPrepareStateMachine(sessionId, FALLBACK_INITIAL_MFA_STATE, null);
-            FactorContext factorContext = StateContextHelper.getFactorContext(stateMachine);
-
-            if (factorContext == null) {
-            } else {
-            }
-            return factorContext;
+            return StateContextHelper.getFactorContext(stateMachine);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -506,10 +490,9 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
 
             factorContext.changeState(newState);
-
             updateAndStartStateMachine(stateMachine, sessionId, newState, factorContext);
-
             persistStateMachine(stateMachine, sessionId);
+
             return true;
 
         } catch (InterruptedException e) {
@@ -543,9 +526,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
             String redisKey = REDIS_STATEMACHINE_KEY_PREFIX + sessionId;
             long deletedCount = redissonClient.getKeys().delete(redisKey);
-
-            if (deletedCount > 0) {
-            } else {
+            if (deletedCount == 0) {
+                log.warn("[MFA SM Service] [{}] StateMachine not found in Redis, skipping release.", sessionId);
             }
 
         } catch (InterruptedException e) {
@@ -558,10 +540,6 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 lock.unlock();
             }
         }
-    }
-
-    private Message<MfaEvent> createEventMessage(MfaEvent event, FactorContext context, HttpServletRequest request) {
-        return createEventMessage(event, context, request, null);
     }
 
     private Message<MfaEvent> createEventMessage(MfaEvent event, FactorContext context,
@@ -609,8 +587,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
 
         try {
 
-            if (value instanceof java.util.Set) {
-                java.util.Set<?> original = (java.util.Set<?>) value;
+            if (value instanceof Set<?> original) {
                 java.util.Set<Object> deepCopy = new java.util.HashSet<>();
                 for (Object item : original) {
                     deepCopy.add(deepCopyItem(item));
@@ -618,8 +595,7 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 return deepCopy;
             }
 
-            if (value instanceof java.util.List) {
-                java.util.List<?> original = (java.util.List<?>) value;
+            if (value instanceof List<?> original) {
                 java.util.List<Object> deepCopy = new java.util.ArrayList<>();
                 for (Object item : original) {
                     deepCopy.add(deepCopyItem(item));
@@ -627,9 +603,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
                 return deepCopy;
             }
 
-            if (value instanceof java.util.Map) {
-                java.util.Map<?, ?> original = (java.util.Map<?, ?>) value;
-                java.util.Map<Object, Object> deepCopy = new java.util.HashMap<>();
+            if (value instanceof Map<?, ?> original) {
+                Map<Object, Object> deepCopy = new java.util.HashMap<>();
                 for (java.util.Map.Entry<?, ?> entry : original.entrySet()) {
                     deepCopy.put(
                             deepCopyItem(entry.getKey()),
@@ -699,7 +674,6 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
         public MfaStateMachineException(String message) {
             super(message);
         }
-
         public MfaStateMachineException(String message, Throwable cause) {
             super(message, cause);
         }
