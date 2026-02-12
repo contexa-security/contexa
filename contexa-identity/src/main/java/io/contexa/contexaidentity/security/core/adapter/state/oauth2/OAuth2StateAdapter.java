@@ -13,6 +13,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
@@ -37,6 +38,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     @Override
     public void apply(HttpSecurity http, PlatformContext platformCtx) throws Exception {
+
         Objects.requireNonNull(http, "HttpSecurity cannot be null for OAuth2StateAdapter.apply");
         Objects.requireNonNull(platformCtx, "PlatformContext cannot be null for OAuth2StateAdapter.apply");
 

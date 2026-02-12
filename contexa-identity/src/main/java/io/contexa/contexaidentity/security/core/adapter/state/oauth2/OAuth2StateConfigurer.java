@@ -8,6 +8,7 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
@@ -19,9 +20,6 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 @Slf4j
 public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2StateConfigurer, HttpSecurity> {
-
-    public OAuth2StateConfigurer() {
-    }
 
     @Override
     public void init(HttpSecurity http) throws Exception {
@@ -35,7 +33,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     }
 
     private void configureResourceServer(HttpSecurity http) throws Exception {
-
+        http.csrf(CsrfConfigurer::disable);
         http.oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> {
                     jwt.jwtAuthenticationConverter(new OAuth2JwtAuthenticationConverter());

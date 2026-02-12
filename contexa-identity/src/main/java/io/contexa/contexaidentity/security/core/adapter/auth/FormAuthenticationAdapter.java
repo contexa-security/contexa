@@ -49,9 +49,13 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
         }
         if (opts.getSuccessHandler() != null) {
             configurer.successHandler(opts.getSuccessHandler());
+        }else{
+            configurer.successHandler(successHandler);
         }
         if (opts.getFailureHandler() != null) {
             configurer.failureHandler(opts.getFailureHandler());
+        }else{
+            configurer.failureHandler(failureHandler);
         }
 
         SafeHttpFormLoginCustomizer rawLogin = opts.getRawFormLoginCustomizer();
