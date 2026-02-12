@@ -52,7 +52,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              BaselineLearningService baselineLearningService,
                                              HcadProperties hcadProperties) {
         super(tokenService, responseWriter, sessionRepository, mfaStateMachineIntegrator, authContextProperties,
-              zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
+                zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;
@@ -69,10 +69,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         }
 
         FactorContext factorContext = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
-
         if (factorContext == null) {
             factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
-        } else {
         }
 
         String username = getPrincipalUsername(converterAuthentication);
@@ -96,11 +94,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         }
 
         MfaState currentState = factorContext.getCurrentState();
-
         if (currentState == MfaState.FACTOR_VERIFICATION_COMPLETED) {
-
             boolean determined = stateMachineIntegrator.sendEvent(MfaEvent.DETERMINE_NEXT_FACTOR, factorContext, request);
-
             if (!determined) {
                 log.error("Failed to determine next factor for session: {}", factorContext.getMfaSessionId());
                 handleStateTransitionError(response, request, factorContext);
@@ -109,10 +104,8 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
             MfaEvent nextEvent = (MfaEvent) factorContext.getAttribute(FactorContextAttributes.StateControl.NEXT_EVENT_RECOMMENDATION);
             if (nextEvent != null) {
-
                 boolean eventSent;
                 if (nextEvent == MfaEvent.FACTOR_SELECTED && factorContext.getCurrentProcessingFactor() != null) {
-
                     Map<String, Object> headers = new HashMap<>();
                     headers.put("selectedFactor", factorContext.getCurrentProcessingFactor().name());
                     eventSent = stateMachineIntegrator.sendEvent(nextEvent, factorContext, request, headers);
@@ -130,21 +123,16 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
                 factorContext.removeAttribute("nextEventRecommendation");
             }
-
         }
 
         currentState = factorContext.getCurrentState();
-
         if (currentState == MfaState.ALL_FACTORS_COMPLETED || currentState == MfaState.MFA_SUCCESSFUL) {
             handleFinalAuthenticationSuccess(request, response, converterAuthentication, factorContext);
 
-        } else if (currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION &&
-                factorContext.getCurrentProcessingFactor() != null) {
+        } else if (currentState == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION && factorContext.getCurrentProcessingFactor() != null) {
 
             AuthType nextFactor = factorContext.getCurrentProcessingFactor();
-
             String nextUrl = determineNextFactorUrl(nextFactor, request);
-
             int currentStep = (nextFactor == AuthType.MFA_OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "다음 인증 단계로 진행합니다: " + nextFactor.name(),
@@ -154,15 +142,12 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             if (!response.isCommitted()) {
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             } else {
-                log.warn("Response already committed for user: {}, cannot write MFA continue response",
-                        factorContext.getUsername());
+                log.warn("Response already committed for user: {}, cannot write MFA continue response", factorContext.getUsername());
             }
 
-        } else if (currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION &&
-                factorContext.getCurrentProcessingFactor() != null) {
+        } else if (currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION && factorContext.getCurrentProcessingFactor() != null) {
 
             AuthType nextFactor = factorContext.getCurrentProcessingFactor();
-
             String nextUrl = determineNextFactorUrl(nextFactor, request);
             int currentStep = (nextFactor == AuthType.MFA_OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
@@ -195,12 +180,9 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 log.warn("Response already committed for user: {}, cannot write factor selection response",
                         factorContext.getUsername());
             }
-
         } else {
-
             log.error("Unexpected state {} after factor verification", currentState);
-            handleGenericError(response, request, factorContext,
-                    "예상치 못한 상태: " + currentState);
+            handleGenericError(response, request, factorContext, "예상치 못한 상태: " + currentState);
         }
     }
 
@@ -291,14 +273,13 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
     private void handleGenericError(HttpServletResponse response, HttpServletRequest request,
                                     FactorContext ctx, String message) throws IOException {
-        log.error("Generic error during MFA factor processing for user {}: {}", ctx.getUsername(), message);
 
+        log.error("Generic error during MFA factor processing for user {}: {}", ctx.getUsername(), message);
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "MFA_PROCESSING_ERROR", message, request.getRequestURI());
         } else {
-            log.warn("Response already committed, cannot write MFA_PROCESSING_ERROR for user: {}",
-                    ctx.getUsername());
+            log.warn("Response already committed, cannot write MFA_PROCESSING_ERROR for user: {}", ctx.getUsername());
         }
         try {
             stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
@@ -308,11 +289,14 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     }
 
     private String getPrincipalUsername(Authentication authentication) {
+
         Object principal = authentication.getPrincipal();
         if (principal instanceof UnifiedCustomUserDetails customUserDetails) {
             return customUserDetails.getAccount().getUsername();
+
         } else if (principal instanceof UserDto userDto) {
             return userDto.getUsername();
+
         } else {
             return principal.toString();
         }
