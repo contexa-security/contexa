@@ -10,7 +10,6 @@ import java.util.*;
 public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
     private final List<MfaPolicyEvaluator> evaluators;
-    private String lastUsedEvaluatorName = "None";
 
     public CompositeMfaPolicyEvaluator(List<MfaPolicyEvaluator> evaluators) {
 
@@ -18,23 +17,13 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 .filter(e -> !(e instanceof CompositeMfaPolicyEvaluator))
                 .sorted(Comparator.comparingInt(MfaPolicyEvaluator::getPriority).reversed())
                 .toList();
-
-        this.evaluators.forEach(e ->
-                log.info("  - {} (priority: {}, available: {})",
-                        e.getName(), e.getPriority(), e.isAvailable())
-        );
     }
-
     @Override
     public MfaDecision evaluatePolicy(FactorContext context) {
 
         Optional<MfaPolicyEvaluator> selectedEvaluator = findSuitableEvaluator(context);
-
         if (selectedEvaluator.isPresent()) {
             MfaPolicyEvaluator evaluator = selectedEvaluator.get();
-
-            lastUsedEvaluatorName = evaluator.getName();
-
             try {
                 MfaDecision decision = evaluator.evaluatePolicy(context);
 
@@ -49,7 +38,6 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
                         .build();
             } catch (Exception e) {
                 log.error("Error in evaluator {}: {}", evaluator.getName(), e.getMessage());
-
                 return fallbackEvaluation(context, evaluator);
             }
         }
@@ -65,7 +53,6 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 return Optional.of(evaluator);
             }
         }
-
         return Optional.empty();
     }
 
@@ -78,11 +65,7 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
                 skipNext = false;
                 continue;
             }
-
-            if (skipNext) {
-                continue;
-            }
-
+            if (skipNext) continue;
             if (evaluator.supports(context)) {
                 try {
                     return evaluator.evaluatePolicy(context);
@@ -103,11 +86,6 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     @Override
-    public boolean isAvailable() {
-        return evaluators.stream().anyMatch(MfaPolicyEvaluator::isAvailable);
-    }
-
-    @Override
     public int getPriority() {
         return Integer.MAX_VALUE;
     }
@@ -115,12 +93,5 @@ public class CompositeMfaPolicyEvaluator implements MfaPolicyEvaluator {
     @Override
     public String getName() {
         return "CompositeMfaPolicyEvaluator";
-    }
-
-    public List<MfaPolicyEvaluator> getEvaluators() {
-        return evaluators;
-    }
-    public String getLastUsedEvaluatorName() {
-        return lastUsedEvaluatorName;
     }
 }

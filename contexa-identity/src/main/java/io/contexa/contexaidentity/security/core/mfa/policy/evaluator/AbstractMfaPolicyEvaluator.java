@@ -19,10 +19,7 @@ import java.util.*;
 @Slf4j
 public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
-    @Nullable
     protected final UserRepository userRepository;
-
-    @Nullable
     protected final ApplicationContext applicationContext;
 
     protected AbstractMfaPolicyEvaluator(
@@ -35,9 +32,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
     @Override
     public final MfaDecision evaluatePolicy(FactorContext context) {
         Assert.notNull(context, "FactorContext cannot be null");
-
         try {
-            preEvaluate(context);
             MfaDecision decision = doEvaluatePolicy(context);
             return postEvaluate(context, decision);
         } catch (Exception e) {
@@ -47,9 +42,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     protected abstract MfaDecision doEvaluatePolicy(FactorContext context);
-
-    protected void preEvaluate(FactorContext context) {
-    }
 
     protected MfaDecision postEvaluate(FactorContext context, MfaDecision decision) {
         Map<String, Object> metadata = new HashMap<>();
@@ -73,7 +65,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
         try {
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-
             return platformConfig.getFlows().stream()
                     .filter(flow -> {
                         String typeName = flow.getTypeName();
@@ -87,7 +78,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         } catch (Exception e) {
             log.error("Error finding MFA FlowConfig from PlatformConfig", e);
         }
-
         return null;
     }
 
@@ -100,7 +90,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         if (factorOptions.isEmpty()) {
             return Collections.emptySet();
         }
-
         return factorOptions.keySet();
     }
 
@@ -171,14 +160,11 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         if ("CRITICAL".equalsIgnoreCase(securityLevel)) {
             return Math.max(baseCount, 2);
         }
-
         return baseCount;
     }
 
     protected List<AuthType> prioritizeFactors(
             List<AuthType> factors,
-            @Nullable Users user,
-            FactorContext context,
             @Nullable AuthType preferredFactor) {
 
         List<AuthType> result = new ArrayList<>(factors);
@@ -187,7 +173,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
             result.remove(preferredFactor);
             result.addFirst(preferredFactor);
         }
-
         return result;
     }
 
@@ -200,7 +185,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         if (CollectionUtils.isEmpty(availableFactors)) {
             return Collections.emptyList();
         }
-
         AuthType preferredFactor = null;
 
         if (user != null) {
@@ -221,8 +205,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
             }
         }
 
-        List<AuthType> prioritizedFactors = prioritizeFactors(availableFactors, user, context, preferredFactor);
-
+        List<AuthType> prioritizedFactors = prioritizeFactors(availableFactors, preferredFactor);
         if (prioritizedFactors.size() <= requiredCount) {
             return prioritizedFactors;
         }
@@ -233,11 +216,6 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
     @Override
     public boolean supports(FactorContext context) {
         return context != null;
-    }
-
-    @Override
-    public boolean isAvailable() {
-        return true;
     }
 
     @Override

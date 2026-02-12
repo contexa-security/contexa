@@ -1,10 +1,8 @@
 package io.contexa.contexaidentity.security.core.mfa.policy;
 
-import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
-import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
-import io.contexa.contexacommon.enums.AuthType;
 
 public interface MfaPolicyProvider {
 
@@ -13,8 +11,6 @@ public interface MfaPolicyProvider {
     NextFactorDecision evaluateNextFactor(FactorContext ctx);
 
     boolean isFactorAvailableForUser(String username, AuthType factorType, FactorContext ctx);
-
-    CompletionDecision evaluateCompletion(FactorContext ctx, AuthenticationFlowConfig mfaFlowConfig);
 
     default Integer getRequiredFactorCount(String userId, String flowType) {
         

@@ -23,20 +23,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
     }
 
     @Override
-    public boolean isAvailable() {
-
-        boolean available = userRepository != null && applicationContext != null;
-
-        if (!available) {
-            log.warn("DefaultMfaPolicyEvaluator is not available - missing dependencies");
-        }
-
-        return available;
-    }
-
-    @Override
     public int getPriority() {
-
         return -100;
     }
 
@@ -50,26 +37,20 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
             log.warn("User not found for MFA evaluation: {}", username);
             return MfaDecision.noMfaRequired();
         }
-
         Users user = userOptional.get();
-
         boolean mfaRequired = evaluateMfaRequirement(user, context);
 
         if (!mfaRequired) {
             return MfaDecision.noMfaRequired();
         }
-
         Set<AuthType> availableFactors = getAvailableFactorsFromDsl(context);
-
         if (CollectionUtils.isEmpty(availableFactors)) {
             log.warn("MFA required but no factors defined in DSL for user: {}", username);
             return MfaDecision.noMfaRequired();
         }
 
         int requiredFactorCount = determineFactorCount(user, context);
-
         List<AuthType> availableFactorsList = new ArrayList<>(availableFactors);
-
         List<AuthType> requiredFactors = determineRequiredFactors(
                 user,
                 context,
@@ -78,9 +59,7 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         );
 
         MfaDecision.DecisionType decisionType = determineDecisionType(user, context, requiredFactorCount);
-
         String reason = buildReason(user, context, decisionType);
-
         Map<String, Object> metadata = buildMetadata(user, context, availableFactors, requiredFactors);
 
         return MfaDecision.builder()
@@ -102,16 +81,8 @@ public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
                 return false;
             }
         }
-
-        if (isMfaFlow) {
-            return true;
-        }
-
-        if (isAdminUser(user)) {
-            return true;
-        }
-
-        return false;
+        if (isMfaFlow) return true;
+        return isAdminUser(user);
     }
 
     private MfaDecision.DecisionType determineDecisionType(

@@ -28,11 +28,6 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
     }
 
     @Override
-    public boolean supports(FactorContext context) {
-        return isAvailable() && context != null;
-    }
-
-    @Override
     public int getPriority() {
         return 100;
     }
@@ -97,7 +92,6 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         }
 
         int factorCount = determineFactorCount(user, context);
-
         List<AuthType> requiredFactors = determineRequiredFactors(
                 user,
                 context,
@@ -198,9 +192,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
     private String buildChallengeReason(Users user) {
         StringBuilder reason = new StringBuilder("Zero Trust CHALLENGE action - MFA required");
-
         List<String> details = new ArrayList<>();
-
         if (isAdminUser(user)) {
             details.add("Admin role");
         }
@@ -208,7 +200,6 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         if (!details.isEmpty()) {
             reason.append(" (").append(String.join(", ", details)).append(")");
         }
-
         return reason.toString();
     }
 }

@@ -36,20 +36,17 @@ public class AIAdaptiveMfaPolicyProvider extends DefaultMfaPolicyProvider {
 
     @Override
     protected MfaDecision evaluatePolicy(FactorContext ctx) {
-
         return compositePolicyEvaluator.evaluatePolicy(ctx);
     }
 
     @Override
     public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null");
-
         MfaDecision decision = super.evaluateInitialMfaRequirement(ctx);
 
         if (isAIAvailable()) {
             enrichContextWithAIMetadata(ctx);
         }
-
         return decision;
     }
 
