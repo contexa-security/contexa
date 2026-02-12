@@ -8,7 +8,7 @@ import io.contexa.contexacore.autonomous.domain.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.properties.BackpressureProperties;
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import io.contexa.contexacore.properties.SecurityRedisProperties;
@@ -61,9 +61,8 @@ public class CoreAutonomousEventAutoConfiguration {
     public ZeroTrustEventListener zeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
-            SecurityDecisionPostProcessor securityDecisionPostProcessor,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, redisTemplate, securityDecisionPostProcessor, securityZeroTrustProperties);
+        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, redisTemplate, securityZeroTrustProperties);
     }
 
     @Bean
@@ -136,9 +135,9 @@ public class CoreAutonomousEventAutoConfiguration {
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRedisRepository actionRedisRepository,
             AdminOverrideService adminOverrideService,
-            BaselineLearningService baselineLearningService) {
+            SecurityLearningService securityLearningService) {
         return new SecurityDecisionEnforcementHandler(
-                actionRedisRepository, adminOverrideService, baselineLearningService);
+                actionRedisRepository, adminOverrideService, securityLearningService);
     }
 
     @Bean

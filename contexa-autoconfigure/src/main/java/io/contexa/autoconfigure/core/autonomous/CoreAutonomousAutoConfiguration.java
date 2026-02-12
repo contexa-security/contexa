@@ -15,6 +15,7 @@ import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
@@ -96,11 +97,19 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public SecurityLearningService securityLearningService(
+            BaselineLearningService baselineLearningService,
+            SecurityDecisionPostProcessor securityDecisionPostProcessor) {
+        return new SecurityLearningService(baselineLearningService, securityDecisionPostProcessor);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
             AdminOverrideRepository adminOverrideRepository,
-            BaselineLearningService baselineLearningService,
+            SecurityLearningService securityLearningService,
             ZeroTrustActionRedisRepository actionRedisRepository) {
-        return new AdminOverrideService(adminOverrideRepository, baselineLearningService, actionRedisRepository);
+        return new AdminOverrideService(adminOverrideRepository, securityLearningService, actionRedisRepository);
     }
 
     @Bean
@@ -146,12 +155,12 @@ public class CoreAutonomousAutoConfiguration {
             SecurityPromptTemplate securityPromptTemplate,
             BehaviorVectorService behaviorVectorService,
             BaselineLearningService baselineLearningService,
-            SecurityDecisionPostProcessor securityDecisionPostProcessor,
+            SecurityLearningService securityLearningService,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
                 llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
                 securityPromptTemplate, behaviorVectorService, baselineLearningService,
-                securityDecisionPostProcessor, tieredStrategyProperties);
+                securityLearningService, tieredStrategyProperties);
     }
 
     @Bean
@@ -166,11 +175,11 @@ public class CoreAutonomousAutoConfiguration {
             BehaviorVectorService behaviorVectorService,
             BaselineLearningService baselineLearningService,
             TieredStrategyProperties tieredStrategyProperties,
-            SecurityDecisionPostProcessor securityDecisionPostProcessor) {
+            SecurityLearningService securityLearningService) {
         return new Layer2ExpertStrategy(
                 llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
                 securityPromptTemplate, unifiedVectorService, behaviorVectorService,
-                baselineLearningService, tieredStrategyProperties, securityDecisionPostProcessor);
+                baselineLearningService, tieredStrategyProperties, securityLearningService);
     }
 
     @Bean

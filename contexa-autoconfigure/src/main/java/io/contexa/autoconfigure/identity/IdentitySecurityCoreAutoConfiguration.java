@@ -5,7 +5,7 @@ import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -255,11 +255,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthContextProperties authContextProperties,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRedisRepository actionRedisRepository,
-            BaselineLearningService baselineLearningService,
+            SecurityLearningService securityLearningService,
             HcadProperties hcadProperties) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
-                authUrlProvider, zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
+                authUrlProvider, zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties);
     }
 
     @Bean
@@ -287,11 +287,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             TokenService tokenService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRedisRepository actionRedisRepository,
-            BaselineLearningService baselineLearningService,
+            SecurityLearningService securityLearningService,
             HcadProperties hcadProperties) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider,
-                zeroTrustEventPublisher, actionRedisRepository, baselineLearningService, hcadProperties);
+                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties);
     }
 
     @Bean

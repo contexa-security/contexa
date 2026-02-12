@@ -8,7 +8,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
-import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -32,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
-    private final SecurityDecisionPostProcessor postProcessor;
+    private final SecurityLearningService securityLearningService;
     private final Cache<String, SessionContext> sessionContextCache;
 
     public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
@@ -42,13 +42,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SecurityPromptTemplate promptTemplate,
                                     BehaviorVectorService behaviorVectorService,
                                     BaselineLearningService baselineLearningService,
-                                    SecurityDecisionPostProcessor postProcessor,
+                                    SecurityLearningService securityLearningService,
                                     TieredStrategyProperties tieredStrategyProperties) {
         super(llmOrchestrator, redisTemplate, eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
                 tieredStrategyProperties);
 
-        this.postProcessor = postProcessor;
+        this.securityLearningService = securityLearningService;
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
@@ -133,12 +133,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
-            if (postProcessor != null) {
-                postProcessor.updateSessionContext(event, decision);
-            }
-
-            if (postProcessor != null) {
-                postProcessor.storeInVectorDatabase(event, decision);
+            if (securityLearningService != null) {
+                securityLearningService.postProcessDecision(event, decision);
             }
 
             return decision;

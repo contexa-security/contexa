@@ -6,7 +6,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -33,7 +33,7 @@ import java.util.*;
 public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     private final ApprovalService approvalService;
-    private final SecurityDecisionPostProcessor postProcessor;
+    private final SecurityLearningService securityLearningService;
 
     @Autowired
     public Layer2ExpertStrategy(UnifiedLLMOrchestrator llmOrchestrator,
@@ -45,13 +45,13 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 BehaviorVectorService behaviorVectorService,
                                 BaselineLearningService baselineLearningService,
                                 TieredStrategyProperties tieredStrategyProperties,
-                                SecurityDecisionPostProcessor postProcessor) {
+                                SecurityLearningService securityLearningService) {
         super(llmOrchestrator, redisTemplate, eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
               tieredStrategyProperties);
 
         this.approvalService = approvalService;
-        this.postProcessor = postProcessor;
+        this.securityLearningService = securityLearningService;
     }
 
     @Override
@@ -123,9 +123,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 handleApprovalProcess(expertDecision, event);
             }
 
-            if (postProcessor != null) {
-                postProcessor.updateSessionContext(event, expertDecision);
-                postProcessor.storeInVectorDatabase(event, expertDecision);
+            if (securityLearningService != null) {
+                securityLearningService.postProcessDecision(event, expertDecision);
             }
 
             expertDecision.setProcessingTimeMs(System.currentTimeMillis() - startTime);

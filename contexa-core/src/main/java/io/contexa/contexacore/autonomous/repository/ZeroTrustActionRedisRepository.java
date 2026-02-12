@@ -160,7 +160,9 @@ public class ZeroTrustActionRedisRepository {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
 
             Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
-            String previousActionStr = previousAction != null ? previousAction.toString() : "NONE";
+            String previousActionStr = previousAction != null
+                    ? previousAction.toString()
+                    : ZeroTrustAction.PENDING_ANALYSIS.name();
 
             Map<String, Object> fields = new HashMap<>();
             fields.put("previousAction", previousActionStr);

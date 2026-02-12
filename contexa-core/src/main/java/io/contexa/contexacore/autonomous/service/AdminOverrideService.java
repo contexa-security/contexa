@@ -5,7 +5,6 @@ import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
@@ -16,14 +15,14 @@ import java.util.UUID;
 public class AdminOverrideService {
 
     private final AdminOverrideRepository repository;
-    private final BaselineLearningService baselineLearningService;
+    private final SecurityLearningService securityLearningService;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
 
     public AdminOverrideService(AdminOverrideRepository repository,
-                                BaselineLearningService baselineLearningService,
+                                SecurityLearningService securityLearningService,
                                 ZeroTrustActionRedisRepository actionRedisRepository) {
         this.repository = repository;
-        this.baselineLearningService = baselineLearningService;
+        this.securityLearningService = securityLearningService;
         this.actionRedisRepository = actionRedisRepository;
     }
 
@@ -108,7 +107,7 @@ public class AdminOverrideService {
                     .analysisTime(System.currentTimeMillis())
                     .build();
 
-            baselineLearningService.learnIfNormal(userId, adminApprovedDecision, event);
+            securityLearningService.learnAndStore(userId, adminApprovedDecision, event);
 
         } catch (Exception e) {
             log.error("[AdminOverrideService] Baseline update failed: userId={}, overrideId={}",

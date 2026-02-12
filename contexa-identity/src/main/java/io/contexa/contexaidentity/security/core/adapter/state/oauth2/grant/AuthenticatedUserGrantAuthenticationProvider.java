@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
-import io.contexa.contexaidentity.security.filter.MfaGrantedAuthority;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;

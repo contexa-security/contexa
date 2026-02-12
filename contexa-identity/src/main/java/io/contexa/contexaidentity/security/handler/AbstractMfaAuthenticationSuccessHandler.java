@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacommon.domain.UserDto;
@@ -42,7 +42,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final RequestCache requestCache = new HttpSessionRequestCache();
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
-    private final BaselineLearningService baselineLearningService;
+    private final SecurityLearningService securityLearningService;
     private final HcadProperties hcadProperties;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
@@ -52,14 +52,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       AuthContextProperties authContextProperties,
                                                       ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                       ZeroTrustActionRedisRepository actionRedisRepository,
-                                                      BaselineLearningService baselineLearningService,
+                                                      SecurityLearningService securityLearningService,
                                                       HcadProperties hcadProperties) {
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
         this.actionRedisRepository = actionRedisRepository;
-        this.baselineLearningService = baselineLearningService;
+        this.securityLearningService = securityLearningService;
         this.hcadProperties = hcadProperties;
     }
 
@@ -374,8 +374,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
             boolean isLlmTriggeredMfa = previousAction == ZeroTrustAction.CHALLENGE
                     || previousAction == ZeroTrustAction.ESCALATE;
-            if (!isLlmTriggeredMfa) {
-                learnBaselineOnMfaSuccess(userId, request);
+            if (isLlmTriggeredMfa) {
+                learnOnLlmChallengedMfaSuccess(userId, request);
             }
 
         } catch (Exception e) {
@@ -383,16 +383,13 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
     }
 
-    private void learnBaselineOnMfaSuccess(String userId, HttpServletRequest request) {
-        if (baselineLearningService == null) {
-            return;
-        }
+    private void learnOnLlmChallengedMfaSuccess(String userId, HttpServletRequest request) {
         try {
             SecurityDecision decision = SecurityDecision.builder()
                     .action(ZeroTrustAction.ALLOW)
-                    .confidence(0.85)
-                    .riskScore(0.1)
-                    .reasoning("Regular MFA authentication completed - identity verified")
+                    .confidence(0.95)
+                    .riskScore(0.05)
+                    .reasoning("LLM-challenged MFA completed - verified as normal behavior")
                     .build();
 
             SecurityEvent event = SecurityEvent.builder()
@@ -404,14 +401,13 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                             request.getSession(false).getId() : null)
                     .userAgent(request.getHeader("User-Agent"))
                     .timestamp(LocalDateTime.now())
-                    .description("MFA authentication success - baseline learning")
+                    .description("LLM-challenged MFA success - learning")
                     .build();
 
-            baselineLearningService.learnIfNormal(userId, decision, event);
+            securityLearningService.learnAndStore(userId, decision, event);
 
         } catch (Exception e) {
-            log.error("[MFA][Baseline] Failed to learn baseline on MFA success: userId={}", userId, e);
-
+            log.error("[MFA] Failed to learn on LLM-challenged MFA success: userId={}", userId, e);
         }
     }
 }

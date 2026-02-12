@@ -1,11 +1,9 @@
-package io.contexa.contexaidentity.security.filter;
+package io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant;
 
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.SpringSecurityCoreVersion;
 import org.springframework.util.Assert;
 
 import java.io.Serial;
-import java.io.Serializable;
 
 public class MfaGrantedAuthority implements GrantedAuthority {
 

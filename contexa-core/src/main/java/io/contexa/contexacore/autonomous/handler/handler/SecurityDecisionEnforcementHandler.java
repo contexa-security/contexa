@@ -9,7 +9,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     private final ZeroTrustActionRedisRepository actionRedisRepository;
     private final AdminOverrideService adminOverrideService;
-    private final BaselineLearningService baselineLearningService;
+    private final SecurityLearningService securityLearningService;
 
     @Setter
     @Autowired(required = false)
@@ -120,7 +120,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private void learnFromResult(String userId, SecurityEvent event, ProcessingResult result) {
-        if (baselineLearningService == null) {
+        if (securityLearningService == null) {
             return;
         }
         if (userId == null || userId.isBlank() || result.getAction() == null) {
@@ -129,7 +129,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         try {
             SecurityDecision decision = buildSecurityDecision(result);
-            baselineLearningService.learnIfNormal(userId, decision, event);
+            securityLearningService.learnAndStore(userId, decision, event);
         } catch (Exception e) {
             log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, e);
         }
