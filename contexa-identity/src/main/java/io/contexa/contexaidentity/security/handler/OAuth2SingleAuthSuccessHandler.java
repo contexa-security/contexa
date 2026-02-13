@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -47,7 +48,14 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         Map<String, Object> responseData = buildResponseData(transportResult, authentication, request, response);
 
         setCookies(response, transportResult);
-        writeJsonResponse(response, responseData);
+
+        if (!isApiRequest(request)) {
+            String targetUrl = determineTargetUrl(request, response);
+            response.sendRedirect(targetUrl);
+        } else {
+            writeJsonResponse(response, responseData);
+        }
+
 
     }
 
@@ -73,8 +81,27 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
     @Override
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
+
+        if (alwaysUse && defaultTargetUrl != null) {
+            return request.getContextPath() + defaultTargetUrl;
+        }
+
         if (defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
+
         String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();
         return request.getContextPath() + successUrl;
+    }
+
+    private boolean isApiRequest(HttpServletRequest request) {
+        String acceptHeader = request.getHeader("Accept");
+        if (acceptHeader != null && acceptHeader.contains("application/json")) {
+            return true;
+        }
+        String contentType = request.getContentType();
+        if (contentType != null && contentType.contains("application/json")) {
+            return true;
+        }
+        String requestURI = request.getRequestURI();
+        return requestURI != null && requestURI.contains("/api/");
     }
 }

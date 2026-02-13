@@ -9,6 +9,8 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.stereotype.Component;
 
+import java.util.Objects;
+
 public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapter<FormLoginConfigurer<HttpSecurity>> {
 
     @Override
@@ -47,15 +49,24 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
         if (opts.getLoginPage() != null) {
             configurer.loginPage(opts.getLoginPage());
         }
+        if (opts.getDefaultSuccessUrl() != null) {
+            configurer.defaultSuccessUrl(opts.getDefaultSuccessUrl());
+        }
+        if (opts.isAlwaysUseDefaultSuccessUrl()) {
+            configurer.defaultSuccessUrl(opts.getDefaultSuccessUrl(), true);
+        }
         if (opts.getSuccessHandler() != null) {
             configurer.successHandler(opts.getSuccessHandler());
         }else{
             configurer.successHandler(successHandler);
+            successHandler.setDefaultTargetUrl(opts.getDefaultSuccessUrl());
+            successHandler.setAlwaysUse(opts.isAlwaysUseDefaultSuccessUrl());
         }
         if (opts.getFailureHandler() != null) {
             configurer.failureHandler(opts.getFailureHandler());
         }else{
             configurer.failureHandler(failureHandler);
+            failureHandler.setDefaultTargetUrl(Objects.requireNonNullElse(opts.getFailureUrl(), "/login?error"));
         }
 
         SafeHttpFormLoginCustomizer rawLogin = opts.getRawFormLoginCustomizer();
