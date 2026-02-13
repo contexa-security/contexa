@@ -65,9 +65,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         if (myRelevantStepConfig == null) {
             return;
         }
-
         AuthenticationFlowConfig currentFlow = http.getSharedObject(AuthenticationFlowConfig.class);
-
         O options = (O) myRelevantStepConfig.getOptions().get("_options");
         if (options == null) {
             throw new IllegalStateException(
@@ -129,7 +127,6 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         } else {
             configureHttpSecurity(http, options, currentFlow, successHandler, failureHandler);
         }
-
         options.applyCommonSecurityConfigs(http);
 
     }
@@ -144,7 +141,6 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
-
             if (allSteps != null) {
                 int currentStepIndex = allSteps.indexOf(myStepConfig);
                 boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
@@ -158,12 +154,9 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
             return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
         } else {
-
             if (stateType == StateType.SESSION) {
-
                 return null;
             } else {
-
                 return appContext.getBean(OAuth2SingleAuthSuccessHandler.class);
             }
         }
