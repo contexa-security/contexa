@@ -42,11 +42,8 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         }
 
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);
-        TokenTransportResult transportResult = prepareTokenTransport(
-                tokenPair.getAccessToken(), tokenPair.getRefreshToken());
-
+        TokenTransportResult transportResult = prepareTokenTransport(tokenPair.getAccessToken(), tokenPair.getRefreshToken());
         Map<String, Object> responseData = buildResponseData(transportResult, authentication, request, response);
-
         setCookies(response, transportResult);
 
         if (!isApiRequest(request)) {
