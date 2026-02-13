@@ -16,6 +16,7 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
     protected final AuthContextProperties authContextProperties;
     protected final RequestCache requestCache = new HttpSessionRequestCache();
     protected String defaultTargetUrl;
+    protected boolean alwaysUse;
 
     protected SessionBasedSuccessHandler(AuthResponseWriter responseWriter,
                                          AuthContextProperties authContextProperties) {
@@ -26,6 +27,11 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
     @Override
     public void setDefaultTargetUrl(String defaultTargetUrl) {
         this.defaultTargetUrl = defaultTargetUrl;
+    }
+
+    @Override
+    public void setAlwaysUse(boolean alwaysUse) {
+        this.alwaysUse = alwaysUse;
     }
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {

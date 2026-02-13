@@ -56,7 +56,14 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
 
     @Override
     protected String getDefaultTargetUrl(HttpServletRequest request) {
-        if(defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
-        return request.getContextPath() + authContextProperties.getUrls().getMfa().getSuccess();
+
+        if (alwaysUse && defaultTargetUrl != null) {
+            return request.getContextPath() + defaultTargetUrl;
+        }
+
+        if (defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
+
+        String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();
+        return request.getContextPath() + successUrl;
     }
 }
