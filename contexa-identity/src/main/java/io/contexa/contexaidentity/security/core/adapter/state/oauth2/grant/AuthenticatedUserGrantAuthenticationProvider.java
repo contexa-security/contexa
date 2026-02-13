@@ -60,9 +60,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 getAuthenticatedClientElseThrowInvalidClient(authenticationToken);
         RegisteredClient registeredClient = clientPrincipal.getRegisteredClient();
 
-        if (log.isTraceEnabled()) {
-                    }
-
         assert registeredClient != null;
         if (!registeredClient.getAuthorizationGrantTypes().contains(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)) {
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
@@ -71,9 +68,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
         String username = authenticationToken.getUsername();
         Users user = loadUserFromDatabase(username);
         Authentication userAuthentication = createAuthenticatedUser(user, registeredClient.getScopes());
-
-        if (log.isDebugEnabled()) {
-                    }
 
         DefaultOAuth2TokenContext.Builder tokenContextBuilder = DefaultOAuth2TokenContext.builder()
                 .registeredClient(registeredClient)
@@ -95,9 +89,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                     "The token generator failed to generate the access token.", ERROR_URI);
             throw new OAuth2AuthenticationException(error);
         }
-
-        if (log.isTraceEnabled()) {
-                    }
 
         OAuth2AccessToken accessToken = new OAuth2AccessToken(
                 OAuth2AccessToken.TokenType.BEARER,
@@ -121,9 +112,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 throw new OAuth2AuthenticationException(error);
             }
 
-            if (log.isTraceEnabled()) {
-                            }
-
             refreshToken = (OAuth2RefreshToken) generatedRefreshToken;
         }
 
@@ -133,6 +121,10 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
                 .authorizedScopes(registeredClient.getScopes())
                 .attribute(Principal.class.getName(), userAuthentication);
+
+        if (authenticationToken.getDeviceId() != null) {
+            authorizationBuilder.attribute("device_id", authenticationToken.getDeviceId());
+        }
 
         if (generatedAccessToken instanceof ClaimAccessor) {
             authorizationBuilder.token(accessToken, (metadata) ->
@@ -150,8 +142,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
 
         transactionTemplate.executeWithoutResult(status -> {
             this.authorizationService.save(authorization);
-            if (log.isDebugEnabled()) {
-                            }
         });
 
         return new OAuth2AccessTokenAuthenticationToken(
@@ -181,7 +171,7 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
     private Users loadUserFromDatabase(String username) {
         return userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
                 .orElseThrow(() -> {
-                    log.warn("User not found in database: {}", username);
+                    log.error("User not found in database: {}", username);
                     return new OAuth2AuthenticationException(
                             new OAuth2Error(OAuth2ErrorCodes.INVALID_GRANT,
                                     "User not found: " + username, ERROR_URI));
@@ -199,9 +189,6 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
             scopes.forEach(scope ->
                     allAuthorities.add(new MfaGrantedAuthority("SCOPE_" + scope)));
         }
-
-        if (log.isTraceEnabled()) {
-                    }
 
         return new UsernamePasswordAuthenticationToken(
                 user.getUsername(),

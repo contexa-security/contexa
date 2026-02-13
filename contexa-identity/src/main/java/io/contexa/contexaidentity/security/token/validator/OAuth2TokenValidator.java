@@ -1,10 +1,10 @@
 package io.contexa.contexaidentity.security.token.validator;
 
-import io.contexa.contexaidentity.security.token.store.RefreshTokenStore;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
@@ -24,19 +24,15 @@ import java.util.stream.Collectors;
 public class OAuth2TokenValidator implements TokenValidator {
 
     private final JwtDecoder jwtDecoder;
-    private final RefreshTokenStore refreshTokenStore;
     private final OAuth2AuthorizationService authorizationService;
     private final long rotationThresholdMillis;
 
     public OAuth2TokenValidator(JwtDecoder jwtDecoder,
-                                RefreshTokenStore refreshTokenStore,
                                 OAuth2AuthorizationService authorizationService,
                                 long rotateThresholdMillis) {
         this.jwtDecoder = jwtDecoder;
-        this.refreshTokenStore = refreshTokenStore;
         this.authorizationService = authorizationService;
         this.rotationThresholdMillis = rotateThresholdMillis;
-
     }
 
     @Override
@@ -52,29 +48,23 @@ public class OAuth2TokenValidator implements TokenValidator {
     @Override
     public boolean validateRefreshToken(String token) {
         try {
-
-            if (refreshTokenStore.isBlacklisted(token)) {
-                log.warn("Refresh token is blacklisted");
-                return false;
-            }
-
-            String username = refreshTokenStore.getUsername(token);
-            if (username == null) {
-                log.warn("Refresh token not found in RefreshTokenStore or expired");
-                return false;
-            }
-
             OAuth2Authorization authorization = authorizationService.findByToken(
                     token, OAuth2TokenType.REFRESH_TOKEN);
 
             if (authorization == null) {
-                log.warn("Refresh token not found in OAuth2AuthorizationService");
                 return false;
             }
 
             OAuth2Authorization.Token<OAuth2RefreshToken> tokenMetadata = authorization.getRefreshToken();
-            if (tokenMetadata != null && tokenMetadata.isExpired()) {
-                log.warn("Refresh token is expired");
+            if (tokenMetadata == null) {
+                return false;
+            }
+
+            if (tokenMetadata.isInvalidated()) {
+                return false;
+            }
+
+            if (tokenMetadata.isExpired()) {
                 return false;
             }
 
@@ -89,19 +79,29 @@ public class OAuth2TokenValidator implements TokenValidator {
     @Override
     public void invalidateRefreshToken(String refreshToken) {
         try {
-
-            String username = refreshTokenStore.getUsername(refreshToken);
-            if (username != null) {
-                refreshTokenStore.remove(refreshToken);
-            } else {
-            }
-
             OAuth2Authorization authorization = authorizationService.findByToken(
                     refreshToken, OAuth2TokenType.REFRESH_TOKEN);
 
-            if (authorization != null) {
-                authorizationService.remove(authorization);
+            if (authorization == null) {
+                return;
             }
+
+            OAuth2Authorization.Builder builder = OAuth2Authorization.from(authorization);
+
+            OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = authorization.getRefreshToken();
+            if (refreshTokenMeta != null && !refreshTokenMeta.isInvalidated()) {
+                builder.token(refreshTokenMeta.getToken(), metadata ->
+                        metadata.put(OAuth2Authorization.Token.INVALIDATED_METADATA_NAME, true));
+            }
+
+            OAuth2Authorization.Token<OAuth2AccessToken> accessTokenMeta = authorization.getAccessToken();
+            if (accessTokenMeta != null && !accessTokenMeta.isInvalidated()) {
+                builder.token(accessTokenMeta.getToken(), metadata ->
+                        metadata.put(OAuth2Authorization.Token.INVALIDATED_METADATA_NAME, true));
+            }
+
+            authorizationService.save(builder.build());
+
         } catch (Exception ex) {
             log.error("Error invalidating refresh token", ex);
             throw new OAuth2AuthenticationException(
@@ -117,13 +117,11 @@ public class OAuth2TokenValidator implements TokenValidator {
                     refreshToken, OAuth2TokenType.REFRESH_TOKEN);
 
             if (authorization == null) {
-                log.warn("Cannot determine rotation: refresh token not found");
                 return false;
             }
 
             OAuth2Authorization.Token<OAuth2RefreshToken> tokenMetadata = authorization.getRefreshToken();
             if (tokenMetadata == null || tokenMetadata.getToken().getExpiresAt() == null) {
-                log.warn("Cannot determine rotation: token metadata or expiration not available");
                 return false;
             }
 
@@ -141,7 +139,6 @@ public class OAuth2TokenValidator implements TokenValidator {
     @Override
     public Authentication getAuthentication(String token) {
         try {
-
             Jwt jwt = jwtDecoder.decode(token);
             Collection<GrantedAuthority> authorities = extractAuthorities(jwt);
             return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());

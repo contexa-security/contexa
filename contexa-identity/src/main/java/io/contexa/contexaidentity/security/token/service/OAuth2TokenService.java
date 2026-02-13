@@ -3,7 +3,6 @@ package io.contexa.contexaidentity.security.token.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
-import io.contexa.contexaidentity.security.token.store.RefreshTokenStore;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
 import io.contexa.contexaidentity.security.token.validator.TokenValidator;
@@ -24,8 +23,6 @@ import org.springframework.security.oauth2.core.OAuth2AccessToken;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2RefreshToken;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
@@ -34,7 +31,6 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,7 +40,6 @@ public class OAuth2TokenService implements TokenService {
     private final OAuth2AuthorizedClientManager authorizedClientManager;
     private final ClientRegistrationRepository clientRegistrationRepository;
     private final OAuth2AuthorizationService authorizationService;
-    private final RefreshTokenStore refreshTokenStore;
     private final TokenValidator tokenValidator;
     private final AuthContextProperties properties;
     private final ObjectMapper objectMapper;
@@ -56,9 +51,7 @@ public class OAuth2TokenService implements TokenService {
             OAuth2AuthorizedClientManager authorizedClientManager,
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizationService authorizationService,
-            RefreshTokenStore refreshTokenStore,
             TokenValidator tokenValidator,
-            JwtDecoder jwtDecoder,
             AuthContextProperties properties,
             ObjectMapper objectMapper,
             TokenTransportStrategy transportStrategy) {
@@ -66,16 +59,13 @@ public class OAuth2TokenService implements TokenService {
         Assert.notNull(authorizedClientManager, "authorizedClientManager cannot be null");
         Assert.notNull(clientRegistrationRepository, "clientRegistrationRepository cannot be null");
         Assert.notNull(authorizationService, "authorizationService cannot be null");
-        Assert.notNull(refreshTokenStore, "refreshTokenStore cannot be null");
         Assert.notNull(tokenValidator, "tokenValidator cannot be null");
-        Assert.notNull(jwtDecoder, "jwtDecoder cannot be null");
         Assert.notNull(properties, "properties cannot be null");
         Assert.notNull(objectMapper, "objectMapper cannot be null");
 
         this.authorizedClientManager = authorizedClientManager;
         this.clientRegistrationRepository = clientRegistrationRepository;
         this.authorizationService = authorizationService;
-        this.refreshTokenStore = refreshTokenStore;
         this.tokenValidator = tokenValidator;
         this.properties = properties;
         this.objectMapper = objectMapper;
@@ -102,15 +92,12 @@ public class OAuth2TokenService implements TokenService {
 
                 builder.attribute("request", req);
                 builder.attribute("response", res);
-            } else {
-                log.warn("RequestContextHolder.getRequestAttributes() returned null - no HTTP context available");
             }
         } catch (Exception ex) {
-            log.warn("Failed to extract HttpServletRequest/Response from RequestContextHolder", ex);
+            log.error("Failed to extract HttpServletRequest/Response from RequestContextHolder", ex);
         }
 
         OAuth2AuthorizeRequest authorizeRequest = builder.build();
-
         OAuth2AuthorizedClient authorizedClient = authorizedClientManager.authorize(authorizeRequest);
 
         if (authorizedClient == null) {
@@ -122,16 +109,9 @@ public class OAuth2TokenService implements TokenService {
         OAuth2AccessToken accessToken = authorizedClient.getAccessToken();
         OAuth2RefreshToken refreshToken = authorizedClient.getRefreshToken();
 
-        String accessTokenValue = accessToken.getTokenValue();
-        String refreshTokenValue = refreshToken != null ? refreshToken.getTokenValue() : null;
-
-        if (refreshToken != null) {
-            refreshTokenStore.save(refreshToken.getTokenValue(), authentication.getName());
-        }
-
         return TokenPair.builder()
-                .accessToken(accessTokenValue)
-                .refreshToken(refreshTokenValue)
+                .accessToken(accessToken.getTokenValue())
+                .refreshToken(refreshToken != null ? refreshToken.getTokenValue() : null)
                 .accessTokenExpiresAt(accessToken.getExpiresAt())
                 .refreshTokenExpiresAt(refreshToken != null ? refreshToken.getExpiresAt() : null)
                 .scope(accessToken.getScopes() != null ? String.join(" ", accessToken.getScopes()) : null)
@@ -157,7 +137,6 @@ public class OAuth2TokenService implements TokenService {
         builder.attribute(HttpServletResponse.class.getName(), response);
 
         OAuth2AuthorizeRequest authorizeRequest = builder.build();
-
         OAuth2AuthorizedClient authorizedClient = authorizedClientManager.authorize(authorizeRequest);
 
         if (authorizedClient == null) {
@@ -169,16 +148,9 @@ public class OAuth2TokenService implements TokenService {
         OAuth2AccessToken accessToken = authorizedClient.getAccessToken();
         OAuth2RefreshToken refreshToken = authorizedClient.getRefreshToken();
 
-        String accessTokenValue = accessToken.getTokenValue();
-        String refreshTokenValue = refreshToken != null ? refreshToken.getTokenValue() : null;
-
-        if (refreshToken != null) {
-            refreshTokenStore.save(refreshToken.getTokenValue(), authentication.getName());
-        }
-
         return TokenPair.builder()
-                .accessToken(accessTokenValue)
-                .refreshToken(refreshTokenValue)
+                .accessToken(accessToken.getTokenValue())
+                .refreshToken(refreshToken != null ? refreshToken.getTokenValue() : null)
                 .accessTokenExpiresAt(accessToken.getExpiresAt())
                 .refreshTokenExpiresAt(refreshToken != null ? refreshToken.getExpiresAt() : null)
                 .scope(accessToken.getScopes() != null ? String.join(" ", accessToken.getScopes()) : null)
@@ -192,32 +164,31 @@ public class OAuth2TokenService implements TokenService {
 
     @Override
     public String createRefreshToken(Authentication authentication, String deviceId) {
-        TokenPair tokenPair = createTokenPair(authentication, deviceId);
-        return tokenPair.getRefreshToken();
+        return createTokenPair(authentication, deviceId).getRefreshToken();
     }
 
     @Override
     public RefreshResult refresh(String refreshToken) {
         Assert.hasText(refreshToken, "refreshToken cannot be empty");
 
-        if (refreshTokenStore.isBlacklisted(refreshToken)) {
-            log.error("Attempted to use blacklisted refresh token");
-            throw new OAuth2AuthenticationException(
-                    new OAuth2Error("invalid_token", "Refresh token is blacklisted", null));
-        }
-
-        String username = refreshTokenStore.getUsername(refreshToken);
-        if (username == null) {
-            log.error("Refresh token not found or expired in RefreshTokenStore");
-            throw new OAuth2AuthenticationException(
-                    new OAuth2Error("invalid_token", "Refresh token not found or expired", null));
-        }
-
         OAuth2Authorization authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
         if (authorization == null) {
             log.error("OAuth2Authorization not found for refresh token");
             throw new OAuth2AuthenticationException(
                     new OAuth2Error("invalid_token", "Authorization not found", null));
+        }
+
+        OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = authorization.getRefreshToken();
+        if (refreshTokenMeta == null || refreshTokenMeta.isInvalidated()) {
+            log.error("Refresh token is invalidated");
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("invalid_token", "Refresh token is invalidated", null));
+        }
+
+        if (refreshTokenMeta.isExpired()) {
+            log.error("Refresh token is expired");
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("invalid_token", "Refresh token is expired", null));
         }
 
         ClientRegistration clientRegistration = clientRegistrationRepository.findByRegistrationId(CLIENT_REGISTRATION_ID);
@@ -233,10 +204,7 @@ public class OAuth2TokenService implements TokenService {
                 .collect(Collectors.toList());
 
         Authentication authentication = new UsernamePasswordAuthenticationToken(
-                principalName,
-                null,
-                authorities
-        );
+                principalName, null, authorities);
 
         OAuth2AuthorizeRequest authorizeRequest = OAuth2AuthorizeRequest
                 .withClientRegistrationId(CLIENT_REGISTRATION_ID)
@@ -290,12 +258,26 @@ public class OAuth2TokenService implements TokenService {
         Assert.hasText(refreshToken, "refreshToken cannot be empty");
         Assert.hasText(username, "username cannot be empty");
 
-        var authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
-        if (authorization != null) {
-            authorizationService.remove(authorization);
+        OAuth2Authorization authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
+        if (authorization == null) {
+            return;
         }
 
-        refreshTokenStore.blacklist(refreshToken, username, reason);
+        OAuth2Authorization.Builder builder = OAuth2Authorization.from(authorization);
+
+        OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = authorization.getRefreshToken();
+        if (refreshTokenMeta != null && !refreshTokenMeta.isInvalidated()) {
+            builder.token(refreshTokenMeta.getToken(), metadata ->
+                    metadata.put(OAuth2Authorization.Token.INVALIDATED_METADATA_NAME, true));
+        }
+
+        OAuth2Authorization.Token<OAuth2AccessToken> accessTokenMeta = authorization.getAccessToken();
+        if (accessTokenMeta != null && !accessTokenMeta.isInvalidated()) {
+            builder.token(accessTokenMeta.getToken(), metadata ->
+                    metadata.put(OAuth2Authorization.Token.INVALIDATED_METADATA_NAME, true));
+        }
+
+        authorizationService.save(builder.build());
     }
 
     @Override
@@ -344,24 +326,5 @@ public class OAuth2TokenService implements TokenService {
     @Override
     public AuthContextProperties properties() {
         return this.properties;
-    }
-
-    private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
-        Object rolesObj = jwt.getClaim("roles");
-        if (rolesObj instanceof Collection<?>) {
-            return ((Collection<?>) rolesObj).stream()
-                    .filter(role -> role instanceof String)
-                    .map(role -> (GrantedAuthority) () -> (String) role)
-                    .collect(Collectors.toList());
-        }
-
-        Collection<String> scopes = jwt.getClaimAsStringList("scope");
-        if (scopes != null) {
-            return scopes.stream()
-                    .map(scope -> (GrantedAuthority) () -> "SCOPE_" + scope)
-                    .collect(Collectors.toList());
-        }
-
-        return java.util.Collections.emptyList();
     }
 }

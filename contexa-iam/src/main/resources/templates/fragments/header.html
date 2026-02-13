@@ -147,7 +147,23 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-    <script th:src="@{/js/logout.js}"></script>
+    <script th:src="@{/js/contexa-mfa-sdk.js}"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        var logoutLink = document.getElementById('logoutLink');
+        if (!logoutLink) return;
+        logoutLink.addEventListener('click', async function(e) {
+            e.preventDefault();
+            var mfa = new ContexaMFA.Client();
+            try {
+                await mfa.logout();
+            } catch (err) {
+                // Client state cleared in finally block regardless
+            }
+            window.location.href = '/loginForm';
+        });
+    });
+    </script>
 </div>
 </body>
 </html>

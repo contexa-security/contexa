@@ -6,17 +6,19 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateAdapter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.AuthenticatedUserOAuth2AuthorizedClientProvider;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.RestClientAuthenticatedUserTokenResponseClient;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
-import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutHandler;
+import io.contexa.contexaidentity.security.handler.logout.CompositeLogoutHandler;
+import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
+import io.contexa.contexaidentity.security.handler.logout.SessionLogoutStrategy;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
-import io.contexa.contexaidentity.security.token.store.RefreshTokenStore;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategyFactory;
 import io.contexa.contexaidentity.security.token.validator.OAuth2TokenValidator;
@@ -30,6 +32,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -62,6 +65,7 @@ import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.security.KeyPair;
@@ -70,6 +74,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -83,21 +88,25 @@ public class IdentityOAuth2AutoConfiguration {
     private final TransactionTemplate transactionTemplate;
 
     @Bean
+    @ConditionalOnMissingBean(OAuth2StateAdapter.class)
     public OAuth2StateAdapter oauth2StateAdapter() {
         return new OAuth2StateAdapter();
     }
 
     @Bean
+    @ConditionalOnMissingBean(JwtDecoder.class)
     public JwtDecoder jwtDecoder(JWKSource<SecurityContext> jwkSource) {
         return OAuth2AuthorizationServerConfiguration.jwtDecoder(jwkSource);
     }
 
     @Bean
+    @ConditionalOnMissingBean(JwtEncoder.class)
     public JwtEncoder jwtEncoder(JWKSource<SecurityContext> jwkSource) {
         return new NimbusJwtEncoder(jwkSource);
     }
 
     @Bean
+    @ConditionalOnMissingBean(JWKSource.class)
     public JWKSource<SecurityContext> jwkSource() {
         KeyPair keyPair = generateRsaKey();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
@@ -123,14 +132,20 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(OAuth2AuthorizationService.class)
     public OAuth2AuthorizationService authorizationService(
             JdbcTemplate jdbcTemplate,
-            RegisteredClientRepository registeredClientRepository) {
+            RegisteredClientRepository registeredClientRepository,
+            AuthContextProperties authContextProperties) {
 
-        return new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+        JdbcOAuth2AuthorizationService jdbcService =
+                new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+
+        return new DeviceAwareOAuth2AuthorizationService(jdbcService, jdbcTemplate, authContextProperties);
     }
 
     @Bean
+    @ConditionalOnMissingBean(RegisteredClientRepository.class)
     public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
 
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
@@ -169,8 +184,6 @@ public class IdentityOAuth2AutoConfiguration {
 
             transactionTemplate.executeWithoutResult(status -> {
                 repository.save(defaultClient);
-                if (log.isDebugEnabled()) {
-                }
             });
 
         } else {
@@ -180,6 +193,7 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(AuthorizationServerSettings.class)
     public AuthorizationServerSettings authorizationServerSettings() {
         String issuerUri = "http://localhost:8080";
 
@@ -196,6 +210,7 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(OAuth2TokenGenerator.class)
     public OAuth2TokenGenerator<?> tokenGenerator(
             JwtEncoder jwtEncoder,
             OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer) {
@@ -209,6 +224,7 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(OAuth2TokenCustomizer.class)
     public OAuth2TokenCustomizer<JwtEncodingContext> tokenCustomizer() {
 
         return context -> {
@@ -231,9 +247,9 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(TokenValidator.class)
     public TokenValidator oauth2TokenValidator(
             JwtDecoder jwtDecoder,
-            RefreshTokenStore refreshTokenStore,
             OAuth2AuthorizationService authorizationService,
             AuthContextProperties authContextProperties) {
 
@@ -241,19 +257,17 @@ public class IdentityOAuth2AutoConfiguration {
 
         return new OAuth2TokenValidator(
                 jwtDecoder,
-                refreshTokenStore,
                 authorizationService,
                 rotateThresholdMillis);
     }
 
     @Bean
+    @ConditionalOnMissingBean(TokenService.class)
     public TokenService oauth2TokenService(
             OAuth2AuthorizedClientManager authorizedClientManager,
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizationService authorizationService,
-            RefreshTokenStore refreshTokenStore,
             TokenValidator oauth2TokenValidator,
-            JwtDecoder jwtDecoder,
             AuthContextProperties authContextProperties,
             ObjectMapper objectMapper) {
 
@@ -263,33 +277,41 @@ public class IdentityOAuth2AutoConfiguration {
                 authorizedClientManager,
                 clientRegistrationRepository,
                 authorizationService,
-                refreshTokenStore,
                 oauth2TokenValidator,
-                jwtDecoder,
                 authContextProperties,
                 objectMapper,
                 transport);
     }
 
     @Bean("oauth2TokenSuccessHandler")
+    @ConditionalOnMissingBean(name = "oauth2TokenSuccessHandler")
     public AuthenticationSuccessHandler oauth2TokenSuccessHandler() {
         return new OAuth2TokenSuccessHandler();
     }
 
-    @Bean("oauth2LogoutHandler")
-    public LogoutHandler oauth2LogoutHandler(
+    @Bean("compositeLogoutHandler")
+    @ConditionalOnMissingBean(name = "compositeLogoutHandler")
+    public LogoutHandler compositeLogoutHandler(
             OAuth2TokenService tokenService,
             AuthResponseWriter responseWriter) {
 
-        return new OAuth2LogoutHandler(tokenService, responseWriter);
+        SessionLogoutStrategy sessionStrategy = new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository());
+        OAuth2LogoutStrategy oauth2Strategy = new OAuth2LogoutStrategy(tokenService);
+
+        return new CompositeLogoutHandler(
+                List.of(sessionStrategy, oauth2Strategy),
+                tokenService,
+                responseWriter);
     }
 
     @Bean("oauth2LogoutSuccessHandler")
+    @ConditionalOnMissingBean(name = "oauth2LogoutSuccessHandler")
     public LogoutSuccessHandler oauth2LogoutSuccessHandler(ObjectMapper objectMapper) {
         return new OAuth2LogoutSuccessHandler(objectMapper);
     }
 
     @Bean
+    @ConditionalOnMissingBean(ClientRegistrationRepository.class)
     public ClientRegistrationRepository clientRegistrationRepository() {
         String registrationId = "aidc-internal";
         String clientId = "aidc-client";
@@ -313,11 +335,13 @@ public class IdentityOAuth2AutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean(OAuth2AuthorizedClientRepository.class)
     public OAuth2AuthorizedClientRepository authorizedClientRepository() {
         return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 
     @Bean
+    @ConditionalOnMissingBean(OAuth2AuthorizedClientManager.class)
     public OAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizedClientRepository authorizedClientRepository,

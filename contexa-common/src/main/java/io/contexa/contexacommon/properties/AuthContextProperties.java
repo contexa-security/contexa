@@ -15,8 +15,6 @@ public class AuthContextProperties {
 
     private TokenIssuer tokenIssuer = TokenIssuer.INTERNAL;
 
-    private TokenStoreType tokenStoreType = TokenStoreType.REDIS;
-
     private FactorSelectionType factorSelectionType = FactorSelectionType.SELECT;
 
     @NestedConfigurationProperty

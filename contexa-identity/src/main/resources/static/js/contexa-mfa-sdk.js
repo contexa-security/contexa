@@ -451,7 +451,8 @@
                 api: {
                     selectFactor: '/mfa/select-factor',
                     requestOttCode: '/mfa/request-ott-code',
-                    config: '/api/mfa/config'
+                    config: '/api/mfa/config',
+                    logout: '/api/logout'
                 },
                 webauthn: {
                     assertionOptions: '/webauthn/authenticate/options',
@@ -758,6 +759,61 @@
             }
 
             return await response.json();
+        },
+
+        /**
+         * Logout - Server-side token invalidation and session cleanup
+         *
+         * Sends POST to /api/logout with Authorization and X-Refresh-Token headers.
+         * Server CompositeLogoutHandler processes:
+         *   - SessionLogoutStrategy: session invalidation, CSRF cleanup
+         *   - OAuth2LogoutStrategy: refresh/access token invalidation via OAuth2AuthorizationService
+         *
+         * @returns {Promise<Object>} Logout result with status field
+         *
+         * @example
+         * const mfa = new ContexaMFA.Client();
+         * try {
+         *     const result = await mfa.logout();
+         *     // result.status === 'LOGGED_OUT'
+         *     window.location.href = '/loginForm';
+         * } catch (error) {
+         *     console.error('Logout failed:', error);
+         * }
+         */
+        async logout() {
+            await this.init();
+
+            const authMode = localStorage.getItem('authMode') || 'header';
+            const headers = ContexaMFAUtils.createHeaders();
+
+            if (authMode === 'header' || authMode === 'header_cookie') {
+                if (window.TokenMemory && window.TokenMemory.accessToken) {
+                    headers['Authorization'] = `Bearer ${window.TokenMemory.accessToken}`;
+                }
+                if (window.TokenMemory && window.TokenMemory.refreshToken) {
+                    headers['X-Refresh-Token'] = window.TokenMemory.refreshToken;
+                }
+            }
+
+            const logoutUrl = this.endpoints.api?.logout || '/api/logout';
+
+            const response = await fetch(logoutUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: headers
+            });
+
+            if (!response.ok && response.status !== 204) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new MFAError(
+                    errorData.message || `Logout failed: ${response.status}`,
+                    errorData,
+                    response.status
+                );
+            }
+
+            return await response.json().catch(() => ({ status: 'LOGGED_OUT' }));
         }
     };
 
@@ -1077,6 +1133,48 @@
 
         isProcessing() {
             return this.stateTracker.isProcessing();
+        }
+
+        /**
+         * Logout (High-level API)
+         *
+         * Performs server-side logout via CompositeLogoutHandler, then clears all
+         * client-side state (TokenMemory, MFA session, sessionStorage).
+         * Client state is always cleared regardless of server response.
+         *
+         * @returns {Promise<Object>} Server logout result
+         *
+         * @example
+         * const mfa = new ContexaMFA.Client();
+         * await mfa.logout();
+         * window.location.href = '/loginForm';
+         */
+        async logout() {
+            try {
+                const result = await this.apiClient.logout();
+                return result;
+            } catch (error) {
+                const errorMsg = error.response?.message || error.message || 'Logout failed';
+                ContexaMFAUtils.log(`Logout error: ${errorMsg}`, 'error', error);
+                throw error;
+            } finally {
+                this.clearClientState();
+            }
+        }
+
+        /**
+         * Clear all client-side authentication state
+         *
+         * Clears TokenMemory, MFA state tracker, and session storage.
+         * Preserves authMode (needed for re-login) and deviceId (device identifier).
+         */
+        clearClientState() {
+            if (window.TokenMemory) {
+                window.TokenMemory.accessToken = null;
+                window.TokenMemory.refreshToken = null;
+            }
+
+            this.stateTracker.reset();
         }
     }
 

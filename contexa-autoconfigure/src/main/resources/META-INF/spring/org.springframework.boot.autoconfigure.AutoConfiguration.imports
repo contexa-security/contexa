@@ -65,9 +65,6 @@ io.contexa.autoconfigure.identity.IdentitySecurityCoreAutoConfiguration
 # Identity ASEP (Security Exception Handler)
 io.contexa.autoconfigure.identity.IdentityAsepAutoConfiguration
 
-# Identity Token Store
-io.contexa.autoconfigure.identity.IdentityTokenStoreAutoConfiguration
-
 # Identity WebAuthn/Passkey
 io.contexa.autoconfigure.identity.IdentityWebAuthnAutoConfiguration
 
