@@ -49,7 +49,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         setCookies(response, transportResult);
         writeJsonResponse(response, responseData);
 
-            }
+    }
 
     @Override
     protected Map<String, Object> buildResponseData(TokenTransportResult transportResult,
@@ -73,7 +73,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
     @Override
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
-        if(defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
+        if (defaultTargetUrl != null) return request.getContextPath() + defaultTargetUrl;
         String successUrl = authContextProperties.getUrls().getSingle().getLoginSuccess();
         return request.getContextPath() + successUrl;
     }

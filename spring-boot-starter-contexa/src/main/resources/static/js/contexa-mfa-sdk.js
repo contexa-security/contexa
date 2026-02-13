@@ -131,6 +131,7 @@
             const stepId = options.stepId || sessionStorage.getItem('currentMfaStepId');
 
             const headers = {
+                'Accept': 'application/json',
                 'Content-Type': contentType,
                 'X-Device-Id': this.getDeviceId(),
                 ...options.additionalHeaders
