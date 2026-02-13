@@ -35,26 +35,26 @@ public class OAuth2LogoutHandler implements LogoutHandler {
         String refreshToken = tokenService.resolveRefreshToken(request);
         String username = (authentication != null) ? authentication.getName() : "UNKNOWN_USER_LOGOUT";
         boolean errorOccurred = false;
-        String errorMessage = "로그아웃 처리 중 오류 발생"; 
+        String errorMessage = "로그아웃 처리 중 오류 발생";
 
         try {
             if (refreshToken != null) {
-                                tokenService.invalidateRefreshToken(refreshToken); 
-                tokenService.blacklistRefreshToken(refreshToken, username, TokenInfo.REASON_LOGOUT); 
-                            } else {
-                            }
+                tokenService.invalidateRefreshToken(refreshToken);
+                tokenService.blacklistRefreshToken(refreshToken, username, TokenInfo.REASON_LOGOUT);
+            } else {
+            }
         } catch (AuthenticationException ex) {
             log.warn("AuthenticationException during logout for user {}: {}", username, ex.getMessage());
             errorOccurred = true;
             errorMessage = "로그아웃 중 인증 오류 발생: " + ex.getMessage();
-            
+
         } catch (Exception ex) {
             log.error("Unexpected error during refresh token invalidation/blacklisting for user {}: {}", username, ex.getMessage(), ex);
             errorOccurred = true;
             errorMessage = "로그아웃 처리 중 예상치 못한 오류 발생: " + ex.getMessage();
         } finally {
             SecurityContextHolder.clearContext();
-            
+
             if (!response.isCommitted()) {
                 try {
                     TokenTransportResult clearResult = tokenService.prepareClearTokens();
@@ -72,7 +72,7 @@ public class OAuth2LogoutHandler implements LogoutHandler {
                             successBody.put("message", "성공적으로 로그아웃되었습니다.");
                         }
                         successBody.put("status", "LOGGED_OUT");
-                        successBody.put("redirectUrl", "/loginForm"); 
+                        successBody.put("redirectUrl", "/loginForm");
                         responseWriter.writeSuccessResponse(response, successBody, HttpServletResponse.SC_OK);
                     }
                 } catch (IOException e) {

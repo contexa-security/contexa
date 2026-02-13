@@ -34,8 +34,7 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
             HttpServletResponse response,
             Authentication authentication) throws IOException, ServletException {
 
-        OAuth2AccessTokenAuthenticationToken accessTokenAuthentication =
-                (OAuth2AccessTokenAuthenticationToken) authentication;
+        OAuth2AccessTokenAuthenticationToken accessTokenAuthentication = (OAuth2AccessTokenAuthenticationToken) authentication;
 
         SecurityContext context = SecurityContextHolder.getContext();
         context.setAuthentication(accessTokenAuthentication);

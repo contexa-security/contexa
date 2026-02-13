@@ -19,13 +19,11 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
 
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
-        
-        Collection<GrantedAuthority> scopeAuthorities = scopeConverter.convert(jwt);
 
+        Collection<GrantedAuthority> scopeAuthorities = scopeConverter.convert(jwt);
         Collection<GrantedAuthority> roleAuthorities = rolesConverter.convert(jwt);
 
-        Collection<GrantedAuthority> authorities = Stream.concat(
-                scopeAuthorities != null ? scopeAuthorities.stream() : Stream.empty(),
+        Collection<GrantedAuthority> authorities = Stream.concat(scopeAuthorities.stream(),
                 roleAuthorities != null ? roleAuthorities.stream() : Stream.empty()
         ).collect(Collectors.toSet());
 
@@ -36,7 +34,7 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
 
         @Override
         public Collection<GrantedAuthority> convert(Jwt jwt) {
-            
+
             Collection<String> roles = jwt.getClaimAsStringList("roles");
             if (roles != null && !roles.isEmpty()) {
                 return roles.stream()

@@ -34,9 +34,7 @@ public class PlatformSecurityConfig {
             http
                     .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(authReq -> authReq
-                            .requestMatchers(
-                                    "/css/**", "/js/**", "/images/**", "/favicon.ico"
-                            ).permitAll()
+                            .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
                     .securityContext(sc -> sc.securityContextRepository(aiReactiveSecurityContextRepository))
