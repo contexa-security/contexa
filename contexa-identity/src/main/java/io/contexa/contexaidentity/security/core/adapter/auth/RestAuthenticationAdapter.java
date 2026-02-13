@@ -11,6 +11,8 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccess
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import java.util.Objects;
+
 public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapter<RestAuthenticationConfigurer<HttpSecurity>> {
 
     @Override
@@ -30,16 +32,20 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
                                                PlatformAuthenticationFailureHandler failureHandler) {
 
         configurer.loginProcessingUrl(opts.getLoginProcessingUrl());
-
         if (opts.getSuccessHandler() != null) {
             configurer.successHandler(opts.getSuccessHandler());
-        }else{
+
+        } else if (successHandler != null) {
             configurer.successHandler(successHandler);
+            successHandler.setDefaultTargetUrl(opts.getDefaultSuccessUrl());
+            successHandler.setAlwaysUse(opts.isAlwaysUseDefaultSuccessUrl());
         }
         if (opts.getFailureHandler() != null) {
             configurer.failureHandler(opts.getFailureHandler());
-        }else{
+
+        } else if (failureHandler != null) {
             configurer.failureHandler(failureHandler);
+            failureHandler.setDefaultTargetUrl(Objects.requireNonNullElse(opts.getFailureUrl(), "/login?error"));
         }
     }
 

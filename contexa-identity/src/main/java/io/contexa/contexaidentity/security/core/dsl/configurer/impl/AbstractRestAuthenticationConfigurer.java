@@ -11,8 +11,11 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.context.RequestAttributeSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -89,6 +92,14 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
         this.loginProcessingUrl = loginProcessingUrl;
         this.requestMatcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, loginProcessingUrl);
         return (T) this;
+    }
+
+    public final T defaultSuccessUrl(String defaultSuccessUrl) {
+        return defaultSuccessUrl(defaultSuccessUrl, false);
+    }
+
+    public final T defaultSuccessUrl(String defaultSuccessUrl, boolean alwaysUse) {
+        return successHandler(handler);
     }
 
     public T successHandler(PlatformAuthenticationSuccessHandler successHandler) {

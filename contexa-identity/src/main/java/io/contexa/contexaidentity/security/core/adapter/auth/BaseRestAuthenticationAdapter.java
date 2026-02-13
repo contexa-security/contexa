@@ -80,14 +80,11 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
-
             return super.resolveFailureHandler(options, currentFlow, stateConfig, appContext);
         } else {
-
             if (stateType == StateType.SESSION) {
                 return appContext.getBean(SessionSingleAuthFailureHandler.class);
             } else {
-
                 return appContext.getBean(OAuth2SingleAuthFailureHandler.class);
             }
         }

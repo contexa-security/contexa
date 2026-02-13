@@ -37,23 +37,14 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
         if (opts.getPasswordParameter() != null) {
             configurer.passwordParameter(opts.getPasswordParameter());
         }
-        if (opts.getDefaultSuccessUrl() != null) {
-            configurer.defaultSuccessUrl(opts.getDefaultSuccessUrl());
-        }
         if (opts.isPermitAll()) {
             configurer.permitAll();
-        }
-        if (opts.getFailureUrl() != null) {
-            configurer.failureUrl(opts.getFailureUrl());
         }
         if (opts.getLoginPage() != null) {
             configurer.loginPage(opts.getLoginPage());
         }
-        if (opts.getDefaultSuccessUrl() != null) {
-            configurer.defaultSuccessUrl(opts.getDefaultSuccessUrl());
-        }
-        if (opts.isAlwaysUseDefaultSuccessUrl()) {
-            configurer.defaultSuccessUrl(opts.getDefaultSuccessUrl(), true);
+        if (opts.getFailureUrl() != null) {
+            configurer.failureUrl(opts.getFailureUrl());
         }
         if (opts.getSuccessHandler() != null) {
             configurer.successHandler(opts.getSuccessHandler());
