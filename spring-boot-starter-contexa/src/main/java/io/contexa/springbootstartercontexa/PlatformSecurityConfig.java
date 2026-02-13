@@ -35,21 +35,7 @@ public class PlatformSecurityConfig {
                     .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers(
-                                    "/css/**", "/js/**", "/images/**", "/favicon.ico",
-                                    "/test/security",
-                                    "/", "/authMode","/home",
-                                    "/loginForm", "/register","/login","/admin/login",
-                                    "/loginOtt", "/ott/sent",
-                                    "/loginPasskey","/login/mfa-ott",
-                                    "/mfa/select-factor","/mfa/ott/request-code-ui", "/mfa/challenge/ott",
-                                    "/mfa/challenge/passkey", "/mfa/failure","/mfa/ott/generate-code","/mfa/ott/code-sent",
-                                    "/api/register",
-                                    "/api/login", "/api/refresh",
-                                    "/api/ott/generate",
-                                    "/webauthn/register/options", "/webauthn/register","/login/mfa-webauthn",
-                                    "/webauthn/authenticate/options", "/login/webauthn",
-                                    "/api/mfa/select-factor", "/api/mfa/request-ott-code", "/api/mfa/config",
-                                    "/sse"
+                                    "/css/**", "/js/**", "/images/**", "/favicon.ico"
                             ).permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
@@ -68,10 +54,10 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-                .form(form -> form.order(10)
+                /*.form(form -> form.order(10)
                         .loginPage("/admin/login")
                         .defaultSuccessUrl("/admin"))
-                .oauth2(Customizer.withDefaults())
+                .oauth2(Customizer.withDefaults())*/
                 .rest(rest -> rest.order(20)).oauth2(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())

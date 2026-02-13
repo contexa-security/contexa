@@ -151,7 +151,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                         headers[csrfHeaderName] = csrfToken;
                                     }
                 
-                                    const response = await fetch('/api/auth/login', {
+                                    const response = await fetch('%s', {
                                         method: 'POST',
                                         headers: headers,
                                         body: JSON.stringify({
@@ -198,7 +198,8 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                 csrfHeaderName,
                 csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : ""
+                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : "",
+                loginPageUrl
         );
 
         writer.write(html);
