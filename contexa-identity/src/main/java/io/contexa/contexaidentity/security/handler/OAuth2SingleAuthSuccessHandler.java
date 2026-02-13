@@ -55,8 +55,6 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         } else {
             writeJsonResponse(response, responseData);
         }
-
-
     }
 
     @Override

@@ -57,14 +57,16 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
         }
         if (opts.getSuccessHandler() != null) {
             configurer.successHandler(opts.getSuccessHandler());
-        }else{
+
+        } else if (successHandler != null) {
             configurer.successHandler(successHandler);
             successHandler.setDefaultTargetUrl(opts.getDefaultSuccessUrl());
             successHandler.setAlwaysUse(opts.isAlwaysUseDefaultSuccessUrl());
         }
         if (opts.getFailureHandler() != null) {
             configurer.failureHandler(opts.getFailureHandler());
-        }else{
+
+        } else if (failureHandler != null) {
             configurer.failureHandler(failureHandler);
             failureHandler.setDefaultTargetUrl(Objects.requireNonNullElse(opts.getFailureUrl(), "/login?error"));
         }
