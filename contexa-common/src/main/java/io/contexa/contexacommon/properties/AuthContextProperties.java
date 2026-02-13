@@ -43,5 +43,6 @@ public class AuthContextProperties {
     private String tokenPrefix = "Bearer ";
     private String rolesClaim = "roles";
     private String scopesClaim = "scopes";
+    private boolean oauth2Csrf = false;
 
 }

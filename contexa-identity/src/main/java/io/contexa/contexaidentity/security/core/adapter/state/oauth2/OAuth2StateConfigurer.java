@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationConverter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationProvider;
@@ -23,11 +24,6 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
 
     @Override
     public void init(HttpSecurity http) throws Exception {
-        ApplicationContext context = http.getSharedObject(ApplicationContext.class);
-        if (context == null) {
-            log.warn("OAuth2StateConfigurer: ApplicationContext not found in HttpSecurity sharedObjects during init. " +
-                    "Dependencies will be resolved in configure phase.");
-        }
         configureResourceServer(http);
         configureAuthorizationServer(http);
     }
@@ -56,7 +52,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         }
 
         OAuth2AuthorizationServerConfigurer authzServerConfigurer = new OAuth2AuthorizationServerConfigurer();
-
+        ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
         http.with(authzServerConfigurer, authzServer -> {
             authzServer
                     .authorizationService(authorizationService)
@@ -66,7 +62,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 authzServer.authorizationServerSettings(authzServerSettings);
             }
 
-            ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
+
             TransactionTemplate transactionTemplate = null;
             if (appContext != null) {
                 try {
@@ -75,7 +71,6 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                     log.warn("OAuth2StateConfigurer: TransactionTemplate not found - AuthenticatedUserGrantAuthenticationProvider may fail with auto-commit:false");
                 }
             }
-
             TransactionTemplate finalTransactionTemplate = transactionTemplate;
             authzServer.tokenEndpoint(tokenEndpoint ->
                     tokenEndpoint
@@ -89,17 +84,17 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
 
             authzServer.tokenEndpoint(tokenEndpoint -> {
 
-                ApplicationContext context = getBuilder().getSharedObject(ApplicationContext.class);
-                if (context != null) {
+
+                if (appContext != null) {
                     try {
-                        AuthenticationSuccessHandler successHandler = context.getBean("oauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
+                        AuthenticationSuccessHandler successHandler = appContext.getBean("oauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
                         tokenEndpoint.accessTokenResponseHandler(successHandler);
                     } catch (Exception e) {
                         log.warn("OAuth2StateConfigurer: Failed to register OAuth2TokenSuccessHandler: {}", e.getMessage());
                     }
 
                     try {
-                        AuthenticationFailureHandler failureHandler = context.getBean("oauth2TokenFailureHandler", AuthenticationFailureHandler.class);
+                        AuthenticationFailureHandler failureHandler = appContext.getBean("oauth2TokenFailureHandler", AuthenticationFailureHandler.class);
                         tokenEndpoint.errorResponseHandler(failureHandler);
                     } catch (Exception e) {
                         log.warn("OAuth2StateConfigurer: Failed to register OAuth2TokenFailureHandler: {}", e.getMessage());
@@ -108,7 +103,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             });
             authzServer.oidc(Customizer.withDefaults());
         });
-
-        http.with(new OAuth2CsrfConfigurer(), Customizer.withDefaults());
+        AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
+        http.with(new OAuth2CsrfConfigurer(properties.isOauth2Csrf()), Customizer.withDefaults());
     }
 }

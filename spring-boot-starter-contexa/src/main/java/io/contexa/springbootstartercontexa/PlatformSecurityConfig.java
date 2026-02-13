@@ -72,7 +72,7 @@ public class PlatformSecurityConfig {
                         .loginPage("/admin/login")
                         .defaultSuccessUrl("/admin"))
                 .oauth2(Customizer.withDefaults())
-//                .rest(rest -> rest.order(20)).session(Customizer.withDefaults())
+                .rest(rest -> rest.order(20)).oauth2(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
 

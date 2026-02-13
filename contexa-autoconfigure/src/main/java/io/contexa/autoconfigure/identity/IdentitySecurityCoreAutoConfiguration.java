@@ -71,7 +71,7 @@ import java.util.UUID;
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
-@EnableConfigurationProperties({ AuthContextProperties.class })
+@EnableConfigurationProperties({AuthContextProperties.class })
 @ConditionalOnProperty(prefix = "contexa.identity.security-core", name = "enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean(PlatformConfig.class)
 public class IdentitySecurityCoreAutoConfiguration {
