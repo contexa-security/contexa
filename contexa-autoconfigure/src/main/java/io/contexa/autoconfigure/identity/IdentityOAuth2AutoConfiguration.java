@@ -292,7 +292,7 @@ public class IdentityOAuth2AutoConfiguration {
     @Bean("compositeLogoutHandler")
     @ConditionalOnMissingBean(name = "compositeLogoutHandler")
     public LogoutHandler compositeLogoutHandler(
-            OAuth2TokenService tokenService,
+            TokenService tokenService,
             AuthResponseWriter responseWriter) {
 
         SessionLogoutStrategy sessionStrategy = new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository());
