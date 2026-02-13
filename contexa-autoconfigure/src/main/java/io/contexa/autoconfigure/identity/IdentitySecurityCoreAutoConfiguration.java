@@ -54,6 +54,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.ott.OneTimeTokenAuthenticationFilter;
 import org.springframework.security.web.webauthn.authentication.WebAuthnAuthenticationFilter;
@@ -75,6 +76,12 @@ import java.util.Map;
 public class IdentitySecurityCoreAutoConfiguration {
 
     public IdentitySecurityCoreAutoConfiguration() {
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+        return httpSecurity.build();
     }
 
     @Bean
@@ -145,8 +152,7 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PlatformContext platformContext(ApplicationContext ctx,
-            ObjectProvider<HttpSecurity> provider) {
+    public PlatformContext platformContext(ApplicationContext ctx, ObjectProvider<HttpSecurity> provider) {
         return new DefaultPlatformContext(ctx, provider);
     }
 

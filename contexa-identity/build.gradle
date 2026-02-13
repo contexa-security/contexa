@@ -14,7 +14,7 @@ dependencies {
 
     api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     api 'org.springframework.boot:spring-boot-starter-oauth2-client'
-    api 'org.springframework.security:spring-security-oauth2-authorization-server:1.4.3'
+    api 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
 
     implementation 'com.webauthn4j:webauthn4j-core:0.29.7.RELEASE'
 //    implementation 'org.springframework.security:spring-security-webauthn'

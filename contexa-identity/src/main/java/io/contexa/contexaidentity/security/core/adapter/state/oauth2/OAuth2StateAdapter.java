@@ -73,13 +73,13 @@ public final class OAuth2StateAdapter implements StateAdapter {
         OAuth2StateConfigurer oauth2StateConfigurer = new OAuth2StateConfigurer();
         http.with(oauth2StateConfigurer, Customizer.withDefaults());
 
-            }
+    }
 
     private void configureResourceServer(HttpSecurity http, ApplicationContext appContext) {
         try {
             JwtDecoder jwtDecoder = appContext.getBean(JwtDecoder.class);
             http.setSharedObject(JwtDecoder.class, jwtDecoder);
-                    } catch (NoSuchBeanDefinitionException e) {
+        } catch (NoSuchBeanDefinitionException e) {
             log.error("OAuth2StateAdapter: JwtDecoder bean not found for Resource Server mode. " +
                     "Ensure JwtDecoder is configured in OAuth2AutoConfiguration.", e);
             throw new IllegalStateException("JwtDecoder is required for Resource Server mode", e);
@@ -102,7 +102,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
             http.setSharedObject(OAuth2TokenGenerator.class, tokenGenerator);
             http.setSharedObject(UserRepository.class, userRepository);
 
-                    } catch (NoSuchBeanDefinitionException e) {
+        } catch (NoSuchBeanDefinitionException e) {
             log.error("OAuth2StateAdapter: Required bean for Authorization Server mode not found: {}. " +
                     "Ensure all beans are configured in OAuth2AutoConfiguration.", e.getMessage(), e);
             throw new IllegalStateException("Authorization Server beans are required for AUTHORIZATION_SERVER mode", e);
@@ -121,11 +121,11 @@ public final class OAuth2StateAdapter implements StateAdapter {
                     .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/logout"))
                     .addLogoutHandler(logoutHandler)
                     .logoutSuccessHandler(logoutSuccessHandler)
-                    .invalidateHttpSession(false) 
+                    .invalidateHttpSession(false)
                     .clearAuthentication(true)
             );
 
-                    } catch (NoSuchBeanDefinitionException e) {
+        } catch (NoSuchBeanDefinitionException e) {
             log.warn("OAuth2StateAdapter: Logout handlers not found. Using default logout configuration.");
         }
     }

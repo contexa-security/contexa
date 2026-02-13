@@ -33,7 +33,6 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     }
 
     private void configureResourceServer(HttpSecurity http) throws Exception {
-        http.csrf(CsrfConfigurer::disable);
         http.oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> {
                     jwt.jwtAuthenticationConverter(new OAuth2JwtAuthenticationConverter());
@@ -93,16 +92,14 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 ApplicationContext context = getBuilder().getSharedObject(ApplicationContext.class);
                 if (context != null) {
                     try {
-                        AuthenticationSuccessHandler successHandler =
-                                context.getBean("oauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
+                        AuthenticationSuccessHandler successHandler = context.getBean("oauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
                         tokenEndpoint.accessTokenResponseHandler(successHandler);
                     } catch (Exception e) {
                         log.warn("OAuth2StateConfigurer: Failed to register OAuth2TokenSuccessHandler: {}", e.getMessage());
                     }
 
                     try {
-                        AuthenticationFailureHandler failureHandler =
-                                context.getBean("oauth2TokenFailureHandler", AuthenticationFailureHandler.class);
+                        AuthenticationFailureHandler failureHandler = context.getBean("oauth2TokenFailureHandler", AuthenticationFailureHandler.class);
                         tokenEndpoint.errorResponseHandler(failureHandler);
                     } catch (Exception e) {
                         log.warn("OAuth2StateConfigurer: Failed to register OAuth2TokenFailureHandler: {}", e.getMessage());
@@ -111,5 +108,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             });
             authzServer.oidc(Customizer.withDefaults());
         });
+
+        http.with(new OAuth2CsrfConfigurer(), Customizer.withDefaults());
     }
 }

@@ -29,7 +29,7 @@ dependencies {
     // OAuth2 (contexa-identity OAuth2 및 ASEP 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-client'
-    compileOnly 'org.springframework.security:spring-security-oauth2-authorization-server:1.2.3'
+    compileOnly 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
 
     // WebFlux (contexa-iam 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-webflux'
