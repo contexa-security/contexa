@@ -1239,7 +1239,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     if (result.status === 'MFA_COMPLETED') {
                                         // MFA not required - redirect to home immediately (server issued tokens)
                                         messageArea.innerHTML = '<div class="message success">Login successful! Redirecting to home...</div>';
-                                        const redirectUrl = result.redirectUrl || '/home';
+                                        const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);
@@ -1395,7 +1395,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     if (result.status === 'MFA_COMPLETED') {
                                         // MFA not required - redirect to home immediately (server issued tokens)
                                         messageArea.innerHTML = '<div class="message success">Login successful! Redirecting to home...</div>';
-                                        const redirectUrl = result.redirectUrl || '/home';
+                                        const redirectUrl = result.redirectUrl || '/';
                                         setTimeout(() => {
                                             window.location.href = redirectUrl;
                                         }, 500);

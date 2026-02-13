@@ -36,6 +36,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private boolean isLoginPageRequest(HttpServletRequest request) {
+        if(!"GET".equalsIgnoreCase(request.getMethod())) return false;
         return matches(request, loginPageUrl);
     }
 
@@ -170,7 +171,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                     console.log('[DEBUG] Login success:', result);
                 
                                     messageArea.innerHTML = '<div class="message success">Login successful!</div>';
-                                    const redirectUrl = result.redirectUrl || '/home';
+                                    const redirectUrl = result.redirectUrl || '/';
                                     setTimeout(() => {
                                         window.location.href = redirectUrl;
                                     }, 500);
