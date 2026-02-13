@@ -13,13 +13,19 @@ public final class RestOptions extends AuthenticationProcessingOptions {
 
     private final String usernameParameter;
     private final String passwordParameter;
-    private final RestAsepAttributes asepAttributes; 
+    private final String defaultSuccessUrl;
+    private final String failureUrl;
+    private final boolean alwaysUseDefaultSuccessUrl;
+    private final RestAsepAttributes asepAttributes;
 
     private RestOptions(Builder builder) {
         super(builder);
         this.usernameParameter = Objects.requireNonNull(builder.usernameParameter, "usernameParameter cannot be null");
         this.passwordParameter = Objects.requireNonNull(builder.passwordParameter, "passwordParameter cannot be null");
-        this.asepAttributes = builder.asepAttributes; 
+        this.defaultSuccessUrl = builder.defaultSuccessUrl;
+        this.failureUrl = builder.failureUrl;
+        this.alwaysUseDefaultSuccessUrl = builder.alwaysUseDefaultSuccessUrl;
+        this.asepAttributes = builder.asepAttributes;
     }
 
     public static Builder builder(org.springframework.context.ApplicationContext applicationContext) {
@@ -33,22 +39,22 @@ public final class RestOptions extends AuthenticationProcessingOptions {
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<RestOptions, Builder> {
         private String usernameParameter = "username";
         private String passwordParameter = "password";
+        private String defaultSuccessUrl;
+        private String failureUrl;
+        private boolean alwaysUseDefaultSuccessUrl = false;
         private RestAsepAttributes asepAttributes; 
 
-        public Builder(org.springframework.context.ApplicationContext applicationContext) {
+        public Builder(ApplicationContext applicationContext) {
             this(applicationContext, false);
         }
 
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for RestOptions.Builder");
-
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 
             if (isMfaMode) {
-                
                 super.loginProcessingUrl(urlProvider.getPrimaryRestLoginProcessing());
             } else {
-                
                 super.loginProcessingUrl(urlProvider.getSingleRestLoginProcessing());
             }
             super.order(200);
@@ -68,6 +74,21 @@ public final class RestOptions extends AuthenticationProcessingOptions {
         public Builder passwordParameter(String passwordParameter) {
             Assert.hasText(passwordParameter, "passwordParameter cannot be empty or null");
             this.passwordParameter = passwordParameter;
+            return this;
+        }
+
+        public Builder defaultSuccessUrl(String defaultSuccessUrl) {
+            this.defaultSuccessUrl = defaultSuccessUrl;
+            return this;
+        }
+        public Builder defaultSuccessUrl(String defaultSuccessUrl, boolean alwaysUse) {
+            this.defaultSuccessUrl = defaultSuccessUrl;
+            this.alwaysUseDefaultSuccessUrl = alwaysUse;
+            return this;
+        }
+
+        public Builder failureUrl(String failureUrl) {
+            this.failureUrl = failureUrl;
             return this;
         }
 

@@ -101,7 +101,6 @@ public final class FormOptions extends AuthenticationProcessingOptions {
 
         public Builder defaultSuccessUrl(String defaultSuccessUrl) {
             this.defaultSuccessUrl = defaultSuccessUrl;
-            this.alwaysUseDefaultSuccessUrl = false;
             return this;
         }
         public Builder defaultSuccessUrl(String defaultSuccessUrl, boolean alwaysUse) {

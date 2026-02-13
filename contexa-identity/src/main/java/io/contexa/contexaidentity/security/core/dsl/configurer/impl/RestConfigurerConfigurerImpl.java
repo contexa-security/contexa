@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
 import io.contexa.contexaidentity.security.core.asep.dsl.RestAsepAttributes;
 import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBuilderConfigurer;
+import io.contexa.contexaidentity.security.core.dsl.configurer.FormConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.RestConfigurerConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
@@ -12,7 +13,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.web.context.SecurityContextRepository;
 
 @Slf4j
-public final class RestConfigurerConfigurerImpl 
+public final class RestConfigurerConfigurerImpl
         extends AbstractOptionsBuilderConfigurer<RestConfigurerConfigurerImpl, RestOptions, RestOptions.Builder, RestConfigurerConfigurer>
         implements RestConfigurerConfigurer {
 
@@ -28,44 +29,62 @@ public final class RestConfigurerConfigurerImpl
 
     @Override
     public RestConfigurerConfigurer order(int order) {
-        getOptionsBuilder().order(order); 
+        getOptionsBuilder().order(order);
         return self();
     }
 
     @Override
     public RestConfigurerConfigurer loginProcessingUrl(String url) {
-        super.loginProcessingUrl(url); 
+        getOptionsBuilder().loginProcessingUrl(url);
         return self();
     }
 
     @Override
-    public RestConfigurerConfigurer successHandler(PlatformAuthenticationSuccessHandler  successHandler) {
-        super.successHandler(successHandler);
+    public RestConfigurerConfigurer defaultSuccessUrl(String defaultSuccessUrl) {
+        getOptionsBuilder().defaultSuccessUrl(defaultSuccessUrl);
+        return self();
+    }
+
+    @Override
+    public RestConfigurerConfigurer defaultSuccessUrl(String defaultSuccessUrl, boolean alwaysUse) {
+        getOptionsBuilder().defaultSuccessUrl(defaultSuccessUrl, alwaysUse);
+        return self();
+    }
+
+    @Override
+    public RestConfigurerConfigurer failureUrl(String failureUrl) {
+        getOptionsBuilder().failureUrl(failureUrl);
+        return self();
+    }
+
+    @Override
+    public RestConfigurerConfigurer successHandler(PlatformAuthenticationSuccessHandler successHandler) {
+        getOptionsBuilder().successHandler(successHandler);
         return self();
     }
 
     @Override
     public RestConfigurerConfigurer failureHandler(PlatformAuthenticationFailureHandler failureHandler) {
-        super.failureHandler(failureHandler);
+        getOptionsBuilder().failureHandler(failureHandler);
         return self();
     }
 
     @Override
     public RestConfigurerConfigurer securityContextRepository(SecurityContextRepository repository) {
-        super.securityContextRepository(repository);
+        getOptionsBuilder().securityContextRepository(repository);
         return self();
     }
 
     @Override
-    public RestConfigurerConfigurer asep(Customizer<RestAsepAttributes> restAsepAttributesCustomizer){
-        
+    public RestConfigurerConfigurer asep(Customizer<RestAsepAttributes> restAsepAttributesCustomizer) {
+
         RestAsepAttributes attributes = new RestAsepAttributes();
         if (restAsepAttributesCustomizer != null) {
             restAsepAttributesCustomizer.customize(attributes);
         }
-        
-        getOptionsBuilder().asepAttributes(attributes); 
-                return self();
+
+        getOptionsBuilder().asepAttributes(attributes);
+        return self();
     }
 
     @Override
