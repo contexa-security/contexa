@@ -66,6 +66,7 @@ import org.springframework.security.web.webauthn.management.UserCredentialReposi
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @AutoConfiguration
@@ -81,6 +82,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+        httpSecurity.securityMatcher("/" + UUID.randomUUID());
         return httpSecurity.build();
     }
 
