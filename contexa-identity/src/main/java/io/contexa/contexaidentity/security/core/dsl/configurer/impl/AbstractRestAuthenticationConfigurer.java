@@ -94,14 +94,6 @@ public abstract class AbstractRestAuthenticationConfigurer<T extends AbstractRes
         return (T) this;
     }
 
-    public final T defaultSuccessUrl(String defaultSuccessUrl) {
-        return defaultSuccessUrl(defaultSuccessUrl, false);
-    }
-
-    public final T defaultSuccessUrl(String defaultSuccessUrl, boolean alwaysUse) {
-        return successHandler(handler);
-    }
-
     public T successHandler(PlatformAuthenticationSuccessHandler successHandler) {
         this.successHandler = successHandler;
         return (T) this;
