@@ -98,7 +98,7 @@ public class PolicyController {
         return dto;
     }
 
-    @GetMapping("/delete/{id}")
+    @PostMapping("/delete/{id}")
     public String deletePolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             policyService.deletePolicy(id);

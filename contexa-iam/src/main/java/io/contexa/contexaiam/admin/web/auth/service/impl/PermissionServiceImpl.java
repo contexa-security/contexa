@@ -25,7 +25,7 @@ public class PermissionServiceImpl implements PermissionService {
 
     @Transactional
     @Caching(
-            evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)},
+            evict = {@CacheEvict(value = "usersWithAuthorities", allEntries = true)},
             put = {@CachePut(value = "permissions", key = "#result.id")}
     )
     @Override
@@ -53,7 +53,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Transactional
     @Caching(
             evict = {
-                    @CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true),
+                    @CacheEvict(value = "usersWithAuthorities", allEntries = true),
                     @CacheEvict(value = "permissions", key = "#id"),
                     @CacheEvict(value = "permissions", key = "'allPermissions'")
             }
@@ -82,7 +82,7 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     @Caching(
-            evict = {@CacheEvict(value = "usersWithRolesAndPermissions", allEntries = true)},
+            evict = {@CacheEvict(value = "usersWithAuthorities", allEntries = true)},
             put = {@CachePut(value = "permissions", key = "#result.id")}
     )
     @Transactional

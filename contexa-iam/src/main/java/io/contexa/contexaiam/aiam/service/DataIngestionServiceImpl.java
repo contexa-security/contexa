@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 
@@ -50,6 +51,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
     }
 
     @Async
+    @EventListener(ApplicationReadyEvent.class)
     @Override
     public void initialIndexing() {
         List<Document> documents = policyRepository.findAllWithDetails().stream()

@@ -184,6 +184,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             }
         }
         if (StringUtils.hasText(dto.getCustomConditionSpel())) {
+            validateSpelSafety(dto.getCustomConditionSpel());
             allConditions.add("(" + dto.getCustomConditionSpel() + ")");
         }
         if (!CollectionUtils.isEmpty(dto.getConditions())) {
@@ -391,6 +392,20 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
         if (StringUtils.hasText(cleaned) && !cleaned.equals("()")) {
             dto.setCustomConditionSpel(cleaned);
+        }
+    }
+
+    private void validateSpelSafety(String spel) {
+        String upper = spel.toUpperCase();
+        String[] dangerousPatterns = {
+            "T(", "RUNTIME", "EXEC(", "PROCESSBUILDER",
+            "GETCLASS(", "FORNAME(", "SYSTEM.", "CLASSLOADER",
+            "JAVA.LANG.", "JAVA.IO.", "JAVA.NET."
+        };
+        for (String pattern : dangerousPatterns) {
+            if (upper.contains(pattern)) {
+                throw new IllegalArgumentException("SpEL expression contains dangerous pattern: " + pattern);
+            }
         }
     }
 }

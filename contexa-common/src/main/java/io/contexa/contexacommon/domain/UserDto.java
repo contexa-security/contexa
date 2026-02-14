@@ -1,5 +1,6 @@
 package io.contexa.contexacommon.domain;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -26,6 +27,7 @@ public class UserDto implements Serializable {
     private String username;
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
     private String name;
     private boolean mfaEnabled;

@@ -31,7 +31,6 @@ public class PlatformSecurityConfig {
 
     @Bean
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
-        log.info("Configuring Platform Security DSL...");
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http

@@ -19,8 +19,8 @@ public class IamMiscAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public IntegrationEventBus integrationEventBus() {
-        return new InMemoryEventBus();
+    public IntegrationEventBus integrationEventBus(ApplicationEventPublisher applicationEventPublisher) {
+        return new InMemoryEventBus(applicationEventPublisher);
     }
 
     @Bean

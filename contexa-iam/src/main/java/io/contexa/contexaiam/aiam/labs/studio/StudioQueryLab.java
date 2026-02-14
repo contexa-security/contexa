@@ -137,7 +137,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
         try {
             return new DataCollectionPlan(queryIntentAnalyzer, query);
         } catch (Exception e) {
-            log.warn("Data collection plan creation failed, using fallback: {}", e.getMessage());
+            log.error("Data collection plan creation failed, using fallback: {}", e.getMessage());
             return DataCollectionPlan.createFallback(query);
         }
     }

@@ -79,7 +79,7 @@ public class RoleController {
 		return "redirect:/admin/roles";
 	}
 
-	@GetMapping("/delete/{id}")
+	@PostMapping("/delete/{id}")
 	public String deleteRole(@PathVariable Long id, RedirectAttributes ra) {
 		roleService.deleteRole(id);
 		ra.addFlashAttribute("message", "역할이 성공적으로 삭제되었습니다!");

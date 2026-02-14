@@ -108,7 +108,7 @@ public class GroupController {
         return "redirect:/admin/groups";
     }
 
-    @GetMapping("/delete/{id}")
+    @PostMapping("/delete/{id}")
     public String deleteGroup(@PathVariable Long id, RedirectAttributes ra) {
         try {
             groupService.deleteGroup(id);

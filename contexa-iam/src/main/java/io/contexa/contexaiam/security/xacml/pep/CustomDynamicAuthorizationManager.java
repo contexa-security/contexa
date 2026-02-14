@@ -16,6 +16,7 @@ import io.contexa.contexacommon.domain.TrustAssessment;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpMethod;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.security.authorization.AuthorizationDecision;
@@ -67,7 +68,13 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
             for (PolicyTarget target : policy.getTargets()) {
                 if ("URL".equals(target.getTargetType())) {
-                    RequestMatcher matcher = PathPatternRequestMatcher.withDefaults().matcher(target.getTargetIdentifier());
+                    String httpMethod = target.getHttpMethod();
+                    RequestMatcher matcher;
+                    if (httpMethod != null && !"ANY".equals(httpMethod) && !"ALL".equals(httpMethod)) {
+                        matcher = PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.valueOf(httpMethod), target.getTargetIdentifier());
+                    } else {
+                        matcher = PathPatternRequestMatcher.withDefaults().matcher(target.getTargetIdentifier());
+                    }
                     AuthorizationManager<RequestAuthorizationContext> manager = managerResolver.resolve(expression);
                     this.mappings.add(new RequestMatcherEntry<>(matcher, manager));
                 }
@@ -92,7 +99,8 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
                 return manager.check(authenticationSupplier, enrichedContext);
             }
         }
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
+        log.error("No matching URL policy found for request: {} {}", request.getMethod(), request.getRequestURI());
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(false);
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
         /*if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
@@ -153,7 +161,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         cleaned = cleaned.replaceAll("^\\s*and\\s+", "");
         cleaned = cleaned.replaceAll("\\s+and\\s*$", "");
         cleaned = cleaned.trim();
-        return cleaned.isEmpty() ? "permitAll" : cleaned;
+        return cleaned.isEmpty() ? "denyAll" : cleaned;
     }
 
     private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context, AuthorizationDecision decision) {

@@ -10,6 +10,7 @@ import io.contexa.contexacore.properties.SecuritySessionProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -34,8 +35,9 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public CustomAuthenticationProvider customAuthenticationProvider(UserDetailsService userDetailsService) {
-        return new CustomAuthenticationProvider(userDetailsService);
+    public CustomAuthenticationProvider customAuthenticationProvider(UserDetailsService userDetailsService,
+                                                                    PasswordEncoder passwordEncoder) {
+        return new CustomAuthenticationProvider(userDetailsService, passwordEncoder);
     }
 
     @Bean

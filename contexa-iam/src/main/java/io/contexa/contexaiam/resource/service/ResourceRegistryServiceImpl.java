@@ -22,7 +22,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
@@ -30,7 +29,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -84,17 +82,11 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
         if (!newResources.isEmpty()) {
             int batchSize = 10;
             List<List<ManagedResource>> resourceBatches = Lists.partition(newResources, batchSize);
-
-            List<CompletableFuture<Void>> futures = resourceBatches.stream()
-                    .map(batch -> CompletableFuture.runAsync(() -> processResourceBatch(batch)))
-                    .toList();
-
-            CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+            resourceBatches.forEach(this::processResourceBatch);
         }
         autoConditionTemplateService.generateConditionTemplates();
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processResourceBatch(List<ManagedResource> batch) {
 
         if (batch == null || batch.isEmpty()) {
@@ -149,14 +141,14 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
 
     private String generateFallbackFriendlyName(String identifier) {
         if (identifier == null || identifier.isEmpty()) {
-            return "알 수 없는 리소스";
+            return "Unknown Resource";
         }
 
         if (identifier.startsWith("/")) {
             String[] parts = identifier.split("/");
             for (int i = parts.length - 1; i >= 0; i--) {
                 if (!parts[i].isEmpty() && !parts[i].matches("\\{.*\\}")) {
-                    return parts[i] + " 기능";
+                    return parts[i] + " Feature";
                 }
             }
         }
@@ -169,10 +161,10 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             }
 
             String formatted = lastPart.replaceAll("([a-z])([A-Z])", "$1 $2").toLowerCase();
-            return formatted + " 기능";
+            return formatted + " Feature";
         }
 
-        return identifier + " 기능";
+        return identifier + " Feature";
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -20,6 +21,8 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyGenerationCollectionService {
+
+    private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     private final RoleService roleService;
     private final PermissionCatalogService permissionCatalogService;
@@ -32,20 +35,19 @@ public class PolicyGenerationCollectionService {
             return roleService.getRolesWithoutExpression().stream()
                     .map(role -> new PolicyGenerationItem.RoleItem(role.getId(), role.getRoleName(), role.getRoleDesc()))
                     .toList();
-        }, Executors.newVirtualThreadPerTaskExecutor());
+        }, VIRTUAL_EXECUTOR);
 
         CompletableFuture<List<PolicyGenerationItem.PermissionItem>> permissions = CompletableFuture.supplyAsync(() -> {
             return permissionCatalogService.getAvailablePermissions().stream()
                     .map(permission -> new PolicyGenerationItem.PermissionItem(permission.getId(),permission.getName(),permission.getDescription()))
                     .toList();
-        }, Executors.newVirtualThreadPerTaskExecutor());
+        }, VIRTUAL_EXECUTOR);
 
         CompletableFuture<List<PolicyGenerationItem.ConditionItem>> conditions = CompletableFuture.supplyAsync(
-                this::addContextAwareConditionsToModel, Executors.newVirtualThreadPerTaskExecutor()
+                this::addContextAwareConditionsToModel, VIRTUAL_EXECUTOR
         );
 
         CompletableFuture.allOf(roles, permissions, conditions).join();
-        permissions.join();
 
         return new PolicyGenerationItem.AvailableItems(roles.join(), permissions.join(), conditions.join());
 

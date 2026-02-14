@@ -127,6 +127,5 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
     long countByIsActiveTrue();
 
-    @Query("SELECT p FROM Policy p ORDER BY p.createdAt DESC LIMIT 5")
     List<Policy> findTop5ByOrderByCreatedAtDesc();
 }

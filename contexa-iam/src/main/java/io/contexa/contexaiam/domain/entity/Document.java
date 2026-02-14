@@ -30,12 +30,10 @@ public class Document implements Serializable {
     private String ownerUsername;
 
     @Column(name = "created_at", nullable = false)
-    @Temporal(TemporalType.TIMESTAMP)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();
 
     @Column(name = "updated_at")
-    @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime updatedAt;
 
     @PrePersist 

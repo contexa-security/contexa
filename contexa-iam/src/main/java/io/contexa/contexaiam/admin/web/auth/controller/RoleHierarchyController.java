@@ -122,7 +122,7 @@ public class RoleHierarchyController {
         return "redirect:/admin/role-hierarchies";
     }
 
-    @GetMapping("/delete/{id}")
+    @PostMapping("/delete/{id}")
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         roleHierarchyService.deleteRoleHierarchy(id);
         ra.addFlashAttribute("message", "역할 계층 (ID: " + id + ")이 성공적으로 삭제되었습니다!");

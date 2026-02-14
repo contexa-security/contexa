@@ -87,6 +87,7 @@ public class AdminOverrideController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/approve")
     public ResponseEntity<Map<String, Object>> approveRequest(@RequestBody ApproveRequest request) {
         String adminId = extractCurrentUserId();
@@ -143,11 +144,12 @@ public class AdminOverrideController {
             log.error("[AdminOverrideController] Failed to approve request: requestId={}", request.getRequestId(), e);
             return ResponseEntity.internalServerError().body(Map.of(
                 "success", false,
-                "error", "Failed to approve request: " + e.getMessage()
+                "error", "Failed to approve request"
             ));
         }
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/reject")
     public ResponseEntity<Map<String, Object>> rejectRequest(@RequestBody RejectRequest request) {
         String adminId = extractCurrentUserId();
@@ -198,7 +200,7 @@ public class AdminOverrideController {
             log.error("[AdminOverrideController] Failed to reject request: requestId={}", request.getRequestId(), e);
             return ResponseEntity.internalServerError().body(Map.of(
                 "success", false,
-                "error", "Failed to reject request: " + e.getMessage()
+                "error", "Failed to reject request"
             ));
         }
     }

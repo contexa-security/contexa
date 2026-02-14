@@ -16,6 +16,9 @@ import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
 
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+
 import java.security.Principal;
 import java.util.Map;
 import java.util.UUID;
@@ -49,9 +52,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                 return (Principal) existing;
             }
 
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
+                SessionPrincipal principal = new SessionPrincipal(auth.getName());
+                attributes.put("ws.principal", principal);
+                return principal;
+            }
+
             SessionPrincipal principal = new SessionPrincipal("session-" + UUID.randomUUID());
             attributes.put("ws.principal", principal);
-                        return principal;
+            return principal;
         }
     };
 

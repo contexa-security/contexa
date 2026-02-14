@@ -109,6 +109,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
     private String buildExpressionFromPoliciesWithDefault(List<Policy> policies) {
         if (CollectionUtils.isEmpty(policies)) {
+            log.error("No method policy found for @Protectable method. Defaulting to permitAll.");
             return "permitAll";
         }
         return buildExpressionFromPolicies(policies);

@@ -178,8 +178,8 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         PolicyResponse fallbackResponse = new PolicyResponse();
 
         BusinessPolicyDto fallbackPolicy = new BusinessPolicyDto();
-        fallbackPolicy.setPolicyName("AI 생성 정책 (Fallback)");
-        fallbackPolicy.setDescription("요청: " + (naturalLanguageQuery != null ? naturalLanguageQuery : "알 수 없음"));
+        fallbackPolicy.setPolicyName("AI Generated Policy (Fallback)");
+        fallbackPolicy.setDescription("Request: " + (naturalLanguageQuery != null ? naturalLanguageQuery : "Unknown"));
 
         fallbackResponse.setPolicyData(fallbackPolicy);
         fallbackResponse.setRoleIdToNameMap(Map.of());

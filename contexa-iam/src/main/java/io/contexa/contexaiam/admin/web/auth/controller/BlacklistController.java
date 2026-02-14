@@ -83,7 +83,7 @@ public class BlacklistController {
         return "redirect:/admin/blacklist";
     }
 
-    @GetMapping("/delete/{id}")
+    @PostMapping("/delete/{id}")
     public String deleteBlockRecordGet(@PathVariable Long id, RedirectAttributes ra) {
         return deleteBlockRecord(id, ra);
     }

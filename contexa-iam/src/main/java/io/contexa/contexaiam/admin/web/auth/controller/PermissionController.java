@@ -74,7 +74,7 @@ public class PermissionController {
         model.addAttribute("allFunctions", allActiveFunctions);
     }
 
-    @GetMapping("/delete/{id}")
+    @PostMapping("/delete/{id}")
     public String deletePermission(@PathVariable Long id, RedirectAttributes ra) {
         try {
             permissionService.deletePermission(id);

@@ -12,11 +12,14 @@ import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Slf4j
 @RequiredArgsConstructor
 public class StudioQueryCollectionService {
+
+    private static final ExecutorService VIRTUAL_EXECUTOR = Executors.newVirtualThreadPerTaskExecutor();
 
     private final UserRepository userRepository;
     private final GroupRepository groupRepository;
@@ -37,10 +40,10 @@ public class StudioQueryCollectionService {
     public Mono<IAMDataSet> collectDataAsync(DataCollectionPlan plan) {
         return Mono.fromCallable(() -> executeDataCollection(plan))
                 .doOnSubscribe(sub ->
-                        log.info("비동기 IAM 데이터 수집 시작 - Thread: {}",
+                        log.error("Async IAM data collection started - Thread: {}",
                                 Thread.currentThread().getName()))
                 .doOnSuccess(result ->
-                        log.info("비동기 IAM 데이터 수집 완료 - Thread: {} (Virtual: {})",
+                        log.error("Async IAM data collection completed - Thread: {} (Virtual: {})",
                                 Thread.currentThread().getName(),
                                 Thread.currentThread().isVirtual()));
     }
@@ -50,25 +53,25 @@ public class StudioQueryCollectionService {
         IAMDataSet dataSet = new IAMDataSet();
 
         try {
-            
+
             CompletableFuture<Integer> userCountFuture = CompletableFuture.supplyAsync(
                     () -> (int) userRepository.count(),
-                    Executors.newVirtualThreadPerTaskExecutor()
+                    VIRTUAL_EXECUTOR
             );
 
             CompletableFuture<Integer> groupCountFuture = CompletableFuture.supplyAsync(
                     () -> (int) groupRepository.count(),
-                    Executors.newVirtualThreadPerTaskExecutor()
+                    VIRTUAL_EXECUTOR
             );
 
             CompletableFuture<Integer> roleCountFuture = CompletableFuture.supplyAsync(
                     () -> (int) roleRepository.count(),
-                    Executors.newVirtualThreadPerTaskExecutor()
+                    VIRTUAL_EXECUTOR
             );
 
             CompletableFuture<Integer> permissionCountFuture = CompletableFuture.supplyAsync(
                     () -> (int) permissionRepository.count(),
-                    Executors.newVirtualThreadPerTaskExecutor()
+                    VIRTUAL_EXECUTOR
             );
 
             CompletableFuture.allOf(
@@ -82,38 +85,34 @@ public class StudioQueryCollectionService {
             int totalPermissions = permissionCountFuture.get();
 
             if (totalUsers == 0 && totalGroups == 0 && totalRoles == 0 && totalPermissions == 0) {
-                log.error("IAM 데이터 없음!");
-                dataSet.setError("시스템에 IAM 데이터가 없습니다. 테스트 데이터를 먼저 생성해주세요.");
+                log.error("No IAM data found");
+                dataSet.setError("No IAM data found in the system. Please create test data first.");
                 return dataSet;
             }
 
             CompletableFuture<Void> usersFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsUsers()) {
-                    Thread t = Thread.currentThread();
-                                        dataSet.setUsers(userRepository.findAllWithGroups());
-                                    }
-            }, Executors.newVirtualThreadPerTaskExecutor());
+                    dataSet.setUsers(userRepository.findAllWithGroups());
+                }
+            }, VIRTUAL_EXECUTOR);
 
             CompletableFuture<Void> groupsFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsGroups()) {
-                    Thread t = Thread.currentThread();
-                                        dataSet.setGroups(groupRepository.findAllWithRelations());
-                                    }
-            }, Executors.newVirtualThreadPerTaskExecutor());
+                    dataSet.setGroups(groupRepository.findAllWithRelations());
+                }
+            }, VIRTUAL_EXECUTOR);
 
             CompletableFuture<Void> rolesFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsRoles()) {
-                    Thread t = Thread.currentThread();
-                                        dataSet.setRoles(roleRepository.findAllWithPermissions());
-                                    }
-            }, Executors.newVirtualThreadPerTaskExecutor());
+                    dataSet.setRoles(roleRepository.findAllWithPermissions());
+                }
+            }, VIRTUAL_EXECUTOR);
 
             CompletableFuture<Void> permissionsFuture = CompletableFuture.runAsync(() -> {
                 if (plan.needsPermissions() || plan.needsBusinessResources() || plan.needsBusinessActions()) {
-                    Thread t = Thread.currentThread();
-                                        dataSet.setPermissions(permissionRepository.findAll());
-                                    }
-            }, Executors.newVirtualThreadPerTaskExecutor());
+                    dataSet.setPermissions(permissionRepository.findAll());
+                }
+            }, VIRTUAL_EXECUTOR);
 
             CompletableFuture.allOf(usersFuture, groupsFuture, rolesFuture, permissionsFuture)
                     .join();
@@ -125,8 +124,8 @@ public class StudioQueryCollectionService {
             return dataSet;
 
         } catch (Exception e) {
-            log.error("IAM 데이터 수집 실패", e);
-            dataSet.setError("IAM 데이터 수집 중 오류 발생: " + e.getMessage());
+            log.error("IAM data collection failed", e);
+            dataSet.setError("Error during IAM data collection: " + e.getMessage());
             return dataSet;
         }
     }
@@ -137,20 +136,20 @@ public class StudioQueryCollectionService {
             if (dataSet.getUsers() == null) {
                 dataSet.setUsers(userRepository.findAllWithGroups());
             }
-        }, Executors.newVirtualThreadPerTaskExecutor());
+        }, VIRTUAL_EXECUTOR);
 
         CompletableFuture<Void> groupRelFuture = CompletableFuture.runAsync(() -> {
             if (dataSet.getGroups() == null) {
                 dataSet.setGroups(groupRepository.findAllWithRelations());
             }
-        }, Executors.newVirtualThreadPerTaskExecutor());
+        }, VIRTUAL_EXECUTOR);
 
         CompletableFuture<Void> roleRelFuture = CompletableFuture.runAsync(() -> {
             if (dataSet.getRoles() == null) {
                 dataSet.setRoles(roleRepository.findAllWithPermissions());
             }
-        }, Executors.newVirtualThreadPerTaskExecutor());
+        }, VIRTUAL_EXECUTOR);
 
         CompletableFuture.allOf(userRelFuture, groupRelFuture, roleRelFuture).join();
-            }
+    }
 }

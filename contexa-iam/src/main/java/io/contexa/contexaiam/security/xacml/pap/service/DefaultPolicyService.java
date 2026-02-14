@@ -103,7 +103,7 @@ public class DefaultPolicyService implements PolicyService {
     public void synchronizePolicyForPermission(Permission permission) {
         ManagedResource resource = permission.getManagedResource();
         if (resource == null) {
-            log.warn("Permission '{}' has no linked resource. Cannot sync policy.", permission.getName());
+            log.error("Permission '{}' has no linked resource. Cannot sync policy.", permission.getName());
             return;
         }
 
@@ -218,7 +218,7 @@ public class DefaultPolicyService implements PolicyService {
                         .build();
 
                 Set<PolicyCondition> conditions = ruleDto.getConditions().stream()
-                        .map(condition -> PolicyCondition.builder().rule(rule).expression(condition.getExpression()).build())
+                        .map(condition -> PolicyCondition.builder().rule(rule).expression(condition.getExpression()).authorizationPhase(condition.getAuthorizationPhase()).build())
                         .collect(Collectors.toSet());
 
                 rule.setConditions(conditions);
