@@ -86,8 +86,8 @@ public class IdentityStateMachineAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public HandleFailureAction handleFailureAction() {
-        return new HandleFailureAction();
+    public HandleFailureAction handleFailureAction(AuthContextProperties authContextProperties) {
+        return new HandleFailureAction(authContextProperties.getMfa());
     }
 
     @Bean
@@ -110,8 +110,8 @@ public class IdentityStateMachineAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public RetryLimitGuard retryLimitGuard() {
-        return new RetryLimitGuard();
+    public RetryLimitGuard retryLimitGuard(AuthContextProperties authContextProperties) {
+        return new RetryLimitGuard(authContextProperties.getMfa());
     }
 
     @Bean

@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.statemachine.action;
 
+import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -8,6 +9,12 @@ import org.springframework.statemachine.StateContext;
 
 @Slf4j
 public class HandleFailureAction extends AbstractMfaStateAction {
+
+    private final MfaSettings mfaSettings;
+
+    public HandleFailureAction(MfaSettings mfaSettings) {
+        this.mfaSettings = mfaSettings;
+    }
 
     @Override
     protected void doExecute(StateContext<MfaState, MfaEvent> context,
@@ -24,14 +31,17 @@ public class HandleFailureAction extends AbstractMfaStateAction {
         int retryCount = factorContext.getRetryCount();
         factorContext.setRetryCount(retryCount + 1);
 
-        Integer maxRetries = (Integer) context.getExtendedState().getVariables().get("maxRetries");
-        if (maxRetries == null) {
-            maxRetries = 3;
+        // Synchronize factor-specific retry count attribute
+        if (factorContext.getCurrentProcessingFactor() != null) {
+            String factorName = factorContext.getCurrentProcessingFactor().name();
+            factorContext.setAttribute("retryCount_" + factorName,
+                    factorContext.getAttemptCount(factorContext.getCurrentProcessingFactor()));
         }
 
+        int maxRetries = mfaSettings.getMaxRetryAttempts();
+
         if (factorContext.getRetryCount() >= maxRetries) {
-            log.warn("Max retry attempts exceeded for session: {}", sessionId);
-        } else {
+            log.error("Max retry attempts exceeded for session: {}", sessionId);
         }
     }
 }

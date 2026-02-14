@@ -68,9 +68,11 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                         Authentication authentication) throws IOException, ServletException {
 
         Authentication converterAuthentication = replaceWithSerializableAuthentication(authentication);
-        if (converterAuthentication != null) {
-            SecurityContextHolder.getContext().setAuthentication(converterAuthentication);
+        if (converterAuthentication == null) {
+            log.error("Failed to convert authentication to serializable form, using original");
+            converterAuthentication = authentication;
         }
+        SecurityContextHolder.getContext().setAuthentication(converterAuthentication);
 
         FactorContext factorContext = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
         if (factorContext == null) {
@@ -84,7 +86,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         }
 
         if (!sessionRepository.existsSession(factorContext.getMfaSessionId())) {
-            log.warn("MFA session {} not found in {} repository during factor processing success",
+            log.error("MFA session {} not found in {} repository during factor processing success",
                     factorContext.getMfaSessionId(), sessionRepository.getRepositoryType());
             handleSessionNotFound(response, request, factorContext);
             return;
@@ -146,7 +148,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             if (!response.isCommitted()) {
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             } else {
-                log.warn("Response already committed for user: {}, cannot write MFA continue response", factorContext.getUsername());
+                log.error("Response already committed for user: {}, cannot write MFA continue response", factorContext.getUsername());
             }
 
         } else if (currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION && factorContext.getCurrentProcessingFactor() != null) {
@@ -181,7 +183,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             if (!response.isCommitted()) {
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             } else {
-                log.warn("Response already committed for user: {}, cannot write factor selection response",
+                log.error("Response already committed for user: {}, cannot write factor selection response",
                         factorContext.getUsername());
             }
         } else {
@@ -205,7 +207,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
     private void handleSessionNotFound(HttpServletResponse response, HttpServletRequest request,
                                        FactorContext factorContext) throws IOException {
-        log.warn("Session not found in {} repository during factor processing success: {}",
+        log.error("Session not found in {} repository during factor processing success: {}",
                 sessionRepository.getRepositoryType(), factorContext.getMfaSessionId());
 
         Map<String, Object> errorResponse = new HashMap<>();
@@ -215,14 +217,14 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                     "SESSION_NOT_FOUND", "MFA 세션을 찾을 수 없습니다.", request.getRequestURI(), errorResponse);
         } else {
-            log.warn("Response already committed, cannot write SESSION_NOT_FOUND error for session: {}",
+            log.error("Response already committed, cannot write SESSION_NOT_FOUND error for session: {}",
                     factorContext.getMfaSessionId());
         }
     }
 
     private void handleInvalidContext(HttpServletResponse response, HttpServletRequest request,
                                       @Nullable Authentication authentication) throws IOException {
-        log.warn("MFA Factor Processing Success using {} repository: Invalid FactorContext. Message: {}. User from auth: {}",
+        log.error("MFA Factor Processing Success using {} repository: Invalid FactorContext. Message: {}. User from auth: {}",
                 sessionRepository.getRepositoryType(), "MFA 팩터 처리 성공 후 컨텍스트를 찾을 수 없거나 사용자가 일치하지 않습니다.",
                 (authentication != null ? authentication.getName() : "UnknownUser"));
 
@@ -232,7 +234,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                 stateMachineIntegrator.releaseStateMachine(oldSessionId);
                 sessionRepository.removeSession(oldSessionId, request, null);
             } catch (Exception e) {
-                log.warn("Failed to release invalid session using {} repository: {}",
+                log.error("Failed to release invalid session using {} repository: {}",
                         sessionRepository.getRepositoryType(), oldSessionId, e);
             }
         }
@@ -243,7 +245,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "MFA_FACTOR_SUCCESS_NO_CONTEXT",
                     "MFA 세션 컨텍스트 오류: " + "MFA 팩터 처리 성공 후 컨텍스트를 찾을 수 없거나 사용자가 일치하지 않습니다.", request.getRequestURI(), errorResponse);
         } else {
-            log.warn("Response already committed, cannot write INVALID_CONTEXT error: {}", "MFA_FACTOR_SUCCESS_NO_CONTEXT");
+            log.error("Response already committed, cannot write INVALID_CONTEXT error: {}", "MFA_FACTOR_SUCCESS_NO_CONTEXT");
         }
     }
 
@@ -270,7 +272,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     "STATE_TRANSITION_ERROR", "상태 전이 오류가 발생했습니다.",
                     request.getRequestURI());
         } else {
-            log.warn("Response already committed, cannot write STATE_TRANSITION_ERROR for session: {}",
+            log.error("Response already committed, cannot write STATE_TRANSITION_ERROR for session: {}",
                     ctx.getMfaSessionId());
         }
     }
@@ -283,12 +285,12 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                     "MFA_PROCESSING_ERROR", message, request.getRequestURI());
         } else {
-            log.warn("Response already committed, cannot write MFA_PROCESSING_ERROR for user: {}", ctx.getUsername());
+            log.error("Response already committed, cannot write MFA_PROCESSING_ERROR for user: {}", ctx.getUsername());
         }
         try {
             stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
         } catch (Exception e) {
-            log.warn("Failed to release State Machine session after generic error: {}", ctx.getMfaSessionId(), e);
+            log.error("Failed to release State Machine session after generic error: {}", ctx.getMfaSessionId(), e);
         }
     }
 

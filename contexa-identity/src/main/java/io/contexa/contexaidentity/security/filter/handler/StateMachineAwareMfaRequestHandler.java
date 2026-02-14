@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.filter.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
@@ -22,6 +23,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
@@ -32,19 +34,21 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSettings mfaSettings;
     private final AuthUrlProvider authUrlProvider;
+    private final MfaSessionRepository sessionRepository;
 
     public StateMachineAwareMfaRequestHandler(AuthContextProperties authContextProperties,
                                               AuthResponseWriter responseWriter,
                                               ApplicationContext applicationContext,
                                               MfaStateMachineIntegrator stateMachineIntegrator,
-                                              AuthUrlProvider authUrlProvider) {
+                                              AuthUrlProvider authUrlProvider,
+                                              MfaSessionRepository sessionRepository) {
         this.authContextProperties = authContextProperties;
         this.responseWriter = responseWriter;
         this.applicationContext = applicationContext;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.mfaSettings = authContextProperties.getMfa();
         this.authUrlProvider = authUrlProvider;
-
+        this.sessionRepository = sessionRepository;
     }
 
     @Override
@@ -69,7 +73,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         MfaState latestState = stateMachineIntegrator.getCurrentState(sessionId);
         if (latestState != currentState) {
-            log.warn("State mismatch detected: context={}, stateMachine={}", currentState, latestState);
+            log.error("State mismatch detected: context={}, stateMachine={}", currentState, latestState);
             context.changeState(latestState);
             currentState = latestState;
         }
@@ -80,7 +84,8 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
         handleTerminalState(currentState, request, response, responseBody);
 
-        scheduleStateMachineCleanup(sessionId);
+        // Cleanup both state machine and session repository
+        cleanupTerminalSession(sessionId, request, response);
     }
 
     private void handleTerminalState(MfaState state, HttpServletRequest request,
@@ -208,6 +213,13 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private void handleFactorSelection(HttpServletRequest request, HttpServletResponse response,
                                        FactorContext context) throws IOException {
+        // GET: return available factors information
+        if ("GET".equalsIgnoreCase(request.getMethod())) {
+            handleFactorSelectionInfo(request, response, context);
+            return;
+        }
+
+        // POST: process factor selection
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
         if (selectedFactor == null) return;
 
@@ -216,6 +228,18 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         } else {
             handleFactorSelectionFailure(request, response, context);
         }
+    }
+
+    private void handleFactorSelectionInfo(HttpServletRequest request, HttpServletResponse response,
+                                           FactorContext context) throws IOException {
+        Map<String, Object> infoResponse = createSuccessResponse(context, "FACTOR_SELECTION_INFO",
+                "Select an authentication factor.");
+        Set<AuthType> availableFactors = context.getAvailableFactors();
+        if (availableFactors != null) {
+            infoResponse.put("availableFactors", availableFactors.stream()
+                    .map(AuthType::name).toList());
+        }
+        responseWriter.writeSuccessResponse(response, infoResponse, HttpServletResponse.SC_OK);
     }
 
     private void handleChallengeInitiation(HttpServletRequest request, HttpServletResponse response,
@@ -436,6 +460,16 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                     authUrlProvider.getPasskeyChallengeUi();
             default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
         };
+    }
+
+    private void cleanupTerminalSession(String sessionId, HttpServletRequest request,
+                                       HttpServletResponse response) {
+        try {
+            stateMachineIntegrator.releaseStateMachine(sessionId);
+            sessionRepository.removeSession(sessionId, request, response);
+        } catch (Exception e) {
+            log.error("Failed to cleanup terminal session: {}", sessionId, e);
+        }
     }
 
     private void scheduleStateMachineCleanup(String sessionId) {

@@ -41,6 +41,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private boolean isErrorRequest(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) return false;
         return matches(request, loginPageUrl) && request.getParameter("error") != null;
     }
 

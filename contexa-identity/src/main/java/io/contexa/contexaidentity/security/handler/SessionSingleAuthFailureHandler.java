@@ -38,7 +38,7 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
             throws IOException {
 
         if (response.isCommitted()) {
-            log.warn("Response already committed for authentication failure");
+            log.error("Response already committed for authentication failure");
             return;
         }
 
@@ -84,6 +84,6 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
     @Override
     protected String getDefaultTargetUrl(HttpServletRequest request) {
         if (defaultTargetUrl != null) return defaultTargetUrl;
-        return authContextProperties.getUrls().getMfa().getSuccess();
+        return authContextProperties.getUrls().getPrimary().getLoginFailure();
     }
 }

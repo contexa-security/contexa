@@ -214,7 +214,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private void handleInvalidContext(HttpServletResponse response, HttpServletRequest request,
                                       String errorCode, String logMessage,
                                       @Nullable Authentication authentication) throws IOException {
-        log.warn("Invalid FactorContext using {} repository: {}. User: {}",
+        log.error("Invalid FactorContext using {} repository: {}. User: {}",
                 sessionRepository.getRepositoryType(), logMessage,
                 (authentication != null ? authentication.getName() : "Unknown"));
 
@@ -224,7 +224,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 stateMachineIntegrator.releaseStateMachine(oldSessionId);
                 sessionRepository.removeSession(oldSessionId, request, response);
             } catch (Exception e) {
-                log.warn("Failed to cleanup invalid session using {} repository: {}",
+                log.error("Failed to cleanup invalid session using {} repository: {}",
                         sessionRepository.getRepositoryType(), oldSessionId, e);
             }
         }
@@ -266,16 +266,14 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         errorResponse.put("username", ctx.getUsername());
         errorResponse.put("timestamp", System.currentTimeMillis());
 
-        if (log.isDebugEnabled()) {
-            errorResponse.put("riskScore", riskScore);
-            errorResponse.put("reason", blockReason);
-        }
+        errorResponse.put("riskScore", riskScore);
+        errorResponse.put("reason", blockReason);
 
         try {
             stateMachineIntegrator.releaseStateMachine(ctx.getMfaSessionId());
             sessionRepository.removeSession(ctx.getMfaSessionId(), request, response);
         } catch (Exception e) {
-            log.warn("Failed to cleanup blocked session: {}", ctx.getMfaSessionId(), e);
+            log.error("Failed to cleanup blocked session: {}", ctx.getMfaSessionId(), e);
         }
 
         responseWriter.writeErrorResponse(
@@ -375,7 +373,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                     .orElse(null);
 
             if (flowConfig == null) {
-                log.warn("MFA FlowConfig not found, stepId will not be set");
+                log.error("MFA FlowConfig not found, stepId will not be set");
                 return;
             }
 
@@ -387,7 +385,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             if (nextStep != null) {
                 context.setCurrentStepId(nextStep.getStepId());
             } else {
-                log.warn("No step config found for factor: {} in session: {}",
+                log.error("No step config found for factor: {} in session: {}",
                         factorType, context.getMfaSessionId());
             }
         } catch (Exception e) {

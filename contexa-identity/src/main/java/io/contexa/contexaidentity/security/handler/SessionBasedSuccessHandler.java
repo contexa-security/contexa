@@ -44,7 +44,7 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
                 requestCache.removeRequest(request, response);
                 return redirectUrl;
             } else {
-                log.warn("Invalid saved redirect URL ignored: {}", redirectUrl);
+                log.error("Invalid saved redirect URL ignored: {}", redirectUrl);
             }
         }
 
@@ -55,6 +55,11 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
 
     protected boolean isValidRedirectUrl(String url) {
         if (url == null || url.isBlank()) {
+            return false;
+        }
+
+        // Reject absolute URLs to prevent open redirect attacks
+        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("//")) {
             return false;
         }
 

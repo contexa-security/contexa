@@ -59,7 +59,7 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
             return requiredFactors;
         }
 
-        log.warn("PolicyProvider returned null/invalid for user: {}, flow: {}. Using default: 1",
+        log.error("PolicyProvider returned null/invalid for user: {}, flow: {}. Using default: 1",
                 userId, flowType);
         return 1;
     }

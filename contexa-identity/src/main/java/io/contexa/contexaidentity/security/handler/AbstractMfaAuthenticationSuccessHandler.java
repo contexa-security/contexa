@@ -79,7 +79,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                           @Nullable FactorContext factorContext) throws IOException {
 
         if (response.isCommitted()) {
-            log.warn("Response already committed for user: {}", finalAuthentication.getName());
+            log.error("Response already committed for user: {}", finalAuthentication.getName());
             return;
         }
 
@@ -208,7 +208,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to get DSL defaultSuccessUrl: {}", e.getMessage());
+            log.error("Failed to get DSL defaultSuccessUrl: {}", e.getMessage());
         }
         return null;
     }
@@ -228,7 +228,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to get DSL alwaysUseDefaultSuccessUrl: {}", e.getMessage());
+            log.error("Failed to get DSL alwaysUseDefaultSuccessUrl: {}", e.getMessage());
         }
         return false;
     }
@@ -237,6 +237,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         if (url == null || url.isBlank()) {
             return false;
         }
+
+        // Reject absolute URLs to prevent open redirect attacks
+        if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("//")) {
+            return false;
+        }
+
         String[] invalidPatterns = {
                 "/.well-known/",
                 "/favicon.ico",

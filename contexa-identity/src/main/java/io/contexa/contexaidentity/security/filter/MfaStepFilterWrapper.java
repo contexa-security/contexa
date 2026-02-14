@@ -69,7 +69,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
 
         ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx, sessionRepository);
         if (validation.hasErrors()) {
-            log.warn("Invalid context for MFA factor processing using {} repository. URI: {}, Errors: {}",
+            log.error("Invalid context for MFA factor processing using {} repository. URI: {}, Errors: {}",
                     sessionRepository.getRepositoryType(), request.getRequestURI(), validation.getErrors());
 
             ensureMinimumDelay(startTime);
@@ -88,10 +88,10 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
 
         if (validation.hasWarnings()) {
-            log.warn("MFA factor processing warnings: {}", validation.getWarnings());
+            log.error("MFA factor processing warnings: {}", validation.getWarnings());
         }
         if (isSessionExpired(ctx)) {
-            log.warn("MFA session expired for session: {}", ctx.getMfaSessionId());
+            log.error("MFA session expired for session: {}", ctx.getMfaSessionId());
             stateMachineIntegrator.sendEvent(MfaEvent.SESSION_TIMEOUT, ctx, request);
             ensureMinimumDelay(startTime);
 
@@ -102,7 +102,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         }
 
         if (isRetryLimitExceeded(ctx)) {
-            log.warn("Retry limit exceeded for session: {}", ctx.getMfaSessionId());
+            log.error("Retry limit exceeded for session: {}", ctx.getMfaSessionId());
             stateMachineIntegrator.sendEvent(MfaEvent.RETRY_LIMIT_EXCEEDED, ctx, request);
             ensureMinimumDelay(startTime);
 

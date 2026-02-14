@@ -149,6 +149,14 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .action(handleFailureAction)
                 .and()
 
+                // Fallback transition: retry limit exceeded -> terminal state
+                .withExternal()
+                .source(MfaState.FACTOR_VERIFICATION_PENDING)
+                .target(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
+                .event(MfaEvent.FACTOR_VERIFICATION_FAILED)
+                .guard(retryLimitGuard.negate())
+                .and()
+
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
@@ -159,7 +167,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .source(MfaState.FACTOR_VERIFICATION_COMPLETED)
                 .target(MfaState.ALL_FACTORS_COMPLETED)
                 .event(MfaEvent.ALL_REQUIRED_FACTORS_COMPLETED)
-
+                .guard(allFactorsCompletedGuard)
                 .and()
 
                 .withExternal()
@@ -297,7 +305,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 MfaEvent mfaEvent = event.getPayload();
                 Object sessionId = event.getHeaders().get("sessionId");
 
-                log.warn("[MFA SM] [{}] Event rejected: {} (headers: {})",
+                log.error("[MFA SM] [{}] Event rejected: {} (headers: {})",
                         sessionId, mfaEvent, event.getHeaders());
             }
 

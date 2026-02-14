@@ -83,6 +83,8 @@ public abstract class BaseAuthenticationFilter extends OncePerRequestFilter {
 
         } catch (IOException e) {
             throw new AuthenticationServiceException("Authentication request body read failed", e);
+        } catch (IllegalArgumentException e) {
+            throw new AuthenticationServiceException(e.getMessage(), e);
         }
     }
 

@@ -56,7 +56,8 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 responseWriter,
                 applicationContext,
                 stateMachineIntegrator,
-                authUrlProvider
+                authUrlProvider,
+                sessionRepository
         );
     }
 
@@ -85,14 +86,14 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         request.setAttribute(VALIDATION_RESULT_ATTR, validation);
 
         if (validation.hasErrors()) {
-            log.warn("Invalid MFA context for request: {} - Errors: {}",
+            log.error("Invalid MFA context for request: {} - Errors: {}",
                     request.getRequestURI(), validation.getErrors());
             handleInvalidContext(request, response, validation);
             return;
         }
 
         if (validation.hasWarnings()) {
-            log.warn("MFA context warnings for request: {} - Warnings: {}",
+            log.error("MFA context warnings for request: {} - Warnings: {}",
                     request.getRequestURI(), validation.getWarnings());
         }
 
@@ -120,7 +121,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 stateMachineIntegrator.releaseStateMachine(oldSessionId);
                 sessionRepository.removeSession(oldSessionId, request, response);
             } catch (Exception e) {
-                log.warn("Failed to cleanup invalid session: {}", oldSessionId, e);
+                log.error("Failed to cleanup invalid session: {}", oldSessionId, e);
             }
         } else if (oldSessionId != null) {
         }

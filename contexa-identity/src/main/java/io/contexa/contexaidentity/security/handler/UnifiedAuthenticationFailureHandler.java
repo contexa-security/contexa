@@ -90,7 +90,19 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
 
         factorContext.recordAttempt(currentProcessingFactor, false, "Verification failed: " + exception.getMessage());
+        factorContext.incrementAttemptCount(currentProcessingFactor);
+        factorContext.setAttribute("retryCount_" + currentProcessingFactor.name(),
+                factorContext.getAttemptCount(currentProcessingFactor));
+
         publishAuthenticationFailureEvent(request, exception, factorContext);
+
+        // Send state machine transition event for factor verification failure
+        try {
+            stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_VERIFICATION_FAILED, factorContext, request);
+        } catch (Exception e) {
+            log.error("Failed to send FACTOR_VERIFICATION_FAILED event for session: {}",
+                    factorContext.getMfaSessionId(), e);
+        }
 
         int attempts = factorContext.getAttemptCount(currentProcessingFactor);
         Map<String, Object> errorDetails = buildMfaFailureErrorDetails(factorContext, currentProcessingFactor, attempts);

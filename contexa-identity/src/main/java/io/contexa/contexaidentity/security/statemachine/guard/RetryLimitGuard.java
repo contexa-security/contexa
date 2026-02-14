@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.statemachine.guard;
 
+import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -9,21 +10,26 @@ import org.springframework.statemachine.StateContext;
 @Slf4j
 public class RetryLimitGuard extends AbstractMfaStateGuard {
 
+    private final MfaSettings mfaSettings;
+
+    public RetryLimitGuard(MfaSettings mfaSettings) {
+        this.mfaSettings = mfaSettings;
+    }
+
     @Override
     protected boolean doEvaluate(StateContext<MfaState, MfaEvent> context,
                                  FactorContext factorContext) {
         String sessionId = factorContext.getMfaSessionId();
         int currentRetryCount = factorContext.getRetryCount();
-        int maxRetries = getMaxRetries();
+        int maxRetries = mfaSettings.getMaxRetryAttempts();
 
         String currentFactor = factorContext.getCurrentProcessingFactor() != null ?
                 factorContext.getCurrentProcessingFactor().name() : null;
         if (currentFactor != null) {
             Integer factorRetryCount = getFactorRetryCount(factorContext, currentFactor);
-            int factorMaxRetries = getFactorMaxRetries(currentFactor);
 
-            if (factorRetryCount >= factorMaxRetries) {
-                log.warn("Factor {} retry limit exceeded for session: {}",
+            if (factorRetryCount >= maxRetries) {
+                log.error("Factor {} retry limit exceeded for session: {}",
                         currentFactor, sessionId);
                 return false;
             }
@@ -32,23 +38,10 @@ public class RetryLimitGuard extends AbstractMfaStateGuard {
         boolean withinLimit = currentRetryCount < maxRetries;
 
         if (!withinLimit) {
-            log.warn("Total retry limit exceeded for session: {}", sessionId);
+            log.error("Total retry limit exceeded for session: {}", sessionId);
         }
 
         return withinLimit;
-    }
-
-    private int getMaxRetries() {
-        return 3;
-    }
-
-    private int getFactorMaxRetries(String factorType) {
-
-        return switch (factorType.toUpperCase()) {
-            case "MFA_OTT", "SMS" -> 5;
-            case "TOTP", "FIDO", "MFA_PASSKEY" -> 3;
-            default -> getMaxRetries();
-        };
     }
 
     private Integer getFactorRetryCount(FactorContext factorContext, String factorType) {

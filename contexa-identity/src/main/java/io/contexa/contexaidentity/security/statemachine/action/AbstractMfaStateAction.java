@@ -55,7 +55,9 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
             log.error("Business exception in action {} for session: {}: {}",
                     this.getClass().getSimpleName(), sessionId, e.getMessage());
 
-            assert factorContext != null;
+            if (factorContext == null) {
+                throw new IllegalStateException("FactorContext became null after initial check");
+            }
             factorContext.setLastError(e.getMessage());
 
             handleBusinessException(context, factorContext, e);
@@ -120,7 +122,8 @@ public abstract class AbstractMfaStateAction implements Action<MfaState, MfaEven
     }
 
     protected String extractSessionId(StateContext<MfaState, MfaEvent> context) {
-        String sessionId = StateContextHelper.getFactorContext(context).getMfaSessionId();
+        FactorContext fc = StateContextHelper.getFactorContext(context);
+        String sessionId = (fc != null) ? fc.getMfaSessionId() : null;
         if (sessionId == null) {
             sessionId = (String) context.getMessageHeader("mfaSessionId");
         }
