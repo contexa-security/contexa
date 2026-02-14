@@ -32,7 +32,7 @@ public class ResourceNamingLab extends AbstractIAMLab<ResourceNamingSuggestionRe
     }
 
     private Mono<ResourceNamingSuggestionResponse> processResourceNamingAsync(ResourceNamingSuggestionRequest request) {
-        return orchestrator.execute(request, createPipelineConfig(), ResourceNamingSuggestionResponse.class)
+        return orchestrator.execute(request, PipelineConfiguration.createPipelineConfig(), ResourceNamingSuggestionResponse.class)
                 .onErrorResume(error -> {
                     log.error("Resource naming pipeline failed", error);
                     return Mono.just(createFallbackResponse(

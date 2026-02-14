@@ -35,7 +35,7 @@ public class ConditionTemplateGenerationLab
     }
 
     private Mono<ConditionTemplateGenerationResponse> processConditionTemplateAsync(ConditionTemplateGenerationRequest request) {
-        return orchestrator.execute(request, createPipelineConfig(), ConditionTemplateGenerationResponse.class)
+        return orchestrator.execute(request, PipelineConfiguration.createPipelineConfig(), ConditionTemplateGenerationResponse.class)
                 .map(response -> {
                     return Objects.requireNonNullElseGet(response, () -> createFailureResponse(request));
                 })

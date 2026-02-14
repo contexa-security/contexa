@@ -20,7 +20,6 @@ public class PipelineConfiguration {
     private final boolean enableCaching;
     private final boolean enableParallelExecution;
     private final boolean enableStreaming;
-    private final Map<String, PipelineStep> customSteps;
 
     public PipelineConfiguration() {
         this.steps = new ArrayList<>();
@@ -29,7 +28,6 @@ public class PipelineConfiguration {
         this.enableCaching = false;
         this.enableParallelExecution = false;
         this.enableStreaming = false;
-        this.customSteps = new ConcurrentHashMap<>();
     }
     
     public PipelineConfiguration(List<PipelineStep> steps,
@@ -45,7 +43,6 @@ public class PipelineConfiguration {
         this.enableCaching = enableCaching;
         this.enableParallelExecution = enableParallelExecution;
         this.enableStreaming = enableStreaming;
-        this.customSteps = customSteps;
     }
 
     public void setName(String name) {
@@ -62,20 +59,6 @@ public class PipelineConfiguration {
 
     public boolean hasStep(PipelineStep step) {
         return steps.contains(step);
-    }
-
-    public void addCustomStep(String stepName, PipelineStep step) {
-        if (stepName != null && step != null) {
-            customSteps.put(stepName, step);
-        }
-    }
-
-    public PipelineStep getCustomStep(String stepName) {
-        return customSteps.get(stepName);
-    }
-
-    public boolean hasCustomStep(String stepName) {
-        return customSteps.containsKey(stepName);
     }
 
     public static Builder builder() {
@@ -127,17 +110,6 @@ public class PipelineConfiguration {
             return this;
         }
 
-        public Builder<T> customSteps(Map<String, PipelineStep> customSteps) {
-            this.customSteps = new HashMap<>(customSteps);
-            return this;
-        }
-
-        public Builder<T> addCustomStep(String stepName, PipelineStep step) {
-            this.customSteps.put(stepName, step);
-            this.steps.add(step);
-            return this;
-        }
-
         public PipelineConfiguration build() {
             return new PipelineConfiguration(steps, parameters, timeoutSeconds, enableCaching,
                     enableParallelExecution, enableStreaming, customSteps);
@@ -152,5 +124,28 @@ public class PipelineConfiguration {
         SOAR_TOOL_EXECUTION, 
         RESPONSE_PARSING,   
         POSTPROCESSING      
+    }
+
+    public static PipelineConfiguration createPipelineConfig() {
+        return PipelineConfiguration.builder()
+                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
+                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
+                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
+                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
+                .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
+                .timeoutSeconds(300)
+                .build();
+    }
+
+    public static  PipelineConfiguration createStreamPipelineConfig() {
+        return PipelineConfiguration.builder()
+                .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
+                .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
+                .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
+                .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                .enableStreaming(true)
+                .timeoutSeconds(300)
+                .build();
     }
 } 

@@ -68,7 +68,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
 
         return Mono.fromCallable(() -> enrichRequest(request, false))
                 .flatMap(enrichedRequest -> {
-                    return orchestrator.execute(enrichedRequest, createPipelineConfig(), StudioQueryResponse.class);
+                    return orchestrator.execute(enrichedRequest, PipelineConfiguration.createPipelineConfig(), StudioQueryResponse.class);
                 })
                 .doOnSuccess(response -> {
                     try {
@@ -92,7 +92,7 @@ public class StudioQueryLab extends AbstractIAMLab<StudioQueryRequest, StudioQue
         return Flux.defer(() -> {
             try {
                 StudioQueryRequest enrichedRequest = enrichRequest(request, true);
-                return orchestrator.executeStream(enrichedRequest, createStreamPipelineConfig())
+                return orchestrator.executeStream(enrichedRequest, PipelineConfiguration.createStreamPipelineConfig())
                         .doOnError(error -> {
                             log.error("[STREAMING] Streaming error: {}", error.getMessage(), error);
                         });

@@ -64,7 +64,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         }
         return Mono.fromCallable(() -> enrichRequest(request, false))
                 .flatMap(enrichedRequest -> {
-                    return orchestrator.execute(enrichedRequest, createPipelineConfig(), PolicyResponse.class);
+                    return orchestrator.execute(enrichedRequest, PipelineConfiguration.createPipelineConfig(), PolicyResponse.class);
                 })
                 .map(response -> {
 
@@ -91,7 +91,7 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
         return Flux.defer(() -> {
             try {
                 PolicyGenerationRequest enrichedRequest = enrichRequest(request, true);
-                return orchestrator.executeStream(enrichedRequest, createStreamPipelineConfig())
+                return orchestrator.executeStream(enrichedRequest, PipelineConfiguration.createStreamPipelineConfig())
                         .map(this::cleanStreamingChunk)
                         .concatWith(Mono.just("[DONE]"))
                         .doOnError(error -> {

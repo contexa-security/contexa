@@ -39,7 +39,7 @@ public class PipelineOrchestrator {
     public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
             AIRequest<T> request,
             Class<R> responseType) {
-        return execute(request, null, responseType);
+        return execute(request, PipelineConfiguration.createPipelineConfig(), responseType);
     }
 
     public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
@@ -58,7 +58,7 @@ public class PipelineOrchestrator {
     }
 
     public <T extends DomainContext> Flux<String> executeStream(AIRequest<T> request) {
-        return executeStream(request, null);
+        return executeStream(request, PipelineConfiguration.createStreamPipelineConfig());
     }
 
     public <T extends DomainContext> Flux<String> executeStream(
@@ -94,7 +94,6 @@ public class PipelineOrchestrator {
 
         return fallbackExecutor.map(Mono::just).orElseGet(() -> Mono.error(new IllegalStateException(
                 "No PipelineExecutor found that supports configuration: " + configuration.getSteps())));
-
     }
 
     private <T extends DomainContext, R extends AIResponse> Mono<R> createFallbackResponse(
@@ -107,7 +106,6 @@ public class PipelineOrchestrator {
 
         try {
             R response;
-
             if (responseType.equals(SoarResponse.class)) {
                 response = (R) createSoarFallbackResponse(error);
             } else {
@@ -125,7 +123,6 @@ public class PipelineOrchestrator {
 
     private SoarResponse createSoarFallbackResponse(Throwable error) {
         SoarResponse soarResponse = new SoarResponse();
-
         soarResponse.withError("Pipeline execution failed: " + error.getMessage())
                 .withMetadata("errorType", error.getClass().getSimpleName())
                 .withMetadata("timestamp", System.currentTimeMillis());
@@ -140,7 +137,6 @@ public class PipelineOrchestrator {
         ));
         soarResponse.setSessionState(SessionState.ERROR);
         soarResponse.setExecutedTools(List.of());
-
         return soarResponse;
     }
 
@@ -149,11 +145,9 @@ public class PipelineOrchestrator {
             Throwable error) throws Exception {
 
         R response = createResponseInstance(responseType);
-
         response.withError("Pipeline execution failed: " + error.getMessage())
                 .withMetadata("errorType", error.getClass().getSimpleName())
                 .withMetadata("timestamp", System.currentTimeMillis());
-
         return response;
     }
 
