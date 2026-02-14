@@ -49,11 +49,9 @@ public final class RestClientAuthenticatedUserTokenResponseClient
     @Nullable
     private Filter oauth2TokenEndpointFilter; 
 
-    @Nullable
-    private HttpServletRequest request;
+    private final ThreadLocal<HttpServletRequest> requestHolder = new ThreadLocal<>();
 
-    @Nullable
-    private HttpServletResponse response;
+    private final ThreadLocal<HttpServletResponse> responseHolder = new ThreadLocal<>();
 
     private RestClient restClient;
 
@@ -80,15 +78,18 @@ public final class RestClientAuthenticatedUserTokenResponseClient
         Assert.notNull(grantRequest, "grantRequest cannot be null");
 
         try {
-            
+
             validateClientAuthenticationMethod(grantRequest);
 
             if (oauth2TokenEndpointFilter == null && filterChainProxyProvider != null) {
                 oauth2TokenEndpointFilter = extractOAuth2TokenEndpointFilter(filterChainProxyProvider.getObject());
             }
 
-            if (oauth2TokenEndpointFilter != null && request != null && response != null) {
-                return getTokenResponseViaFilter(grantRequest);
+            HttpServletRequest currentRequest = requestHolder.get();
+            HttpServletResponse currentResponse = responseHolder.get();
+
+            if (oauth2TokenEndpointFilter != null && currentRequest != null && currentResponse != null) {
+                return getTokenResponseViaFilter(grantRequest, currentRequest, currentResponse);
             }
 
             return getTokenResponseViaRestClient(grantRequest);
@@ -98,23 +99,36 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                     "An error occurred while attempting to retrieve the OAuth 2.0 Access Token Response: " + ex.getMessage(),
                     null);
             throw new OAuth2AuthorizationException(error, ex);
+        } finally {
+            requestHolder.remove();
+            responseHolder.remove();
         }
     }
 
-    private OAuth2AccessTokenResponse getTokenResponseViaFilter(OAuth2AuthenticatedUserGrantRequest grantRequest) throws Exception {
-        
+    private OAuth2AccessTokenResponse getTokenResponseViaFilter(
+            OAuth2AuthenticatedUserGrantRequest grantRequest,
+            HttpServletRequest request,
+            HttpServletResponse response) throws Exception {
+
         SecurityContext originalContext = SecurityContextHolder.getContext();
 
         try {
-            
+
             SecurityContextHolder.clearContext();
 
+            ClientRegistration clientRegistration = grantRequest.getClientRegistration();
             OAuth2TokenRequestWrapper wrappedRequest = new OAuth2TokenRequestWrapper(
                     request,
                     grantRequest.getUsername(),
-                    grantRequest.getDeviceId());
+                    grantRequest.getDeviceId(),
+                    clientRegistration.getClientId(),
+                    clientRegistration.getClientSecret());
 
-            assert clientSecretBasicConverter != null;
+            if (clientSecretBasicConverter == null) {
+                throw new OAuth2AuthorizationException(
+                        new OAuth2Error("server_error",
+                                "ClientSecretBasicConverter is not configured", null));
+            }
             Authentication clientAuthRequest = clientSecretBasicConverter.convert(wrappedRequest);
 
             if (clientAuthRequest == null) {
@@ -123,7 +137,11 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                                 "Client authentication failed - no credentials found", null));
             }
 
-            assert clientSecretAuthenticationProvider != null;
+            if (clientSecretAuthenticationProvider == null) {
+                throw new OAuth2AuthorizationException(
+                        new OAuth2Error("server_error",
+                                "ClientSecretAuthenticationProvider is not configured", null));
+            }
             Authentication clientAuthResult = clientSecretAuthenticationProvider.authenticate(clientAuthRequest);
 
             if (clientAuthResult == null || !clientAuthResult.isAuthenticated()) {
@@ -136,7 +154,11 @@ public final class RestClientAuthenticatedUserTokenResponseClient
             securityContext.setAuthentication(clientAuthResult);
             SecurityContextHolder.setContext(securityContext);
 
-            assert oauth2TokenEndpointFilter != null;
+            if (oauth2TokenEndpointFilter == null) {
+                throw new OAuth2AuthorizationException(
+                        new OAuth2Error("server_error",
+                                "OAuth2TokenEndpointFilter is not configured", null));
+            }
             oauth2TokenEndpointFilter.doFilter(wrappedRequest, response, (req, res) -> {});
 
             Authentication resultAuth = SecurityContextHolder.getContext().getAuthentication();
@@ -300,11 +322,11 @@ public final class RestClientAuthenticatedUserTokenResponseClient
     }
 
     public void setRequest(HttpServletRequest request) {
-        this.request = request;
+        this.requestHolder.set(request);
     }
 
     public void setResponse(HttpServletResponse response) {
-        this.response = response;
+        this.responseHolder.set(response);
     }
 
     private Filter extractOAuth2TokenEndpointFilter(FilterChainProxy filterChainProxy) {

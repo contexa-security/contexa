@@ -199,7 +199,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
         }
 
         if (factorType == null) {
-            log.warn("FactorContext (ID: {}): Attempted to increment attempt count for a null factorType for user {}.",
+            log.error("FactorContext (ID: {}): Attempted to increment attempt count for a null factorType for user {}.",
                     mfaSessionId, this.username);
             return 0;
         }
@@ -279,7 +279,12 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             );
         }
 
-        if (value != null && !(value instanceof Serializable)) {
+        if (value == null) {
+            this.attributes.remove(name);
+            return;
+        }
+
+        if (!(value instanceof Serializable)) {
             throw new IllegalArgumentException(
                     "Attribute must be Serializable for Redis persistence: " +
                             name + " (" + value.getClass().getName() + ")"
@@ -323,7 +328,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
         Object availableFactorsObj = getAttribute("availableFactors");
 
         if (availableFactorsObj == null) {
-            log.warn("[FactorContext] availableFactors attribute is NULL for session: {} - not initialized yet?", mfaSessionId);
+            log.error("[FactorContext] availableFactors attribute is NULL for session: {} - not initialized yet?", mfaSessionId);
             return null;
         }
 
@@ -344,7 +349,8 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     }
 
     public boolean isFactorAvailable(AuthType factorType) {
-        return getAvailableFactors().contains(factorType);
+        Set<AuthType> factors = getAvailableFactors();
+        return factors != null && factors.contains(factorType);
     }
 
     @Override
@@ -427,7 +433,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             return (Boolean) value;
         }
         if (value != null) {
-            log.warn("[FactorContext] Attribute '{}' is not a Boolean: {}", key, value.getClass().getName());
+            log.error("[FactorContext] Attribute '{}' is not a Boolean: {}", key, value.getClass().getName());
         }
         return null;
     }
@@ -443,7 +449,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             }
         }
         if (value != null) {
-            log.warn("[FactorContext] Attribute '{}' is not a Set: {}", key, value.getClass().getName());
+            log.error("[FactorContext] Attribute '{}' is not a Set: {}", key, value.getClass().getName());
         }
         return new HashSet<>();
     }
@@ -459,7 +465,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             }
         }
         if (value != null) {
-            log.warn("[FactorContext] Attribute '{}' is not a List: {}", key, value.getClass().getName());
+            log.error("[FactorContext] Attribute '{}' is not a List: {}", key, value.getClass().getName());
         }
         return new ArrayList<>();
     }
@@ -475,7 +481,7 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             }
         }
         if (value != null) {
-            log.warn("[FactorContext] Attribute '{}' is not a Map: {}", key, value.getClass().getName());
+            log.error("[FactorContext] Attribute '{}' is not a Map: {}", key, value.getClass().getName());
         }
         return new HashMap<>();
     }

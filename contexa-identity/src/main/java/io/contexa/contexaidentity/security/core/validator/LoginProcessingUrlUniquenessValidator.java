@@ -78,6 +78,14 @@ public class LoginProcessingUrlUniquenessValidator implements Validator<List<Aut
             }
         }
 
+        for (Map.Entry<UrlInfo, List<String>> entry : urlUsageMap.entrySet()) {
+            if (entry.getValue().size() > 1) {
+                result.addError(String.format(
+                        "Duplicate login processing URL detected: '%s' is used by: %s",
+                        entry.getKey(), String.join(", ", entry.getValue())));
+            }
+        }
+
         return result;
     }
 }

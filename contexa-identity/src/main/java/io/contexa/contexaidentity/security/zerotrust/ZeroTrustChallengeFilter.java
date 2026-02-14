@@ -137,7 +137,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return false;
         }
 
-        if (!context.getBooleanAttribute("challengeInitiated")) {
+        if (!Boolean.TRUE.equals(context.getBooleanAttribute("challengeInitiated"))) {
             stateMachineIntegrator.cleanupSession(request, response);
             return false;
         }
@@ -147,7 +147,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return false;
         }
 
-        if (context.getBooleanAttribute("challengeRedirected")) {
+        if (Boolean.TRUE.equals(context.getBooleanAttribute("challengeRedirected"))) {
             filterChain.doFilter(request, response);
             return true;
         }
@@ -165,11 +165,11 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         }
 
         FactorContext context = stateMachineIntegrator.loadFactorContext(sessionId);
-        if (context == null || !context.getBooleanAttribute("challengeInitiated")) {
+        if (context == null || !Boolean.TRUE.equals(context.getBooleanAttribute("challengeInitiated"))) {
             return false;
         }
 
-        if (context.getBooleanAttribute("challengeRedirected")) {
+        if (Boolean.TRUE.equals(context.getBooleanAttribute("challengeRedirected"))) {
             filterChain.doFilter(request, response);
             return true;
         }

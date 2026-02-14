@@ -10,16 +10,22 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
 
     private final String username;
     private final String deviceId;
+    private final String clientId;
+    private final String clientSecret;
     private final Map<String, String[]> oauth2Parameters;
 
     public OAuth2TokenRequestWrapper(
             HttpServletRequest request,
             String username,
-            String deviceId) {
+            String deviceId,
+            String clientId,
+            String clientSecret) {
 
         super(request);
         this.username = username;
         this.deviceId = deviceId;
+        this.clientId = clientId;
+        this.clientSecret = clientSecret;
         this.oauth2Parameters = buildOAuth2Parameters();
     }
 
@@ -92,8 +98,7 @@ public class OAuth2TokenRequestWrapper extends HttpServletRequestWrapper {
     @Override
     public String getHeader(String name) {
         if ("Authorization".equalsIgnoreCase(name)) {
-            
-            String credentials = "aidc-client:secret";
+            String credentials = clientId + ":" + clientSecret;
             String base64Credentials = Base64.getEncoder()
                     .encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
             return "Basic " + base64Credentials;

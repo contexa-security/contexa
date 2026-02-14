@@ -33,7 +33,7 @@ public final class SecurityRequestBodyArgumentResolver implements SecurityHandle
                 new ArrayList<>(Objects.requireNonNull(messageConverters, "MessageConverters must not be null for SecurityRequestBodyArgumentResolver"))
         );
         if (this.messageConverters.isEmpty()){
-            log.warn("ASEP: HttpMessageConverter list is empty for SecurityRequestBodyArgumentResolver. Request body processing will likely fail.");
+            log.error("ASEP: HttpMessageConverter list is empty for SecurityRequestBodyArgumentResolver. Request body processing will likely fail.");
         }
     }
 
@@ -76,12 +76,10 @@ public final class SecurityRequestBodyArgumentResolver implements SecurityHandle
                     
                     body = ((HttpMessageConverter<Object>) converter).read((Class<Object>) targetClass, inputMessage);
                     bodyReadSuccessfully = true;
-                    if (log.isDebugEnabled()) {
-                                            }
-                    break; 
+                    break;
                 } catch (IOException | HttpMessageNotReadableException ex) {
                     
-                    log.warn("ASEP: Could not read HTTP request body with HttpMessageConverter [{}]: {}",
+                    log.error("ASEP: Could not read HTTP request body with HttpMessageConverter [{}]: {}",
                             converter.getClass().getSimpleName(), ex.getMessage());
 
                     if (ex instanceof IOException && !(ex instanceof HttpMessageNotReadableException)) {

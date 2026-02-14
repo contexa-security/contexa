@@ -61,7 +61,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
             filterChain.doFilter(request, response);
         } catch (Throwable ex) {
             if (response.isCommitted()) {
-                log.warn("ASEP: Response already committed. Unable to handle exception [{}] on path [{}].",
+                log.error("ASEP: Response already committed. Unable to handle exception [{}] on path [{}].",
                         ex.getClass().getSimpleName(), request.getRequestURI(), ex);
 
                 if (ex instanceof IOException) throw (IOException) ex;
@@ -101,7 +101,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                 
                 handleCentralizedDefaultErrorResponse(request, response, handlerInvocationException, authentication, true);
             } else {
-                log.warn("ASEP: Response already committed. Unable to send final default error for handlerInvocationException: {}",
+                log.error("ASEP: Response already committed. Unable to send final default error for handlerInvocationException: {}",
                         handlerInvocationException.getMessage());
             }
         }
@@ -118,7 +118,6 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR; 
         String errorCode = "INTERNAL_SERVER_ERROR";
         String baseMessage = isHandlerError ? "Error occurred in ASEP exception handler" : "An unexpected error occurred";
-        String detailMessage = exception.getMessage();
 
         if (exception instanceof AuthenticationException) {
             status = HttpStatus.UNAUTHORIZED;
@@ -134,7 +133,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         if (!response.isCommitted()) {
             response.setStatus(status.value());
         } else {
-            log.warn("ASEP: Response already committed (status {}). Cannot set new status {} for default error response.",
+            log.error("ASEP: Response already committed (status {}). Cannot set new status {} for default error response.",
                     response.getStatus(), status.value());
             return; 
         }
@@ -143,9 +142,8 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         errorAttributes.put("timestamp", System.currentTimeMillis());
         errorAttributes.put("status", status.value());
         errorAttributes.put("error", errorCode);
-        errorAttributes.put("message", baseMessage + (detailMessage != null && !detailMessage.isBlank() ? ": " + detailMessage : ""));
+        errorAttributes.put("message", baseMessage);
         errorAttributes.put("path", request.getRequestURI());
-        errorAttributes.put("exception", exception.getClass().getName()); 
 
         MediaType bestMatchingMediaType = determineBestMediaTypeForDefaultResponse(request);
         response.setContentType(bestMatchingMediaType.toString());
@@ -168,7 +166,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
         }
 
         if (!written) {
-            log.warn("ASEP: No suitable HttpMessageConverter found or response committed before writing. " +
+            log.error("ASEP: No suitable HttpMessageConverter found or response committed before writing. " +
                             "Sending plain text default error for [{}]. Target MediaType: {}",
                     exception.getClass().getSimpleName(), bestMatchingMediaType);
             if (!response.isCommitted()) {
@@ -176,9 +174,8 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                 try (PrintWriter writer = response.getWriter()) {
                     writer.println("Status: " + status.value());
                     writer.println("Error: " + errorCode);
-                    writer.println("Message: " + baseMessage + (detailMessage != null && !detailMessage.isBlank() ? ": " + detailMessage : ""));
+                    writer.println("Message: " + baseMessage);
                     writer.println("Path: " + request.getRequestURI());
-                    writer.println("Exception: " + exception.getClass().getName());
                 } catch (IOException ex) {
                     log.error("ASEP: Failed to write plain text error response.", ex);
                 }
@@ -198,7 +195,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                     acceptedMediaTypes = parsedAccepted;
                 }
             } catch (Exception e) {
-                log.warn("ASEP: Could not parse Accept header [{}]. Using default [{}].", acceptHeader, acceptedMediaTypes, e);
+                log.error("ASEP: Could not parse Accept header [{}]. Using default [{}].", acceptHeader, acceptedMediaTypes, e);
             }
         }
 
@@ -243,7 +240,7 @@ public final class ASEPFilter extends OncePerRequestFilter implements Ordered {
                     acceptedMediaTypes = parsedAccepted;
                 }
             } catch (Exception e) {
-                log.warn("ASEP: Could not parse Accept header [{}] for default response. Using default [{}].",
+                log.error("ASEP: Could not parse Accept header [{}] for default response. Using default [{}].",
                         acceptHeader, acceptedMediaTypes.get(0), e);
             }
         }

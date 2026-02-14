@@ -60,7 +60,9 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 getAuthenticatedClientElseThrowInvalidClient(authenticationToken);
         RegisteredClient registeredClient = clientPrincipal.getRegisteredClient();
 
-        assert registeredClient != null;
+        if (registeredClient == null) {
+            throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
+        }
         if (!registeredClient.getAuthorizationGrantTypes().contains(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)) {
             throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
         }

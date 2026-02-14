@@ -1,10 +1,13 @@
 package io.contexa.contexaidentity.security.core.validator;
 
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
+
+import java.util.Set;
 
 @Slf4j
 public class MfaContextValidator {
@@ -72,7 +75,8 @@ public class MfaContextValidator {
             result.addError("Invalid state for factor selection: " + currentState);
         }
 
-        if (ctx.getAvailableFactors().isEmpty()) {
+        Set<AuthType> availableFactors = ctx.getAvailableFactors();
+        if (availableFactors == null || availableFactors.isEmpty()) {
             result.addWarning("No available MFA factors found");
         }
 

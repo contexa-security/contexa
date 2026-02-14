@@ -68,19 +68,21 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 try {
                     transactionTemplate = appContext.getBean(TransactionTemplate.class);
                 } catch (Exception e) {
-                    log.warn("OAuth2StateConfigurer: TransactionTemplate not found - AuthenticatedUserGrantAuthenticationProvider may fail with auto-commit:false");
+                    log.error("OAuth2StateConfigurer: TransactionTemplate not found - authenticated-user grant type will not be available");
                 }
             }
-            TransactionTemplate finalTransactionTemplate = transactionTemplate;
-            authzServer.tokenEndpoint(tokenEndpoint ->
-                    tokenEndpoint
-                            .accessTokenRequestConverter(new AuthenticatedUserGrantAuthenticationConverter())
-                            .authenticationProvider(new AuthenticatedUserGrantAuthenticationProvider(
-                                    authorizationService,
-                                    oAuth2TokenGenerator,
-                                    userRepository,
-                                    finalTransactionTemplate))
-            );
+            if (transactionTemplate != null) {
+                TransactionTemplate finalTransactionTemplate = transactionTemplate;
+                authzServer.tokenEndpoint(tokenEndpoint ->
+                        tokenEndpoint
+                                .accessTokenRequestConverter(new AuthenticatedUserGrantAuthenticationConverter())
+                                .authenticationProvider(new AuthenticatedUserGrantAuthenticationProvider(
+                                        authorizationService,
+                                        oAuth2TokenGenerator,
+                                        userRepository,
+                                        finalTransactionTemplate))
+                );
+            }
 
             authzServer.tokenEndpoint(tokenEndpoint -> {
 
@@ -90,14 +92,14 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                         AuthenticationSuccessHandler successHandler = appContext.getBean("oauth2TokenSuccessHandler", AuthenticationSuccessHandler.class);
                         tokenEndpoint.accessTokenResponseHandler(successHandler);
                     } catch (Exception e) {
-                        log.warn("OAuth2StateConfigurer: Failed to register OAuth2TokenSuccessHandler: {}", e.getMessage());
+                        log.error("OAuth2StateConfigurer: Failed to register OAuth2TokenSuccessHandler: {}", e.getMessage());
                     }
 
                     try {
                         AuthenticationFailureHandler failureHandler = appContext.getBean("oauth2TokenFailureHandler", AuthenticationFailureHandler.class);
                         tokenEndpoint.errorResponseHandler(failureHandler);
                     } catch (Exception e) {
-                        log.warn("OAuth2StateConfigurer: Failed to register OAuth2TokenFailureHandler: {}", e.getMessage());
+                        log.error("OAuth2StateConfigurer: Failed to register OAuth2TokenFailureHandler: {}", e.getMessage());
                     }
                 }
             });

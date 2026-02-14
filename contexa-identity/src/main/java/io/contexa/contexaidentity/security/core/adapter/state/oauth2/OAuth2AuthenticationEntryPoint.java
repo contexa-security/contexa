@@ -32,7 +32,6 @@ public class OAuth2AuthenticationEntryPoint implements AuthenticationEntryPoint 
         errorResponse.put("error", "Unauthorized");
         errorResponse.put("message", "OAuth2 authentication required");
         errorResponse.put("path", request.getRequestURI());
-        errorResponse.put("details", authException.getMessage());
 
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }

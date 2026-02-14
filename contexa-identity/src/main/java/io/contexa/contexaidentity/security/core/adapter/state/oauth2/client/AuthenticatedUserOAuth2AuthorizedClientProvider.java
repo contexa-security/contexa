@@ -60,9 +60,6 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
         String username = authentication.getName();
         String deviceId = context.getAttribute("device_id");
 
-        if (log.isDebugEnabled()) {
-                    }
-
         HttpServletRequest request = context.getAttribute(HttpServletRequest.class.getName());
         HttpServletResponse response = context.getAttribute(HttpServletResponse.class.getName());
 
@@ -70,10 +67,10 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
                 new OAuth2AuthenticatedUserGrantRequest(clientRegistration, username, deviceId);
 
         if (this.accessTokenResponseClient instanceof RestClientAuthenticatedUserTokenResponseClient client) {
-                        client.setRequest(request);
+            client.setRequest(request);
             client.setResponse(response);
         } else {
-            log.warn("accessTokenResponseClient is not an instance of RestClientAuthenticatedUserTokenResponseClient: {}",
+            log.error("accessTokenResponseClient is not an instance of RestClientAuthenticatedUserTokenResponseClient: {}",
                     this.accessTokenResponseClient.getClass().getName());
         }
 
@@ -84,9 +81,6 @@ public class AuthenticatedUserOAuth2AuthorizedClientProvider implements OAuth2Au
             log.error("Failed to obtain access token for user '{}'", username, ex);
             throw ex;
         }
-
-        if (log.isDebugEnabled()) {
-                    }
 
         return new OAuth2AuthorizedClient(
                 clientRegistration,

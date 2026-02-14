@@ -33,13 +33,17 @@ public final class RedirectReturnValueHandler implements SecurityHandlerMethodRe
 
         String url = returnValue.toString();
         if (!url.startsWith(REDIRECT_URL_PREFIX)) {
-
+            if (!response.isCommitted()) {
+                response.setContentType("text/plain;charset=UTF-8");
+                response.getWriter().write(url);
+                response.getWriter().flush();
+            }
             return;
         }
 
         String redirectUrl = url.substring(REDIRECT_URL_PREFIX.length());
         if (response.isCommitted()) {
-            log.warn("ASEP: Response already committed. Ignoring redirect to [{}] for method [{}].",
+            log.error("ASEP: Response already committed. Ignoring redirect to [{}] for method [{}].",
                     redirectUrl, handlerMethod.getMethod().getName());
             return;
         }
@@ -55,8 +59,6 @@ public final class RedirectReturnValueHandler implements SecurityHandlerMethodRe
             return;
         }
 
-        if (log.isDebugEnabled()) {
-                    }
         response.sendRedirect(encodedRedirectUrl);
     }
 }

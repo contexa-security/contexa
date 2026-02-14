@@ -32,7 +32,6 @@ public class OAuth2AccessDeniedHandler implements AccessDeniedHandler {
         errorResponse.put("error", "Forbidden");
         errorResponse.put("message", "Insufficient permissions");
         errorResponse.put("path", request.getRequestURI());
-        errorResponse.put("details", accessDeniedException.getMessage());
 
         response.getWriter().write(objectMapper.writeValueAsString(errorResponse));
     }

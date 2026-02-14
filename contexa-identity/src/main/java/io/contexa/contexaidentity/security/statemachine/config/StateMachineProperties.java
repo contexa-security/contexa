@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
 @Data
-@ConfigurationProperties(prefix = "security.statemachine")
+@ConfigurationProperties(prefix = "contexa.identity.statemachine")
 public class StateMachineProperties {
 
     private boolean enabled = true;

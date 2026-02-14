@@ -39,6 +39,8 @@ public class OAuth2TokenSuccessHandler implements AuthenticationSuccessHandler {
         SecurityContext context = SecurityContextHolder.getContext();
         context.setAuthentication(accessTokenAuthentication);
 
+        OAuth2AccessTokenResponse tokenResponse = buildTokenResponse(accessTokenAuthentication);
+        sendTokenResponse(response, tokenResponse);
     }
 
     private OAuth2AccessTokenResponse buildTokenResponse(OAuth2AccessTokenAuthenticationToken authentication) {
