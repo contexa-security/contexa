@@ -26,14 +26,12 @@ public class SecurityMonitoringService {
     }
 
     private final KafkaSecurityEventCollector kafkaCollector;
-    private final ScheduledExecutorService scheduler;
     private final AtomicLong eventCounter;
 
     private volatile SecurityEventBatchProcessor batchProcessor;
 
     public SecurityMonitoringService(KafkaSecurityEventCollector kafkaCollector) {
         this.kafkaCollector = kafkaCollector;
-        this.scheduler = Executors.newScheduledThreadPool(2);
         this.eventCounter = new AtomicLong(0);
     }
 
@@ -44,20 +42,6 @@ public class SecurityMonitoringService {
     @PostConstruct
     public void initialize() {
         kafkaCollector.registerListener(new DefaultBatchEventListener());
-    }
-
-    @PreDestroy
-    public void shutdown() {
-        scheduler.shutdown();
-
-        try {
-            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
-                scheduler.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            scheduler.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
     }
 
     private SecurityEvent preprocessEvent(SecurityEvent event) {

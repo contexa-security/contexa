@@ -27,8 +27,8 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
                     validateResult(result, sessionId);
                 })
                 .onErrorResume(error -> {
-                    log.error("ASYNC strategy execution failed for session: {}, falling back to AI Pipeline", sessionId, error);
-                    throw new AIOperationException("Pipeline returned unexpected response type for session: " + sessionId);
+                    log.error("ASYNC strategy execution failed for session: {}", sessionId, error);
+                    return Mono.error(new AIOperationException("Pipeline returned unexpected response type for session: " + sessionId));
                 });
     }
 

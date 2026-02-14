@@ -8,7 +8,7 @@ import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
-public abstract class AbstractIAMLab<Req,Res> extends AbstractAILab<Req, Res> implements IAMLab<Req,Res> {
+public abstract class AbstractIAMLab<Req, Res> extends AbstractAILab<Req, Res> implements IAMLab<Req, Res> {
 
     private final String labVersion;
     private final LabSpecialization specialization;
@@ -32,9 +32,6 @@ public abstract class AbstractIAMLab<Req,Res> extends AbstractAILab<Req, Res> im
     @Override
     protected void postProcess(Req request, Res result) {
         super.postProcess(request, result);
-
-        if (result != null) {
-                    }
     }
 
     protected PipelineConfiguration createPipelineConfig() {

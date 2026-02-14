@@ -47,21 +47,7 @@ public class AIStrategyRegistry {
 
     public <R extends AIResponse, T extends DomainContext> R executeStrategy(AIRequest<T> request, Class<R> responseType)
             throws DiagnosisException {
-
-        if (request.getDiagnosisType() == null) {
-            throw new DiagnosisException("NULL", "MISSING_DIAGNOSIS_TYPE", "Diagnosis type is not set in the request");
-        }
-        AIStrategy<T, R> strategy = getStrategy(request.getDiagnosisType());
-
-        try {
-            return strategy.executeAsync(request, responseType)
-                    .doOnError(error -> log.error("Async strategy execution failed: {}", strategy.getClass().getSimpleName(), error))
-                    .block(Duration.ofMinutes(5));
-        } catch (Exception e) {
-            log.error("Exception occurred during strategy execution: {}", strategy.getClass().getSimpleName(), e);
-            throw new DiagnosisException(request.getDiagnosisType().name(),
-                    "STRATEGY_EXECUTION_ERROR", "Error occurred during strategy execution: " + e.getMessage());
-        }
+        return executeStrategyAsync(request, responseType).block(Duration.ofSeconds(5));
     }
 
     public <R extends AIResponse, T extends DomainContext> Mono<R> executeStrategyAsync(AIRequest<T> request, Class<R> responseType)

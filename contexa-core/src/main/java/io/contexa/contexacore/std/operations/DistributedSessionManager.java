@@ -21,6 +21,10 @@ public class DistributedSessionManager<T extends DomainContext> {
         this.auditLogger = auditLogger;
     }
 
+    public String startAudit(AIRequest<T> request) {
+        return auditLogger.startAudit(request);
+    }
+
     public String createDistributedStrategySession(AIRequest<T> request, String strategyId) {
         try {
             String sessionId = UUID.randomUUID().toString();
@@ -62,7 +66,6 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
 
     private void updateSessionState(String sessionId, String phase, Map<String, Object> phaseData) {
-        log.debug("Session state updated - sessionId: {}, phase: {}", sessionId, phase);
     }
     
     private Map<String, Object> prepareStrategyContext(AIRequest<T> request, String strategyId) {
@@ -79,12 +82,8 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
 
     private void publishSessionCreationEvent(String sessionId, String strategyId, AIRequest<T> request) {
-        log.debug("Session created - sessionId: {}, strategyId: {}, requestType: {}",
-                sessionId, strategyId, request.getClass().getSimpleName());
     }
 
     private void publishExecutionCompletionEvent(String sessionId, AIRequest<T> request, boolean success) {
-        log.debug("Execution completed - sessionId: {}, requestType: {}, success: {}",
-                sessionId, request.getClass().getSimpleName(), success);
     }
 } 

@@ -59,7 +59,7 @@ public class KafkaSecurityEventPublisher implements SecurityEventPublisher {
                     .build();
 
             kafkaTemplate.send(securityKafkaProperties.getTopic().getDlq(), dlqEvent);
-            log.warn("Event sent to Dead Letter Queue: {}", event);
+            log.error("Event sent to Dead Letter Queue: {}", event);
         } catch (Exception e) {
             log.error("Failed to send event to Dead Letter Queue", e);
         }

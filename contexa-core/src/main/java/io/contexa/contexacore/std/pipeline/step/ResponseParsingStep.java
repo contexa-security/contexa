@@ -36,7 +36,7 @@ public class ResponseParsingStep implements PipelineStep {
                 return soarResponse;
             }
 
-            Boolean structuredComplete = context.getMetadata("structuredOutputComplete", Boolean.class);
+            boolean structuredComplete = context.getMetadata("structuredOutputComplete", Boolean.class);
             if (structuredComplete) {
                 Object structuredResponse = context.getStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, Object.class);
                 context.addStepResult(PipelineConfiguration.PipelineStep.RESPONSE_PARSING, structuredResponse);

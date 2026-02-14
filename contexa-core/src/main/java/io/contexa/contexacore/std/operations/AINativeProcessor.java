@@ -53,13 +53,13 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                 .flatMap(id -> {
                     try {
                         String sessionId = sessionManager.createDistributedStrategySession(request, id);
-                        String auditId = generateAuditId(request, id);
+                        String auditId = sessionManager.startAudit(request);
                         return distributedStrategyExecutor.executeDistributedStrategyAsync(request, responseType, sessionId)
                                 .doOnSuccess(result -> {
                                     sessionManager.completeDistributedExecution(sessionId, auditId, request, result, true);
                                 })
                                 .doOnError(error -> {
-                                    handleStrategicFailure(id, request, (Exception) error);
+                                    handleStrategicFailure(id, request, error);
                                 })
                                 .doFinally(signalType -> {
                                     releaseStrategicLock(lockKey, id);
@@ -89,14 +89,14 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     }
 
                     String sessionId = sessionManager.createDistributedStrategySession(request, strategyId);
-                    String auditId = generateAuditId(request, strategyId);
+                    String auditId = sessionManager.startAudit(request);
 
                     return distributedStrategyExecutor.executeDistributedStrategyStream(
                             request, (Class<R>) AIResponse.class, sessionId, auditId
                     ).doOnComplete(() -> {
                         sessionManager.completeDistributedExecution(sessionId, auditId, request, null, true);
                     }).doOnError(error -> {
-                        handleStrategicFailure(strategyId, request, (Exception) error);
+                        handleStrategicFailure(strategyId, request, error);
                     }).doFinally(signalType -> {
                         releaseStrategicLock(lockKey, strategyId);
                     });
@@ -128,7 +128,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         }
     }
 
-    private void handleStrategicFailure(String strategyId, AIRequest<T> request, Exception error) {
+    private void handleStrategicFailure(String strategyId, AIRequest<T> request, Throwable error) {
         log.error("Strategic operation failed: {} - {}", strategyId, error.getMessage(), error);
     }
 
@@ -137,10 +137,6 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                 request.getClass().getSimpleName(),
                 responseType.getSimpleName(),
                 UUID.randomUUID().toString().substring(0, 8));
-    }
-
-    private String generateAuditId(AIRequest<T> request, String strategyId) {
-        return String.format("audit-%s-%s", strategyId, System.currentTimeMillis());
     }
 
     private String getNodeId() {

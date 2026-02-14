@@ -142,7 +142,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
             String token = authorization.substring(7).trim();
 
             if (isJwtToken(token)) {
-                return extractSessionIdFromJwt(token);
+                return null;
             }
 
             return token;
@@ -166,27 +166,6 @@ public class RedisSessionIdResolver implements SessionIdResolver {
 
     private boolean isJwtToken(String token) {
         return token != null && token.split("\\.").length == 3;
-    }
-
-    private String extractSessionIdFromJwt(String jwt) {
-        try {
-            String[] parts = jwt.split("\\.");
-            if (parts.length != 3) {
-                return null;
-            }
-
-            String payload = new String(Base64.getUrlDecoder().decode(parts[1]));
-
-            if (payload.contains("\"sessionId\":\"")) {
-                int start = payload.indexOf("\"sessionId\":\"") + 13;
-                int end = payload.indexOf("\"", start);
-                if (end > start) {
-                    return payload.substring(start, end);
-                }
-            }
-        } catch (Exception e) {
-        }
-        return null;
     }
 
     private boolean isBase64Encoded(String value) {

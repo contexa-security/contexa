@@ -62,8 +62,8 @@ public class LLMExecutionStep implements PipelineStep {
                 .cast(Object.class)
                 .doOnError(error -> logError(request.getRequestId(), error, stepStartTime))
                 .onErrorResume(error -> {
-                    log.error("[PIPELINE-STEP] LLM execution failed. Falling back to empty string. Request: {}", request.getRequestId());
-                    return Mono.just("");
+                    log.error("[PIPELINE-STEP] LLM execution failed. Request: {}", request.getRequestId());
+                    return Mono.error(error);
                 });
     }
 
@@ -94,7 +94,7 @@ public class LLMExecutionStep implements PipelineStep {
             return promptResult.getPrompt();
         }).onErrorResume(IllegalStateException.class, e -> {
             log.error("[PIPELINE-STEP] {}", e.getMessage());
-            return Mono.empty();
+            return Mono.error(e);
         });
     }
 

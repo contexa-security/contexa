@@ -15,6 +15,8 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
+
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,15 +28,18 @@ public class KafkaSecurityEventCollector {
 
     private final ObjectMapper objectMapper;
     private final KafkaTemplate<String, String> kafkaTemplate;
+    private final SecurityKafkaProperties securityKafkaProperties;
     private final List<SecurityEventListener> listeners;
     private final Map<String, SecurityEvent> eventCache;
     private final AtomicLong eventCount;
     private final AtomicLong errorCount;
     private volatile boolean running;
 
-    public KafkaSecurityEventCollector(ObjectMapper objectMapper, KafkaTemplate<String, String> kafkaTemplate) {
+    public KafkaSecurityEventCollector(ObjectMapper objectMapper, KafkaTemplate<String, String> kafkaTemplate,
+                                       SecurityKafkaProperties securityKafkaProperties) {
         this.objectMapper = objectMapper;
         this.kafkaTemplate = kafkaTemplate;
+        this.securityKafkaProperties = securityKafkaProperties;
         this.listeners = new CopyOnWriteArrayList<>();
         this.eventCache = new ConcurrentHashMap<>();
         this.eventCount = new AtomicLong(0);
@@ -52,7 +57,7 @@ public class KafkaSecurityEventCollector {
     }
 
     @KafkaListener(
-        topicPattern = "security\\.events\\.(authorization|authentication)\\..*",
+        topicPattern = "security\\.events\\..*",
         groupId = "${security.plane.kafka.group-id:security-plane-consumer}",
         containerFactory = "kafkaListenerContainerFactory"
     )
@@ -87,11 +92,13 @@ public class KafkaSecurityEventCollector {
 
             try {
                 sendToDeadLetterQueue(message, topic, partition, offset, e);
-                if (acknowledgment != null) {
-                    acknowledgment.acknowledge();
-                }
             } catch (Exception dlqError) {
-                log.error("[KafkaCollector] Failed to send to DLQ - offset: {}", offset, dlqError);
+                log.error("[KafkaCollector] Failed to send to DLQ, message will be redelivered - offset: {}", offset, dlqError);
+                return;
+            }
+
+            if (acknowledgment != null) {
+                acknowledgment.acknowledge();
             }
         }
     }
@@ -229,7 +236,7 @@ public class KafkaSecurityEventCollector {
             dlqMessage.put("timestamp", System.currentTimeMillis());
             dlqMessage.put("stackTrace", getStackTraceAsString(exception));
 
-            String dlqTopic = topic + "-dlq";
+            String dlqTopic = securityKafkaProperties.getTopic().getDlq();
             String dlqJson = objectMapper.writeValueAsString(dlqMessage);
 
             kafkaTemplate.send(dlqTopic, dlqJson).get();

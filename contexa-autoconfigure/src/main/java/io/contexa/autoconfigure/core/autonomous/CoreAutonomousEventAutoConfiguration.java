@@ -9,16 +9,14 @@ import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.properties.BackpressureProperties;
+
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
-import io.contexa.contexacore.properties.SecurityRedisProperties;
+
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.autonomous.event.backpressure.BackpressureManager;
+
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
-import io.contexa.contexacore.autonomous.event.monitoring.DeadLetterQueueMonitor;
-import io.contexa.contexacore.autonomous.event.monitoring.RedisMemoryMonitor;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.handler.handler.ProcessingExecutionHandler;
@@ -31,8 +29,8 @@ import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrateg
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
-import io.micrometer.core.instrument.MeterRegistry;
+
+
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -40,22 +38,23 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
+
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class, BackpressureProperties.class })
+@EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class })
 public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
     public KafkaSecurityEventCollector kafkaSecurityEventCollector(
             ObjectMapper objectMapper,
-            KafkaTemplate<String, String> kafkaTemplate) {
-        return new KafkaSecurityEventCollector(objectMapper, kafkaTemplate);
+            KafkaTemplate<String, String> kafkaTemplate,
+            SecurityKafkaProperties securityKafkaProperties) {
+        return new KafkaSecurityEventCollector(objectMapper, kafkaTemplate, securityKafkaProperties);
     }
 
     @Bean
@@ -85,33 +84,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DeadLetterQueueMonitor deadLetterQueueMonitor(
-            KafkaTemplate<String, Object> kafkaTemplate,
-            MeterRegistry meterRegistry,
-            SecurityKafkaProperties securityKafkaProperties) {
-        return new DeadLetterQueueMonitor(kafkaTemplate, meterRegistry, securityKafkaProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public RedisMemoryMonitor redisMemoryMonitor(
-            RedisTemplate<String, Object> redisTemplate,
-            MeterRegistry meterRegistry,
-            SecurityRedisProperties securityRedisProperties) {
-        return new RedisMemoryMonitor(redisTemplate, meterRegistry, securityRedisProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public BackpressureManager backpressureManager(
-            MeterRegistry meterRegistry,
-            CircuitBreakerRegistry circuitBreakerRegistry,
-            BackpressureProperties backpressureProperties) {
-        return new BackpressureManager(meterRegistry, circuitBreakerRegistry, backpressureProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ProcessingExecutionHandler processingExecutionHandler(
             List<ProcessingStrategy> processingStrategies) {
         return new ProcessingExecutionHandler(processingStrategies);
@@ -121,6 +93,20 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
         return new ColdPathStrategy(coldPathEventProcessor);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public LlmAnalysisEventListener llmAnalysisEventListener() {
+        return new LlmAnalysisEventListener() {
+            @Override public void onContextCollected(String userId, String requestPath, String analysisRequirement) {}
+            @Override public void onLayer1Start(String userId, String requestPath) {}
+            @Override public void onLayer1Complete(String userId, String action, Double riskScore, Double confidence, String reasoning, String mitre, Long elapsedMs) {}
+            @Override public void onLayer2Start(String userId, String requestPath, String reason) {}
+            @Override public void onLayer2Complete(String userId, String action, Double riskScore, Double confidence, String reasoning, String mitre, Long elapsedMs) {}
+            @Override public void onDecisionApplied(String userId, String action, String layer, String requestPath) {}
+            @Override public void onError(String userId, String message) {}
+        };
     }
 
     @Bean

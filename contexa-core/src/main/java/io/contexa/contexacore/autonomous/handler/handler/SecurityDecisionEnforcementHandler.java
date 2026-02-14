@@ -51,6 +51,8 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             enforceDecision(userId, event, result);
         } catch (Exception e) {
             log.error("[SecurityDecisionEnforcementHandler] Error enforcing decision: eventId={}", event.getEventId(), e);
+            context.markAsFailed("Security decision enforcement failed: " + e.getMessage());
+            return false;
         }
 
         if (ZeroTrustAction.fromString(result.getAction()) == ZeroTrustAction.ALLOW) {

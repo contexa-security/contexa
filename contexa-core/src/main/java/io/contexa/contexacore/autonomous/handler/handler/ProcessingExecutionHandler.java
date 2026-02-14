@@ -52,7 +52,7 @@ public class ProcessingExecutionHandler implements SecurityEventHandler {
             strategies.stream()
                 .filter(s -> s.supports(m))
                 .findFirst()
-                .orElse(null)
+                .orElseThrow(() -> new IllegalStateException("No processing strategy found for mode: " + m))
         );
     }
 

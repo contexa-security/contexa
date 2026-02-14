@@ -54,6 +54,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
                     processedEvents.incrementAndGet();
                 } catch (Exception e) {
                     log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
+                    if (auditLogger != null) {
+                        Map<String, Object> errorContext = Map.of(
+                                "eventId", event.getEventId(),
+                                "userId", event.getUserId() != null ? event.getUserId() : "unknown",
+                                "phase", "async_batch_processing"
+                        );
+                        auditLogger.auditError("SecurityPlaneAgent", "processBatch", e, errorContext);
+                    }
                 }
             });
         }
@@ -93,13 +101,12 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         long startTime = System.currentTimeMillis();
 
         try {
-            if (isEventAlreadyProcessed(event.getEventId())) {
+            if (!tryMarkEventAsProcessed(event.getEventId())) {
                 log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate",
                         event.getEventId());
                 return;
             }
             securityEventProcessor.process(event);
-            markEventAsProcessed(event.getEventId());
 
         } catch (Exception e) {
             log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
@@ -117,22 +124,14 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    private boolean isEventAlreadyProcessed(String eventId) {
+    private boolean tryMarkEventAsProcessed(String eventId) {
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
-            return redisTemplate.hasKey(processingKey);
+            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(processingKey, "1", Duration.ofHours(24));
+            return Boolean.TRUE.equals(acquired);
         } catch (Exception e) {
-            log.error("[SecurityPlaneAgent] Failed to check event processing status: {}", eventId, e);
+            log.error("[SecurityPlaneAgent] Failed to acquire event processing lock: {}", eventId, e);
             return false;
-        }
-    }
-
-    private void markEventAsProcessed(String eventId) {
-        try {
-            String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
-            redisTemplate.opsForValue().set(processingKey, "1", Duration.ofHours(24));
-        } catch (Exception e) {
-            log.error("[SecurityPlaneAgent] Failed to mark event as processed: {}", eventId, e);
         }
     }
 

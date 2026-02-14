@@ -58,6 +58,7 @@ public class ZeroTrustSecurityService {
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to apply Zero Trust to context for user: {}", userId, e);
+            throw e;
         }
     }
 

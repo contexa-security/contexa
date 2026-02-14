@@ -208,7 +208,21 @@ public class BehaviorETLPipeline {
         return metadata;
     }
 
+    private void validateQuery(String query) {
+        if (query == null || query.isBlank()) {
+            throw new ETLPipelineException("Query cannot be null or empty", null);
+        }
+        String normalized = query.trim().toUpperCase();
+        if (!normalized.startsWith("SELECT")) {
+            throw new ETLPipelineException("Only SELECT queries are allowed for ETL extraction", null);
+        }
+        if (query.contains(";")) {
+            throw new ETLPipelineException("Multiple statements are not allowed in ETL query", null);
+        }
+    }
+
     private List<Document> extractFromDatabase(String query) {
+        validateQuery(query);
         List<Document> documents = new ArrayList<>();
 
         List<Map<String, Object>> rows = jdbcTemplate.queryForList(query);

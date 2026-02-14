@@ -35,7 +35,7 @@ public class AuditLogger {
         
         activeAudits.put(auditId, entry);
         
-        auditLog.info("AUDIT_START: {} - Operation: {} - Context: {} - User: {} - Client: {}", 
+        auditLog.error("AUDIT_START: {} - Operation: {} - Context: {} - User: {} - Client: {}",
                      auditId, entry.operationType, entry.contextType, entry.userId, entry.clientInfo);
         
         return auditId;
@@ -46,10 +46,10 @@ public class AuditLogger {
         
         AuditEntry entry = activeAudits.remove(auditId);
         if (entry == null) {
-            log.warn("Audit entry not found for ID: {}", auditId);
+            log.error("Audit entry not found for ID: {}", auditId);
             return;
         }
-        
+
         entry.endTime = LocalDateTime.now();
         entry.duration = java.time.Duration.between(entry.startTime, entry.endTime).toMillis();
         entry.status = "SUCCESS";
@@ -61,10 +61,10 @@ public class AuditLogger {
     public <T extends DomainContext> void failAudit(String auditId, AIRequest<T> request, Exception error) {
         AuditEntry entry = activeAudits.remove(auditId);
         if (entry == null) {
-            log.warn("Audit entry not found for ID: {}", auditId);
+            log.error("Audit entry not found for ID: {}", auditId);
             return;
         }
-        
+
         entry.endTime = LocalDateTime.now();
         entry.duration = java.time.Duration.between(entry.startTime, entry.endTime).toMillis();
         entry.status = "FAILED";
@@ -115,7 +115,7 @@ public class AuditLogger {
             AuditEntry entry, AIRequest<T> request, Exception error) {
         
         if (error instanceof SecurityException || error.getMessage().contains("access denied")) {
-            auditLog.warn("SECURITY_EVENT: {} - Potential security violation detected - User: {} - Operation: {}", 
+            auditLog.error("SECURITY_EVENT: {} - Potential security violation detected - User: {} - Operation: {}",
                          entry.auditId, entry.userId, entry.operationType);
         }
     }

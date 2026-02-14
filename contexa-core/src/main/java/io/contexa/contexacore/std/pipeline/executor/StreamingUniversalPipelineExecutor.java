@@ -11,6 +11,7 @@ import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.domain.SoarContext;
 import lombok.extern.slf4j.Slf4j;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
@@ -65,7 +66,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
 
             boolean isSoar = request.getContext() instanceof SoarContext;
 
-            executeFullPipelineWithStreaming(request, configuration, context, isSoar)
+            Disposable disposable = executeFullPipelineWithStreaming(request, configuration, context, isSoar)
                     .doOnSuccess(v -> {
                         AIResponse finalResponse = context.getStepResult(
                                 PipelineConfiguration.PipelineStep.POSTPROCESSING,
@@ -88,7 +89,8 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
                     })
                     .subscribe();
 
-            return sink.asFlux();
+            return sink.asFlux()
+                    .doOnCancel(disposable::dispose);
         });
     }
 

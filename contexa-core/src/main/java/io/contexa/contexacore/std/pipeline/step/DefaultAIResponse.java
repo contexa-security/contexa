@@ -8,4 +8,8 @@ public class DefaultAIResponse extends AIResponse {
     public DefaultAIResponse(Object data) {
         this.data = data;
     }
+
+    public Object getData() {
+        return data;
+    }
 }

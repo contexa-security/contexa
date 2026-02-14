@@ -82,7 +82,20 @@ public class UnifiedVectorService implements VectorOperations {
                 .topK(properties.getTopK())
                 .similarityThreshold(properties.getSimilarityThreshold());
 
+        if (filters != null && !filters.isEmpty()) {
+            String filterExpression = buildFilterExpression(filters);
+            builder.filterExpression(filterExpression);
+        }
+
         return searchSimilar(builder.build());
+    }
+
+    private String buildFilterExpression(Map<String, Object> filters) {
+        StringJoiner joiner = new StringJoiner(" && ");
+        for (Map.Entry<String, Object> entry : filters.entrySet()) {
+            joiner.add(entry.getKey() + " == '" + entry.getValue() + "'");
+        }
+        return joiner.toString();
     }
 
     @Override
@@ -111,11 +124,11 @@ public class UnifiedVectorService implements VectorOperations {
 
         try {
             vectorStore.delete(documentIds);
+            cacheLayer.invalidateAll();
         } catch (Exception e) {
             log.error("[UnifiedVectorService] Failed to delete documents", e);
+            throw new VectorStoreException("Failed to delete documents", e);
         }
-
-        cacheLayer.invalidateAll();
     }
 
     private void validateDocument(Document document) {

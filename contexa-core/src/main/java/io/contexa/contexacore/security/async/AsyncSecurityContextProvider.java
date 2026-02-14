@@ -49,7 +49,9 @@ public class AsyncSecurityContextProvider {
                     .expiresAt(now.plus(DEFAULT_TTL))
                     .build();
 
-            String userKey = AUTH_KEY_PREFIX + userId;
+            String userKey = sessionId != null
+                    ? AUTH_KEY_PREFIX + userId + ":" + sessionId
+                    : AUTH_KEY_PREFIX + userId;
             redisTemplate.opsForValue().set(userKey, data, DEFAULT_TTL);
 
             if (sessionId != null) {
@@ -93,6 +95,11 @@ public class AsyncSecurityContextProvider {
             Object userIdObj = redisTemplate.opsForValue().get(sessionKey);
 
             if (userIdObj instanceof String userId) {
+                String compositeKey = AUTH_KEY_PREFIX + userId + ":" + sessionId;
+                Object data = redisTemplate.opsForValue().get(compositeKey);
+                if (data instanceof AsyncAuthenticationData authData && authData.isValid()) {
+                    return Optional.of(authData);
+                }
                 return getAuthenticationByUserId(userId);
             }
         } catch (Exception e) {
@@ -120,7 +127,9 @@ public class AsyncSecurityContextProvider {
 
     public void removeAuthentication(String userId, String sessionId) {
         try {
-            if (userId != null) {
+            if (userId != null && sessionId != null) {
+                redisTemplate.delete(AUTH_KEY_PREFIX + userId + ":" + sessionId);
+            } else if (userId != null) {
                 redisTemplate.delete(AUTH_KEY_PREFIX + userId);
             }
             if (sessionId != null) {
@@ -137,7 +146,9 @@ public class AsyncSecurityContextProvider {
         }
 
         try {
-            String userKey = AUTH_KEY_PREFIX + userId;
+            String userKey = sessionId != null
+                    ? AUTH_KEY_PREFIX + userId + ":" + sessionId
+                    : AUTH_KEY_PREFIX + userId;
             Object data = redisTemplate.opsForValue().get(userKey);
 
             if (data instanceof AsyncAuthenticationData authData) {
