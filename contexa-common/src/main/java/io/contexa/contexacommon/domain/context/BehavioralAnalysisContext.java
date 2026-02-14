@@ -113,9 +113,25 @@ public class BehavioralAnalysisContext extends DomainContext {
         sb.append(userAgent != null ? userAgent : "unknown").append(":");
         sb.append(browserInfo != null ? browserInfo : "unknown").append(":");
         sb.append(osInfo != null ? osInfo : "unknown").append(":");
-        sb.append(remoteIp != null ? remoteIp.substring(0, remoteIp.lastIndexOf('.')) : "0.0.0");
+        sb.append(extractNetworkSegment(remoteIp));
 
         this.deviceFingerprint = String.valueOf(sb.toString().hashCode());
+    }
+
+    private String extractNetworkSegment(String ip) {
+        if (ip == null || ip.isEmpty()) {
+            return "0.0.0";
+        }
+        if (ip.contains(":")) {
+            String[] groups = ip.split(":");
+            int len = Math.min(groups.length, 4);
+            return String.join(":", java.util.Arrays.copyOf(groups, len));
+        }
+        int lastDot = ip.lastIndexOf('.');
+        if (lastDot > 0) {
+            return ip.substring(0, lastDot);
+        }
+        return ip;
     }
 
     public boolean isNormalBehaviorPattern() {

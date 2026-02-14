@@ -64,7 +64,7 @@ public class DeadLetterQueueMonitor {
 
             }
 
-    @KafkaListener(topics = "${security.kafka.topic.dlq:security-dlq}",
+    @KafkaListener(topics = "${security.kafka.topic.dlq:security-events-dlq}",
                    groupId = "dlq-monitor-group",
                    containerFactory = "kafkaListenerContainerFactory")
     public void consumeDLQMessage(
@@ -92,7 +92,7 @@ public class DeadLetterQueueMonitor {
         String errorType = extractErrorType(errorMessage);
         errorCountByType.computeIfAbsent(errorType, k -> new AtomicLong()).incrementAndGet();
 
-        log.warn("DLQ message received: messageId={}, originalTopic={}, retryCount={}, error={}",
+        log.error("DLQ message received: messageId={}, originalTopic={}, retryCount={}, error={}",
             messageId, originalTopic, retryCount, errorMessage);
 
         scheduleRetry(dlqMessage);
@@ -109,6 +109,7 @@ public class DeadLetterQueueMonitor {
         message.setNextRetryAt(Instant.now().plusMillis(backoffDelay));
     }
 
+    @Scheduled(fixedDelayString = "${security.kafka.dlq.retry-delay-ms:5000}")
     public void processRetries() {
         Instant now = Instant.now();
 
@@ -172,11 +173,12 @@ public class DeadLetterQueueMonitor {
         
             }
 
+    @Scheduled(fixedRate = 60000)
     public void generateMonitoringReport() {
         int currentDLQSize = dlqMessages.size();
 
         if (currentDLQSize > securityKafkaProperties.getDlq().getAlertThreshold()) {
-            log.warn("DLQ size exceeded threshold: {} > {}", currentDLQSize, securityKafkaProperties.getDlq().getAlertThreshold());
+            log.error("DLQ size exceeded threshold: {} > {}", currentDLQSize, securityKafkaProperties.getDlq().getAlertThreshold());
             sendThresholdAlert(currentDLQSize);
         }
 

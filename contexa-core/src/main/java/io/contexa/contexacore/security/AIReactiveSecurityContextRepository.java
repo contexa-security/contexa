@@ -55,7 +55,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
 
         this.setAllowSessionCreation(true);
 
-        this.setDisableUrlRewriting(false);
+        this.setDisableUrlRewriting(true);
 
         this.setSpringSecurityContextKey("SPRING_SECURITY_CONTEXT");
     }
@@ -114,8 +114,6 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     }
 
     private void logCacheStats() {
-        if (log.isDebugEnabled()) {
-        }
     }
 
     @Override
@@ -363,7 +361,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         }
 
         try {
-            log.warn("[ZeroTrust] Invalidating all sessions for user: {} - Reason: {}", userId, reason);
+            log.error("[ZeroTrust] Invalidating all sessions for user: {} - Reason: {}", userId, reason);
 
             Set<String> userSessions = userSessionsCache.getIfPresent(userId);
             if (userSessions != null) {

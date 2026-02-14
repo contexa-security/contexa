@@ -37,15 +37,12 @@ public class Users {
     private boolean mfaEnabled;
 
     @Column
-    @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime createdAt;
 
     @Column
-    @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime updatedAt;
 
     @Column
-    @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime lastMfaUsedAt;
 
     @Column

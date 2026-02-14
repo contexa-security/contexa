@@ -221,41 +221,15 @@ public class UserIdentificationService {
                                 return null;
 
             } catch (JwtException e) {
-                
-                log.warn("[Zero Trust] JWT 서명 검증 실패 - 위조 또는 만료된 토큰: {}", e.getMessage());
+                log.error("[ZeroTrust] JWT signature verification failed - forged or expired token: {}", e.getMessage());
                 return null;
             } catch (Exception e) {
-                log.error("JWT 디코딩 중 예외 발생", e);
+                log.error("[ZeroTrust] JWT decoding exception", e);
                 return null;
             }
         }
 
-        log.warn("[Zero Trust] JwtDecoder가 설정되지 않음 - JWT 서명 검증 없이 페이로드만 디코딩 (보안 취약)");
-
-        try {
-            String[] parts = token.split("\\.");
-            if (parts.length >= 2) {
-                String payload = parts[1];
-                java.util.Base64.Decoder decoder = java.util.Base64.getUrlDecoder();
-                String json = new String(decoder.decode(payload));
-
-                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\"sub\"\\s*:\\s*\"([^\"]+)\"");
-                java.util.regex.Matcher matcher = pattern.matcher(json);
-                if (matcher.find()) {
-                    log.warn("[Zero Trust] 서명 검증 없이 추출된 userId는 신뢰할 수 없음: {}", matcher.group(1));
-                    return matcher.group(1);
-                }
-
-                pattern = java.util.regex.Pattern.compile("\"user_id\"\\s*:\\s*\"([^\"]+)\"");
-                matcher = pattern.matcher(json);
-                if (matcher.find()) {
-                    log.warn("[Zero Trust] 서명 검증 없이 추출된 userId는 신뢰할 수 없음: {}", matcher.group(1));
-                    return matcher.group(1);
-                }
-            }
-        } catch (Exception e) {
-                    }
-
+        log.error("[ZeroTrust] JwtDecoder not configured - cannot extract userId from JWT without signature verification");
         return null;
     }
 

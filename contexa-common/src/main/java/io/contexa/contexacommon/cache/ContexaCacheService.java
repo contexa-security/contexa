@@ -8,6 +8,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Set;
@@ -48,7 +49,7 @@ public class ContexaCacheService {
                 try {
                                         return objectMapper.readValue(cachedJson, typeRef);
                 } catch (JsonProcessingException e) {
-                    log.warn("L1 cache deserialization failed: {}", key, e);
+                    log.error("L1 cache deserialization failed: {}", key, e);
                     localCache.invalidate(key);
                 }
             }
@@ -68,7 +69,7 @@ public class ContexaCacheService {
                                         return value;
                 }
             } catch (Exception e) {
-                log.warn("L2 cache lookup failed: {}", key, e);
+                log.error("L2 cache lookup failed: {}", key, e);
             }
         }
 
@@ -135,8 +136,8 @@ public class ContexaCacheService {
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
             String redisPattern = properties.getRedis().getKeyPrefix() + key;
             if (key.contains("*")) {
-                Set<String> keys = redisTemplate.keys(redisPattern);
-                if (keys != null && !keys.isEmpty()) {
+                Set<String> keys = scanKeys(redisPattern);
+                if (!keys.isEmpty()) {
                     redisTemplate.delete(keys);
                 }
             } else {
@@ -164,8 +165,8 @@ public class ContexaCacheService {
 
 
         if (properties.getType() != ContexaCacheProperties.CacheType.LOCAL) {
-            Set<String> keys = redisTemplate.keys(properties.getRedis().getKeyPrefix() + "*");
-            if (keys != null && !keys.isEmpty()) {
+            Set<String> keys = scanKeys(properties.getRedis().getKeyPrefix() + "*");
+            if (!keys.isEmpty()) {
                 redisTemplate.delete(keys);
             }
         }
@@ -236,7 +237,7 @@ public class ContexaCacheService {
             Cache<String, String> localCache = getOrCreateDomainCache(domain);
             localCache.put(key, json);
                     } catch (Exception e) {
-            log.warn("L1 backfill failed: {}", key, e);
+            log.error("L1 backfill failed: {}", key, e);
         }
     }
 
@@ -278,6 +279,17 @@ public class ContexaCacheService {
         };
     }
 
+
+    private Set<String> scanKeys(String pattern) {
+        Set<String> keys = new java.util.HashSet<>();
+        try (var cursor = redisTemplate.scan(
+                ScanOptions.scanOptions().match(pattern).count(100).build())) {
+            while (cursor.hasNext()) {
+                keys.add(cursor.next());
+            }
+        }
+        return keys;
+    }
 
     private void publishInvalidationEvent(String key) {
         try {

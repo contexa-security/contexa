@@ -52,8 +52,10 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public KafkaSecurityEventCollector kafkaSecurityEventCollector(ObjectMapper objectMapper) {
-        return new KafkaSecurityEventCollector(objectMapper);
+    public KafkaSecurityEventCollector kafkaSecurityEventCollector(
+            ObjectMapper objectMapper,
+            KafkaTemplate<String, String> kafkaTemplate) {
+        return new KafkaSecurityEventCollector(objectMapper, kafkaTemplate);
     }
 
     @Bean

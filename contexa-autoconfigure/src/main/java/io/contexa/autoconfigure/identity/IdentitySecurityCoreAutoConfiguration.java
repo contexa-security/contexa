@@ -68,6 +68,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(CoreInfrastructureAutoConfiguration.class)
@@ -82,7 +83,8 @@ public class IdentitySecurityCoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
-        httpSecurity.securityMatcher("/" + UUID.randomUUID());
+        httpSecurity.securityMatcher("/" + UUID.randomUUID())
+                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated());
         return httpSecurity.build();
     }
 

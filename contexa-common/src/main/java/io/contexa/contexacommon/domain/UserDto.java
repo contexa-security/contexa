@@ -3,7 +3,9 @@ package io.contexa.contexacommon.domain;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 import org.springframework.security.core.GrantedAuthority;
 
 import java.io.Serializable;
@@ -22,6 +24,8 @@ public class UserDto implements Serializable {
 
     private Long id;
     private String username;
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     private String password;
     private String name;
     private boolean mfaEnabled;

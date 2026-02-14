@@ -9,6 +9,7 @@ import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
@@ -24,14 +25,16 @@ import java.util.concurrent.atomic.AtomicLong;
 public class KafkaSecurityEventCollector {
 
     private final ObjectMapper objectMapper;
+    private final KafkaTemplate<String, String> kafkaTemplate;
     private final List<SecurityEventListener> listeners;
     private final Map<String, SecurityEvent> eventCache;
     private final AtomicLong eventCount;
     private final AtomicLong errorCount;
     private volatile boolean running;
 
-    public KafkaSecurityEventCollector(ObjectMapper objectMapper) {
+    public KafkaSecurityEventCollector(ObjectMapper objectMapper, KafkaTemplate<String, String> kafkaTemplate) {
         this.objectMapper = objectMapper;
+        this.kafkaTemplate = kafkaTemplate;
         this.listeners = new CopyOnWriteArrayList<>();
         this.eventCache = new ConcurrentHashMap<>();
         this.eventCount = new AtomicLong(0);
@@ -229,10 +232,10 @@ public class KafkaSecurityEventCollector {
             String dlqTopic = topic + "-dlq";
             String dlqJson = objectMapper.writeValueAsString(dlqMessage);
 
-            log.warn("[KafkaCollector] Sending failed message to DLQ - topic: {}, offset: {}", dlqTopic, offset);
+            kafkaTemplate.send(dlqTopic, dlqJson).get();
 
         } catch (Exception e) {
-            log.error("[KafkaCollector] Failed to serialize DLQ message - offset: {}", offset, e);
+            log.error("[KafkaCollector] Failed to send DLQ message - offset: {}", offset, e);
             throw new RuntimeException("DLQ send failed", e);
         }
     }

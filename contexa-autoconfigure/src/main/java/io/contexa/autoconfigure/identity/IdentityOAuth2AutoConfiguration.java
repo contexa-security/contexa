@@ -17,6 +17,7 @@ import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHan
 import io.contexa.contexaidentity.security.handler.logout.SessionLogoutStrategy;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.OAuth2TokenSettings;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
@@ -68,8 +69,10 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.io.InputStream;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.KeyStore;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
@@ -86,6 +89,7 @@ import java.util.UUID;
 public class IdentityOAuth2AutoConfiguration {
 
     private final TransactionTemplate transactionTemplate;
+    private final AuthContextProperties authContextProperties;
 
     @Bean
     @ConditionalOnMissingBean(OAuth2StateAdapter.class)
@@ -108,6 +112,16 @@ public class IdentityOAuth2AutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(JWKSource.class)
     public JWKSource<SecurityContext> jwkSource() {
+        OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
+        String keyStorePath = oauth2.getJwkKeyStorePath();
+
+        if (keyStorePath != null && !keyStorePath.isBlank()) {
+            return loadJwkFromKeyStore(oauth2);
+        }
+
+        log.error("[OAuth2] JWK KeyStore not configured (spring.auth.oauth2.jwk-key-store-path) - using ephemeral RSA key. "
+                + "Tokens will be invalidated on restart");
+
         KeyPair keyPair = generateRsaKey();
         RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
         RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
@@ -119,6 +133,38 @@ public class IdentityOAuth2AutoConfiguration {
 
         JWKSet jwkSet = new JWKSet(rsaKey);
         return new ImmutableJWKSet<>(jwkSet);
+    }
+
+    private JWKSource<SecurityContext> loadJwkFromKeyStore(OAuth2TokenSettings oauth2) {
+        try {
+            KeyStore keyStore = KeyStore.getInstance("PKCS12");
+            try (InputStream is = getClass().getClassLoader().getResourceAsStream(oauth2.getJwkKeyStorePath())) {
+                if (is == null) {
+                    throw new IllegalStateException("KeyStore not found: " + oauth2.getJwkKeyStorePath());
+                }
+                char[] storePassword = oauth2.getJwkKeyStorePassword() != null
+                        ? oauth2.getJwkKeyStorePassword().toCharArray() : new char[0];
+                keyStore.load(is, storePassword);
+            }
+
+            String alias = oauth2.getJwkKeyAlias();
+            char[] keyPassword = oauth2.getJwkKeyPassword() != null
+                    ? oauth2.getJwkKeyPassword().toCharArray()
+                    : (oauth2.getJwkKeyStorePassword() != null ? oauth2.getJwkKeyStorePassword().toCharArray() : new char[0]);
+
+            RSAPrivateKey privateKey = (RSAPrivateKey) keyStore.getKey(alias, keyPassword);
+            RSAPublicKey publicKey = (RSAPublicKey) keyStore.getCertificate(alias).getPublicKey();
+
+            RSAKey rsaKey = new RSAKey.Builder(publicKey)
+                    .privateKey(privateKey)
+                    .keyID(alias)
+                    .build();
+
+            JWKSet jwkSet = new JWKSet(rsaKey);
+            return new ImmutableJWKSet<>(jwkSet);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to load JWK from KeyStore: " + oauth2.getJwkKeyStorePath(), e);
+        }
     }
 
     private static KeyPair generateRsaKey() {
@@ -135,8 +181,7 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(OAuth2AuthorizationService.class)
     public OAuth2AuthorizationService authorizationService(
             JdbcTemplate jdbcTemplate,
-            RegisteredClientRepository registeredClientRepository,
-            AuthContextProperties authContextProperties) {
+            RegisteredClientRepository registeredClientRepository) {
 
         JdbcOAuth2AuthorizationService jdbcService =
                 new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
@@ -148,24 +193,34 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(RegisteredClientRepository.class)
     public RegisteredClientRepository registeredClientRepository(JdbcTemplate jdbcTemplate) {
 
+        OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
+        String clientId = oauth2.getClientId();
+
+        String clientSecret = oauth2.getClientSecret();
+        if (clientSecret == null || clientSecret.isBlank()) {
+            clientSecret = UUID.randomUUID().toString();
+            log.error("[OAuth2] Client secret not configured (spring.auth.oauth2.client-secret) - generated random secret. "
+                    + "Configure explicitly for production");
+        }
+
+        String redirectUri = oauth2.getRedirectUri();
+        String authorizedUri = oauth2.getAuthorizedUri();
+
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
-        RegisteredClient existingClient = repository.findByClientId("aidc-client");
+        RegisteredClient existingClient = repository.findByClientId(clientId);
 
         if (existingClient == null) {
 
-            RegisteredClient defaultClient = RegisteredClient.withId(UUID.randomUUID().toString())
-                    .clientId("aidc-client")
-                    .clientSecret("{noop}secret")
+            RegisteredClient.Builder builder = RegisteredClient.withId(UUID.randomUUID().toString())
+                    .clientId(clientId)
+                    .clientSecret("{noop}" + clientSecret)
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                     .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_POST)
                     .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                     .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                     .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-
                     .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
-                    .redirectUri("http://localhost:8080/login/oauth2/code/aidc-client")
-                    .redirectUri("http://localhost:8080/authorized")
                     .scope("read")
                     .scope("write")
                     .scope("admin")
@@ -176,17 +231,23 @@ public class IdentityOAuth2AutoConfiguration {
                             .requireProofKey(false)
                             .build())
                     .tokenSettings(TokenSettings.builder()
-                            .accessTokenTimeToLive(Duration.ofHours(1))
-                            .refreshTokenTimeToLive(Duration.ofDays(1))
+                            .accessTokenTimeToLive(Duration.ofMillis(authContextProperties.getAccessTokenValidity()))
+                            .refreshTokenTimeToLive(Duration.ofMillis(authContextProperties.getRefreshTokenValidity()))
                             .reuseRefreshTokens(false)
-                            .build())
-                    .build();
+                            .build());
+
+            if (redirectUri != null && !redirectUri.isBlank()) {
+                builder.redirectUri(redirectUri);
+            }
+            if (authorizedUri != null && !authorizedUri.isBlank()) {
+                builder.redirectUri(authorizedUri);
+            }
+
+            RegisteredClient defaultClient = builder.build();
 
             transactionTemplate.executeWithoutResult(status -> {
                 repository.save(defaultClient);
             });
-
-        } else {
         }
 
         return repository;
@@ -195,18 +256,28 @@ public class IdentityOAuth2AutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(AuthorizationServerSettings.class)
     public AuthorizationServerSettings authorizationServerSettings() {
-        String issuerUri = "http://localhost:8080";
+        OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
+        String issuerUri = oauth2.getIssuerUri();
 
-        return AuthorizationServerSettings.builder()
-                .issuer(issuerUri)
+        if (issuerUri == null || issuerUri.isBlank()) {
+            log.error("[OAuth2] Issuer URI not configured (spring.auth.oauth2.issuer-uri) - "
+                    + "authorization server may not function correctly");
+        }
+
+        AuthorizationServerSettings.Builder builder = AuthorizationServerSettings.builder()
                 .authorizationEndpoint("/oauth2/authorize")
                 .tokenEndpoint("/oauth2/token")
                 .jwkSetEndpoint("/oauth2/jwks")
                 .tokenRevocationEndpoint("/oauth2/revoke")
                 .tokenIntrospectionEndpoint("/oauth2/introspect")
                 .oidcClientRegistrationEndpoint("/connect/register")
-                .oidcUserInfoEndpoint("/userinfo")
-                .build();
+                .oidcUserInfoEndpoint("/userinfo");
+
+        if (issuerUri != null && !issuerUri.isBlank()) {
+            builder.issuer(issuerUri);
+        }
+
+        return builder.build();
     }
 
     @Bean
@@ -250,8 +321,7 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(TokenValidator.class)
     public TokenValidator oauth2TokenValidator(
             JwtDecoder jwtDecoder,
-            OAuth2AuthorizationService authorizationService,
-            AuthContextProperties authContextProperties) {
+            OAuth2AuthorizationService authorizationService) {
 
         long rotateThresholdMillis = authContextProperties.getRefreshTokenValidity() / 2;
 
@@ -268,7 +338,6 @@ public class IdentityOAuth2AutoConfiguration {
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizationService authorizationService,
             TokenValidator oauth2TokenValidator,
-            AuthContextProperties authContextProperties,
             ObjectMapper objectMapper) {
 
         TokenTransportStrategy transport = TokenTransportStrategyFactory.create(authContextProperties);
@@ -313,22 +382,25 @@ public class IdentityOAuth2AutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(ClientRegistrationRepository.class)
     public ClientRegistrationRepository clientRegistrationRepository() {
+        OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
+
         String registrationId = "aidc-internal";
-        String clientId = "aidc-client";
-        String clientSecret = "secret";
-        String tokenUri = "http://localhost:8081/oauth2/token";
+        String clientId = oauth2.getClientId();
+        String clientSecret = oauth2.getClientSecret() != null ? oauth2.getClientSecret() : "";
+        String tokenUri = oauth2.getIssuerUri() != null
+                ? oauth2.getIssuerUri() + oauth2.getTokenEndpoint()
+                : oauth2.getTokenEndpoint();
+
+        String[] scopes = oauth2.getScope() != null ? oauth2.getScope().split(",") : new String[]{"read"};
 
         ClientRegistration registration = ClientRegistration
                 .withRegistrationId(registrationId)
                 .clientId(clientId)
                 .clientSecret(clientSecret)
-
                 .authorizationGrantType(
                         new AuthorizationGrantType("urn:ietf:params:oauth:grant-type:authenticated-user"))
-
                 .tokenUri(tokenUri)
-
-                .scope("read", "write", "admin")
+                .scope(scopes)
                 .build();
 
         return new InMemoryClientRegistrationRepository(registration);
@@ -364,9 +436,7 @@ public class IdentityOAuth2AutoConfiguration {
         authenticatedUserProvider.setAccessTokenResponseClient(tokenResponseClient);
 
         OAuth2AuthorizedClientProvider authorizedClientProvider = OAuth2AuthorizedClientProviderBuilder.builder()
-
                 .provider(authenticatedUserProvider)
-
                 .refreshToken()
                 .build();
 

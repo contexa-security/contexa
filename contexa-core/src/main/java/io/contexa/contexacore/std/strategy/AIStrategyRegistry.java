@@ -59,7 +59,7 @@ public class AIStrategyRegistry {
                     .block(Duration.ofMinutes(5));
         } catch (Exception e) {
             log.error("Exception occurred during strategy execution: {}", strategy.getClass().getSimpleName(), e);
-            throw new DiagnosisException(request.getDiagnosisType().name,
+            throw new DiagnosisException(request.getDiagnosisType().name(),
                     "STRATEGY_EXECUTION_ERROR", "Error occurred during strategy execution: " + e.getMessage());
         }
     }
