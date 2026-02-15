@@ -100,7 +100,9 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         String lockOwner = Thread.currentThread().getName() + ":" + UUID.randomUUID();
 
         if (!lockService.tryLock(lockKey, lockOwner, LOCK_TIMEOUT)) {
-            filterChain.doFilter(request, response);
+            log.error("Failed to acquire distributed lock for MFA challenge: {}", lockKey);
+            response.sendError(HttpServletResponse.SC_SERVICE_UNAVAILABLE,
+                    "MFA service temporarily unavailable");
             return;
         }
 
@@ -147,11 +149,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return false;
         }
 
-        if (Boolean.TRUE.equals(context.getBooleanAttribute("challengeRedirected"))) {
-            filterChain.doFilter(request, response);
-            return true;
-        }
-
         redirectToMfaPage(context, request, response);
         return true;
     }
@@ -169,11 +166,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return false;
         }
 
-        if (Boolean.TRUE.equals(context.getBooleanAttribute("challengeRedirected"))) {
-            filterChain.doFilter(request, response);
-            return true;
-        }
-
         redirectToMfaPage(context, request, response);
         return true;
     }
@@ -182,8 +174,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
                                    HttpServletRequest request,
                                    HttpServletResponse response) throws IOException {
 
-        context.setAttribute("challengeRedirected", true);
-        stateMachineIntegrator.saveFactorContext(context);
         String mfaPageUrl = buildMfaPageUrl(context, request);
 
         if (WebUtil.isApiOrAjaxRequest(request)) {
