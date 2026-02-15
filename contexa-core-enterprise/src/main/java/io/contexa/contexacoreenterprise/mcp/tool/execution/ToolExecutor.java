@@ -30,7 +30,7 @@ public interface ToolExecutor {
         
         @Override
         public int hashCode() {
-            return toolName.hashCode() + parameters.hashCode();
+            return java.util.Objects.hash(toolName, parameters);
         }
     }
     

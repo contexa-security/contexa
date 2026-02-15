@@ -53,7 +53,7 @@ public class ApprovalStateManager {
         ApprovalStatus currentStatus = request.getStatus();
 
         if (currentStatus == null) {
-            log.warn("Current status is null for request: {}, setting to PENDING", 
+            log.error("Current status is null for request: {}, setting to PENDING",
                 request.getRequestId());
             currentStatus = ApprovalStatus.PENDING;
             request.setStatus(currentStatus);
@@ -192,7 +192,7 @@ public class ApprovalStateManager {
                                 break;
                 
             case EXPIRED:
-                log.warn("Approval expired for request: {} - Reason: {}", 
+                log.error("Approval expired for request: {} - Reason: {}",
                     request.getRequestId(), comment);
                 break;
                 
@@ -201,12 +201,12 @@ public class ApprovalStateManager {
                 
             case PENDING:
                 
-                log.warn("Unusual transition to PENDING for request: {}", 
+                log.error("Unusual transition to PENDING for request: {}",
                     request.getRequestId());
                 break;
                 
             default:
-                log.warn("Unknown status: {} for request: {}", 
+                log.error("Unknown status: {} for request: {}",
                     newStatus, request.getRequestId());
         }
     }

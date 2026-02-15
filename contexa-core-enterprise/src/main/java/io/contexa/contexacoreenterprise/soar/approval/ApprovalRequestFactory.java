@@ -29,7 +29,7 @@ public class ApprovalRequestFactory {
 
         if (incidentId == null || incidentId.isEmpty()) {
             incidentId = generateIncidentId();
-            log.warn("incidentId parameter was null for tool {}, generated: {}", toolName, incidentId);
+            log.error("incidentId parameter was null for tool {}, generated: {}", toolName, incidentId);
         }
         
         ApprovalRequest request = ApprovalRequest.builder()
@@ -69,7 +69,7 @@ public class ApprovalRequestFactory {
 
         if (incidentId == null || incidentId.isEmpty()) {
             incidentId = generateIncidentId();
-            log.warn("incidentId parameter was null in notification for tool {}, generated: {}", toolName, incidentId);
+            log.error("incidentId parameter was null in notification for tool {}, generated: {}", toolName, incidentId);
         }
         
         RiskLevel risk = parseRiskLevel(riskLevel);
@@ -138,7 +138,7 @@ public class ApprovalRequestFactory {
 
         if (request.getIncidentId() == null || request.getIncidentId().isEmpty()) {
             request.setIncidentId(generateIncidentId());
-            log.warn("incidentId was null, generated default: {}", request.getIncidentId());
+            log.error("incidentId was null, generated default: {}", request.getIncidentId());
         }
         
         if (request.getOrganizationId() == null || request.getOrganizationId().isEmpty()) {
@@ -179,7 +179,7 @@ public class ApprovalRequestFactory {
 
         if (request.getIncidentId() == null || request.getIncidentId().isEmpty()) {
             request.setIncidentId(generateIncidentId());
-            log.warn("incidentId was null in ensureRequiredFields, generated default: {}", request.getIncidentId());
+            log.error("incidentId was null in ensureRequiredFields, generated default: {}", request.getIncidentId());
         }
         
         if (request.getRequestedAt() == null) {
@@ -356,7 +356,7 @@ public class ApprovalRequestFactory {
         try {
             return RiskLevel.valueOf(riskLevel.toUpperCase());
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid risk level: {}, using MEDIUM as default", riskLevel);
+            log.error("Invalid risk level: {}, using MEDIUM as default", riskLevel);
             return RiskLevel.MEDIUM;
         }
     }

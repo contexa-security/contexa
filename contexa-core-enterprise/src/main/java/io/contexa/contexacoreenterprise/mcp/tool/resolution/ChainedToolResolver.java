@@ -71,7 +71,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             }
 
                     } catch (Exception e) {
-            log.warn("초기 캐시 구성 중 오류 (무시됨): {}", e.getMessage());
+            log.error("Error during initial cache configuration (ignored): {}", e.getMessage());
         }
     }
 
@@ -94,7 +94,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
         try {
             return circuitBreaker.executeSupplier(() -> resolveInternal(toolName));
         } catch (Exception e) {
-            log.warn("Circuit Breaker 오픈 상태. Fallback 사용: {}", toolName);
+            log.error("Circuit breaker is open. Using fallback: {}", toolName);
             return fallbackToolResolver.resolve(toolName);
         }
     }
@@ -114,13 +114,15 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
 
                 ToolCallback enhancedTool = enhanceToolCallback(tool, toolName, resolverName);
 
-                toolCache.put(toolName, enhancedTool);
+                if (toolCache.size() < 1000) {
+                    toolCache.put(toolName, enhancedTool);
+                }
                 toolSourceMapping.put(toolName, resolverName);
 
                 return enhancedTool;
             }
 
-            throw new ToolNotFoundException("도구를 찾을 수 없음: " + toolName);
+            throw new ToolNotFoundException("Tool not found: " + toolName);
 
         } finally {
             metricsCollector.recordTotalResolutionTime(
@@ -228,7 +230,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
                     allTools.addAll(tools.values());
                 }
             } catch (Exception e) {
-                log.warn("Resolver에서 도구 수집 실패: {} - {}",
+                log.error("Failed to collect tools from resolver: {} - {}",
                     resolver.getClass().getSimpleName(), e.getMessage());
             }
         }

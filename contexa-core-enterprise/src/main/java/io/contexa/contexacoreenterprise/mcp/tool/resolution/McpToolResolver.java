@@ -66,13 +66,13 @@ public class McpToolResolver implements ToolCallbackResolver {
         if (!isConnected()) {
             return new McpToolStatistics(false, 0, null);
         }
-        
-        var tools = mcpProvider.getToolCallbacks();
+
+        var tools = getAllTools();
         var serverInfo = mcpProvider.getServerInfo();
-        
+
         return new McpToolStatistics(
             true,
-            tools.length,
+            tools.size(),
             serverInfo
         );
     }

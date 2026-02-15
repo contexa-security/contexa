@@ -48,7 +48,7 @@ public class AsyncToolExecutionService {
     public CompletableFuture<ToolExecutionResult> executeApprovedTool(String requestId) {
 
         if (executingTasks.containsKey(requestId)) {
-            log.warn("이미 실행 중인 도구: {}", requestId);
+            log.error("Tool already executing: {}", requestId);
             return executingTasks.get(requestId);
         }
 
@@ -58,10 +58,10 @@ public class AsyncToolExecutionService {
         try {
             
             ToolExecutionContext context = contextRepository.findByRequestId(requestId)
-                    .orElseThrow(() -> new IllegalArgumentException("도구 실행 컨텍스트를 찾을 수 없음: " + requestId));
+                    .orElseThrow(() -> new IllegalArgumentException("Tool execution context not found: " + requestId));
 
             if (!context.isExecutable()) {
-                throw new IllegalStateException("실행할 수 없는 상태: " + context.getStatus());
+                throw new IllegalStateException("Not in executable state: " + context.getStatus());
             }
 
             context.markExecutionStart();
@@ -77,12 +77,12 @@ public class AsyncToolExecutionService {
             future.complete(result);
             
         } catch (Exception e) {
-            log.error("비동기 도구 실행 실패: {}", requestId, e);
+            log.error("Async tool execution failed: {}", requestId, e);
 
             try {
                 markExecutionFailed(requestId, e.getMessage());
             } catch (Exception ex) {
-                log.error("실행 실패 표시 중 오류: {}", requestId, ex);
+                log.error("Error marking execution as failed: {}", requestId, ex);
             }
 
             future.completeExceptionally(e);
@@ -206,7 +206,7 @@ public class AsyncToolExecutionService {
 
             return toolCallingManager.executeToolCalls(prompt, chatResponse);
         } else {
-            log.warn("ToolCallingManager를 사용할 수 없음. 기본 실행 결과 반환");
+            log.error("ToolCallingManager unavailable. Returning default execution result");
             return createDefaultResult(context);
         }
     }
@@ -214,7 +214,7 @@ public class AsyncToolExecutionService {
     private ToolExecutionResult createDefaultResult(ToolExecutionContext context) {
         List<Message> history = new ArrayList<>();
         history.add(new AssistantMessage(
-                String.format("도구 %s이(가) 비동기 모드에서 실행되었습니다 (요청 ID: %s)",
+                String.format("Tool %s executed in async mode (request ID: %s)",
                         context.getToolName(), context.getRequestId())
         ));
 
@@ -251,8 +251,8 @@ public class AsyncToolExecutionService {
             contextRepository.save(context);
 
         } catch (Exception e) {
-            log.error("실행 결과 저장 실패: {}", context.getRequestId(), e);
-            context.markExecutionFailed("결과 저장 실패: " + e.getMessage());
+            log.error("Failed to save execution result: {}", context.getRequestId(), e);
+            context.markExecutionFailed("Result save failed: " + e.getMessage());
             contextRepository.save(context);
         }
     }
@@ -282,7 +282,7 @@ public class AsyncToolExecutionService {
                 }
             }
         } catch (Exception e) {
-            log.error("승인된 도구 처리 중 오류", e);
+            log.error("Error processing approved tools", e);
         }
     }
 
@@ -293,7 +293,7 @@ public class AsyncToolExecutionService {
             if (cancelled > 0) {
                             }
         } catch (Exception e) {
-            log.error("만료 컨텍스트 정리 중 오류", e);
+            log.error("Error cleaning up expired contexts", e);
         }
     }
 
@@ -311,7 +311,7 @@ public class AsyncToolExecutionService {
                 }
             }
         } catch (Exception e) {
-            log.error("실패 도구 재시도 처리 중 오류", e);
+            log.error("Error processing failed tool retries", e);
         }
     }
 

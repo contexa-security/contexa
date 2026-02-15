@@ -77,7 +77,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             List<ToolCallInfo> highRiskTools = identifyHighRiskTools(toolCalls, prompt.getOptions());
 
             if (!highRiskTools.isEmpty()) {
-                log.warn("고위험 도구 감지: {} 개", highRiskTools.size());
+                log.error("High-risk tools detected: {} count", highRiskTools.size());
                 logHighRiskTools(highRiskTools);
 
                 if (executionMode == SoarExecutionMode.ASYNC) {
@@ -93,7 +93,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
                     if (!approved) {
 
-                        log.warn("도구 실행 거부됨 (요청 ID: {})", requestId);
+                        log.error("Tool execution denied (request ID: {})", requestId);
                         return createDenialResult(toolCalls, prompt, chatResponse);
                     }
 
@@ -110,7 +110,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             return result;
 
         } catch (Exception e) {
-            log.error("도구 실행 중 오류 발생 (요청 ID: {})", requestId, e);
+            log.error("Error during tool execution (request ID: {})", requestId, e);
             recordExecutionMetrics(requestId, Collections.emptyList(), startTime, false);
             notificationService.sendExecutionFailed(requestId, e);
             throw new RuntimeException("Tool execution failed", e);
@@ -188,7 +188,8 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
     private boolean isHighRisk(SoarTool.RiskLevel riskLevel) {
         return riskLevel == SoarTool.RiskLevel.HIGH ||
-                riskLevel == SoarTool.RiskLevel.CRITICAL;
+                riskLevel == SoarTool.RiskLevel.CRITICAL ||
+                riskLevel == SoarTool.RiskLevel.MEDIUM;
     }
 
     private boolean requestAndWaitForApproval(
@@ -213,11 +214,11 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             return approved;
 
         } catch (TimeoutException e) {
-            log.warn("승인 타임아웃 ({}초 경과)", APPROVAL_TIMEOUT_SECONDS);
+            log.error("Approval timeout ({}s elapsed)", APPROVAL_TIMEOUT_SECONDS);
             pendingApprovals.remove(requestId);
             return false;
         } catch (Exception e) {
-            log.error("승인 처리 중 오류", e);
+            log.error("Error during approval processing", e);
             pendingApprovals.remove(requestId);
             return false;
         }
@@ -232,7 +233,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
                 .requestedBy("AI System")
                 .toolName(tools.stream().map(t -> t.name).collect(Collectors.joining(", ")))
                 .riskLevel(convertToApprovalRiskLevel(soarRiskLevel))
-                .reason("고위험 도구 실행 승인 필요")
+                .reason("Approval required for high-risk tool execution")
                 .status(ApprovalRequest.ApprovalStatus.PENDING)
                 .context(Map.of(
                         "toolCount", tools.size(),
@@ -276,8 +277,8 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             ChatResponse chatResponse) {
 
         String denialMessage = String.format(
-                "도구 실행이 거부되었습니다. 고위험 도구 실행에는 승인이 필요합니다. " +
-                        "거부된 도구: %s",
+                "Tool execution denied. Approval is required for high-risk tool execution. " +
+                        "Denied tools: %s",
                 toolCalls.stream().map(t -> t.name).collect(Collectors.joining(", "))
         );
 
@@ -293,12 +294,12 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
     }
 
     private void logHighRiskTools(List<ToolCallInfo> highRiskTools) {
-        log.warn("========== 고위험 도구 감지 ==========");
+        log.error("========== High-risk tools detected ==========");
         for (ToolCallInfo tool : highRiskTools) {
             SoarTool.RiskLevel risk = policyManager.getRiskLevel(tool.name);
-            log.warn("  {} (위험도: {})", tool.name, risk);
+            log.error("  {} (risk level: {})", tool.name, risk);
         }
-        log.warn("=====================================");
+        log.error("===============================================");
     }
 
     private void recordExecutionMetrics(
@@ -365,7 +366,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
     }
 
     public void cancelAllPendingApprovals() {
-        log.warn("모든 대기 중인 승인 취소: {} 개", pendingApprovals.size());
+        log.error("Cancelling all pending approvals: {} count", pendingApprovals.size());
         pendingApprovals.forEach((id, future) -> future.cancel(true));
         pendingApprovals.clear();
     }
@@ -417,9 +418,9 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             approvalService.registerAsyncApproval(approvalRequest, executionContext);
 
             String pendingMessage = String.format(
-                    "도구 실행 승인 대기 중입니다. (요청 ID: %s)\n" +
-                            "고위험 도구: %s\n" +
-                            "승인 후 자동으로 실행됩니다.",
+                    "Waiting for tool execution approval. (Request ID: %s)\n" +
+                            "High-risk tools: %s\n" +
+                            "Will be executed automatically after approval.",
                     requestId,
                     highRiskTools.stream().map(t -> t.name).collect(Collectors.joining(", "))
             );
@@ -435,7 +436,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
                     .build();
 
         } catch (Exception e) {
-            log.error("비동기 승인 처리 중 오류 (요청 ID: {})", requestId, e);
+            log.error("Error during async approval processing (request ID: {})", requestId, e);
 
             return requestAndWaitForApprovalSync(requestId, highRiskTools, prompt, chatResponse);
         }
@@ -507,7 +508,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
         );
 
         if (!approved) {
-            log.warn("도구 실행 거부됨 (요청 ID: {})", requestId);
+            log.error("Tool execution denied (request ID: {})", requestId);
             return createDenialResult(highRiskTools, prompt, chatResponse);
         }
 

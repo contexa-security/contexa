@@ -491,9 +491,9 @@ public class McpApprovalNotificationService {
             ApprovalNotification notification = ApprovalNotification.builder()
                 .requestId(request.getRequestId())
                 .notificationType("APPROVAL_REQUEST")
-                .title("고위험 도구 실행 승인 요청")
+                .title("High-risk tool execution approval request")
                 .message(String.format(
-                    "도구 '%s' 실행에 승인이 필요합니다.\n위험도: %s\n요청자: %s",
+                    "Approval required for tool '%s' execution.\nRisk level: %s\nRequested by: %s",
                     request.getToolName(),
                     request.getRiskLevel(),
                     request.getRequestedBy()
@@ -531,11 +531,11 @@ public class McpApprovalNotificationService {
             ApprovalNotification notification = ApprovalNotification.builder()
                 .requestId(requestId)
                 .notificationType(approved ? "APPROVAL_GRANTED" : "APPROVAL_DENIED")
-                .title(approved ? "도구 실행 승인됨" : "도구 실행 거부됨")
+                .title(approved ? "Tool execution approved" : "Tool execution denied")
                 .message(String.format(
-                    "요청 ID %s의 도구 실행이 %s되었습니다.\n처리자: %s",
+                    "Tool execution for request ID %s has been %s.\nProcessed by: %s",
                     requestId,
-                    approved ? "승인" : "거부",
+                    approved ? "approved" : "denied",
                     approvedBy
                 ))
                 .userId(approvedBy)

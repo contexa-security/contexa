@@ -31,21 +31,22 @@ public class FallbackToolResolver implements ToolCallbackResolver {
                         return patternFallback;
         }
 
-                return createDefaultFallback(toolName);
+        log.error("No fallback tool found for: {}", toolName);
+        return null;
     }
 
     private void initializeFallbackTools() {
         
         fallbackTools.put("network_scan_fallback", new FallbackToolCallback(
             "network_scan_fallback",
-            "네트워크 스캔 도구를 사용할 수 없습니다",
-            "네트워크 스캔 기능이 현재 비활성화되어 있습니다. 관리자에게 문의하세요."
+            "Network scan tool is unavailable",
+            "Network scan feature is currently disabled. Please contact the administrator."
         ));
 
         fallbackTools.put("log_analysis_fallback", new FallbackToolCallback(
             "log_analysis_fallback",
-            "로그 분석 도구를 사용할 수 없습니다",
-            "로그 분석 서비스가 일시적으로 중단되었습니다. 잠시 후 다시 시도하세요."
+            "Log analysis tool is unavailable",
+            "Log analysis service is temporarily suspended. Please try again later."
         ));
         
             }
@@ -55,16 +56,16 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         if (toolName.contains("scan") || toolName.contains("security")) {
             return new FallbackToolCallback(
                 toolName + "_fallback",
-                "보안 도구 사용 불가",
-                String.format("보안 도구 '%s'를 현재 사용할 수 없습니다. 보안 정책을 확인하세요.", toolName)
+                "Security tool unavailable",
+                String.format("Security tool '%s' is currently unavailable. Please check the security policy.", toolName)
             );
         }
 
         if (toolName.contains("ai") || toolName.contains("llm")) {
             return new FallbackToolCallback(
                 toolName + "_fallback",
-                "AI 도구 사용 불가",
-                String.format("AI 도구 '%s'가 현재 오프라인입니다. API 키를 확인하세요.", toolName)
+                "AI tool unavailable",
+                String.format("AI tool '%s' is currently offline. Please check the API key.", toolName)
             );
         }
         
@@ -74,8 +75,8 @@ public class FallbackToolResolver implements ToolCallbackResolver {
     private ToolCallback createDefaultFallback(String toolName) {
         return new FallbackToolCallback(
             toolName + "_default_fallback",
-            "도구를 찾을 수 없음",
-            String.format("요청한 도구 '%s'를 찾을 수 없습니다. 도구 이름을 확인하거나 관리자에게 문의하세요.", toolName)
+            "Tool not found",
+            String.format("Requested tool '%s' was not found. Please verify the tool name or contact the administrator.", toolName)
         );
     }
 
@@ -116,7 +117,7 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         
         @Override
         public String call(String arguments) {
-            log.warn("Fallback 도구 호출됨: {} with args: {}", name, arguments);
+            log.error("Fallback tool invoked: {} with args: {}", name, arguments);
             return fallbackMessage;
         }
     }

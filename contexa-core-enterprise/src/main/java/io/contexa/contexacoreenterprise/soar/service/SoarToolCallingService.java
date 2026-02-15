@@ -103,7 +103,7 @@ public class SoarToolCallingService {
                 mapper.registerModule(new JavaTimeModule());
                 finalResponse = mapper.writeValueAsString(response);
                             } catch (Exception e) {
-                log.warn("SoarResponse JSON 변환 실패, analysisResult만 사용", e);
+                log.error("Failed to convert SoarResponse to JSON, using analysisResult only", e);
                 finalResponse = response.getAnalysisResult() != null ? response.getAnalysisResult() : "";
             }
             
@@ -121,7 +121,7 @@ public class SoarToolCallingService {
                 .build();
         })
         .onErrorResume(error -> {
-            log.error("💥 SOAR 실행 중 오류 발생", error);
+            log.error("Error occurred during SOAR execution", error);
             
             return Mono.just(SoarExecutionResult.builder()
                 .conversationId(conversationId)
@@ -210,12 +210,12 @@ public class SoarToolCallingService {
 
             return unifiedApprovalService.requestApproval(request)
                 .exceptionally(throwable -> {
-                    log.error("승인 요청 실패: {}", toolCall.getName(), throwable);
+                    log.error("Approval request failed: {}", toolCall.getName(), throwable);
                     return false;
                 });
             
         } catch (Exception e) {
-            log.error("승인 요청 생성 실패: {}", toolCall.getName(), e);
+            log.error("Failed to create approval request: {}", toolCall.getName(), e);
             return CompletableFuture.completedFuture(false);
         }
     }
@@ -314,7 +314,7 @@ public class SoarToolCallingService {
             
         } catch (Exception e) {
 
-            log.error("도구 인수 파싱 실패 - 빈 Map 반환: arguments={}", arguments, e);
+            log.error("Failed to parse tool arguments - returning empty Map: arguments={}", arguments, e);
             return new HashMap<>();
         }
     }

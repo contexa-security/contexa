@@ -76,7 +76,7 @@ public class McpFunctionCallbackProvider {
             .collect(Collectors.groupingBy(client -> client, Collectors.counting()));
 
         clientCounts.forEach((client, count) ->
-                log.info("  - {} 클라이언트: {} 개 도구", client, count)
+                log.error("  - {} client: {} tools", client, count)
         );
     }
 
@@ -104,16 +104,16 @@ public class McpFunctionCallbackProvider {
                                                 registeredCount++;
                         
                     } catch (Exception e) {
-                        log.error("도구 등록 실패: {} - {}", tool.name(), e.getMessage(), e);
+                        log.error("Failed to register tool: {} - {}", tool.name(), e.getMessage(), e);
                     }
                 }
 
                             } else {
-                log.warn("{} MCP 클라이언트에서 도구를 찾을 수 없음", clientName);
+                log.error("No tools found from {} MCP client", clientName);
             }
 
         } catch (Exception e) {
-            log.error("{} MCP 클라이언트 도구 등록 실패: {}", clientName, e.getMessage(), e);
+            log.error("Failed to register tools from {} MCP client: {}", clientName, e.getMessage(), e);
         }
     }
 
@@ -166,7 +166,7 @@ public class McpFunctionCallbackProvider {
                             }
             
         } catch (Exception e) {
-            log.warn("{} MCP 클라이언트 리소스 등록 실패: {}", clientName, e.getMessage());
+            log.error("Failed to register resources from {} MCP client: {}", clientName, e.getMessage());
         }
     }
 
@@ -205,11 +205,11 @@ public class McpFunctionCallbackProvider {
                     }
                 }
                 
-                return "리소스 내용 없음";
+                return "No resource content";
                 
             } catch (Exception e) {
-                log.error("MCP Resource 읽기 실패: {} - {}", name, e.getMessage());
-                return "오류: " + e.getMessage();
+                log.error("Failed to read MCP resource: {} - {}", name, e.getMessage());
+                return "Error: " + e.getMessage();
             }
         }
     }
@@ -247,7 +247,7 @@ public class McpFunctionCallbackProvider {
                             }
 
         } catch (Exception e) {
-            log.warn("{} MCP 클라이언트 프롬프트 등록 실패: {}", clientName, e.getMessage());
+            log.error("Failed to register prompts from {} MCP client: {}", clientName, e.getMessage());
         }
     }
 
@@ -288,18 +288,18 @@ public class McpFunctionCallbackProvider {
                         if (message.content() instanceof McpSchema.TextContent textContent) {
                             promptBuilder.append(textContent.text()).append("\n\n");
                         } else if (message.content() instanceof McpSchema.ImageContent imageContent) {
-                            promptBuilder.append("이미지: ").append(imageContent.data()).append("\n\n");
+                            promptBuilder.append("Image: ").append(imageContent.data()).append("\n\n");
                         }
                     }
 
                     return promptBuilder.toString().trim();
                 }
 
-                return "프롬프트 메시지 없음";
+                return "No prompt message";
 
             } catch (Exception e) {
-                log.error("MCP Prompt 가져오기 실패: {} - {}", name, e.getMessage());
-                return "오류: " + e.getMessage();
+                log.error("Failed to get MCP prompt: {} - {}", name, e.getMessage());
+                return "Error: " + e.getMessage();
             }
         }
     }

@@ -38,7 +38,7 @@ public class SpringBeanToolCallbackResolver implements ToolCallbackResolver {
             }
             
         } catch (Exception e) {
-            log.warn("Spring Bean 도구 검색 중 오류: {} - {}", toolName, e.getMessage());
+            log.error("Error searching for Spring Bean tool: {} - {}", toolName, e.getMessage());
         }
         
         return null;

@@ -49,6 +49,10 @@ public class WebSocketApprovalHandler {
         String userId = principal != null ? principal.getName() : "anonymous-" + System.currentTimeMillis();
         String sessionId = "session-" + System.currentTimeMillis();
 
+        if (activeUserSessions.size() >= 10000) {
+            log.error("Active session count exceeded limit ({}), clearing stale sessions", activeUserSessions.size());
+            activeUserSessions.clear();
+        }
         activeUserSessions.put(sessionId, userId);
 
         Map<String, Object> response = new HashMap<>();

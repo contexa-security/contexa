@@ -58,8 +58,8 @@ public class SoarEmailService {
         }
         
         try {
-            String subject = String.format("[SOAR] 승인 요청 %s: %s", 
-                approved ? "승인됨" : "거부됨", approvalId);
+            String subject = String.format("[SOAR] Approval request %s: %s",
+                approved ? "Approved" : "Denied", approvalId);
             
             Context context = new Context();
             context.setVariable("approvalId", approvalId);
@@ -85,7 +85,7 @@ public class SoarEmailService {
         }
         
         try {
-            String subject = String.format("[SOAR] 승인 요청 타임아웃: %s", toolName);
+            String subject = String.format("[SOAR] Approval request timeout: %s", toolName);
             
             Context context = new Context();
             context.setVariable("approvalId", approvalId);
@@ -129,7 +129,7 @@ public class SoarEmailService {
 
     private String buildApprovalRequestSubject(ApprovalNotification notification) {
         String riskIndicator = getRiskIndicator(notification.getRiskLevel());
-        return String.format("[SOAR] %s 승인 요청: %s", riskIndicator, notification.getToolName());
+        return String.format("[SOAR] %s Approval request: %s", riskIndicator, notification.getToolName());
     }
 
     private String buildApprovalRequestHtml(ApprovalNotification notification, NotificationTarget target) {

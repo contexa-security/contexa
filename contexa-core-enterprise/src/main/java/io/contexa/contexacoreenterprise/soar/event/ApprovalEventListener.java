@@ -50,7 +50,7 @@ public class ApprovalEventListener {
                 log.error("ApprovalRequest validation warnings: {}", validationResult.getWarnings());
             }
 
-            approvalService.saveApprovalRequest(request);
+            // Save is already handled by UnifiedApprovalService.requestApproval()
             // Notification is handled by McpApprovalNotificationService event listener
                         
         } catch (Exception e) {
@@ -76,21 +76,9 @@ public class ApprovalEventListener {
         if (event.getEventType() != EventType.APPROVAL_TIMEOUT) {
             return;
         }
-        
+        // Status already set to EXPIRED by UnifiedApprovalService.scheduleTimeout()
+        // Do NOT call handleApprovalResponse here as it would corrupt status to REJECTED
         log.error("Approval timeout occurred: {}", event.getRequestId());
-        
-        try {
-            
-            String approvalId = event.getRequestId();
-            approvalService.handleApprovalResponse(
-                approvalId, 
-                false,  
-                "Auto rejected: approval timeout",
-                "system"
-            );
-                    } catch (Exception e) {
-            log.error("Error during timeout processing: {}", event.getRequestId(), e);
-        }
     }
 
     @EventListener
@@ -98,20 +86,9 @@ public class ApprovalEventListener {
         if (event.getEventType() != EventType.APPROVAL_CANCELLED) {
             return;
         }
-
-        try {
-            
-            String approvalId = event.getRequestId();
-            String reason = event.getMessage() != null ? event.getMessage() : "User cancelled";
-            approvalService.handleApprovalResponse(
-                approvalId,
-                false,  
-                "Approval cancelled: " + reason,
-                "system"
-            );
-                    } catch (Exception e) {
-            
-                    }
+        // Status already set to CANCELLED by UnifiedApprovalService.cancelApproval()
+        // Do NOT call handleApprovalResponse here as it would corrupt status to REJECTED
+        log.error("Approval cancelled: {}", event.getRequestId());
     }
 
 }

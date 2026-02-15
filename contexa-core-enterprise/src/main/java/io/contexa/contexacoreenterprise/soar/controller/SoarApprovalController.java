@@ -1,6 +1,7 @@
 package io.contexa.contexacoreenterprise.soar.controller;
 
 import io.contexa.contexacore.soar.approval.ApprovalService;
+import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
 import io.contexa.contexacoreenterprise.soar.service.SoarToolExecutionService;
 import io.contexa.contexacoreenterprise.soar.tool.observation.SoarToolObservationContext;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +16,7 @@ import java.util.Map;
 
 @Slf4j
 @ResponseBody
+@PreAuthorize("isAuthenticated()")
 @RequestMapping("/api/soar/approval")
 public class SoarApprovalController {
     
@@ -108,7 +110,9 @@ public class SoarApprovalController {
     @GetMapping("/pending-list")
     public ResponseEntity<Map<String, Object>> getPendingApprovals() {
         try {
-            var pendingApprovals = approvalService.getPendingApprovals();
+            var pendingApprovals = (approvalService instanceof UnifiedApprovalService unified)
+                    ? unified.getPendingApprovalIds()
+                    : approvalService.getPendingApprovals();
             
             Map<String, Object> response = Map.of(
                 "success", true,

@@ -40,7 +40,7 @@ public class ApprovalRequestValidator {
         }
         
         if (!warnings.isEmpty()) {
-            log.warn("Validation warnings for request {}: {}", 
+            log.error("Validation warnings for request {}: {}",
                 request.getRequestId(), warnings);
         }
         
@@ -248,7 +248,7 @@ public class ApprovalRequestValidator {
                 break;
                 
             default:
-                log.warn("Unknown status: {}", status);
+                log.error("Unknown status: {}", status);
         }
     }
 

@@ -169,22 +169,26 @@ public class SoarToolObservationContext {
     }
 
     public String toJson() {
-        StringBuilder json = new StringBuilder();
-        json.append("{\n");
-        json.append("  \"incidentId\": \"").append(incidentId).append("\",\n");
-        json.append("  \"organizationId\": \"").append(organizationId).append("\",\n");
-        json.append("  \"securityAnalyst\": \"").append(securityAnalyst).append("\",\n");
-        json.append("  \"riskLevel\": \"").append(riskLevel).append("\",\n");
-        json.append("  \"approvalRequired\": ").append(approvalRequired).append(",\n");
-        json.append("  \"approvalStatus\": \"").append(approvalStatus).append("\",\n");
-        json.append("  \"executionStartTime\": \"").append(executionStartTime).append("\",\n");
-        if (executionEndTime != null) {
-            json.append("  \"executionEndTime\": \"").append(executionEndTime).append("\",\n");
-            json.append("  \"executionDurationMs\": ").append(executionDurationMs).append(",\n");
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            java.util.Map<String, Object> data = new java.util.LinkedHashMap<>();
+            data.put("incidentId", incidentId);
+            data.put("organizationId", organizationId);
+            data.put("securityAnalyst", securityAnalyst);
+            data.put("riskLevel", riskLevel);
+            data.put("approvalRequired", approvalRequired);
+            data.put("approvalStatus", approvalStatus);
+            data.put("executionStartTime", executionStartTime);
+            if (executionEndTime != null) {
+                data.put("executionEndTime", executionEndTime);
+                data.put("executionDurationMs", executionDurationMs);
+            }
+            data.put("timestamp", Instant.now());
+            return mapper.writeValueAsString(data);
+        } catch (Exception e) {
+            return "{}";
         }
-        json.append("  \"timestamp\": \"").append(Instant.now()).append("\"\n");
-        json.append("}");
-        return json.toString();
     }
 
     @Getter

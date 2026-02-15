@@ -109,6 +109,9 @@ public class ToolApprovalPolicyManager {
         addPatternPolicy(".*isolate.*", highRiskPolicy);
         addPatternPolicy(".*delete.*", highRiskPolicy);
         addPatternPolicy(".*shutdown.*", highRiskPolicy);
+        addPatternPolicy(".*kill.*", highRiskPolicy);
+        addPatternPolicy(".*reboot.*", highRiskPolicy);
+        addPatternPolicy(".*restart.*", highRiskPolicy);
 
         ApprovalPolicy criticalRiskPolicy = new ApprovalPolicy();
         criticalRiskPolicy.setRequiresApproval(true);
@@ -119,6 +122,7 @@ public class ToolApprovalPolicyManager {
         addPatternPolicy(".*destroy.*", criticalRiskPolicy);
         addPatternPolicy(".*terminate.*", criticalRiskPolicy);
         addPatternPolicy(".*wipe.*", criticalRiskPolicy);
+        addPatternPolicy(".*format.*", criticalRiskPolicy);
 
         ApprovalPolicy mediumRiskPolicy = new ApprovalPolicy();
         mediumRiskPolicy.setRequiresApproval(true);

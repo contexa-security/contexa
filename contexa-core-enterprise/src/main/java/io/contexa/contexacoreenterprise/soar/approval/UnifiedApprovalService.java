@@ -1,7 +1,5 @@
 package io.contexa.contexacoreenterprise.soar.approval;
 
-import io.contexa.contexacommon.domain.DiagnosisType;
-import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacore.domain.*;
 import io.contexa.contexacore.domain.entity.SoarApprovalRequest;
 import io.contexa.contexacore.soar.approval.ApprovalService;
@@ -113,7 +111,7 @@ public class UnifiedApprovalService implements ApprovalService {
             return;
         } else {
             log.error("Pending approval request not found: {}", requestId);
-            
+            return;
         }
 
         ApprovalRequest.ApprovalStatus status = approved ?
@@ -133,8 +131,6 @@ public class UnifiedApprovalService implements ApprovalService {
         }
 
         publishApprovalResult(requestId, approved);
-
-        publishResumeEvent(requestId, approved, comment, reviewer);
 
         Sinks.One<Boolean> sink = pendingSinks.remove(requestId);
         if (sink != null) {
@@ -407,42 +403,6 @@ public class UnifiedApprovalService implements ApprovalService {
         }
     }
 
-    private void publishResumeEvent(String approvalId, boolean approved, String comment, String reviewer) {
-        try {
-            
-            SoarApprovalRequest entity = repository.findByRequestId(approvalId);
-            if (entity == null) {
-                log.error("Cannot publish resume event - approval request not found: {}", approvalId);
-                return;
-            }
-
-            SoarContext soarContext = new SoarContext(
-                    entity.getPlaybookInstanceId(),  
-                    "SOAR_APPROVAL",                 
-                    "MEDIUM",                        
-                    "Approval context recreation",   
-                    entity.getStatus(),              
-                    LocalDateTime.now(),             
-                    List.of("approval-system"),      
-                    Map.of("approval_id", entity.getId()), 
-                    entity.getOrganizationId() != null ? entity.getOrganizationId() : "default-org" 
-            );
-            soarContext.setHumanApprovalNeeded(false);
-            soarContext.setHumanApprovalMessage(comment);
-
-            SoarRequest soarRequest = new SoarRequest(soarContext, new TemplateType("Soar"), new DiagnosisType("Soar"));
-            soarRequest.setApprovalId(entity.getId().toString());
-
-            ApprovalResumeEvent resumeEvent = new ApprovalResumeEvent(
-                    soarRequest, approvalId, approved, comment, reviewer
-            );
-            eventPublisher.publishEvent(resumeEvent);
-
-        } catch (Exception e) {
-            log.error("Failed to publish pipeline resume event: {}", approvalId, e);
-        }
-    }
-
     public boolean isPending(String approvalId) {
         CompletableFuture<Boolean> future = pendingApprovals.get(approvalId);
         return future != null && !future.isDone();
@@ -594,41 +554,6 @@ public class UnifiedApprovalService implements ApprovalService {
                 }
             }
         }, timeout.getSeconds(), TimeUnit.SECONDS);
-    }
-
-    @Transactional
-    public void processAsyncApproval(String requestId, boolean approved, String reviewer) {
-        
-        try {
-            
-            if (executionContextRepository != null) {
-                ToolExecutionContext context = executionContextRepository
-                        .findByRequestId(requestId)
-                        .orElse(null);
-
-                if (context != null) {
-                    if (approved) {
-                        context.setStatus("APPROVED");
-                                            } else {
-                        context.setStatus("REJECTED");
-                        context.setExecutionError("Approval rejected");
-                                            }
-                    executionContextRepository.save(context);
-                }
-            }
-
-            processApprovalResponse(requestId, approved, reviewer,
-                    approved ? "Async approved" : "Async rejected");
-
-            if (approved) {
-                eventPublisher.publishEvent(ApprovalEvent.granted(this, requestId, reviewer));
-            } else {
-                eventPublisher.publishEvent(ApprovalEvent.denied(this, requestId, reviewer, "Agent mode rejection"));
-            }
-
-        } catch (Exception e) {
-            log.error("Async approval processing failed: {}", requestId, e);
-        }
     }
 
     @PreDestroy

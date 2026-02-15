@@ -8,7 +8,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeoutException;
@@ -18,7 +22,8 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     
     private final boolean throwOnError;
     private final DefaultToolExecutionExceptionProcessor defaultProcessor;
-    
+    private final ObjectMapper objectMapper;
+
     private final Map<String, Integer> retryCounters = new ConcurrentHashMap<>();
     private final Map<String, RecoveryStrategy> recoveryStrategies = new ConcurrentHashMap<>();
     
@@ -26,6 +31,8 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
             @Value("${spring.ai.tools.throw-exception-on-error:false}") boolean throwOnError) {
         this.throwOnError = throwOnError;
         this.defaultProcessor = new DefaultToolExecutionExceptionProcessor(throwOnError);
+        this.objectMapper = new ObjectMapper();
+        this.objectMapper.registerModule(new JavaTimeModule());
             }
     
     @Override
@@ -33,14 +40,14 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
         String toolName = exception.getToolDefinition().name();
         Throwable cause = exception.getCause();
         
-        log.error("도구 실행 예외 발생 - 도구: {}, 예외: {}", toolName, cause != null ? cause.getMessage() : "Unknown", cause);
+        log.error("Tool execution exception - tool: {}, exception: {}", toolName, cause != null ? cause.getMessage() : "Unknown", cause);
 
         if (throwOnError) {
             
             if (cause instanceof PermissionDeniedException || 
                 cause instanceof ApprovalTimeoutException) {
                 throw new SecurityToolExecutionException(
-                    "보안 도구 실행 실패: " + cause.getMessage(), exception);
+                    "Security tool execution failed: " + cause.getMessage(), exception);
             }
             
             return defaultProcessor.process(exception);
@@ -64,14 +71,14 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private String handleTimeoutException(String toolName, ToolExecutionException exception) {
-        log.warn("⏰ 도구 실행 타임아웃: {}", toolName);
-        
+        log.error("Tool execution timeout: {}", toolName);
+
         return createErrorResponse(
             "TIMEOUT",
-            "도구 실행 시간 초과",
+            "Tool execution timed out",
             Map.of(
                 "toolName", toolName,
-                "suggestedAction", "타임아웃을 연장하여 재시도",
+                "suggestedAction", "Retry with extended timeout",
                 "retryable", true,
                 "extendedTimeoutMs", 60000,
                 "timestamp", Instant.now()
@@ -80,13 +87,13 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private String handleApprovalTimeout(String toolName, ToolExecutionException exception) {
-        log.warn("⏰ 승인 타임아웃: {} - 에스컬레이션 진행", toolName);
+        log.error("Approval timeout: {} - escalating", toolName);
 
         escalateToSupervisor(toolName);
-        
+
         return createErrorResponse(
             "APPROVAL_TIMEOUT",
-            "승인 응답 시간 초과로 상위 관리자에게 에스컬레이션",
+            "Approval response timed out, escalated to supervisor",
             Map.of(
                 "toolName", toolName,
                 "escalated", true,
@@ -98,14 +105,14 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private String handleRateLimitExceeded(String toolName, ToolExecutionException exception) {
-        log.warn("🚫 Rate limit 초과: {}", toolName);
-        
+        log.error("Rate limit exceeded: {}", toolName);
+
         return createErrorResponse(
             "RATE_LIMIT_EXCEEDED",
-            "도구 실행 빈도 제한 초과",
+            "Tool execution rate limit exceeded",
             Map.of(
                 "toolName", toolName,
-                "suggestedAction", "실행 대기열에 추가하여 나중에 실행",
+                "suggestedAction", "Queued for later execution",
                 "retryable", true,
                 "retryAfterMs", 60000,
                 "queuedForMs", 60000,
@@ -115,14 +122,14 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private String handlePermissionDenied(String toolName, ToolExecutionException exception) {
-        log.error("권한 거부: {}", toolName);
-        
+        log.error("Permission denied: {}", toolName);
+
         return createErrorResponse(
             "PERMISSION_DENIED",
-            "도구 실행 권한이 없습니다",
+            "No permission to execute tool",
             Map.of(
                 "toolName", toolName,
-                "suggestedAction", "권한 요청 프로세스 시작",
+                "suggestedAction", "Initiate permission request process",
                 "retryable", false,
                 "requestUrl", "/api/permissions/request",
                 "timestamp", Instant.now()
@@ -131,13 +138,13 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private String handleNetworkException(String toolName, ToolExecutionException exception) {
-        log.warn("네트워크 예외: {} - 복구 전략 적용", toolName);
-        
+        log.error("Network exception: {} - applying recovery strategy", toolName);
+
         RecoveryStrategy strategy = getRecoveryStrategy(toolName);
-        
+
         return createErrorResponse(
             "NETWORK_ERROR",
-            "네트워크 통신 오류",
+            "Network communication error",
             Map.of(
                 "toolName", toolName,
                 "suggestedAction", getAlternativeAction(toolName),
@@ -151,23 +158,23 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private String handleValidationException(String toolName, ToolExecutionException exception) {
-        log.warn("입력 검증 실패: {}", toolName);
-        
+        log.error("Input validation failed: {}", toolName);
+
         return createErrorResponse(
             "VALIDATION_ERROR",
-            "입력 매개변수 검증 실패",
+            "Input parameter validation failed",
             Map.of(
                 "toolName", toolName,
-                "suggestedAction", "매개변수를 수정하고 재시도",
+                "suggestedAction", "Fix parameters and retry",
                 "retryable", false,
-                "validationErrors", "매개변수 형식이 올바르지 않습니다",
+                "validationErrors", "Parameter format is invalid",
                 "timestamp", Instant.now()
             )
         );
     }
 
     private String handleGenericException(String toolName, ToolExecutionException exception, Throwable cause) {
-        log.error("💥 일반 예외 발생: {} - {}", toolName, cause.getMessage());
+        log.error("Generic exception occurred: {} - {}", toolName, cause.getMessage());
         
         boolean isRetryable = isRetryableException(cause);
         int retryCount = getRetryCount(toolName);
@@ -187,31 +194,17 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private String createErrorResponse(String errorType, String errorMessage, Map<String, Object> details) {
-        StringBuilder json = new StringBuilder();
-        json.append("{\n");
-        json.append("  \"success\": false,\n");
-        json.append("  \"errorType\": \"").append(errorType).append("\",\n");
-        json.append("  \"errorMessage\": \"").append(errorMessage).append("\",\n");
-        json.append("  \"details\": {\n");
-        
-        int count = 0;
-        for (Map.Entry<String, Object> entry : details.entrySet()) {
-            if (count > 0) json.append(",\n");
-            json.append("    \"").append(entry.getKey()).append("\": ");
-            
-            Object value = entry.getValue();
-            if (value instanceof String) {
-                json.append("\"").append(value).append("\"");
-            } else if (value instanceof Boolean || value instanceof Number) {
-                json.append(value);
-            } else {
-                json.append("\"").append(value.toString()).append("\"");
-            }
-            count++;
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", false);
+        response.put("errorType", errorType);
+        response.put("errorMessage", errorMessage);
+        response.put("details", details);
+        try {
+            return objectMapper.writeValueAsString(response);
+        } catch (Exception e) {
+            log.error("JSON serialization failed", e);
+            return "{\"success\":false,\"errorType\":\"SERIALIZATION_ERROR\"}";
         }
-        
-        json.append("\n  }\n}");
-        return json.toString();
     }
 
     private void escalateToSupervisor(String toolName) {
@@ -225,9 +218,9 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
 
     private String getAlternativeAction(String toolName) {
         if ("network_isolation".equals(toolName)) {
-            return "방화벽 규칙으로 대체 실행";
+            return "Fallback to firewall rules execution";
         }
-        return "재시도 또는 수동 처리";
+        return "Retry or manual processing";
     }
 
     private int getRetryCount(String toolName) {

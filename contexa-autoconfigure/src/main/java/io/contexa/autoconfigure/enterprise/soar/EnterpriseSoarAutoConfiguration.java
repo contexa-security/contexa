@@ -12,18 +12,14 @@ import io.contexa.contexacoreenterprise.soar.prompt.SoarPromptTemplate;
 import io.contexa.contexacoreenterprise.soar.notification.SoarApprovalNotifierImpl;
 import io.contexa.contexacoreenterprise.soar.manager.SoarInteractionManager;
 import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
-import io.contexa.contexacoreenterprise.soar.helper.WebSocketConfigHelper;
 import io.contexa.contexacoreenterprise.soar.helper.ToolCallDetectionHelper;
 import io.contexa.contexacoreenterprise.soar.event.RedisApprovalSubscriber;
 import io.contexa.contexacoreenterprise.soar.event.ApprovalEventListener;
 import io.contexa.contexacoreenterprise.soar.event.WebSocketApprovalHandler;
 import io.contexa.contexacoreenterprise.tool.pipeline.PipelineSoarToolExecutionStep;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
-import io.contexa.contexacoreenterprise.soar.controller.ToolApprovalController;
 import io.contexa.contexacoreenterprise.soar.controller.SoarApprovalController;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
-import io.contexa.contexacoreenterprise.soar.approval.ToolApprovalService;
-import io.contexa.contexacoreenterprise.soar.approval.ConversationHistoryBuilder;
 import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalRequestValidator;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalStateManager;
@@ -108,29 +104,8 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public WebSocketConfigHelper webSocketConfigHelper() {
-        return new WebSocketConfigHelper();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public ToolCallDetectionHelper toolCallDetectionHelper() {
         return new ToolCallDetectionHelper();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public ConversationHistoryBuilder conversationHistoryBuilder() {
-        return new ConversationHistoryBuilder();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public ToolApprovalService toolApprovalService() {
-        return new ToolApprovalService();
     }
 
     @Bean
@@ -322,14 +297,6 @@ public class EnterpriseSoarAutoConfiguration {
         return new PipelineSoarToolExecutionStep(
                 toolCapableLLMClient, approvalAwareToolCallingManager,
                 toolCallDetectionHelper, chainedToolResolver);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public ToolApprovalController toolApprovalController(
-            ToolApprovalService approvalService) {
-        return new ToolApprovalController(approvalService);
     }
 
     @Bean

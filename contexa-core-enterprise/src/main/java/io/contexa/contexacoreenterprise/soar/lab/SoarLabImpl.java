@@ -42,7 +42,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
         return orchestrator.execute(request, config, SoarResponse.class)
                 .cast(SoarResponse.class)
-                .doOnSuccess(response -> log.info("[DefaultSoarLab] PipelineOrchestrator 비동기 처리 완료: {}", request.getSessionId()));
+                .doOnSuccess(response -> log.error("[DefaultSoarLab] PipelineOrchestrator async processing completed: {}", request.getSessionId()));
     }
 
     @Override
@@ -55,12 +55,12 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
 
                 return orchestrator.executeStream(request, config)
                         .cast(String.class)
-                        .doOnNext(chunk -> log.debug("[DefaultSoarLab] 스트리밍 청크 수신: {}", chunk.length()))
-                        .doOnComplete(() -> log.info("[DefaultSoarLab] PipelineOrchestrator 스트리밍 처리 완료: {}", request.getSessionId()))
-                        .doOnError(error -> log.error("[DefaultSoarLab] PipelineOrchestrator 스트리밍 처리 실패: {}", error.getMessage()));
+                        .doOnNext(chunk -> log.error("[DefaultSoarLab] Streaming chunk received: {}", chunk.length()))
+                        .doOnComplete(() -> log.error("[DefaultSoarLab] PipelineOrchestrator streaming completed: {}", request.getSessionId()))
+                        .doOnError(error -> log.error("[DefaultSoarLab] PipelineOrchestrator streaming failed: {}", error.getMessage()));
 
             } catch (Exception e) {
-                log.error("[DefaultSoarLab] 스트리밍 처리 실패: {}", e.getMessage(), e);
+                log.error("[DefaultSoarLab] Streaming processing failed: {}", e.getMessage(), e);
                 return Flux.error(e);
             }
         });

@@ -6,8 +6,6 @@ import io.contexa.contexacore.soar.SoarLab;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacoreenterprise.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
-import io.contexa.contexacoreenterprise.mcp.cache.ToolResultCache;
-import io.contexa.contexacoreenterprise.mcp.event.ToolEventPublisher;
 import io.contexa.contexacoreenterprise.properties.ToolProperties;
 import io.contexa.contexacoreenterprise.mcp.integration.*;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProvider;
@@ -169,7 +167,7 @@ public class EnterpriseToolAutoConfiguration {
         if (mcpClientProvider.isPresent() && mcpFunctionProvider.isPresent()) {
             return new McpToolResolver(mcpClientProvider.get(), mcpFunctionProvider.get());
         } else {
-            log.warn("MCP provider not found. Creating empty McpToolResolver");
+            log.error("MCP provider not found. Creating empty McpToolResolver");
             return new McpToolResolver(null, null);
         }
     }
@@ -219,49 +217,11 @@ public class EnterpriseToolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ToolEventPublisher toolEventPublisher(ApplicationEventPublisher eventPublisher) {
-        return new ToolEventPublisher(eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = true)
     public McpFunctionCallbackProvider mcpFunctionCallbackProvider(
             McpSyncClient braveSearchMcpClient,
             McpSyncClient securityMcpClient) {
         return new McpFunctionCallbackProvider(braveSearchMcpClient, securityMcpClient);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public McpPromptIntegrator mcpPromptIntegrator(
-            McpSyncClient braveSearchMcpClient,
-            McpSyncClient securityMcpClient) {
-        return new McpPromptIntegrator(braveSearchMcpClient, securityMcpClient);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public McpResourceProvider mcpResourceProvider(
-            McpSyncClient braveSearchMcpClient,
-            McpSyncClient securityMcpClient) {
-        return new McpResourceProvider(braveSearchMcpClient, securityMcpClient);
-    }
-
-    @Bean("mcpToolIntegrationAdapter")
-    @ConditionalOnMissingBean(name = "mcpToolIntegrationAdapter")
-    @ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public McpToolIntegrationAdapter mcpToolIntegrationAdapter(
-            McpFunctionCallbackProvider mcpProvider) {
-        return new McpToolIntegrationAdapter(mcpProvider);
-    }
-
-    @Bean("unifiedToolCallbackProvider")
-    @ConditionalOnMissingBean(name = "unifiedToolCallbackProvider")
-    public UnifiedToolCallbackProvider unifiedToolCallbackProvider() {
-        return new UnifiedToolCallbackProvider();
     }
 
     @Bean
@@ -293,7 +253,7 @@ public class EnterpriseToolAutoConfiguration {
             return mcpClient;
 
         } catch (Exception e) {
-            log.warn("Failed to create Brave Search MCP client: {}", e.getMessage());
+            log.error("Failed to create Brave Search MCP client: {}", e.getMessage());
 
             return createFallbackMcpClient();
         }
@@ -318,13 +278,13 @@ public class EnterpriseToolAutoConfiguration {
             try {
                 var init = mcpClient.initialize();
             } catch (Exception initEx) {
-                log.warn("Failed to initialize contexa MCP server (server not started yet): {}", initEx.getMessage());
+                log.error("Failed to initialize contexa MCP server (server not started yet): {}", initEx.getMessage());
             }
 
             return mcpClient;
 
         } catch (Exception e) {
-            log.warn("Failed to create contexa MCP client: {}", e.getMessage());
+            log.error("Failed to create contexa MCP client: {}", e.getMessage());
 
             return createFallbackMcpClient();
         }
@@ -392,7 +352,7 @@ public class EnterpriseToolAutoConfiguration {
                         }
                     }
                 } else {
-                    log.warn("No tools available");
+                    log.error("No tools available");
                 }
             } catch (Exception e) {
                 log.error("Tool integration failed", e);
@@ -400,14 +360,14 @@ public class EnterpriseToolAutoConfiguration {
             }
         } else if (!toolsEnabled) {
         } else {
-            log.warn("ChainedToolResolver not found");
+            log.error("ChainedToolResolver not found");
         }
 
         if (toolsEnabled) {
             builder = builder.defaultSystem("""
                     You are an AI Assistant with access to integrated security tools.
 
-                    🛠️ TOOL CAPABILITIES:
+                    TOOL CAPABILITIES:
                     - SOAR Tools: Direct security response actions with risk-based approval
                     - MCP Tools: External services and search capabilities
                     - All tools are managed through a unified resolution system
@@ -458,13 +418,6 @@ public class EnterpriseToolAutoConfiguration {
             boolean enabled,
             String status,
             int toolCount) {
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(ToolResultCache.class)
-    public ToolResultCache toolResultCache(RedisTemplate<String, Object> redisTemplate,
-            ToolProperties toolProperties) {
-        return new ToolResultCache(redisTemplate, toolProperties);
     }
 
     @Bean
