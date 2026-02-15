@@ -36,8 +36,6 @@ public class PolicyApprovalService {
 
     private final Map<Long, ApprovalWorkflow> memoryWorkflows = new ConcurrentHashMap<>();
 
-    private final Map<ApproverLevel, List<Approver>> approverPool = new ConcurrentHashMap<>();
-
     @Transactional
     public String initiateSingleApproval(Long proposalId, 
                                         PolicyEvolutionGovernance.RiskAssessment riskAssessment) {
@@ -101,7 +99,6 @@ public class PolicyApprovalService {
                 .workflowType(WorkflowType.MULTI_LEVEL)
                 .requiredApprovals(requiredApprovers)
                 .approvers(approvers)
-                .approverLevels(levels)
                 .riskAssessment(riskAssessment)
                 .status(WorkflowStatus.PENDING)
                 .createdAt(LocalDateTime.now())
@@ -151,7 +148,6 @@ public class PolicyApprovalService {
             }
 
             request.setDecision(decision);
-            request.setDecisionTime(LocalDateTime.now());
             request.setComments(comments);
             request.setStatus(decision == ApprovalDecision.APPROVE ? 
                 RequestStatus.APPROVED : RequestStatus.REJECTED);
@@ -210,19 +206,6 @@ public class PolicyApprovalService {
             .build();
     }
 
-    public void registerApprover(Approver approver, ApproverLevel level) {
-                
-        approverPool.computeIfAbsent(level, k -> new ArrayList<>()).add(approver);
-    }
-
-    public void unregisterApprover(String approverId, ApproverLevel level) {
-                
-        List<Approver> approvers = approverPool.get(level);
-        if (approvers != null) {
-            approvers.removeIf(a -> a.getApproverId().equals(approverId));
-        }
-    }
-
     private PolicyEvolutionProposal validateProposal(Long proposalId) {
         PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
             .orElseThrow(() -> new ApprovalException("Proposal not found: " + proposalId));
@@ -236,18 +219,9 @@ public class PolicyApprovalService {
         return proposal;
     }
     
-    private Approver selectApprover(ApproverLevel level, 
+    private Approver selectApprover(ApproverLevel level,
                                    PolicyEvolutionGovernance.RiskAssessment riskAssessment) {
-        List<Approver> availableApprovers = approverPool.get(level);
-
-        if (availableApprovers == null || availableApprovers.isEmpty()) {
-            log.error("No registered approver for level: {}, using default approver", level);
-            return createDefaultApprover(level);
-        }
-
-        return availableApprovers.stream()
-            .min(Comparator.comparing(Approver::getCurrentWorkload))
-            .orElse(createDefaultApprover(level));
+        return createDefaultApprover(level);
     }
     
     private Approver createDefaultApprover(ApproverLevel level) {
@@ -293,7 +267,6 @@ public class PolicyApprovalService {
             .createdAt(LocalDateTime.now())
             .expiresAt(LocalDateTime.now().plusDays(3))
             .proposalSummary(createProposalSummary(proposal))
-            .riskSummary(workflow.getRiskAssessment())
             .build();
     }
     
@@ -548,7 +521,6 @@ public class PolicyApprovalService {
         private WorkflowType workflowType;
         private int requiredApprovals;
         private List<Approver> approvers;
-        private List<ApproverLevel> approverLevels;
         @lombok.Builder.Default
         private List<ApprovalRequest> requests = new ArrayList<>();
         private PolicyEvolutionGovernance.RiskAssessment riskAssessment;
@@ -581,9 +553,7 @@ public class PolicyApprovalService {
         private String comments;
         private LocalDateTime createdAt;
         private LocalDateTime expiresAt;
-        private LocalDateTime decisionTime;
         private Map<String, Object> proposalSummary;
-        private PolicyEvolutionGovernance.RiskAssessment riskSummary;
     }
 
     @lombok.Builder
@@ -622,32 +592,24 @@ public class PolicyApprovalService {
 
     public enum WorkflowType {
         SINGLE,
-        MULTI_LEVEL,
-        PARALLEL,
-        SEQUENTIAL
+        MULTI_LEVEL
     }
 
     public enum WorkflowStatus {
         PENDING,
-        IN_PROGRESS,
         APPROVED,
-        REJECTED,
-        EXPIRED,
-        CANCELLED
+        REJECTED
     }
 
     public enum RequestStatus {
         PENDING,
         APPROVED,
-        REJECTED,
-        EXPIRED,
-        CANCELLED
+        REJECTED
     }
 
     public enum ApprovalDecision {
         APPROVE,
-        REJECT,
-        DEFER
+        REJECT
     }
 
     public enum ApproverLevel {
@@ -658,11 +620,8 @@ public class PolicyApprovalService {
 
     public enum ApprovalEventType {
         WORKFLOW_INITIATED,
-        REQUEST_CREATED,
         REQUEST_APPROVED,
-        REQUEST_REJECTED,
-        WORKFLOW_COMPLETED,
-        WORKFLOW_CANCELLED
+        REQUEST_REJECTED
     }
 
     @lombok.Builder
@@ -688,10 +647,7 @@ public class PolicyApprovalService {
     }
 
     public enum NotificationType {
-        APPROVAL_REQUEST,
-        APPROVAL_REMINDER,
-        APPROVAL_COMPLETE,
-        APPROVAL_REJECTED
+        APPROVAL_REQUEST
     }
 
     public static class ApprovalException extends RuntimeException {

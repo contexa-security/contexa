@@ -12,7 +12,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -23,8 +22,6 @@ public class PolicyEvolutionGovernance {
     private final PolicyApprovalService approvalService;
     private final ApplicationEventPublisher eventPublisher;
     private final GovernanceProperties governanceProperties;
-
-    private final Map<String, GovernanceRule> governanceRules = new ConcurrentHashMap<>();
 
     @Transactional
     public GovernanceDecision evaluateProposal(Long proposalId) {
@@ -185,12 +182,6 @@ public class PolicyEvolutionGovernance {
             return false;
         }
 
-        for (GovernanceRule rule : governanceRules.values()) {
-            if (!rule.allows(proposal, riskAssessment)) {
-                return false;
-            }
-        }
-        
         return true;
     }
 
@@ -290,14 +281,6 @@ public class PolicyEvolutionGovernance {
             .build();
         
         eventPublisher.publishEvent(event);
-    }
-
-    public void addGovernanceRule(String ruleId, GovernanceRule rule) {
-                governanceRules.put(ruleId, rule);
-    }
-
-    public void removeGovernanceRule(String ruleId) {
-                governanceRules.remove(ruleId);
     }
 
     @lombok.Data

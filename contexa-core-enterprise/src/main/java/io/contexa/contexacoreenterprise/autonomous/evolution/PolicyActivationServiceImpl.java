@@ -19,7 +19,6 @@ import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 public class PolicyActivationServiceImpl implements PolicyActivationService {
 
@@ -32,8 +31,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     private ApplicationEventPublisher eventPublisher;
 
     private final Map<Long, ActivationTask> activationTasks = new ConcurrentHashMap<>();
-
-    private final ActivationMetrics metrics = new ActivationMetrics();
 
     @Override
     @Transactional
@@ -51,11 +48,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
 
             CompletableFuture<ActivationResult> future = executeActivation(task);
 
-            ActivationResult result = future.get(30, TimeUnit.SECONDS);
-
-            updateMetrics(result);
-
-            return result;
+            return future.get(30, TimeUnit.SECONDS);
 
         } catch (Exception e) {
             logger.error("Failed to activate policy: {}", proposalId, e);
@@ -86,88 +79,12 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
 
             publishPolicyChangeEvent(proposal, PolicyChangeType.DEACTIVATED);
 
-            publishDeactivationEvent(proposal, deactivatedBy, reason);
-
             return true;
 
         } catch (Exception e) {
             logger.error("Failed to deactivate policy: {}", proposalId, e);
             return false;
         }
-    }
-
-    @Async
-    public CompletableFuture<List<ActivationResult>> batchActivate(
-            List<Long> proposalIds, String activatedBy) {
-
-        List<CompletableFuture<ActivationResult>> futures = proposalIds.stream()
-            .map(id -> CompletableFuture.supplyAsync(() -> activatePolicy(id, activatedBy)))
-            .collect(Collectors.toList());
-
-        return CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
-            .thenApply(v -> futures.stream()
-                .map(CompletableFuture::join)
-                .collect(Collectors.toList()));
-    }
-
-    public ActivationResult conditionalActivate(Long proposalId, ActivationConditions conditions) {
-        try {
-            PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
-                .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
-
-            if (!validateConditions(proposal, conditions)) {
-                return ActivationResult.failure(proposalId, "Activation conditions not met");
-            }
-
-            return activatePolicy(proposalId, conditions.getRequestedBy());
-
-        } catch (Exception e) {
-            logger.error("Conditional activation failed: {}", proposalId, e);
-            return ActivationResult.failure(proposalId, e.getMessage());
-        }
-    }
-
-    public ActivationStatus getActivationStatus(Long proposalId) {
-        ActivationTask task = activationTasks.get(proposalId);
-
-        if (task == null) {
-            PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId).orElse(null);
-            if (proposal == null) {
-                return ActivationStatus.NOT_FOUND;
-            }
-
-            return mapStatusToActivationStatus(proposal.getStatus());
-        }
-
-        return task.getStatus();
-    }
-
-    @Transactional
-    public boolean rollbackActivation(Long proposalId, String reason) {
-        logger.error("Rolling back activation for policy {}: {}", proposalId, reason);
-
-        try {
-            PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
-                .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
-
-            proposal.setStatus(ProposalStatus.ROLLED_BACK);
-            proposal.addMetadata("rollback_reason", reason);
-            proposal.addMetadata("rollback_time", LocalDateTime.now().toString());
-
-            proposalRepository.save(proposal);
-
-            publishPolicyChangeEvent(proposal, PolicyChangeType.ROLLED_BACK);
-
-                return true;
-
-        } catch (Exception e) {
-            logger.error("Failed to rollback policy: {}", proposalId, e);
-            return false;
-        }
-    }
-
-    public ActivationMetrics getMetrics() {
-        return metrics.snapshot();
     }
 
     private boolean canActivate(PolicyEvolutionProposal proposal) {
@@ -201,13 +118,11 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 verifyActivation(task);
 
                 task.setStatus(ActivationStatus.ACTIVE);
-                task.setEndTime(LocalDateTime.now());
 
                 return ActivationResult.success(task.getProposalId(), null);
 
             } catch (Exception e) {
                 task.setStatus(ActivationStatus.FAILED);
-                task.setError(e.getMessage());
 
                 return ActivationResult.failure(task.getProposalId(), e.getMessage());
             }
@@ -262,8 +177,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         proposal.setActivatedBy(task.getActivatedBy());
 
         proposalRepository.save(proposal);
-
-        publishActivationEvent(proposal, task);
     }
 
     private void verifyActivation(ActivationTask task) throws Exception {
@@ -281,7 +194,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         if (proposal.getActivatedBy() == null || proposal.getActivatedBy().isEmpty()) {
             throw new ActivationException("Activator information is missing");
         }
-
     }
 
     private void publishPolicyChangeEvent(PolicyEvolutionProposal proposal, PolicyChangeType changeType) {
@@ -306,143 +218,13 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         return rules;
     }
 
-    private boolean validateConditions(PolicyEvolutionProposal proposal,
-                                      ActivationConditions conditions) {
-        if (conditions.getActivateAfter() != null &&
-            LocalDateTime.now().isBefore(conditions.getActivateAfter())) {
-            return false;
-        }
-
-        if (conditions.getMaxRiskLevel() != null &&
-            proposal.getRiskLevel().ordinal() > conditions.getMaxRiskLevel().ordinal()) {
-            return false;
-        }
-
-        if (conditions.getMinConfidenceScore() != null &&
-            proposal.getConfidenceScore() < conditions.getMinConfidenceScore()) {
-            return false;
-        }
-
-        return true;
-    }
-
-    private void updateMetrics(ActivationResult result) {
-        if (result.isSuccess()) {
-            metrics.incrementSuccessCount();
-        } else {
-            metrics.incrementFailureCount();
-        }
-
-        metrics.updateLastActivation(LocalDateTime.now());
-    }
-
-    private ActivationStatus mapStatusToActivationStatus(ProposalStatus status) {
-        switch (status) {
-            case ACTIVATED:
-                return ActivationStatus.ACTIVE;
-            case DEACTIVATED:
-                return ActivationStatus.DEACTIVATED;
-            case ROLLED_BACK:
-                return ActivationStatus.ROLLED_BACK;
-            default:
-                return ActivationStatus.INACTIVE;
-        }
-    }
-
-    private void publishActivationEvent(PolicyEvolutionProposal proposal, ActivationTask task) {
-        ActivationEvent event = ActivationEvent.builder()
-            .proposalId(proposal.getId())
-            .activatedBy(task.getActivatedBy())
-            .timestamp(LocalDateTime.now())
-            .build();
-
-        eventPublisher.publishEvent(event);
-    }
-
-    private void publishDeactivationEvent(PolicyEvolutionProposal proposal,
-                                         String deactivatedBy, String reason) {
-        DeactivationEvent event = DeactivationEvent.builder()
-            .proposalId(proposal.getId())
-            .deactivatedBy(deactivatedBy)
-            .reason(reason)
-            .timestamp(LocalDateTime.now())
-            .build();
-
-        eventPublisher.publishEvent(event);
-    }
-
     @Builder
     @Data
     private static class ActivationTask {
         private Long proposalId;
         private String activatedBy;
         private LocalDateTime startTime;
-        private LocalDateTime endTime;
         private ActivationStatus status;
-        private String error;
-    }
-
-    @Builder
-    @Data
-    public static class ActivationConditions {
-        private String requestedBy;
-        private LocalDateTime activateAfter;
-        private PolicyEvolutionProposal.RiskLevel maxRiskLevel;
-        private Double minConfidenceScore;
-        private Map<String, Object> customConditions;
-    }
-
-    @Data
-    public static class ActivationMetrics {
-        private long totalActivations = 0;
-        private long successfulActivations = 0;
-        private long failedActivations = 0;
-        private LocalDateTime lastActivation;
-
-        public void incrementSuccessCount() {
-            totalActivations++;
-            successfulActivations++;
-        }
-
-        public void incrementFailureCount() {
-            totalActivations++;
-            failedActivations++;
-        }
-
-        public void updateLastActivation(LocalDateTime time) {
-            lastActivation = time;
-        }
-
-        public double getSuccessRate() {
-            if (totalActivations == 0) return 0.0;
-            return (double) successfulActivations / totalActivations;
-        }
-
-        public ActivationMetrics snapshot() {
-            ActivationMetrics snapshot = new ActivationMetrics();
-            snapshot.totalActivations = this.totalActivations;
-            snapshot.successfulActivations = this.successfulActivations;
-            snapshot.failedActivations = this.failedActivations;
-            snapshot.lastActivation = this.lastActivation;
-            return snapshot;
-        }
-    }
-
-    @Builder
-    @Data
-    public static class ActivationEvent {
-        private Long proposalId;
-        private String activatedBy;
-        private LocalDateTime timestamp;
-    }
-
-    @Builder
-    @Data
-    public static class DeactivationEvent {
-        private Long proposalId;
-        private String deactivatedBy;
-        private String reason;
-        private LocalDateTime timestamp;
     }
 
     public enum ActivationStatus {

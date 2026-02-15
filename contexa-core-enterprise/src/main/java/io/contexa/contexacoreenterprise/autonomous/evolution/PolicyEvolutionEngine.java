@@ -3,7 +3,6 @@ package io.contexa.contexacoreenterprise.autonomous.evolution;
 import io.contexa.contexacore.autonomous.domain.LearningMetadata;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacoreenterprise.domain.dto.PolicyDTO;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -20,10 +19,20 @@ import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Pattern;
 
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionEngine {
+
+    private static final Pattern SPEL_CODE_BLOCK_PATTERN = Pattern.compile(
+            "```(?:spel|java)?\\s*([^`]+)```", Pattern.DOTALL);
+    private static final Pattern INLINE_CODE_PATTERN = Pattern.compile("`([^`]+)`");
+    private static final Pattern NUMERIC_IMPACT_PATTERN = Pattern.compile(
+            "(?:영향도|효과|impact|effectiveness|score)\\s*[:=]\\s*(0\\.\\d+|1\\.0)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern DECIMAL_VALUE_PATTERN = Pattern.compile("\\b(0\\.[0-9]{1,2})\\b");
+    private static final Pattern PERCENTAGE_IMPACT_PATTERN = Pattern.compile(
+            "(?:영향도|효과|impact|effectiveness)\\s*[:=]?\\s*(\\d{1,3})%", Pattern.CASE_INSENSITIVE);
 
     private final ChatModel chatModel;
     private final UnifiedVectorService unifiedVectorService;
@@ -471,22 +480,15 @@ public class PolicyEvolutionEngine {
     }
 
     private String extractFromCodeBlock(String aiResponse) {
-        
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-            "```(?:spel|java)?\\s*([^`]+)```",
-            java.util.regex.Pattern.DOTALL
-        );
-        java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
+        java.util.regex.Matcher matcher = SPEL_CODE_BLOCK_PATTERN.matcher(aiResponse);
         if (matcher.find()) {
             String code = matcher.group(1).trim();
-            
             if (validateSpelWithService(code)) {
                 return code;
             }
         }
 
-        pattern = java.util.regex.Pattern.compile("`([^`]+)`");
-        matcher = pattern.matcher(aiResponse);
+        matcher = INLINE_CODE_PATTERN.matcher(aiResponse);
         while (matcher.find()) {
             String code = matcher.group(1).trim();
             if (validateSpelWithService(code)) {
@@ -511,24 +513,22 @@ public class PolicyEvolutionEngine {
         return false;
     }
 
-    private String extractSpelFunctionPattern(String aiResponse) {
-        
-        String[] spelPatterns = {
-            "#trust\\.\\w+\\([^)]*\\)[^\\n]*",    
-            "#ai\\.\\w+\\([^)]*\\)[^\\n]*",       
-            "hasRole\\([^)]+\\)[^\\n]*",
-            "hasAuthority\\([^)]+\\)[^\\n]*",
-            "hasAnyRole\\([^)]+\\)[^\\n]*",
-            "hasAnyAuthority\\([^)]+\\)[^\\n]*",
-            "permitAll\\(\\)[^\\n]*",
-            "denyAll\\(\\)[^\\n]*",
-            "isAuthenticated\\(\\)[^\\n]*",
-            "isAnonymous\\(\\)[^\\n]*"
-        };
+    private static final Pattern[] SPEL_FUNCTION_PATTERNS = {
+        Pattern.compile("#trust\\.\\w+\\([^)]*\\)[^\\n]*"),
+        Pattern.compile("#ai\\.\\w+\\([^)]*\\)[^\\n]*"),
+        Pattern.compile("hasRole\\([^)]+\\)[^\\n]*"),
+        Pattern.compile("hasAuthority\\([^)]+\\)[^\\n]*"),
+        Pattern.compile("hasAnyRole\\([^)]+\\)[^\\n]*"),
+        Pattern.compile("hasAnyAuthority\\([^)]+\\)[^\\n]*"),
+        Pattern.compile("permitAll\\(\\)[^\\n]*"),
+        Pattern.compile("denyAll\\(\\)[^\\n]*"),
+        Pattern.compile("isAuthenticated\\(\\)[^\\n]*"),
+        Pattern.compile("isAnonymous\\(\\)[^\\n]*")
+    };
 
-        for (String patternStr : spelPatterns) {
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(patternStr);
-            java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
+    private String extractSpelFunctionPattern(String aiResponse) {
+        for (Pattern spelPattern : SPEL_FUNCTION_PATTERNS) {
+            java.util.regex.Matcher matcher = spelPattern.matcher(aiResponse);
             if (matcher.find()) {
                 String expression = matcher.group(0).trim();
                 
@@ -573,12 +573,7 @@ public class PolicyEvolutionEngine {
     }
 
     private Double extractNumericImpact(String aiResponse) {
-        
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-            "(?:영향도|효과|impact|effectiveness|score)\\s*[:=]\\s*(0\\.\\d+|1\\.0)",
-            java.util.regex.Pattern.CASE_INSENSITIVE
-        );
-        java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
+        java.util.regex.Matcher matcher = NUMERIC_IMPACT_PATTERN.matcher(aiResponse);
 
         if (matcher.find()) {
             try {
@@ -590,8 +585,7 @@ public class PolicyEvolutionEngine {
                             }
         }
 
-        pattern = java.util.regex.Pattern.compile("\\b(0\\.[0-9]{1,2})\\b");
-        matcher = pattern.matcher(aiResponse);
+        matcher = DECIMAL_VALUE_PATTERN.matcher(aiResponse);
 
         while (matcher.find()) {
             try {
@@ -609,12 +603,7 @@ public class PolicyEvolutionEngine {
     }
 
     private Double extractPercentageImpact(String aiResponse) {
-        
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-            "(?:영향도|효과|impact|effectiveness)\\s*[:=]?\\s*(\\d{1,3})%",
-            java.util.regex.Pattern.CASE_INSENSITIVE
-        );
-        java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
+        java.util.regex.Matcher matcher = PERCENTAGE_IMPACT_PATTERN.matcher(aiResponse);
 
         if (matcher.find()) {
             try {
@@ -702,21 +691,15 @@ public class PolicyEvolutionEngine {
     private PolicyEvolutionProposal.ProposalType determineProposalType(
             SecurityEvent event, 
             LearningMetadata metadata) {
-        
-        switch (metadata.getLearningType()) {
-            case THREAT_RESPONSE:
-                return PolicyEvolutionProposal.ProposalType.CREATE_POLICY;
-            case ACCESS_PATTERN:
-                return PolicyEvolutionProposal.ProposalType.OPTIMIZE_RULE;
-            case POLICY_FEEDBACK:
-                return PolicyEvolutionProposal.ProposalType.UPDATE_POLICY;
-            case FALSE_POSITIVE_LEARNING:
-                return PolicyEvolutionProposal.ProposalType.ADJUST_THRESHOLD;
-            case COMPLIANCE_LEARNING:
-                return PolicyEvolutionProposal.ProposalType.CREATE_POLICY;
-            default:
-                return PolicyEvolutionProposal.ProposalType.SUGGEST_TRAINING;
-        }
+
+        return switch (metadata.getLearningType()) {
+            case THREAT_RESPONSE -> PolicyEvolutionProposal.ProposalType.CREATE_POLICY;
+            case ACCESS_PATTERN -> PolicyEvolutionProposal.ProposalType.OPTIMIZE_RULE;
+            case POLICY_FEEDBACK -> PolicyEvolutionProposal.ProposalType.UPDATE_POLICY;
+            case FALSE_POSITIVE_LEARNING -> PolicyEvolutionProposal.ProposalType.ADJUST_THRESHOLD;
+            case COMPLIANCE_LEARNING -> PolicyEvolutionProposal.ProposalType.CREATE_POLICY;
+            default -> PolicyEvolutionProposal.ProposalType.SUGGEST_TRAINING;
+        };
     }
 
     private void storeLearningData(
@@ -771,80 +754,4 @@ public class PolicyEvolutionEngine {
             .build();
     }
 
-    public void learnFromRejection(PolicyDTO policy, String rejectionReason) {
-        
-        try {
-            
-            Map<String, Object> rejectionContext = new HashMap<>();
-            rejectionContext.put("policyId", policy.getId());
-            rejectionContext.put("policyName", policy.getName());
-            rejectionContext.put("policySource", policy.getSource());
-            rejectionContext.put("confidenceScore", policy.getConfidenceScore());
-            rejectionContext.put("aiModel", policy.getAiModel());
-            rejectionContext.put("rejectionReason", rejectionReason);
-            rejectionContext.put("rejectedAt", LocalDateTime.now());
-
-            Document rejectionDoc = new Document(
-                "REJECTION: Policy=" + policy.getName() + ", Reason=" + rejectionReason,
-                rejectionContext
-            );
-            rejectionDoc.getMetadata().put("type", "policy_rejection");
-            rejectionDoc.getMetadata().put("policyId", policy.getId());
-
-            unifiedVectorService.storeDocument(rejectionDoc);
-
-        } catch (Exception e) {
-            log.error("Rejection learning failed: {}", policy.getName(), e);
-        }
-    }
-
-    public void requestEvolution(PolicyDTO policy, Map<String, Object> context) {
-        
-        try {
-
-            SecurityEvent.Severity severity = determineSeverityFromContext(context);
-
-            SecurityEvent event = SecurityEvent.builder()
-                .source(SecurityEvent.EventSource.IAM)
-                .severity(severity)
-                .description("Policy evolution requested: " + policy.getName())
-                .metadata(context)
-                .build();
-
-            LearningMetadata metadata = LearningMetadata.builder()
-                .learningType(LearningMetadata.LearningType.POLICY_FEEDBACK)
-                .isLearnable(true)
-                .confidenceScore(policy.getConfidenceScore() != null ? policy.getConfidenceScore() : 0.5)
-                .sourceLabId("PolicyEvolutionEngine")
-                .priority(8)
-                .status(LearningMetadata.LearningStatus.PENDING)
-                .build();
-
-            metadata.addContext("originalPolicyId", policy.getId());
-            metadata.addContext("originalPolicyName", policy.getName());
-            metadata.addContext("evolutionReason", context.get("changeReason"));
-
-            evolvePolicy(event, metadata);
-
-        } catch (Exception e) {
-            log.error("Policy evolution failed: {}", policy.getName(), e);
-        }
-    }
-
-    private SecurityEvent.Severity determineSeverityFromContext(Map<String, Object> context) {
-        if (context == null) {
-            return SecurityEvent.Severity.MEDIUM;
-        }
-
-        Object severityObj = context.get("severity");
-        if (severityObj instanceof String severityStr) {
-            try {
-                return SecurityEvent.Severity.valueOf(severityStr.toUpperCase());
-            } catch (IllegalArgumentException e) {
-                // fall through to default
-            }
-        }
-
-        return SecurityEvent.Severity.MEDIUM;
-    }
 }

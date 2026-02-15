@@ -1,6 +1,5 @@
 package io.contexa.autoconfigure.iam.aiam;
 
-import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexaiam.aiam.listener.StompEventListener;
 import io.contexa.contexaiam.aiam.pipeline.processor.ConditionTemplateResponseProcessor;

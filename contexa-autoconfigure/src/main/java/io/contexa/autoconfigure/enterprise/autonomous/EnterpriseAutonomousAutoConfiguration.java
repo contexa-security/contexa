@@ -1,13 +1,10 @@
 package io.contexa.autoconfigure.enterprise.autonomous;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
-import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
-import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
 import io.contexa.contexacoreenterprise.autonomous.evolution.AutonomousLearningCoordinator;
 import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyActivationServiceImpl;
@@ -37,7 +34,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
-@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
+@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.evolution.PolicyActivationServiceImpl")
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties({ ContexaProperties.class, SecurityAutonomousProperties.class,
         SecurityEvaluatorProperties.class, PolicyEvolutionProperties.class, GovernanceProperties.class })
@@ -112,17 +109,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public DefaultNotificationService defaultNotificationService() {
         return new DefaultNotificationService();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(IPolicyProposalManagementService.class)
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public IPolicyProposalManagementService policyProposalManagementService(
-            PolicyEvolutionProposalRepository proposalRepository,
-            PolicyEvolutionGovernance governance,
-            PolicyAuditLogger auditLogger,
-            ApplicationEventPublisher eventPublisher) {
-        return new PolicyProposalManagementService(proposalRepository, governance, auditLogger, eventPublisher);
     }
 
     @Bean

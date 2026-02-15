@@ -33,7 +33,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
-@ResponseBody
+@RestController
 @RequestMapping("/api/policies")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "${contexa.cors.allowed-origins:http://localhost:3000}", maxAge = 3600)
