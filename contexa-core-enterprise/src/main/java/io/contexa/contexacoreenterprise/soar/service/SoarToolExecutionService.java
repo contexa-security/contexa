@@ -126,9 +126,13 @@ public class SoarToolExecutionService {
 
     private void publishIncidentResolvedEvent(String incidentId, long resolutionTimeMs, boolean wasSuccessful) {
         try {
+            SecurityEvent.Severity severity = wasSuccessful
+                ? SecurityEvent.Severity.INFO
+                : SecurityEvent.Severity.MEDIUM;
+
             SecurityEvent securityEvent = SecurityEvent.builder()
                 .source(SecurityEvent.EventSource.SIEM)
-                .severity(SecurityEvent.Severity.MEDIUM)
+                .severity(severity)
                 .description("SOAR incident resolved: " + incidentId)
                 .build();
             securityEvent.addMetadata("incidentId", incidentId);

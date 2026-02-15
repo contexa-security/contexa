@@ -1,15 +1,17 @@
 package io.contexa.contexacore.autonomous.event.publisher;
 
-import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.intercept.MethodInvocation;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.security.authorization.AuthorizationDecision;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -23,6 +25,9 @@ public class ZeroTrustEventPublisher {
 
     private final ApplicationEventPublisher eventPublisher;
     private final TieredStrategyProperties properties;
+
+    @Autowired(required = false)
+    private ZeroTrustActionRedisRepository actionRedisRepository;
 
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,
@@ -94,6 +99,14 @@ public class ZeroTrustEventPublisher {
             payload.put("isNewUser", requestInfo.getIsNewUser());
             payload.put("isNewDevice", requestInfo.getIsNewDevice());
             payload.put("recentRequestCount", requestInfo.getRecentRequestCount());
+        }
+
+        // Lookup current action for action-based severity determination
+        if (actionRedisRepository != null && authentication != null) {
+            ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(authentication.getName());
+            if (currentAction != null) {
+                payload.put("action", currentAction.name());
+            }
         }
 
         publish(

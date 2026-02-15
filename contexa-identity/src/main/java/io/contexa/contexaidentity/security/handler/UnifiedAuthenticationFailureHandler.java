@@ -1,6 +1,8 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -29,18 +31,19 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final UserIdentificationService userIdentificationService;
-
-    @Autowired(required = false)
-    private ZeroTrustEventPublisher zeroTrustEventPublisher;
+    private final ZeroTrustEventPublisher zeroTrustEventPublisher;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
                                                MfaSessionRepository sessionRepository,
-                                               UserIdentificationService userIdentificationService) {
+                                               UserIdentificationService userIdentificationService, ZeroTrustEventPublisher zeroTrustEventPublisher, ZeroTrustActionRedisRepository actionRedisRepository) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.userIdentificationService = userIdentificationService;
+        this.zeroTrustEventPublisher = zeroTrustEventPublisher;
+        this.actionRedisRepository = actionRedisRepository;
     }
 
     @Override
@@ -314,6 +317,14 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 payload.put("deviceId", factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.DEVICE_ID));
             } else {
                 payload.put("authenticationType", "PRIMARY");
+            }
+
+            // Lookup current action from Redis for action-based severity
+            if (actionRedisRepository != null && username != null) {
+                ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(username);
+                if (currentAction != null) {
+                    payload.put("action", currentAction.name());
+                }
             }
 
             zeroTrustEventPublisher.publishAuthenticationFailure(

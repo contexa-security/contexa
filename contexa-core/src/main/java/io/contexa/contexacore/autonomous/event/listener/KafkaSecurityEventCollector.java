@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.SecurityEventListener;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
@@ -204,24 +205,53 @@ public class KafkaSecurityEventCollector {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        Object bruteForce = payload.get("bruteForceDetected");
-        Object credentialStuffing = payload.get("credentialStuffingDetected");
-        if ((bruteForce != null && Boolean.parseBoolean(String.valueOf(bruteForce))) ||
-            (credentialStuffing != null && Boolean.parseBoolean(String.valueOf(credentialStuffing)))) {
-            return SecurityEvent.Severity.HIGH;
+        // Primary: Action-based severity (platform core philosophy)
+        Object actionValue = payload.get("action");
+        if (actionValue != null) {
+            return mapActionToSeverity(actionValue.toString());
         }
 
-        Object anomaly = payload.get("anomalyDetected");
-        if (anomaly != null && Boolean.parseBoolean(String.valueOf(anomaly))) {
+        // Fallback: Context-based inference for events without action
+        return inferSeverityFromContext(payload);
+    }
+
+    private SecurityEvent.Severity mapActionToSeverity(String actionStr) {
+        ZeroTrustAction action = ZeroTrustAction.fromString(actionStr);
+        return switch (action) {
+            case BLOCK -> SecurityEvent.Severity.CRITICAL;
+            case ESCALATE -> SecurityEvent.Severity.HIGH;
+            case CHALLENGE -> SecurityEvent.Severity.MEDIUM;
+            case PENDING_ANALYSIS -> SecurityEvent.Severity.MEDIUM;
+            case ALLOW -> SecurityEvent.Severity.LOW;
+        };
+    }
+
+    private SecurityEvent.Severity inferSeverityFromContext(Map<String, Object> payload) {
+        Object failureCount = payload.get("failureCount");
+        if (failureCount != null) {
+            int count = parseIntSafely(failureCount);
+            if (count > 10) return SecurityEvent.Severity.HIGH;
+            if (count > 5) return SecurityEvent.Severity.MEDIUM;
+        }
+
+        if (payload.get("failureReason") != null) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        Object failureReason = payload.get("failureReason");
-        if (failureReason != null) {
+        Object granted = payload.get("granted");
+        if (granted != null && !Boolean.parseBoolean(granted.toString())) {
             return SecurityEvent.Severity.MEDIUM;
         }
 
         return SecurityEvent.Severity.LOW;
+    }
+
+    private int parseIntSafely(Object value) {
+        try {
+            return Integer.parseInt(value.toString());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
     }
 
     private void sendToDeadLetterQueue(String message, String topic, int partition, long offset, Exception exception) {

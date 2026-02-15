@@ -329,6 +329,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 payload.put("authenticationResult", transportResult.getBody().get("status"));
             }
 
+            // MFA success resets action to ALLOW (resetActionOnMfaSuccess called before this)
+            payload.put("action", ZeroTrustAction.ALLOW.name());
+
             zeroTrustEventPublisher.publishAuthenticationSuccess(
                     userName,
                     request.getSession(false) != null ? request.getSession().getId() : null,

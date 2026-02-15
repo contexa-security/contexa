@@ -277,13 +277,13 @@ public class IdentitySecurityCoreAutoConfiguration {
     @ConditionalOnBean(UserIdentificationService.class)
     public UnifiedAuthenticationFailureHandler unifiedAuthenticationFailureHandler(
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
-            MfaPolicyProvider mfaPolicyProvider,
             AuthResponseWriter authResponseWriter,
             MfaSessionRepository mfaSessionRepository,
-            @Autowired(required = false) UserIdentificationService userIdentificationService,
-            AuthUrlProvider authUrlProvider) {
+            UserIdentificationService userIdentificationService,
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            ZeroTrustActionRedisRepository actionRedisRepository) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
-                mfaSessionRepository, userIdentificationService);
+                mfaSessionRepository, userIdentificationService,zeroTrustEventPublisher,actionRedisRepository);
     }
 
     @Bean

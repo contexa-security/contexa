@@ -91,17 +91,9 @@ public class SecurityEvent {
         public String getDisplayName() {
             return displayName;
         }
-        
+
         public int getScore() {
             return score;
-        }
-        
-        public static Severity fromScore(int score) {
-            if (score >= 9) return CRITICAL;
-            if (score >= 7) return HIGH;
-            if (score >= 4) return MEDIUM;
-            if (score >= 2) return LOW;
-            return INFO;
         }
     }
 
