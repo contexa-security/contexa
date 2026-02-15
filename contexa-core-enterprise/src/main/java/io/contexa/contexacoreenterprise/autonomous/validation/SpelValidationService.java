@@ -15,20 +15,33 @@ public class SpelValidationService {
     private final ExpressionParser parser = new SpelExpressionParser();
 
     private static final Set<String> TRUST_METHODS = Set.of(
-        
-        "hasResourceAccess",      
-        "hasTemporaryPermission", 
-        
-        "isAllowed",              
-        "isBlocked",              
-        "needsChallenge",         
-        "needsInvestigation",     
-        "isMonitored",            
-        "isPendingAnalysis",      
-        "hasAction",              
-        "hasActionIn",            
-        "isAnalysisComplete",     
-        "requiresAnalysis"        
+        "hasResourceAccess",
+        "hasTemporaryPermission",
+        "isAllowed",
+        "isBlocked",
+        "needsChallenge",
+        "needsInvestigation",
+        "isMonitored",
+        "isPendingAnalysis",
+        "hasAction",
+        "hasActionIn",
+        "isAnalysisComplete",
+        "requiresAnalysis"
+    );
+
+    private static final Map<String, String> TRUST_METHOD_DOCS = Map.ofEntries(
+        Map.entry("isAllowed", "#ai.isAllowed() -> boolean : LLM ALLOW verdict check"),
+        Map.entry("isBlocked", "#ai.isBlocked() -> boolean : LLM BLOCK verdict check"),
+        Map.entry("needsChallenge", "#ai.needsChallenge() -> boolean : MFA required (CHALLENGE)"),
+        Map.entry("needsInvestigation", "#ai.needsInvestigation() -> boolean : Further investigation needed (INVESTIGATE/ESCALATE)"),
+        Map.entry("isMonitored", "#ai.isMonitored() -> boolean : Monitoring mode (MONITOR)"),
+        Map.entry("isPendingAnalysis", "#ai.isPendingAnalysis() -> boolean : Analysis incomplete (PENDING_ANALYSIS)"),
+        Map.entry("hasAction", "#ai.hasAction(String action) -> boolean : Check specific LLM action"),
+        Map.entry("hasActionIn", "#ai.hasActionIn(String... actions) -> boolean : Check if action is one of given values"),
+        Map.entry("hasResourceAccess", "#ai.hasResourceAccess(String resourceId, double threshold) -> boolean : Resource-level access with trust threshold"),
+        Map.entry("hasTemporaryPermission", "#ai.hasTemporaryPermission() -> boolean : Check temporary permission granted"),
+        Map.entry("isAnalysisComplete", "#ai.isAnalysisComplete() -> boolean : Check if AI analysis is complete"),
+        Map.entry("requiresAnalysis", "#ai.requiresAnalysis() -> boolean : Check if AI analysis is required")
     );
 
     private static final Set<String> AI_METHODS = Set.of(
@@ -48,21 +61,47 @@ public class SpelValidationService {
         "hasActionOrDefault"
     );
 
+    private static final Map<String, String> AI_METHOD_DOCS = Map.ofEntries(
+        Map.entry("analyzeFraud", "#ai.analyzeFraud(#transaction) -> boolean : Fraud transaction analysis"),
+        Map.entry("detectAnomaly", "#ai.detectAnomaly(String operation) -> boolean : Anomaly behavior detection"),
+        Map.entry("evaluateCriticalOperation", "#ai.evaluateCriticalOperation(#context) -> boolean : Critical operation evaluation"),
+        Map.entry("evaluateDataExfiltration", "#ai.evaluateDataExfiltration() -> boolean : Data exfiltration risk evaluation"),
+        Map.entry("evaluatePrivilegeEscalation", "#ai.evaluatePrivilegeEscalation() -> boolean : Privilege escalation risk evaluation"),
+        Map.entry("hasSafeBehavior", "#ai.hasSafeBehavior(double threshold) -> boolean : Behavior safety score check"),
+        Map.entry("isAllowed", "#ai.isAllowed() -> boolean : Real-time AI ALLOW verdict"),
+        Map.entry("isBlocked", "#ai.isBlocked() -> boolean : Real-time AI BLOCK verdict"),
+        Map.entry("needsChallenge", "#ai.needsChallenge() -> boolean : Real-time AI CHALLENGE verdict"),
+        Map.entry("needsEscalation", "#ai.needsEscalation() -> boolean : Real-time AI ESCALATE verdict"),
+        Map.entry("isPendingAnalysis", "#ai.isPendingAnalysis() -> boolean : Analysis pending check"),
+        Map.entry("hasAction", "#ai.hasAction(String action) -> boolean : Check specific AI action"),
+        Map.entry("hasActionIn", "#ai.hasActionIn(String... actions) -> boolean : Check if action is one of given values"),
+        Map.entry("hasActionOrDefault", "#ai.hasActionOrDefault(String action, String defaultAction) -> boolean : Check action with fallback")
+    );
+
     private static final Set<String> SECURITY_METHODS = Set.of(
-        
-        "hasRole",                
-        "hasAnyRole",             
-        
-        "hasAuthority",           
-        "hasAnyAuthority",        
-        
-        "isAuthenticated",        
-        "isFullyAuthenticated",   
-        "isAnonymous",            
-        "isRememberMe",           
-        
-        "permitAll",              
-        "denyAll"                 
+        "hasRole",
+        "hasAnyRole",
+        "hasAuthority",
+        "hasAnyAuthority",
+        "isAuthenticated",
+        "isFullyAuthenticated",
+        "isAnonymous",
+        "isRememberMe",
+        "permitAll",
+        "denyAll"
+    );
+
+    private static final Map<String, String> SECURITY_METHOD_DOCS = Map.of(
+        "hasRole", "hasRole(String role) -> boolean : e.g. hasRole('ROLE_ADMIN')",
+        "hasAnyRole", "hasAnyRole(String... roles) -> boolean : e.g. hasAnyRole('ROLE_ADMIN', 'ROLE_USER')",
+        "hasAuthority", "hasAuthority(String authority) -> boolean : e.g. hasAuthority('WRITE')",
+        "hasAnyAuthority", "hasAnyAuthority(String... authorities) -> boolean : e.g. hasAnyAuthority('READ', 'WRITE')",
+        "isAuthenticated", "isAuthenticated() -> boolean : Check if user is authenticated",
+        "isFullyAuthenticated", "isFullyAuthenticated() -> boolean : Fully authenticated (excludes Remember-Me)",
+        "isAnonymous", "isAnonymous() -> boolean : Check if anonymous user",
+        "isRememberMe", "isRememberMe() -> boolean : Check if Remember-Me authentication",
+        "permitAll", "permitAll() -> boolean : Always allow",
+        "denyAll", "denyAll() -> boolean : Always deny"
     );
 
     private static final Set<String> ALLOWED_VARIABLES = Set.of(
@@ -299,29 +338,32 @@ public class SpelValidationService {
 
     public String generateApiDocumentation() {
         StringBuilder sb = new StringBuilder();
-        sb.append("=== Contexa SpEL API Documentation ===\n\n");
 
-        sb.append("## #trust Variable (Hot Path - Redis Lookup)\n");
-        sb.append("Fast authorization decision based on LLM analysis results (Action):\n");
-        for (String method : TRUST_METHODS) {
-            sb.append("  - #trust.").append(method).append("()\n");
-        }
+        sb.append("## #ai (Hot Path - Redis LLM Action, <5ms)\n");
+        TRUST_METHOD_DOCS.values().stream().sorted().forEach(doc ->
+            sb.append("- ").append(doc).append("\n"));
 
-        sb.append("\n## #ai Variable (Cold Path - Real-time AI Analysis)\n");
-        sb.append("Real-time AI analysis for high-risk operations:\n");
-        for (String method : AI_METHODS) {
-            sb.append("  - #ai.").append(method).append("()\n");
-        }
+        sb.append("\n## #ai (Cold Path - Real-time AI Analysis, high-risk only)\n");
+        AI_METHOD_DOCS.values().stream().sorted().forEach(doc ->
+            sb.append("- ").append(doc).append("\n"));
 
-        sb.append("\n## Spring Security Standard Methods\n");
-        for (String method : SECURITY_METHODS) {
-            sb.append("  - ").append(method).append("()\n");
-        }
+        sb.append("\n## Spring Security Methods\n");
+        SECURITY_METHOD_DOCS.values().stream().sorted().forEach(doc ->
+            sb.append("- ").append(doc).append("\n"));
 
-        sb.append("\n## Allowed Variables\n");
-        for (String variable : ALLOWED_VARIABLES) {
-            sb.append("  - #").append(variable).append("\n");
-        }
+        sb.append("\n## Examples\n");
+        sb.append("Example 1 (Hot Path recommended):\n");
+        sb.append("  #ai.isAllowed() and isAuthenticated()\n");
+        sb.append("Example 2 (Hot Path + Spring Security):\n");
+        sb.append("  #ai.isAllowed() and hasRole('ROLE_ADMIN')\n");
+        sb.append("Example 3 (Cold Path for high-risk):\n");
+        sb.append("  #ai.evaluateDataExfiltration() and #ai.isAllowed() and hasAuthority('DATA_ACCESS')\n");
+
+        sb.append("\n## Prohibited\n");
+        sb.append("- DO NOT use methods not listed above (e.g. hasPermission, getBean)\n");
+        sb.append("- DO NOT use variables other than #ai, #ai, #principal, #authentication, #request\n");
+        sb.append("- DO NOT use T() type references, new keyword, or reflection\n");
+        sb.append("- DO NOT create objects or call Runtime/ProcessBuilder/ScriptEngine\n");
 
         return sb.toString();
     }

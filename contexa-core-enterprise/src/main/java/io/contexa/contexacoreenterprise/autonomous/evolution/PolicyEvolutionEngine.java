@@ -8,6 +8,8 @@ import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMet
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -33,6 +35,8 @@ public class PolicyEvolutionEngine {
     private static final Pattern DECIMAL_VALUE_PATTERN = Pattern.compile("\\b(0\\.[0-9]{1,2})\\b");
     private static final Pattern PERCENTAGE_IMPACT_PATTERN = Pattern.compile(
             "(?:영향도|효과|impact|effectiveness)\\s*[:=]?\\s*(\\d{1,3})%", Pattern.CASE_INSENSITIVE);
+    private static final Pattern CONFIDENCE_SCORE_PATTERN = Pattern.compile(
+            "(?:신뢰도|confidence)\\s*[:=]\\s*(0\\.\\d+|1\\.0)", Pattern.CASE_INSENSITIVE);
 
     private final ChatModel chatModel;
     private final UnifiedVectorService unifiedVectorService;
@@ -60,7 +64,9 @@ public class PolicyEvolutionEngine {
 
             PolicyEvolutionProposal proposal = generateProposal(event, metadata, context, similarCases);
 
-            proposal.setConfidenceScore(0.7);
+            if (proposal.getConfidenceScore() == null) {
+                proposal.setConfidenceScore(0.5);
+            }
             proposal.setRiskLevel(PolicyEvolutionProposal.RiskLevel.MEDIUM);
 
             storeLearningData(event, metadata, proposal);
@@ -215,14 +221,15 @@ public class PolicyEvolutionEngine {
     }
 
     private PolicyEvolutionProposal generateProposal(
-            SecurityEvent event, 
+            SecurityEvent event,
             LearningMetadata metadata,
             Map<String, Object> context,
             List<Document> similarCases) {
 
-        String prompt = buildEvolutionPrompt(event, metadata, context, similarCases);
+        String systemPrompt = buildSystemPrompt();
+        String userPrompt = buildUserPrompt(event, metadata, context, similarCases);
 
-        String aiResponse = callAI(prompt);
+        String aiResponse = callAI(systemPrompt, userPrompt);
 
         PolicyEvolutionProposal proposal = parseAIResponse(aiResponse, event, metadata);
 
@@ -235,55 +242,81 @@ public class PolicyEvolutionEngine {
         return proposal;
     }
 
-    private String buildEvolutionPrompt(
+    private String buildSystemPrompt() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("You are a security policy SpEL expression generator.\n");
+        sb.append("Analyze security events and generate Spring Expression Language (SpEL) authorization policies.\n\n");
+
+        sb.append("# Available SpEL API\n");
+        if (spelValidationService != null) {
+            sb.append(spelValidationService.generateApiDocumentation());
+        }
+
+        sb.append("\n# Rules\n");
+        sb.append("1. Use ONLY the methods listed above. Any unlisted method will be rejected.\n");
+        sb.append("2. Prefer Hot Path (#trust) for fast authorization (<5ms).\n");
+        sb.append("3. Use Cold Path (#ai) ONLY for high-risk operations.\n");
+        sb.append("4. Combine with Spring Security methods using 'and'/'or' operators.\n");
+        sb.append("5. Keep expressions simple - avoid more than 3 conditions.\n");
+
+        sb.append("\n# Response Format\n");
+        sb.append("```spel\n");
+        sb.append("// Your SpEL expression here\n");
+        sb.append("```\n");
+        sb.append("Target Resource: <URL pattern to apply>\n");
+        sb.append("HTTP Method: <GET|POST|PUT|DELETE|ALL>\n");
+        sb.append("Confidence: <0.0-1.0>\n");
+        sb.append("Expected Impact: <0.0-1.0>\n");
+
+        return sb.toString();
+    }
+
+    private String buildUserPrompt(
             SecurityEvent event,
             LearningMetadata metadata,
             Map<String, Object> context,
             List<Document> similarCases) {
-        
+
         StringBuilder prompt = new StringBuilder();
-        prompt.append("보안 이벤트를 분석하여 정책 제안을 생성해주세요.\n\n");
+        prompt.append("Analyze the following security event and generate a policy proposal.\n\n");
 
-        prompt.append("## 보안 이벤트\n");
-        prompt.append(String.format("- 심각도: %s\n", event.getSeverity()));
-        prompt.append(String.format("- 출처: %s\n", event.getSource()));
-        prompt.append(String.format("- 설명: %s\n", event.getDescription()));
+        prompt.append("## Security Event\n");
+        prompt.append(String.format("- Severity: %s\n", event.getSeverity()));
+        prompt.append(String.format("- Source: %s\n", event.getSource()));
+        prompt.append(String.format("- Description: %s\n", event.getDescription()));
 
-        prompt.append("\n## 학습 유형\n");
+        prompt.append("\n## Learning Type\n");
         prompt.append(String.format("- %s\n", metadata.getLearningType()));
 
-        // Threat analysis results section (from ThreatPolicyTriggerEvent path)
         if (context.containsKey("action")) {
-            prompt.append("\n## 위협 분석 결과\n");
-            prompt.append(String.format("- 판정: %s\n", context.get("action")));
-            prompt.append(String.format("- 위험도: %s\n", context.get("riskScore")));
-            prompt.append(String.format("- 신뢰도: %s\n", context.get("confidence")));
+            prompt.append("\n## Threat Analysis Result\n");
+            prompt.append(String.format("- Verdict: %s\n", context.get("action")));
+            prompt.append(String.format("- Risk Score: %s\n", context.get("riskScore")));
+            prompt.append(String.format("- Confidence: %s\n", context.get("confidence")));
             if (context.get("reasoning") != null) {
-                prompt.append(String.format("- 근거: %s\n", context.get("reasoning")));
+                prompt.append(String.format("- Reasoning: %s\n", context.get("reasoning")));
             }
             if (context.get("mitre") != null) {
                 prompt.append(String.format("- MITRE ATT&CK: %s\n", context.get("mitre")));
             }
-            prompt.append(String.format("- 분석 레이어: %s\n", context.get("layerName")));
+            prompt.append(String.format("- Analysis Layer: %s\n", context.get("layerName")));
         }
 
-        // Target resource section
         String targetResource = extractStringFromMap(context, "targetResource");
         String requestMethod = extractStringFromMap(context, "requestMethod");
         if (targetResource != null || requestMethod != null) {
-            prompt.append("\n## 대상 리소스\n");
+            prompt.append("\n## Target Resource\n");
             if (targetResource != null) {
                 prompt.append(String.format("- URL: %s\n", targetResource));
             }
             if (requestMethod != null) {
-                prompt.append(String.format("- HTTP 메서드: %s\n", requestMethod));
+                prompt.append(String.format("- HTTP Method: %s\n", requestMethod));
             }
         }
 
-        // General context (exclude threat analysis keys and complex objects)
         Set<String> threatKeys = Set.of("action", "riskScore", "confidence", "reasoning",
                 "mitre", "layerName", "analysisContext", "targetResource", "requestMethod");
-        prompt.append("\n## 컨텍스트\n");
+        prompt.append("\n## Context\n");
         context.forEach((key, value) -> {
             if (!threatKeys.contains(key) && !(value instanceof Map) && !(value instanceof Collection)) {
                 prompt.append(String.format("- %s: %s\n", key, value));
@@ -291,63 +324,22 @@ public class PolicyEvolutionEngine {
         });
 
         if (!similarCases.isEmpty()) {
-            prompt.append("\n## 유사 사례\n");
+            prompt.append("\n## Similar Cases\n");
             similarCases.stream()
                 .limit(3)
                 .forEach(doc -> prompt.append(String.format("- %s\n", doc.getText())));
         }
 
-        prompt.append("\n## 사용 가능한 SpEL API\n");
-        prompt.append("### #trust 변수 (Hot Path - Redis LLM Action 조회, 응답시간 5ms 이내)\n");
-        prompt.append("- #trust.isAllowed() : LLM이 ALLOW로 판정했는지 확인\n");
-        prompt.append("- #trust.isBlocked() : LLM이 BLOCK으로 판정했는지 확인\n");
-        prompt.append("- #trust.needsChallenge() : MFA 추가 인증 필요 여부 (CHALLENGE)\n");
-        prompt.append("- #trust.needsInvestigation() : 추가 조사 필요 여부 (INVESTIGATE/ESCALATE)\n");
-        prompt.append("- #trust.isMonitored() : 모니터링 모드 여부 (MONITOR)\n");
-        prompt.append("- #trust.isPendingAnalysis() : 분석 미완료 여부 (PENDING_ANALYSIS)\n");
-        prompt.append("- #trust.hasAction('ACTION') : 특정 LLM action 확인\n");
-        prompt.append("- #trust.hasActionIn('ACTION1', 'ACTION2') : 여러 action 중 하나 확인\n");
-        prompt.append("- #trust.hasResourceAccess('resourceId', threshold) : 리소스별 접근 권한\n");
-        prompt.append("\n### #ai 변수 (Cold Path - 실시간 AI 분석, 고위험 작업 전용)\n");
-        prompt.append("- #ai.analyzeFraud(#transaction) : 사기 거래 분석\n");
-        prompt.append("- #ai.detectAnomaly('operation') : 이상 행동 탐지\n");
-        prompt.append("- #ai.evaluateCriticalOperation(#context) : 중요 작업 평가\n");
-        prompt.append("- #ai.hasSafeBehavior(threshold) : 행동 안전성 평가\n");
-        prompt.append("- #ai.isAllowed() : ALLOW 판정 확인\n");
-        prompt.append("- #ai.isBlocked() : BLOCK 판정 확인\n");
-        prompt.append("- #ai.needsChallenge() : CHALLENGE 판정 확인\n");
-        prompt.append("- #ai.needsEscalation() : ESCALATE 판정 확인\n");
-        prompt.append("- #ai.hasAction('ACTION') : 특정 action 확인\n");
-        prompt.append("- #ai.hasActionIn('ACTION1', 'ACTION2') : 여러 action 확인\n");
-        prompt.append("\n### Spring Security 기본 메서드\n");
-        prompt.append("- hasRole('ROLE_XXX') : 역할 확인\n");
-        prompt.append("- hasAnyRole('ROLE_A', 'ROLE_B') : 여러 역할 중 하나 확인\n");
-        prompt.append("- hasAuthority('XXX') : 권한 확인\n");
-        prompt.append("- hasAnyAuthority('A', 'B') : 여러 권한 중 하나 확인\n");
-        prompt.append("- isAuthenticated() : 인증 여부\n");
-        prompt.append("- isFullyAuthenticated() : 완전 인증 여부 (Remember-Me 제외)\n");
-
-        prompt.append("\n## 요청사항\n");
-        prompt.append("1. 이 이벤트를 예방하기 위한 정책을 제안해주세요.\n");
-        prompt.append("2. 위 SpEL API 목록에 있는 메서드만 사용하여 정책을 작성해주세요.\n");
-        prompt.append("3. Hot Path(#trust)를 우선 사용하고, 고위험 작업에만 Cold Path(#ai) 사용\n");
-        prompt.append("4. 정책의 예상 효과를 0.0-1.0 사이로 평가해주세요.\n");
-        prompt.append("5. 정책 적용 시 주의사항을 명시해주세요.\n");
-
-        prompt.append("\n## 응답 형식\n");
-        prompt.append("```spel\n");
-        prompt.append("// SpEL 표현식을 여기에 작성\n");
-        prompt.append("```\n");
-        prompt.append("대상 리소스: <적용 대상 URL 패턴>\n");
-        prompt.append("HTTP 메서드: <GET|POST|PUT|DELETE|ALL>\n");
-
         return prompt.toString();
     }
 
-    private String callAI(String prompt) {
+    private String callAI(String systemPrompt, String userPrompt) {
         long startTime = System.currentTimeMillis();
         try {
-            Prompt aiPrompt = new Prompt(prompt);
+            Prompt aiPrompt = new Prompt(List.of(
+                new SystemMessage(systemPrompt),
+                new UserMessage(userPrompt)
+            ));
             ChatResponse response = chatModel.call(aiPrompt);
             String result = response.getResult().getOutput().getText();
 
@@ -400,9 +392,15 @@ public class PolicyEvolutionEngine {
         actionPayload.put("severity", event.getSeverity());
         actionPayload.put("learningType", metadata.getLearningType());
 
+        // Extract confidence score from AI response
+        Double confidence = extractConfidenceScore(aiResponse);
+        if (confidence != null) {
+            proposal.setConfidenceScore(confidence);
+        }
+
         // Extract target resource from AI response
-        String aiTargetResource = extractTargetFromResponse(aiResponse, "대상 리소스");
-        String aiRequestMethod = extractTargetFromResponse(aiResponse, "HTTP 메서드");
+        String aiTargetResource = extractTargetFromResponse(aiResponse, "Target Resource");
+        String aiRequestMethod = extractTargetFromResponse(aiResponse, "HTTP Method");
 
         // Fallback to SecurityEvent metadata
         if (aiTargetResource == null) {
@@ -514,7 +512,6 @@ public class PolicyEvolutionEngine {
     }
 
     private static final Pattern[] SPEL_FUNCTION_PATTERNS = {
-        Pattern.compile("#trust\\.\\w+\\([^)]*\\)[^\\n]*"),
         Pattern.compile("#ai\\.\\w+\\([^)]*\\)[^\\n]*"),
         Pattern.compile("hasRole\\([^)]+\\)[^\\n]*"),
         Pattern.compile("hasAuthority\\([^)]+\\)[^\\n]*"),
@@ -656,6 +653,24 @@ public class PolicyEvolutionEngine {
             return 0.3;
         }
 
+        return null;
+    }
+
+    private Double extractConfidenceScore(String aiResponse) {
+        if (aiResponse == null || aiResponse.isEmpty()) {
+            return null;
+        }
+        java.util.regex.Matcher matcher = CONFIDENCE_SCORE_PATTERN.matcher(aiResponse);
+        if (matcher.find()) {
+            try {
+                double value = Double.parseDouble(matcher.group(1));
+                if (value >= 0.0 && value <= 1.0) {
+                    return value;
+                }
+            } catch (NumberFormatException e) {
+                // fall through to return null
+            }
+        }
         return null;
     }
 
