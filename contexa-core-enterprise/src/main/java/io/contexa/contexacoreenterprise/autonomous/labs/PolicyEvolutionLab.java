@@ -85,8 +85,8 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
             });
         })
         .flatMap(mono -> mono)
-                .doOnSuccess(response -> log.info("비동기 정책 진화 완료"))
-                .doOnError(error -> log.error("비동기 정책 진화 실패", error));
+                .doOnSuccess(response -> log.error("Async policy evolution completed"))
+                .doOnError(error -> log.error("Async policy evolution failed", error));
     }
 
     @Override
@@ -168,16 +168,19 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
 
         List<ExistingPolicy> policies = new ArrayList<>();
 
-        policyEvolutionHelper.recommendPolicies(request.getContext(), 5)
+        // Use bounded blocking with timeout to prevent thread pool exhaustion
+        var recommendations = policyEvolutionHelper.recommendPolicies(request.getContext(), 5)
             .collectList()
-            .block()
-            .forEach(recommendation -> {
+            .block(java.time.Duration.ofSeconds(30));
+        if (recommendations != null) {
+            recommendations.forEach(recommendation -> {
                 policies.add(new ExistingPolicy(
                     recommendation.getPolicyId(),
                     recommendation.getScore(),
                     recommendation.getDocument().getText()
                 ));
             });
+        }
 
         policyCache.put(cacheKey, new CachedPolicy(policies));
 

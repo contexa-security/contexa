@@ -160,7 +160,7 @@ public class MemorySystemHelper implements MemorySystem {
                 return Mono.just(MemoryResult.stored(key, MemoryType.LONG_TERM));
 
             } catch (Exception e) {
-                log.warn("[MemorySystem] LTM 저장 실패: key={}", key, e);
+                log.error("[MemorySystem] LTM save failed: key={}", key, e);
                 return Mono.just(MemoryResult.disabled());
             }
         });
@@ -239,7 +239,7 @@ public class MemorySystemHelper implements MemorySystem {
                     
                     shortTermMemory.remove(item.getKey());
                                     },
-                error -> log.error("메모리 통합 실패: {}", item.getKey(), error)
+                error -> log.error("Memory consolidation failed: {}", item.getKey(), error)
             );
         }
         
@@ -294,7 +294,7 @@ public class MemorySystemHelper implements MemorySystem {
                 .build();
             stateManager.saveState("memory_system", securityState).subscribe();
                     } catch (Exception e) {
-            log.error("메모리 상태 저장 실패", e);
+            log.error("Memory state save failed", e);
         }
     }
 
@@ -410,10 +410,10 @@ public class MemorySystemHelper implements MemorySystem {
                         
                                             }
                 },
-                error -> log.warn("메모리 상태 복원 실패, 새로 시작", error)
+                error -> log.error("Memory state restoration failed, starting fresh", error)
             );
         } catch (Exception e) {
-            log.warn("메모리 상태 복원 중 예외 발생", e);
+            log.error("Exception during memory state restoration", e);
         }
     }
     

@@ -60,10 +60,11 @@ public class PolicyApprovalService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-            saveWorkflow(proposalId, workflow);
-
             ApprovalRequest request = createApprovalRequest(proposal, approver, workflow);
             workflow.addRequest(request);
+
+            // Save after adding request so workflow is persisted in complete state
+            saveWorkflow(proposalId, workflow);
 
             sendApprovalNotification(approver, request);
 
@@ -240,8 +241,8 @@ public class PolicyApprovalService {
         List<Approver> availableApprovers = approverPool.get(level);
         
         if (availableApprovers == null || availableApprovers.isEmpty()) {
-            
-            return createDefaultApprover(level);
+            log.error("No approver available for level: {}", level);
+            throw new IllegalStateException("No approver available for level: " + level);
         }
 
         return availableApprovers.stream()
@@ -358,7 +359,7 @@ public class PolicyApprovalService {
             if (policyActivationService != null) {
                 policyActivationService.activatePolicy(workflow.getProposalId(), proposal.getApprovedBy());
             } else {
-                log.warn("PolicyActivationService not available - policy activation skipped");
+                log.error("PolicyActivationService not available - policy activation skipped");
             }
         } else if (workflow.getStatus() == WorkflowStatus.REJECTED) {
             
@@ -398,7 +399,7 @@ public class PolicyApprovalService {
                     return getWorkflow(proposalId);
                 }
             } catch (Exception e) {
-                log.warn("Redis에서 요청 ID 조회 실패, 전체 검색으로 대체: {}", e.getMessage());
+                log.error("Redis request ID lookup failed, falling back to full search: {}", e.getMessage());
             }
         }
 
@@ -464,7 +465,7 @@ public class PolicyApprovalService {
                 }
 
                             } catch (Exception e) {
-                log.warn("Redis 저장 실패, 메모리 폴백: {}", e.getMessage());
+                log.error("Redis save failed, memory fallback: {}", e.getMessage());
                 memoryWorkflows.put(proposalId, workflow);
             }
         } else {
@@ -481,7 +482,7 @@ public class PolicyApprovalService {
                     return (ApprovalWorkflow) obj;
                 }
             } catch (Exception e) {
-                log.warn("Redis 조회 실패, 메모리 폴백: {}", e.getMessage());
+                log.error("Redis lookup failed, memory fallback: {}", e.getMessage());
             }
         }
         return memoryWorkflows.get(proposalId);
@@ -506,7 +507,7 @@ public class PolicyApprovalService {
                 redisTemplate.opsForSet().remove(indexKey, proposalId);
 
                             } catch (Exception e) {
-                log.warn("Redis 삭제 실패: {}", e.getMessage());
+                log.error("Redis delete failed: {}", e.getMessage());
             }
         }
         memoryWorkflows.remove(proposalId);
@@ -529,7 +530,7 @@ public class PolicyApprovalService {
                     }
                 }
             } catch (Exception e) {
-                log.warn("Redis 전체 조회 실패, 메모리 폴백: {}", e.getMessage());
+                log.error("Redis full query failed, memory fallback: {}", e.getMessage());
                 workflows.addAll(memoryWorkflows.values());
             }
         } else {

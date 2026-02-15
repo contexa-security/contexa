@@ -28,10 +28,14 @@ public class McpToolResolver implements ToolCallbackResolver {
         
         try {
             ToolCallback tool = mcpFunctionCallbackProvider.getMcpToolCallback(actualToolName).orElse(null);
+            if (tool == null) {
+                log.error("MCP tool not found: {}", actualToolName);
+                return null;
+            }
             return wrapWithMcpContext(tool);
 
         } catch (Exception e) {
-            log.warn("MCP 도구 검색 실패: {} - {}", actualToolName, e.getMessage());
+            log.error("MCP tool search failed: {} - {}", actualToolName, e.getMessage());
             return null;
         }
     }
@@ -53,7 +57,7 @@ public class McpToolResolver implements ToolCallbackResolver {
             ToolCallback[] tools = mcpFunctionCallbackProvider.getMcpToolCallbacks();
             return Arrays.asList(tools);
         } catch (Exception e) {
-            log.warn("MCP 도구 목록 가져오기 실패: {}", e.getMessage());
+            log.error("Failed to fetch MCP tool list: {}", e.getMessage());
             return List.of();
         }
     }
@@ -91,7 +95,7 @@ public class McpToolResolver implements ToolCallbackResolver {
         public String call(String arguments) {
             
             if (!provider.isConnected()) {
-                throw new McpConnectionException("MCP 서버 연결이 끊어짐");
+                throw new McpConnectionException("MCP server connection lost");
             }
 
             return delegate.call(arguments);

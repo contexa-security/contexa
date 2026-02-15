@@ -27,9 +27,9 @@ public class SoarToolExecutionService {
 
         return toolCapableLLMClient.callToolCallbacks(prompt, soarToolCallbacks)
                 .doOnSuccess(result ->
-                        log.info("SOAR Tool 실행 완료 - 인시던트: {}", incidentId))
+                        log.error("SOAR tool execution completed - incident: {}", incidentId))
                 .doOnError(error ->
-                        log.error("SOAR Tool 실행 실패 - 인시던트: {}", incidentId, error));
+                        log.error("SOAR tool execution failed - incident: {}", incidentId, error));
     }
 
     public Flux<String> streamWithHumanApproval(String userPrompt, String incidentId, String organizationId) {
@@ -40,9 +40,9 @@ public class SoarToolExecutionService {
 
         return toolCapableLLMClient.streamToolCallbacks(prompt, soarToolCallbacks)
                 .doOnComplete(() ->
-                        log.info("SOAR Tool 스트림 완료 - 인시던트: {}", incidentId))
+                        log.error("SOAR tool stream completed - incident: {}", incidentId))
                 .doOnError(error ->
-                        log.error("SOAR Tool 스트림 실패 - 인시던트: {}", incidentId, error));
+                        log.error("SOAR tool stream failed - incident: {}", incidentId, error));
     }
 
     private ToolCallback[] getSoarToolCallbacks() {
@@ -72,18 +72,33 @@ public class SoarToolExecutionService {
     }
 
     public String executeToolDirectly(String toolName, String toolInput) {
-                
+        // Restrict direct execution to read-only/monitoring tools only
+        if (!isReadOnlyTool(toolName)) {
+            log.error("Unauthorized direct tool execution blocked: {}", toolName);
+            throw new SecurityException("Direct execution not allowed for tool: " + toolName);
+        }
+
         ToolCallback toolCallback = toolResolver.resolve(toolName);
         if (toolCallback == null) {
-            throw new IllegalArgumentException("도구를 찾을 수 없습니다: " + toolName);
+            throw new IllegalArgumentException("Tool not found: " + toolName);
         }
-        
+
         try {
-            String result = toolCallback.call(toolInput);
-                        return result;
+            return toolCallback.call(toolInput);
         } catch (Exception e) {
-            log.error("도구 실행 실패: {}", toolName, e);
-            throw new RuntimeException("도구 실행 실패: " + e.getMessage(), e);
+            log.error("Tool execution failed: {}", toolName, e);
+            throw new RuntimeException("Tool execution failed: " + e.getMessage(), e);
         }
+    }
+
+    private boolean isReadOnlyTool(String toolName) {
+        if (toolName == null) {
+            return false;
+        }
+        String lower = toolName.toLowerCase();
+        return lower.startsWith("query") || lower.startsWith("get")
+                || lower.startsWith("list") || lower.startsWith("search")
+                || lower.startsWith("check") || lower.startsWith("view")
+                || lower.contains("monitor") || lower.contains("status");
     }
 }

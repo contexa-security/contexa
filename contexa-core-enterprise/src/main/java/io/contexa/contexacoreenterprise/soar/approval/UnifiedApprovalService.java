@@ -64,21 +64,21 @@ public class UnifiedApprovalService implements ApprovalService {
 
         String requestId = request.getRequestId();
 
-        if (pendingApprovals.containsKey(requestId)) {
-            log.warn("중복 승인 요청: {}", requestId);
-            return pendingApprovals.get(requestId);
+        // Use putIfAbsent to prevent race condition between containsKey and put
+        CompletableFuture<Boolean> future = new CompletableFuture<>();
+        CompletableFuture<Boolean> existing = pendingApprovals.putIfAbsent(requestId, future);
+        if (existing != null) {
+            log.error("Duplicate approval request rejected: {}", requestId);
+            return existing;
         }
 
-        saveApprovalRequest(request);  
-
-        CompletableFuture<Boolean> future = new CompletableFuture<>();
-        pendingApprovals.put(requestId, future);
+        saveApprovalRequest(request);
 
         try {
             
             eventPublisher.publishEvent(ApprovalEvent.requested(this, request));
                     } catch (Exception e) {
-            log.error("알림 이벤트 발행 실패 (승인 프로세스는 계속됨): {}", requestId, e);
+            log.error("Failed to publish notification event (approval process continues): {}", requestId, e);
         }
 
         Duration timeout = getTimeout(request.getRiskLevel());
@@ -88,8 +88,8 @@ public class UnifiedApprovalService implements ApprovalService {
             pendingApprovals.remove(requestId);
 
             if (error != null) {
-                log.error("승인 처리 오류: {}", requestId, error);
-                updateApprovalStatus(requestId, ApprovalRequest.ApprovalStatus.EXPIRED, null, "타임아웃 또는 오류");
+                log.error("Approval processing error: {}", requestId, error);
+                updateApprovalStatus(requestId, ApprovalRequest.ApprovalStatus.EXPIRED, null, "Timeout or error");
             } else {
                             }
         });
@@ -112,10 +112,10 @@ public class UnifiedApprovalService implements ApprovalService {
         if (future != null && !future.isDone()) {
             future.complete(approved);
                     } else if (future != null && future.isDone()) {
-            log.warn("이미 완료된 승인 요청: {}", requestId);
+            log.error("Already completed approval request: {}", requestId);
             return;
         } else {
-            log.warn("대기 중인 승인 요청을 찾을 수 없음: {}", requestId);
+            log.error("Pending approval request not found: {}", requestId);
             
         }
 
@@ -132,7 +132,7 @@ public class UnifiedApprovalService implements ApprovalService {
                 eventPublisher.publishEvent(ApprovalEvent.denied(this, requestId, reviewer, "User rejected"));
             }
         } catch (Exception e) {
-            log.error("완료 알림 전송 실패: {}", requestId, e);
+            log.error("Failed to send completion notification: {}", requestId, e);
         }
 
         publishApprovalResult(requestId, approved);
@@ -156,14 +156,14 @@ public class UnifiedApprovalService implements ApprovalService {
             return future.get(timeout.toSeconds(), TimeUnit.SECONDS);
 
         } catch (TimeoutException e) {
-            log.warn("승인 타임아웃: {}", request.getRequestId());
+            log.error("Approval timeout: {}", request.getRequestId());
             return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.error("승인 대기 중단: {}", request.getRequestId(), e);
+            log.error("Approval wait interrupted: {}", request.getRequestId(), e);
             return false;
         } catch (ExecutionException e) {
-            log.error("승인 처리 실패: {}", request.getRequestId(), e);
+            log.error("Approval processing failed: {}", request.getRequestId(), e);
             return false;
         }
     }
@@ -225,7 +225,7 @@ public class UnifiedApprovalService implements ApprovalService {
             }
 
             if (entity == null) {
-                log.error("승인 요청을 찾을 수 없음: {}", requestId);
+                log.error("Approval request not found: {}", requestId);
                 return;
             }
 
@@ -233,26 +233,29 @@ public class UnifiedApprovalService implements ApprovalService {
             entity.setReviewerId(reviewer);
             entity.setReviewerComment(comment);
             
-            entity.setApprovedAt(LocalDateTime.now());
+            if (status == ApprovalRequest.ApprovalStatus.APPROVED
+                    || status == ApprovalRequest.ApprovalStatus.REJECTED) {
+                entity.setApprovedAt(LocalDateTime.now());
+            }
 
             repository.save(entity);
             
         } catch (Exception e) {
-            log.error("승인 상태 업데이트 실패: {}", requestId, e);
+            log.error("Failed to update approval status: {}", requestId, e);
         }
     }
 
     private void scheduleTimeout(String requestId, CompletableFuture<Boolean> future, Duration timeout) {
         scheduler.schedule(() -> {
             if (!future.isDone()) {
-                log.warn("승인 타임아웃 발생: {} ({}초)", requestId, timeout.getSeconds());
+                log.error("Approval timeout occurred: {} ({}s)", requestId, timeout.getSeconds());
 
                 future.complete(false);
 
                 try {
                     eventPublisher.publishEvent(ApprovalEvent.timeout(this, requestId));
                 } catch (Exception e) {
-                    log.error("타임아웃 알림 전송 실패: {}", requestId, e);
+                    log.error("Failed to send timeout notification: {}", requestId, e);
                 }
             }
         }, timeout.getSeconds(), TimeUnit.SECONDS);
@@ -290,15 +293,15 @@ public class UnifiedApprovalService implements ApprovalService {
             }
 
             if (entity == null) {
-                log.warn("승인 요청을 찾을 수 없음: {}", approvalId);
-                return ApprovalRequest.ApprovalStatus.PENDING; 
+                log.error("Approval request not found: {}", approvalId);
+                return ApprovalRequest.ApprovalStatus.EXPIRED;
             }
 
             return ApprovalRequest.ApprovalStatus.valueOf(entity.getStatus());
 
         } catch (Exception e) {
-            log.error("승인 상태 조회 실패: {}", approvalId, e);
-            return ApprovalRequest.ApprovalStatus.PENDING; 
+            log.error("Failed to query approval status: {}", approvalId, e);
+            throw new RuntimeException("Failed to query approval status: " + approvalId, e);
         }
     }
 
@@ -402,7 +405,7 @@ public class UnifiedApprovalService implements ApprovalService {
                 String message = approved ? "APPROVED" : "REJECTED";
                 redisTemplate.convertAndSend(channel, message);
                             } catch (Exception e) {
-                log.error("Redis Pub/Sub 발행 실패: {}", approvalId, e);
+                log.error("Redis Pub/Sub publish failed: {}", approvalId, e);
             }
         }
     }
@@ -412,7 +415,7 @@ public class UnifiedApprovalService implements ApprovalService {
             
             SoarApprovalRequest entity = repository.findByRequestId(approvalId);
             if (entity == null) {
-                log.warn("승인 요청을 찾을 수 없어 재개 이벤트를 발행할 수 없음: {}", approvalId);
+                log.error("Cannot publish resume event - approval request not found: {}", approvalId);
                 return;
             }
 
@@ -439,7 +442,7 @@ public class UnifiedApprovalService implements ApprovalService {
             eventPublisher.publishEvent(resumeEvent);
 
         } catch (Exception e) {
-            log.error("파이프라인 재개 이벤트 발행 실패: {}", approvalId, e);
+            log.error("Failed to publish pipeline resume event: {}", approvalId, e);
         }
     }
 
@@ -506,9 +509,9 @@ public class UnifiedApprovalService implements ApprovalService {
         updateApprovalStatus(approvalId, ApprovalRequest.ApprovalStatus.CANCELLED, "system", reason);
 
         try {
-            eventPublisher.publishEvent(ApprovalEvent.timeout(this, approvalId));
+            eventPublisher.publishEvent(ApprovalEvent.cancelled(this, approvalId, reason));
         } catch (Exception e) {
-            log.error("취소 알림 이벤트 발행 실패: {}", approvalId, e);
+            log.error("Failed to publish cancellation event: {}", approvalId, e);
         }
     }
 
@@ -525,7 +528,7 @@ public class UnifiedApprovalService implements ApprovalService {
             LocalDateTime since = LocalDateTime.now().minusDays(1);
 
         } catch (Exception e) {
-            log.error("통계 조회 실패", e);
+            log.error("Failed to query statistics", e);
         }
 
         return Map.of(
@@ -559,11 +562,11 @@ public class UnifiedApprovalService implements ApprovalService {
             scheduleAsyncTimeout(request.getRequestId(), future, timeout, executionContext);
 
         } catch (Exception e) {
-            log.error("비동기 승인 등록 실패: {}", request.getRequestId(), e);
+            log.error("Async approval registration failed: {}", request.getRequestId(), e);
 
             if (executionContext != null && executionContextRepository != null) {
                 executionContext.setStatus("FAILED");
-                executionContext.setExecutionError("승인 등록 실패: " + e.getMessage());
+                executionContext.setExecutionError("Approval registration failed: " + e.getMessage());
                 executionContextRepository.save(executionContext);
             }
         }
@@ -573,24 +576,24 @@ public class UnifiedApprovalService implements ApprovalService {
                                       Duration timeout, ToolExecutionContext executionContext) {
         scheduler.schedule(() -> {
             if (!future.isDone()) {
-                log.warn("비동기 승인 타임아웃 발생: {} ({}분)", requestId, timeout.toMinutes());
+                log.error("Async approval timeout occurred: {} ({}min)", requestId, timeout.toMinutes());
 
                 future.complete(false);
 
                 if (executionContext != null && executionContextRepository != null) {
                     executionContext.setStatus("TIMEOUT");
-                    executionContext.setExecutionError("승인 타임아웃");
+                    executionContext.setExecutionError("Approval timeout");
                     executionContextRepository.save(executionContext);
                 }
 
                 updateApprovalStatus(requestId, ApprovalRequest.ApprovalStatus.EXPIRED,
-                        "system", "타임아웃");
+                        "system", "Timeout");
 
                 try {
                     
                     eventPublisher.publishEvent(ApprovalEvent.timeout(this, requestId));
                 } catch (Exception e) {
-                    log.error("타임아웃 알림 전송 실패: {}", requestId, e);
+                    log.error("Failed to send timeout notification: {}", requestId, e);
                 }
             }
         }, timeout.getSeconds(), TimeUnit.SECONDS);
@@ -611,14 +614,14 @@ public class UnifiedApprovalService implements ApprovalService {
                         context.setStatus("APPROVED");
                                             } else {
                         context.setStatus("REJECTED");
-                        context.setExecutionError("승인 거부됨");
+                        context.setExecutionError("Approval rejected");
                                             }
                     executionContextRepository.save(context);
                 }
             }
 
             processApprovalResponse(requestId, approved, reviewer,
-                    approved ? "비동기 승인" : "비동기 거부");
+                    approved ? "Async approved" : "Async rejected");
 
             if (approved) {
                 eventPublisher.publishEvent(ApprovalEvent.granted(this, requestId, reviewer));
@@ -627,7 +630,7 @@ public class UnifiedApprovalService implements ApprovalService {
             }
 
         } catch (Exception e) {
-            log.error("비동기 승인 처리 실패: {}", requestId, e);
+            log.error("Async approval processing failed: {}", requestId, e);
         }
     }
 

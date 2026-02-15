@@ -18,10 +18,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class EnhancedToolCallback implements ToolCallback {
 
     public enum ToolType {
-        SOAR("SOAR 보안 도구"),
-        MCP("MCP 외부 도구"),
-        FALLBACK("Fallback 도구"),
-        NATIVE("Native Spring AI 도구");
+        SOAR("SOAR security tool"),
+        MCP("MCP external tool"),
+        FALLBACK("Fallback tool"),
+        NATIVE("Native Spring AI tool");
         
         private final String description;
         
@@ -87,7 +87,7 @@ public class EnhancedToolCallback implements ToolCallback {
             return result;
 
         } catch (Exception e) {
-            log.error("도구 실행 실패: {} - {}", getToolName(), e.getMessage(), e);
+            log.error("Tool execution failed: {} - {}", getToolName(), e.getMessage(), e);
             handleExecutionError(e);
             throw new RuntimeException("Tool execution failed: " + e.getMessage(), e);
 
@@ -117,7 +117,7 @@ public class EnhancedToolCallback implements ToolCallback {
     }
 
     public String getDescription() {
-        return String.format("%s - %s (위험도: %s)", 
+        return String.format("%s - %s (risk level: %s)",
             delegate.getToolDefinition().description(),
             toolType.description,
             riskLevel);
@@ -149,12 +149,12 @@ public class EnhancedToolCallback implements ToolCallback {
     private void validateSecurity(String arguments) {
         
         if (riskLevel == SoarTool.RiskLevel.CRITICAL) {
-            log.warn("CRITICAL 위험도 도구 실행: {}", getToolName());
+            log.error("Executing CRITICAL risk tool: {}", getToolName());
         }
 
-        if (arguments != null && arguments.contains("sudo") || 
-            arguments.contains("rm -rf")) {
-            throw new SecurityException("위험한 명령어 감지: " + arguments);
+        if (arguments != null && (arguments.contains("sudo") ||
+            arguments.contains("rm -rf"))) {
+            throw new SecurityException("Dangerous command detected: " + arguments);
         }
     }
     
@@ -168,7 +168,7 @@ public class EnhancedToolCallback implements ToolCallback {
         stats.recordError(e.getClass().getSimpleName());
 
         if (e instanceof java.net.SocketTimeoutException) {
-            log.warn("네트워크 타임아웃 - 재시도 가능: {}", getToolName());
+            log.error("Network timeout - retryable: {}", getToolName());
         }
     }
 

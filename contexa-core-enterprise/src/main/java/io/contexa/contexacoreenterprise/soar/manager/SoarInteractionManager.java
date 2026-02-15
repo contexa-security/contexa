@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.io.Serializable;
@@ -144,21 +145,15 @@ public class SoarInteractionManager {
     }
 
     private Mono<Boolean> pollApprovalStatus(String requestId) {
-        return Mono.defer(() -> {
-            io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus status = approvalService.getApprovalStatus(requestId);
-            
-            if (status == io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus.APPROVED) {
-                                return Mono.just(true);
-            } else if (status == io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus.REJECTED) {
-                                return Mono.just(false);
-            } else {
-                
-                return Mono.delay(Duration.ofSeconds(1))
-                    .flatMap(tick -> pollApprovalStatus(requestId));
-            }
-        })
-        .timeout(Duration.ofMinutes(5)) 
-        .onErrorReturn(false); 
+        // Use interval-based polling instead of recursive calls to prevent stack overflow
+        return Flux.interval(Duration.ofSeconds(1))
+            .flatMap(tick -> Mono.fromCallable(() -> approvalService.getApprovalStatus(requestId)))
+            .filter(status -> status == io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus.APPROVED
+                    || status == io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus.REJECTED)
+            .next()
+            .map(status -> status == io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus.APPROVED)
+            .timeout(Duration.ofMinutes(5))
+            .onErrorReturn(false);
     }
 
     public void recordToolExecution(String sessionId, String toolName, boolean success, String result) {
@@ -215,18 +210,21 @@ public class SoarInteractionManager {
     }
 
     public List<InteractionSession> getActiveSessions() {
-        Set<String> sessionKeys = redisTemplate.keys(SESSION_KEY_PREFIX + "*");
-        if (sessionKeys == null) return new ArrayList<>();
-        
+        // Use SCAN instead of keys() to avoid blocking Redis
         List<InteractionSession> sessions = new ArrayList<>();
-        
-        for (String key : sessionKeys) {
-            InteractionSession session = (InteractionSession) redisTemplate.opsForValue().get(key);
-            if (session != null && session.getStatus() == SessionStatus.ACTIVE) {
-                sessions.add(session);
+        try (var cursor = redisTemplate.scan(
+                org.springframework.data.redis.core.ScanOptions.scanOptions()
+                    .match(SESSION_KEY_PREFIX + "*")
+                    .count(100)
+                    .build())) {
+            while (cursor.hasNext()) {
+                String key = (String) cursor.next();
+                InteractionSession session = (InteractionSession) redisTemplate.opsForValue().get(key);
+                if (session != null && session.getStatus() == SessionStatus.ACTIVE) {
+                    sessions.add(session);
+                }
             }
         }
-        
         return sessions;
     }
 

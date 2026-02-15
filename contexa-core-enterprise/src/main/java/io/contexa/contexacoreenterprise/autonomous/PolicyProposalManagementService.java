@@ -48,7 +48,11 @@ public class PolicyProposalManagementService implements IPolicyProposalManagemen
         context.put("proposalType", proposal.getProposalType());
         auditLogger.logPolicyCreation(savedProposal.getId(), proposal.getCreatedBy(), context);
 
-        CompletableFuture.runAsync(() -> evaluateProposal(savedProposal.getId()));
+        CompletableFuture.runAsync(() -> evaluateProposal(savedProposal.getId()))
+                .exceptionally(ex -> {
+                    log.error("Async proposal evaluation failed for id: {}", savedProposal.getId(), ex);
+                    return null;
+                });
 
         publishProposalCreatedEvent(savedProposal);
         

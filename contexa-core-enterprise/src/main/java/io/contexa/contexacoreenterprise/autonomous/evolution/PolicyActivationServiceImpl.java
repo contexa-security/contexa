@@ -177,8 +177,8 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     }
 
     private boolean canActivate(PolicyEvolutionProposal proposal) {
-        ProposalStatus status = proposal.getStatus();
-        return status == ProposalStatus.APPROVED || status == ProposalStatus.PENDING;
+        // Only APPROVED proposals can be activated - PENDING bypasses governance
+        return proposal.getStatus() == ProposalStatus.APPROVED;
     }
 
     private ActivationTask createActivationTask(PolicyEvolutionProposal proposal, String activatedBy) {

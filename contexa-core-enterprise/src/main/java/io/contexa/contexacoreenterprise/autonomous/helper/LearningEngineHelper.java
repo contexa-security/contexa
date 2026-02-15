@@ -342,8 +342,8 @@ public class LearningEngineHelper implements LearningEngine {
         Flux.interval(Duration.ofMinutes(5))
                 .flatMap(tick -> processBatchLearning())
                 .subscribe(
-                        result -> log.debug("배치 학습 완료: {}", result),
-                        error -> log.error("배치 학습 실패", error)
+                        result -> log.error("Batch learning completed: {}", result),
+                        error -> log.error("Batch learning failed", error)
                 );
     }
 
@@ -357,10 +357,10 @@ public class LearningEngineHelper implements LearningEngine {
 
                         }
                     },
-                    error -> log.warn("학습 상태 복원 실패, 새로 시작", error)
+                    error -> log.error("Learning state restoration failed, starting fresh", error)
             );
         } catch (Exception e) {
-            log.warn("학습 상태 복원 중 예외 발생", e);
+            log.error("Exception during learning state restoration", e);
         }
     }
 
@@ -389,7 +389,7 @@ public class LearningEngineHelper implements LearningEngine {
                     .build();
             stateManager.saveState("learning_engine", securityState).subscribe();
         } catch (Exception e) {
-            log.error("학습 상태 저장 실패", e);
+            log.error("Learning state save failed", e);
         }
     }
 
@@ -398,10 +398,7 @@ public class LearningEngineHelper implements LearningEngine {
     }
 
     private String extractPatternSignature(SecurityEvent event) {
-
-        return event.getSeverity() + "_" +
-                event.getSource() + "_" +
-                event.getEventId();
+        return event.getSeverity() + "_" + event.getSource();
     }
 
     private SecurityEvent findOriginalEvent(String eventId) {
@@ -440,7 +437,7 @@ public class LearningEngineHelper implements LearningEngine {
                 }
             }
 
-            log.warn("Event not found in any storage: {}", eventId);
+            log.error("Event not found in any storage: {}", eventId);
 
         } catch (Exception e) {
             log.error("Error finding original event: {}", eventId, e);
@@ -483,7 +480,7 @@ public class LearningEngineHelper implements LearningEngine {
                 String cacheKey = "security:event:" + eventId;
                 redisTemplate.opsForValue().set(cacheKey, event, Duration.ofMinutes(5));
             } catch (Exception e) {
-                log.warn("Failed to cache event in Redis: {}", eventId, e);
+                log.error("Failed to cache event in Redis: {}", eventId, e);
             }
         }
     }
@@ -592,8 +589,11 @@ public class LearningEngineHelper implements LearningEngine {
         }
 
         public boolean matches(SecurityEvent event) {
-
-            return false;
+            if (event == null || patternId == null) {
+                return false;
+            }
+            String eventSignature = event.getSeverity() + "_" + event.getSource();
+            return patternId.equals(eventSignature);
         }
 
         public boolean isExpired(int retentionHours) {

@@ -58,8 +58,8 @@ public class ApprovalWorkflow {
         try {
             return waitForApproval(approvalRequest);
         } catch (Exception e) {
-            log.error("승인 대기 중 오류: {}", e.getMessage());
-            return ApprovalResult.denied("승인 처리 중 오류 발생");
+            log.error("Error during approval wait: {}", e.getMessage());
+            return ApprovalResult.denied("Error during approval processing");
         }
     }
 
@@ -69,19 +69,18 @@ public class ApprovalWorkflow {
             ToolExecutor.ToolRequest request,
             ToolExecutor.ExecutionContext context,
             RiskLevel riskLevel) {
-        
-        return CompletableFuture.supplyAsync(() -> 
-            requestApproval(toolName, request, context, riskLevel)
-        );
+        // @Async already provides async execution - no need for supplyAsync
+        ApprovalResult result = requestApproval(toolName, request, context, riskLevel);
+        return CompletableFuture.completedFuture(result);
     }
 
     public void approve(String approvalId, String approver, String reason) {
         ApprovalRequest request = pendingApprovals.get(approvalId);
         if (request == null) {
-            log.warn("승인 요청을 찾을 수 없음: {}", approvalId);
+            log.error("Approval request not found: {}", approvalId);
             return;
         }
-        
+
         request.setStatus(ApprovalStatus.APPROVED);
         request.setApprover(approver);
         request.setApprovalTime(Instant.now());
@@ -100,10 +99,10 @@ public class ApprovalWorkflow {
     public void deny(String approvalId, String denier, String reason) {
         ApprovalRequest request = pendingApprovals.get(approvalId);
         if (request == null) {
-            log.warn("승인 요청을 찾을 수 없음: {}", approvalId);
+            log.error("Approval request not found: {}", approvalId);
             return;
         }
-        
+
         request.setStatus(ApprovalStatus.DENIED);
         request.setApprover(denier);
         request.setApprovalTime(Instant.now());
@@ -141,15 +140,15 @@ public class ApprovalWorkflow {
         try {
             return future.get(approvalProperties.getTimeout(), TimeUnit.SECONDS);
         } catch (TimeoutException e) {
-            log.warn("승인 타임아웃: {}", request.getId());
+            log.error("Approval timeout: {}", request.getId());
             request.setStatus(ApprovalStatus.TIMEOUT);
             saveApprovalRequest(request);
             cleanup(request.getId());
-            throw new TimeoutException("승인 대기 시간 초과");
+            throw new TimeoutException("Approval wait timeout exceeded");
         } catch (Exception e) {
-            log.error("승인 대기 중 오류: {}", e.getMessage());
+            log.error("Error during approval wait: {}", e.getMessage());
             cleanup(request.getId());
-            return ApprovalResult.denied("승인 처리 중 오류 발생");
+            return ApprovalResult.denied("Error during approval processing");
         }
     }
 
@@ -177,20 +176,27 @@ public class ApprovalWorkflow {
         request.setStatus(ApprovalStatus.AUTO_APPROVED);
         request.setApprover("SYSTEM");
         request.setApprovalTime(Instant.now());
-        request.setReason("자동 승인 정책에 의해 승인됨");
+        request.setReason("Approved by auto-approval policy");
         
         saveApprovalRequest(request);
         cleanup(request.getId());
         
-        return ApprovalResult.approved("SYSTEM", "자동 승인");
+        return ApprovalResult.approved("SYSTEM", "Auto-approved");
     }
 
     private void saveApprovalRequest(ApprovalRequest request) {
+        // Save to both Redis (primary) and in-memory (cache)
+        pendingApprovals.put(request.getId(), request);
         String key = "approval:" + request.getId();
         redisTemplate.opsForValue().set(key, request, Duration.ofHours(24));
     }
 
     private ApprovalRequest getApprovalRequest(String approvalId) {
+        // Check in-memory cache first, fallback to Redis
+        ApprovalRequest cached = pendingApprovals.get(approvalId);
+        if (cached != null) {
+            return cached;
+        }
         String key = "approval:" + approvalId;
         Object obj = redisTemplate.opsForValue().get(key);
         return obj instanceof ApprovalRequest ? (ApprovalRequest) obj : null;

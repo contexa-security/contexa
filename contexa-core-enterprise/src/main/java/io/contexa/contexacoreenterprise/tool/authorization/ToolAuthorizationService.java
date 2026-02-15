@@ -39,7 +39,7 @@ public class ToolAuthorizationService {
         if (hasPermission) {
                         return Optional.of(true);
         } else {
-            log.warn("권한 거부: user={}, tool={}, required={}, user_has={}", 
+            log.error("Permission denied: user={}, tool={}, required={}, user_has={}",
                 userId, toolName, requiredPerms, userPerms);
             return Optional.empty();
         }
@@ -55,9 +55,9 @@ public class ToolAuthorizationService {
         request.setApproved(approved);
         if (approved) {
             request.setApprover("system_auto_approval"); 
-            request.setReason("자동 승인 정책에 의해 승인됨");
+            request.setReason("Approved by auto-approval policy");
         } else {
-            request.setReason("보안 정책 위반");
+            request.setReason("Security policy violation");
         }
 
         pendingApprovals.remove(approvalId);
@@ -171,7 +171,7 @@ public class ToolAuthorizationService {
             String toolName = tool.getToolDefinition().name();
             if (toolName.contains("delete") || toolName.contains("kill") || 
                 toolName.contains("shutdown")) {
-                log.warn("운영 환경에서 위험한 도구 차단: {}", toolName);
+                log.error("Dangerous tool blocked in production environment: {}", toolName);
                 return false;
             }
         }
@@ -180,7 +180,7 @@ public class ToolAuthorizationService {
         if (hour < 6 || hour > 22) {
             String toolName = tool.getToolDefinition().name();
             if (toolName.contains("critical") || toolName.contains("production")) {
-                log.warn("업무 시간 외 중요 도구 차단: {}", toolName);
+                log.error("Critical tool blocked outside business hours: {}", toolName);
                 return false;
             }
         }
@@ -197,12 +197,8 @@ public class ToolAuthorizationService {
             return true;
         }
 
-        if (toolName.contains("read") || toolName.contains("view") || 
-            toolName.contains("list")) {
-            return true;
-        }
-
-        return false;
+        // All tools require explicit permission - no auto-approval by name pattern
+        return getUserPermissions(userId).contains("tool.execute." + toolName);
     }
 
     private String generateApprovalId(ToolExecutor.ApprovalRequest request) {

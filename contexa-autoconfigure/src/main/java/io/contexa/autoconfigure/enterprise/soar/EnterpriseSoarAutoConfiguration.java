@@ -36,7 +36,7 @@ import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacoreenterprise.soar.notification.SoarEmailService;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
-import io.contexa.autoconfigure.enterprise.soar.NotificationAutoConfiguration.NotificationTargetManager;
+import io.contexa.contexacoreenterprise.soar.notification.NotificationTargetManager;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.repository.SoarApprovalRequestRepository;
@@ -101,8 +101,8 @@ public class EnterpriseSoarAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public NotificationAutoConfiguration.NotificationTargetManager notificationTargetManager() {
-        return new NotificationAutoConfiguration.NotificationTargetManager();
+    public NotificationTargetManager notificationTargetManager() {
+        return new NotificationTargetManager();
     }
 
     @Bean

@@ -55,7 +55,7 @@ public class AccessGovernanceLabConnector {
             }
 
         } catch (Exception e) {
-            log.error("AccessGovernanceLab 분석 실패", e);
+            log.error("AccessGovernanceLab analysis failed", e);
         }
 
         return events;
@@ -63,7 +63,7 @@ public class AccessGovernanceLabConnector {
 
     private Map<String, Object> runAccessGovernanceAnalysis() {
         if (!accessGovernanceProperties.isEnabled() || unifiedVectorService == null) {
-            log.warn("[AccessGovernanceConnector] Vector Store가 비활성화되거나 사용 불가");
+            log.error("[AccessGovernanceConnector] Vector Store is disabled or unavailable");
             return createEmptyResult();
         }
 
@@ -80,7 +80,7 @@ public class AccessGovernanceLabConnector {
             return result;
 
         } catch (Exception e) {
-            log.error("[AccessGovernanceConnector] Vector Store 조회 실패", e);
+            log.error("[AccessGovernanceConnector] Vector Store query failed", e);
             return createEmptyResult();
         }
     }
@@ -102,7 +102,7 @@ public class AccessGovernanceLabConnector {
             return results;
 
         } catch (Exception e) {
-            log.error("[AccessGovernanceConnector] Vector Store 검색 실패", e);
+            log.error("[AccessGovernanceConnector] Vector Store search failed", e);
             return List.of();
         }
     }
@@ -336,7 +336,7 @@ public class AccessGovernanceLabConnector {
                 .build();
 
         } catch (Exception e) {
-            log.warn("사용자 정보에서 보안 이벤트 생성 실패: {}", e.getMessage());
+            log.error("Failed to create security event from user info: {}", e.getMessage());
             return null;
         }
     }
@@ -360,7 +360,7 @@ public class AccessGovernanceLabConnector {
                 .build();
 
         } catch (Exception e) {
-            log.warn("권한 정보에서 보안 이벤트 생성 실패: {}", e.getMessage());
+            log.error("Failed to create security event from permission info: {}", e.getMessage());
             return null;
         }
     }
@@ -383,7 +383,7 @@ public class AccessGovernanceLabConnector {
                 .build();
 
         } catch (Exception e) {
-            log.warn("이상 패턴에서 보안 이벤트 생성 실패: {}", e.getMessage());
+            log.error("Failed to create security event from anomaly pattern: {}", e.getMessage());
             return null;
         }
     }
@@ -405,7 +405,8 @@ public class AccessGovernanceLabConnector {
     }
 
     public boolean shouldRunAnalysis() {
-        
+        // TODO: Implement analysis scheduling logic (time-based, resource-based)
+        log.error("Analysis scheduling not implemented - defaulting to run");
         return true;
     }
 }

@@ -45,12 +45,23 @@ public class RedisApprovalSubscriber implements MessageListener {
             String channel = new String(message.getChannel());
             String body = new String(message.getBody());
 
-            if (channel.startsWith(CHANNEL_PREFIX)) {
-                handleApprovalMessage(channel, body);
+            // Validate message origin: only process messages from known approval channels
+            if (!channel.startsWith(CHANNEL_PREFIX)) {
+                log.error("Rejected message from unknown channel: {}", channel);
+                return;
             }
-            
+
+            String approvalId = extractApprovalId(channel);
+            if (approvalId != null && !BROADCAST_CHANNEL.equals(channel)
+                    && !subscribedChannels.contains(channel)) {
+                log.error("Rejected message for unsubscribed approval: {}", approvalId);
+                return;
+            }
+
+            handleApprovalMessage(channel, body);
+
         } catch (Exception e) {
-            log.error("Redis 메시지 처리 실패", e);
+            log.error("Failed to process Redis message", e);
         }
     }
 
@@ -58,7 +69,7 @@ public class RedisApprovalSubscriber implements MessageListener {
         
         String approvalId = extractApprovalId(channel);
         if (approvalId == null) {
-            log.warn("승인 ID를 추출할 수 없음: {}", channel);
+            log.error("Cannot extract approval ID: {}", channel);
             return;
         }
 
@@ -86,7 +97,7 @@ public class RedisApprovalSubscriber implements MessageListener {
     }
 
     private void handleApprovalTimeout(String approvalId) {
-        log.warn("Redis: 승인 타임아웃 수신 - {}", approvalId);
+        log.error("Redis: approval timeout received - {}", approvalId);
         unifiedApprovalService.processApprovalResponse(approvalId, false, "SYSTEM", "Timeout via Redis");
     }
 
@@ -96,7 +107,7 @@ public class RedisApprovalSubscriber implements MessageListener {
             
             String type = (String) data.get("type");
             if (type == null) {
-                log.warn("메시지 타입이 없음: {}", json);
+                log.error("Message type missing: {}", json);
                 return;
             }
             
@@ -112,11 +123,11 @@ public class RedisApprovalSubscriber implements MessageListener {
                     String reason = (String) data.getOrDefault("reason", "Cancelled");
                     unifiedApprovalService.cancelApproval(approvalId, reason);
                 }
-                default -> log.debug("알 수 없는 메시지 타입: {}", type);
+                default -> log.error("Unknown message type: {}", type);
             }
             
         } catch (Exception e) {
-            log.error("JSON 메시지 파싱 실패: {}", json, e);
+            log.error("JSON message parsing failed: {}", json, e);
         }
     }
 

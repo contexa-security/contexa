@@ -50,7 +50,7 @@ public class ToolResultCache {
                 return (ToolExecutor.ToolResult) cached;
             }
         } catch (Exception e) {
-            log.warn("Redis 캐시 읽기 실패: {}", e.getMessage());
+            log.error("Redis cache read failed: {}", e.getMessage());
         }
         
         missCount.incrementAndGet();
@@ -81,7 +81,7 @@ public class ToolResultCache {
                 ttl
             );
                     } catch (Exception e) {
-            log.warn("Redis 캐시 저장 실패: {}", e.getMessage());
+            log.error("Redis cache write failed: {}", e.getMessage());
         }
     }
 
@@ -93,38 +93,68 @@ public class ToolResultCache {
         try {
             redisTemplate.delete(formatRedisKey(key));
                     } catch (Exception e) {
-            log.warn("Redis 캐시 제거 실패: {}", e.getMessage());
+            log.error("Redis cache eviction failed: {}", e.getMessage());
         }
     }
 
-    public void evictByPattern(String pattern) {
-        
-        localCache.entrySet().removeIf(entry -> 
-            entry.getKey().matches(pattern)
+    public void evictByPattern(String globPattern) {
+        String regexPattern = globToRegex(globPattern);
+        localCache.entrySet().removeIf(entry ->
+            entry.getKey().matches(regexPattern)
         );
 
         try {
-            var keys = redisTemplate.keys(formatRedisKey(pattern));
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                evictionCount.addAndGet(keys.size());
-                            }
+            var matchedKeys = new java.util.ArrayList<String>();
+            try (var cursor = redisTemplate.scan(
+                    org.springframework.data.redis.core.ScanOptions.scanOptions()
+                        .match(formatRedisKey(globPattern))
+                        .count(100)
+                        .build())) {
+                while (cursor.hasNext()) {
+                    matchedKeys.add((String) cursor.next());
+                }
+            }
+            if (!matchedKeys.isEmpty()) {
+                redisTemplate.delete(matchedKeys);
+                evictionCount.addAndGet(matchedKeys.size());
+            }
         } catch (Exception e) {
-            log.warn("Redis 패턴 캐시 제거 실패: {}", e.getMessage());
+            log.error("Redis pattern cache eviction failed: {}", e.getMessage());
         }
     }
 
+    private String globToRegex(String glob) {
+        StringBuilder regex = new StringBuilder();
+        for (char c : glob.toCharArray()) {
+            switch (c) {
+                case '*' -> regex.append(".*");
+                case '?' -> regex.append(".");
+                case '.' -> regex.append("\\.");
+                default -> regex.append(c);
+            }
+        }
+        return regex.toString();
+    }
+
     public void clear() {
-        int localSize = localCache.size();
         localCache.clear();
-        
+
         try {
-            var keys = redisTemplate.keys(formatRedisKey("*"));
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                            }
+            var keysToDelete = new java.util.ArrayList<String>();
+            try (var cursor = redisTemplate.scan(
+                    org.springframework.data.redis.core.ScanOptions.scanOptions()
+                        .match(formatRedisKey("*"))
+                        .count(100)
+                        .build())) {
+                while (cursor.hasNext()) {
+                    keysToDelete.add((String) cursor.next());
+                }
+            }
+            if (!keysToDelete.isEmpty()) {
+                redisTemplate.delete(keysToDelete);
+            }
         } catch (Exception e) {
-            log.warn("Redis 캐시 클리어 실패: {}", e.getMessage());
+            log.error("Redis cache clear failed: {}", e.getMessage());
         }
     }
 

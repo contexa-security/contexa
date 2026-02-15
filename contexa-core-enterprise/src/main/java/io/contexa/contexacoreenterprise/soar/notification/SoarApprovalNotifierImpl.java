@@ -1,7 +1,6 @@
 package io.contexa.contexacoreenterprise.soar.notification;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.autoconfigure.enterprise.soar.NotificationAutoConfiguration;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus;
@@ -23,11 +22,11 @@ import java.util.stream.Collectors;
 @Slf4j
 @RequiredArgsConstructor
 public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
-    
+
     private final @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerMessagingTemplate;
     private final SoarEmailService emailService;
     private final McpApprovalNotificationService mcpNotificationService;
-    private final NotificationAutoConfiguration.NotificationTargetManager targetManager;
+    private final NotificationTargetManager targetManager;
     private final SoarProperties soarProperties;
 
     @Autowired
@@ -37,26 +36,26 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     public void notifyApprovalRequest(ApprovalNotification notification) {
 
         List<NotificationTarget> targets = determineNotificationTargets(notification);
-        
+
         if (targets.isEmpty()) {
-            log.warn("알림 대상이 없습니다: {}", notification.getApprovalId());
-            
+            log.error("No notification targets found: {}", notification.getApprovalId());
+
             targets = getDefaultTargets();
         }
 
-        Set<NotificationTarget.NotificationChannel> channels = 
+        Set<NotificationTarget.NotificationChannel> channels =
             determineChannelsByRiskLevel(notification.getRiskLevel());
 
         List<CompletableFuture<Void>> futures = new ArrayList<>();
-        
+
         if (channels.contains(NotificationTarget.NotificationChannel.WEBSOCKET)) {
             futures.add(sendWebSocketNotification(notification, targets));
         }
-        
+
         if (channels.contains(NotificationTarget.NotificationChannel.EMAIL)) {
 
         }
-        
+
         if (channels.contains(NotificationTarget.NotificationChannel.SSE)) {
             futures.add(sendSSENotification(notification));
         }
@@ -64,21 +63,20 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0]))
             .whenComplete((result, error) -> {
                 if (error != null) {
-                    log.error("일부 알림 전송 실패: {}", notification.getApprovalId(), error);
-                } else {
-                                    }
+                    log.error("Partial notification delivery failure: {}", notification.getApprovalId(), error);
+                }
             });
     }
 
-    private CompletableFuture<Void> sendWebSocketNotification(ApprovalNotification notification, 
+    private CompletableFuture<Void> sendWebSocketNotification(ApprovalNotification notification,
                                                               List<NotificationTarget> targets) {
         return CompletableFuture.runAsync(() -> {
             if (!soarProperties.getNotification().getWebsocket().isEnabled()) {
-                                return;
+                return;
             }
-            
+
             try {
-                
+
                 Map<String, Object> message = buildApprovalRequestMessage(notification);
 
                 String topic = soarProperties.getNotification().getWebsocket().getTopicPrefix() + "/approvals";
@@ -86,14 +84,13 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
 
                 for (NotificationTarget target : targets) {
                     if (target.canReceiveWebSocket()) {
-                        String userTopic = "/user/" + target.getTargetId() + "/queue/approval";
                         brokerMessagingTemplate.convertAndSendToUser(target.getTargetId(), "/queue/approval", message);
-                                            }
+                    }
                 }
-                
+
             } catch (Exception e) {
-                log.error("WebSocket 알림 전송 실패: {}", notification.getApprovalId(), e);
-                throw new RuntimeException("WebSocket 알림 실패", e);
+                log.error("WebSocket notification delivery failed: {}", notification.getApprovalId(), e);
+                throw new RuntimeException("WebSocket notification failed", e);
             }
         });
     }
@@ -104,16 +101,16 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             List<NotificationTarget> emailTargets = targets.stream()
                 .filter(NotificationTarget::canReceiveEmail)
                 .collect(Collectors.toList());
-            
+
             if (emailTargets.isEmpty()) {
-                                return;
+                return;
             }
-            
+
             for (NotificationTarget target : emailTargets) {
                 try {
                     emailService.sendApprovalRequestEmail(target, notification);
-                                    } catch (Exception e) {
-                    log.error("이메일 전송 실패: {} -> {}", notification.getApprovalId(), target.getEmail(), e);
+                } catch (Exception e) {
+                    log.error("Email delivery failed: {} -> {}", notification.getApprovalId(), target.getEmail(), e);
                 }
             }
         });
@@ -122,15 +119,15 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     private CompletableFuture<Void> sendSSENotification(ApprovalNotification notification) {
         return CompletableFuture.runAsync(() -> {
             if (!soarProperties.getNotification().getSse().isEnabled()) {
-                                return;
+                return;
             }
-            
+
             try {
-                
-                io.contexa.contexacore.domain.ApprovalRequest request = convertToApprovalRequest(notification);
+
+                ApprovalRequest request = convertToApprovalRequest(notification);
                 mcpNotificationService.sendApprovalRequest(request);
-                            } catch (Exception e) {
-                log.error("SSE 알림 전송 실패: {}", notification.getApprovalId(), e);
+            } catch (Exception e) {
+                log.error("SSE notification delivery failed: {}", notification.getApprovalId(), e);
             }
         });
     }
@@ -146,7 +143,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
                 "reason", reason,
                 "timestamp", LocalDateTime.now()
             );
-            
+
             String topic = soarProperties.getNotification().getWebsocket().getTopicPrefix() + "/approvals";
             brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
@@ -163,7 +160,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
 
     @Async
     public void notifyApprovalTimeout(String approvalId) {
-        log.warn("⏰ 승인 타임아웃 알림: {}", approvalId);
+        log.error("Approval timeout notification: {}", approvalId);
 
         if (soarProperties.getNotification().getWebsocket().isEnabled()) {
             Map<String, Object> message = Map.of(
@@ -171,7 +168,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
                 "approvalId", approvalId,
                 "timestamp", LocalDateTime.now()
             );
-            
+
             String topic = soarProperties.getNotification().getWebsocket().getTopicPrefix() + "/approvals";
             brokerMessagingTemplate.convertAndSend(topic, (Object)message);
         }
@@ -191,9 +188,9 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
 
         String riskLevel = notification.getRiskLevel();
         if ("CRITICAL".equals(riskLevel) || "HIGH".equals(riskLevel)) {
-            
+
             targets.addAll(targetManager.getTargetsByRole("ROLE_SECURITY"));
-            
+
             targets.addAll(targetManager.getTargetsByRole("ROLE_SOC"));
         }
 
@@ -205,7 +202,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     }
 
     private List<NotificationTarget> getDefaultTargets() {
-        
+
         NotificationTarget defaultTarget = NotificationTarget.createDefault(
             "system",
             "System Administrator",
@@ -216,14 +213,14 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
 
     private Set<NotificationTarget.NotificationChannel> determineChannelsByRiskLevel(String riskLevel) {
         return switch (riskLevel) {
-            case "CRITICAL", "HIGH" -> 
+            case "CRITICAL", "HIGH" ->
                 Set.of(NotificationTarget.NotificationChannel.EMAIL,
                       NotificationTarget.NotificationChannel.WEBSOCKET,
                       NotificationTarget.NotificationChannel.SSE);
-            case "MEDIUM" -> 
+            case "MEDIUM" ->
                 Set.of(NotificationTarget.NotificationChannel.WEBSOCKET,
                       NotificationTarget.NotificationChannel.SSE);
-            default -> 
+            default ->
                 Set.of(NotificationTarget.NotificationChannel.WEBSOCKET);
         };
     }
@@ -246,12 +243,12 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     }
 
     public void receiveApprovalNotification(ApprovalNotification notification) {
-                
+
         notifyApprovalRequest(notification);
     }
 
-    private io.contexa.contexacore.domain.ApprovalRequest convertToApprovalRequest(ApprovalNotification notification) {
-        
+    private ApprovalRequest convertToApprovalRequest(ApprovalNotification notification) {
+
         ApprovalRequest request = approvalRequestFactory.createFromNotification(
             notification.getToolName(),
             notification.getDescription(),
@@ -266,8 +263,8 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
 
         if (request.getStatus() == null) {
             request.setStatus(ApprovalStatus.PENDING);
-                    }
-        
+        }
+
         return request;
     }
 
@@ -278,13 +275,13 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
             ApprovalNotification notification = mapper.readValue(message, ApprovalNotification.class);
             receiveApprovalNotification(notification);
         } catch (Exception e) {
-            log.error("승인 알림 메시지 파싱 실패: {}", message, e);
+            log.error("Failed to parse approval notification message: {}", message, e);
         }
     }
 
     @Override
     public void sendApprovalReminder(String approvalId) {
-        
+
         Map<String, Object> message = Map.of(
             "type", "APPROVAL_REMINDER",
             "approvalId", approvalId,

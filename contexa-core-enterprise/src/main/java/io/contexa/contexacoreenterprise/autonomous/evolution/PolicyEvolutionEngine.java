@@ -392,7 +392,7 @@ public class PolicyEvolutionEngine {
     }
 
     private String generateTitle(SecurityEvent event, LearningMetadata metadata) {
-        return String.format("[%s] %s 대응 정책",
+        return String.format("[%s] %s response policy",
                             metadata.getLearningType(),
                             event.getSeverity());
     }
@@ -403,7 +403,7 @@ public class PolicyEvolutionEngine {
         if (lines.length > 0) {
             return lines[0].length() > 255 ? lines[0].substring(0, 255) : lines[0];
         }
-        return "AI 생성 정책 제안";
+        return "AI-generated policy proposal";
     }
 
     private String extractSpelExpression(String aiResponse) {
@@ -489,12 +489,11 @@ public class PolicyEvolutionEngine {
                 log.error("AI-generated SpEL validation failed: {}, errors: {}", expression, result.errors());
                 return false;
             }
-            if (!result.warnings().isEmpty()) {
-                            }
             return true;
         }
-        
-        return isValidSpelExpression(expression);
+
+        log.error("SpEL validation service not available - rejecting expression: {}", expression);
+        return false;
     }
 
     private String extractSpelFunctionPattern(String aiResponse) {
@@ -859,7 +858,7 @@ public class PolicyEvolutionEngine {
 
             AITuningService.UserFeedback feedback = AITuningService.UserFeedback.builder()
                 .feedbackType("FALSE_POSITIVE")
-                .comment("정책 진화 학습")
+                .comment("policy evolution learning")
                 .timestamp(LocalDateTime.now())
                 .build();
             tuningService.learnFalsePositive(event, feedback).subscribe();
@@ -870,10 +869,11 @@ public class PolicyEvolutionEngine {
     }
 
     private String generateCacheKey(SecurityEvent event, LearningMetadata metadata) {
-        return String.format("%s_%s_%s",
+        return String.format("%s_%s_%s_%s",
                             event.getSeverity(),
+                            event.getSource(),
                             metadata.getLearningType(),
-                            event.getSource());
+                            metadata.getSourceLabId());
     }
 
     private String buildSearchQuery(SecurityEvent event, LearningMetadata metadata) {
@@ -890,12 +890,12 @@ public class PolicyEvolutionEngine {
             Exception e) {
         
         return PolicyEvolutionProposal.builder()
-            .title("정책 진화 실패")
-            .description("오류로 인해 정책 제안을 생성할 수 없습니다: " + e.getMessage())
+            .title("Policy evolution failed")
+            .description("Unable to generate policy proposal due to error: " + e.getMessage())
             .proposalType(PolicyEvolutionProposal.ProposalType.SUGGEST_TRAINING)
             .sourceEventId(event.getEventId())
             .analysisLabId(metadata.getSourceLabId())
-            .aiReasoning("오류 발생: " + e.getMessage())
+            .aiReasoning("Error occurred: " + e.getMessage())
             .confidenceScore(0.0)
             .riskLevel(PolicyEvolutionProposal.RiskLevel.LOW)
             .createdAt(LocalDateTime.now())
@@ -1062,6 +1062,7 @@ public class PolicyEvolutionEngine {
         }
     }
 
+    // TODO: Implement post-processing for evolved policy creation
     private void createEvolvedPolicy(PolicyDTO originalPolicy,
                                     PolicyEvolutionProposal proposal) {
 
@@ -1070,5 +1071,7 @@ public class PolicyEvolutionEngine {
         evolutionData.put("proposal", proposal);
         evolutionData.put("evolvedAt", LocalDateTime.now());
 
-            }
+        log.error("createEvolvedPolicy not yet implemented - originalPolicy: {}, proposal: {}",
+                  originalPolicy.getName(), proposal.getTitle());
+    }
 }

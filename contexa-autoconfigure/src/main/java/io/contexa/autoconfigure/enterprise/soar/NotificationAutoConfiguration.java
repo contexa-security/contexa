@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.enterprise.soar;
 
 import io.contexa.contexacoreenterprise.soar.notification.NotificationTarget;
+import io.contexa.contexacoreenterprise.soar.notification.NotificationTargetManager;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -50,60 +51,5 @@ public class NotificationAutoConfiguration {
     @ConditionalOnMissingBean
     public NotificationTargetManager notificationTargetManager() {
         return new NotificationTargetManager();
-    }
-
-    public static class NotificationTargetManager {
-        private final java.util.Map<String, NotificationTarget> targets =
-            new java.util.concurrent.ConcurrentHashMap<>();
-
-        public void registerTarget(NotificationTarget target) {
-            targets.put(target.getTargetId(), target);
-        }
-
-        public NotificationTarget getTarget(String targetId) {
-            return targets.get(targetId);
-        }
-
-        public java.util.List<NotificationTarget> getTargetsByRole(String role) {
-            return targets.values().stream()
-                    .filter(t -> t.getRoles() != null && t.getRoles().contains(role))
-                    .toList();
-        }
-
-        public java.util.List<io.contexa.contexacoreenterprise.soar.notification.NotificationTarget> getOnlineTargets() {
-            return targets.values().stream()
-                    .filter(io.contexa.contexacoreenterprise.soar.notification.NotificationTarget::isOnline)
-                    .toList();
-        }
-
-        public void updateWebSocketSession(String targetId, String sessionId, boolean online) {
-            NotificationTarget target = targets.get(targetId);
-            if (target != null) {
-                target.setWebSocketSessionId(sessionId);
-                target.setOnline(online);
-            }
-        }
-
-        public void initializeDefaultTargets() {
-
-            NotificationTarget adminTarget =
-                NotificationTarget.createDefault(
-                    "admin",
-                    "System Administrator",
-                    "admin@contexa.com"
-                );
-            adminTarget.setRoles(java.util.Set.of("ROLE_ADMIN", "ROLE_APPROVER"));
-            registerTarget(adminTarget);
-
-            NotificationTarget securityTarget =
-                NotificationTarget.createForRole("ROLE_SECURITY");
-            securityTarget.setEmail("security-team@contexa.com");
-            registerTarget(securityTarget);
-
-            NotificationTarget socTarget =
-                NotificationTarget.createForRole("ROLE_SOC");
-            socTarget.setEmail("soc-team@contexa.com");
-            registerTarget(socTarget);
-        }
     }
 }

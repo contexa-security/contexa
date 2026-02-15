@@ -75,7 +75,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                 })
                 .doOnError(error -> logToolExecutionError(request.getRequestId(), error, stepStartTime))
                 .onErrorResume(error -> {
-                    log.warn("SOAR 도구 실행 오류. 일반 LLM으로 폴백: {}", error.getMessage());
+                    log.error("SOAR tool execution error, falling back to LLM: {}", error.getMessage());
                     return super.execute(request, context);
                 });
     }
@@ -96,7 +96,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                     ToolCallback[] unifiedTools = chainedToolResolver.getAllToolCallbacks();
                     return toolCapableLLMClient.streamToolCallbacks(prompt, unifiedTools);
                 })
-                .doOnError(error -> log.error("[SOAR-TOOL-STEP] 스트리밍 도구 실행 실패", error));
+                .doOnError(error -> log.error("[SOAR-TOOL-STEP] Streaming tool execution failed", error));
     }
 
     private Mono<String> executeWithTools(Prompt prompt, PipelineExecutionContext context) {
@@ -105,8 +105,8 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
         HashSet<String> uniqueToolNames = new HashSet<>(toolNames);
 
         if (unifiedTools.length == 0) {
-            log.warn("사용 가능한 도구가 없음. 일반 LLM 실행으로 전환");
-            return toolCapableLLMClient.call(prompt);
+            log.error("No SOAR tools available - aborting execution");
+            return Mono.error(new IllegalStateException("No SOAR tools registered for execution"));
         }
 
         ChatOptions chatOptions = ToolCallingChatOptions.builder()
@@ -151,12 +151,12 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                 try {
                     toolExecutionResult = approvalAwareToolCallingManager.executeToolCalls(originalPrompt, currentResponse);
                 } catch (Exception e) {
-                    log.error("도구 실행 중 오류 발생: {}", e.getMessage());
+                    log.error("Error occurred during tool execution: {}", e.getMessage());
                     toolExecutionFailed = true;
                 }
 
                 if (toolExecutionFailed) {
-                    log.warn("도구 실행 실패로 인한 처리 중단");
+                    log.error("Processing aborted due to tool execution failure");
                     break;
                 }
 
@@ -172,7 +172,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                 try {
                     currentResponse = toolCapableLLMClient.callToolCallbacksResponse(continuePrompt, unifiedTools).block();
                 } catch (Exception e) {
-                    log.error("LLM 재호출 실패", e);
+                    log.error("LLM re-invocation failed", e);
                     break;
                 }
             }
@@ -206,7 +206,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                     try {
                         validateToolParameters(name, arguments);
                     } catch (IllegalArgumentException e) {
-                        log.error("도구 파라미터 검증 실패: {}", e.getMessage());
+                        log.error("Tool parameter validation failed: {}", e.getMessage());
                     }
 
                 });
@@ -238,7 +238,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
         if (finalResponse == null || finalResponse.isEmpty()) {
             finalResponse = generateDefaultJsonResponse(context);
-            log.warn("최종 응답 생성 실패 - 기본 JSON 응답 생성");
+            log.error("Final response generation failed - creating default JSON response");
         }
         context.addStepResult(PipelineConfiguration.PipelineStep.SOAR_TOOL_EXECUTION, finalResponse);
         return finalResponse;
@@ -247,12 +247,12 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
     private String generateDefaultJsonResponse(PipelineExecutionContext context) {
         SoarResponse response = new SoarResponse();
 
-        response.setAnalysisResult("도구 실행은 완료되었으나 AI가 최종 분석을 생성하지 못했습니다.");
-        response.setSummary("도구 실행 결과를 수동으로 검토해 주세요.");
+        response.setAnalysisResult("Tool execution completed but AI failed to generate final analysis.");
+        response.setSummary("Please manually review the tool execution results.");
         response.setRecommendations(Arrays.asList(
-                "도구 실행 로그 확인",
-                "수동 분석 필요",
-                "재시도 권장"
+                "Check tool execution logs",
+                "Manual analysis required",
+                "Retry recommended"
         ));
         response.setSessionState(SessionState.COMPLETED);
 
@@ -273,38 +273,25 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
     }
 
     private String convertToJson(SoarResponse response) {
-
-        return String.format("""
-                        {
-                            "analysisResult": "%s",
-                            "summary": "%s",
-                            "recommendations": %s,
-                            "sessionState": "%s",
-                            "executedTools": %s,
-                            "threatLevel": "%s",
-                            "incidentId": "%s",
-                            "sessionId": "%s"
-                        }
-                        """,
-                response.getAnalysisResult() != null ? response.getAnalysisResult() : "",
-                response.getSummary() != null ? response.getSummary() : "",
-                formatList(response.getRecommendations()),
-                response.getSessionState() != null ? response.getSessionState().toString() : "UNKNOWN",
-                formatList(response.getExecutedTools()),
-                response.getThreatLevel() != null ? response.getThreatLevel().toString() : "UNKNOWN",
-                response.getIncidentId() != null ? response.getIncidentId() : "",
-                response.getSessionId() != null ? response.getSessionId() : ""
-        );
-    }
-
-    private String formatList(List<String> list) {
-        if (list == null || list.isEmpty()) {
-            return "[]";
+        try {
+            var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+            var node = objectMapper.createObjectNode();
+            node.put("analysisResult", response.getAnalysisResult() != null ? response.getAnalysisResult() : "");
+            node.put("summary", response.getSummary() != null ? response.getSummary() : "");
+            node.set("recommendations", objectMapper.valueToTree(
+                    response.getRecommendations() != null ? response.getRecommendations() : List.of()));
+            node.put("sessionState", response.getSessionState() != null ? response.getSessionState().toString() : "UNKNOWN");
+            node.set("executedTools", objectMapper.valueToTree(
+                    response.getExecutedTools() != null ? response.getExecutedTools() : List.of()));
+            node.put("threatLevel", response.getThreatLevel() != null ? response.getThreatLevel().toString() : "UNKNOWN");
+            node.put("incidentId", response.getIncidentId() != null ? response.getIncidentId() : "");
+            node.put("sessionId", response.getSessionId() != null ? response.getSessionId() : "");
+            return objectMapper.writeValueAsString(node);
+        } catch (Exception e) {
+            log.error("Failed to serialize SoarResponse to JSON", e);
+            return "{}";
         }
-        return "[" + list.stream()
-                .map(item -> "\"" + item + "\"")
-                .reduce((a, b) -> a + ", " + b)
-                .orElse("") + "]";
     }
 
     private String extractToolResponseText(List<Message> conversationHistory) {
@@ -380,7 +367,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
     private void logToolExecutionError(String requestId, Throwable error, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
-        log.error("[SOAR-TOOL-STEP] ===== 도구 실행 실패 ===== Request: {}, 총 시간: {}ms, 오류: {}",
+        log.error("[SOAR-TOOL-STEP] ===== Tool execution failed ===== Request: {}, total time: {}ms, error: {}",
                 requestId, totalTime, error.getMessage());
     }
 
@@ -396,11 +383,11 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
     private String generateToolExecutionSummary(List<String> executedTools) {
         if (executedTools == null || executedTools.isEmpty()) {
-            return "도구가 실행되지 않았습니다.";
+            return "No tools were executed.";
         }
 
         StringBuilder summary = new StringBuilder();
-        summary.append("도구 실행 요약:\n");
+        summary.append("Tool execution summary:\n");
         for (String tool : executedTools) {
             summary.append("- ").append(tool).append(": ");
             summary.append(getToolDescription(tool)).append("\n");
@@ -410,16 +397,16 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
     private String getToolDescription(String toolName) {
         return switch (toolName) {
-            case "ip_blocking" -> "악성 IP 차단 완료";
-            case "network_isolation" -> "네트워크 격리 수행";
-            case "process_kill" -> "악성 프로세스 종료";
-            case "session_termination" -> "세션 종료 완료";
-            case "file_quarantine" -> "파일 격리 수행";
-            case "threat_intelligence" -> "위협 정보 조회 완료";
-            case "log_analysis" -> "로그 분석 완료";
-            case "network_scan" -> "네트워크 스캔 수행";
-            case "audit_logs", "queryAuditLogs" -> "감사 로그 조회 완료";
-            default -> "작업 완료";
+            case "ip_blocking" -> "Malicious IP blocking completed";
+            case "network_isolation" -> "Network isolation performed";
+            case "process_kill" -> "Malicious process terminated";
+            case "session_termination" -> "Session termination completed";
+            case "file_quarantine" -> "File quarantine performed";
+            case "threat_intelligence" -> "Threat intelligence lookup completed";
+            case "log_analysis" -> "Log analysis completed";
+            case "network_scan" -> "Network scan performed";
+            case "audit_logs", "queryAuditLogs" -> "Audit log query completed";
+            default -> "Operation completed";
         };
     }
 
@@ -433,15 +420,21 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
         );
 
         if (arguments != null) {
-            for (String field : prohibitedFields) {
-                if (arguments.contains("\"" + field + "\"") ||
-                        arguments.contains(field + ":") ||
-                        arguments.contains(field + "=")) {
-                    log.error("도구 파라미터 검증 실패: 도구 {}에 SoarResponse 필드 {} 사용 시도", toolName, field);
-                    throw new IllegalArgumentException(
-                            String.format("도구 %s에 잘못된 파라미터 %s 사용. SoarResponse 필드는 도구 파라미터로 사용할 수 없습니다.", toolName, field)
-                    );
+            try {
+                var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                var node = objectMapper.readTree(arguments);
+                for (String field : prohibitedFields) {
+                    if (node.has(field)) {
+                        log.error("Tool parameter validation failed: tool {} attempted to use SoarResponse field {}", toolName, field);
+                        throw new IllegalArgumentException(
+                                String.format("Prohibited SoarResponse field '%s' in tool '%s' parameters", field, toolName)
+                        );
+                    }
                 }
+            } catch (IllegalArgumentException e) {
+                throw e;
+            } catch (Exception e) {
+                log.error("Failed to parse tool arguments as JSON for validation: {}", toolName);
             }
         }
 
@@ -474,7 +467,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
             }
 
             if (System.currentTimeMillis() - startTime > TIMEOUT_MS) {
-                log.warn("⏰ 타임아웃 30초 초과");
+                log.error("Timeout exceeded 30 seconds");
                 return false;
             }
 
@@ -518,12 +511,12 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
         long duration = (long) metrics.get("duration");
         if (duration > 60000) {
-            log.warn("도구 실행 시간 초과: {}ms", duration);
+            log.error("Tool execution time exceeded: {}ms", duration);
         }
 
         int totalExecutions = (int) metrics.get("totalExecutions");
         if (totalExecutions > 10) {
-            log.warn("과도한 도구 호출: {} 회", totalExecutions);
+            log.error("Excessive tool calls: {} times", totalExecutions);
         }
 
     }

@@ -21,11 +21,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -47,7 +43,7 @@ public class McpApprovalNotificationService {
     private final List<SseEmitter> broadcastEmitters = new CopyOnWriteArrayList<>();
 
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
-    private final Map<String, ScheduledTimeoutTask> timeoutTasks = new ConcurrentHashMap<>();
+    private final Map<String, ScheduledFuture<?>> timeoutFutures = new ConcurrentHashMap<>();
 
     private final List<NotificationHistory> notificationHistory = new CopyOnWriteArrayList<>();
     private static final int MAX_HISTORY_SIZE = 100;
@@ -218,7 +214,7 @@ public class McpApprovalNotificationService {
 
     @Async
     public void sendApprovalTimeout(String approvalId) {
-        log.warn("승인 타임아웃: {}", approvalId);
+        log.error("Approval timeout: {}", approvalId);
         
         Map<String, Object> timeoutData = Map.of(
             "approvalId", approvalId,
@@ -414,21 +410,21 @@ public class McpApprovalNotificationService {
     }
 
     private void scheduleTimeout(String approvalId, long delayMillis) {
-        ScheduledTimeoutTask task = new ScheduledTimeoutTask(approvalId);
-        timeoutTasks.put(approvalId, task);
-        
-        scheduler.schedule(() -> {
-            if (timeoutTasks.containsKey(approvalId)) {
-                sendApprovalTimeout(approvalId);
-                timeoutTasks.remove(approvalId);
-            }
+        java.util.concurrent.ScheduledFuture<?> future = scheduler.schedule(() -> {
+            timeoutFutures.remove(approvalId);
+            sendApprovalTimeout(approvalId);
         }, delayMillis, TimeUnit.MILLISECONDS);
+
+        java.util.concurrent.ScheduledFuture<?> previous = timeoutFutures.put(approvalId, future);
+        if (previous != null) {
+            previous.cancel(false);
+        }
     }
 
     private void cancelTimeout(String approvalId) {
-        ScheduledTimeoutTask task = timeoutTasks.remove(approvalId);
-        if (task != null) {
-            task.cancel();
+        java.util.concurrent.ScheduledFuture<?> future = timeoutFutures.remove(approvalId);
+        if (future != null) {
+            future.cancel(false);
         }
     }
 
@@ -611,22 +607,6 @@ public class McpApprovalNotificationService {
                     }
     }
 
-    private static class ScheduledTimeoutTask {
-        private final String approvalId;
-        private volatile boolean cancelled = false;
-        
-        ScheduledTimeoutTask(String approvalId) {
-            this.approvalId = approvalId;
-        }
-        
-        void cancel() {
-            this.cancelled = true;
-        }
-        
-        boolean isCancelled() {
-            return cancelled;
-        }
-    }
 
     public void sendApprovalReminder(String approvalId) {
 

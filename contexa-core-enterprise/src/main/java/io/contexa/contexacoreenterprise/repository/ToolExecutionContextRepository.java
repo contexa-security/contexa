@@ -63,6 +63,6 @@ public interface ToolExecutionContextRepository extends JpaRepository<ToolExecut
     @Query("SELECT t FROM ToolExecutionContext t WHERE t.status IN ('EXECUTED', 'FAILED', 'CANCELLED', 'TIMEOUT') ORDER BY t.executionEndTime DESC")
     List<ToolExecutionContext> findCompletedContexts();
 
-    @Query("SELECT t.toolName, COUNT(t), AVG(TIMESTAMPDIFF(SECOND, t.executionStartTime, t.executionEndTime)) FROM ToolExecutionContext t WHERE t.status = 'EXECUTED' GROUP BY t.toolName")
+    @Query(value = "SELECT t.tool_name, COUNT(*), AVG(TIMESTAMPDIFF(SECOND, t.execution_start_time, t.execution_end_time)) FROM tool_execution_context t WHERE t.status = 'EXECUTED' GROUP BY t.tool_name", nativeQuery = true)
     List<Object[]> getToolExecutionStatistics();
 }

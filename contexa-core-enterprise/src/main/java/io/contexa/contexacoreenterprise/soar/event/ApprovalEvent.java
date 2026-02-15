@@ -67,6 +67,11 @@ public class ApprovalEvent extends ApplicationEvent {
             "Approval request timeout", null, null);
     }
 
+    public static ApprovalEvent cancelled(Object source, String requestId, String reason) {
+        return new ApprovalEvent(source, EventType.APPROVAL_CANCELLED, requestId,
+            reason != null ? reason : "Approval cancelled", null, null);
+    }
+
     public static ApprovalEvent toolExecuted(Object source, String requestId, Map<String, Object> result) {
         return new ApprovalEvent(source, EventType.TOOL_EXECUTED, requestId, 
             "Tool executed successfully", null, result);

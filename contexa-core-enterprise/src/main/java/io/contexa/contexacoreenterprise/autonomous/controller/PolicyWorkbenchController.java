@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 @ResponseBody
 @RequestMapping("/api/policies")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*", maxAge = 3600)
+@CrossOrigin(origins = "${contexa.cors.allowed-origins:http://localhost:3000}", maxAge = 3600)
 public class PolicyWorkbenchController {
     
     private final PolicyProposalRepository proposalRepository;
@@ -105,7 +105,7 @@ public class PolicyWorkbenchController {
         try {
             
             if (request.getRequestId() == null) {
-                log.warn("승인 요청 ID가 필수입니다. 거버넌스 우회 시도 차단: proposalId={}", id);
+                log.error("Approval request ID is required. Governance bypass attempt blocked: proposalId={}", id);
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
                     .proposalId(id)
                     .success(false)
@@ -154,7 +154,7 @@ public class PolicyWorkbenchController {
         try {
             
             if (request.getRequestId() == null) {
-                log.warn("승인 요청 ID가 필수입니다. 거버넌스 우회 시도 차단: proposalId={}", id);
+                log.error("Approval request ID is required. Governance bypass attempt blocked: proposalId={}", id);
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
                     .proposalId(id)
                     .success(false)
