@@ -361,7 +361,7 @@ public class SpelValidationService {
 
         sb.append("\n## Prohibited\n");
         sb.append("- DO NOT use methods not listed above (e.g. hasPermission, getBean)\n");
-        sb.append("- DO NOT use variables other than #ai, #ai, #principal, #authentication, #request\n");
+        sb.append("- DO NOT use variables other than #ai, #principal, #authentication, #request\n");
         sb.append("- DO NOT use T() type references, new keyword, or reflection\n");
         sb.append("- DO NOT create objects or call Runtime/ProcessBuilder/ScriptEngine\n");
 
