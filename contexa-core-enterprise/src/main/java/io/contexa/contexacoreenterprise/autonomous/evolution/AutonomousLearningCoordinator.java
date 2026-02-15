@@ -7,9 +7,7 @@ import io.contexa.contexacore.domain.SoarIncidentStatus;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.SoarIncident;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
-import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
-import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -25,18 +23,15 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AutonomousLearningCoordinator {
 
     private final PolicyEvolutionEngine evolutionEngine;
-    private final AITuningService tuningService;
     private final PolicyProposalRepository proposalRepository;
     private final EvolutionMetricsCollector evolutionMetricsCollector;
     private final SecurityAutonomousProperties securityAutonomousProperties;
 
     public AutonomousLearningCoordinator(PolicyEvolutionEngine evolutionEngine,
-                                         AITuningService tuningService,
                                          PolicyProposalRepository proposalRepository,
                                          EvolutionMetricsCollector evolutionMetricsCollector,
                                          SecurityAutonomousProperties securityAutonomousProperties) {
         this.evolutionEngine = evolutionEngine;
-        this.tuningService = tuningService;
         this.proposalRepository = proposalRepository;
         this.evolutionMetricsCollector = evolutionMetricsCollector;
         this.securityAutonomousProperties = securityAutonomousProperties;
@@ -44,7 +39,6 @@ public class AutonomousLearningCoordinator {
 
     private final AtomicLong totalEventsProcessed = new AtomicLong(0);
     private final AtomicLong totalProposalsGenerated = new AtomicLong(0);
-    private final AtomicLong totalLearningCycles = new AtomicLong(0);
 
     private final Map<String, Integer> dailyProposalCount = new ConcurrentHashMap<>();
 
@@ -90,13 +84,6 @@ public class AutonomousLearningCoordinator {
             }
 
             triggerPolicyEvolution(securityEvent, metadata);
-
-            AITuningService.UserFeedback feedback = AITuningService.UserFeedback.builder()
-                    .feedbackType("FALSE_POSITIVE")
-                    .comment("Automatic learning feedback")
-                    .timestamp(LocalDateTime.now())
-                    .build();
-            tuningService.learnFalsePositive(securityEvent, feedback).subscribe();
 
             totalEventsProcessed.incrementAndGet();
 
@@ -209,17 +196,17 @@ public class AutonomousLearningCoordinator {
 
     private boolean checkDailyLimit() {
         String today = LocalDateTime.now().toLocalDate().toString();
-        int count = dailyProposalCount.getOrDefault(today, 0);
+        int maxProposals = securityAutonomousProperties.getLearning().getEvolution().getMaxProposals();
 
-        if (count >= securityAutonomousProperties.getLearning().getEvolution().getMaxProposals()) {
-            return false;
-        }
-
-        dailyProposalCount.put(today, count + 1);
+        int newCount = dailyProposalCount.compute(today, (key, current) -> {
+            if (current == null) return 1;
+            if (current >= maxProposals) return current;
+            return current + 1;
+        });
 
         dailyProposalCount.entrySet().removeIf(entry -> !entry.getKey().equals(today));
 
-        return true;
+        return newCount <= maxProposals;
     }
 
     private void triggerPolicyEvolution(SecurityEvent securityEvent, LearningMetadata metadata) {
@@ -243,7 +230,6 @@ public class AutonomousLearningCoordinator {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalEventsProcessed", totalEventsProcessed.get());
         stats.put("totalProposalsGenerated", totalProposalsGenerated.get());
-        stats.put("totalLearningCycles", totalLearningCycles.get());
         stats.put("dailyProposalCount", dailyProposalCount.getOrDefault(
                 LocalDateTime.now().toLocalDate().toString(), 0
         ));

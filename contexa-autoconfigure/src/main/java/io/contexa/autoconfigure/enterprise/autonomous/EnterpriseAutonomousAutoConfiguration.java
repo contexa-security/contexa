@@ -4,7 +4,6 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
-import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -13,14 +12,12 @@ import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchCon
 import io.contexa.contexacoreenterprise.autonomous.evolution.*;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
-import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacoreenterprise.autonomous.labs.PolicyEvolutionLab;
 import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
 import io.contexa.contexacoreenterprise.autonomous.notification.DefaultNotificationService;
 import io.contexa.contexacoreenterprise.autonomous.service.impl.SoarNotifierImpl;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
-import io.contexa.contexacoreenterprise.properties.AiTuningProperties;
 import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
 import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
@@ -30,7 +27,6 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -45,8 +41,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties({ ContexaProperties.class, SecurityAutonomousProperties.class,
-        SecurityEvaluatorProperties.class, PolicyEvolutionProperties.class, GovernanceProperties.class,
-        AiTuningProperties.class })
+        SecurityEvaluatorProperties.class, PolicyEvolutionProperties.class, GovernanceProperties.class })
 public class EnterpriseAutonomousAutoConfiguration {
 
     public EnterpriseAutonomousAutoConfiguration() {
@@ -69,13 +64,9 @@ public class EnterpriseAutonomousAutoConfiguration {
     public PolicyEvolutionEngine policyEvolutionEngine(
             ChatModel chatModel,
             UnifiedVectorService unifiedVectorService,
-            AITuningService tuningService,
-            PolicyEvolutionProperties policyEvolutionProperties,
-            RedisTemplate<String, PolicyEvolutionProposal> policyEvolutionRedisTemplate,
-            RedisTemplate<String, String> stringRedisTemplate) {
+            PolicyEvolutionProperties policyEvolutionProperties) {
         return new PolicyEvolutionEngine(
-                chatModel, unifiedVectorService, tuningService,
-                policyEvolutionProperties, policyEvolutionRedisTemplate, stringRedisTemplate);
+                chatModel, unifiedVectorService, policyEvolutionProperties);
     }
 
     @Bean
@@ -103,21 +94,10 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AutonomousLearningCoordinator autonomousLearningCoordinator(
             PolicyEvolutionEngine evolutionEngine,
-            AITuningService tuningService,
             PolicyProposalRepository proposalRepository,
             EvolutionMetricsCollector evolutionMetricsCollector,
             SecurityAutonomousProperties securityAutonomousProperties) {
-        return new AutonomousLearningCoordinator(evolutionEngine, tuningService, proposalRepository, evolutionMetricsCollector, securityAutonomousProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public AITuningService aiTuningService(
-            VectorStore vectorStore,
-            RedisTemplate<String, Object> redisTemplate,
-            AiTuningProperties aiTuningProperties) {
-        return new AITuningService(vectorStore, redisTemplate, aiTuningProperties);
+        return new AutonomousLearningCoordinator(evolutionEngine, proposalRepository, evolutionMetricsCollector, securityAutonomousProperties);
     }
 
     @Bean

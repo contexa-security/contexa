@@ -4,7 +4,6 @@ import io.contexa.contexacore.autonomous.domain.LearningMetadata;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacoreenterprise.domain.dto.PolicyDTO;
-import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -17,13 +16,8 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.Cursor;
-import org.springframework.data.redis.core.RedisCallback;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.ScanOptions;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -33,7 +27,6 @@ public class PolicyEvolutionEngine {
 
     private final ChatModel chatModel;
     private final UnifiedVectorService unifiedVectorService;
-    private final AITuningService tuningService;
 
     @Autowired(required = false)
     private EvolutionMetricsCollector metricsCollector;
@@ -43,26 +36,10 @@ public class PolicyEvolutionEngine {
     @Autowired(required = false)
     private SpelValidationService spelValidationService;
 
-    private final RedisTemplate<String, PolicyEvolutionProposal> redisTemplate;
-    private final RedisTemplate<String, String> stringRedisTemplate;
-
-    private static final String PROPOSAL_CACHE_KEY_PREFIX = "policy:evolution:proposal:";
-    private static final String PROPOSAL_SET_KEY = "policy:evolution:proposals:all";
-    private static final Duration PROPOSAL_CACHE_TTL = Duration.ofHours(1);
-    private static final Duration PROPOSAL_LONG_TTL = Duration.ofHours(24);
-
     public PolicyEvolutionProposal evolvePolicy(SecurityEvent event, LearningMetadata metadata) {
         long startTime = System.currentTimeMillis();
         
         try {
-            
-            String cacheKey = generateCacheKey(event, metadata);
-            if (policyEvolutionProperties.getEnable().isCaching()) {
-                PolicyEvolutionProposal cachedProposal = getFromRedisCache(cacheKey);
-                if (cachedProposal != null) {
-                                        return cachedProposal;
-                }
-            }
 
             Map<String, Object> context = collectContext(event, metadata);
 
@@ -74,13 +51,8 @@ public class PolicyEvolutionEngine {
 
             PolicyEvolutionProposal proposal = generateProposal(event, metadata, context, similarCases);
 
-            evaluateConfidence(proposal, context, similarCases);
-
-            assessRiskLevel(proposal, event, metadata);
-
-            if (policyEvolutionProperties.getEnable().isCaching()) {
-                saveToRedisCache(cacheKey, proposal);
-            }
+            proposal.setConfidenceScore(0.7);
+            proposal.setRiskLevel(PolicyEvolutionProposal.RiskLevel.MEDIUM);
 
             storeLearningData(event, metadata, proposal);
 
@@ -173,20 +145,14 @@ public class PolicyEvolutionEngine {
             return SecurityEvent.Severity.MEDIUM;
         }
 
-        switch (incidentSeverity) {
-            case CRITICAL:
-                return SecurityEvent.Severity.CRITICAL;
-            case HIGH:
-                return SecurityEvent.Severity.HIGH;
-            case MEDIUM:
-                return SecurityEvent.Severity.MEDIUM;
-            case LOW:
-                return SecurityEvent.Severity.LOW;
-            case INFO:
-                return SecurityEvent.Severity.INFO;
-            default:
-                return SecurityEvent.Severity.MEDIUM;
-        }
+        return switch (incidentSeverity) {
+            case CRITICAL -> SecurityEvent.Severity.CRITICAL;
+            case HIGH -> SecurityEvent.Severity.HIGH;
+            case MEDIUM -> SecurityEvent.Severity.MEDIUM;
+            case LOW -> SecurityEvent.Severity.LOW;
+            case INFO -> SecurityEvent.Severity.INFO;
+            default -> SecurityEvent.Severity.MEDIUM;
+        };
     }
 
     public Mono<PolicyEvolutionProposal> evolvePolicyAsync(SecurityEvent event, LearningMetadata metadata) {
@@ -431,18 +397,9 @@ public class PolicyEvolutionEngine {
 
             spelExpression = extractSpelFunctionPattern(aiResponse);
             if (spelExpression != null) {
-                
+
                 if (metricsCollector != null) {
                     metricsCollector.recordSpelExtraction("function_pattern", true);
-                }
-                return spelExpression;
-            }
-
-            spelExpression = requestSpelFromAI(aiResponse);
-            if (spelExpression != null) {
-                
-                if (metricsCollector != null) {
-                    metricsCollector.recordSpelExtraction("ai_retry", true);
                 }
                 return spelExpression;
             }
@@ -532,63 +489,6 @@ public class PolicyEvolutionEngine {
         return null;
     }
 
-    private String requestSpelFromAI(String originalResponse) {
-        try {
-            String extractionPrompt = String.format(
-                "다음 텍스트에서 Spring Security SpEL 표현식만 추출해주세요. " +
-                "코드 블록이나 설명 없이 SpEL 표현식만 반환해주세요.\n" +
-                "허용된 API: #trust.isAllowed(), #trust.isBlocked(), #trust.hasActionIn(), #ai.hasSafeBehavior(), hasRole(), hasAuthority() 등\n\n%s",
-                originalResponse.substring(0, Math.min(500, originalResponse.length()))
-            );
-
-            Prompt prompt = new Prompt(extractionPrompt);
-            ChatResponse response = chatModel.call(prompt);
-            String extractedSpel = response.getResult().getOutput().getText().trim();
-
-            if (validateSpelWithService(extractedSpel)) {
-                return extractedSpel;
-            }
-
-        } catch (Exception e) {
-                    }
-
-        return null;
-    }
-
-    private boolean isValidSpelExpression(String expression) {
-        if (expression == null || expression.isEmpty() || expression.length() > 500) {
-            return false;
-        }
-
-        String lowerExpression = expression.toLowerCase();
-        boolean hasSpelKeyword =
-            lowerExpression.contains("hasrole") ||
-            lowerExpression.contains("hasauthority") ||
-            lowerExpression.contains("haspermission") ||
-            lowerExpression.contains("permitall") ||
-            lowerExpression.contains("denyall") ||
-            lowerExpression.contains("isauthenticated") ||
-            lowerExpression.contains("isanonymous") ||
-            lowerExpression.contains("principal") ||
-            lowerExpression.contains("#") ||  
-            lowerExpression.contains("and") ||
-            lowerExpression.contains("or");
-
-        boolean hasBalancedParentheses = checkBalancedParentheses(expression);
-
-        return hasSpelKeyword && hasBalancedParentheses;
-    }
-
-    private boolean checkBalancedParentheses(String expression) {
-        int count = 0;
-        for (char c : expression.toCharArray()) {
-            if (c == '(') count++;
-            else if (c == ')') count--;
-            if (count < 0) return false;
-        }
-        return count == 0;
-    }
-
     private Double extractExpectedImpact(String aiResponse) {
         if (aiResponse == null || aiResponse.isEmpty()) {
             return 0.7; 
@@ -607,11 +507,6 @@ public class PolicyEvolutionEngine {
             }
 
             impact = extractTextualImpact(aiResponse);
-            if (impact != null) {
-                return impact;
-            }
-
-            impact = requestImpactFromAI(aiResponse);
             if (impact != null) {
                 return impact;
             }
@@ -721,34 +616,6 @@ public class PolicyEvolutionEngine {
         return null;
     }
 
-    private Double requestImpactFromAI(String originalResponse) {
-        try {
-            String extractionPrompt = String.format(
-                "다음 정책 제안의 예상 영향도를 0.0에서 1.0 사이의 숫자로만 답변해주세요. " +
-                "숫자만 반환하고 설명은 포함하지 마세요:\n\n%s",
-                originalResponse.substring(0, Math.min(500, originalResponse.length()))
-            );
-
-            Prompt prompt = new Prompt(extractionPrompt);
-            ChatResponse response = chatModel.call(prompt);
-            String impactText = response.getResult().getOutput().getText().trim();
-
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("(0\\.\\d+|1\\.0|0|1)");
-            java.util.regex.Matcher matcher = pattern.matcher(impactText);
-
-            if (matcher.find()) {
-                double value = Double.parseDouble(matcher.group(1));
-                if (value >= 0.0 && value <= 1.0) {
-                    return value;
-                }
-            }
-
-        } catch (Exception e) {
-                    }
-
-        return null;
-    }
-
     private PolicyEvolutionProposal.ProposalType determineProposalType(
             SecurityEvent event, 
             LearningMetadata metadata) {
@@ -767,75 +634,6 @@ public class PolicyEvolutionEngine {
             default:
                 return PolicyEvolutionProposal.ProposalType.SUGGEST_TRAINING;
         }
-    }
-
-    private void evaluateConfidence(
-            PolicyEvolutionProposal proposal,
-            Map<String, Object> context,
-            List<Document> similarCases) {
-        
-        double confidence = 0.5; 
-
-        if (similarCases.size() >= 5) {
-            confidence += 0.2;
-        } else if (similarCases.size() >= 3) {
-            confidence += 0.1;
-        }
-
-        if (context.size() >= 10) {
-            confidence += 0.2;
-        } else if (context.size() >= 5) {
-            confidence += 0.1;
-        }
-
-        if (proposal.getSpelExpression() != null && !proposal.getSpelExpression().isEmpty()) {
-            confidence += 0.1;
-        }
-
-        confidence = Math.min(confidence, 1.0);
-        
-        proposal.setConfidenceScore(confidence);
-    }
-
-    private void assessRiskLevel(
-            PolicyEvolutionProposal proposal,
-            SecurityEvent event,
-            LearningMetadata metadata) {
-        
-        PolicyEvolutionProposal.RiskLevel riskLevel;
-
-        switch (proposal.getProposalType()) {
-            case DELETE_POLICY:
-            case REVOKE_ACCESS:
-                riskLevel = PolicyEvolutionProposal.RiskLevel.HIGH;
-                break;
-                
-            case CREATE_POLICY:
-            case UPDATE_POLICY:
-                riskLevel = PolicyEvolutionProposal.RiskLevel.MEDIUM;
-                break;
-                
-            case ADJUST_THRESHOLD:
-            case OPTIMIZE_RULE:
-                if (event.getSeverity().toString().equals("CRITICAL")) {
-                    riskLevel = PolicyEvolutionProposal.RiskLevel.HIGH;
-                } else {
-                    riskLevel = PolicyEvolutionProposal.RiskLevel.MEDIUM;
-                }
-                break;
-                
-            case SUGGEST_TRAINING:
-            case CREATE_ALERT:
-            default:
-                riskLevel = PolicyEvolutionProposal.RiskLevel.LOW;
-                break;
-        }
-
-        if (proposal.getConfidenceScore() < 0.5 && riskLevel == PolicyEvolutionProposal.RiskLevel.LOW) {
-            riskLevel = PolicyEvolutionProposal.RiskLevel.MEDIUM;
-        }
-        
-        proposal.setRiskLevel(riskLevel);
     }
 
     private void storeLearningData(
@@ -859,24 +657,9 @@ public class PolicyEvolutionEngine {
 
             unifiedVectorService.storeDocument(document);
 
-            AITuningService.UserFeedback feedback = AITuningService.UserFeedback.builder()
-                .feedbackType("FALSE_POSITIVE")
-                .comment("policy evolution learning")
-                .timestamp(LocalDateTime.now())
-                .build();
-            tuningService.learnFalsePositive(event, feedback).subscribe();
-
         } catch (Exception e) {
             log.error("Learning data storage failed: {}", e.getMessage());
         }
-    }
-
-    private String generateCacheKey(SecurityEvent event, LearningMetadata metadata) {
-        return String.format("%s_%s_%s_%s",
-                            event.getSeverity(),
-                            event.getSource(),
-                            metadata.getLearningType(),
-                            metadata.getSourceLabId());
     }
 
     private String buildSearchQuery(SecurityEvent event, LearningMetadata metadata) {
@@ -903,97 +686,6 @@ public class PolicyEvolutionEngine {
             .riskLevel(PolicyEvolutionProposal.RiskLevel.LOW)
             .createdAt(LocalDateTime.now())
             .build();
-    }
-
-    private PolicyEvolutionProposal getFromRedisCache(String cacheKey) {
-        try {
-            String redisKey = PROPOSAL_CACHE_KEY_PREFIX + cacheKey;
-            return redisTemplate.opsForValue().get(redisKey);
-        } catch (Exception e) {
-            log.error("Redis cache lookup failed: key={}", cacheKey, e);
-            return null;
-        }
-    }
-
-    private void saveToRedisCache(String cacheKey, PolicyEvolutionProposal proposal) {
-        try {
-            String redisKey = PROPOSAL_CACHE_KEY_PREFIX + cacheKey;
-            
-            Duration ttl = PROPOSAL_CACHE_TTL;
-            
-            redisTemplate.opsForValue().set(redisKey, proposal, ttl);
-
-            stringRedisTemplate.opsForSet().add(PROPOSAL_SET_KEY, cacheKey);
-            
-                    } catch (Exception e) {
-            log.error("Redis cache save failed: key={}", cacheKey, e);
-        }
-    }
-
-    public void clearCache() {
-        try {
-            
-            var keys = stringRedisTemplate.opsForSet().members(PROPOSAL_SET_KEY);
-            if (keys != null && !keys.isEmpty()) {
-                for (String key : keys) {
-                    String redisKey = PROPOSAL_CACHE_KEY_PREFIX + key;
-                    redisTemplate.delete(redisKey);
-                }
-                stringRedisTemplate.delete(PROPOSAL_SET_KEY);
-            }
-                    } catch (Exception e) {
-            log.error("Redis cache cleanup failed", e);
-        }
-    }
-
-    public int getCacheSize() {
-        try {
-            Long size = stringRedisTemplate.opsForSet().size(PROPOSAL_SET_KEY);
-            return size != null ? size.intValue() : 0;
-        } catch (Exception e) {
-            log.error("Redis cache size query failed", e);
-            return 0;
-        }
-    }
-
-    public void invalidateProposal(String proposalId) {
-        try {
-            String pattern = PROPOSAL_CACHE_KEY_PREFIX + "*" + proposalId + "*";
-            Set<String> keys = new HashSet<>();
-            ScanOptions scanOptions = ScanOptions.scanOptions().match(pattern).count(100).build();
-            redisTemplate.execute((RedisCallback<Void>) connection -> {
-                try (Cursor<byte[]> cursor = connection.scan(scanOptions)) {
-                    while (cursor.hasNext()) {
-                        keys.add(new String(cursor.next()));
-                    }
-                }
-                return null;
-            });
-            if (!keys.isEmpty()) {
-                redisTemplate.delete(keys);
-            }
-        } catch (Exception e) {
-            log.error("Proposal invalidation failed: proposalId={}", proposalId, e);
-        }
-    }
-
-    public List<PolicyEvolutionProposal> getAllCachedProposals() {
-        List<PolicyEvolutionProposal> proposals = new ArrayList<>();
-        try {
-            var keys = stringRedisTemplate.opsForSet().members(PROPOSAL_SET_KEY);
-            if (keys != null) {
-                for (String key : keys) {
-                    String redisKey = PROPOSAL_CACHE_KEY_PREFIX + key;
-                    PolicyEvolutionProposal proposal = redisTemplate.opsForValue().get(redisKey);
-                    if (proposal != null) {
-                        proposals.add(proposal);
-                    }
-                }
-            }
-                    } catch (Exception e) {
-            log.error("Cached proposal retrieval failed", e);
-        }
-        return proposals;
     }
 
     public void learnFromRejection(PolicyDTO policy, String rejectionReason) {
@@ -1063,27 +755,10 @@ public class PolicyEvolutionEngine {
             metadata.addContext("originalPolicyName", policy.getName());
             metadata.addContext("evolutionReason", context.get("changeReason"));
 
-            PolicyEvolutionProposal proposal = evolvePolicy(event, metadata);
-
-            if (proposal != null && proposal.getConfidenceScore() > 0.7) {
-                createEvolvedPolicy(policy, proposal);
-            }
+            evolvePolicy(event, metadata);
 
         } catch (Exception e) {
             log.error("Policy evolution failed: {}", policy.getName(), e);
         }
-    }
-
-    // TODO: Implement post-processing for evolved policy creation
-    private void createEvolvedPolicy(PolicyDTO originalPolicy,
-                                    PolicyEvolutionProposal proposal) {
-
-        Map<String, Object> evolutionData = new HashMap<>();
-        evolutionData.put("originalPolicy", originalPolicy);
-        evolutionData.put("proposal", proposal);
-        evolutionData.put("evolvedAt", LocalDateTime.now());
-
-        log.error("createEvolvedPolicy not yet implemented - originalPolicy: {}, proposal: {}",
-                  originalPolicy.getName(), proposal.getTitle());
     }
 }

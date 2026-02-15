@@ -85,17 +85,15 @@ public class SoarToolExecutionService {
     }
 
     private String enhancePromptWithSoarContext(String originalPrompt, String incidentId, String organizationId) {
-        StringBuilder enhanced = new StringBuilder();
-        enhanced.append("SOAR (Security Orchestration, Automation and Response) Context:\n");
-        enhanced.append("- Incident ID: ").append(incidentId).append("\n");
-        enhanced.append("- Organization: ").append(organizationId).append("\n");
-        enhanced.append("- Security Tool Execution: Human-in-the-Loop enabled\n");
-        enhanced.append("- High-risk tools require manual approval\n");
-        enhanced.append("- Analysis and monitoring tools execute automatically\n");
-        enhanced.append("- All tool executions are logged and audited\n\n");
-        enhanced.append("Security Analyst Request: ").append(originalPrompt);
-        
-        return enhanced.toString();
+
+        return "SOAR (Security Orchestration, Automation and Response) Context:\n" +
+                "- Incident ID: " + incidentId + "\n" +
+                "- Organization: " + organizationId + "\n" +
+                "- Security Tool Execution: Human-in-the-Loop enabled\n" +
+                "- High-risk tools require manual approval\n" +
+                "- Analysis and monitoring tools execute automatically\n" +
+                "- All tool executions are logged and audited\n\n" +
+                "Security Analyst Request: " + originalPrompt;
     }
 
     public java.util.Set<String> getRegisteredTools() {

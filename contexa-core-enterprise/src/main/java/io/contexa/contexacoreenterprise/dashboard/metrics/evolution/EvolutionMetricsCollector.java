@@ -43,11 +43,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
     private Counter dailyLimitReachedCounter;
     private DistributionSummary learningConfidenceDistribution;
 
-    private Counter baselineUpdatesCounter;
-    private Counter statisticalOutliersCounter;
-    private Counter suspiciousContextsFilteredCounter;
-    private DistributionSummary baselineConfidenceDistribution;
-
     @PostConstruct
     public void initialize() {
         
@@ -56,7 +51,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         initAIModelMetrics();
         initVectorStoreMetrics();
         initLearningCoordinatorMetrics();
-        initHCADMetrics();
 
         unifiedMetrics.updateDomainHealth("evolution", 1.0);
 
@@ -157,25 +151,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
 
         dailyLimitReachedCounter = Counter.builder("evolution.coordinator.daily_limit.reached")
                 .description("Number of times daily proposal limit was reached")
-                .register(meterRegistry);
-    }
-
-    private void initHCADMetrics() {
-        baselineUpdatesCounter = Counter.builder("evolution.hcad.baseline.updates")
-                .description("HCAD baseline updates count")
-                .register(meterRegistry);
-
-        statisticalOutliersCounter = Counter.builder("evolution.hcad.statistical.outliers")
-                .description("Statistical outliers detected in HCAD")
-                .register(meterRegistry);
-
-        suspiciousContextsFilteredCounter = Counter.builder("evolution.hcad.suspicious.contexts.filtered")
-                .description("Suspicious contexts filtered to prevent baseline pollution")
-                .register(meterRegistry);
-
-        baselineConfidenceDistribution = DistributionSummary.builder("evolution.hcad.baseline.confidence")
-                .description("HCAD baseline confidence score distribution")
-                .publishPercentiles(0.5, 0.75, 0.95)
                 .register(meterRegistry);
     }
 
@@ -304,57 +279,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         learningConfidenceDistribution.record(confidenceScore);
     }
 
-    public void recordHCADBaselineUpdate(String phase, String decision) {
-        baselineUpdatesCounter.increment();
-
-        Counter.builder("evolution.hcad.baseline.updates.detailed")
-                .tag("phase", phase)
-                .tag("decision", decision)
-                .register(meterRegistry)
-                .increment();
-    }
-
-    public void recordHCADStatisticalOutlier(double zScore) {
-        statisticalOutliersCounter.increment();
-
-        String zScoreBucket;
-        if (zScore >= 5.0) {
-            zScoreBucket = "5+";
-        } else if (zScore >= 4.0) {
-            zScoreBucket = "4-5";
-        } else {
-            zScoreBucket = "3-4";
-        }
-
-        Counter.builder("evolution.hcad.outliers.by_zscore")
-                .tag("z_score_bucket", zScoreBucket)
-                .register(meterRegistry)
-                .increment();
-    }
-
-    public void recordHCADSuspiciousContextFiltered(String reason) {
-        suspiciousContextsFilteredCounter.increment();
-
-        Counter.builder("evolution.hcad.suspicious.by_reason")
-                .tag("reason", reason)
-                .register(meterRegistry)
-                .increment();
-    }
-
-    public void recordHCADBaselineConfidence(double confidenceScore, String userSegment) {
-        baselineConfidenceDistribution.record(confidenceScore);
-
-        Gauge.builder("evolution.hcad.baseline.confidence.by_segment", () -> confidenceScore)
-                .tag("user_segment", userSegment)
-                .register(meterRegistry);
-    }
-
-    public void updateHCADLearningRate(double learningRate, String confidenceTier) {
-        Gauge.builder("evolution.hcad.learning.rate.by_tier", () -> learningRate)
-                .tag("confidence_tier", confidenceTier)
-                .register(meterRegistry);
-    }
-
     private String getConfidenceBucket(double confidenceScore) {
         if (confidenceScore >= 0.9) return "0.9-1.0";
         else if (confidenceScore >= 0.8) return "0.8-0.9";
@@ -395,52 +319,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         return unifiedMetrics.getDomainHealth("evolution");
     }
 
-    public void recordHCADAnalysis(long processingTimeMs, double anomalyScore, boolean wasBlocked) {
-        
-        Timer.builder("hcad.analysis.duration")
-                .tag("blocked", String.valueOf(wasBlocked))
-                .register(meterRegistry)
-                .record(processingTimeMs, java.util.concurrent.TimeUnit.MILLISECONDS);
-
-        DistributionSummary.builder("hcad.analysis.anomaly_score")
-                .tag("blocked", String.valueOf(wasBlocked))
-                .register(meterRegistry)
-                .record(anomalyScore);
-
-        if (wasBlocked) {
-            Counter.builder("hcad.analysis.blocked")
-                    .register(meterRegistry)
-                    .increment();
-        }
-
-        if (anomalyScore >= 0.7 && !wasBlocked) {
-            Counter.builder("hcad.analysis.warned")
-                    .register(meterRegistry)
-                    .increment();
-        }
-
-        if (processingTimeMs > 30) {
-            Counter.builder("hcad.analysis.slow_requests")
-                    .register(meterRegistry)
-                    .increment();
-        }
-
-        Counter.builder("hcad.analysis.total")
-                .tag("blocked", String.valueOf(wasBlocked))
-                .register(meterRegistry)
-                .increment();
-    }
-
-    public void recordHCADLearningDecision(String userId, String phase, String decision, double confidence) {
-        Counter.builder("hcad.learning.decisions")
-                .tag("phase", phase)
-                .tag("decision", decision)
-                .register(meterRegistry)
-                .increment();
-
-        baselineConfidenceDistribution.record(confidence);
-    }
-
     @Override
     public String getDomain() {
         return "evolution";
@@ -459,7 +337,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         stats.put("ai_success_rate",
             (aiCallSuccessCounter.count() + aiCallFailureCounter.count()) > 0 ?
             aiCallSuccessCounter.count() / (aiCallSuccessCounter.count() + aiCallFailureCounter.count()) : 0.0);
-        stats.put("baseline_updates", baselineUpdatesCounter.count());
         stats.put("vector_documents_stored", vectorStoreDocumentsStoredCounter.count());
         return stats;
     }
@@ -480,7 +357,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
         metrics.put("ai_success_rate",
             (aiCallSuccessCounter.count() + aiCallFailureCounter.count()) > 0 ?
             aiCallSuccessCounter.count() / (aiCallSuccessCounter.count() + aiCallFailureCounter.count()) : 0.0);
-        metrics.put("baseline_update_count", (double) baselineUpdatesCounter.count());
         metrics.put("health_score", getHealthScore());
         return metrics;
     }
@@ -509,13 +385,6 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                     (String) metadata.get("reason") : "unknown";
                 recordProposalRejection(reason);
                 break;
-            case "baseline_update":
-                String phase = metadata.containsKey("phase") ?
-                    (String) metadata.get("phase") : "unknown";
-                String decision = metadata.containsKey("decision") ?
-                    (String) metadata.get("decision") : "updated";
-                recordHCADBaselineUpdate(phase, decision);
-                break;
             case "ai_call_success":
                 long aiDuration = metadata.containsKey("duration") ?
                     ((Number) metadata.get("duration")).longValue() : 0L;
@@ -529,7 +398,7 @@ public class EvolutionMetricsCollector implements DomainMetrics, EventRecorder {
                 recordAICall(0, failedModel, false);
                 break;
             default:
-                log.warn("Unknown event type: {}", eventType);
+                log.error("Unknown event type: {}", eventType);
         }
     }
 
