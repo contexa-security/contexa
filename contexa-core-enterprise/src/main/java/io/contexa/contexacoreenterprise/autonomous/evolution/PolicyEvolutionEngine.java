@@ -17,7 +17,10 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -956,10 +959,19 @@ public class PolicyEvolutionEngine {
     public void invalidateProposal(String proposalId) {
         try {
             String pattern = PROPOSAL_CACHE_KEY_PREFIX + "*" + proposalId + "*";
-            var keys = redisTemplate.keys(pattern);
-            if (keys != null && !keys.isEmpty()) {
+            Set<String> keys = new HashSet<>();
+            ScanOptions scanOptions = ScanOptions.scanOptions().match(pattern).count(100).build();
+            redisTemplate.execute((RedisCallback<Void>) connection -> {
+                try (Cursor<byte[]> cursor = connection.scan(scanOptions)) {
+                    while (cursor.hasNext()) {
+                        keys.add(new String(cursor.next()));
+                    }
+                }
+                return null;
+            });
+            if (!keys.isEmpty()) {
                 redisTemplate.delete(keys);
-                            }
+            }
         } catch (Exception e) {
             log.error("Proposal invalidation failed: proposalId={}", proposalId, e);
         }

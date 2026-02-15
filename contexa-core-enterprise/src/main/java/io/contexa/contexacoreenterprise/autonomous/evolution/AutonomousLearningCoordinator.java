@@ -8,7 +8,6 @@ import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.SoarIncident;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
-import io.contexa.contexacoreenterprise.autonomous.metrics.PolicyUsageMetricsService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
@@ -59,7 +58,7 @@ public class AutonomousLearningCoordinator {
 
             SecurityEvent securityEvent = event.getSecurityEvent();
             if (securityEvent == null) {
-                log.warn("Security event is null: {}", event.getIncidentId());
+                log.error("Security event is null: {}", event.getIncidentId());
                 return;
             }
 
@@ -78,7 +77,7 @@ public class AutonomousLearningCoordinator {
             }
 
             if (!checkDailyLimit()) {
-                log.warn("Daily proposal limit exceeded");
+                log.error("Daily proposal limit exceeded");
 
                 if (evolutionMetricsCollector != null) {
                     evolutionMetricsCollector.recordIncidentProcessed(

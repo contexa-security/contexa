@@ -63,7 +63,7 @@ public class DistributedStateManager {
                         lockService.unlock(lockKey, stateProperties.getInstanceId());
                     }
                 })
-                .block();
+                .block(Duration.ofSeconds(30));
         })
         .subscribeOn(Schedulers.boundedElastic());
     }

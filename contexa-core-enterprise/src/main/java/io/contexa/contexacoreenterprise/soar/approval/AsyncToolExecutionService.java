@@ -232,17 +232,16 @@ public class AsyncToolExecutionService {
             resultData.put("success", true);
             resultData.put("timestamp", LocalDateTime.now());
 
-            if (result.conversationHistory() != null) {
-                List<Map<String, String>> messages = result.conversationHistory().stream()
-                        .map(msg -> {
-                            Map<String, String> msgData = new HashMap<>();
-                            msgData.put("type", msg.getClass().getSimpleName());
-                            msgData.put("content", msg.getText());
-                            return msgData;
-                        })
-                        .collect(Collectors.toList());
-                resultData.put("messages", messages);
-            }
+            result.conversationHistory();
+            List<Map<String, String>> messages = result.conversationHistory().stream()
+                    .map(msg -> {
+                        Map<String, String> msgData = new HashMap<>();
+                        msgData.put("type", msg.getClass().getSimpleName());
+                        msgData.put("content", msg.getText());
+                        return msgData;
+                    })
+                    .collect(Collectors.toList());
+            resultData.put("messages", messages);
 
             resultData.put("returnDirect", result.returnDirect());
 

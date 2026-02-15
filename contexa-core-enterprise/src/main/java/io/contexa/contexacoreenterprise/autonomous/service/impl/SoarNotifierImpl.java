@@ -130,7 +130,7 @@ public class SoarNotifierImpl implements ISoarNotifier {
                     .build();
                 SoarResponse soarResponse = (SoarResponse) soarLab.processAsync(soarRequest)
                     .cast(SoarResponse.class)
-                    .block();
+                    .block(java.time.Duration.ofSeconds(30));
                 String result = soarResponse != null ? soarResponse.toString() : "No response";
                 logger.error("Critical situation analysis completed: {}", result);
                 

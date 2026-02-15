@@ -52,7 +52,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
     private final Map<String, CompletableFuture<Boolean>> pendingApprovals = new ConcurrentHashMap<>();
 
-    private static final long APPROVAL_TIMEOUT_SECONDS = 300; 
+    private static final long APPROVAL_TIMEOUT_SECONDS = 300;
 
     @Override
     public List<ToolDefinition> resolveToolDefinitions(ToolCallingChatOptions toolCallingChatOptions) {
@@ -63,52 +63,52 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
     public ToolExecutionResult executeToolCalls(Prompt prompt, ChatResponse chatResponse) {
         long startTime = System.currentTimeMillis();
         String requestId = UUID.randomUUID().toString();
-        
+
         try {
 
             SoarExecutionMode executionMode = getExecutionMode();
 
             List<ToolCallInfo> toolCalls = extractToolCalls(chatResponse);
-            
+
             if (toolCalls.isEmpty()) {
-                                return delegate.executeToolCalls(prompt, chatResponse);
+                return delegate.executeToolCalls(prompt, chatResponse);
             }
 
             List<ToolCallInfo> highRiskTools = identifyHighRiskTools(toolCalls, prompt.getOptions());
-            
+
             if (!highRiskTools.isEmpty()) {
                 log.warn("고위험 도구 감지: {} 개", highRiskTools.size());
                 logHighRiskTools(highRiskTools);
 
                 if (executionMode == SoarExecutionMode.ASYNC) {
-                    
+
                     return handleAsyncApproval(requestId, highRiskTools, toolCalls, prompt, chatResponse);
                 } else {
-                    
+
                     boolean approved = requestAndWaitForApproval(
-                        requestId,
-                        highRiskTools,
-                        prompt.getOptions()
+                            requestId,
+                            highRiskTools,
+                            prompt.getOptions()
                     );
-                    
+
                     if (!approved) {
-                        
+
                         log.warn("도구 실행 거부됨 (요청 ID: {})", requestId);
                         return createDenialResult(toolCalls, prompt, chatResponse);
                     }
-                    
-                                    }
-            } else {
-                            }
 
-                        ToolExecutionResult result = delegate.executeToolCalls(prompt, chatResponse);
+                }
+            } else {
+            }
+
+            ToolExecutionResult result = delegate.executeToolCalls(prompt, chatResponse);
 
             recordExecutionMetrics(requestId, toolCalls, startTime, true);
 
             notifyExecutionComplete(requestId, toolCalls, result);
-            
+
             return result;
-            
+
         } catch (Exception e) {
             log.error("도구 실행 중 오류 발생 (요청 ID: {})", requestId, e);
             recordExecutionMetrics(requestId, Collections.emptyList(), startTime, false);
@@ -119,48 +119,48 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
     private List<ToolCallInfo> extractToolCalls(ChatResponse chatResponse) {
         List<ToolCallInfo> toolCalls = new ArrayList<>();
-        
+
         if (chatResponse == null || chatResponse.getResults() == null) {
             return toolCalls;
         }
-        
+
         for (Generation generation : chatResponse.getResults()) {
             AssistantMessage message = generation.getOutput();
-            
-            if (message != null && message.getToolCalls() != null) {
+
+            if (message != null) {
                 message.getToolCalls().forEach(toolCall -> {
                     toolCalls.add(new ToolCallInfo(
-                        toolCall.id(),
-                        toolCall.name(),
-                        toolCall.type(),
-                        toolCall.arguments()
+                            toolCall.id(),
+                            toolCall.name(),
+                            toolCall.type(),
+                            toolCall.arguments()
                     ));
                 });
             }
         }
-        
+
         if (!toolCalls.isEmpty()) {
-                    }
-        
+        }
+
         return toolCalls;
     }
 
     private List<ToolCallInfo> identifyHighRiskTools(List<ToolCallInfo> toolCalls, ChatOptions chatOptions) {
         List<ToolCallInfo> highRiskTools = new ArrayList<>();
-        
+
         for (ToolCallInfo toolCall : toolCalls) {
-            
+
             SoarTool.RiskLevel riskLevel = policyManager.getRiskLevel(toolCall.name);
 
             if (chatOptions instanceof ToolCallingChatOptions toolCallingOptions) {
                 riskLevel = checkToolRiskFromOptions(toolCall.name, toolCallingOptions, riskLevel);
             }
-            
+
             if (isHighRisk(riskLevel)) {
                 highRiskTools.add(toolCall);
-                            }
+            }
         }
-        
+
         return highRiskTools;
     }
 
@@ -168,12 +168,12 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             String toolName,
             ToolCallingChatOptions options,
             SoarTool.RiskLevel currentLevel) {
-        
+
         List<ToolCallback> callbacks = options.getToolCallbacks();
-        if (callbacks == null || callbacks.isEmpty()) {
+        if (callbacks.isEmpty()) {
             return currentLevel;
         }
-        
+
         for (ToolCallback callback : callbacks) {
             if (callback.getToolDefinition().name().equals(toolName)) {
 
@@ -182,22 +182,22 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
                 }
             }
         }
-        
+
         return currentLevel;
     }
 
     private boolean isHighRisk(SoarTool.RiskLevel riskLevel) {
-        return riskLevel == SoarTool.RiskLevel.HIGH || 
-               riskLevel == SoarTool.RiskLevel.CRITICAL;
+        return riskLevel == SoarTool.RiskLevel.HIGH ||
+                riskLevel == SoarTool.RiskLevel.CRITICAL;
     }
 
     private boolean requestAndWaitForApproval(
             String requestId,
             List<ToolCallInfo> highRiskTools,
             ChatOptions chatOptions) {
-        
+
         try {
-            
+
             ApprovalRequest approvalRequest = buildApprovalRequest(requestId, highRiskTools);
 
             notificationService.sendApprovalRequest(approvalRequest);
@@ -211,7 +211,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             pendingApprovals.remove(requestId);
 
             return approved;
-            
+
         } catch (TimeoutException e) {
             log.warn("승인 타임아웃 ({}초 경과)", APPROVAL_TIMEOUT_SECONDS);
             pendingApprovals.remove(requestId);
@@ -225,21 +225,21 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
     private ApprovalRequest buildApprovalRequest(String requestId, List<ToolCallInfo> tools) {
         SoarTool.RiskLevel soarRiskLevel = determineMaxRiskLevel(tools);
-        
+
         return ApprovalRequest.builder()
-            .requestId(requestId)
-            .requestedAt(LocalDateTime.now())
-            .requestedBy("AI System")
-            .toolName(tools.stream().map(t -> t.name).collect(Collectors.joining(", ")))
-            .riskLevel(convertToApprovalRiskLevel(soarRiskLevel))
-            .reason("고위험 도구 실행 승인 필요")
-            .status(ApprovalRequest.ApprovalStatus.PENDING)
-            .context(Map.of(
-                "toolCount", tools.size(),
-                "toolDetails", tools,
-                "timestamp", System.currentTimeMillis()
-            ))
-            .build();
+                .requestId(requestId)
+                .requestedAt(LocalDateTime.now())
+                .requestedBy("AI System")
+                .toolName(tools.stream().map(t -> t.name).collect(Collectors.joining(", ")))
+                .riskLevel(convertToApprovalRiskLevel(soarRiskLevel))
+                .reason("고위험 도구 실행 승인 필요")
+                .status(ApprovalRequest.ApprovalStatus.PENDING)
+                .context(Map.of(
+                        "toolCount", tools.size(),
+                        "toolDetails", tools,
+                        "timestamp", System.currentTimeMillis()
+                ))
+                .build();
     }
 
     private ApprovalRequest.RiskLevel convertToApprovalRiskLevel(SoarTool.RiskLevel soarRiskLevel) {
@@ -253,21 +253,21 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
     }
 
     private boolean isHighRiskToolByName(String toolName) {
-        
+
         return toolName.contains("delete") ||
-               toolName.contains("remove") ||
-               toolName.contains("drop") ||
-               toolName.contains("execute") ||
-               toolName.contains("admin") ||
-               toolName.contains("security") ||
-               toolName.contains("system");
+                toolName.contains("remove") ||
+                toolName.contains("drop") ||
+                toolName.contains("execute") ||
+                toolName.contains("admin") ||
+                toolName.contains("security") ||
+                toolName.contains("system");
     }
 
     private SoarTool.RiskLevel determineMaxRiskLevel(List<ToolCallInfo> tools) {
         return tools.stream()
-            .map(tool -> policyManager.getRiskLevel(tool.name))
-            .max(Comparator.comparingInt(Enum::ordinal))
-            .orElse(SoarTool.RiskLevel.LOW);
+                .map(tool -> policyManager.getRiskLevel(tool.name))
+                .max(Comparator.comparingInt(Enum::ordinal))
+                .orElse(SoarTool.RiskLevel.LOW);
     }
 
     private ToolExecutionResult createDenialResult(
@@ -276,21 +276,20 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             ChatResponse chatResponse) {
 
         String denialMessage = String.format(
-            "도구 실행이 거부되었습니다. 고위험 도구 실행에는 승인이 필요합니다. " +
-            "거부된 도구: %s",
-            toolCalls.stream().map(t -> t.name).collect(Collectors.joining(", "))
+                "도구 실행이 거부되었습니다. 고위험 도구 실행에는 승인이 필요합니다. " +
+                        "거부된 도구: %s",
+                toolCalls.stream().map(t -> t.name).collect(Collectors.joining(", "))
         );
 
         AssistantMessage denialAssistantMessage = new AssistantMessage(denialMessage);
 
-        List<org.springframework.ai.chat.messages.Message> conversationHistory = new ArrayList<>();
-        conversationHistory.addAll(prompt.getInstructions());
+        List<org.springframework.ai.chat.messages.Message> conversationHistory = new ArrayList<>(prompt.getInstructions());
         conversationHistory.add(denialAssistantMessage);
 
         return ToolExecutionResult.builder()
-            .conversationHistory(conversationHistory)
-            .returnDirect(true)  
-            .build();
+                .conversationHistory(conversationHistory)
+                .returnDirect(true)
+                .build();
     }
 
     private void logHighRiskTools(List<ToolCallInfo> highRiskTools) {
@@ -307,43 +306,43 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             List<ToolCallInfo> toolCalls,
             long startTime,
             boolean success) {
-        
+
         long duration = System.currentTimeMillis() - startTime;
 
         for (ToolCallInfo tool : toolCalls) {
             executionMetrics.recordExecution(
-                tool.name,
-                duration,
-                success
+                    tool.name,
+                    duration,
+                    success
             );
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("tool", tool.name);
-            metadata.put("duration", duration * 1_000_000); 
+            metadata.put("duration", duration * 1_000_000);
             metadata.put("success", success);
             metadata.put("request_id", requestId);
 
             String eventType = success ? "execution_success" : "execution_failure";
             executionMetrics.recordEvent(eventType, metadata);
         }
-        
+
         if (log.isDebugEnabled()) {
-                    }
+        }
     }
 
     private void notifyExecutionComplete(
             String requestId,
             List<ToolCallInfo> toolCalls,
             ToolExecutionResult result) {
-        
+
         String toolNames = toolCalls.stream()
-            .map(t -> t.name)
-            .collect(Collectors.joining(", "));
-        
+                .map(t -> t.name)
+                .collect(Collectors.joining(", "));
+
         notificationService.sendExecutionCompleted(
-            requestId + ": " + toolNames,
-            result.conversationHistory(),
-            System.currentTimeMillis()
+                requestId + ": " + toolNames,
+                result.conversationHistory(),
+                System.currentTimeMillis()
         );
     }
 
@@ -352,7 +351,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
         final String name;
         final String type;
         final String arguments;
-        
+
         ToolCallInfo(String id, String name, String type, String arguments) {
             this.id = id;
             this.name = name;
@@ -388,7 +387,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
                 return SoarExecutionMode.ASYNC;
             }
-            
+
             return mode;
         }
 
@@ -401,16 +400,16 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             List<ToolCallInfo> allToolCalls,
             Prompt prompt,
             ChatResponse chatResponse) {
-        
+
         try {
 
             ApprovalRequest approvalRequest = buildApprovalRequest(requestId, highRiskTools);
 
             ToolExecutionContext executionContext = saveToolExecutionContext(
-                requestId,
-                highRiskTools.get(0), 
-                prompt,
-                chatResponse
+                    requestId,
+                    highRiskTools.get(0),
+                    prompt,
+                    chatResponse
             );
 
             notificationService.sendAsyncApprovalRequest(approvalRequest, executionContext);
@@ -418,27 +417,26 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             approvalService.registerAsyncApproval(approvalRequest, executionContext);
 
             String pendingMessage = String.format(
-                "도구 실행 승인 대기 중입니다. (요청 ID: %s)\n" +
-                "고위험 도구: %s\n" +
-                "승인 후 자동으로 실행됩니다.",
-                requestId,
-                highRiskTools.stream().map(t -> t.name).collect(Collectors.joining(", "))
+                    "도구 실행 승인 대기 중입니다. (요청 ID: %s)\n" +
+                            "고위험 도구: %s\n" +
+                            "승인 후 자동으로 실행됩니다.",
+                    requestId,
+                    highRiskTools.stream().map(t -> t.name).collect(Collectors.joining(", "))
             );
-            
+
             AssistantMessage pendingAssistantMessage = new AssistantMessage(pendingMessage);
-            
-            List<org.springframework.ai.chat.messages.Message> conversationHistory = new ArrayList<>();
-            conversationHistory.addAll(prompt.getInstructions());
+
+            List<org.springframework.ai.chat.messages.Message> conversationHistory = new ArrayList<>(prompt.getInstructions());
             conversationHistory.add(pendingAssistantMessage);
-            
+
             return ToolExecutionResult.builder()
-                .conversationHistory(conversationHistory)
-                .returnDirect(false) 
-                .build();
-            
+                    .conversationHistory(conversationHistory)
+                    .returnDirect(false)
+                    .build();
+
         } catch (Exception e) {
             log.error("비동기 승인 처리 중 오류 (요청 ID: {})", requestId, e);
-            
+
             return requestAndWaitForApprovalSync(requestId, highRiskTools, prompt, chatResponse);
         }
     }
@@ -448,7 +446,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             ToolCallInfo toolCall,
             Prompt prompt,
             ChatResponse chatResponse) throws Exception {
-        
+
         SoarContext soarContext = currentContext.get();
 
         List<Map<String, String>> promptData = new ArrayList<>();
@@ -478,21 +476,21 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
         String responseJson = objectMapper.writeValueAsString(responseData);
 
         ToolExecutionContext context = ToolExecutionContext.builder()
-            .requestId(requestId)
-            .incidentId(soarContext != null ? soarContext.getIncidentId() : null)
-            .sessionId(soarContext != null ? soarContext.getSessionId() : null)
-            .toolName(toolCall.name)
-            .toolType("SOAR")
-            .toolCallId(toolCall.id)
-            .toolArguments(toolCall.arguments)
-            .promptContent(promptJson)
-            .chatOptions(chatOptionsJson)
-            .chatResponse(responseJson)
-            .status("PENDING")
-            .riskLevel(policyManager.getRiskLevel(toolCall.name).name())
-            .expiresAt(LocalDateTime.now().plusMinutes(30)) 
-            .build();
-        
+                .requestId(requestId)
+                .incidentId(soarContext != null ? soarContext.getIncidentId() : null)
+                .sessionId(soarContext != null ? soarContext.getSessionId() : null)
+                .toolName(toolCall.name)
+                .toolType("SOAR")
+                .toolCallId(toolCall.id)
+                .toolArguments(toolCall.arguments)
+                .promptContent(promptJson)
+                .chatOptions(chatOptionsJson)
+                .chatResponse(responseJson)
+                .status("PENDING")
+                .riskLevel(policyManager.getRiskLevel(toolCall.name).name())
+                .expiresAt(LocalDateTime.now().plusMinutes(30))
+                .build();
+
         return contextRepository.save(context);
     }
 
@@ -501,13 +499,13 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             List<ToolCallInfo> highRiskTools,
             Prompt prompt,
             ChatResponse chatResponse) {
-        
+
         boolean approved = requestAndWaitForApproval(
-            requestId,
-            highRiskTools,
-            prompt.getOptions()
+                requestId,
+                highRiskTools,
+                prompt.getOptions()
         );
-        
+
         if (!approved) {
             log.warn("도구 실행 거부됨 (요청 ID: {})", requestId);
             return createDenialResult(highRiskTools, prompt, chatResponse);

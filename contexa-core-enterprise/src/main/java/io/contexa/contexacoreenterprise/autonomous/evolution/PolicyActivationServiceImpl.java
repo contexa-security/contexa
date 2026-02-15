@@ -36,8 +36,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     @Override
     @Transactional
     public ActivationResult activatePolicy(Long proposalId, String activatedBy) {
-        logger.info("Activating policy {} requested by {}", proposalId, activatedBy);
-
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found: " + proposalId));
@@ -60,14 +58,14 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         } catch (Exception e) {
             logger.error("Failed to activate policy: {}", proposalId, e);
             return ActivationResult.failure(proposalId, "Activation failed: " + e.getMessage());
+        } finally {
+            activationTasks.remove(proposalId);
         }
     }
 
     @Override
     @Transactional
     public boolean deactivatePolicy(Long proposalId, String deactivatedBy, String reason) {
-        logger.info("Deactivating policy {} requested by {}: {}", proposalId, deactivatedBy, reason);
-
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
@@ -88,7 +86,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
 
             publishDeactivationEvent(proposal, deactivatedBy, reason);
 
-            logger.info("Policy {} successfully deactivated", proposalId);
             return true;
 
         } catch (Exception e) {
@@ -101,8 +98,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     public CompletableFuture<List<ActivationResult>> batchActivate(
             List<Long> proposalIds, String activatedBy) {
 
-        logger.info("Batch activating {} policies", proposalIds.size());
-
         List<CompletableFuture<ActivationResult>> futures = proposalIds.stream()
             .map(id -> CompletableFuture.supplyAsync(() -> activatePolicy(id, activatedBy)))
             .collect(Collectors.toList());
@@ -114,8 +109,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     }
 
     public ActivationResult conditionalActivate(Long proposalId, ActivationConditions conditions) {
-        logger.info("Conditional activation for policy {} with conditions: {}", proposalId, conditions);
-
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
@@ -163,8 +156,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
 
             publishPolicyChangeEvent(proposal, PolicyChangeType.ROLLED_BACK);
 
-            logger.info("Successfully rolled back policy {}", proposalId);
-            return true;
+                return true;
 
         } catch (Exception e) {
             logger.error("Failed to rollback policy: {}", proposalId, e);
@@ -221,14 +213,10 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     }
 
     private void prepareActivation(ActivationTask task) throws Exception {
-        logger.debug("Preparing activation for proposal {}", task.getProposalId());
-
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new ActivationException("Proposal not found during preparation"));
 
         validateResourceAvailability(proposal);
-
-        logger.info("Activation preparation completed for proposal {}", task.getProposalId());
     }
 
     private void validateResourceAvailability(PolicyEvolutionProposal proposal) throws ActivationException {
@@ -252,20 +240,16 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 break;
 
             default:
-                logger.debug("No specific resource validation for type: {}", proposal.getProposalType());
+                break;
         }
     }
 
     private void validateActivation(ActivationTask task) throws Exception {
-        logger.debug("Validating activation for proposal {}", task.getProposalId());
-
         proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new IllegalStateException("Proposal not found"));
     }
 
     private void applyActivation(ActivationTask task) throws Exception {
-        logger.info("Applying activation for proposal {}", task.getProposalId());
-
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new IllegalStateException("Proposal not found"));
 
@@ -281,8 +265,6 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
     }
 
     private void verifyActivation(ActivationTask task) throws Exception {
-        logger.debug("Verifying activation for proposal {}", task.getProposalId());
-
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new ActivationException("Proposal not found during verification"));
 
@@ -298,12 +280,9 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             throw new ActivationException("Activator information is missing");
         }
 
-        logger.info("Activation verification completed for proposal {}", task.getProposalId());
     }
 
     private void publishPolicyChangeEvent(PolicyEvolutionProposal proposal, PolicyChangeType changeType) {
-        logger.info("Publishing policy change event: {} for policy {}", changeType, proposal.getId());
-
         PolicyChangeEvent event = PolicyChangeEvent.builder()
             .proposalId(proposal.getId())
             .changeType(changeType)

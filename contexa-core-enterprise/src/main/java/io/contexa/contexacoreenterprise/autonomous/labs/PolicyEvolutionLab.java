@@ -95,15 +95,15 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
         return Flux.create(sink -> {
             try {
                 
-                sink.next("컨텍스트 분석 중...\n");
+                sink.next("Analyzing context...\n");
                 AnalysisResult analysis = analyzeContext(request);
-                sink.next("컨텍스트 분석 완료: " + analysis.getSummary() + "\n\n");
+                sink.next("Context analysis complete: " + analysis.getSummary() + "\n\n");
 
-                sink.next("🔎 기존 정책 검색 중...\n");
+                sink.next("Searching existing policies...\n");
                 List<ExistingPolicy> existingPolicies = searchExistingPolicies(request, analysis);
-                sink.next("" + existingPolicies.size() + "개의 관련 정책 발견\n\n");
+                sink.next("Found " + existingPolicies.size() + " related policies\n\n");
 
-                sink.next("정책 진화 시작...\n");
+                sink.next("Starting policy evolution...\n");
 
                 String prompt = buildEvolutionPrompt(request, analysis, existingPolicies);
                 Prompt aiPrompt = new Prompt(prompt);
@@ -116,7 +116,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
                         }
                     })
                     .doOnComplete(() -> {
-                        sink.next("\n\n정책 진화 완료\n");
+                        sink.next("\n\nPolicy evolution complete\n");
                         sink.complete();
                     })
                     .doOnError(sink::error)
@@ -133,7 +133,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
         super.validateRequest(request);
 
         if (request.getContext() == null || request.getContext().isEmpty()) {
-            throw new IllegalArgumentException("정책 컨텍스트가 비어있습니다");
+            throw new IllegalArgumentException("Policy context is empty");
         }
 
         if (request.getEvolutionMode() == null) {
@@ -150,7 +150,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
 
         result.setRequirements(extractRequirements(request));
 
-        result.setSummary(String.format("위협레벨: %s, 도메인: %s, 요구사항: %d개",
+        result.setSummary(String.format("ThreatLevel: %s, Domain: %s, Requirements: %d",
             result.getThreatLevel(), result.getDomain(), result.getRequirements().size()));
 
         return result;
@@ -231,10 +231,10 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
 
         PolicyEvolutionHelper.GeneratedPolicy generated =
             policyEvolutionHelper.generatePolicy(request.getContext(), analysis.getRequirements())
-                .block();
+                .block(java.time.Duration.ofSeconds(30));
 
         if (generated == null) {
-            throw new RuntimeException("정책 생성 실패");
+            throw new RuntimeException("Policy generation failed");
         }
 
         EvolvedPolicy policy = new EvolvedPolicy();

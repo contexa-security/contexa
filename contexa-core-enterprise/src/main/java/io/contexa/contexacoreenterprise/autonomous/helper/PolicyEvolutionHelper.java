@@ -371,7 +371,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
             unifiedVectorService.storeDocument(doc);
 
         } catch (Exception e) {
-            log.warn("[PolicyEvolution] 정책 패턴 저장 실패: policyId={}", policy.getId(), e);
+            log.error("[PolicyEvolution] Failed to save policy pattern: policyId={}", policy.getId(), e);
         }
     }
 
@@ -395,7 +395,7 @@ public class PolicyEvolutionHelper implements PolicyEvolutionService {
                 }
             }
         } catch (Exception e) {
-            log.warn("[PolicyEvolutionHelper] Failed to load existing policies", e);
+            log.error("[PolicyEvolutionHelper] Failed to load existing policies", e);
         }
     }
 

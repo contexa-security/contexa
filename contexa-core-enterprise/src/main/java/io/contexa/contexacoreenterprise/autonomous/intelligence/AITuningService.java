@@ -13,6 +13,10 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import jakarta.annotation.PostConstruct;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.RedisCallback;
+import org.springframework.data.redis.core.ScanOptions;
+
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -373,8 +377,17 @@ public class AITuningService {
 
     private void loadExistingLearningData() {
         
-        Set<String> keys = redisTemplate.keys("ai:learning:*");
-        if (keys != null) {
+        Set<String> keys = new HashSet<>();
+        ScanOptions scanOptions = ScanOptions.scanOptions().match("ai:learning:*").count(100).build();
+        redisTemplate.execute((RedisCallback<Void>) connection -> {
+            try (Cursor<byte[]> cursor = connection.scan(scanOptions)) {
+                while (cursor.hasNext()) {
+                    keys.add(new String(cursor.next()));
+                }
+            }
+            return null;
+        });
+        if (!keys.isEmpty()) {
             keys.forEach(key -> {
                 LearningData data = (LearningData) redisTemplate.opsForValue().get(key);
                 if (data != null) {
@@ -382,7 +395,7 @@ public class AITuningService {
                     learningDataStore.put(modelId, data);
                 }
             });
-                    }
+        }
     }
 
     private void establishPerformanceBaseline() {

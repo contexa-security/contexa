@@ -2,13 +2,9 @@ package io.contexa.autoconfigure.enterprise.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
-import io.contexa.contexacore.autonomous.ISecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
-import io.contexa.contexacore.autonomous.monitor.PolicyEffectivenessMonitor;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
-import io.contexa.contexacore.autonomous.notification.NotificationService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
@@ -16,7 +12,6 @@ import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
-import io.contexa.contexacoreenterprise.autonomous.event.listener.PolicyChangeEventListener;
 import io.contexa.contexacoreenterprise.autonomous.evolution.*;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
@@ -25,41 +20,21 @@ import io.contexa.contexacoreenterprise.autonomous.helper.LearningEngineHelper;
 import io.contexa.contexacoreenterprise.autonomous.helper.MemorySystemHelper;
 import io.contexa.contexacoreenterprise.autonomous.helper.PolicyEvolutionHelper;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
-import io.contexa.contexacoreenterprise.autonomous.intelligence.XAIReportingService;
 import io.contexa.contexacoreenterprise.autonomous.labs.PolicyEvolutionLab;
-import io.contexa.contexacoreenterprise.autonomous.metrics.PolicyUsageMetricsService;
 import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
 import io.contexa.contexacoreenterprise.autonomous.notification.DefaultNotificationService;
-import io.contexa.contexacoreenterprise.autonomous.notification.SlackNotificationAdapter;
-import io.contexa.contexacoreenterprise.autonomous.notification.SmsNotificationAdapter;
-import io.contexa.contexacoreenterprise.autonomous.notification.UnifiedNotificationService;
-import io.contexa.contexacoreenterprise.autonomous.scheduler.StaticAnalysisScheduler;
-import io.contexa.contexacoreenterprise.autonomous.service.AsyncResultDeliveryService;
 import io.contexa.contexacoreenterprise.autonomous.service.impl.SoarNotifierImpl;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
-import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
-import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
-import io.contexa.contexacoreenterprise.properties.NotificationProperties;
-import io.contexa.contexacoreenterprise.properties.AccessGovernanceProperties;
 import io.contexa.contexacoreenterprise.properties.AiTuningProperties;
-import io.contexa.contexacoreenterprise.properties.ApprovalProperties;
 import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
 import io.contexa.contexacoreenterprise.properties.LearningEngineProperties;
 import io.contexa.contexacoreenterprise.properties.MemoryProperties;
 import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
-import io.contexa.contexacoreenterprise.properties.ResultDeliveryProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
-import io.contexa.contexacoreenterprise.properties.SlackProperties;
-import io.contexa.contexacoreenterprise.properties.SmsProperties;
 import io.contexa.contexacoreenterprise.properties.StateProperties;
-import io.contexa.contexacoreenterprise.properties.XaiProperties;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
-import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
-import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
-import io.contexa.contexacoreenterprise.soar.notification.SoarEmailService;
-import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -74,17 +49,14 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties({ ContexaProperties.class, SecurityAutonomousProperties.class,
         SecurityEvaluatorProperties.class, PolicyEvolutionProperties.class, GovernanceProperties.class,
-        AiTuningProperties.class, AccessGovernanceProperties.class, LearningEngineProperties.class,
-        MemoryProperties.class, XaiProperties.class, SlackProperties.class, SmsProperties.class,
-        ApprovalProperties.class, ResultDeliveryProperties.class, StateProperties.class,
-        NotificationProperties.class })
+        AiTuningProperties.class, LearningEngineProperties.class,
+        MemoryProperties.class, StateProperties.class })
 public class EnterpriseAutonomousAutoConfiguration {
 
     public EnterpriseAutonomousAutoConfiguration() {
@@ -161,22 +133,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public AccessGovernanceLabConnector accessGovernanceLabConnector(AccessGovernanceProperties accessGovernanceProperties) {
-        return new AccessGovernanceLabConnector(accessGovernanceProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public PolicyEvolutionLabIntegration policyEvolutionLabIntegration(
-            IPolicyProposalManagementService proposalManagementService,
-            ApplicationEventPublisher eventPublisher) {
-        return new PolicyEvolutionLabIntegration(proposalManagementService, eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionLab policyEvolutionLab(
             ChatModel chatModel,
             PolicyEvolutionHelper policyEvolutionHelper,
@@ -219,45 +175,9 @@ public class EnterpriseAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public XAIReportingService xaiReportingService(
-            RedisTemplate<String, Object> redisTemplate,
-            XaiProperties xaiProperties) {
-        return new XAIReportingService(redisTemplate, xaiProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyAuditLogger policyAuditLogger(
             SynthesisPolicyRepository synthesisPolicyRepository) {
         return new PolicyAuditLogger(synthesisPolicyRepository);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public PolicyUsageMetricsService policyUsageMetricsService(
-            PolicyProposalRepository proposalRepository,
-            ContexaCacheService cacheService) {
-        return new PolicyUsageMetricsService(proposalRepository, cacheService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SlackNotificationAdapter slackNotificationAdapter(
-            ObjectMapper objectMapper,
-            SlackProperties slackProperties) {
-        return new SlackNotificationAdapter(objectMapper, slackProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SmsNotificationAdapter smsNotificationAdapter(
-            ObjectMapper objectMapper,
-            SmsProperties smsProperties) {
-        return new SmsNotificationAdapter(objectMapper, smsProperties);
     }
 
     @Bean
@@ -275,18 +195,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public UnifiedNotificationService unifiedNotificationService(
-            SoarEmailService emailService,
-            McpApprovalNotificationService websocketService,
-            SlackNotificationAdapter slackAdapter,
-            SmsNotificationAdapter smsAdapter,
-            NotificationProperties notificationProperties) {
-        return new UnifiedNotificationService(emailService, websocketService, slackAdapter, smsAdapter, notificationProperties);
-    }
-
-    @Bean
     @ConditionalOnMissingBean(IPolicyProposalManagementService.class)
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public IPolicyProposalManagementService policyProposalManagementService(
@@ -295,56 +203,6 @@ public class EnterpriseAutonomousAutoConfiguration {
             PolicyAuditLogger auditLogger,
             ApplicationEventPublisher eventPublisher) {
         return new PolicyProposalManagementService(proposalRepository, governance, auditLogger, eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public ApprovalWorkflow approvalWorkflow(
-            RedisTemplate<String, Object> redisTemplate,
-            ToolAuthorizationService authService,
-            ApprovalProperties approvalProperties) {
-        return new ApprovalWorkflow(redisTemplate, authService, approvalProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public AsyncResultDeliveryService asyncResultDeliveryService(
-            ToolExecutionContextRepository executionRepository,
-            UnifiedNotificationService notificationService,
-            RedisTemplate<String, Object> redisTemplate,
-            SimpMessagingTemplate messagingTemplate,
-            ObjectMapper objectMapper,
-            ResultDeliveryProperties resultDeliveryProperties) {
-        return new AsyncResultDeliveryService(
-                executionRepository, notificationService,
-                redisTemplate, messagingTemplate, objectMapper, resultDeliveryProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public PolicyChangeEventListener policyChangeEventListener(
-            PolicyEvolutionEngine policyEvolutionEngine,
-            PolicyApprovalService approvalService,
-            NotificationService notificationService) {
-        return new PolicyChangeEventListener(
-                policyEvolutionEngine, approvalService, notificationService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public StaticAnalysisScheduler staticAnalysisScheduler(
-            IPolicyProposalManagementService proposalManagementService,
-            PolicyEvolutionProposalRepository proposalRepository,
-            SynthesisPolicyRepository synthesisPolicyRepository,
-            PolicyEffectivenessMonitor effectivenessMonitor,
-            PolicyProposalAnalytics proposalAnalytics,
-            PolicyAuditLogger auditLogger) {
-        return new StaticAnalysisScheduler(
-                proposalManagementService, proposalRepository, synthesisPolicyRepository);
     }
 
     @Bean

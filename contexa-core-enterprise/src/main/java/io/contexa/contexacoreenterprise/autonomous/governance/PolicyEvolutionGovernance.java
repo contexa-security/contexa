@@ -269,7 +269,7 @@ public class PolicyEvolutionGovernance {
                     break;
                     
                 default:
-                    log.warn("Unhandled decision type: {}", decision.getDecision());
+                    log.error("Unhandled decision type: {}", decision.getDecision());
             }
         } catch (Exception e) {
             log.error("Failed to execute decision for proposal: {}", proposal.getId(), e);
@@ -279,7 +279,7 @@ public class PolicyEvolutionGovernance {
 
     private boolean canEvaluate(PolicyEvolutionProposal proposal) {
         ProposalStatus status = proposal.getStatus();
-        return status == ProposalStatus.PENDING || status == ProposalStatus.APPROVED;
+        return status == ProposalStatus.PENDING;
     }
 
     private void publishGovernanceEvent(PolicyEvolutionProposal proposal, GovernanceDecision decision) {

@@ -241,7 +241,7 @@ public class PolicyAuditLogger {
         
         if (!checkpoint.isCompliant()) {
             checkpoint.setRemediationRequired("Review and correct policy creation violations");
-            log.warn("Compliance violation detected in policy creation: {}", checkpoint.violations);
+            log.error("Compliance violation detected in policy creation: {}", checkpoint.violations);
         }
         
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
@@ -269,7 +269,7 @@ public class PolicyAuditLogger {
         
         if (!checkpoint.isCompliant()) {
             checkpoint.setRemediationRequired("Review approval process violations");
-            log.warn("Compliance violation detected in approval process: {}", checkpoint.violations);
+            log.error("Compliance violation detected in approval process: {}", checkpoint.violations);
         }
         
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
@@ -296,7 +296,7 @@ public class PolicyAuditLogger {
         
         if (!checkpoint.isCompliant()) {
             checkpoint.setRemediationRequired("Complete pre-activation requirements");
-            log.warn("Compliance violation detected in policy activation: {}", checkpoint.violations);
+            log.error("Compliance violation detected in policy activation: {}", checkpoint.violations);
         }
         
         complianceCheckpoints.put(checkpoint.checkpointId, checkpoint);
@@ -309,13 +309,13 @@ public class PolicyAuditLogger {
 
     private boolean hasCreationPermission(String user) {
         if (user == null || user.isEmpty()) {
-            log.warn("[Zero Trust] 정책 생성 권한 검증 실패: 사용자 정보 없음");
+            log.error("[Zero Trust] Policy creation permission verification failed: user information missing");
             return false;
         }
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.warn("[Zero Trust] 정책 생성 권한 검증 실패: 인증되지 않은 사용자");
+            log.error("[Zero Trust] Policy creation permission verification failed: unauthenticated user");
             return false;
         }
 
@@ -325,25 +325,25 @@ public class PolicyAuditLogger {
 
         boolean hasPermission = hasAnyRole(authentication, ROLE_POLICY_CREATOR, ROLE_POLICY_ADMIN, ROLE_SECURITY_ADMIN);
         if (!hasPermission) {
-            log.warn("[Zero Trust] 정책 생성 권한 부족: user={}", user);
+            log.error("[Zero Trust] Insufficient policy creation permission: user={}", user);
         }
         return hasPermission;
     }
 
     private boolean hasApprovalPermission(String user, String level) {
         if (user == null || user.isEmpty() || level == null) {
-            log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 필수 정보 누락");
+            log.error("[Zero Trust] Policy approval permission verification failed: required information missing");
             return false;
         }
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 인증되지 않은 사용자");
+            log.error("[Zero Trust] Policy approval permission verification failed: unauthenticated user");
             return false;
         }
 
         if (!user.equals(authentication.getName())) {
-            log.warn("[Zero Trust] 정책 승인 권한 검증 실패: 사용자 불일치");
+            log.error("[Zero Trust] Policy approval permission verification failed: user mismatch");
             return false;
         }
 
@@ -358,7 +358,7 @@ public class PolicyAuditLogger {
                                 hasRole(authentication, ROLE_SECURITY_ADMIN); 
 
         if (!hasPermission) {
-            log.warn("[Zero Trust] 정책 승인 권한 부족: level={}, requiredRole={}, user={}",
+            log.error("[Zero Trust] Insufficient policy approval permission: level={}, requiredRole={}, user={}",
                     level, requiredRole, user);
         }
         return hasPermission;
@@ -366,18 +366,18 @@ public class PolicyAuditLogger {
 
     private boolean hasActivationPermission(String user) {
         if (user == null || user.isEmpty()) {
-            log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 정보 없음");
+            log.error("[Zero Trust] Policy activation permission verification failed: user information missing");
             return false;
         }
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
-            log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 인증되지 않은 사용자");
+            log.error("[Zero Trust] Policy activation permission verification failed: unauthenticated user");
             return false;
         }
 
         if (!user.equals(authentication.getName())) {
-            log.warn("[Zero Trust] 정책 활성화 권한 검증 실패: 사용자 불일치");
+            log.error("[Zero Trust] Policy activation permission verification failed: user mismatch");
             return false;
         }
 
@@ -422,13 +422,15 @@ public class PolicyAuditLogger {
         return conflict;
     }
 
+    // TODO: Implement approval timeline validation logic
     private boolean withinApprovalTimeline(Long proposalId) {
-        
+        log.error("withinApprovalTimeline() is not implemented, returning constant true: proposalId={}", proposalId);
         return true;
     }
 
+    // TODO: Implement policy naming convention validation logic
     private boolean validatePolicyNamingConvention(Long proposalId) {
-        
+        log.error("validatePolicyNamingConvention() is not implemented, returning constant true: proposalId={}", proposalId);
         return true;
     }
 
@@ -567,7 +569,7 @@ public class PolicyAuditLogger {
         ComplianceReport dailyReport = generateComplianceReport(yesterday, today);
         
         if (dailyReport.getComplianceScore() < 80.0) {
-            log.warn("Daily compliance score below threshold: {:.2f}%", dailyReport.getComplianceScore());
+            log.error("Daily compliance score below threshold: {:.2f}%", dailyReport.getComplianceScore());
             
         }
 

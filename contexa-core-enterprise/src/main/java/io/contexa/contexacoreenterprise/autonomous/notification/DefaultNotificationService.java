@@ -33,7 +33,7 @@ public class DefaultNotificationService implements NotificationService {
     }
 
     private void handleHighPriorityNotification(String type, String message, Map<String, Object> data) {
-        log.warn("[HIGH PRIORITY] {}: {}", type, message);
+        log.error("[HIGH PRIORITY] {}: {}", type, message);
         
     }
 

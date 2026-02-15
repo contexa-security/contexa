@@ -66,19 +66,26 @@ public class SpelValidationService {
     );
 
     private static final Set<String> ALLOWED_VARIABLES = Set.of(
-        "trust",          
-        "ai",             
-        "principal",      
-        "authentication", 
-        "request",        
-        
-        "transaction",    
-        "operation",      
-        "context",        
-        "dataAccess",     
-        "target",         
-        "returnObject",   
-        "filterObject"    
+        "trust",
+        "ai",
+        "principal",
+        "authentication",
+        "request",
+
+        "transaction",
+        "operation",
+        "context",
+        "dataAccess",
+        "target",
+        "returnObject",
+        "filterObject"
+    );
+
+    private static final Set<String> SAFE_OBJECT_METHODS = Set.of(
+        "equals", "hashCode", "toString", "compareTo",
+        "isEmpty", "size", "length", "contains", "containsKey",
+        "get", "getValue", "getName", "getType", "getId",
+        "isPresent", "orElse"
     );
 
     private static final List<Pattern> DANGEROUS_PATTERNS = List.of(
@@ -244,11 +251,11 @@ public class SpelValidationService {
         
         
         if (SECURITY_METHODS.contains(object)) {
-            return true;
+            return SECURITY_METHODS.contains(method) || SAFE_OBJECT_METHODS.contains(method);
         }
-        
+
         if (ALLOWED_VARIABLES.contains(object)) {
-            return true;
+            return SAFE_OBJECT_METHODS.contains(method);
         }
 
         return false;
@@ -292,26 +299,26 @@ public class SpelValidationService {
 
     public String generateApiDocumentation() {
         StringBuilder sb = new StringBuilder();
-        sb.append("=== Contexa SpEL API 문서 ===\n\n");
+        sb.append("=== Contexa SpEL API Documentation ===\n\n");
 
-        sb.append("## #trust 변수 (Hot Path - Redis 조회)\n");
-        sb.append("LLM 분석 결과(Action) 기반 빠른 인가 결정:\n");
+        sb.append("## #trust Variable (Hot Path - Redis Lookup)\n");
+        sb.append("Fast authorization decision based on LLM analysis results (Action):\n");
         for (String method : TRUST_METHODS) {
             sb.append("  - #trust.").append(method).append("()\n");
         }
 
-        sb.append("\n## #ai 변수 (Cold Path - 실시간 AI 분석)\n");
-        sb.append("고위험 작업용 실시간 AI 분석:\n");
+        sb.append("\n## #ai Variable (Cold Path - Real-time AI Analysis)\n");
+        sb.append("Real-time AI analysis for high-risk operations:\n");
         for (String method : AI_METHODS) {
             sb.append("  - #ai.").append(method).append("()\n");
         }
 
-        sb.append("\n## Spring Security 기본 메서드\n");
+        sb.append("\n## Spring Security Standard Methods\n");
         for (String method : SECURITY_METHODS) {
             sb.append("  - ").append(method).append("()\n");
         }
 
-        sb.append("\n## 허용된 변수\n");
+        sb.append("\n## Allowed Variables\n");
         for (String variable : ALLOWED_VARIABLES) {
             sb.append("  - #").append(variable).append("\n");
         }

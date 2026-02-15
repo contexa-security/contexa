@@ -417,9 +417,10 @@ public class MemorySystemHelper implements MemorySystem {
         }
     }
     
+    // TODO: Implement memory management scheduler (consolidation, cleanup, state persistence)
     private void startMemoryManagement() {
-        
-            }
+        log.error("startMemoryManagement() is not implemented");
+    }
     
     private double calculateMemoryEfficiency() {
         long reads = totalMemoryReads.get();

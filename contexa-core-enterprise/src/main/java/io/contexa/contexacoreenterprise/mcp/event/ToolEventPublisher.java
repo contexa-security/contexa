@@ -1,7 +1,6 @@
 package io.contexa.contexacoreenterprise.mcp.event;
 import io.contexa.contexacommon.enums.RiskLevel;
 
-import io.contexa.contexacoreenterprise.autonomous.workflow.ApprovalWorkflow;
 import io.contexa.contexacoreenterprise.mcp.tool.execution.ToolExecutor;
 import lombok.Builder;
 import lombok.Data;

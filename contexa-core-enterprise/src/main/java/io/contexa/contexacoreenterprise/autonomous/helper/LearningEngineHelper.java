@@ -541,8 +541,9 @@ public class LearningEngineHelper implements LearningEngine {
             stats.record(effectiveness);
         }
 
+        // TODO: Implement feedback application logic to adjust learning context based on feedback type
         public void applyFeedback(String eventId, FeedbackType feedback) {
-
+            log.error("applyFeedback() is not implemented: eventId={}, feedback={}", eventId, feedback);
         }
     }
 
@@ -572,8 +573,9 @@ public class LearningEngineHelper implements LearningEngine {
             this.patternId = patternId;
         }
 
+        // TODO: Implement feature extraction from security events for pattern learning
         public void extractFeatures(List<SecurityEvent> events) {
-
+            log.error("extractFeatures() is not implemented: eventCount={}", events != null ? events.size() : 0);
         }
 
         public void determineOptimalResponse(List<SecurityEvent> events) {

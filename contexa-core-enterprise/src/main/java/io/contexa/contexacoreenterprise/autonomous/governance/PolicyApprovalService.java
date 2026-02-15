@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.Serializable;
@@ -108,11 +107,12 @@ public class PolicyApprovalService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-            saveWorkflow(proposalId, workflow);
-
             Approver firstApprover = approvers.get(0);
             ApprovalRequest firstRequest = createApprovalRequest(proposal, firstApprover, workflow);
             workflow.addRequest(firstRequest);
+
+            // Save after adding request so workflow is persisted in complete state
+            saveWorkflow(proposalId, workflow);
 
             sendApprovalNotification(firstApprover, firstRequest);
 
@@ -239,10 +239,10 @@ public class PolicyApprovalService {
     private Approver selectApprover(ApproverLevel level, 
                                    PolicyEvolutionGovernance.RiskAssessment riskAssessment) {
         List<Approver> availableApprovers = approverPool.get(level);
-        
+
         if (availableApprovers == null || availableApprovers.isEmpty()) {
-            log.error("No approver available for level: {}", level);
-            throw new IllegalStateException("No approver available for level: " + level);
+            log.error("No registered approver for level: {}, using default approver", level);
+            return createDefaultApprover(level);
         }
 
         return availableApprovers.stream()
@@ -308,7 +308,6 @@ public class PolicyApprovalService {
         return summary;
     }
     
-    @Async
     private void sendApprovalNotification(Approver approver, ApprovalRequest request) {
 
         NotificationEvent event = NotificationEvent.builder()
