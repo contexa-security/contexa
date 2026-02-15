@@ -3,6 +3,7 @@ package io.contexa.contexacoreenterprise.autonomous.evolution;
 import io.contexa.contexacore.autonomous.domain.LearningMetadata;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.IncidentResolvedEvent;
+import io.contexa.contexacore.autonomous.event.ThreatPolicyTriggerEvent;
 import io.contexa.contexacore.domain.SoarIncidentStatus;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.SoarIncident;
@@ -108,6 +109,93 @@ public class AutonomousLearningCoordinator {
                 );
             }
         }
+    }
+
+    @EventListener
+    @Async
+    public void onThreatPolicyTrigger(ThreatPolicyTriggerEvent event) {
+        if (!securityAutonomousProperties.getLearning().isEnabled()) {
+            return;
+        }
+        try {
+            SecurityEvent securityEvent = event.getSecurityEvent();
+            if (securityEvent == null) {
+                log.error("Security event is null in ThreatPolicyTriggerEvent");
+                return;
+            }
+
+            LearningMetadata metadata = buildThreatMetadata(event);
+
+            if (!canLearn(metadata)) {
+                if (evolutionMetricsCollector != null) {
+                    evolutionMetricsCollector.recordIncidentProcessed(
+                            securityEvent.getSeverity().name(), false, "low_confidence");
+                }
+                return;
+            }
+
+            if (!checkDailyLimit()) {
+                log.error("Daily proposal limit exceeded for threat policy trigger");
+                if (evolutionMetricsCollector != null) {
+                    evolutionMetricsCollector.recordIncidentProcessed(
+                            securityEvent.getSeverity().name(), false, "daily_limit_exceeded");
+                }
+                return;
+            }
+
+            triggerPolicyEvolution(securityEvent, metadata);
+            totalEventsProcessed.incrementAndGet();
+
+            if (evolutionMetricsCollector != null) {
+                evolutionMetricsCollector.recordIncidentProcessed(
+                        securityEvent.getSeverity().name(), true, metadata.getLearningType().name());
+            }
+
+        } catch (Exception e) {
+            log.error("Threat policy trigger processing failed", e);
+            if (evolutionMetricsCollector != null) {
+                String severity = event.getSecurityEvent() != null ?
+                        event.getSecurityEvent().getSeverity().name() : "UNKNOWN";
+                evolutionMetricsCollector.recordIncidentProcessed(severity, false, "error");
+            }
+        }
+    }
+
+    private LearningMetadata buildThreatMetadata(ThreatPolicyTriggerEvent event) {
+        int priority = "BLOCK".equals(event.getAction()) ? 10 : 8;
+
+        Map<String, Object> learningContext = new HashMap<>();
+        learningContext.put("action", event.getAction());
+        learningContext.put("riskScore", event.getRiskScore());
+        learningContext.put("confidence", event.getConfidence());
+        learningContext.put("reasoning", event.getReasoning());
+        learningContext.put("mitre", event.getMitre());
+        learningContext.put("layerName", event.getLayerName());
+
+        SecurityEvent securityEvent = event.getSecurityEvent();
+        if (securityEvent != null && securityEvent.getMetadata() != null) {
+            Map<String, Object> eventMeta = securityEvent.getMetadata();
+            if (eventMeta.containsKey("targetResource")) {
+                learningContext.put("targetResource", eventMeta.get("targetResource"));
+            }
+            if (eventMeta.containsKey("requestMethod")) {
+                learningContext.put("requestMethod", eventMeta.get("requestMethod"));
+            }
+        }
+
+        if (event.getAnalysisContext() != null) {
+            learningContext.put("analysisContext", event.getAnalysisContext());
+        }
+
+        return LearningMetadata.builder()
+                .isLearnable(true)
+                .learningType(LearningMetadata.LearningType.THREAT_RESPONSE)
+                .priority(priority)
+                .confidenceScore(event.getConfidence())
+                .status(LearningMetadata.LearningStatus.PENDING)
+                .createdAt(LocalDateTime.now())
+                .learningContext(learningContext)
+                .build();
     }
 
     private LearningMetadata extractLearningMetadata(IncidentResolvedEvent event) {

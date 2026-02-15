@@ -9,13 +9,13 @@ import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService;
 import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchController;
-import io.contexa.contexacoreenterprise.autonomous.evolution.*;
+import io.contexa.contexacoreenterprise.autonomous.evolution.AutonomousLearningCoordinator;
+import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyActivationServiceImpl;
+import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyEvolutionEngine;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
-import io.contexa.contexacoreenterprise.autonomous.labs.PolicyEvolutionLab;
 import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
 import io.contexa.contexacoreenterprise.autonomous.notification.DefaultNotificationService;
-import io.contexa.contexacoreenterprise.autonomous.service.impl.SoarNotifierImpl;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
@@ -35,7 +35,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.core.RedisTemplate;
 
 @AutoConfiguration
 @ConditionalOnClass(name = "io.contexa.contexacoreenterprise.autonomous.PolicyProposalManagementService")
@@ -103,17 +102,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public PolicyEvolutionLab policyEvolutionLab(
-            ChatModel chatModel,
-            UnifiedVectorService unifiedVectorService,
-            RedisTemplate<String, Object> redisTemplate) {
-        return new PolicyEvolutionLab(chatModel, unifiedVectorService, redisTemplate);
-    }
-
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyAuditLogger policyAuditLogger(
             SynthesisPolicyRepository synthesisPolicyRepository) {
         return new PolicyAuditLogger(synthesisPolicyRepository);
@@ -124,13 +112,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public DefaultNotificationService defaultNotificationService() {
         return new DefaultNotificationService();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public SoarNotifierImpl soarNotifierImpl() {
-        return new SoarNotifierImpl();
     }
 
     @Bean
@@ -162,8 +143,9 @@ public class EnterpriseAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public ProposalToPolicyConverter proposalToPolicyConverter() {
-        return new ProposalToPolicyConverter();
+    public ProposalToPolicyConverter proposalToPolicyConverter(
+            @Autowired(required = false) SpelValidationService spelValidationService) {
+        return new ProposalToPolicyConverter(spelValidationService);
     }
 
     @Bean

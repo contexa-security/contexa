@@ -84,7 +84,7 @@ public class PolicyActivationEventListener {
 
                 deactivatePolicy(proposal.getPolicyId());
             } else {
-                log.warn("No linked Policy found: proposalId={}", proposalId);
+                log.error("No linked Policy found: proposalId={}", proposalId);
             }
 
         } catch (Exception e) {
@@ -115,7 +115,7 @@ public class PolicyActivationEventListener {
                 proposal.setPolicyId(null);
                 proposalRepository.save(proposal);
             } else {
-                log.warn("No Policy to rollback: proposalId={}", proposalId);
+                log.error("No Policy to rollback: proposalId={}", proposalId);
             }
 
         } catch (Exception e) {

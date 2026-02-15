@@ -5,6 +5,8 @@ import io.contexa.contexacore.autonomous.domain.ActivationResult;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
+import lombok.Builder;
+import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -369,8 +371,8 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         eventPublisher.publishEvent(event);
     }
 
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     private static class ActivationTask {
         private Long proposalId;
         private String activatedBy;
@@ -380,8 +382,8 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         private String error;
     }
 
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class ActivationConditions {
         private String requestedBy;
         private LocalDateTime activateAfter;
@@ -390,7 +392,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         private Map<String, Object> customConditions;
     }
 
-    @lombok.Data
+    @Data
     public static class ActivationMetrics {
         private long totalActivations = 0;
         private long successfulActivations = 0;
@@ -426,16 +428,16 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         }
     }
 
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class ActivationEvent {
         private Long proposalId;
         private String activatedBy;
         private LocalDateTime timestamp;
     }
 
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class DeactivationEvent {
         private Long proposalId;
         private String deactivatedBy;
@@ -456,8 +458,8 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         NOT_FOUND
     }
 
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class PolicyChangeEvent {
         private Long proposalId;
         private PolicyChangeType changeType;

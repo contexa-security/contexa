@@ -243,10 +243,43 @@ public class PolicyEvolutionEngine {
         prompt.append("\n## 학습 유형\n");
         prompt.append(String.format("- %s\n", metadata.getLearningType()));
 
+        // Threat analysis results section (from ThreatPolicyTriggerEvent path)
+        if (context.containsKey("action")) {
+            prompt.append("\n## 위협 분석 결과\n");
+            prompt.append(String.format("- 판정: %s\n", context.get("action")));
+            prompt.append(String.format("- 위험도: %s\n", context.get("riskScore")));
+            prompt.append(String.format("- 신뢰도: %s\n", context.get("confidence")));
+            if (context.get("reasoning") != null) {
+                prompt.append(String.format("- 근거: %s\n", context.get("reasoning")));
+            }
+            if (context.get("mitre") != null) {
+                prompt.append(String.format("- MITRE ATT&CK: %s\n", context.get("mitre")));
+            }
+            prompt.append(String.format("- 분석 레이어: %s\n", context.get("layerName")));
+        }
+
+        // Target resource section
+        String targetResource = extractStringFromMap(context, "targetResource");
+        String requestMethod = extractStringFromMap(context, "requestMethod");
+        if (targetResource != null || requestMethod != null) {
+            prompt.append("\n## 대상 리소스\n");
+            if (targetResource != null) {
+                prompt.append(String.format("- URL: %s\n", targetResource));
+            }
+            if (requestMethod != null) {
+                prompt.append(String.format("- HTTP 메서드: %s\n", requestMethod));
+            }
+        }
+
+        // General context (exclude threat analysis keys and complex objects)
+        Set<String> threatKeys = Set.of("action", "riskScore", "confidence", "reasoning",
+                "mitre", "layerName", "analysisContext", "targetResource", "requestMethod");
         prompt.append("\n## 컨텍스트\n");
-        context.forEach((key, value) -> 
-            prompt.append(String.format("- %s: %s\n", key, value))
-        );
+        context.forEach((key, value) -> {
+            if (!threatKeys.contains(key) && !(value instanceof Map) && !(value instanceof Collection)) {
+                prompt.append(String.format("- %s: %s\n", key, value));
+            }
+        });
 
         if (!similarCases.isEmpty()) {
             prompt.append("\n## 유사 사례\n");
@@ -296,6 +329,8 @@ public class PolicyEvolutionEngine {
         prompt.append("```spel\n");
         prompt.append("// SpEL 표현식을 여기에 작성\n");
         prompt.append("```\n");
+        prompt.append("대상 리소스: <적용 대상 URL 패턴>\n");
+        prompt.append("HTTP 메서드: <GET|POST|PUT|DELETE|ALL>\n");
 
         return prompt.toString();
     }
@@ -355,6 +390,26 @@ public class PolicyEvolutionEngine {
         Map<String, Object> actionPayload = new HashMap<>();
         actionPayload.put("severity", event.getSeverity());
         actionPayload.put("learningType", metadata.getLearningType());
+
+        // Extract target resource from AI response
+        String aiTargetResource = extractTargetFromResponse(aiResponse, "대상 리소스");
+        String aiRequestMethod = extractTargetFromResponse(aiResponse, "HTTP 메서드");
+
+        // Fallback to SecurityEvent metadata
+        if (aiTargetResource == null) {
+            aiTargetResource = extractStringFromMap(event.getMetadata(), "targetResource", "requestUri");
+        }
+        if (aiRequestMethod == null) {
+            aiRequestMethod = extractStringFromMap(event.getMetadata(), "requestMethod", "httpMethod");
+        }
+
+        if (aiTargetResource != null) {
+            actionPayload.put("targetResource", aiTargetResource);
+        }
+        if (aiRequestMethod != null) {
+            actionPayload.put("requestMethod", aiRequestMethod);
+        }
+
         proposal.setActionPayload(actionPayload);
         
         return proposal;
@@ -381,7 +436,7 @@ public class PolicyEvolutionEngine {
             if (metricsCollector != null) {
                 metricsCollector.recordSpelExtraction("empty_response", false);
             }
-            return "hasRole('USER') and #request.isSecure()"; 
+            return "isAuthenticated()";
         }
 
         try {
@@ -412,7 +467,7 @@ public class PolicyEvolutionEngine {
             metricsCollector.recordSpelExtraction("fallback_default", false);
         }
 
-        return "hasRole('USER') and #request.isSecure()";
+        return "isAuthenticated()";
     }
 
     private String extractFromCodeBlock(String aiResponse) {
@@ -463,7 +518,6 @@ public class PolicyEvolutionEngine {
             "#ai\\.\\w+\\([^)]*\\)[^\\n]*",       
             "hasRole\\([^)]+\\)[^\\n]*",
             "hasAuthority\\([^)]+\\)[^\\n]*",
-            "hasPermission\\([^)]+\\)[^\\n]*",
             "hasAnyRole\\([^)]+\\)[^\\n]*",
             "hasAnyAuthority\\([^)]+\\)[^\\n]*",
             "permitAll\\(\\)[^\\n]*",
@@ -616,6 +670,35 @@ public class PolicyEvolutionEngine {
         return null;
     }
 
+    private String extractTargetFromResponse(String aiResponse, String label) {
+        if (aiResponse == null) {
+            return null;
+        }
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                label + "\\s*[::]\\s*(.+?)(?:\\n|$)");
+        java.util.regex.Matcher matcher = pattern.matcher(aiResponse);
+        if (matcher.find()) {
+            String value = matcher.group(1).trim();
+            if (!value.isEmpty() && !value.startsWith("<")) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String extractStringFromMap(Map<String, Object> map, String... keys) {
+        if (map == null) {
+            return null;
+        }
+        for (String key : keys) {
+            Object value = map.get(key);
+            if (value instanceof String str && !str.isEmpty()) {
+                return str;
+            }
+        }
+        return null;
+    }
+
     private PolicyEvolutionProposal.ProposalType determineProposalType(
             SecurityEvent event, 
             LearningMetadata metadata) {
@@ -708,23 +791,7 @@ public class PolicyEvolutionEngine {
             rejectionDoc.getMetadata().put("type", "policy_rejection");
             rejectionDoc.getMetadata().put("policyId", policy.getId());
 
-            List<Document> docs = Collections.singletonList(rejectionDoc);
-            for (Document doc : docs) {
-                unifiedVectorService.storeDocument(doc);
-            }
-
-            LearningMetadata metadata = LearningMetadata.builder()
-                .learningType(LearningMetadata.LearningType.POLICY_FEEDBACK)
-                .isLearnable(true)
-                .confidenceScore(0.3) 
-                .sourceLabId("PolicyEvolutionEngine")
-                .priority(7)
-                .status(LearningMetadata.LearningStatus.COMPLETED)
-                .learningSummary("Policy rejected: " + rejectionReason)
-                .build();
-
-            metadata.addPattern("rejection_reason", rejectionReason);
-            metadata.addOutcome("learned", true);
+            unifiedVectorService.storeDocument(rejectionDoc);
 
         } catch (Exception e) {
             log.error("Rejection learning failed: {}", policy.getName(), e);
@@ -735,9 +802,11 @@ public class PolicyEvolutionEngine {
         
         try {
 
+            SecurityEvent.Severity severity = determineSeverityFromContext(context);
+
             SecurityEvent event = SecurityEvent.builder()
                 .source(SecurityEvent.EventSource.IAM)
-                .severity(SecurityEvent.Severity.MEDIUM)
+                .severity(severity)
                 .description("Policy evolution requested: " + policy.getName())
                 .metadata(context)
                 .build();
@@ -760,5 +829,22 @@ public class PolicyEvolutionEngine {
         } catch (Exception e) {
             log.error("Policy evolution failed: {}", policy.getName(), e);
         }
+    }
+
+    private SecurityEvent.Severity determineSeverityFromContext(Map<String, Object> context) {
+        if (context == null) {
+            return SecurityEvent.Severity.MEDIUM;
+        }
+
+        Object severityObj = context.get("severity");
+        if (severityObj instanceof String severityStr) {
+            try {
+                return SecurityEvent.Severity.valueOf(severityStr.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // fall through to default
+            }
+        }
+
+        return SecurityEvent.Severity.MEDIUM;
     }
 }

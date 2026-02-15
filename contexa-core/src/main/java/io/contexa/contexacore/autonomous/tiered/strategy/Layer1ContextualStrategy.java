@@ -124,6 +124,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SecurityDecision decision = convertToSecurityDecision(response, event);
 
+            if (decision.getAction() == ZeroTrustAction.BLOCK) {
+                triggerPolicyEvolution(event, decision,
+                        buildAnalysisContext(sessionCtx, behaviorCtx, relatedDocuments));
+            }
+
             if (decision.getAction() == ZeroTrustAction.ESCALATE) {
                 cacheEscalationContext(
                         event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);

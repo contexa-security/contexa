@@ -7,6 +7,7 @@ import io.contexa.contexaiam.domain.dto.RuleDto;
 import io.contexa.contexaiam.domain.dto.TargetDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
+import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
 
@@ -16,6 +17,16 @@ import java.util.Map;
 
 @Slf4j
 public class ProposalToPolicyConverter {
+
+    private final SpelValidationService spelValidationService;
+
+    public ProposalToPolicyConverter() {
+        this(null);
+    }
+
+    public ProposalToPolicyConverter(SpelValidationService spelValidationService) {
+        this.spelValidationService = spelValidationService;
+    }
 
     private static final String POLICY_NAME_PREFIX = "AI_EVOLVED_";
     private static final int DEFAULT_PRIORITY = 500;
@@ -124,7 +135,7 @@ public class ProposalToPolicyConverter {
             try {
                 return Policy.Effect.valueOf(effectStr);
             } catch (IllegalArgumentException e) {
-                log.warn("Invalid effect value, using default: {}", effectStr);
+                log.error("Invalid effect value, using default: {}", effectStr);
             }
         }
 
@@ -206,7 +217,7 @@ public class ProposalToPolicyConverter {
             targets.add(target);
 
         } else {
-            log.warn("No Target info, creating default target: proposalId={}", proposal.getId());
+            log.error("No Target info, creating default target: proposalId={}", proposal.getId());
             TargetDto defaultTarget = TargetDto.builder()
                     .targetType("URL")
                     .targetIdentifier("/**")
@@ -227,8 +238,15 @@ public class ProposalToPolicyConverter {
         }
 
         if (!StringUtils.hasText(spelExpression)) {
-            log.warn("No SpEL expression, creating default rule: proposalId={}", proposal.getId());
+            log.error("No SpEL expression, creating default rule: proposalId={}", proposal.getId());
             spelExpression = "isAuthenticated()";
+        } else if (spelValidationService != null) {
+            SpelValidationService.ValidationResult result = spelValidationService.validate(spelExpression);
+            if (!result.valid()) {
+                log.error("AI-generated SpEL validation failed, using default: expression={}, errors={}, proposalId={}",
+                        spelExpression, result.errors(), proposal.getId());
+                spelExpression = "isAuthenticated()";
+            }
         }
 
         List<ConditionDto> conditions = new ArrayList<>();
