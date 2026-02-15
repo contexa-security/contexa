@@ -170,7 +170,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                 Prompt continuePrompt = new Prompt(toolExecutionResult.conversationHistory(), originalPrompt.getOptions());
 
                 try {
-                    currentResponse = toolCapableLLMClient.callToolCallbacksResponse(continuePrompt, unifiedTools).block();
+                    currentResponse = toolCapableLLMClient.callToolCallbacksResponse(continuePrompt, unifiedTools).block(java.time.Duration.ofSeconds(30));
                 } catch (Exception e) {
                     log.error("LLM re-invocation failed", e);
                     break;

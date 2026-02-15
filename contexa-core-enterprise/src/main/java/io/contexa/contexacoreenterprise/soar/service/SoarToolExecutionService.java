@@ -1,7 +1,9 @@
 package io.contexa.contexacoreenterprise.soar.service;
 
+import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacoreenterprise.mcp.tool.resolution.ChainedToolResolver;
+import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
@@ -14,9 +16,10 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 public class SoarToolExecutionService {
-    
+
     private final ToolCapableLLMClient toolCapableLLMClient;
     private final ChainedToolResolver toolResolver;
+    private final ApprovalAwareToolCallingManagerDecorator approvalManager;
 
     public Mono<String> executeWithHumanApproval(String userPrompt, String incidentId, String organizationId) {
 
@@ -25,24 +28,46 @@ public class SoarToolExecutionService {
         String enhancedPrompt = enhancePromptWithSoarContext(userPrompt, incidentId, organizationId);
         Prompt prompt = new Prompt(enhancedPrompt);
 
+        // Set SOAR context for approval-aware tool execution
+        SoarContext soarContext = new SoarContext();
+        soarContext.setIncidentId(incidentId);
+        soarContext.setOrganizationId(organizationId);
+        soarContext.setRequiresApproval(true);
+        approvalManager.setCurrentContext(soarContext);
+
         return toolCapableLLMClient.callToolCallbacks(prompt, soarToolCallbacks)
-                .doOnSuccess(result ->
-                        log.error("SOAR tool execution completed - incident: {}", incidentId))
-                .doOnError(error ->
-                        log.error("SOAR tool execution failed - incident: {}", incidentId, error));
+                .doOnSuccess(result -> {
+                        approvalManager.clearCurrentContext();
+                        log.error("SOAR tool execution completed - incident: {}", incidentId);
+                })
+                .doOnError(error -> {
+                        approvalManager.clearCurrentContext();
+                        log.error("SOAR tool execution failed - incident: {}", incidentId, error);
+                });
     }
 
     public Flux<String> streamWithHumanApproval(String userPrompt, String incidentId, String organizationId) {
-                
+
         ToolCallback[] soarToolCallbacks = getSoarToolCallbacks();
         String enhancedPrompt = enhancePromptWithSoarContext(userPrompt, incidentId, organizationId);
         Prompt prompt = new Prompt(enhancedPrompt);
 
+        // Set SOAR context for approval-aware tool execution
+        SoarContext soarContext = new SoarContext();
+        soarContext.setIncidentId(incidentId);
+        soarContext.setOrganizationId(organizationId);
+        soarContext.setRequiresApproval(true);
+        approvalManager.setCurrentContext(soarContext);
+
         return toolCapableLLMClient.streamToolCallbacks(prompt, soarToolCallbacks)
-                .doOnComplete(() ->
-                        log.error("SOAR tool stream completed - incident: {}", incidentId))
-                .doOnError(error ->
-                        log.error("SOAR tool stream failed - incident: {}", incidentId, error));
+                .doOnComplete(() -> {
+                        approvalManager.clearCurrentContext();
+                        log.error("SOAR tool stream completed - incident: {}", incidentId);
+                })
+                .doOnError(error -> {
+                        approvalManager.clearCurrentContext();
+                        log.error("SOAR tool stream failed - incident: {}", incidentId, error);
+                });
     }
 
     private ToolCallback[] getSoarToolCallbacks() {

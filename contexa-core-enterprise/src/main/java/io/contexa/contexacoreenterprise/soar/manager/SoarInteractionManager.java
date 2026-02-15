@@ -201,12 +201,12 @@ public class SoarInteractionManager {
             session.setStatus(SessionStatus.CLOSED);
             session.setClosedAt(LocalDateTime.now());
             session.getMetadata().put("closeReason", reason);
-            
+
             updateSession(session);
+            sessionCache.remove(sessionId);
 
             notifySessionClosed(sessionId, reason);
-            
-                    });
+        });
     }
 
     public List<InteractionSession> getActiveSessions() {

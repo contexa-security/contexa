@@ -155,10 +155,9 @@ public class RedisApprovalSubscriber implements MessageListener {
         if (!subscribedChannels.contains(channel)) {
             return;
         }
-
+        messageListenerContainer.removeMessageListener(this, new ChannelTopic(channel));
         subscribedChannels.remove(channel);
-        
-            }
+    }
 
     private String extractApprovalId(String channel) {
         if (channel.startsWith(CHANNEL_PREFIX)) {

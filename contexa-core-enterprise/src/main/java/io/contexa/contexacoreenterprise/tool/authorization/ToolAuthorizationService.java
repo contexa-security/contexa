@@ -131,16 +131,12 @@ public class ToolAuthorizationService {
             }
 
     private Set<String> loadUserPermissions(String userId) {
-        
         Set<String> permissions = new HashSet<>();
-
         if ("admin".equals(userId)) {
             permissions.addAll(rolePermissions.get("ADMIN"));
-        } else {
-            permissions.addAll(rolePermissions.get("OPERATOR"));
         }
-        
-                return permissions;
+        // No default permissions for unknown users (fail-closed)
+        return permissions;
     }
 
     private Set<String> determineToolPermissions(String toolName) {

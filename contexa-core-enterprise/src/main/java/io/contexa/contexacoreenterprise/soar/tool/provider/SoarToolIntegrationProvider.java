@@ -39,7 +39,7 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             logDiscoveredTools();
             
         } catch (Exception e) {
-            log.error("SoarToolIntegrationProvider 초기화 실패", e);
+            log.error("SoarToolIntegrationProvider initialization failed", e);
             initialized = false;
         }
     }
@@ -142,7 +142,7 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             try {
                 processSoarTool(beanName, toolCallback);
             } catch (Exception e) {
-                log.warn("도구 처리 실패: {} - {}", beanName, e.getMessage());
+                log.error("Tool processing failed: {} - {}", beanName, e.getMessage());
             }
         }
 
@@ -160,7 +160,7 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
                         processSoarTool(beanName, wrapped);
                     }
                 } catch (Exception e) {
-                    log.warn("도구 래핑 실패: {} - {}", beanName, e.getMessage());
+                    log.error("Tool wrapping failed: {} - {}", beanName, e.getMessage());
                 }
             }
         }
@@ -212,8 +212,29 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             
             @Override
             public String call(String arguments) {
-                
-                return "Tool execution not implemented for wrapped bean: " + beanName;
+                try {
+                    Method[] methods = bean.getClass().getDeclaredMethods();
+                    for (Method method : methods) {
+                        if (method.isAnnotationPresent(SoarTool.class)) {
+                            method.setAccessible(true);
+                            Object result;
+                            if (method.getParameterCount() == 1) {
+                                result = method.invoke(bean, arguments);
+                            } else if (method.getParameterCount() == 0) {
+                                result = method.invoke(bean);
+                            } else {
+                                log.error("Unsupported parameter count for @SoarTool method on bean: {}", beanName);
+                                return "";
+                            }
+                            return result != null ? result.toString() : "";
+                        }
+                    }
+                    log.error("No @SoarTool method found on bean: {}", beanName);
+                    return "";
+                } catch (Exception e) {
+                    log.error("Tool execution failed for bean: {}", beanName, e);
+                    throw new RuntimeException("Tool execution failed: " + beanName, e);
+                }
             }
         };
     }
@@ -280,7 +301,7 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
 
     private void ensureInitialized() {
         if (!initialized) {
-            throw new IllegalStateException("SoarToolIntegrationProvider가 초기화되지 않았습니다");
+            throw new IllegalStateException("SoarToolIntegrationProvider is not initialized");
         }
     }
 

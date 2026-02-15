@@ -67,14 +67,17 @@ public class SoarPromptTemplate implements PromptTemplate {
 
     @Override
     public String generateSystemPrompt(AIRequest<?> request, String systemMetadata) {
-                
         StringBuilder prompt = new StringBuilder();
 
-        boolean isToolExecutionMode = false;
-        boolean isResponseGenerationMode = false;
+        // Detect mode from request context and apply role prompt
+        if (request != null && request.getContext() instanceof SoarContext) {
+            prompt.append(TOOL_EXECUTION_ROLE);
+        } else {
+            prompt.append(RESPONSE_GENERATION_ROLE);
+        }
 
         if (systemMetadata != null && !systemMetadata.trim().isEmpty()) {
-            prompt.append("\n\n시스템 컨텍스트: ");
+            prompt.append("\n\nSystem Context: ");
             prompt.append(systemMetadata);
         }
 

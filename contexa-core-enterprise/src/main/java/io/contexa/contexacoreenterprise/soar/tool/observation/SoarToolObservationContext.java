@@ -17,6 +17,7 @@ import java.util.concurrent.atomic.AtomicLong;
 @Builder
 public class SoarToolObservationContext {
 
+    private final String toolName;
     private final String incidentId;
     private final String organizationId;
     private final String securityAnalyst;
@@ -60,6 +61,7 @@ public class SoarToolObservationContext {
             .incrementExecution();
         
         return SoarToolObservationContext.builder()
+            .toolName(toolName)
             .incidentId(incidentId)
             .organizationId(organizationId)
             .securityAnalyst(securityAnalyst)
@@ -92,8 +94,17 @@ public class SoarToolObservationContext {
                 rejectedExecutions.incrementAndGet();
             }
         }
-        
+
+        // Update per-tool execution time metrics
+        if (this.toolName != null) {
+            ToolExecutionMetrics metrics = toolMetrics.get(this.toolName);
+            if (metrics != null) {
+                metrics.addExecutionTime(durationMs);
+            }
+        }
+
         return SoarToolObservationContext.builder()
+            .toolName(this.toolName)
             .incidentId(this.incidentId)
             .organizationId(this.organizationId)
             .securityAnalyst(this.securityAnalyst)

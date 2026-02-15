@@ -47,15 +47,14 @@ public class ApprovalEventListener {
             }
             
             if (validationResult.hasWarnings()) {
-                log.warn("ApprovalRequest validation warnings: {}", validationResult.getWarnings());
+                log.error("ApprovalRequest validation warnings: {}", validationResult.getWarnings());
             }
 
-            ApprovalRequest savedRequest = approvalService.saveApprovalRequest(request);
-
-            approvalService.sendApprovalNotification(savedRequest);
+            approvalService.saveApprovalRequest(request);
+            // Notification is handled by McpApprovalNotificationService event listener
                         
         } catch (Exception e) {
-            log.error("승인 요청 처리 실패: {}", event.getRequestId(), e);
+            log.error("Approval request processing failed: {}", event.getRequestId(), e);
             
             throw new RuntimeException("Failed to process approval request: " + event.getRequestId(), e);
         }
@@ -78,7 +77,7 @@ public class ApprovalEventListener {
             return;
         }
         
-        log.warn("승인 타임아웃 발생: {}", event.getRequestId());
+        log.error("Approval timeout occurred: {}", event.getRequestId());
         
         try {
             
@@ -86,11 +85,11 @@ public class ApprovalEventListener {
             approvalService.handleApprovalResponse(
                 approvalId, 
                 false,  
-                "자동 거부: 승인 타임아웃",
+                "Auto rejected: approval timeout",
                 "system"
             );
                     } catch (Exception e) {
-            log.error("타임아웃 처리 중 오류: {}", event.getRequestId(), e);
+            log.error("Error during timeout processing: {}", event.getRequestId(), e);
         }
     }
 
@@ -103,11 +102,11 @@ public class ApprovalEventListener {
         try {
             
             String approvalId = event.getRequestId();
-            String reason = event.getMessage() != null ? event.getMessage() : "사용자 취소";
+            String reason = event.getMessage() != null ? event.getMessage() : "User cancelled";
             approvalService.handleApprovalResponse(
                 approvalId,
                 false,  
-                "승인 취소: " + reason,
+                "Approval cancelled: " + reason,
                 "system"
             );
                     } catch (Exception e) {

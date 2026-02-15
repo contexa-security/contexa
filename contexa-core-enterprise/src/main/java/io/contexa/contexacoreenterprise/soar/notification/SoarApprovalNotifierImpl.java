@@ -53,7 +53,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
         }
 
         if (channels.contains(NotificationTarget.NotificationChannel.EMAIL)) {
-
+            futures.add(sendEmailNotifications(notification, targets));
         }
 
         if (channels.contains(NotificationTarget.NotificationChannel.SSE)) {

@@ -131,7 +131,7 @@ public class SoarContextRetriever extends ContextRetriever {
             );
 
         } catch (Exception e) {
-            log.error("SOAR 컨텍스트 분석 실패", e);
+            log.error("SOAR context analysis failed", e);
             return new ContextRetrievalResult(
                     getDefaultContext(),
                     List.of(),
@@ -205,7 +205,8 @@ public class SoarContextRetriever extends ContextRetriever {
         contextBuilder.append(String.format("- 인시던트 ID: %s\n", context.getIncidentId()));
         contextBuilder.append(String.format("- 위협 유형: %s\n", context.getThreatType()));
         contextBuilder.append(String.format("- 설명: %s\n", context.getDescription()));
-        contextBuilder.append(String.format("- 영향받는 자산: %s\n", String.join(", ", context.getAffectedAssets())));
+        contextBuilder.append(String.format("- 영향받는 자산: %s\n",
+            context.getAffectedAssets() != null ? String.join(", ", context.getAffectedAssets()) : "N/A"));
         contextBuilder.append(String.format("- 현재 상태: %s\n", context.getCurrentStatus()));
         contextBuilder.append(String.format("- 탐지 소스: %s\n", context.getDetectedSource()));
         contextBuilder.append(String.format("- 심각도: %s\n", context.getSeverity()));

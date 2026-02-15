@@ -15,6 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import io.contexa.contexacoreenterprise.soar.event.WebSocketApprovalHandler;
+import jakarta.annotation.PreDestroy;
 import org.springframework.scheduling.annotation.Scheduled;
 
 import java.io.IOException;
@@ -65,7 +66,7 @@ public class McpApprovalNotificationService {
         emitter.onError(error -> {
             sseEmitters.remove(clientId);
             broadcastEmitters.remove(emitter);
-            log.error("SSE 오류: {}", clientId, error);
+            log.error("SSE error: {}", clientId, error);
         });
         
         sseEmitters.put(clientId, emitter);
@@ -149,7 +150,7 @@ public class McpApprovalNotificationService {
         Map<String, Object> data = buildNotificationData(request);
         
         NotificationMessage notification = new NotificationMessage(
-            "APPROVAL_REQUEST",
+            "APPROVAL_REQUESTED",
             "Approval required for high-risk tool execution",
             data
         );
@@ -158,7 +159,7 @@ public class McpApprovalNotificationService {
             try {
                 webSocketHandler.sendApprovalRequest(request);
                             } catch (Exception e) {
-                log.error("WebSocket 승인 요청 전송 실패, SSE로 폴백: {}", request.getRequestId(), e);
+                log.error("WebSocket approval request send failed, falling back to SSE: {}", request.getRequestId(), e);
                 
                 broadcast(notification);
             }
@@ -233,7 +234,7 @@ public class McpApprovalNotificationService {
             try {
                 webSocketHandler.broadcastTimeoutNotification(approvalId, timeoutData);
                             } catch (Exception e) {
-                log.error("WebSocket 타임아웃 알림 전송 실패, SSE로 폴백: {}", approvalId, e);
+                log.error("WebSocket timeout notification send failed, falling back to SSE: {}", approvalId, e);
                 
                 broadcast(notification);
             }
@@ -307,7 +308,7 @@ public class McpApprovalNotificationService {
 
     @Async
     public void sendExecutionFailed(String toolName, Exception exception) {
-        log.error("💥 Tool 실행 실패: {}", toolName, exception);
+        log.error("Tool execution failed: {}", toolName, exception);
         
         NotificationMessage notification = new NotificationMessage(
             "EXECUTION_FAILED",
@@ -351,7 +352,7 @@ public class McpApprovalNotificationService {
                     .id(UUID.randomUUID().toString())
                     .reconnectTime(3000L));
             } catch (IOException e) {
-                log.error("SSE 전송 실패: {}", clientId, e);
+                log.error("SSE send failed: {}", clientId, e);
                 sseEmitters.remove(clientId);
                 broadcastEmitters.remove(emitter);
             }
@@ -392,7 +393,7 @@ public class McpApprovalNotificationService {
                     webSocketHandler.broadcastMessage(topic, message.data);
                                     }
             } catch (Exception e) {
-                log.error("WebSocket 브로드캐스트 실패: {}", message.type, e);
+                log.error("WebSocket broadcast failed: {}", message.type, e);
             }
         }
     }
@@ -517,7 +518,7 @@ public class McpApprovalNotificationService {
             eventPublisher.publishEvent(new AsyncApprovalRequestEvent(request, notification, executionContext));
             
         } catch (Exception e) {
-            log.error("비동기 승인 요청 알림 저장 실패: {}", request.getRequestId(), e);
+            log.error("Async approval request notification save failed: {}", request.getRequestId(), e);
             
             sendApprovalRequest(request);
         }
@@ -545,7 +546,7 @@ public class McpApprovalNotificationService {
             notificationRepository.save(notification);
 
         } catch (Exception e) {
-            log.error("비동기 승인 결과 알림 저장 실패: {}", requestId, e);
+            log.error("Async approval result notification save failed: {}", requestId, e);
         }
     }
 
@@ -616,4 +617,19 @@ public class McpApprovalNotificationService {
     public record ApprovalReminderRequestedEvent(
         String approvalId
     ) {}
+
+    @PreDestroy
+    public void destroy() {
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+        timeoutFutures.values().forEach(f -> f.cancel(false));
+        timeoutFutures.clear();
+    }
 }

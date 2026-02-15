@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
@@ -49,7 +50,7 @@ public class SoarApprovalController {
                 return ResponseEntity.ok(response);
             })
             .onErrorResume(error -> {
-                log.error("SOAR Tool 실행 실패", error);
+                log.error("SOAR tool execution failed", error);
                 Map<String, Object> errorResponse = Map.of(
                     "success", false,
                     "incidentId", incidentId,
@@ -60,6 +61,7 @@ public class SoarApprovalController {
             });
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/approve/{approvalId}")
     public ResponseEntity<Map<String, Object>> approveRequest(
             @PathVariable String approvalId,
@@ -91,7 +93,7 @@ public class SoarApprovalController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("승인 처리 실패: {}", approvalId, e);
+            log.error("Approval processing failed: {}", approvalId, e);
             
             Map<String, Object> errorResponse = Map.of(
                 "success", false,
@@ -117,7 +119,7 @@ public class SoarApprovalController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("대기 중인 승인 목록 조회 실패", e);
+            log.error("Failed to retrieve pending approvals", e);
             
             Map<String, Object> errorResponse = Map.of(
                 "success", false,
@@ -145,7 +147,7 @@ public class SoarApprovalController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("등록된 도구 목록 조회 실패", e);
+            log.error("Failed to retrieve registered tools", e);
             
             Map<String, Object> errorResponse = Map.of(
                 "success", false,
@@ -176,7 +178,7 @@ public class SoarApprovalController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("도구 실행 상태 조회 실패: {}", incidentId, e);
+            log.error("Failed to retrieve tool execution status: {}", incidentId, e);
             
             Map<String, Object> errorResponse = Map.of(
                 "success", false,
@@ -203,7 +205,7 @@ public class SoarApprovalController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("통계 조회 중 오류 발생", e);
+            log.error("Statistics query error", e);
             return ResponseEntity.internalServerError()
                 .body(Map.of("success", false, "error", e.getMessage()));
         }
@@ -233,7 +235,7 @@ public class SoarApprovalController {
             return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("도구 메트릭 조회 중 오류 발생: {}", toolName, e);
+            log.error("Tool metrics query error: {}", toolName, e);
             return ResponseEntity.internalServerError()
                 .body(Map.of("success", false, "error", e.getMessage()));
         }
@@ -272,7 +274,7 @@ public class SoarApprovalController {
             }
             
         } catch (Exception e) {
-            log.error("SOAR 시스템 헬스 체크 실패", e);
+            log.error("SOAR system health check failed", e);
             return ResponseEntity.status(503)
                 .body(Map.of(
                     "status", "DOWN",

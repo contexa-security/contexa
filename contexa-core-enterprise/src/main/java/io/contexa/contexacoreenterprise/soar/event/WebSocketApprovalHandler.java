@@ -92,7 +92,11 @@ public class WebSocketApprovalHandler {
             @Payload Map<String, Object> payload,
             Principal principal) {
 
-        String reviewer = principal != null ? principal.getName() : "WebSocket User";
+        if (principal == null) {
+            log.error("Unauthenticated WebSocket approval attempt rejected");
+            throw new SecurityException("Authentication required for approval operations");
+        }
+        String reviewer = principal.getName();
         boolean approved = (boolean) payload.getOrDefault("approved", false);
         String comment = (String) payload.getOrDefault("comment", "");
 
@@ -102,7 +106,7 @@ public class WebSocketApprovalHandler {
                 unifiedApprovalService.processApprovalResponse(approvalId, approved, reviewer, comment);
                             } else {
                 
-                log.error("UnifiedApprovalService가 없어 승인을 처리할 수 없습니다.");
+                log.error("UnifiedApprovalService is null, cannot process approval");
                 throw new IllegalStateException("UnifiedApprovalService not available");
             }
 
@@ -120,7 +124,7 @@ public class WebSocketApprovalHandler {
             return response;
             
         } catch (Exception e) {
-            log.error("승인 처리 실패: {}", approvalId, e);
+            log.error("Approval processing failed: {}", approvalId, e);
             
             return Map.of(
                 "type", "APPROVAL_ERROR",
@@ -139,7 +143,11 @@ public class WebSocketApprovalHandler {
             @Payload Map<String, Object> payload,
             Principal principal) {
         
-        String cancelledBy = principal != null ? principal.getName() : "WebSocket User";
+        if (principal == null) {
+            log.error("Unauthenticated WebSocket cancellation attempt rejected");
+            throw new SecurityException("Authentication required for approval operations");
+        }
+        String cancelledBy = principal.getName();
         String reason = (String) payload.getOrDefault("reason", "User cancelled");
 
         try {
@@ -160,7 +168,7 @@ public class WebSocketApprovalHandler {
             return response;
             
         } catch (Exception e) {
-            log.error("승인 취소 실패: {}", approvalId, e);
+            log.error("Approval cancellation failed: {}", approvalId, e);
             
             return Map.of(
                 "type", "CANCELLATION_ERROR",
@@ -232,7 +240,7 @@ public class WebSocketApprovalHandler {
     public void sendApprovalRequest(ApprovalRequest request) {
         try {
             if (brokerTemplate == null) {
-                log.error("SimpMessagingTemplate이 null입니다. WebSocket 설정을 확인하세요.");
+                log.error("SimpMessagingTemplate is null, check WebSocket configuration");
                 return;
             }
 
@@ -252,17 +260,17 @@ public class WebSocketApprovalHandler {
             message.put("messageId", request.getRequestId() + "_" + System.currentTimeMillis());
 
             if (activeUserSessions.isEmpty()) {
-                log.warn("경고: 활성 WebSocket 세션이 없습니다! 클라이언트가 연결되어 있는지 확인하세요.");
+                log.error("No active WebSocket sessions, verify client connections");
             }
 
             try {
                 brokerTemplate.convertAndSend(TOPIC_APPROVALS, (Object) message);
                                             } catch (Exception ex) {
-                log.error("{} 토픽 전송 실패: {}", TOPIC_APPROVALS, ex.getMessage(), ex);
+                log.error("{} topic send failed: {}", TOPIC_APPROVALS, ex.getMessage(), ex);
             }
 
         } catch (Exception e) {
-            log.error("WebSocket 승인 요청 전송 실패: {}", request.getRequestId(), e);
+            log.error("WebSocket approval request send failed: {}", request.getRequestId(), e);
         }
     }
 
@@ -275,7 +283,7 @@ public class WebSocketApprovalHandler {
             brokerTemplate.convertAndSend(TOPIC_APPROVAL_RESULT + approvalId, (Object) message);
 
         } catch (Exception e) {
-            log.error("타임아웃 알림 브로드캐스트 실패", e);
+            log.error("Timeout notification broadcast failed", e);
         }
     }
 
@@ -291,7 +299,7 @@ public class WebSocketApprovalHandler {
             );
 
         } catch (Exception e) {
-            log.error("승인 결과 브로드캐스트 실패", e);
+            log.error("Approval result broadcast failed", e);
         }
     }
 
@@ -308,7 +316,7 @@ public class WebSocketApprovalHandler {
             (Object) message
         );
 
-        log.warn("WebSocket 타임아웃 알림: {} ({}초)", approvalId, timeoutSeconds);
+        log.error("WebSocket timeout notification: {} ({}s)", approvalId, timeoutSeconds);
     }
 
     public void sendErrorNotification(String approvalId, String error) {
@@ -321,14 +329,14 @@ public class WebSocketApprovalHandler {
         
         brokerTemplate.convertAndSend(TOPIC_APPROVAL_RESULT + approvalId, (Object) message);
 
-        log.error("WebSocket 오류 알림: {} - {}", approvalId, error);
+        log.error("WebSocket error notification: {} - {}", approvalId, error);
     }
 
     public void broadcastMessage(String topic, Map<String, Object> data) {
         try {
             brokerTemplate.convertAndSend(topic, (Object) data);
                     } catch (Exception e) {
-            log.error("WebSocket 메시지 브로드캐스트 실패: {}", topic, e);
+            log.error("WebSocket message broadcast failed: {}", topic, e);
         }
     }
 
@@ -345,7 +353,7 @@ public class WebSocketApprovalHandler {
             brokerTemplate.convertAndSend(TOPIC_APPROVALS, (Object) heartbeatMessage);
                         
         } catch (Exception e) {
-            log.error("WebSocket Heartbeat 전송 실패", e);
+            log.error("WebSocket heartbeat send failed", e);
         }
     }
 
@@ -365,7 +373,7 @@ public class WebSocketApprovalHandler {
 
     public void sendTestBroadcast(String message) {
         if (brokerTemplate == null) {
-            log.error("TEST: SimpMessagingTemplate이 null입니다!");
+            log.error("TEST: SimpMessagingTemplate is null");
             return;
         }
         
@@ -378,13 +386,13 @@ public class WebSocketApprovalHandler {
         try {
             brokerTemplate.convertAndSend("/topic/test", (Object) testMessage);
                     } catch (Exception e) {
-            log.error("TEST: /topic/test 전송 실패", e);
+            log.error("TEST: /topic/test send failed", e);
         }
 
         try {
             brokerTemplate.convertAndSend("/topic/soar/approvals", (Object) testMessage);
                     } catch (Exception e) {
-            log.error("TEST: /topic/soar/approvals 전송 실패", e);
+            log.error("TEST: /topic/soar/approvals send failed", e);
         }
     }
 }

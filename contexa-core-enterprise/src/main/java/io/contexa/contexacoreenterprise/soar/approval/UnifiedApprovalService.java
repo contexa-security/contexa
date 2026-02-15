@@ -24,10 +24,7 @@ import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.*;
 
 @Slf4j
@@ -531,14 +528,14 @@ public class UnifiedApprovalService implements ApprovalService {
             log.error("Failed to query statistics", e);
         }
 
-        return Map.of(
+        return new HashMap<>(Map.of(
                 "pending", pendingCount,
                 "total", totalCount,
                 "approved24h", approvedCount,
                 "rejected24h", rejectedCount,
                 "expired24h", expiredCount,
                 "timestamp", LocalDateTime.now()
-        );
+        ));
     }
 
     @Transactional

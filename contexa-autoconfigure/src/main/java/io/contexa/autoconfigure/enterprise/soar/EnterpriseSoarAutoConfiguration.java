@@ -202,8 +202,9 @@ public class EnterpriseSoarAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SoarToolExecutionService soarToolExecutionService(
             ToolCapableLLMClient toolCapableLLMClient,
-            ChainedToolResolver toolResolver) {
-        return new SoarToolExecutionService(toolCapableLLMClient, toolResolver);
+            ChainedToolResolver toolResolver,
+            ApprovalAwareToolCallingManagerDecorator approvalManager) {
+        return new SoarToolExecutionService(toolCapableLLMClient, toolResolver, approvalManager);
     }
 
     @Bean

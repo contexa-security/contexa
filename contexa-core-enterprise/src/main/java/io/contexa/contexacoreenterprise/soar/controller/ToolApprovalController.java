@@ -4,6 +4,7 @@ import io.contexa.contexacoreenterprise.soar.approval.ToolApprovalService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +31,7 @@ public class ToolApprovalController {
         return ResponseEntity.ok(history);
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/{approvalId}/approve")
     public ResponseEntity<Map<String, Object>> approve(
             @PathVariable String approvalId,
@@ -56,12 +58,13 @@ public class ToolApprovalController {
         }
     }
 
+    @PreAuthorize("isAuthenticated()")
     @PostMapping("/{approvalId}/reject")
     public ResponseEntity<Map<String, Object>> reject(
             @PathVariable String approvalId,
             @RequestBody ApprovalDecision decision) {
         
-        log.warn("승인 거부 처리: ID={}, By={}, Reason={}", 
+        log.error("Rejection processed: ID={}, By={}, Reason={}",
             approvalId, decision.decidedBy(), decision.reason());
         
         boolean success = approvalService.reject(

@@ -31,7 +31,7 @@ public class SoarEmailService {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     @Async
-    @Retryable(value = MessagingException.class, maxAttempts = 3, backoff = @Backoff(delay = 1000))
+    @Retryable(retryFor = {MessagingException.class, RuntimeException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public void sendApprovalRequestEmail(NotificationTarget target, ApprovalNotification notification) {
         if (!soarProperties.getNotification().getEmail().isEnabled()) {
                         return;
@@ -44,8 +44,8 @@ public class SoarEmailService {
             sendHtmlEmail(target.getEmail(), subject, htmlContent);
 
         } catch (Exception e) {
-            log.error("승인 요청 이메일 전송 실패: {} -> {}", notification.getApprovalId(), target.getEmail(), e);
-            throw new RuntimeException("이메일 전송 실패", e);
+            log.error("Approval request email send failed: {} -> {}", notification.getApprovalId(), target.getEmail(), e);
+            throw new RuntimeException("Email send failed", e);
         }
     }
 
@@ -74,7 +74,7 @@ public class SoarEmailService {
             sendHtmlEmail(target.getEmail(), subject, htmlContent);
 
         } catch (Exception e) {
-            log.error("승인 완료 이메일 전송 실패: {} -> {}", approvalId, target.getEmail(), e);
+            log.error("Approval completion email send failed: {} -> {}", approvalId, target.getEmail(), e);
         }
     }
 
@@ -98,7 +98,7 @@ public class SoarEmailService {
             sendHtmlEmail(target.getEmail(), subject, htmlContent);
 
         } catch (Exception e) {
-            log.error("타임아웃 이메일 전송 실패: {} -> {}", approvalId, target.getEmail(), e);
+            log.error("Timeout email send failed: {} -> {}", approvalId, target.getEmail(), e);
         }
     }
 
@@ -110,8 +110,8 @@ public class SoarEmailService {
         try {
             sendHtmlEmail(to, subject, content);
                     } catch (Exception e) {
-            log.error("이메일 전송 실패: {} -> {}", subject, to, e);
-            throw new RuntimeException("이메일 전송 실패", e);
+            log.error("Email send failed: {} -> {}", subject, to, e);
+            throw new RuntimeException("Email send failed", e);
         }
     }
 
@@ -163,11 +163,11 @@ public class SoarEmailService {
 
     private String getRiskIndicator(String riskLevel) {
         return switch (riskLevel) {
-            case "CRITICAL" -> "🔴";
-            case "HIGH" -> "🟠";
-            case "MEDIUM" -> "🟡";
-            case "LOW" -> "🟢";
-            default -> "⚪";
+            case "CRITICAL" -> "[CRITICAL]";
+            case "HIGH" -> "[HIGH]";
+            case "MEDIUM" -> "[MEDIUM]";
+            case "LOW" -> "[LOW]";
+            default -> "[INFO]";
         };
     }
 
@@ -187,7 +187,7 @@ public class SoarEmailService {
 
     public void validateEmailConfiguration() {
         if (soarProperties.getNotification().getEmail().isEnabled() && mailSender == null) {
-            log.warn("이메일이 활성화되어 있지만 JavaMailSender가 구성되지 않았습니다.");
+            log.error("Email is enabled but JavaMailSender is not configured");
             soarProperties.getNotification().getEmail().setEnabled(false);
         }
     }

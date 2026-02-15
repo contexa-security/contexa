@@ -20,7 +20,7 @@ public class McpToolIntegrationAdapter implements ToolIntegrationProvider {
         try {
             return mcpProvider.getMcpToolCallbacks();
         } catch (Exception e) {
-            log.warn("MCP 도구 가져오기 실패: {}", e.getMessage());
+            log.error("Failed to get MCP tools: {}", e.getMessage());
             return new ToolCallback[0];
         }
     }
@@ -35,19 +35,27 @@ public class McpToolIntegrationAdapter implements ToolIntegrationProvider {
                 }
             }
         } catch (Exception e) {
-            log.warn("MCP 도구 {} 조회 실패: {}", name, e.getMessage());
+            log.error("Failed to get MCP tool {}: {}", name, e.getMessage());
         }
         return Optional.empty();
     }
 
     @Override
     public SoarTool.RiskLevel getToolRiskLevel(String name) {
-
         if (name != null) {
-            if (name.contains("delete") || name.contains("remove")) {
+            String lower = name.toLowerCase();
+            if (lower.contains("destroy") || lower.contains("terminate") || lower.contains("wipe")) {
+                return SoarTool.RiskLevel.CRITICAL;
+            }
+            if (lower.contains("block") || lower.contains("isolate") ||
+                lower.contains("shutdown") || lower.contains("kill")) {
+                return SoarTool.RiskLevel.HIGH;
+            }
+            if (lower.contains("delete") || lower.contains("remove") ||
+                lower.contains("modify") || lower.contains("update") || lower.contains("execute")) {
                 return SoarTool.RiskLevel.MEDIUM;
             }
-            if (name.contains("search") || name.contains("query")) {
+            if (lower.contains("search") || lower.contains("query")) {
                 return SoarTool.RiskLevel.LOW;
             }
         }
@@ -71,7 +79,7 @@ public class McpToolIntegrationAdapter implements ToolIntegrationProvider {
                 names.add(callback.getToolDefinition().name());
             }
         } catch (Exception e) {
-            log.warn("MCP 도구 이름 목록 조회 실패: {}", e.getMessage());
+            log.error("Failed to get MCP tool names: {}", e.getMessage());
         }
         return names;
     }

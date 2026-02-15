@@ -50,7 +50,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             throw new DiagnosisException(
                     diagnosisType.name(),
                     "INVALID_CONTEXT",
-                    "SoarContext가 누락되었습니다"
+                    "SoarContext is missing"
             );
         }
 
@@ -60,7 +60,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             throw new DiagnosisException(
                     diagnosisType.name(),
                     "INVALID_SESSION",
-                    "세션 ID가 누락되었습니다"
+                    "Session ID is missing"
             );
         }
 
@@ -68,7 +68,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             throw new DiagnosisException(
                     diagnosisType.name(),
                     "INVALID_QUERY",
-                    "질의가 비어있습니다"
+                    "Query is empty"
             );
         }
 
@@ -76,7 +76,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             throw new DiagnosisException(
                     diagnosisType.name(),
                     "INVALID_ORGANIZATION",
-                    "조직 ID가 누락되었습니다"
+                    "Organization ID is missing"
             );
         }
 
@@ -90,7 +90,15 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
 
     @Override
     protected Object convertLabRequest(AIRequest<SoarContext> request) throws DiagnosisException {
-        return request;
+        if (request instanceof SoarRequest) {
+            return request;
+        }
+        // Convert AIRequest to SoarRequest to satisfy type contract
+        return SoarRequest.builder()
+            .context(request.getContext())
+            .templateType(request.getPromptTemplate())
+            .diagnosisType(request.getDiagnosisType())
+            .build();
     }
 
     @Override
@@ -101,7 +109,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             throw new DiagnosisException(
                     diagnosisType.name(),
                     "INVALID_LAB",
-                    "잘못된 Lab 타입: " + lab.getClass().getName()
+                    "Invalid lab type: " + lab.getClass().getName()
             );
         }
 
@@ -109,7 +117,7 @@ public class SoarDiagnosisStrategy extends AbstractAIStrategy<SoarContext, SoarR
             throw new DiagnosisException(
                     diagnosisType.name(),
                     "INVALID_REQUEST",
-                    "잘못된 요청 타입: " + labRequest.getClass().getName()
+                    "Invalid request type: " + labRequest.getClass().getName()
             );
         }
 
