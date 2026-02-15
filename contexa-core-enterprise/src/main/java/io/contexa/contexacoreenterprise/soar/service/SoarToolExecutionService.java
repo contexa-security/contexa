@@ -1,5 +1,7 @@
 package io.contexa.contexacoreenterprise.soar.service;
 
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.event.IncidentResolvedEvent;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacoreenterprise.mcp.tool.resolution.ChainedToolResolver;
@@ -8,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.context.ApplicationEventPublisher;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -20,6 +23,7 @@ public class SoarToolExecutionService {
     private final ToolCapableLLMClient toolCapableLLMClient;
     private final ChainedToolResolver toolResolver;
     private final ApprovalAwareToolCallingManagerDecorator approvalManager;
+    private final ApplicationEventPublisher eventPublisher;
 
     public Mono<String> executeWithHumanApproval(String userPrompt, String incidentId, String organizationId) {
 
@@ -35,13 +39,19 @@ public class SoarToolExecutionService {
         soarContext.setRequiresApproval(true);
         approvalManager.setCurrentContext(soarContext);
 
+        long startTime = System.currentTimeMillis();
+
         return toolCapableLLMClient.callToolCallbacks(prompt, soarToolCallbacks)
                 .doOnSuccess(result -> {
                         approvalManager.clearCurrentContext();
+                        long resolutionTimeMs = System.currentTimeMillis() - startTime;
+                        publishIncidentResolvedEvent(incidentId, resolutionTimeMs, true);
                         log.error("SOAR tool execution completed - incident: {}", incidentId);
                 })
                 .doOnError(error -> {
                         approvalManager.clearCurrentContext();
+                        long resolutionTimeMs = System.currentTimeMillis() - startTime;
+                        publishIncidentResolvedEvent(incidentId, resolutionTimeMs, false);
                         log.error("SOAR tool execution failed - incident: {}", incidentId, error);
                 });
     }
@@ -113,6 +123,27 @@ public class SoarToolExecutionService {
         } catch (Exception e) {
             log.error("Tool execution failed: {}", toolName, e);
             throw new RuntimeException("Tool execution failed: " + e.getMessage(), e);
+        }
+    }
+
+    private void publishIncidentResolvedEvent(String incidentId, long resolutionTimeMs, boolean wasSuccessful) {
+        try {
+            SecurityEvent securityEvent = SecurityEvent.builder()
+                .source(SecurityEvent.EventSource.SIEM)
+                .severity(SecurityEvent.Severity.MEDIUM)
+                .description("SOAR incident resolved: " + incidentId)
+                .build();
+            securityEvent.addMetadata("incidentId", incidentId);
+            securityEvent.addMetadata("resolutionTimeMs", resolutionTimeMs);
+
+            IncidentResolvedEvent event = new IncidentResolvedEvent(
+                this, incidentId, null, securityEvent,
+                "SOAR_AUTOMATION", "TOOL_EXECUTION",
+                resolutionTimeMs, wasSuccessful
+            );
+            eventPublisher.publishEvent(event);
+        } catch (Exception e) {
+            log.error("Failed to publish IncidentResolvedEvent: incidentId={}", incidentId, e);
         }
     }
 

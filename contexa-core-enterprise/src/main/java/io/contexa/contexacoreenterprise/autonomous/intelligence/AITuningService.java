@@ -129,21 +129,21 @@ public class AITuningService {
             if (falsePositiveRate > 0.1) {
                 adjustments.put("threshold", current.getThreshold() * 1.1);
                 adjustments.put("sensitivity", current.getSensitivity() * 0.9);
-                rationale += "오탐율이 높아 임계값 상향 조정 필요. ";
+                rationale += "High false positive rate requires threshold increase. ";
             }
 
             if (falseNegativeRate > 0.05) {
                 adjustments.put("threshold", current.getThreshold() * 0.9);
                 adjustments.put("sensitivity", current.getSensitivity() * 1.1);
-                rationale += "미탐율이 높아 민감도 상향 조정 필요. ";
+                rationale += "High false negative rate requires sensitivity increase. ";
             }
 
             if (precision < 0.8 && recall > 0.9) {
                 adjustments.put("specificity", current.getSpecificity() * 1.1);
-                rationale += "정밀도 향상을 위한 특이도 조정. ";
+                rationale += "Specificity adjustment to improve precision. ";
             } else if (recall < 0.8 && precision > 0.9) {
                 adjustments.put("specificity", current.getSpecificity() * 0.9);
-                rationale += "재현율 향상을 위한 특이도 조정. ";
+                rationale += "Specificity adjustment to improve recall. ";
             }
 
             double expectedImprovement = calculateExpectedImprovement(
@@ -177,7 +177,7 @@ public class AITuningService {
                                 successfulTunings.incrementAndGet();
                                                             }
                         },
-                        error -> log.error("모델 {} 튜닝 실패", modelId, error)
+                        error -> log.error("Model {} tuning failed", modelId, error)
                     );
             }
         });

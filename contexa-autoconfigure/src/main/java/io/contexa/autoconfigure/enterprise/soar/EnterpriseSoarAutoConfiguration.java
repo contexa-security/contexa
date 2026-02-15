@@ -178,8 +178,9 @@ public class EnterpriseSoarAutoConfiguration {
     public SoarToolExecutionService soarToolExecutionService(
             ToolCapableLLMClient toolCapableLLMClient,
             ChainedToolResolver toolResolver,
-            ApprovalAwareToolCallingManagerDecorator approvalManager) {
-        return new SoarToolExecutionService(toolCapableLLMClient, toolResolver, approvalManager);
+            ApprovalAwareToolCallingManagerDecorator approvalManager,
+            ApplicationEventPublisher eventPublisher) {
+        return new SoarToolExecutionService(toolCapableLLMClient, toolResolver, approvalManager, eventPublisher);
     }
 
     @Bean

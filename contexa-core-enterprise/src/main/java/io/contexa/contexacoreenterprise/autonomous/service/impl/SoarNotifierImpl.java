@@ -173,21 +173,21 @@ public class SoarNotifierImpl implements ISoarNotifier {
     private String generateNotificationTitle(String type, String incidentId) {
         switch (type) {
             case "APPROVAL_REQUEST":
-                return "승인 요청: 인시던트 " + incidentId;
+                return "Approval Request: Incident " + incidentId;
             case "APPROVAL_GRANTED":
-                return "승인 완료: 인시던트 " + incidentId;
+                return "Approval Granted: Incident " + incidentId;
             case "APPROVAL_REJECTED":
-                return "승인 거부: 인시던트 " + incidentId;
+                return "Approval Rejected: Incident " + incidentId;
             case "APPROVAL_TIMEOUT":
-                return "승인 시간 초과: 인시던트 " + incidentId;
+                return "Approval Timeout: Incident " + incidentId;
             case "TOOL_EXECUTED":
-                return "도구 실행 완료: 인시던트 " + incidentId;
+                return "Tool Executed: Incident " + incidentId;
             case "TOOL_FAILED":
-                return "도구 실행 실패: 인시던트 " + incidentId;
+                return "Tool Execution Failed: Incident " + incidentId;
             case "AI_ANALYSIS":
-                return "AI 분석 요청: 인시던트 " + incidentId;
+                return "AI Analysis Request: Incident " + incidentId;
             default:
-                return "알림: 인시던트 " + incidentId;
+                return "Notification: Incident " + incidentId;
         }
     }
 

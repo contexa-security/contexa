@@ -109,7 +109,7 @@ public class PolicyWorkbenchController {
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
                     .proposalId(id)
                     .success(false)
-                    .message("승인 요청 ID(requestId)가 필수입니다. 거버넌스 프로세스를 통해 승인해주세요.")
+                    .message("Approval request ID (requestId) is required. Please use the governance process to approve.")
                     .timestamp(LocalDateTime.now())
                     .build();
                 return ResponseEntity.badRequest().body(response);
@@ -158,7 +158,7 @@ public class PolicyWorkbenchController {
                 ApprovalResponseDTO response = ApprovalResponseDTO.builder()
                     .proposalId(id)
                     .success(false)
-                    .message("승인 요청 ID(requestId)가 필수입니다. 거버넌스 프로세스를 통해 거부해주세요.")
+                    .message("Approval request ID (requestId) is required. Please use the governance process to reject.")
                     .timestamp(LocalDateTime.now())
                     .build();
                 return ResponseEntity.badRequest().body(response);

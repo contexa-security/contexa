@@ -1,17 +1,19 @@
 package io.contexa.contexacoreenterprise.autonomous.labs;
 
 import io.contexa.contexacore.std.labs.AbstractAILab;
-import io.contexa.contexacoreenterprise.autonomous.helper.PolicyEvolutionHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.LearningEngineHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.MemorySystemHelper;
+import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -19,24 +21,21 @@ import java.util.concurrent.ConcurrentHashMap;
 public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyEvolutionRequest, PolicyEvolutionLab.PolicyEvolutionResponse> {
 
     private final ChatModel chatModel;
-    private final PolicyEvolutionHelper policyEvolutionHelper;
-    private final LearningEngineHelper learningEngineHelper;
-    private final MemorySystemHelper memorySystemHelper;
+    private final UnifiedVectorService unifiedVectorService;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     private final Map<String, CachedPolicy> policyCache = new ConcurrentHashMap<>();
 
     @Autowired
     public PolicyEvolutionLab(
             ChatModel chatModel,
-            PolicyEvolutionHelper policyEvolutionHelper,
-            LearningEngineHelper learningEngineHelper,
-            MemorySystemHelper memorySystemHelper) {
+            UnifiedVectorService unifiedVectorService,
+            RedisTemplate<String, Object> redisTemplate) {
 
         super("PolicyEvolutionLab");
         this.chatModel = chatModel;
-        this.policyEvolutionHelper = policyEvolutionHelper;
-        this.learningEngineHelper = learningEngineHelper;
-        this.memorySystemHelper = memorySystemHelper;
+        this.unifiedVectorService = unifiedVectorService;
+        this.redisTemplate = redisTemplate;
     }
 
     @Override
@@ -66,18 +65,13 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
 
             AnalysisResult analysis = analyzeContext(request);
 
-            return Mono.zip(
-                searchExistingPoliciesAsync(request, analysis),
-                retrieveLearningDataAsync(request)
-            )
-            .flatMap(tuple -> {
-                List<ExistingPolicy> existingPolicies = tuple.getT1();
-                LearningData learningData = tuple.getT2();
+            return searchExistingPoliciesAsync(request, analysis)
+            .flatMap(existingPolicies -> {
 
-                return evolveOrGeneratePolicyAsync(request, analysis, existingPolicies, learningData);
+                return evolveOrGeneratePolicyAsync(request, analysis, existingPolicies);
             })
             .flatMap(evolvedPolicy -> {
-                
+
                 double effectiveness = evaluatePolicyEffectiveness(evolvedPolicy, request);
 
                 return storeInMemoryAsync(evolvedPolicy, effectiveness)
@@ -85,16 +79,15 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
             });
         })
         .flatMap(mono -> mono)
-                .doOnSuccess(response -> log.error("Async policy evolution completed"))
                 .doOnError(error -> log.error("Async policy evolution failed", error));
     }
 
     @Override
     protected Flux<String> doProcessStream(PolicyEvolutionRequest request) {
-        
+
         return Flux.create(sink -> {
             try {
-                
+
                 sink.next("Analyzing context...\n");
                 AnalysisResult analysis = analyzeContext(request);
                 sink.next("Context analysis complete: " + analysis.getSummary() + "\n\n");
@@ -144,16 +137,20 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
     private AnalysisResult analyzeContext(PolicyEvolutionRequest request) {
         AnalysisResult result = new AnalysisResult();
 
-        result.setThreatLevel(analyzeThreatLevel(request.getContext()));
-
-        result.setDomain(identifyDomain(request.getContext()));
-
+        Map<String, Object> context = request.getContext();
+        result.setThreatLevel(extractFromContext(context, "threatLevel", "MEDIUM"));
+        result.setDomain(extractFromContext(context, "domain", "GENERAL"));
         result.setRequirements(extractRequirements(request));
 
         result.setSummary(String.format("ThreatLevel: %s, Domain: %s, Requirements: %d",
             result.getThreatLevel(), result.getDomain(), result.getRequirements().size()));
 
         return result;
+    }
+
+    private String extractFromContext(Map<String, Object> context, String key, String defaultValue) {
+        Object value = context.get(key);
+        return value != null ? value.toString() : defaultValue;
     }
 
     private List<ExistingPolicy> searchExistingPolicies(
@@ -168,18 +165,21 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
 
         List<ExistingPolicy> policies = new ArrayList<>();
 
-        // Use bounded blocking with timeout to prevent thread pool exhaustion
-        var recommendations = policyEvolutionHelper.recommendPolicies(request.getContext(), 5)
-            .collectList()
-            .block(java.time.Duration.ofSeconds(30));
-        if (recommendations != null) {
-            recommendations.forEach(recommendation -> {
-                policies.add(new ExistingPolicy(
-                    recommendation.getPolicyId(),
-                    recommendation.getScore(),
-                    recommendation.getDocument().getText()
-                ));
-            });
+        try {
+            String query = request.getContext().toString();
+            SearchRequest searchRequest = SearchRequest.builder()
+                .query(query)
+                .topK(5)
+                .similarityThreshold(0.7)
+                .build();
+
+            List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
+            for (Document doc : documents) {
+                String policyId = doc.getMetadata().getOrDefault("policyId", doc.getId()).toString();
+                policies.add(new ExistingPolicy(policyId, 1.0, doc.getText()));
+            }
+        } catch (Exception e) {
+            log.error("Failed to search existing policies", e);
         }
 
         policyCache.put(cacheKey, new CachedPolicy(policies));
@@ -192,19 +192,11 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
             AnalysisResult analysis,
             List<ExistingPolicy> existingPolicies) throws Exception {
 
-        EvolvedPolicy policy = new EvolvedPolicy();
-
         if (!existingPolicies.isEmpty() && request.getEvolutionMode() == EvolutionMode.ADAPTIVE) {
-            
-            policy = evolveExistingPolicy(existingPolicies.get(0), request, analysis);
+            return evolveExistingPolicy(existingPolicies.get(0), request, analysis);
         } else {
-            
-            policy = generateNewPolicy(request, analysis);
+            return generateNewPolicy(request, analysis);
         }
-
-        registerPatternToLearningEngine(policy);
-
-        return policy;
     }
 
     private EvolvedPolicy evolveExistingPolicy(
@@ -229,18 +221,13 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
             PolicyEvolutionRequest request,
             AnalysisResult analysis) throws Exception {
 
-        PolicyEvolutionHelper.GeneratedPolicy generated =
-            policyEvolutionHelper.generatePolicy(request.getContext(), analysis.getRequirements())
-                .block(java.time.Duration.ofSeconds(30));
-
-        if (generated == null) {
-            throw new RuntimeException("Policy generation failed");
-        }
+        String prompt = buildEvolutionPrompt(request, analysis, Collections.emptyList());
+        ChatResponse response = chatModel.call(new Prompt(prompt));
 
         EvolvedPolicy policy = new EvolvedPolicy();
-        policy.setPolicyId(generated.getId());
-        policy.setContent(String.join("\n", generated.getRules()));
-        policy.setConfidence(generated.getConfidence());
+        policy.setPolicyId(UUID.randomUUID().toString());
+        policy.setContent(response.getResult().getOutput().getText());
+        policy.setConfidence(0.7);
         policy.setVersion(1);
         policy.setEvolutionType("GENERATED");
 
@@ -248,34 +235,43 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
     }
 
     private double evaluatePolicyEffectiveness(EvolvedPolicy policy, PolicyEvolutionRequest request) {
-        
         double baseScore = policy.getConfidence();
 
-        double contextScore = evaluateContextFitness(policy, request);
+        List<String> requirements = request.getRequirements();
+        if (requirements == null || requirements.isEmpty() || policy.getContent() == null) {
+            return baseScore;
+        }
+
+        long matchCount = requirements.stream()
+            .filter(req -> policy.getContent().toLowerCase().contains(req.toLowerCase()))
+            .count();
+        double contextScore = (double) matchCount / requirements.size();
 
         return (baseScore + contextScore) / 2.0;
     }
 
     private void storeInMemory(EvolvedPolicy policy, double effectiveness) {
-        
+
         Map<String, Object> metadata = new HashMap<>();
         metadata.put("policyId", policy.getPolicyId());
         metadata.put("effectiveness", effectiveness);
         metadata.put("version", policy.getVersion());
         metadata.put("type", policy.getEvolutionType());
 
-        memorySystemHelper.storeInSTM(
-            "policy:" + policy.getPolicyId(),
-            policy,
-            metadata
-        ).subscribe();
+        try {
+            // Short-term cache in Redis
+            String stmKey = "policy:stm:" + policy.getPolicyId();
+            redisTemplate.opsForValue().set(stmKey, metadata, Duration.ofMinutes(30));
 
-        if (effectiveness > 0.8) {
-            memorySystemHelper.storeInLTM(
-                "policy:" + policy.getPolicyId(),
-                policy.getContent(),
-                metadata
-            ).subscribe();
+            // Long-term storage in vector store for high-effectiveness policies
+            if (effectiveness > 0.8 && policy.getContent() != null) {
+                Map<String, Object> docMetadata = new HashMap<>(metadata);
+                docMetadata.put("documentType", "POLICY_EVOLUTION");
+                Document doc = new Document(policy.getContent(), docMetadata);
+                unifiedVectorService.storeDocument(doc);
+            }
+        } catch (Exception e) {
+            log.error("Failed to store policy in memory: policyId={}", policy.getPolicyId(), e);
         }
     }
 
@@ -307,20 +303,10 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
         return Mono.fromCallable(() -> searchExistingPolicies(request, analysis));
     }
 
-    private Mono<LearningData> retrieveLearningDataAsync(PolicyEvolutionRequest request) {
-        return Mono.fromCallable(() -> {
-            
-            LearningData data = new LearningData();
-            
-            return data;
-        });
-    }
-
     private Mono<EvolvedPolicy> evolveOrGeneratePolicyAsync(
             PolicyEvolutionRequest request,
             AnalysisResult analysis,
-            List<ExistingPolicy> existingPolicies,
-            LearningData learningData) {
+            List<ExistingPolicy> existingPolicies) {
 
         return Mono.fromCallable(() -> evolveOrGeneratePolicy(request, analysis, existingPolicies));
     }
@@ -353,33 +339,13 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
         return prompt.toString();
     }
 
-    private void registerPatternToLearningEngine(EvolvedPolicy policy) {
-
-    }
-
-    private String analyzeThreatLevel(Map<String, Object> context) {
-        
-        return "MEDIUM";
-    }
-
-    private String identifyDomain(Map<String, Object> context) {
-        
-        return "AUTHENTICATION";
-    }
-
     private List<String> extractRequirements(PolicyEvolutionRequest request) {
-        
         return request.getRequirements() != null ?
             request.getRequirements() : Collections.emptyList();
     }
 
     private String generateCacheKey(PolicyEvolutionRequest request) {
         return "policy_cache_" + request.getContext().hashCode();
-    }
-
-    private double evaluateContextFitness(EvolvedPolicy policy, PolicyEvolutionRequest request) {
-        
-        return 0.75;
     }
 
     public static class PolicyEvolutionRequest {
@@ -424,9 +390,9 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
     }
 
     public enum EvolutionMode {
-        ADAPTIVE,    
-        GENERATIVE,  
-        HYBRID       
+        ADAPTIVE,
+        GENERATIVE,
+        HYBRID
     }
 
     private static class AnalysisResult {
@@ -486,7 +452,7 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
     private static class CachedPolicy {
         private final List<ExistingPolicy> policies;
         private final long timestamp;
-        private static final long CACHE_TTL = 300000; 
+        private static final long CACHE_TTL = 300000;
 
         public CachedPolicy(List<ExistingPolicy> policies) {
             this.policies = policies;
@@ -498,15 +464,5 @@ public class PolicyEvolutionLab extends AbstractAILab<PolicyEvolutionLab.PolicyE
         }
 
         public List<ExistingPolicy> getPolicies() { return policies; }
-    }
-
-    private static class LearningData {
-        private List<String> patterns;
-        private Map<String, Double> weights;
-
-        public List<String> getPatterns() { return patterns; }
-        public void setPatterns(List<String> patterns) { this.patterns = patterns; }
-        public Map<String, Double> getWeights() { return weights; }
-        public void setWeights(Map<String, Double> weights) { this.weights = weights; }
     }
 }

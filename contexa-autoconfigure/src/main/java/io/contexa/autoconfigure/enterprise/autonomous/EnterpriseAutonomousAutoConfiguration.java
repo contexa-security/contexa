@@ -1,12 +1,10 @@
 package io.contexa.autoconfigure.enterprise.autonomous;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.IPolicyProposalManagementService;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
 import io.contexa.contexacore.autonomous.monitor.PolicyProposalAnalytics;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
@@ -15,10 +13,6 @@ import io.contexa.contexacoreenterprise.autonomous.controller.PolicyWorkbenchCon
 import io.contexa.contexacoreenterprise.autonomous.evolution.*;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
-import io.contexa.contexacoreenterprise.autonomous.helper.DistributedStateManager;
-import io.contexa.contexacoreenterprise.autonomous.helper.LearningEngineHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.MemorySystemHelper;
-import io.contexa.contexacoreenterprise.autonomous.helper.PolicyEvolutionHelper;
 import io.contexa.contexacoreenterprise.autonomous.intelligence.AITuningService;
 import io.contexa.contexacoreenterprise.autonomous.labs.PolicyEvolutionLab;
 import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
@@ -28,12 +22,9 @@ import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationServ
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacoreenterprise.properties.AiTuningProperties;
 import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
-import io.contexa.contexacoreenterprise.properties.LearningEngineProperties;
-import io.contexa.contexacoreenterprise.properties.MemoryProperties;
 import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import io.contexa.contexacoreenterprise.properties.SecurityEvaluatorProperties;
-import io.contexa.contexacoreenterprise.properties.StateProperties;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -55,8 +46,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties({ ContexaProperties.class, SecurityAutonomousProperties.class,
         SecurityEvaluatorProperties.class, PolicyEvolutionProperties.class, GovernanceProperties.class,
-        AiTuningProperties.class, LearningEngineProperties.class,
-        MemoryProperties.class, StateProperties.class })
+        AiTuningProperties.class })
 public class EnterpriseAutonomousAutoConfiguration {
 
     public EnterpriseAutonomousAutoConfiguration() {
@@ -135,42 +125,11 @@ public class EnterpriseAutonomousAutoConfiguration {
     @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
     public PolicyEvolutionLab policyEvolutionLab(
             ChatModel chatModel,
-            PolicyEvolutionHelper policyEvolutionHelper,
-            LearningEngineHelper learningEngineHelper,
-            MemorySystemHelper memorySystemHelper) {
-        return new PolicyEvolutionLab(chatModel, policyEvolutionHelper, learningEngineHelper,
-                memorySystemHelper);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public PolicyEvolutionHelper policyEvolutionHelper(
             UnifiedVectorService unifiedVectorService,
-            PolicyEvolutionProperties policyEvolutionProperties) {
-        return new PolicyEvolutionHelper(unifiedVectorService, policyEvolutionProperties);
+            RedisTemplate<String, Object> redisTemplate) {
+        return new PolicyEvolutionLab(chatModel, unifiedVectorService, redisTemplate);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public LearningEngineHelper learningEngineHelper(
-            AITuningService tuningService,
-            DistributedStateManager stateManager,
-            LearningEngineProperties learningEngineProperties) {
-        return new LearningEngineHelper(tuningService, stateManager, learningEngineProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public MemorySystemHelper memorySystemHelper(
-            UnifiedVectorService unifiedVectorService,
-            DistributedStateManager stateManager,
-            RedisTemplate<String, Object> redisTemplate,
-            MemoryProperties memoryProperties) {
-        return new MemorySystemHelper(unifiedVectorService, stateManager, redisTemplate, memoryProperties);
-    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -252,13 +211,4 @@ public class EnterpriseAutonomousAutoConfiguration {
         return new SpelValidationService();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public DistributedStateManager distributedStateManager(
-            RedisTemplate<String, Object> redisTemplate,
-            RedisDistributedLockService redisDistributedLockService,
-            ObjectMapper objectMapper,
-            StateProperties stateProperties) {
-        return new DistributedStateManager(redisTemplate, redisDistributedLockService, objectMapper, stateProperties);
-    }
 }
