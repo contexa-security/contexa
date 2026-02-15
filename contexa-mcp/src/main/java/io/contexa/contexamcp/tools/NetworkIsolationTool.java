@@ -28,7 +28,7 @@ import java.util.*;
 )
 public class NetworkIsolationTool {
 
-    private static final Map<String, IsolationRule> ISOLATION_RULES = new HashMap<>();
+    private static final Map<String, IsolationRule> ISOLATION_RULES = new java.util.concurrent.ConcurrentHashMap<>();
     private static final Set<String> PROTECTED_HOSTS = Set.of(
             "127.0.0.1", "localhost", "dns-server", "domain-controller"
     );
@@ -91,18 +91,13 @@ public class NetworkIsolationTool {
 
             if (impact.severity.equals("CRITICAL")) {
 
-                if (confirmCritical == null) {
-                    log.warn("CRITICAL operation - Proceeding in auto-approval mode (SOAR System)");
-                    confirmCritical = true;
-                }
-
-                if (!Boolean.TRUE.equals(confirmCritical)) {
+                    if (!Boolean.TRUE.equals(confirmCritical)) {
                     throw new SecurityException(
                             "Critical operation requires explicit confirmation. " +
                                     "Impact: " + impact.description
                     );
                 }
-                log.error("Critical network isolation confirmed");
+                log.error("Critical network isolation confirmed by caller");
             }
 
             IsolationResult result = switch (action.toLowerCase()) {
@@ -341,7 +336,7 @@ public class NetworkIsolationTool {
             );
         }
 
-        log.error("🚨🚨EMERGENCY NETWORK SHUTDOWN EXECUTED 🚨🚨🚨");
+        log.error("EMERGENCY NETWORK SHUTDOWN EXECUTED");
 
         List<String> shutdownActions = Arrays.asList(
                 "Block all external traffic",
@@ -361,7 +356,8 @@ public class NetworkIsolationTool {
     }
 
     private boolean hasRequiredPermissions() {
-
+        // TODO: Implement RBAC permission validation against SOAR security context
+        log.error("Permission check not implemented - defaulting to allow");
         return true;
     }
 
@@ -446,12 +442,15 @@ public class NetworkIsolationTool {
 
     @Data
     @Builder
+    // Network isolation is simulated - no actual network changes are made
     public static class Response {
         private boolean success;
         private String message;
         private IsolationResult result;
         private ImpactAnalysis impact;
         private String error;
+        @Builder.Default
+        private boolean simulated = true;
     }
 
     public static class IsolationResult {

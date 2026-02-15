@@ -176,8 +176,10 @@ public class EnterpriseMcpAutoConfiguration {
 
         var completionInfo = securityCommandCompletion.createCompletionSpecification();
         if (completionInfo != null) {
+            // TODO: Convert completion specification to SyncCompletionSpecification type
+            log.error("Completion spec created but type conversion not implemented");
         } else {
-            log.warn("  Failed to generate Completion info");
+            log.error("Failed to generate Completion info");
         }
 
         return completions;

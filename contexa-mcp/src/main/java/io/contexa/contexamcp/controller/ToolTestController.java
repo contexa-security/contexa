@@ -4,6 +4,7 @@ import io.contexa.contexamcp.tools.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,7 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-
+@RestController
+@Profile("dev")
 @RequestMapping("/api/tools")
 @RequiredArgsConstructor
 public class ToolTestController {

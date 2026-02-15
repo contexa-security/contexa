@@ -3,7 +3,6 @@ package io.contexa.autoconfigure.enterprise.soar;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import io.contexa.contexacoreenterprise.properties.ToolProperties;
-import io.contexa.contexacoreenterprise.config.NotificationConfig;
 import io.contexa.contexacoreenterprise.soar.tool.provider.SoarToolIntegrationProvider;
 import io.contexa.contexacoreenterprise.soar.strategy.SoarDiagnosisStrategy;
 import io.contexa.contexacoreenterprise.soar.service.SoarToolExecutionService;
@@ -37,7 +36,7 @@ import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacoreenterprise.soar.notification.SoarEmailService;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
-import io.contexa.contexacoreenterprise.config.NotificationConfig.NotificationTargetManager;
+import io.contexa.autoconfigure.enterprise.soar.NotificationAutoConfiguration.NotificationTargetManager;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.repository.SoarApprovalRequestRepository;
@@ -52,7 +51,6 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -103,8 +101,8 @@ public class EnterpriseSoarAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public NotificationConfig.NotificationTargetManager notificationTargetManager() {
-        return new NotificationConfig.NotificationTargetManager();
+    public NotificationAutoConfiguration.NotificationTargetManager notificationTargetManager() {
+        return new NotificationAutoConfiguration.NotificationTargetManager();
     }
 
     @Bean

@@ -80,7 +80,7 @@ public class IpBlockingTool {
             }
 
             if (isInternalIp(ipAddress)) {
-                log.warn("Cannot block internal IP address: {}", ipAddress);
+                log.error("Cannot block internal IP address: {}", ipAddress);
                 return Response.builder()
                         .success(false)
                         .message("Cannot block internal IP address")
@@ -138,7 +138,7 @@ public class IpBlockingTool {
             }
 
         } catch (IllegalArgumentException e) {
-            log.warn("Invalid input for IP blocking: {}", e.getMessage());
+            log.error("Invalid input for IP blocking: {}", e.getMessage());
             return Response.builder()
                     .success(false)
                     .message("Invalid input: " + e.getMessage())
@@ -182,6 +182,7 @@ public class IpBlockingTool {
 
     @Data
     @Builder
+    // Blocking is performed via Redis - no actual firewall rules are modified
     public static class Response {
         private boolean success;
         private String message;
@@ -190,5 +191,7 @@ public class IpBlockingTool {
         private String blockedAt;
         private String expiresAt;
         private String ruleId;
+        @Builder.Default
+        private boolean simulated = true;
     }
 }

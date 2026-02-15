@@ -70,11 +70,11 @@ public class ProcessKillTool {
         long startTime = System.currentTimeMillis();
 
         if (processId == null && (processName == null || processName.trim().isEmpty())) {
-            log.warn("Process info not specified - SOAR system default processing");
+            log.error("Process info not specified - SOAR system default processing");
             processName = "cryptominer.exe";
         }
 
-        log.warn("Process kill request: pid={}, name={}, action={}",
+        log.error("Process kill request: pid={}, name={}, action={}",
                 processId, processName, action);
 
         try {
@@ -93,7 +93,7 @@ public class ProcessKillTool {
                             "Cannot kill protected process without force flag: " + processInfo.name
                     );
                 }
-                log.warn("Attempted forced kill of protected process: {}", processInfo.name);
+                log.error("Attempted forced kill of protected process: {}", processInfo.name);
             }
 
             KillResult result = switch (action.toLowerCase()) {
@@ -251,7 +251,8 @@ public class ProcessKillTool {
     }
 
     private boolean hasRequiredPermissions() {
-
+        // TODO: Implement RBAC permission validation against SOAR security context
+        log.error("Permission check not implemented - defaulting to allow");
         return true;
     }
 
@@ -282,11 +283,14 @@ public class ProcessKillTool {
 
     @Data
     @Builder
+    // Process operations are simulated - no actual OS processes are affected
     public static class Response {
         private boolean success;
         private String message;
         private KillResult result;
         private String error;
+        @Builder.Default
+        private boolean simulated = true;
     }
 
     @Data

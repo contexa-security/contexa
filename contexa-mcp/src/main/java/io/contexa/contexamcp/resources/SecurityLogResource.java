@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -113,7 +114,7 @@ public class SecurityLogResource {
             }
             
         } catch (Exception e) {
-            log.warn("Failed to read log file, using sample data: {}", e.getMessage());
+            log.error("Failed to read log file, using sample data: {}", e.getMessage(), e);
         }
         
         return String.join("\n", logs);
@@ -183,8 +184,9 @@ public class SecurityLogResource {
             }
             
         } catch (Exception e) {
-                    }
-        
+            log.error("Failed to read actual security logs", e);
+        }
+
         return logs;
     }
 
@@ -203,11 +205,13 @@ public class SecurityLogResource {
             }
             
             if (!logs.isEmpty()) {
-                            }
-            
+                log.error("Read {} system security log entries", logs.size());
+            }
+
         } catch (Exception e) {
-                    }
-        
+            log.error("Failed to read system security logs", e);
+        }
+
         return logs;
     }
 
@@ -240,10 +244,16 @@ public class SecurityLogResource {
                 " | Select-Object TimeCreated, Id, LevelDisplayName, Message | Format-Table -Wrap");
             
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                log.error("Windows security log read timed out");
+                return logs;
+            }
+
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream(), "UTF-8"))) {
-                
+
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (!line.trim().isEmpty() && !line.contains("TimeCreated")) {
@@ -253,10 +263,11 @@ public class SecurityLogResource {
                     }
                 }
             }
-            
+
         } catch (Exception e) {
-                    }
-        
+            log.error("Failed to read Windows security logs", e);
+        }
+
         return logs;
     }
 
@@ -277,10 +288,16 @@ public class SecurityLogResource {
                     
                     ProcessBuilder pb = new ProcessBuilder("tail", "-n", String.valueOf(limit), logSource);
                     Process process = pb.start();
-                    
+                    boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+                    if (!completed) {
+                        process.destroyForcibly();
+                        log.error("Linux security log read timed out for: {}", logSource);
+                        continue;
+                    }
+
                     try (BufferedReader reader = new BufferedReader(
                             new InputStreamReader(process.getInputStream()))) {
-                        
+
                         String line;
                         while ((line = reader.readLine()) != null) {
                             if (severity.equals("all") || containsSeverity(line, severity)) {
@@ -288,16 +305,17 @@ public class SecurityLogResource {
                             }
                         }
                     }
-                    
+
                     if (!logs.isEmpty()) {
-                        break; 
+                        break;
                     }
                 }
             }
             
         } catch (Exception e) {
-                    }
-        
+            log.error("Failed to read Linux security logs", e);
+        }
+
         return logs;
     }
 
@@ -312,13 +330,19 @@ public class SecurityLogResource {
                 "--style", "syslog");
             
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                log.error("Mac security log read timed out");
+                return logs;
+            }
+
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()))) {
-                
+
                 String line;
                 int count = 0;
-                
+
                 while ((line = reader.readLine()) != null && count < limit) {
                     if (severity.equals("all") || containsSeverity(line, severity)) {
                         logs.add(line);
@@ -326,10 +350,11 @@ public class SecurityLogResource {
                     }
                 }
             }
-            
+
         } catch (Exception e) {
-                    }
-        
+            log.error("Failed to read Mac security logs", e);
+        }
+
         return logs;
     }
 

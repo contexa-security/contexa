@@ -73,7 +73,7 @@ public class ThreatIntelligenceTool {
                 if (validTypes.contains(indicatorType.toLowerCase())) {
                     detectedType = indicatorType.toLowerCase();
                 } else {
-                    log.warn("Invalid indicatorType '{}' - using auto-detection", indicatorType);
+                    log.error("Invalid indicatorType '{}' - using auto-detection", indicatorType);
                     detectedType = detectIndicatorType(indicator);
                 }
             } else {
@@ -129,7 +129,7 @@ public class ThreatIntelligenceTool {
                     .build();
 
         } catch (Exception e) {
-            log.error("위협 인텔리전스 조회 실패", e);
+            log.error("Threat intelligence query failed", e);
 
             SecurityToolUtils.recordMetric("threat_intelligence", "error_count", 1);
 
@@ -151,7 +151,7 @@ public class ThreatIntelligenceTool {
             Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
 
             if (!validTypes.contains(indicatorType.toLowerCase())) {
-                log.warn("Invalid indicator type '{}' - falling back to auto-detection", indicatorType);
+                log.error("Invalid indicator type '{}' - falling back to auto-detection", indicatorType);
 
             }
         }
@@ -373,6 +373,7 @@ public class ThreatIntelligenceTool {
 
     @Data
     @Builder
+    // Threat data is simulated from internal database - no external feeds connected
     public static class Response {
         private boolean success;
         private String message;
@@ -384,6 +385,8 @@ public class ThreatIntelligenceTool {
         private List<String> recommendations;
         private String queryTime;
         private String error;
+        @Builder.Default
+        private boolean simulated = true;
     }
 
     @Data

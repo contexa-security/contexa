@@ -113,7 +113,7 @@ public class NetworkScanTool {
 
         if (!isValidTarget(target)) {
 
-            log.warn("Invalid target format: '{}'. IP address or CIDR format required.", target);
+            log.error("Invalid target format: '{}'. IP address or CIDR format required.", target);
             throw new IllegalArgumentException(
                     String.format("Invalid target format: '%s'. Expected IP address (e.g., 192.168.1.1) or CIDR notation (e.g., 192.168.1.0/24)",
                             target)
@@ -379,12 +379,15 @@ public class NetworkScanTool {
 
     @Data
     @Builder
+    // Scan results are simulated - no actual network scanning is performed
     public static class Response {
         private boolean success;
         private String message;
         private List<ScanResult> results;
         private ThreatAnalysis threatAnalysis;
         private String error;
+        @Builder.Default
+        private boolean simulated = true;
     }
 
     public static class ScanResult {

@@ -56,8 +56,11 @@ public class SecurityToolUtils {
                 .collect(Collectors.joining(", "));
             auditEntry.put("parameters", params);
         }
-        
-            }
+
+        // TODO: Integrate with persistent audit store (e.g., AuditLogService)
+        log.error("AUDIT: tool={}, action={}, user={}, params={}",
+                toolName, action, auditEntry.get("user"), auditEntry.get("parameters"));
+    }
 
     public static void auditLog(String toolName, String message) {
         auditLog(toolName, message, null);
@@ -77,15 +80,17 @@ public class SecurityToolUtils {
         
         switch (severity.toUpperCase()) {
             case "CRITICAL":
-                log.error("SECURITY EVENT: {}", event);
+                log.error("CRITICAL SECURITY EVENT: {}", event);
                 break;
             case "HIGH":
-                log.warn("SECURITY EVENT: {}", event);
+                log.error("HIGH SECURITY EVENT: {}", event);
                 break;
             case "MEDIUM":
-                                break;
+                log.error("MEDIUM SECURITY EVENT: {}", event);
+                break;
             default:
-                        }
+                log.error("SECURITY EVENT [{}]: {}", severity, event);
+        }
     }
 
     public static boolean isValidIpv4Address(String ip) {
@@ -199,10 +204,11 @@ public class SecurityToolUtils {
         long duration = System.currentTimeMillis() - startTime;
         
         if (duration > 5000) {
-            log.warn("SLOW OPERATION: Tool={}, Operation={}, Duration={}ms", 
+            log.error("SLOW OPERATION: Tool={}, Operation={}, Duration={}ms",
                     toolName, operation, duration);
         } else {
-                    }
+            log.error("Tool={}, Operation={}, Duration={}ms", toolName, operation, duration);
+        }
     }
 
     public static void requireNonEmpty(String value, String fieldName) {
@@ -227,7 +233,8 @@ public class SecurityToolUtils {
     }
 
     public static void recordMetric(String toolName, String metricName, Object value) {
-                
+        // TODO: Integrate with metrics system (e.g., Micrometer)
+        log.error("METRIC: tool={}, metric={}, value={}", toolName, metricName, value);
     }
 
     public static Map<String, Object> formatResult(boolean success, String message, 

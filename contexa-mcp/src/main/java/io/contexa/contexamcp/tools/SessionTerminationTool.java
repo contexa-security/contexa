@@ -61,7 +61,7 @@ public class SessionTerminationTool {
 
             if (userId == null || userId.trim().isEmpty()) {
 
-                log.warn("User ID not specified - SOAR system default processing");
+                log.error("User ID not specified - SOAR system default processing");
                 userId = "admin@company.com";
             }
 
@@ -167,6 +167,7 @@ public class SessionTerminationTool {
 
     @Data
     @Builder
+    // Session termination uses Redis-based session store - no OS-level session management
     public static class Response {
         private boolean success;
         private String message;
@@ -176,6 +177,8 @@ public class SessionTerminationTool {
         private List<SessionDetail> sessionDetails;
         private String timestamp;
         private String error;
+        @Builder.Default
+        private boolean simulated = true;
     }
 
     @Data

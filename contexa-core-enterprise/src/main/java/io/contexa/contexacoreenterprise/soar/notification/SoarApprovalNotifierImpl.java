@@ -1,8 +1,8 @@
 package io.contexa.contexacoreenterprise.soar.notification;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.autoconfigure.enterprise.soar.NotificationAutoConfiguration;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
-import io.contexa.contexacoreenterprise.config.NotificationConfig.NotificationTargetManager;
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
@@ -27,7 +27,7 @@ public class SoarApprovalNotifierImpl implements SoarApprovalNotifier {
     private final @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerMessagingTemplate;
     private final SoarEmailService emailService;
     private final McpApprovalNotificationService mcpNotificationService;
-    private final NotificationTargetManager targetManager;
+    private final NotificationAutoConfiguration.NotificationTargetManager targetManager;
     private final SoarProperties soarProperties;
 
     @Autowired

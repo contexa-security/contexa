@@ -11,8 +11,10 @@ import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.StringJoiner;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -57,15 +59,16 @@ public class AuditLogQueryTool {
             @ToolParam(description = "Max result count (default: 100, max: 1000)", required = false)
             Integer limit
     ) {
-        long startTime = System.currentTimeMillis();
+        long operationStart = System.currentTimeMillis();
 
         try {
 
-            if (!StringUtils.hasText(userId) && !StringUtils.hasText(ipAddress)) {
-                log.warn("No search criteria provided");
+            if (!StringUtils.hasText(userId) && !StringUtils.hasText(ipAddress)
+                    && !StringUtils.hasText(dateFrom) && !StringUtils.hasText(dateTo)) {
+                log.error("No search criteria provided");
                 return Response.builder()
                         .success(false)
-                        .message("At least one search criteria (userId or ipAddress) is required")
+                        .message("At least one search criteria (userId, ipAddress, or date range) is required")
                         .logs(Collections.emptyList())
                         .totalCount(0)
                         .build();
@@ -73,19 +76,18 @@ public class AuditLogQueryTool {
 
             int effectiveLimit = (limit != null && limit > 0 && limit <= 1000) ? limit : 100;
 
-            List<AuditLogService.AuditLog> logs;
-            String searchCriteria;
+            Instant startTime = StringUtils.hasText(dateFrom) ? Instant.parse(dateFrom) : null;
+            Instant endTime = StringUtils.hasText(dateTo) ? Instant.parse(dateTo) : null;
 
-            if (StringUtils.hasText(userId)) {
-                logs = auditLogService.findByUserId(userId, effectiveLimit);
-                searchCriteria = "userId=" + userId;
-            } else if (StringUtils.hasText(ipAddress)) {
-                logs = auditLogService.findByIpAddress(ipAddress, effectiveLimit);
-                searchCriteria = "ipAddress=" + ipAddress;
-            } else {
-                logs = Collections.emptyList();
-                searchCriteria = "none";
-            }
+            List<AuditLogService.AuditLog> logs = auditLogService.findByCombinedFilters(
+                    userId, ipAddress, startTime, endTime, effectiveLimit);
+
+            StringJoiner criteriaJoiner = new StringJoiner(", ");
+            if (StringUtils.hasText(userId)) criteriaJoiner.add("userId=" + userId);
+            if (StringUtils.hasText(ipAddress)) criteriaJoiner.add("ipAddress=" + ipAddress);
+            if (startTime != null) criteriaJoiner.add("from=" + dateFrom);
+            if (endTime != null) criteriaJoiner.add("to=" + dateTo);
+            String searchCriteria = criteriaJoiner.toString();
 
             String threatLevel = analyzeThreatLevel(logs);
             ThreatAnalysis analysis = performDetailedAnalysis(logs);
@@ -102,7 +104,7 @@ public class AuditLogQueryTool {
             SecurityToolUtils.recordMetric("audit_log_query", "execution_count", 1);
             SecurityToolUtils.recordMetric("audit_log_query", "results_count", logs.size());
             SecurityToolUtils.recordMetric("audit_log_query", "execution_time_ms",
-                    System.currentTimeMillis() - startTime);
+                    System.currentTimeMillis() - operationStart);
 
             return Response.builder()
                     .success(true)

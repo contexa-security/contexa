@@ -408,6 +408,7 @@ public class LogAnalysisTool {
 
     @Data
     @Builder
+    // Log analysis uses generated sample data - no actual log files are analyzed
     public static class Response {
         private boolean success;
         private String message;
@@ -415,6 +416,8 @@ public class LogAnalysisTool {
         private ThreatAssessment threatAssessment;
         private List<TimelineEvent> timeline;
         private String error;
+        @Builder.Default
+        private boolean simulated = true;
     }
 
     public static class LogEntry {

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import java.io.Serializable;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -34,7 +35,7 @@ public class IpBlockingService {
         try {
             
             if (isWhitelisted(ipAddress)) {
-                log.warn("Cannot block whitelisted IP: {}", ipAddress);
+                log.error("Cannot block whitelisted IP: {}", ipAddress);
                 return BlockResult.builder()
                     .success(false)
                     .ipAddress(ipAddress)
@@ -141,7 +142,7 @@ public class IpBlockingService {
                                 return true;
             }
             
-            log.warn("IP was not blocked: {}", ipAddress);
+            log.error("IP was not blocked: {}", ipAddress);
             return false;
             
         } catch (Exception e) {
@@ -184,15 +185,27 @@ public class IpBlockingService {
         if (blockedIps == null) {
             return Collections.emptyList();
         }
-        
-        return blockedIps.stream()
-            .map(ip -> {
-                String blockKey = BLOCKED_IP_KEY_PREFIX + ip;
-                return (BlockedIpInfo) redisTemplate.opsForValue().get(blockKey);
-            })
-            .filter(Objects::nonNull)
-            .filter(BlockedIpInfo::isActive)
-            .collect(Collectors.toList());
+
+        List<Object> staleMembers = new ArrayList<>();
+        List<BlockedIpInfo> result = new ArrayList<>();
+
+        for (Object ip : blockedIps) {
+            String blockKey = BLOCKED_IP_KEY_PREFIX + ip;
+            BlockedIpInfo info = (BlockedIpInfo) redisTemplate.opsForValue().get(blockKey);
+            if (info == null) {
+                staleMembers.add(ip);
+            } else if (info.isActive()) {
+                result.add(info);
+            }
+        }
+
+        // Lazy cleanup: remove stale set members whose data keys have expired
+        if (!staleMembers.isEmpty()) {
+            redisTemplate.opsForSet().remove(BLOCKED_IP_SET_KEY, staleMembers.toArray());
+            log.error("Cleaned up {} stale blocked IP set members", staleMembers.size());
+        }
+
+        return result;
     }
 
     public List<BlockedRangeInfo> getBlockedRanges() {
@@ -200,21 +213,34 @@ public class IpBlockingService {
         if (blockedRanges == null) {
             return Collections.emptyList();
         }
-        
-        return blockedRanges.stream()
-            .map(range -> {
-                String rangeKey = BLOCKED_RANGE_KEY_PREFIX + range.toString().replace("/", "_");
-                return (BlockedRangeInfo) redisTemplate.opsForValue().get(rangeKey);
-            })
-            .filter(Objects::nonNull)
-            .filter(BlockedRangeInfo::isActive)
-            .collect(Collectors.toList());
+
+        List<Object> staleMembers = new ArrayList<>();
+        List<BlockedRangeInfo> result = new ArrayList<>();
+
+        for (Object range : blockedRanges) {
+            String rangeKey = BLOCKED_RANGE_KEY_PREFIX + range.toString().replace("/", "_");
+            BlockedRangeInfo info = (BlockedRangeInfo) redisTemplate.opsForValue().get(rangeKey);
+            if (info == null) {
+                staleMembers.add(range);
+            } else if (info.isActive()) {
+                result.add(info);
+            }
+        }
+
+        // Lazy cleanup: remove stale set members whose data keys have expired
+        if (!staleMembers.isEmpty()) {
+            redisTemplate.opsForSet().remove(BLOCKED_RANGE_SET_KEY, staleMembers.toArray());
+            log.error("Cleaned up {} stale blocked range set members", staleMembers.size());
+        }
+
+        return result;
     }
 
     public BlockingStatistics getStatistics() {
         int blockedIps = getBlockedIps().size();
         int blockedRanges = getBlockedRanges().size();
-        int whitelistedIps = redisTemplate.opsForSet().size(WHITELIST_IP_KEY).intValue();
+        Long whitelistSize = redisTemplate.opsForSet().size(WHITELIST_IP_KEY);
+        int whitelistedIps = whitelistSize != null ? whitelistSize.intValue() : 0;
         
         return BlockingStatistics.builder()
             .totalBlockedIps(blockedIps)

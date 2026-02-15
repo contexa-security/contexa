@@ -4,8 +4,8 @@ server:
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/identity
-    username: admin
-    password: 1111
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:}
     hikari:
       auto-commit: false
     driver-class-name: org.postgresql.Driver

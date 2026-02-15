@@ -10,9 +10,12 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.RuntimeMXBean;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.time.Instant;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -143,7 +146,7 @@ public class SystemInfoResource {
             return "UNKNOWN";
             
         } catch (Exception e) {
-            log.warn("Firewall status check failed: {}", e.getMessage());
+            log.error("Firewall status check failed: {}", e.getMessage(), e);
             return "ERROR";
         }
     }
@@ -163,7 +166,7 @@ public class SystemInfoResource {
             return "UNKNOWN";
             
         } catch (Exception e) {
-            log.warn("Antivirus status check failed: {}", e.getMessage());
+            log.error("Antivirus status check failed: {}", e.getMessage(), e);
             return "ERROR";
         }
     }
@@ -178,15 +181,16 @@ public class SystemInfoResource {
             return Instant.now().minusSeconds(3600).toString();
             
         } catch (Exception e) {
-            log.warn("Last security scan time query failed: {}", e.getMessage());
+            log.error("Last security scan time query failed: {}", e.getMessage(), e);
             return Instant.now().minusSeconds(86400).toString(); 
         }
     }
     
     private int getNetworkInterfaceCount() {
         try {
-            return java.net.NetworkInterface.getNetworkInterfaces().asIterator().next() != null ? 1 : 0;
+            return Collections.list(NetworkInterface.getNetworkInterfaces()).size();
         } catch (Exception e) {
+            log.error("Failed to count network interfaces", e);
             return 0;
         }
     }
@@ -204,7 +208,7 @@ public class SystemInfoResource {
             return 0;
             
         } catch (Exception e) {
-            log.warn("Open ports count check failed: {}", e.getMessage());
+            log.error("Open ports count check failed: {}", e.getMessage(), e);
             return 0;
         }
     }
@@ -222,7 +226,7 @@ public class SystemInfoResource {
             return 0;
             
         } catch (Exception e) {
-            log.warn("Active connections count check failed: {}", e.getMessage());
+            log.error("Active connections count check failed: {}", e.getMessage(), e);
             return 0;
         }
     }
@@ -251,47 +255,54 @@ public class SystemInfoResource {
         try {
             ProcessBuilder pb = new ProcessBuilder("netsh", "advfirewall", "show", "allprofiles", "state");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return "TIMEOUT";
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 String line;
                 boolean hasEnabled = false;
-                
                 while ((line = reader.readLine()) != null) {
                     if (line.contains("State") && line.contains("ON")) {
                         hasEnabled = true;
                         break;
                     }
                 }
-                
                 return hasEnabled ? "ENABLED" : "DISABLED";
             }
-            
         } catch (Exception e) {
-                        return "UNKNOWN";
+            log.error("Windows firewall check failed", e);
+            return "UNKNOWN";
         }
     }
 
     private String checkLinuxFirewall() {
         try {
-            
             ProcessBuilder pb = new ProcessBuilder("systemctl", "is-active", "firewalld");
             Process process = pb.start();
-            int exitCode = process.waitFor();
-            
-            if (exitCode == 0) {
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return "TIMEOUT";
+            }
+            if (process.exitValue() == 0) {
                 return "ENABLED";
             }
 
             pb = new ProcessBuilder("iptables", "-L", "-n");
             process = pb.start();
-            exitCode = process.waitFor();
-            
-            return exitCode == 0 ? "ENABLED" : "DISABLED";
-            
+            completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return "TIMEOUT";
+            }
+            return process.exitValue() == 0 ? "ENABLED" : "DISABLED";
         } catch (Exception e) {
-                        return "UNKNOWN";
+            log.error("Linux firewall check failed", e);
+            return "UNKNOWN";
         }
     }
 
@@ -299,10 +310,14 @@ public class SystemInfoResource {
         try {
             ProcessBuilder pb = new ProcessBuilder("sudo", "pfctl", "-s", "info");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return "TIMEOUT";
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (line.contains("Status: Enabled")) {
@@ -310,24 +325,26 @@ public class SystemInfoResource {
                     }
                 }
             }
-            
             return "DISABLED";
-            
         } catch (Exception e) {
-                        return "UNKNOWN";
+            log.error("Mac firewall check failed", e);
+            return "UNKNOWN";
         }
     }
 
     private String checkWindowsAntivirus() {
         try {
-            
-            ProcessBuilder pb = new ProcessBuilder("powershell", 
+            ProcessBuilder pb = new ProcessBuilder("powershell",
                 "Get-MpComputerStatus | Select-Object RealTimeProtectionEnabled");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return "TIMEOUT";
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (line.contains("True")) {
@@ -337,37 +354,41 @@ public class SystemInfoResource {
                     }
                 }
             }
-            
             return "UNKNOWN";
-            
         } catch (Exception e) {
-                        return "UNKNOWN";
+            log.error("Windows antivirus check failed", e);
+            return "UNKNOWN";
         }
     }
 
     private String checkLinuxAntivirus() {
         try {
-            
             ProcessBuilder pb = new ProcessBuilder("systemctl", "is-active", "clamav-daemon");
             Process process = pb.start();
-            int exitCode = process.waitFor();
-            
-            return exitCode == 0 ? "ACTIVE" : "INACTIVE";
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return "TIMEOUT";
+            }
+            return process.exitValue() == 0 ? "ACTIVE" : "INACTIVE";
         } catch (Exception e) {
-                        return "UNKNOWN";
+            log.error("Linux antivirus check failed", e);
+            return "UNKNOWN";
         }
     }
 
     private String checkMacAntivirus() {
         try {
-            
             ProcessBuilder pb = new ProcessBuilder("system_profiler", "SPInstallHistoryDataType");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return "TIMEOUT";
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (line.contains("XProtect")) {
@@ -375,41 +396,41 @@ public class SystemInfoResource {
                     }
                 }
             }
-            
             return "UNKNOWN";
-            
         } catch (Exception e) {
-                        return "UNKNOWN";
+            log.error("Mac antivirus check failed", e);
+            return "UNKNOWN";
         }
     }
 
     private String getWindowsDefenderLastScan() {
         try {
-            ProcessBuilder pb = new ProcessBuilder("powershell", 
+            ProcessBuilder pb = new ProcessBuilder("powershell",
                 "Get-MpComputerStatus | Select-Object QuickScanStartTime,FullScanStartTime");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return Instant.now().minusSeconds(3600).toString();
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 String line;
                 String lastScan = null;
-                
                 while ((line = reader.readLine()) != null) {
                     if (line.contains("QuickScanStartTime") || line.contains("FullScanStartTime")) {
-                        
                         String[] parts = line.split(":");
                         if (parts.length > 1) {
                             lastScan = parts[1].trim();
                         }
                     }
                 }
-                
                 return lastScan != null ? lastScan : Instant.now().minusSeconds(3600).toString();
             }
-            
         } catch (Exception e) {
-                        return Instant.now().minusSeconds(3600).toString();
+            log.error("Windows Defender last scan query failed", e);
+            return Instant.now().minusSeconds(3600).toString();
         }
     }
 
@@ -417,17 +438,21 @@ public class SystemInfoResource {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-an");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return 0;
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 return (int) reader.lines()
                     .filter(line -> line.contains("LISTENING"))
                     .count();
             }
-            
         } catch (Exception e) {
-                        return 0;
+            log.error("Windows open ports check failed", e);
+            return 0;
         }
     }
 
@@ -435,17 +460,21 @@ public class SystemInfoResource {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-ln");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return 0;
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 return (int) reader.lines()
                     .filter(line -> line.contains("LISTEN"))
                     .count();
             }
-            
         } catch (Exception e) {
-                        return 0;
+            log.error("Unix open ports check failed", e);
+            return 0;
         }
     }
 
@@ -453,17 +482,21 @@ public class SystemInfoResource {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-an");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return 0;
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 return (int) reader.lines()
                     .filter(line -> line.contains("ESTABLISHED"))
                     .count();
             }
-            
         } catch (Exception e) {
-                        return 0;
+            log.error("Windows active connections check failed", e);
+            return 0;
         }
     }
 
@@ -471,17 +504,21 @@ public class SystemInfoResource {
         try {
             ProcessBuilder pb = new ProcessBuilder("netstat", "-n");
             Process process = pb.start();
-            
+            boolean completed = process.waitFor(30, TimeUnit.SECONDS);
+            if (!completed) {
+                process.destroyForcibly();
+                return 0;
+            }
+
             try (java.io.BufferedReader reader = new java.io.BufferedReader(
                     new java.io.InputStreamReader(process.getInputStream()))) {
-                
                 return (int) reader.lines()
                     .filter(line -> line.contains("ESTABLISHED"))
                     .count();
             }
-            
         } catch (Exception e) {
-                        return 0;
+            log.error("Unix active connections check failed", e);
+            return 0;
         }
     }
 }

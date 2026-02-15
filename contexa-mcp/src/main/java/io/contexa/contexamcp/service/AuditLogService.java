@@ -9,10 +9,13 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -23,6 +26,7 @@ import java.util.UUID;
 public class AuditLogService {
     
     private final JdbcTemplate jdbcTemplate;
+    private final ObjectMapper objectMapper;
 
     @Transactional
     public void saveAuditLog(AuditLog auditLog) {
@@ -40,13 +44,13 @@ public class AuditLogService {
             auditLog.getUsername() != null ? auditLog.getUsername() : auditLog.getUserId(),
             auditLog.getResourceId(),
             auditLog.getAction(),
-            "ALLOW",  
+            auditLog.getDecision() != null ? auditLog.getDecision() : "ALLOW",
             auditLog.getErrorMessage() != null ? auditLog.getErrorMessage() : "N/A",
             auditLog.getIpAddress(),
             auditLog.getErrorMessage(),
             auditLog.getResult(),
             auditLog.getResourceType(),
-            auditLog.getMetadata() != null ? auditLog.getMetadata().toString() : "{}",
+            serializeMetadata(auditLog.getMetadata()),
             auditLog.getSessionId(),
             auditLog.getResult()
         );
@@ -161,7 +165,35 @@ public class AuditLogService {
             Timestamp.from(startTime), Timestamp.from(endTime));
     }
 
-    public void auditToolExecution(String toolName, String userId, String action, 
+    public List<AuditLog> findByCombinedFilters(String userId, String ipAddress,
+                                                Instant startTime, Instant endTime, int limit) {
+        StringBuilder sql = new StringBuilder("SELECT * FROM audit_log WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+
+        if (userId != null && !userId.isBlank()) {
+            sql.append(" AND principal_name = ?");
+            params.add(userId);
+        }
+        if (ipAddress != null && !ipAddress.isBlank()) {
+            sql.append(" AND client_ip = ?");
+            params.add(ipAddress);
+        }
+        if (startTime != null) {
+            sql.append(" AND timestamp >= ?");
+            params.add(Timestamp.from(startTime));
+        }
+        if (endTime != null) {
+            sql.append(" AND timestamp <= ?");
+            params.add(Timestamp.from(endTime));
+        }
+
+        sql.append(" ORDER BY timestamp DESC LIMIT ?");
+        params.add(limit);
+
+        return jdbcTemplate.query(sql.toString(), new AuditLogRowMapper(), params.toArray());
+    }
+
+    public void auditToolExecution(String toolName, String userId, String action,
                                   boolean success, Map<String, Object> metadata) {
         AuditLog auditLog = AuditLog.builder()
             .timestamp(Instant.now())
@@ -171,6 +203,7 @@ public class AuditLogService {
             .resourceType("TOOL")
             .resourceId(toolName)
             .result(success ? "SUCCESS" : "FAILURE")
+            .decision(success ? "ALLOW" : "DENY")
             .metadata(metadata)
             .build();
         
@@ -223,5 +256,18 @@ public class AuditLogService {
         private String errorMessage;
         private String sessionId;
         private Map<String, Object> metadata;
+        private String decision;
+    }
+
+    private String serializeMetadata(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return "{}";
+        }
+        try {
+            return objectMapper.writeValueAsString(metadata);
+        } catch (Exception e) {
+            log.error("Failed to serialize metadata to JSON", e);
+            return "{}";
+        }
     }
 }

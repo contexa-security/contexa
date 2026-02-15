@@ -28,7 +28,7 @@ import java.util.*;
 )
 public class FileQuarantineTool {
 
-    private static final Map<String, QuarantinedFile> QUARANTINE_VAULT = new HashMap<>();
+    private static final Map<String, QuarantinedFile> QUARANTINE_VAULT = new java.util.concurrent.ConcurrentHashMap<>();
     private static final String QUARANTINE_PATH = "/var/quarantine/";
 
     @Tool(
@@ -67,12 +67,21 @@ public class FileQuarantineTool {
     ) {
         long startTime = System.currentTimeMillis();
 
-        if (!"list".equals(action.toLowerCase()) && (filePath == null || filePath.trim().isEmpty())) {
-            log.warn("File path not specified - SOAR system default processing");
-            filePath = "C:\\Windows\\Temp\\cryptominer.exe";
+        if (action == null || action.trim().isEmpty()) {
+            return Response.builder()
+                    .success(false)
+                    .message("Action parameter is required")
+                    .build();
         }
 
-        log.warn("File quarantine request - Action: {}, Path: {}, Reason: {}",
+        if (!"list".equals(action.toLowerCase()) && (filePath == null || filePath.trim().isEmpty())) {
+            return Response.builder()
+                    .success(false)
+                    .message("File path is required for action: " + action)
+                    .build();
+        }
+
+        log.error("File quarantine request - Action: {}, Path: {}, Reason: {}",
                 action, filePath, reason);
 
         try {
@@ -112,21 +121,21 @@ public class FileQuarantineTool {
                     .build();
 
         } catch (SecurityException e) {
-            log.error("보안 정책 위반", e);
+            log.error("Security policy violation", e);
             return Response.builder()
                     .success(false)
                     .message("Security policy violation: " + e.getMessage())
                     .error(e.getMessage())
                     .build();
         } catch (IllegalArgumentException e) {
-            log.warn("잘못된 입력", e);
+            log.error("Invalid input", e);
             return Response.builder()
                     .success(false)
                     .message("Invalid input: " + e.getMessage())
                     .error(e.getMessage())
                     .build();
         } catch (Exception e) {
-            log.error("파일 격리 실패", e);
+            log.error("File quarantine failed", e);
 
             SecurityToolUtils.recordMetric("file_quarantine", "error_count", 1);
 
@@ -263,7 +272,8 @@ public class FileQuarantineTool {
     }
 
     private boolean hasRequiredPermissions() {
-
+        // TODO: Implement RBAC permission validation against SOAR security context
+        log.error("Permission check not implemented - defaulting to allow");
         return true;
     }
 
@@ -311,11 +321,14 @@ public class FileQuarantineTool {
 
     @Data
     @Builder
+    // Quarantine operations are simulated in-memory - no actual file system changes
     public static class Response {
         private boolean success;
         private String message;
         private QuarantineResult result;
         private String error;
+        @Builder.Default
+        private boolean simulated = true;
     }
 
     @Data

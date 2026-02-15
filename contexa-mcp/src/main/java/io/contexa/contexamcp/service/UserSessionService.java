@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -54,12 +53,26 @@ public class UserSessionService {
             return Collections.emptyList();
         }
         
-        return sessionIds.stream()
-            .map(id -> SESSION_KEY_PREFIX + id)
-            .map(key -> (SessionInfo) redisTemplate.opsForValue().get(key))
-            .filter(Objects::nonNull)
-            .filter(SessionInfo::isActive)
-            .collect(Collectors.toList());
+        List<Object> staleSessionIds = new ArrayList<>();
+        List<SessionInfo> result = new ArrayList<>();
+
+        for (Object id : sessionIds) {
+            String sessionKey = SESSION_KEY_PREFIX + id;
+            SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
+            if (session == null) {
+                staleSessionIds.add(id);
+            } else if (session.isActive()) {
+                result.add(session);
+            }
+        }
+
+        // Lazy cleanup: remove stale session IDs whose session keys have expired
+        if (!staleSessionIds.isEmpty()) {
+            redisTemplate.opsForSet().remove(userSessionsKey, staleSessionIds.toArray());
+            log.error("Cleaned up {} stale session index entries for user {}", staleSessionIds.size(), userId);
+        }
+
+        return result;
     }
 
     public boolean terminateSession(String sessionId) {
@@ -67,7 +80,7 @@ public class UserSessionService {
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
         
         if (session == null) {
-            log.warn("Session not found: {}", sessionId);
+            log.error("Session not found: {}", sessionId);
             return false;
         }
 
@@ -97,10 +110,14 @@ public class UserSessionService {
     public void refreshSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
         SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
-        
+
         if (session != null && session.isActive()) {
             session.setLastAccessedAt(Instant.now());
             redisTemplate.opsForValue().set(sessionKey, session, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+
+            // Sync user session index TTL with session TTL
+            String userSessionsKey = USER_SESSIONS_KEY_PREFIX + session.getUserId();
+            redisTemplate.expire(userSessionsKey, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
         }
     }
 
@@ -111,8 +128,36 @@ public class UserSessionService {
     }
 
     public void cleanupExpiredSessions() {
-        
+        Set<String> userSessionKeys = redisTemplate.keys(USER_SESSIONS_KEY_PREFIX + "*");
+        if (userSessionKeys == null || userSessionKeys.isEmpty()) {
+            return;
+        }
+
+        int totalCleaned = 0;
+        for (String userSessionsKey : userSessionKeys) {
+            Set<Object> sessionIds = redisTemplate.opsForSet().members(userSessionsKey);
+            if (sessionIds == null || sessionIds.isEmpty()) {
+                continue;
             }
+
+            List<Object> staleIds = new ArrayList<>();
+            for (Object id : sessionIds) {
+                String sessionKey = SESSION_KEY_PREFIX + id;
+                if (Boolean.FALSE.equals(redisTemplate.hasKey(sessionKey))) {
+                    staleIds.add(id);
+                }
+            }
+
+            if (!staleIds.isEmpty()) {
+                redisTemplate.opsForSet().remove(userSessionsKey, staleIds.toArray());
+                totalCleaned += staleIds.size();
+            }
+        }
+
+        if (totalCleaned > 0) {
+            log.error("Expired session cleanup completed: removed {} stale entries", totalCleaned);
+        }
+    }
 
     @Data
     @Builder

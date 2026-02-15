@@ -37,7 +37,7 @@ public class SimpleToolEventListener {
         }
 
         if (event.isCritical()) {
-            log.warn("CRITICAL: High-risk tool executed - Name: {}, User: {}, Success: {}",
+            log.error("CRITICAL: High-risk tool executed - Name: {}, User: {}, Success: {}",
                 toolName,
                 event.getUserId(),
                 event.isSuccess());
