@@ -96,7 +96,7 @@ public class ChallengeMfaInitializer {
             if (updatedContext != null) {
                 context = updatedContext;
             } else {
-                log.warn("Could not load updated context from state machine, setting availableFactors manually for session: {}", mfaSessionId);
+                log.error("Could not load updated context from state machine, setting availableFactors manually for session: {}", mfaSessionId);
                 AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();
                 if (mfaFlow != null) {
                     Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlow.getRegisteredFactorOptions().keySet());
@@ -108,7 +108,7 @@ public class ChallengeMfaInitializer {
 
             FactorContext refreshedContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
             if (refreshedContext == null) {
-                log.warn("FactorContext could not be loaded from state machine for session: {}, returning local context", mfaSessionId);
+                log.error("FactorContext could not be loaded from state machine for session: {}, returning local context", mfaSessionId);
                 return context;
             }
 
@@ -193,7 +193,7 @@ public class ChallengeMfaInitializer {
     private void setCurrentStepId(FactorContext context, AuthType factorType) {
         AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();
         if (mfaFlow == null) {
-            log.warn("MFA FlowConfig not found, stepId will not be set for session: {}", context.getMfaSessionId());
+            log.error("MFA FlowConfig not found, stepId will not be set for session: {}", context.getMfaSessionId());
             return;
         }
 
@@ -205,7 +205,7 @@ public class ChallengeMfaInitializer {
         if (stepConfig != null) {
             context.setCurrentStepId(stepConfig.getStepId());
         } else {
-            log.warn("No step config found for factor: {} in session: {}",
+            log.error("No step config found for factor: {} in session: {}",
                     factorType, context.getMfaSessionId());
         }
     }
@@ -244,30 +244,21 @@ public class ChallengeMfaInitializer {
     }
 
     private String getClientIpAddress(HttpServletRequest request) {
-        String[] headers = {
-                "X-Forwarded-For", "Proxy-Client-IP", "WL-Proxy-Client-IP",
-                "HTTP_X_FORWARDED_FOR", "HTTP_X_FORWARDED", "HTTP_X_CLUSTER_CLIENT_IP",
-                "HTTP_CLIENT_IP", "HTTP_FORWARDED_FOR", "HTTP_FORWARDED", "HTTP_VIA", "REMOTE_ADDR"
-        };
-
-        for (String header : headers) {
-            String ip = request.getHeader(header);
-            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
-                return ip.split(",")[0].trim();
-            }
-        }
-
         return request.getRemoteAddr();
     }
 
     private void cleanupFailedSession(String mfaSessionId, HttpServletRequest request, HttpServletResponse response) {
         try {
+            stateMachineIntegrator.releaseStateMachine(mfaSessionId);
+        } catch (Exception e) {
+            log.error("Failed to cleanup state machine for session: {}", mfaSessionId, e);
+        }
+        try {
             if (sessionRepository.existsSession(mfaSessionId)) {
-                stateMachineIntegrator.releaseStateMachine(mfaSessionId);
                 sessionRepository.removeSession(mfaSessionId, request, response);
             }
         } catch (Exception e) {
-            log.warn("Failed to cleanup failed challenge session: {}", mfaSessionId, e);
+            log.error("Failed to cleanup session repository for session: {}", mfaSessionId, e);
         }
     }
 

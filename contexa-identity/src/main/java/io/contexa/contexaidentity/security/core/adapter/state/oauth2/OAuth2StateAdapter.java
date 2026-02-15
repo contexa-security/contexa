@@ -64,7 +64,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
             OAuth2TokenService tokenService = appContext.getBean(OAuth2TokenService.class);
             http.setSharedObject(TokenService.class, tokenService);
         } catch (NoSuchBeanDefinitionException e) {
-            log.warn("OAuth2StateAdapter [{}]: OAuth2TokenService bean not found. " +
+            log.error("OAuth2StateAdapter [{}]: OAuth2TokenService bean not found. " +
                     "Token operations may not be available.", getId());
         }
 
@@ -111,7 +111,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
 
     private void configureLogout(HttpSecurity http, ApplicationContext appContext) throws Exception {
         try {
-            LogoutHandler logoutHandler = appContext.getBean("oauth2LogoutHandler", LogoutHandler.class);
+            LogoutHandler logoutHandler = appContext.getBean("compositeLogoutHandler", LogoutHandler.class);
             LogoutSuccessHandler logoutSuccessHandler = appContext.getBean("oauth2LogoutSuccessHandler", LogoutSuccessHandler.class);
 
             http.setSharedObject(LogoutHandler.class, logoutHandler);
@@ -126,7 +126,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
             );
 
         } catch (NoSuchBeanDefinitionException e) {
-            log.warn("OAuth2StateAdapter: Logout handlers not found. Using default logout configuration.");
+            log.error("OAuth2StateAdapter: Logout handlers not found. Using default logout configuration.");
         }
     }
 }

@@ -87,9 +87,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         SecurityContextRepository securityContextRepository = resolveSecurityContextRepository(
                 stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow
         );
-        if (http.getSharedObject(SecurityContextRepository.class) == null) {
-            http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
-        }
+        http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
 
         if (stateType != StateType.SESSION) {
             http.sessionManagement(session -> session
@@ -151,7 +149,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                     return appContext.getBean(MfaFactorProcessingSuccessHandler.class);
                 }
             }
-            log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
+            log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, returning PrimaryAuthenticationSuccessHandler as fallback", getId());
             return appContext.getBean(PrimaryAuthenticationSuccessHandler.class);
         } else {
             if (stateType == StateType.SESSION) {
@@ -195,7 +193,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             AuthContextProperties properties = appContext.getBean(AuthContextProperties.class);
             return properties.getStateType();
         } catch (Exception e) {
-            log.warn("Failed to get AuthContextProperties, using JWT as default StateType", e);
+            log.error("Failed to get AuthContextProperties, using JWT as default StateType", e);
             return StateType.OAUTH2;
         }
     }
@@ -231,7 +229,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 }
             }
 
-            log.warn("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using NullSecurityContextRepository as fallback", getId());
+            log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using NullSecurityContextRepository as fallback", getId());
             return new NullSecurityContextRepository();
         } else {
 

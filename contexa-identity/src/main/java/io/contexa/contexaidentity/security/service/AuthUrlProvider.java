@@ -46,6 +46,7 @@ public class AuthUrlProvider {
 
     public void updateFactorOptions(@Nullable Map<AuthType, AuthenticationProcessingOptions> options) {
         if (options != null && !options.isEmpty()) {
+            this.factorOptionsMap.clear();
             this.factorOptionsMap.putAll(options);
         }
     }

@@ -46,7 +46,7 @@ public class HeaderCookieTokenStrategy extends AbstractTokenTransportStrategy im
                     .httpOnly(HTTP_ONLY)
                     .secure(cookieSecureFlag)
                     .sameSite(SAME_SITE)
-                    .maxAge((int) refreshTokenValidity / 1000)
+                    .maxAge((int) (refreshTokenValidity / 1000))
                     .build();
             cookiesToSet.add(refreshCookie);
             body.put("refreshExpiresIn", refreshTokenValidity);

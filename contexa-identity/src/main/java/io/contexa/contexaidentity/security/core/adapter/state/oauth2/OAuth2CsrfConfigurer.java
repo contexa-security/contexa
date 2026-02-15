@@ -16,9 +16,9 @@ public final class OAuth2CsrfConfigurer extends AbstractHttpConfigurer<OAuth2Csr
 
     @Override
     public void init(HttpSecurity http) throws Exception {
-        if (oauth2Csrf) {
+        if (!oauth2Csrf) {
             http.csrf(AbstractHttpConfigurer::disable);
         }
-        log.error("OAuth2CsrfConfigurer: CSRF {}", oauth2Csrf ? "disabled for OAuth2 mode" : "enabled");
+        log.error("OAuth2CsrfConfigurer: CSRF {}", oauth2Csrf ? "enabled" : "disabled for OAuth2 mode");
     }
 }

@@ -90,8 +90,8 @@ public class OAuth2TokenService implements TokenService {
                 HttpServletRequest req = requestAttributes.getRequest();
                 HttpServletResponse res = requestAttributes.getResponse();
 
-                builder.attribute("request", req);
-                builder.attribute("response", res);
+                builder.attribute(HttpServletRequest.class.getName(), req);
+                builder.attribute(HttpServletResponse.class.getName(), res);
             }
         } catch (Exception ex) {
             log.error("Failed to extract HttpServletRequest/Response from RequestContextHolder", ex);
@@ -311,16 +311,12 @@ public class OAuth2TokenService implements TokenService {
 
     @Override
     public String resolveAccessToken(HttpServletRequest request) {
-        String bearerToken = request.getHeader(ACCESS_TOKEN_HEADER);
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith(BEARER_PREFIX)) {
-            return bearerToken.substring(BEARER_PREFIX.length());
-        }
-        return null;
+        return transportStrategy.resolveAccessToken(request);
     }
 
     @Override
     public String resolveRefreshToken(HttpServletRequest request) {
-        return request.getHeader(REFRESH_TOKEN_HEADER);
+        return transportStrategy.resolveRefreshToken(request);
     }
 
     @Override

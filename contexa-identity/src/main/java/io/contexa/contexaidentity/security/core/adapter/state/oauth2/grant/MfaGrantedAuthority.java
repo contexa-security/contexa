@@ -4,6 +4,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.util.Assert;
 
 import java.io.Serial;
+import java.util.Objects;
 
 public class MfaGrantedAuthority implements GrantedAuthority {
 
@@ -11,7 +12,9 @@ public class MfaGrantedAuthority implements GrantedAuthority {
     private static final long serialVersionUID = 1L;
     private String role;
 
-    public MfaGrantedAuthority() {}
+    public MfaGrantedAuthority() {
+        this.role = "";
+    }
     public MfaGrantedAuthority(String role) {
         Assert.hasText(role, "A granted authority textual representation is required");
         this.role = role;
@@ -27,14 +30,14 @@ public class MfaGrantedAuthority implements GrantedAuthority {
             return true;
         }
         if (obj instanceof MfaGrantedAuthority sga) {
-            return this.role.equals(sga.getAuthority());
+            return Objects.equals(this.role, sga.getAuthority());
         }
         return false;
     }
 
     @Override
     public int hashCode() {
-        return this.role.hashCode();
+        return this.role != null ? this.role.hashCode() : 0;
     }
 
     @Override

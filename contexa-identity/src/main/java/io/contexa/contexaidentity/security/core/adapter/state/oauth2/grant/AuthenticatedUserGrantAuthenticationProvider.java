@@ -24,6 +24,7 @@ import org.springframework.util.Assert;
 
 import java.security.Principal;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class AuthenticatedUserGrantAuthenticationProvider implements AuthenticationProvider {
@@ -69,13 +70,15 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
 
         String username = authenticationToken.getUsername();
         Users user = loadUserFromDatabase(username);
-        Authentication userAuthentication = createAuthenticatedUser(user, registeredClient.getScopes());
+
+        Set<String> authorizedScopes = resolveAuthorizedScopes(authenticationToken, registeredClient);
+        Authentication userAuthentication = createAuthenticatedUser(user, authorizedScopes);
 
         DefaultOAuth2TokenContext.Builder tokenContextBuilder = DefaultOAuth2TokenContext.builder()
                 .registeredClient(registeredClient)
                 .principal(userAuthentication)
                 .authorizationServerContext(AuthorizationServerContextHolder.getContext())
-                .authorizedScopes(registeredClient.getScopes())
+                .authorizedScopes(authorizedScopes)
                 .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
                 .tokenType(OAuth2TokenType.ACCESS_TOKEN)
                 .authorizationGrant(authenticationToken);
@@ -121,7 +124,7 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
                 .withRegisteredClient(registeredClient)
                 .principalName(userAuthentication.getName())
                 .authorizationGrantType(AuthenticatedUserGrantAuthenticationToken.AUTHENTICATED_USER)
-                .authorizedScopes(registeredClient.getScopes())
+                .authorizedScopes(authorizedScopes)
                 .attribute(Principal.class.getName(), userAuthentication);
 
         if (authenticationToken.getDeviceId() != null) {
@@ -170,6 +173,22 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
         throw new OAuth2AuthenticationException(OAuth2ErrorCodes.INVALID_CLIENT);
     }
 
+    private Set<String> resolveAuthorizedScopes(AuthenticatedUserGrantAuthenticationToken token,
+                                                RegisteredClient registeredClient) {
+        Set<String> allowedScopes = registeredClient.getScopes();
+        Object scopeParam = token.getAdditionalParameters().get("scope");
+        if (scopeParam instanceof String scopeStr && !scopeStr.isBlank()) {
+            Set<String> requestedScopes = new LinkedHashSet<>(Arrays.asList(scopeStr.split("\\s+")));
+            Set<String> intersected = requestedScopes.stream()
+                    .filter(allowedScopes::contains)
+                    .collect(Collectors.toSet());
+            if (!intersected.isEmpty()) {
+                return intersected;
+            }
+        }
+        return allowedScopes;
+    }
+
     private Users loadUserFromDatabase(String username) {
         return userRepository.findByUsernameWithGroupsRolesAndPermissions(username)
                 .orElseThrow(() -> {
@@ -194,7 +213,7 @@ public class AuthenticatedUserGrantAuthenticationProvider implements Authenticat
 
         return new UsernamePasswordAuthenticationToken(
                 user.getUsername(),
-                user.getPassword(),
+                null,
                 allAuthorities);
     }
 }

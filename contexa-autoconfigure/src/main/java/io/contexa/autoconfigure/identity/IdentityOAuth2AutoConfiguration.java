@@ -309,7 +309,10 @@ public class IdentityOAuth2AutoConfiguration {
                 var authorities = context.getPrincipal().getAuthorities();
                 if (authorities != null && !authorities.isEmpty()) {
                     var roles = authorities.stream()
-                            .map(grantedAuthority -> grantedAuthority.getAuthority())
+                            .map(grantedAuthority -> {
+                                String auth = grantedAuthority.getAuthority();
+                                return auth.startsWith("ROLE_") ? auth.substring(5) : auth;
+                            })
                             .toList();
                     context.getClaims().claim("roles", roles);
                 }

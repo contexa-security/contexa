@@ -153,6 +153,12 @@ public class OAuth2TokenValidator implements TokenValidator {
     private Collection<GrantedAuthority> extractAuthorities(Jwt jwt) {
 
         List<String> scopes = jwt.getClaimAsStringList("scope");
+        if (scopes == null) {
+            String scopeString = jwt.getClaimAsString("scope");
+            if (scopeString != null && !scopeString.isBlank()) {
+                scopes = java.util.Arrays.asList(scopeString.split("\\s+"));
+            }
+        }
         Collection<GrantedAuthority> scopeAuthorities = scopes != null ?
                 scopes.stream()
                         .map(scope -> new SimpleGrantedAuthority("SCOPE_" + scope))
@@ -162,7 +168,8 @@ public class OAuth2TokenValidator implements TokenValidator {
         List<String> roles = jwt.getClaimAsStringList("roles");
         Collection<GrantedAuthority> roleAuthorities = roles != null ?
                 roles.stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .map(role -> new SimpleGrantedAuthority(
+                                role.startsWith("ROLE_") ? role : "ROLE_" + role))
                         .collect(Collectors.toList()) :
                 List.of();
 

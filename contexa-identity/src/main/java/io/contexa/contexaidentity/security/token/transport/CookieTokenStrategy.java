@@ -36,7 +36,7 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
                     .httpOnly(HTTP_ONLY)
                     .secure(cookieSecureFlag)
                     .sameSite(SAME_SITE)
-                    .maxAge((int) accessTokenValidity / 1000)
+                    .maxAge((int) (accessTokenValidity / 1000))
                     .build();
             cookiesToSet.add(accessCookie);
         }
@@ -47,7 +47,7 @@ public class CookieTokenStrategy extends AbstractTokenTransportStrategy implemen
                     .httpOnly(HTTP_ONLY)
                     .secure(cookieSecureFlag)
                     .sameSite(SAME_SITE)
-                    .maxAge((int) refreshTokenValidity / 1000)
+                    .maxAge((int) (refreshTokenValidity / 1000))
                     .build();
             cookiesToSet.add(refreshCookie);
         }

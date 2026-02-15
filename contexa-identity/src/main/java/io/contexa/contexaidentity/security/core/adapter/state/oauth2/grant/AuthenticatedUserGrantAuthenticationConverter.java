@@ -33,9 +33,6 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
 
         Authentication clientPrincipal = SecurityContextHolder.getContext().getAuthentication();
 
-        if (log.isDebugEnabled()) {
-                    }
-
         if (clientPrincipal == null) {
             log.error("Client authentication is null - OAuth2ClientAuthenticationFilter may not have executed");
             throwError(OAuth2ErrorCodes.INVALID_CLIENT,
@@ -56,9 +53,6 @@ public class AuthenticatedUserGrantAuthenticationConverter implements Authentica
             throwError(OAuth2ErrorCodes.INVALID_CLIENT,
                     "Client authentication failed - client is not authenticated");
         }
-
-        if (log.isDebugEnabled()) {
-                    }
 
         MultiValueMap<String, String> parameters = OAuth2EndpointUtils.getParameters(request);
 

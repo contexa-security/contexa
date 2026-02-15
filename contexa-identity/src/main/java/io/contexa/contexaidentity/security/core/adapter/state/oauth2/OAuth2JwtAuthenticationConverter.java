@@ -38,7 +38,8 @@ public class OAuth2JwtAuthenticationConverter implements Converter<Jwt, Abstract
             Collection<String> roles = jwt.getClaimAsStringList("roles");
             if (roles != null && !roles.isEmpty()) {
                 return roles.stream()
-                        .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        .map(role -> new SimpleGrantedAuthority(
+                                role.startsWith("ROLE_") ? role : "ROLE_" + role))
                         .collect(Collectors.toSet());
             }
 

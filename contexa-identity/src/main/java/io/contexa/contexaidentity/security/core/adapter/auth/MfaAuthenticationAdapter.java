@@ -36,7 +36,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
     private ApplicationContext applicationContext; 
 
     public MfaAuthenticationAdapter() {
-        log.warn("MfaAuthenticationAdapter created using default constructor. ApplicationContext might not be available.");
+        log.error("MfaAuthenticationAdapter created using default constructor. ApplicationContext might not be available.");
     }
 
     public MfaAuthenticationAdapter(ApplicationContext applicationContext) {
@@ -75,7 +75,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
         try {
             emailOttService = applicationContext.getBean(EmailOneTimeTokenService.class);
         } catch (Exception e) {
-            log.warn("EmailOneTimeTokenService bean not found, MfaContinuationFilter will be created without it (some features like OTT challenge initiation might be affected).");
+            log.error("EmailOneTimeTokenService bean not found, MfaContinuationFilter will be created without it (some features like OTT challenge initiation might be affected).");
         }
 
         Assert.notNull(mfaPolicyProvider, "MfaPolicyProvider not found for MFA flow.");
@@ -136,7 +136,7 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
         RequestMatcher mfaFactorProcessingMatcherForWrapper;
         if (factorProcessingMatchers.isEmpty()) {
-            log.warn("MfaAuthenticationAdapter: No specific factor processing URLs found for MfaStepFilterWrapper in flow '{}'. The wrapper might not match any requests.", currentFlow.getTypeName());
+            log.error("MfaAuthenticationAdapter: No specific factor processing URLs found for MfaStepFilterWrapper in flow '{}'. The wrapper might not match any requests.", currentFlow.getTypeName());
             
             mfaFactorProcessingMatcherForWrapper = request -> false;
         } else {
