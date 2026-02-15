@@ -213,8 +213,6 @@ public class PolicyEvolutionGovernance {
             adjustedOrdinal = Math.min(adjustedOrdinal + 2, PolicyEvolutionProposal.RiskLevel.CRITICAL.ordinal());
         } else if (riskScore > 0.3) {
             adjustedOrdinal = Math.min(adjustedOrdinal + 1, PolicyEvolutionProposal.RiskLevel.CRITICAL.ordinal());
-        } else if (riskScore < -0.1) {
-            adjustedOrdinal = Math.max(adjustedOrdinal - 1, PolicyEvolutionProposal.RiskLevel.LOW.ordinal());
         }
         
         return PolicyEvolutionProposal.RiskLevel.values()[adjustedOrdinal];

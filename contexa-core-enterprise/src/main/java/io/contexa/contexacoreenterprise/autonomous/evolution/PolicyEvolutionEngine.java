@@ -65,9 +65,9 @@ public class PolicyEvolutionEngine {
             PolicyEvolutionProposal proposal = generateProposal(event, metadata, context, similarCases);
 
             if (proposal.getConfidenceScore() == null) {
-                proposal.setConfidenceScore(0.5);
+                proposal.setConfidenceScore(policyEvolutionProperties.getConfidence().getThreshold());
             }
-            proposal.setRiskLevel(PolicyEvolutionProposal.RiskLevel.MEDIUM);
+            proposal.setRiskLevel(mapSeverityToRiskLevel(event.getSeverity()));
 
             storeLearningData(event, metadata, proposal);
 
@@ -170,6 +170,19 @@ public class PolicyEvolutionEngine {
         };
     }
 
+    private PolicyEvolutionProposal.RiskLevel mapSeverityToRiskLevel(SecurityEvent.Severity severity) {
+        if (severity == null) {
+            return PolicyEvolutionProposal.RiskLevel.MEDIUM;
+        }
+        return switch (severity) {
+            case CRITICAL -> PolicyEvolutionProposal.RiskLevel.CRITICAL;
+            case HIGH -> PolicyEvolutionProposal.RiskLevel.HIGH;
+            case MEDIUM -> PolicyEvolutionProposal.RiskLevel.MEDIUM;
+            case LOW -> PolicyEvolutionProposal.RiskLevel.LOW;
+            default -> PolicyEvolutionProposal.RiskLevel.MEDIUM;
+        };
+    }
+
     public Mono<PolicyEvolutionProposal> evolvePolicyAsync(SecurityEvent event, LearningMetadata metadata) {
         return Mono.fromCallable(() -> evolvePolicy(event, metadata))
                 .doOnError(e -> log.error("Async policy evolution failed", e));
@@ -204,7 +217,7 @@ public class PolicyEvolutionEngine {
             SearchRequest searchRequest = SearchRequest.builder()
                 .query(query)
                 .topK(policyEvolutionProperties.getMax().getContextSize())
-                .similarityThreshold(0.7)
+                .similarityThreshold(policyEvolutionProperties.getThreshold())
                 .build();
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
 

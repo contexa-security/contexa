@@ -4,6 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Data
 @ConfigurationProperties(prefix = "governance")
 public class GovernanceProperties {
@@ -13,6 +16,9 @@ public class GovernanceProperties {
     private MultiApprovalSettings multiApproval = new MultiApprovalSettings();
     @NestedConfigurationProperty
     private CriticalSettings critical = new CriticalSettings();
+
+    // Approver configuration per level: STANDARD=id:name:email, SENIOR=id:name:email, EXECUTIVE=id:name:email
+    private Map<String, String> approvers = new HashMap<>();
 
     @Data
     public static class AutoApproveSettings {

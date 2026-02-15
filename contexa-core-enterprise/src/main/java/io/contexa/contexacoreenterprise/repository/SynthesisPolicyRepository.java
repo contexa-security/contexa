@@ -12,6 +12,12 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+/**
+ * In-memory policy cache backed by ConcurrentHashMap.
+ * Primary persistence is handled by IAM PolicyService via PolicyActivationEventListener.
+ * This repository serves as a read-optimized query cache for the Policy Workbench UI.
+ * Data is volatile and will be lost on server restart - rebuild from IAM PolicyService if needed.
+ */
 @Slf4j
 @Repository
 public class SynthesisPolicyRepository {

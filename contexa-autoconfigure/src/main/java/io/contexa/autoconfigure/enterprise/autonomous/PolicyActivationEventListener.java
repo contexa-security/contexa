@@ -93,37 +93,6 @@ public class PolicyActivationEventListener {
         }
     }
 
-    @EventListener
-    @Async
-    @Transactional
-    public void handlePolicyRolledBackEvent(PolicyActivationServiceImpl.PolicyChangeEvent event) {
-        if (event.getChangeType() != PolicyActivationServiceImpl.PolicyChangeType.ROLLED_BACK) {
-            return;
-        }
-
-        Long proposalId = event.getProposalId();
-
-        try {
-            PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "PolicyEvolutionProposal not found: proposalId=" + proposalId));
-
-            if (proposal.getPolicyId() != null) {
-
-                policyService.deletePolicy(proposal.getPolicyId());
-
-                proposal.setPolicyId(null);
-                proposalRepository.save(proposal);
-            } else {
-                log.error("No Policy to rollback: proposalId={}", proposalId);
-            }
-
-        } catch (Exception e) {
-            log.error("AI policy rollback failed: proposalId={}, error={}",
-                    proposalId, e.getMessage(), e);
-        }
-    }
-
     private void reactivateExistingPolicy(PolicyEvolutionProposal proposal) {
         try {
             Policy existingPolicy = policyService.findById(proposal.getPolicyId());

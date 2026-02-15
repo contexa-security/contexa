@@ -115,6 +115,18 @@ public class PolicyWorkbenchController {
                 return ResponseEntity.badRequest().body(response);
             }
 
+            PolicyApprovalService.ApprovalWorkflow workflow = approvalService.findWorkflowByProposalId(id);
+            if (workflow == null || workflow.getRequest(request.getRequestId()) == null) {
+                log.error("Request does not belong to proposal: requestId={}, proposalId={}", request.getRequestId(), id);
+                return ResponseEntity.badRequest().body(
+                    ApprovalResponseDTO.builder()
+                        .proposalId(id)
+                        .success(false)
+                        .message("Request does not belong to this proposal")
+                        .timestamp(LocalDateTime.now())
+                        .build());
+            }
+
             PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
                 request.getRequestId(),
                 request.getApproverId(),
@@ -164,6 +176,18 @@ public class PolicyWorkbenchController {
                 return ResponseEntity.badRequest().body(response);
             }
 
+            PolicyApprovalService.ApprovalWorkflow workflow = approvalService.findWorkflowByProposalId(id);
+            if (workflow == null || workflow.getRequest(request.getRequestId()) == null) {
+                log.error("Request does not belong to proposal: requestId={}, proposalId={}", request.getRequestId(), id);
+                return ResponseEntity.badRequest().body(
+                    ApprovalResponseDTO.builder()
+                        .proposalId(id)
+                        .success(false)
+                        .message("Request does not belong to this proposal")
+                        .timestamp(LocalDateTime.now())
+                        .build());
+            }
+
             PolicyApprovalService.ApprovalResult result = approvalService.processApproval(
                 request.getRequestId(),
                 request.getApproverId(),
@@ -195,8 +219,8 @@ public class PolicyWorkbenchController {
         }
     }
 
-    @GetMapping("/proposals/{id}/impact")
-    public ResponseEntity<ImpactAnalysisDTO> analyzeImpact(@PathVariable Long id) {
+    @PostMapping("/proposals/{id}/evaluate")
+    public ResponseEntity<ImpactAnalysisDTO> evaluateProposal(@PathVariable Long id) {
                 
         try {
             PolicyEvolutionProposal proposal = proposalRepository.findById(id)
@@ -249,7 +273,6 @@ public class PolicyWorkbenchController {
             }
 
             PolicyProposalAnalytics.DashboardStatistics stats = analyticsService.generateDashboardStatistics();
-            PolicyProposalAnalytics.TrendAnalysis trends = analyticsService.analyzeTrends(days);
 
             Map<String, Integer> proposalsByTypeConverted = new HashMap<>();
             if (stats.getProposalsByType() != null) {

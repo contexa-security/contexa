@@ -9,8 +9,6 @@ import org.springframework.boot.context.properties.NestedConfigurationProperty;
 public class PolicyEvolutionProperties {
     private boolean enabled = true;
     private double threshold = 0.75;
-    private int minSamples = 10;
-    private int retentionDays = 90;
     @NestedConfigurationProperty
     private ConfidenceSettings confidence = new ConfidenceSettings();
     @NestedConfigurationProperty

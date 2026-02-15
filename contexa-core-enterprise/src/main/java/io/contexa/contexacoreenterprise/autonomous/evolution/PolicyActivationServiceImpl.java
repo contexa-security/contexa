@@ -170,13 +170,12 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         PolicyEvolutionProposal proposal = proposalRepository.findById(task.getProposalId())
             .orElseThrow(() -> new IllegalStateException("Proposal not found"));
 
-        publishPolicyChangeEvent(proposal, PolicyChangeType.ACTIVATED);
-
         proposal.setStatus(ProposalStatus.ACTIVATED);
         proposal.setActivatedAt(LocalDateTime.now());
         proposal.setActivatedBy(task.getActivatedBy());
-
         proposalRepository.save(proposal);
+
+        publishPolicyChangeEvent(proposal, PolicyChangeType.ACTIVATED);
     }
 
     private void verifyActivation(ActivationTask task) throws Exception {
@@ -251,8 +250,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
 
     public enum PolicyChangeType {
         ACTIVATED,
-        DEACTIVATED,
-        ROLLED_BACK
+        DEACTIVATED
     }
 
     public static class ActivationException extends Exception {

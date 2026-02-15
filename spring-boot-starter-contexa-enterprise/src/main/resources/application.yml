@@ -1,0 +1,113 @@
+contexa:
+  hcad:
+    enable-simulated-user-agent: true
+
+logging:
+  level:
+    io.contexa.contexacore.std.pipeline.streaming: DEBUG
+    io.contexa.contexacore.std.streaming: DEBUG
+    io.contexa.contexacore.std.llm: DEBUG
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/identity
+    username: admin
+    password: 1111
+    driver-class-name: org.postgresql.Driver
+
+  auth:
+    token-transport-type: header_cookie
+    oauth2-csrf: true
+
+  ai:
+    chat:
+      model:
+        priority: ollama,anthropic,openai
+
+      embedding:
+        model:
+          priority: ollama,openai
+
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:sk-ant-dummy-key-for-disabled}
+      chat:
+        enabled: false
+        options:
+          model: claude-sonnet-4-20250514
+          temperature: 0.3
+#
+    ollama:
+      base-url: http://127.0.0.1:11434
+      embedding:
+        enabled: true
+        model: mxbai-embed-large
+      chat:
+        options:
+          model: qwen2.5:14b
+          temperature: 0.3
+          timeout: 10s
+#
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-dummy-key}
+      base-url: https://api.openai.com
+      chat:
+        enabled: false
+      embedding:
+        enabled: false
+        options:
+          model: text-embedding-3-small
+#
+#    # TieredLLMProperties mapping (contexa-core/config/TieredLLMProperties.java)
+#    # AI Native v6.7 2-Tier LLM System (2026-01 Refactoring)
+#    # - Layer 1: Lightweight local model (llama3.1:8b, 95% traffic)
+#    # - Layer 2: High-performance model (exaone3.5:latest, 5% traffic, ESCALATE)
+#    security:
+#      layer1:
+#        model: qwen2.5:14b  # Layer 1: Lightweight local model
+#      layer2:
+#        model: exaone3.5:latest  # Layer 2: High-performance model
+
+    vectorstore:
+      pgvector:
+        table-name: vector_store
+        index-type: HNSW
+        distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
+        dimensions: 1536
+        initialize-schema: true
+        max-document-batch-size: 10000
+
+  jpa:
+    database: POSTGRESQL
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        use_sql_comments: update
+        jdbc:
+          lob:
+            non_contextual_creation: true
+        query:
+          in_clause_parameter_padding: true
+    show-sql: false
+
+  cache:
+    type: redis
+    redis:
+      cache-null-values: false
+      time-to-live: 3600000  # 1 hour (milliseconds)
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 200000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 5s
+      ssl:
+        enabled: false

@@ -50,8 +50,9 @@ public class EnterpriseAutonomousAutoConfiguration {
     public PolicyApprovalService policyApprovalService(
             PolicyProposalRepository proposalRepository,
             ApplicationEventPublisher eventPublisher,
+            GovernanceProperties governanceProperties,
             @Autowired(required = false) PolicyActivationService policyActivationService) {
-        return new PolicyApprovalService(proposalRepository, eventPublisher);
+        return new PolicyApprovalService(proposalRepository, eventPublisher, governanceProperties);
     }
 
     @Bean

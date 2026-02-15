@@ -5,6 +5,7 @@ import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
+import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,6 +26,7 @@ public class PolicyApprovalService {
 
     private final PolicyProposalRepository proposalRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final GovernanceProperties governanceProperties;
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
@@ -147,19 +149,27 @@ public class PolicyApprovalService {
                 throw new ApprovalException("Request is not pending: " + requestId);
             }
 
+            if (request.getExpiresAt() != null && LocalDateTime.now().isAfter(request.getExpiresAt())) {
+                request.setStatus(RequestStatus.EXPIRED);
+                saveWorkflow(workflow.getProposalId(), workflow);
+                throw new ApprovalException("Approval request has expired: " + requestId);
+            }
+
             request.setDecision(decision);
             request.setComments(comments);
-            request.setStatus(decision == ApprovalDecision.APPROVE ? 
+            request.setStatus(decision == ApprovalDecision.APPROVE ?
                 RequestStatus.APPROVED : RequestStatus.REJECTED);
 
             boolean workflowComplete = updateWorkflowStatus(workflow, request);
 
             if (workflowComplete) {
                 completeWorkflow(workflow);
-            } else if (workflow.getWorkflowType() == WorkflowType.MULTI_LEVEL && 
-                      decision == ApprovalDecision.APPROVE) {
-                
-                initiateNextApproval(workflow);
+            } else {
+                if (workflow.getWorkflowType() == WorkflowType.MULTI_LEVEL &&
+                    decision == ApprovalDecision.APPROVE) {
+                    initiateNextApproval(workflow);
+                }
+                saveWorkflow(workflow.getProposalId(), workflow);
             }
 
             publishApprovalEvent(
@@ -168,7 +178,7 @@ public class PolicyApprovalService {
                 workflow
             );
 
-            ApprovalResult result = ApprovalResult.builder()
+            return ApprovalResult.builder()
                 .requestId(requestId)
                 .workflowId(workflow.getWorkflowId())
                 .decision(decision)
@@ -176,8 +186,6 @@ public class PolicyApprovalService {
                 .workflowStatus(workflow.getStatus())
                 .timestamp(LocalDateTime.now())
                 .build();
-
-            return result;
             
         } catch (Exception e) {
             log.error("Failed to process approval request: {}", requestId, e);
@@ -206,6 +214,10 @@ public class PolicyApprovalService {
             .build();
     }
 
+    public ApprovalWorkflow findWorkflowByProposalId(Long proposalId) {
+        return getWorkflow(proposalId);
+    }
+
     private PolicyEvolutionProposal validateProposal(Long proposalId) {
         PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
             .orElseThrow(() -> new ApprovalException("Proposal not found: " + proposalId));
@@ -221,6 +233,17 @@ public class PolicyApprovalService {
     
     private Approver selectApprover(ApproverLevel level,
                                    PolicyEvolutionGovernance.RiskAssessment riskAssessment) {
+        Map<String, String> configuredApprovers = governanceProperties.getApprovers();
+        if (configuredApprovers != null && configuredApprovers.containsKey(level.name())) {
+            String[] parts = configuredApprovers.get(level.name()).split(":");
+            return Approver.builder()
+                .approverId(parts[0])
+                .name(parts.length > 1 ? parts[1] : parts[0])
+                .email(parts.length > 2 ? parts[2] : "approver@contexa.com")
+                .level(level)
+                .currentWorkload(0)
+                .build();
+        }
         return createDefaultApprover(level);
     }
     
@@ -356,6 +379,7 @@ public class PolicyApprovalService {
             
             ApprovalRequest nextRequest = createApprovalRequest(proposal, nextApprover, workflow);
             workflow.addRequest(nextRequest);
+            saveWorkflow(workflow.getProposalId(), workflow);
             sendApprovalNotification(nextApprover, nextRequest);
         }
     }
@@ -604,7 +628,8 @@ public class PolicyApprovalService {
     public enum RequestStatus {
         PENDING,
         APPROVED,
-        REJECTED
+        REJECTED,
+        EXPIRED
     }
 
     public enum ApprovalDecision {
