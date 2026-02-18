@@ -16,7 +16,7 @@ public class MfaGrantedAuthority implements GrantedAuthority {
         this.role = "";
     }
     public MfaGrantedAuthority(String role) {
-        Assert.hasText(role, "A granted authority textual representation is required");
+//        Assert.hasText(role, "A granted authority textual representation is required");
         this.role = role;
     }
     @Override

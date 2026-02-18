@@ -269,7 +269,33 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             }
         }
 
+        enrichWithActivityContext(ctx, event);
+
         return ctx;
+    }
+
+    private void enrichWithActivityContext(
+            SecurityPromptTemplate.BehaviorAnalysis ctx, SecurityEvent event) {
+        if (redisTemplate == null || event.getUserId() == null) return;
+
+        try {
+            String lastReqKey = "hcad:last:request:" + event.getUserId();
+            Object lastReqTime = redisTemplate.opsForValue().get(lastReqKey);
+            if (lastReqTime != null) {
+                long interval = System.currentTimeMillis()
+                        - Long.parseLong(lastReqTime.toString());
+                ctx.setLastRequestIntervalMs(interval);
+            }
+
+            String prevPathKey = "hcad:previous:path:" + event.getUserId();
+            Object prevPath = redisTemplate.opsForValue().get(prevPathKey);
+            if (prevPath != null) {
+                ctx.setPreviousPath(prevPath.toString());
+            }
+        } catch (Exception e) {
+            log.error("[Layer1] Failed to enrich activity context: {}",
+                    e.getMessage());
+        }
     }
 
     private String extractOSFromBaselineContext(String baselineContext) {

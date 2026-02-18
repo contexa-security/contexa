@@ -166,6 +166,15 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (response.getMitre() != null && !response.getMitre().isBlank()) {
             decision.setThreatCategory(response.getMitre());
         }
+        if (response.getEvidence() != null) {
+            decision.setEvidence(response.getEvidence());
+        }
+        if (response.getLegitimateHypothesis() != null) {
+            decision.setLegitimateHypothesis(response.getLegitimateHypothesis());
+        }
+        if (response.getSuspiciousHypothesis() != null) {
+            decision.setSuspiciousHypothesis(response.getSuspiciousHypothesis());
+        }
         return decision;
     }
 

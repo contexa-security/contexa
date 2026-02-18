@@ -32,6 +32,7 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -50,15 +51,17 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(KafkaTemplate.class)
     public KafkaSecurityEventCollector kafkaSecurityEventCollector(
             ObjectMapper objectMapper,
-            KafkaTemplate<String, String> kafkaTemplate,
+            KafkaTemplate<String, Object> kafkaTemplate,
             SecurityKafkaProperties securityKafkaProperties) {
         return new KafkaSecurityEventCollector(objectMapper, kafkaTemplate, securityKafkaProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(KafkaTemplate.class)
     public ZeroTrustEventListener zeroTrustEventListener(
             KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
             RedisTemplate<String, Object> redisTemplate,
@@ -68,6 +71,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(KafkaTemplate.class)
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
             KafkaTemplate<String, Object> kafkaTemplate,
             SecurityKafkaProperties securityKafkaProperties) {

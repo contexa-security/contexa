@@ -11,6 +11,8 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2State
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.AuthenticatedUserOAuth2AuthorizedClientProvider;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.client.RestClientAuthenticatedUserTokenResponseClient;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationToken;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthority;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthorityMixin;
 import io.contexa.contexaidentity.security.handler.logout.CompositeLogoutHandler;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
@@ -52,8 +54,10 @@ import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import org.springframework.security.jackson2.SecurityJackson2Modules;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.jackson2.OAuth2AuthorizationServerJackson2Module;
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -185,6 +189,17 @@ public class IdentityOAuth2AutoConfiguration {
 
         JdbcOAuth2AuthorizationService jdbcService =
                 new JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository);
+
+        ObjectMapper authorizationObjectMapper = new ObjectMapper();
+        ClassLoader classLoader = JdbcOAuth2AuthorizationService.class.getClassLoader();
+        authorizationObjectMapper.registerModules(SecurityJackson2Modules.getModules(classLoader));
+        authorizationObjectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
+        authorizationObjectMapper.addMixIn(MfaGrantedAuthority.class, MfaGrantedAuthorityMixin.class);
+
+        JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper rowMapper =
+                new JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper(registeredClientRepository);
+        rowMapper.setObjectMapper(authorizationObjectMapper);
+        jdbcService.setAuthorizationRowMapper(rowMapper);
 
         return new DeviceAwareOAuth2AuthorizationService(jdbcService, jdbcTemplate, authContextProperties);
     }

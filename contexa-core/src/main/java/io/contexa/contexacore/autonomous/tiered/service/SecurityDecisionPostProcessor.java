@@ -41,9 +41,7 @@ public class SecurityDecisionPostProcessor {
             String sessionActionsKey = ZeroTrustRedisKeys.sessionActions(sessionId);
             redisTemplate.opsForList().rightPush(
                     sessionActionsKey,
-                    String.format("%s:%s",
-                            event.getDescription() != null ? event.getDescription() : "action",
-                            decision.getAction())
+                    buildBehaviorSentence(event, decision)
             );
 
             redisTemplate.expire(sessionActionsKey, Duration.ofHours(24));
@@ -91,7 +89,7 @@ public class SecurityDecisionPostProcessor {
 
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
-            String content = buildBehaviorContent(event, decision);
+            String content = buildBehaviorSentence(event, decision);
             Map<String, Object> metadata = buildBaseMetadata(event, decision, VectorDocumentType.BEHAVIOR.getValue());
 
             Document document = new Document(content, metadata);
@@ -100,6 +98,43 @@ public class SecurityDecisionPostProcessor {
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }
+    }
+
+    private String buildBehaviorSentence(SecurityEvent event, SecurityDecision decision) {
+        StringBuilder sentence = new StringBuilder();
+
+        if (event.getTimestamp() != null) {
+            sentence.append(String.format("%02d:%02d",
+                    event.getTimestamp().getHour(),
+                    event.getTimestamp().getMinute()));
+        }
+
+        sentence.append(" | ");
+        String method = null;
+        String path = extractPath(event);
+        if (event.getMetadata() != null) {
+            Object m = event.getMetadata().get("httpMethod");
+            if (m != null) method = m.toString();
+        }
+        if (method != null) sentence.append(method).append(" ");
+        if (path != null) {
+            sentence.append(path);
+        } else if (event.getDescription() != null) {
+            sentence.append(event.getDescription());
+        }
+
+        sentence.append(" | ");
+        if (event.getSourceIp() != null) sentence.append(event.getSourceIp());
+
+        sentence.append(" | ");
+        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
+        String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
+        if (browser != null) sentence.append(browser);
+        if (os != null) sentence.append("/").append(os);
+
+        sentence.append(" | observed: ").append(decision.getAction().name().toLowerCase());
+
+        return sentence.toString();
     }
 
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {

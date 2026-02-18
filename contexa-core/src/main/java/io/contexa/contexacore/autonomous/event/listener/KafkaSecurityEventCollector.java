@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class KafkaSecurityEventCollector {
 
     private final ObjectMapper objectMapper;
-    private final KafkaTemplate<String, String> kafkaTemplate;
+    private final KafkaTemplate<String, Object> kafkaTemplate;
     private final SecurityKafkaProperties securityKafkaProperties;
     private final List<SecurityEventListener> listeners;
     private final Map<String, SecurityEvent> eventCache;
@@ -36,7 +36,7 @@ public class KafkaSecurityEventCollector {
     private final AtomicLong errorCount;
     private volatile boolean running;
 
-    public KafkaSecurityEventCollector(ObjectMapper objectMapper, KafkaTemplate<String, String> kafkaTemplate,
+    public KafkaSecurityEventCollector(ObjectMapper objectMapper, KafkaTemplate<String, Object> kafkaTemplate,
                                        SecurityKafkaProperties securityKafkaProperties) {
         this.objectMapper = objectMapper;
         this.kafkaTemplate = kafkaTemplate;

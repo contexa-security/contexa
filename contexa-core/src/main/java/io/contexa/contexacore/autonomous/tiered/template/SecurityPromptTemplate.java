@@ -59,15 +59,13 @@ public class SecurityPromptTemplate {
         StringBuilder prompt = new StringBuilder();
         prompt.append(buildSystemInstruction());
         prompt.append(buildEventSection(event, userId));
-        prompt.append(buildCurrentRequestSection(event));
-        prompt.append(buildKnownPatternsSection(patterns));
-        prompt.append(buildSignalComparisonSection());
+        prompt.append(buildCurrentRequestNarrative(event, behaviorAnalysis, patterns));
+        prompt.append(buildUserProfileNarrative(patterns, behaviorAnalysis, baselineStatus));
         prompt.append(buildNetworkPromptSection(event));
         appendIfPresent(prompt, buildPayloadSection(event));
-        prompt.append(buildSessionSection(sessionContext, event, behaviorAnalysis, baselineStatus));
+        prompt.append(buildSessionTimelineSection(sessionContext, behaviorAnalysis));
         appendIfPresent(prompt, buildSessionDeviceChangeSection(behaviorAnalysis));
-        prompt.append(buildBehaviorSection(behaviorAnalysis));
-        prompt.append(buildRelatedContextSection(patterns));
+        prompt.append(buildSimilarEventsSection(behaviorAnalysis, patterns));
         appendIfPresent(prompt, buildNewUserBaselineSection(baselineStatus));
         prompt.append(buildDecisionSection());
 
@@ -85,8 +83,16 @@ public class SecurityPromptTemplate {
     private String buildSystemInstruction() {
         return """
                 You are a Zero Trust security analyst AI.
-                Analyze the security context and respond with ONLY a JSON object.
-                No explanation, no markdown.
+                You will receive contextual information about a security event,
+                including the user's behavioral profile, session timeline,
+                and similar past events.
+
+                Read all context carefully and make a holistic judgment
+                about whether this request is legitimate or suspicious.
+                Do NOT apply simple rule-matching. Interpret the overall
+                narrative and meaning of the combined signals.
+
+                Respond with ONLY a JSON object. No explanation, no markdown.
 
                 """;
     }
@@ -123,59 +129,112 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    private String buildCurrentRequestSection(SecurityEvent event) {
-        String currentOS = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
-        String currentIP = SecurityEventEnricher.normalizeIP(event.getSourceIp());
-        String currentHour = event.getTimestamp() != null
-                ? String.valueOf(event.getTimestamp().getHour())
-                : null;
-        String browserSig = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
-        String currentUA = browserSig != null ? browserSig : "Browser";
-
+    private String buildCurrentRequestNarrative(SecurityEvent event,
+            BehaviorAnalysis behaviorAnalysis, DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
         section.append("\n=== CURRENT REQUEST ===\n");
-        section.append("OS: ").append(currentOS != null ? currentOS : "N/A").append("\n");
-        section.append("IP: ").append(currentIP != null ? currentIP : "N/A").append("\n");
-        section.append("Hour: ").append(currentHour != null ? currentHour : "N/A").append("\n");
-        section.append("UA: ").append(currentUA != null ? currentUA : "N/A").append("\n");
+
+        StringBuilder narrative = new StringBuilder();
+        narrative.append("User is requesting ");
+
+        String method = null;
+        String path = extractRequestPath(event);
+        if (event.getMetadata() != null) {
+            Object m = event.getMetadata().get("httpMethod");
+            if (m != null) method = m.toString();
+        }
+        if (method != null) narrative.append(method).append(" ");
+        if (path != null) {
+            narrative.append(PromptTemplateUtils.sanitizeUserInput(path));
+        } else {
+            narrative.append("a resource");
+        }
+
+        String ip = SecurityEventEnricher.normalizeIP(event.getSourceIp());
+        if (ip != null) {
+            narrative.append(" from ").append(ip);
+        }
+
+        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
+        String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
+        if (os != null || browser != null) {
+            narrative.append(" using ");
+            if (browser != null) narrative.append(browser);
+            if (os != null) narrative.append(" on ").append(os);
+        }
+
+        if (event.getTimestamp() != null) {
+            narrative.append(" at ").append(String.format("%02d:%02d",
+                    event.getTimestamp().getHour(),
+                    event.getTimestamp().getMinute()));
+        }
+
+        narrative.append(".");
+        section.append(narrative).append("\n");
+
+        if (behaviorAnalysis != null) {
+            if (behaviorAnalysis.getPreviousPath() != null) {
+                section.append("Previous request path: ")
+                       .append(PromptTemplateUtils.sanitizeUserInput(
+                               behaviorAnalysis.getPreviousPath()))
+                       .append(".\n");
+            }
+            if (behaviorAnalysis.getLastRequestIntervalMs() != null) {
+                long intervalSec = behaviorAnalysis.getLastRequestIntervalMs() / 1000;
+                section.append("Time since last request: ")
+                       .append(intervalSec).append(" seconds.\n");
+            }
+        }
 
         return section.toString();
     }
 
-    private String buildKnownPatternsSection(DetectedPatterns patterns) {
-        String knownOSStr = !patterns.osSet.isEmpty() ? String.join(", ", patterns.osSet) : "N/A";
-        String knownIPStr = !patterns.ipSet.isEmpty() ? String.join(", ", normalizeIPSet(patterns.ipSet)) : "N/A";
-        String knownHourStr = !patterns.hourSet.isEmpty() ? String.join(", ", patterns.hourSet) : "N/A";
-        String knownUAStr = !patterns.uaSet.isEmpty() ? String.join(", ", patterns.uaSet) : "N/A";
-        String knownPathStr = !patterns.pathSet.isEmpty() ? String.join(", ", patterns.pathSet) : "N/A";
-
+    private String buildUserProfileNarrative(DetectedPatterns patterns,
+            BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
         StringBuilder section = new StringBuilder();
-        section.append("\n=== KNOWN PATTERNS ===\n");
-        section.append("OS: [").append(knownOSStr).append("]\n");
-        section.append("IP: [").append(knownIPStr).append("]\n");
-        section.append("Hour: [").append(knownHourStr).append("]\n");
-        section.append("UA: [").append(knownUAStr).append("]\n");
-        section.append("Path: [").append(knownPathStr).append("]\n");
+        section.append("\n=== USER PROFILE ===\n");
 
-        return section.toString();
-    }
+        if (baselineStatus == BaselineStatus.NEW_USER) {
+            section.append("This is a new user without established behavioral baseline.\n");
+            section.append("No historical data available to compare against.\n");
+            return section.toString();
+        }
 
-    private String buildSignalComparisonSection() {
-        StringBuilder section = new StringBuilder();
-        section.append("\n=== SIGNAL COMPARISON ===\n");
-        section.append("For OS, IP, Hour, UA - check if CURRENT value exists in KNOWN list:\n");
-        section.append("- IN list = MATCH (established pattern)\n");
-        section.append("- NOT in list = MISMATCH (new/unusual)\n");
-        section.append("Example: CURRENT 'Android' in KNOWN [Windows, Android] = MATCH\n");
-        section.append("Signal context (each mismatch is significant, not minor):\n");
-        section.append("- IP mismatch: New network location (security-sensitive)\n");
-        section.append("- OS mismatch: New device type (potential account compromise)\n");
-        section.append("- Hour mismatch: Unusual access time (behavior anomaly)\n");
-        section.append("- UA mismatch: New browser/client (credential sharing risk)\n");
-        section.append("Risk assessment by mismatch count:\n");
-        section.append("- 0 = All patterns match (low risk)\n");
-        section.append("- 1 = Single deviation (evaluate context)\n");
-        section.append("- 2+ = Multiple deviations (elevated risk)\n");
+        if (baselineStatus != BaselineStatus.ESTABLISHED) {
+            section.append("User profile data is limited or unavailable.\n");
+            return section.toString();
+        }
+
+        StringBuilder profile = new StringBuilder("This user normally ");
+
+        if (!patterns.hourSet.isEmpty()) {
+            profile.append("accesses the system during hours ")
+                   .append(String.join(", ", patterns.hourSet));
+        }
+
+        if (!patterns.ipSet.isEmpty()) {
+            profile.append(", from network ")
+                   .append(String.join(", ", normalizeIPSet(patterns.ipSet)));
+        }
+
+        if (!patterns.osSet.isEmpty() || !patterns.uaSet.isEmpty()) {
+            profile.append(", using ");
+            if (!patterns.uaSet.isEmpty()) {
+                profile.append(String.join("/", patterns.uaSet));
+            }
+            if (!patterns.osSet.isEmpty()) {
+                profile.append(" on ").append(String.join("/", patterns.osSet));
+            }
+        }
+
+        profile.append(".");
+        section.append(profile).append("\n");
+
+        if (!patterns.pathSet.isEmpty()) {
+            section.append("Frequent paths: ")
+                   .append(String.join(", ", patterns.pathSet))
+                   .append(".\n");
+        }
 
         return section.toString();
     }
@@ -201,33 +260,44 @@ public class SecurityPromptTemplate {
         return "\n=== PAYLOAD ===\n" + payloadSummary.get() + "\n";
     }
 
-    private String buildSessionSection(SessionContext sessionContext, SecurityEvent event,
-                                       BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
+    private String buildSessionTimelineSection(SessionContext sessionContext,
+            BehaviorAnalysis behaviorAnalysis) {
         StringBuilder section = new StringBuilder();
-        section.append("\n=== SESSION ===\n");
+        section.append("\n=== SESSION TIMELINE ===\n");
 
         if (sessionContext == null) {
-            section.append("Session context not available (see DATA AVAILABILITY)\n");
+            section.append("No session context available.\n");
             return section.toString();
         }
 
         Integer sessionAge = sessionContext.getSessionAgeMinutes();
-        if (sessionAge != null) {
-            section.append("SessionAge: ").append(sessionAge).append(" minutes\n");
-        }
-
-        Integer requestCount = sessionContext.getRequestCount();
-        if (requestCount != null && requestCount > 0) {
-            section.append("RequestCount: ").append(requestCount).append("\n");
-        }
-
         String authMethod = sessionContext.getAuthMethod();
-        if (authMethod != null && !authMethod.isEmpty()) {
-            String sanitizedAuthMethod = PromptTemplateUtils.sanitizeUserInput(authMethod);
-            section.append("AuthMethod: ").append(sanitizedAuthMethod).append("\n");
+        if (sessionAge != null || authMethod != null) {
+            section.append("Session started ");
+            if (sessionAge != null) {
+                section.append(sessionAge).append(" minutes ago");
+            }
+            if (authMethod != null) {
+                section.append(" via ").append(
+                        PromptTemplateUtils.sanitizeUserInput(authMethod))
+                       .append(" authentication");
+            }
+            section.append(".\n");
         }
 
-        appendZeroTrustSignals(section, event, behaviorAnalysis, baselineStatus);
+        List<String> recentActions = sessionContext.getRecentActions();
+        if (recentActions != null && !recentActions.isEmpty()) {
+            section.append("\nRecent activity in this session ");
+            section.append("(observed responses are prior policy decisions, ");
+            section.append("not ground truth - reassess independently):\n");
+            int maxActions = Math.min(10, recentActions.size());
+            for (int i = 0; i < maxActions; i++) {
+                String action = PromptTemplateUtils.sanitizeUserInput(
+                        recentActions.get(i));
+                section.append("  ").append(i + 1).append(". ")
+                       .append(action).append("\n");
+            }
+        }
 
         return section.toString();
     }
@@ -254,42 +324,41 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    private String buildBehaviorSection(BehaviorAnalysis behaviorAnalysis) {
+    private String buildSimilarEventsSection(BehaviorAnalysis behaviorAnalysis,
+            DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
-        section.append("\n=== BEHAVIOR ===\n");
+        section.append("\n=== SIMILAR PAST EVENTS ===\n");
 
-        if (behaviorAnalysis == null) {
-            section.append("Behavior analysis not available (see DATA AVAILABILITY)\n");
-            return section.toString();
+        boolean hasContent = false;
+
+        if (behaviorAnalysis != null) {
+            List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
+            if (similarEvents != null && !similarEvents.isEmpty()) {
+                int max = Math.min(
+                        tieredStrategyProperties.getLayer1().getPrompt()
+                                .getMaxSimilarEvents(),
+                        similarEvents.size());
+                for (int i = 0; i < max; i++) {
+                    String sanitized = PromptTemplateUtils.sanitizeUserInput(
+                            similarEvents.get(i));
+                    section.append("  ").append(i + 1).append(". ")
+                           .append(sanitized).append("\n");
+                }
+                hasContent = true;
+            }
         }
-
-        List<String> similarEvents = behaviorAnalysis.getSimilarEvents();
-        if (similarEvents == null || similarEvents.isEmpty()) {
-            section.append("No similar events in history (see DATA AVAILABILITY)\n");
-            return section.toString();
-        }
-
-        int maxSimilarEvents = tieredStrategyProperties.getLayer1().getPrompt().getMaxSimilarEvents();
-        int maxEvents = Math.min(maxSimilarEvents, similarEvents.size());
-        section.append("SimilarEvents Detail:\n");
-        for (int i = 0; i < maxEvents; i++) {
-            String sanitizedEvent = PromptTemplateUtils.sanitizeUserInput(similarEvents.get(i));
-            section.append("  ").append(i + 1).append(". ").append(sanitizedEvent).append("\n");
-        }
-
-        return section.toString();
-    }
-
-    private String buildRelatedContextSection(DetectedPatterns patterns) {
-        StringBuilder section = new StringBuilder();
-        section.append("\n=== RELATED CONTEXT ===\n");
-        section.append("Historical events for this user:\n\n");
 
         if (patterns.hasRelatedDocs) {
-            String sanitizedContext = PromptTemplateUtils.sanitizeUserInput(patterns.relatedContext);
-            section.append(sanitizedContext).append("\n");
-        } else {
-            section.append("No related context found (see DATA AVAILABILITY)\n");
+            if (hasContent) section.append("\n");
+            section.append("Historical records for context:\n");
+            String sanitized = PromptTemplateUtils.sanitizeUserInput(
+                    patterns.relatedContext);
+            section.append(sanitized).append("\n");
+            hasContent = true;
+        }
+
+        if (!hasContent) {
+            section.append("No similar past events found for this user.\n");
         }
 
         return section.toString();
@@ -318,16 +387,34 @@ public class SecurityPromptTemplate {
 
                 === DECISION ===
 
+                Based on ALL the context above - user profile, session timeline,
+                similar past events, and current request - make a holistic
+                security judgment.
+
+                Consider the overall narrative: Does this session's activity
+                pattern tell a story of legitimate use or suspicious behavior?
+
+                You MUST provide both a legitimate and suspicious hypothesis
+                before making your final decision. Extract specific evidence
+                from the timeline and profile to support each hypothesis.
+
                 RESPOND WITH JSON ONLY:
-                {"riskScore":<0.0-1.0>,"confidence":<0.3-0.95>,"action":"<ACTION>","reasoning":"<analysis>","mitre":"<TAG|none>"}
+                {
+                  "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
+                  "riskScore":<0.0-1.0>,
+                  "confidence":<0.3-0.95>,
+                  "reasoning":"<your final interpretation>",
+                  "evidence":["<fact from timeline>","<fact from profile>"],
+                  "legitimateHypothesis":"<why this could be normal behavior>",
+                  "suspiciousHypothesis":"<why this could be malicious>",
+                  "mitre":"<TAG|none>"
+                }
 
                 ACTIONS:
-                - ALLOW: Consistent with known patterns (low risk)
-                - CHALLENGE: Needs verification (moderate risk)
-                - BLOCK: Unauthorized access indicators (high risk)
-                - ESCALATE: Requires human review (critical risk)
-
-                MITRE (if applicable): T1078, T1110, T1185
+                - ALLOW: Legitimate hypothesis is strongly supported
+                - CHALLENGE: Both hypotheses are plausible, need verification
+                - BLOCK: Suspicious hypothesis is strongly supported
+                - ESCALATE: Insufficient context for confident judgment
 
                 """;
     }
@@ -439,64 +526,6 @@ public class SecurityPromptTemplate {
                 target.add(value);
             }
         }
-    }
-
-    private void appendZeroTrustSignals(StringBuilder prompt, SecurityEvent event,
-                                        BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
-
-        boolean isNewUserForLlm = (baselineStatus != BaselineStatus.ESTABLISHED);
-        prompt.append("IsNewUser: ").append(isNewUserForLlm);
-        if (isNewUserForLlm) {
-            prompt.append(" (no baseline established)");
-        }
-        prompt.append("\n");
-
-        Boolean isNewSession = getIsNewSession(behaviorAnalysis, event);
-        if (isNewSession != null) {
-            prompt.append("IsNewSession: ").append(isNewSession).append("\n");
-        }
-
-        Boolean isNewDevice = getIsNewDevice(behaviorAnalysis, event);
-        if (isNewDevice != null) {
-            prompt.append("IsNewDevice: ").append(isNewDevice).append("\n");
-
-            if (isNewDevice) {
-                prompt.append("  -> First time seeing this device for this user\n");
-            }
-        }
-    }
-
-    private Boolean getIsNewSession(BehaviorAnalysis behaviorAnalysis, SecurityEvent event) {
-        if (behaviorAnalysis != null && behaviorAnalysis.getIsNewSession() != null) {
-            return behaviorAnalysis.getIsNewSession();
-        }
-
-        Object metadataObj = event.getMetadata();
-        if (metadataObj instanceof Map) {
-            Map<String, Object> metadata = (Map<String, Object>) metadataObj;
-            Object value = metadata.get("isNewSession");
-            if (value instanceof Boolean) {
-                return (Boolean) value;
-            }
-        }
-        return null;
-    }
-
-    private Boolean getIsNewDevice(BehaviorAnalysis behaviorAnalysis, SecurityEvent event) {
-        if (behaviorAnalysis != null && behaviorAnalysis.getIsNewDevice() != null) {
-            return behaviorAnalysis.getIsNewDevice();
-        }
-
-        Object metadataObj = event.getMetadata();
-        if (metadataObj instanceof Map) {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> metadata = (Map<String, Object>) metadataObj;
-            Object value = metadata.get("isNewDevice");
-            if (value instanceof Boolean) {
-                return (Boolean) value;
-            }
-        }
-        return null;
     }
 
     private String buildNetworkDetails(SecurityEvent event) {
@@ -795,6 +824,9 @@ public class SecurityPromptTemplate {
         private String[] baselineFrequentPaths;
         private Integer[] baselineAccessHours;
 
+        private Long lastRequestIntervalMs;
+        private String previousPath;
+
         public List<String> getSimilarEvents() {
             return similarEvents != null ? similarEvents : List.of();
         }
@@ -889,6 +921,22 @@ public class SecurityPromptTemplate {
 
         public void setBaselineAccessHours(Integer[] baselineAccessHours) {
             this.baselineAccessHours = baselineAccessHours;
+        }
+
+        public Long getLastRequestIntervalMs() {
+            return lastRequestIntervalMs;
+        }
+
+        public void setLastRequestIntervalMs(Long lastRequestIntervalMs) {
+            this.lastRequestIntervalMs = lastRequestIntervalMs;
+        }
+
+        public String getPreviousPath() {
+            return previousPath;
+        }
+
+        public void setPreviousPath(String previousPath) {
+            this.previousPath = previousPath;
         }
     }
 }

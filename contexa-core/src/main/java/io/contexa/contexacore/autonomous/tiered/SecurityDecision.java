@@ -39,4 +39,8 @@ public class SecurityDecision {
 
     private String eventId;
 
+    private List<String> evidence;
+    private String legitimateHypothesis;
+    private String suspiciousHypothesis;
+
 }

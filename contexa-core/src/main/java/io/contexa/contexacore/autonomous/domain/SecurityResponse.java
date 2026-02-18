@@ -6,6 +6,9 @@ import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -21,6 +24,10 @@ public class SecurityResponse {
     private String reasoning;
 
     private String mitre;
+
+    private List<String> evidence;
+    private String legitimateHypothesis;
+    private String suspiciousHypothesis;
 
     public static SecurityResponse fromJson(String json) {
         if (json == null || json.isBlank()) {
@@ -65,6 +72,15 @@ public class SecurityResponse {
                 mitre = extractString(json, "\"mitre\"");
             }
             response.setMitre(mitre);
+
+            List<String> evidence = extractStringArray(json, "\"evidence\"");
+            response.setEvidence(evidence);
+
+            String legitimateHypothesis = extractString(json, "\"legitimateHypothesis\"");
+            response.setLegitimateHypothesis(legitimateHypothesis);
+
+            String suspiciousHypothesis = extractString(json, "\"suspiciousHypothesis\"");
+            response.setSuspiciousHypothesis(suspiciousHypothesis);
 
         } catch (Exception e) {
             
@@ -137,6 +153,32 @@ public class SecurityResponse {
         if (commaIndex == -1) return braceIndex;
         if (braceIndex == -1) return commaIndex;
         return Math.min(commaIndex, braceIndex);
+    }
+
+    private static List<String> extractStringArray(String json, String key) {
+        int keyIndex = json.indexOf(key);
+        if (keyIndex == -1) return null;
+
+        int bracketStart = json.indexOf('[', keyIndex);
+        if (bracketStart == -1) return null;
+
+        int bracketEnd = json.indexOf(']', bracketStart);
+        if (bracketEnd == -1) return null;
+
+        String arrayContent = json.substring(bracketStart + 1, bracketEnd);
+        List<String> result = new ArrayList<>();
+
+        int i = 0;
+        while (i < arrayContent.length()) {
+            int startQuote = arrayContent.indexOf('"', i);
+            if (startQuote == -1) break;
+            int endQuote = findEndQuote(arrayContent, startQuote + 1);
+            if (endQuote == -1) break;
+            result.add(arrayContent.substring(startQuote + 1, endQuote));
+            i = endQuote + 1;
+        }
+
+        return result.isEmpty() ? null : result;
     }
 
     public boolean isValid() {

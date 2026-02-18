@@ -65,10 +65,28 @@ public class DeviceAwareOAuth2AuthorizationService implements OAuth2Authorizatio
         List<String> ids = jdbcTemplate.queryForList(FIND_IDS_BY_PRINCIPAL, String.class, principalName);
 
         return ids.stream()
-                .map(delegate::findById)
+                .map(this::safeFindById)
                 .filter(Objects::nonNull)
                 .filter(this::isActiveAuthorization)
                 .toList();
+    }
+
+    private OAuth2Authorization safeFindById(String id) {
+        try {
+            return delegate.findById(id);
+        } catch (Exception e) {
+            log.error("[OAuth2] Failed to deserialize authorization {}: {}", id, e.getMessage());
+            cleanupCorruptedAuthorization(id);
+            return null;
+        }
+    }
+
+    private void cleanupCorruptedAuthorization(String id) {
+        try {
+            jdbcTemplate.update("DELETE FROM oauth2_authorization WHERE id = ?", id);
+        } catch (Exception e) {
+            log.error("[OAuth2] Failed to cleanup corrupted authorization {}: {}", id, e.getMessage());
+        }
     }
 
     public void invalidateAuthorization(OAuth2Authorization authorization) {
