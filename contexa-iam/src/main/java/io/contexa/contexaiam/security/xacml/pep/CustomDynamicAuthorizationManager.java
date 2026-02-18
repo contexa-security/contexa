@@ -100,7 +100,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             }
         }
         log.error("No matching URL policy found for request: {} {}", request.getMethod(), request.getRequestURI());
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(false);
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
         logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
 
         /*if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {

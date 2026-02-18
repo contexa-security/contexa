@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.state.oauth2.client;
 
+import io.contexa.contexaidentity.security.token.wrapper.NoOpHttpServletResponse;
 import io.contexa.contexaidentity.security.token.wrapper.OAuth2TokenRequestWrapper;
 import jakarta.servlet.Filter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -159,7 +160,8 @@ public final class RestClientAuthenticatedUserTokenResponseClient
                         new OAuth2Error("server_error",
                                 "OAuth2TokenEndpointFilter is not configured", null));
             }
-            oauth2TokenEndpointFilter.doFilter(wrappedRequest, response, (req, res) -> {});
+            NoOpHttpServletResponse noOpResponse = new NoOpHttpServletResponse(response);
+            oauth2TokenEndpointFilter.doFilter(wrappedRequest, noOpResponse, (req, res) -> {});
 
             Authentication resultAuth = SecurityContextHolder.getContext().getAuthentication();
 

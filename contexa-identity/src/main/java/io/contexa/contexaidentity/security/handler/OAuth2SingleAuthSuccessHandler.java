@@ -8,8 +8,11 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.log.LogMessage;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.web.DefaultRedirectStrategy;
+import org.springframework.security.web.RedirectStrategy;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -17,6 +20,8 @@ import java.util.Map;
 
 @Slf4j
 public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHandler {
+
+    private RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
 
     public OAuth2SingleAuthSuccessHandler(TokenService tokenService,
                                           AuthResponseWriter responseWriter,
@@ -47,7 +52,11 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
         if (!isApiRequest(request)) {
             String targetUrl = determineTargetUrl(request, response);
-            response.sendRedirect(targetUrl);
+            if (response.isCommitted()) {
+                log.debug("Did not redirect to %s since response already committed.", targetUrl);
+                return;
+            }
+            this.redirectStrategy.sendRedirect(request, response, targetUrl);
         } else {
             writeJsonResponse(response, responseData);
         }
