@@ -51,7 +51,7 @@ public class DataIngestionServiceImpl implements DataIngestionService {
     }
 
     @Async
-    @EventListener(ApplicationReadyEvent.class)
+//    @EventListener(ApplicationReadyEvent.class)
     @Override
     public void initialIndexing() {
         List<Document> documents = policyRepository.findAllWithDetails().stream()
