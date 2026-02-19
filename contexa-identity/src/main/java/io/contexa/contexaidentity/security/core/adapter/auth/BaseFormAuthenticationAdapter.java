@@ -26,7 +26,7 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
 
         http.with(configurer, config -> {
             configureFormAuthentication(config, opts, successHandler, failureHandler);
-            configureSecurityContext(config, opts);
+            configureSecurityContext(config, opts, http);
         });
     }
 
@@ -36,5 +36,5 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
                                                         PlatformAuthenticationSuccessHandler successHandler,
                                                         PlatformAuthenticationFailureHandler failureHandler);
 
-    protected abstract void configureSecurityContext(T configurer, FormOptions opts);
+    protected abstract void configureSecurityContext(T configurer, FormOptions opts, HttpSecurity http);
 }

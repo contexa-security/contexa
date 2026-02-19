@@ -67,8 +67,9 @@ public class PlatformSecurityConfig {
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
-                                form.defaultSuccessUrl("/test/security").
-                                        securityContextRepository(new HttpSessionSecurityContextRepository())))
+                                form.defaultSuccessUrl("/test/security")
+//                                    .securityContextRepository(new HttpSessionSecurityContextRepository())
+                        ))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
 //                        .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
