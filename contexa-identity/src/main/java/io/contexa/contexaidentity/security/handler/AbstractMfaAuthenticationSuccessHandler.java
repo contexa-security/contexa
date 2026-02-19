@@ -129,8 +129,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         if (factorContext != null && factorContext.isCompleted()) {
-            publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
+            boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
+            if (isLlmTriggeredMfa) {
+                publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
+            }
         }
+    }
+
+    private boolean isIsLlmTriggeredMfa(String userId) {
+        ZeroTrustAction previousAction = actionRedisRepository.getActionFromHash(userId);
+        return previousAction == ZeroTrustAction.CHALLENGE
+                || previousAction == ZeroTrustAction.ESCALATE;
     }
 
     protected void onFinalAuthenticationSuccess(HttpServletRequest request,
@@ -428,11 +437,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            ZeroTrustAction previousAction = actionRedisRepository.getActionFromHash(userId);
             actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW);
-
-            boolean isLlmTriggeredMfa = previousAction == ZeroTrustAction.CHALLENGE
-                    || previousAction == ZeroTrustAction.ESCALATE;
+            boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
             if (isLlmTriggeredMfa) {
                 learnOnLlmChallengedMfaSuccess(userId, request);
             }
