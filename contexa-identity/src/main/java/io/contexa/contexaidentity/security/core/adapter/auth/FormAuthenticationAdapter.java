@@ -7,6 +7,7 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.FormLoginConfigurer;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;
@@ -84,6 +85,10 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
     @Override
     protected void configureSecurityContext(FormLoginConfigurer<HttpSecurity> configurer,
                                             FormOptions opts) {
-        configurer.securityContextRepository(opts.getSecurityContextRepository());
+        if (opts.getSecurityContextRepository() != null) {
+            configurer.securityContextRepository(opts.getSecurityContextRepository());
+        }else{
+            configurer.securityContextRepository(new HttpSessionSecurityContextRepository());
+        }
     }
 }

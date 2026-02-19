@@ -26,10 +26,7 @@ public abstract class BaseFormAuthenticationAdapter<T extends AbstractHttpConfig
 
         http.with(configurer, config -> {
             configureFormAuthentication(config, opts, successHandler, failureHandler);
-
-            if (opts.getSecurityContextRepository() != null) {
-                configureSecurityContext(config, opts);
-            }
+            configureSecurityContext(config, opts);
         });
     }
 

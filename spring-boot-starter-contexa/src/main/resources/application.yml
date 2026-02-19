@@ -17,7 +17,7 @@ spring:
 
   auth:
     token-transport-type: header_cookie
-    oauth2-csrf: true
+    oauth2-csrf: false
 
   ai:
     chat:
