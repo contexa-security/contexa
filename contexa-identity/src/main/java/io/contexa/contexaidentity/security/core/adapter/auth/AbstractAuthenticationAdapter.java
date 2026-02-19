@@ -1,6 +1,5 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -13,10 +12,10 @@ import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.handler.*;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.SecurityContextConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.authentication.ott.OneTimeTokenGenerationSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
@@ -85,9 +84,11 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         StateType stateType = determineStateType(resolvedStateConfig, appContext);
 
         SecurityContextRepository securityContextRepository = resolveSecurityContextRepository(
-                stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow
+                stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, options
         );
-        http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+        if(!(securityContextRepository instanceof NullSecurityContextRepository)) {
+            http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
+        }
 
         if (stateType != StateType.SESSION) {
             http.sessionManagement(session -> session
@@ -202,29 +203,25 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             StateType stateType,
             @Nullable AuthenticationFlowConfig currentFlow,
             AuthenticationStepConfig myStepConfig,
-            @Nullable List<AuthenticationStepConfig> allSteps) {
+            @Nullable List<AuthenticationStepConfig> allSteps, O options) {
 
         boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
-
             if (allSteps != null) {
                 int currentStepIndex = allSteps.indexOf(myStepConfig);
                 boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
                 boolean isFinalStepInMfaFlow = (currentStepIndex == allSteps.size() - 1);
 
                 if (isFirstStepInMfaFlow && !isFinalStepInMfaFlow) {
-
-                    return new NullSecurityContextRepository();
-                } else if (isFinalStepInMfaFlow) {
-
-                    if (stateType == StateType.SESSION) {
-                        return new HttpSessionSecurityContextRepository();
-                    } else {
-                        return new NullSecurityContextRepository();
+                    if(options.getSecurityContextRepository() != null) {
+                        return options.getSecurityContextRepository();
                     }
-                } else {
+                    return new NullSecurityContextRepository();
 
+                } else if (isFinalStepInMfaFlow) {
+                    return getSecurityContextRepository(stateType, options);
+                } else {
                     return new NullSecurityContextRepository();
                 }
             }
@@ -232,12 +229,18 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using NullSecurityContextRepository as fallback", getId());
             return new NullSecurityContextRepository();
         } else {
+            return getSecurityContextRepository(stateType, options);
+        }
+    }
 
-            if (stateType == StateType.SESSION) {
-                return new HttpSessionSecurityContextRepository();
-            } else {
-                return new NullSecurityContextRepository();
-            }
+    private static <O extends AuthenticationProcessingOptions> @NonNull SecurityContextRepository getSecurityContextRepository(StateType stateType, O options) {
+        if(options.getSecurityContextRepository() != null) {
+            return options.getSecurityContextRepository();
+        }
+        if (stateType == StateType.SESSION) {
+            return new HttpSessionSecurityContextRepository();
+        } else {
+            return new NullSecurityContextRepository();
         }
     }
 
