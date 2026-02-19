@@ -12,5 +12,5 @@ public interface MfaPolicyProvider {
 
     boolean isFactorAvailableForUser(String username, AuthType factorType, FactorContext ctx);
 
-    Integer getRequiredFactorCount(String userId, String flowType);
+    long getRequiredFactorCount(String userId, String flowType);
 }

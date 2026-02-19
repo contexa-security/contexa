@@ -72,10 +72,10 @@ public class PlatformSecurityConfig {
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
 //                        .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        .mfaPage(page ->
+                        /*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
                         .order(60)
                 ).session(Customizer.withDefaults())
                 .build();

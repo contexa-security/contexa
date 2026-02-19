@@ -32,7 +32,7 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
             int completedCount = factorContext.getCompletedFactors() != null ?
                     factorContext.getCompletedFactors().size() : 0;
 
-            int requiredCount = getRequiredFactorCount(factorContext);
+            long requiredCount = getRequiredFactorCount(factorContext);
 
             if (requiredCount <= 0) {
                 log.error("[AllFactorsCompletedGuard] Invalid required factor count ({}) for session: {}. Defaulting to 1.",
@@ -49,13 +49,13 @@ public class AllFactorsCompletedGuard extends AbstractMfaStateGuard {
         }
     }
 
-    private int getRequiredFactorCount(FactorContext factorContext) {
+    private long getRequiredFactorCount(FactorContext factorContext) {
         String userId = factorContext.getUsername();
         String flowType = factorContext.getFlowTypeName();
 
-        Integer requiredFactors = mfaPolicyProvider.getRequiredFactorCount(userId, flowType);
+        long requiredFactors = mfaPolicyProvider.getRequiredFactorCount(userId, flowType);
 
-        if (requiredFactors != null && requiredFactors > 0) {
+        if (requiredFactors > 0) {
             return requiredFactors;
         }
 
