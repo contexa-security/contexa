@@ -101,6 +101,24 @@ public class ZeroTrustActionRedisRepository {
         }
     }
 
+    public ZeroTrustAction getPreviousActionFromHash(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+
+        try {
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            Object actionValue = redisTemplate.opsForHash().get(analysisKey, "previousAction");
+            if (actionValue != null) {
+                return ZeroTrustAction.fromString(actionValue.toString());
+            }
+            return null;
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to get previous action from hash: userId={}", userId, e);
+            return null;
+        }
+    }
+
     public boolean isStale(String userId, long maxAgeMs) {
         if (userId == null || userId.isBlank()) {
             return false;

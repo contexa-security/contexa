@@ -129,15 +129,12 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         if (factorContext != null && factorContext.isCompleted()) {
-            boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
-            if (isLlmTriggeredMfa) {
-                publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
-            }
+//            publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
         }
     }
 
     private boolean isIsLlmTriggeredMfa(String userId) {
-        ZeroTrustAction previousAction = actionRedisRepository.getActionFromHash(userId);
+        ZeroTrustAction previousAction = actionRedisRepository.getPreviousActionFromHash(userId);
         return previousAction == ZeroTrustAction.CHALLENGE
                 || previousAction == ZeroTrustAction.ESCALATE;
     }
