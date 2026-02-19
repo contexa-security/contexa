@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
+import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -86,7 +87,11 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         SecurityContextRepository securityContextRepository = resolveSecurityContextRepository(
                 stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, options
         );
-        if(!(securityContextRepository instanceof NullSecurityContextRepository)) {
+
+        if(http.getSharedObject(SecurityContextRepository.class) instanceof AIReactiveSecurityContextRepository) {
+            http.setSharedObject(SecurityContextRepository.class, http.getSharedObject(SecurityContextRepository.class));
+
+        }else if(!(securityContextRepository instanceof NullSecurityContextRepository)) {
             http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
         }
 

@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Component;
 
 public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAdapter<MfaFormAuthenticationConfigurer<HttpSecurity>> {
@@ -43,10 +44,11 @@ public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAd
     @Override
     protected void configureSecurityContext(MfaFormAuthenticationConfigurer<HttpSecurity> configurer,
                                             FormOptions opts, HttpSecurity http) {
-        if (opts.getSecurityContextRepository() != null) {
-            configurer.securityContextRepository(opts.getSecurityContextRepository());
-        }else if(http.getSharedObject(AIReactiveSecurityContextRepository.class) != null){
-            configurer.securityContextRepository(http.getSharedObject(AIReactiveSecurityContextRepository.class));
+
+        if(http.getSharedObject(SecurityContextRepository.class) instanceof AIReactiveSecurityContextRepository) {
+            configurer.securityContextRepository(http.getSharedObject(SecurityContextRepository.class));
+        }else if (opts.getSecurityContextRepository() != null) {
+                configurer.securityContextRepository(opts.getSecurityContextRepository());
         }else{
             configurer.securityContextRepository(new HttpSessionSecurityContextRepository());
         }
