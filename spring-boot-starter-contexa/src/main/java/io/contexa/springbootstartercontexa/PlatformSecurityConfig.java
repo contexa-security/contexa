@@ -49,12 +49,13 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
+/*
                 .form(form -> form.order(20)
                         .loginPage("/admin/login")
                         .defaultSuccessUrl("/admin")
-//                        .securityContextRepository(new HttpSessionSecurityContextRepository())
                 )
                 .oauth2(Customizer.withDefaults())
+*/
 //                .rest(rest -> rest.order(10)
 //                        .defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
@@ -67,7 +68,6 @@ public class PlatformSecurityConfig {
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.defaultSuccessUrl("/test/security").
-                                        defaultSuccessUrl("/test/security", true).
                                         securityContextRepository(new HttpSessionSecurityContextRepository())))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
 //                        .passkey(Customizer.withDefaults())
