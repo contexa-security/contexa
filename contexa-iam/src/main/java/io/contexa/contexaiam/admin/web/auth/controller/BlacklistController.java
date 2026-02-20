@@ -26,16 +26,14 @@ public class BlacklistController {
     public String listBlockedUsers(
             @RequestParam(value = "filter", required = false, defaultValue = "all") String filter,
             Model model) {
-        List<BlockedUser> blockedUsers;
-        if ("blocked".equals(filter)) {
-            blockedUsers = blockedUserService.getBlockedUsers();
-        } else if ("resolved".equals(filter)) {
-            blockedUsers = blockedUserService.getAllBlockHistory().stream()
+        List<BlockedUser> blockedUsers = switch (filter) {
+            case "blocked" -> blockedUserService.getBlockedUsers();
+            case "unblock_requested" -> blockedUserService.getUnblockRequested();
+            case "resolved" -> blockedUserService.getAllBlockHistory().stream()
                     .filter(b -> b.getStatus() == BlockedUserStatus.RESOLVED)
                     .toList();
-        } else {
-            blockedUsers = blockedUserService.getAllBlockHistory();
-        }
+            case null, default -> blockedUserService.getAllBlockHistory();
+        };
         model.addAttribute("blockedUsers", blockedUsers);
         model.addAttribute("currentFilter", filter);
         return "admin/blacklist";

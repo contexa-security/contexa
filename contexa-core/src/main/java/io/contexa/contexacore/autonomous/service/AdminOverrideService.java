@@ -7,21 +7,17 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisReposito
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import lombok.extern.slf4j.Slf4j;
 
-import java.time.Instant;
-import java.util.Optional;
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Slf4j
 public class AdminOverrideService {
 
-    private final AdminOverrideRepository repository;
     private final SecurityLearningService securityLearningService;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
 
-    public AdminOverrideService(AdminOverrideRepository repository,
-                                SecurityLearningService securityLearningService,
+    public AdminOverrideService(SecurityLearningService securityLearningService,
                                 ZeroTrustActionRedisRepository actionRedisRepository) {
-        this.repository = repository;
         this.securityLearningService = securityLearningService;
         this.actionRedisRepository = actionRedisRepository;
     }
@@ -44,7 +40,7 @@ public class AdminOverrideService {
                 .requestId(requestId)
                 .userId(userId)
                 .adminId(adminId)
-                .timestamp(Instant.now())
+                .timestamp(java.time.Instant.now())
                 .originalAction(originalAction)
                 .overriddenAction(overriddenAction)
                 .reason(reason)
@@ -53,47 +49,21 @@ public class AdminOverrideService {
                 .originalConfidence(originalConfidence)
                 .build();
 
-        repository.save(override);
-
-        repository.deletePending(requestId);
-
-        if (override.canUpdateBaseline() && originalEvent != null) {
-            triggerBaselineUpdate(userId, originalEvent, override);
+        if (override.canUpdateBaseline()) {
+            SecurityEvent eventForLearning = originalEvent != null ? originalEvent :
+                    SecurityEvent.builder()
+                            .eventId(UUID.randomUUID().toString())
+                            .source(SecurityEvent.EventSource.IAM)
+                            .userId(userId)
+                            .timestamp(LocalDateTime.now())
+                            .description("Admin approved override - learning")
+                            .build();
+            triggerBaselineUpdate(userId, eventForLearning, override);
         }
 
         if (userId != null && overriddenAction != null) {
             updateAnalysisAction(userId, overriddenAction);
         }
-        return override;
-    }
-
-    public AdminOverride reject(String requestId, String userId, String adminId,
-                                String originalAction, double originalRiskScore, double originalConfidence,
-                                String reason) {
-
-        if (reason == null || reason.isBlank()) {
-            throw new IllegalArgumentException("Reason is required for admin rejection");
-        }
-
-        if (requestId == null || requestId.isBlank()) {
-            throw new IllegalArgumentException("requestId is required");
-        }
-
-        AdminOverride override = AdminOverride.builder()
-                .overrideId(UUID.randomUUID().toString())
-                .requestId(requestId)
-                .userId(userId)
-                .adminId(adminId)
-                .timestamp(Instant.now())
-                .originalAction(originalAction)
-                .overriddenAction(originalAction)
-                .reason(reason)
-                .approved(false)
-                .originalRiskScore(originalRiskScore)
-                .originalConfidence(originalConfidence)
-                .build();
-        repository.save(override);
-        repository.deletePending(requestId);
         return override;
     }
 
@@ -133,40 +103,4 @@ public class AdminOverrideService {
         }
     }
 
-    public Optional<AdminOverride> findByRequestId(String requestId) {
-        return repository.findByRequestId(requestId);
-    }
-
-    public boolean isPendingReview(String requestId) {
-        return repository.findPending(requestId).isPresent();
-    }
-
-    public void addToPendingReview(String requestId, String userId,
-                                   double riskScore, double confidence, String reasoning) {
-        addToPendingReview(requestId, userId, riskScore, confidence, reasoning, null);
-    }
-
-    public void addToPendingReview(String requestId, String userId,
-                                   double riskScore, double confidence, String reasoning,
-                                   SecurityEvent event) {
-        java.util.Map<String, Object> analysisData = new java.util.HashMap<>();
-        analysisData.put("riskScore", riskScore);
-        analysisData.put("confidence", confidence);
-        analysisData.put("reasoning", reasoning);
-        analysisData.put("originalAction", ZeroTrustAction.BLOCK.name());
-
-        repository.savePending(requestId, userId, analysisData);
-
-        if (event != null) {
-            repository.saveSecurityEvent(requestId, event);
-        }
-    }
-
-    public Optional<java.util.Map<Object, Object>> getPendingReview(String requestId) {
-        return repository.findPending(requestId);
-    }
-
-    public Optional<SecurityEvent> getSecurityEvent(String requestId) {
-        return repository.findSecurityEvent(requestId);
-    }
 }

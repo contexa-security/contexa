@@ -70,7 +70,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
         BlockedUser blocked = blockedUserJpaRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Blocked user not found: id=" + id));
 
-        if (blocked.getStatus() != BlockedUserStatus.BLOCKED) {
+        if (blocked.getStatus() == BlockedUserStatus.RESOLVED) {
             throw new IllegalStateException("Already resolved: id=" + id);
         }
 
@@ -86,13 +86,34 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     blocked.getConfidence() != null ? blocked.getConfidence() : 0.0,
                     resolvedAction,
                     reason,
-                    adminOverrideService.getSecurityEvent(blocked.getRequestId()).orElse(null)
+                    null
             );
         } catch (Exception e) {
             log.error("[BlockedUserService] Failed to sync AdminOverride: requestId={}",
                     blocked.getRequestId(), e);
             clearRedisBlockKeys(blocked.getUserId(), resolvedAction);
         }
+    }
+
+    @Transactional
+    public void requestUnblock(String userId, String reason) {
+        Optional<BlockedUser> blockedOpt = blockedUserJpaRepository
+                .findByUserIdAndStatus(userId, BlockedUserStatus.BLOCKED);
+
+        if (blockedOpt.isEmpty()) {
+            return;
+        }
+
+        BlockedUser blocked = blockedOpt.get();
+        blocked.setStatus(BlockedUserStatus.UNBLOCK_REQUESTED);
+        blocked.setUnblockRequestedAt(LocalDateTime.now());
+        blocked.setUnblockReason(reason);
+        blockedUserJpaRepository.save(blocked);
+    }
+
+    @Transactional(readOnly = true)
+    public List<BlockedUser> getUnblockRequested() {
+        return blockedUserJpaRepository.findByStatusOrderByBlockedAtDesc(BlockedUserStatus.UNBLOCK_REQUESTED);
     }
 
     @Transactional(readOnly = true)

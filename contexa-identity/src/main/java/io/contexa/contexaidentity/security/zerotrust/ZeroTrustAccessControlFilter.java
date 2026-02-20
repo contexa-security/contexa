@@ -2,7 +2,6 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
-import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
@@ -45,10 +44,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     @Setter
     @Autowired(required = false)
     private IBlockedUserRecorder blockedUserRecorder;
-
-    @Setter
-    @Autowired(required = false)
-    private AdminOverrideService adminOverrideService;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRedisRepository actionRedisRepository,
@@ -205,13 +200,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
             actionRedisRepository.saveAction(userId, ZeroTrustAction.BLOCK, fields);
             actionRedisRepository.setBlockedFlag(userId);
-
-            if (adminOverrideService != null) {
-                adminOverrideService.addToPendingReview(
-                        requestId, userId,
-                        1.0, 0.0,
-                        "Auto-promoted from ESCALATE: TTL expired without resolution");
-            }
 
             if (blockedUserRecorder != null) {
                 blockedUserRecorder.recordBlock(

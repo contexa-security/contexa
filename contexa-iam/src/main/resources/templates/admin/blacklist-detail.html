@@ -90,10 +90,27 @@
                             <span th:if="${blocked.status.name() == 'BLOCKED'}"
                                   class="px-3 py-1 rounded-full text-xs font-semibold"
                                   style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">BLOCKED</span>
+                            <span th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);">UNBLOCK REQUESTED</span>
                             <span th:if="${blocked.status.name() == 'RESOLVED'}"
                                   class="px-3 py-1 rounded-full text-xs font-semibold"
                                   style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">RESOLVED</span>
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+                <h3 class="text-sm font-semibold mb-3" style="color: #fbbf24;">해지 요청 정보</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">요청 일시</span>
+                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.unblockRequestedAt != null} ? ${#temporals.format(blocked.unblockRequestedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
+                    </div>
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">요청 사유</span>
+                        <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.unblockReason ?: 'N/A'}"></p>
                     </div>
                 </div>
             </div>
@@ -120,7 +137,7 @@
                 </div>
             </div>
 
-            <div th:if="${blocked.status.name() == 'BLOCKED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+            <div th:if="${blocked.status.name() == 'BLOCKED' or blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
                 <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;">차단 해제</h3>
                 <form th:action="@{/admin/blacklist/{id}/resolve(id=${blocked.id})}" method="post" id="resolveForm">
 

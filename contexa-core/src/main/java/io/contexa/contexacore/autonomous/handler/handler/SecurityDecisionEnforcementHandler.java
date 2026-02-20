@@ -4,7 +4,6 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
-import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
@@ -27,7 +26,6 @@ import java.util.concurrent.CompletableFuture;
 public class SecurityDecisionEnforcementHandler implements SecurityEventHandler {
 
     private final ZeroTrustActionRedisRepository actionRedisRepository;
-    private final AdminOverrideService adminOverrideService;
     private final SecurityLearningService securityLearningService;
 
     @Setter
@@ -85,7 +83,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         actionRedisRepository.saveAction(userId, ztAction, additionalFields);
 
-        if (ztAction == ZeroTrustAction.BLOCK) {
+        if (ztAction == ZeroTrustAction.CHALLENGE) {
             handleBlockDecision(userId, event, result);
         }
     }
@@ -95,15 +93,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         String reasoning = result.getReasoning() != null ? result.getReasoning() : "";
 
         actionRedisRepository.setBlockedFlag(userId);
-
-        if (adminOverrideService != null) {
-            adminOverrideService.addToPendingReview(
-                    requestId, userId,
-                    result.getRiskScore(),
-                    result.getConfidence(),
-                    reasoning
-            );
-        }
 
         if (blockedUserRecorder != null) {
             try {

@@ -65,4 +65,10 @@ public class BlockedUser {
 
     @Column(name = "user_agent")
     private String userAgent;
+
+    @Column(name = "unblock_requested_at")
+    private LocalDateTime unblockRequestedAt;
+
+    @Column(name = "unblock_reason", columnDefinition = "TEXT")
+    private String unblockReason;
 }
