@@ -71,7 +71,7 @@ public class AdminOverrideService {
         try {
             SecurityDecision adminApprovedDecision = SecurityDecision.builder()
                     .action(ZeroTrustAction.ALLOW)
-                    .riskScore(override.getOriginalRiskScore())
+                    .riskScore(0.0)
                     .confidence(0.95)
                     .reasoning("Admin approved: " + override.getReason())
                     .analysisTime(System.currentTimeMillis())

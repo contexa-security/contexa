@@ -452,6 +452,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     .confidence(0.95)
                     .riskScore(0.05)
                     .reasoning("LLM-challenged MFA completed - verified as normal behavior")
+                    .analysisTime(System.currentTimeMillis())
                     .build();
 
             SecurityEvent event = SecurityEvent.builder()
