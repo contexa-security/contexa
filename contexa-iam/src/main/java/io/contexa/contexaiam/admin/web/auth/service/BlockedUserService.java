@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -17,6 +18,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -92,6 +94,17 @@ public class BlockedUserService implements IBlockedUserRecorder {
         applyResolution(blocked, adminId, resolvedAction, reason);
 
         try {
+            SecurityEvent blockEvent = SecurityEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .source(SecurityEvent.EventSource.IAM)
+                    .userId(blocked.getUserId())
+                    .userName(blocked.getUsername())
+                    .sourceIp(blocked.getSourceIp())
+                    .userAgent(blocked.getUserAgent())
+                    .timestamp(LocalDateTime.now())
+                    .description("Admin approved unblock - learning from block context")
+                    .build();
+
             adminOverrideService.approve(
                     blocked.getRequestId(),
                     blocked.getUserId(),
@@ -101,7 +114,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     blocked.getConfidence() != null ? blocked.getConfidence() : 0.0,
                     resolvedAction,
                     reason,
-                    null
+                    blockEvent
             );
         } catch (Exception e) {
             log.error("[BlockedUserService] Failed to sync AdminOverride: requestId={}",

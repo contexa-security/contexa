@@ -246,7 +246,6 @@ public class ZeroTrustActionRedisRepository {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void approveOverrideAtomically(String userId, ZeroTrustAction newAction) {
         if (userId == null || userId.isBlank() || newAction == null) {
             return;
