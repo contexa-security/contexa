@@ -1,6 +1,5 @@
 package io.contexa.autoconfigure.iam;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
@@ -26,11 +25,10 @@ public class IamSecurityCoreAutoConfiguration {
     public ZeroTrustSecurityService zeroTrustSecurityService(
             RedisTemplate<String, Object> redisTemplate,
             ThreatScoreUtil threatScoreUtil,
-            ObjectMapper objectMapper,
             SecurityZeroTrustProperties securityZeroTrustProperties,
             ZeroTrustActionRedisRepository actionRedisRepository) {
         return new ZeroTrustSecurityService(redisTemplate,
-                threatScoreUtil, objectMapper, securityZeroTrustProperties, actionRedisRepository);
+                threatScoreUtil, securityZeroTrustProperties, actionRedisRepository);
     }
 
     @Bean
