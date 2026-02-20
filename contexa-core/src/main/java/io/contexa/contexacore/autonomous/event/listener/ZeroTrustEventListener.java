@@ -92,16 +92,20 @@ public class ZeroTrustEventListener {
 
         try {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Boolean isAnalyzing = redisTemplate.hasKey(analysisKey);
+            Boolean hasKey = redisTemplate.hasKey(analysisKey);
 
-            if (isAnalyzing) {
+            if (Boolean.TRUE.equals(hasKey)) {
                 Long ttl = redisTemplate.getExpire(analysisKey);
-                return ttl > 0;
+                // ttl > 0: TTL set and still valid (ALLOW, CHALLENGE, ESCALATE)
+                // ttl == -1: no TTL (BLOCK - permanent)
+                // Both cases should skip publishing
+                return ttl > 0 || ttl == -1;
             }
 
             return false;
 
         } catch (Exception e) {
+            log.error("[ZeroTrustEventListener] Failed to check skip condition: userId={}", userId, e);
             return false;
         }
     }

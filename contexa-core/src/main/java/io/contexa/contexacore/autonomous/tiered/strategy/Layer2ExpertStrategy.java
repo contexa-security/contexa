@@ -11,6 +11,7 @@ import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.SoarContext;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
@@ -80,9 +81,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
         long startTime = System.currentTimeMillis();
         try {
-            SecurityPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
-            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event);
             List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
+            SecurityPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
+            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event, relatedDocuments);
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
             SecurityResponse response;
@@ -163,17 +164,71 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         if (cached != null) {
             return cached;
         }
-        log.error("[Layer2] Session context cache miss for event {}, using empty context", event.getEventId());
-        return new SecurityPromptTemplate.SessionContext();
+        log.error("[Layer2] Session context cache miss for event {}, rebuilding from event data", event.getEventId());
+        return rebuildSessionContext(event);
     }
 
-    private SecurityPromptTemplate.BehaviorAnalysis getCachedOrBuildBehaviorAnalysis(SecurityEvent event) {
+    private SecurityPromptTemplate.BehaviorAnalysis getCachedOrBuildBehaviorAnalysis(
+            SecurityEvent event, List<Document> ragDocuments) {
         SecurityPromptTemplate.BehaviorAnalysis cached = getCachedBehaviorAnalysis(event.getEventId());
         if (cached != null) {
             return cached;
         }
-        log.error("[Layer2] Behavior analysis cache miss for event {}, using empty analysis", event.getEventId());
-        return new SecurityPromptTemplate.BehaviorAnalysis();
+        log.error("[Layer2] Behavior analysis cache miss for event {}, rebuilding from event data", event.getEventId());
+        return rebuildBehaviorAnalysis(event, ragDocuments);
+    }
+
+    private SecurityPromptTemplate.SessionContext rebuildSessionContext(SecurityEvent event) {
+        SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
+        ctx.setSessionId(event.getSessionId());
+        ctx.setUserId(event.getUserId());
+
+        if (event.getMetadata() != null) {
+            Object authMethod = event.getMetadata().get("authMethod");
+            if (authMethod instanceof String authMethodStr) {
+                ctx.setAuthMethod(authMethodStr);
+            }
+        }
+
+        return ctx;
+    }
+
+    private SecurityPromptTemplate.BehaviorAnalysis rebuildBehaviorAnalysis(
+            SecurityEvent event, List<Document> ragDocuments) {
+        List<String> similarEvents = extractSimilarEventsSummary(ragDocuments);
+        BaseBehaviorAnalysis base = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
+
+        SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
+        ctx.setSimilarEvents(base.getSimilarEvents());
+        ctx.setBaselineContext(base.getBaselineContext());
+        ctx.setBaselineEstablished(base.isBaselineEstablished());
+
+        if (event.getUserAgent() != null) {
+            ctx.setCurrentUserAgentOS(SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent()));
+            ctx.setCurrentUserAgentBrowser(SecurityEventEnricher.extractBrowserSignature(event.getUserAgent()));
+        }
+
+        if (event.getUserId() != null && baselineLearningService != null) {
+            try {
+                BaselineVector baseline = baselineLearningService.getBaseline(event.getUserId());
+                if (baseline != null) {
+                    ctx.setBaselineUpdateCount(baseline.getUpdateCount());
+                    ctx.setBaselineAvgTrustScore(baseline.getAvgTrustScore());
+                    ctx.setBaselineIpRanges(baseline.getNormalIpRanges());
+                    ctx.setBaselineOperatingSystems(baseline.getNormalOperatingSystems());
+                    ctx.setBaselineUserAgents(baseline.getNormalUserAgents());
+                    ctx.setBaselineFrequentPaths(baseline.getFrequentPaths());
+                    ctx.setBaselineAccessHours(baseline.getNormalAccessHours());
+                    if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
+                        ctx.setPreviousUserAgentBrowser(baseline.getNormalUserAgents()[0]);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("[Layer2] Failed to load baseline for user {}: {}", event.getUserId(), e.getMessage());
+            }
+        }
+
+        return ctx;
     }
 
     private List<Document> getCachedOrSearchRelatedContext(SecurityEvent event) {

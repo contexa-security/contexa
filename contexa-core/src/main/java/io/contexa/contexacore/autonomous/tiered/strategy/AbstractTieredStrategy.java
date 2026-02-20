@@ -11,6 +11,7 @@ import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
@@ -189,16 +190,52 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .limit(5)
                 .map(doc -> {
                     Map<String, Object> meta = doc.getMetadata();
-                    double score = 0.0;
-                    Object scoreObj = meta.get("similarityScore");
-                    if (scoreObj instanceof Number) {
-                        score = ((Number) scoreObj).doubleValue();
-                    }
+                    double score = extractSimilarityScore(doc);
                     int similarityPct = (int) (score * 100);
-                    return String.format("EventID:%s, Similarity:%d%%",
-                            meta.get("eventId"), similarityPct);
+
+                    StringBuilder summary = new StringBuilder();
+                    summary.append(String.format("Similarity:%d%%", similarityPct));
+
+                    appendMetaIfPresent(summary, meta, "sourceIp", "IP");
+                    appendMetaIfPresent(summary, meta, "requestPath", "Path");
+                    appendMetaIfPresent(summary, meta, "hour", "Hour");
+                    appendMetaIfPresent(summary, meta, "userAgentOS", "OS");
+                    appendMetaIfPresent(summary, meta, "userAgentBrowser", "UA");
+
+                    String content = doc.getText();
+                    if (content != null && !content.isBlank()) {
+                        String truncated = content.length() > 120
+                                ? content.substring(0, 120) + "..."
+                                : content;
+                        summary.append(" -> ").append(truncated);
+                    }
+
+                    return summary.toString();
                 })
                 .collect(Collectors.toList());
+    }
+
+    protected static double extractSimilarityScore(Document doc) {
+        Double docScore = doc.getScore();
+        if (docScore != null) {
+            return docScore;
+        }
+        Map<String, Object> meta = doc.getMetadata();
+        Object scoreObj = meta.get(VectorDocumentMetadata.SIMILARITY_SCORE);
+        if (scoreObj == null) scoreObj = meta.get("score");
+        if (scoreObj == null) scoreObj = meta.get("distance");
+        if (scoreObj instanceof Number) {
+            return ((Number) scoreObj).doubleValue();
+        }
+        return 0.0;
+    }
+
+    private static void appendMetaIfPresent(StringBuilder sb, Map<String, Object> meta,
+                                             String key, String label) {
+        Object val = meta.get(key);
+        if (val != null && !val.toString().isEmpty()) {
+            sb.append(", ").append(label).append(":").append(val);
+        }
     }
 
     protected ZeroTrustAction mapStringToAction(String action) {

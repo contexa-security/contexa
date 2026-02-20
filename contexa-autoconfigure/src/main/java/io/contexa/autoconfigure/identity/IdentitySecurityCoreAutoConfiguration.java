@@ -13,6 +13,7 @@ import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.FlowConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.GlobalConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.SecurityConfigurer;
+import io.contexa.contexaidentity.security.core.bootstrap.configurer.ZeroTrustAccessControlConfigurer;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.ZeroTrustChallengeConfigurer;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -36,6 +37,7 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeMfaInitializer;
+import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
@@ -352,6 +354,33 @@ public class IdentitySecurityCoreAutoConfiguration {
     public ZeroTrustChallengeConfigurer zeroTrustChallengeConfigurer(
             ZeroTrustChallengeFilter zeroTrustChallengeFilter) {
         return new ZeroTrustChallengeConfigurer(zeroTrustChallengeFilter);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ZeroTrustAccessControlFilter zeroTrustAccessControlFilter(
+            ZeroTrustActionRedisRepository actionRedisRepository,
+            AuthResponseWriter responseWriter,
+            StringRedisTemplate stringRedisTemplate) {
+        return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter, stringRedisTemplate);
+    }
+
+    @Bean
+    @ConditionalOnBean(ZeroTrustAccessControlFilter.class)
+    public FilterRegistrationBean<ZeroTrustAccessControlFilter> zeroTrustAccessControlFilterRegistrationBean(
+            ZeroTrustAccessControlFilter zeroTrustAccessControlFilter) {
+        FilterRegistrationBean<ZeroTrustAccessControlFilter> registrationBean = new FilterRegistrationBean<>();
+        registrationBean.setFilter(zeroTrustAccessControlFilter);
+        registrationBean.setEnabled(false);
+        return registrationBean;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ZeroTrustAccessControlFilter.class)
+    public ZeroTrustAccessControlConfigurer zeroTrustAccessControlConfigurer(
+            ZeroTrustAccessControlFilter zeroTrustAccessControlFilter) {
+        return new ZeroTrustAccessControlConfigurer(zeroTrustAccessControlFilter);
     }
 
     @Bean

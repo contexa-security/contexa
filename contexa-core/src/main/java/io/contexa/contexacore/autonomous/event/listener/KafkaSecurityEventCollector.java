@@ -131,16 +131,10 @@ public class KafkaSecurityEventCollector {
         if (!listeners.isEmpty()) {
             for (SecurityEventListener listener : listeners) {
                 try {
-                    
                     listener.onSecurityEvent(event);
-
                 } catch (Exception e) {
                     log.error("[KafkaCollector] Listener {} failed to process event {}: {}",
                         listener.getListenerName(), event.getEventId(), e.getMessage(), e);
-
-                    throw new RuntimeException(
-                        String.format("Listener %s failed to process event %s",
-                            listener.getListenerName(), event.getEventId()), e);
                 }
             }
         }

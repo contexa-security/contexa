@@ -236,6 +236,25 @@ public class SecurityPromptTemplate {
                    .append(".\n");
         }
 
+        if (behaviorAnalysis != null) {
+            if (behaviorAnalysis.getBaselineUpdateCount() != null) {
+                section.append("Baseline observations: ")
+                       .append(behaviorAnalysis.getBaselineUpdateCount()).append(".\n");
+            }
+            if (behaviorAnalysis.getBaselineAvgTrustScore() != null) {
+                section.append(String.format("Historical trust score: %.2f.\n",
+                        behaviorAnalysis.getBaselineAvgTrustScore()));
+            }
+        }
+
+        if (behaviorAnalysis != null && behaviorAnalysis.getBaselineContext() != null
+                && !behaviorAnalysis.getBaselineContext().startsWith("[")) {
+            section.append("\nEstablished baseline (from learned behavior):\n");
+            section.append(PromptTemplateUtils.sanitizeUserInput(
+                    behaviorAnalysis.getBaselineContext()));
+            section.append("\n");
+        }
+
         return section.toString();
     }
 
@@ -285,6 +304,18 @@ public class SecurityPromptTemplate {
             section.append(".\n");
         }
 
+        Integer requestCount = sessionContext.getRequestCount();
+        if (requestCount != null && requestCount > 0) {
+            if (sessionAge != null && sessionAge > 0) {
+                double requestsPerMinute = (double) requestCount / sessionAge;
+                section.append(String.format(
+                        "Requests in this session: %d (%.1f per minute).\n",
+                        requestCount, requestsPerMinute));
+            } else {
+                section.append(String.format("Requests in this session: %d.\n", requestCount));
+            }
+        }
+
         List<String> recentActions = sessionContext.getRecentActions();
         if (recentActions != null && !recentActions.isEmpty()) {
             section.append("\nRecent activity in this session ");
@@ -309,17 +340,35 @@ public class SecurityPromptTemplate {
 
         String previousOS = behaviorAnalysis.getPreviousUserAgentOS();
         String currentOS = behaviorAnalysis.getCurrentUserAgentOS();
+        String previousBrowser = behaviorAnalysis.getPreviousUserAgentBrowser();
+        String currentBrowser = behaviorAnalysis.getCurrentUserAgentBrowser();
 
-        if (previousOS == null || currentOS == null || previousOS.equals(currentOS)) {
+        boolean osChanged = previousOS != null && currentOS != null
+                && !previousOS.equals(currentOS);
+        boolean browserChanged = previousBrowser != null && currentBrowser != null
+                && !previousBrowser.equals(currentBrowser);
+
+        if (!osChanged && !browserChanged) {
             return null;
         }
 
         StringBuilder section = new StringBuilder();
         section.append("\n=== SESSION DEVICE CHANGE ===\n");
         section.append("OBSERVATION: Same SessionId with different device fingerprint detected.\n");
-        section.append("Previous OS: ").append(previousOS).append("\n");
-        section.append("Current OS: ").append(currentOS).append("\n");
-        section.append("OS Transition: ").append(previousOS).append(" -> ").append(currentOS).append("\n");
+
+        if (osChanged) {
+            section.append("Previous OS: ").append(previousOS).append("\n");
+            section.append("Current OS: ").append(currentOS).append("\n");
+            section.append("OS Transition: ").append(previousOS)
+                   .append(" -> ").append(currentOS).append("\n");
+        }
+
+        if (browserChanged) {
+            section.append("Previous Browser: ").append(previousBrowser).append("\n");
+            section.append("Current Browser: ").append(currentBrowser).append("\n");
+            section.append("Browser Transition: ").append(previousBrowser)
+                   .append(" -> ").append(currentBrowser).append("\n");
+        }
 
         return section.toString();
     }
@@ -348,8 +397,7 @@ public class SecurityPromptTemplate {
             }
         }
 
-        if (patterns.hasRelatedDocs) {
-            if (hasContent) section.append("\n");
+        if (!hasContent && patterns.hasRelatedDocs) {
             section.append("Historical records for context:\n");
             String sanitized = PromptTemplateUtils.sanitizeUserInput(
                     patterns.relatedContext);
@@ -574,12 +622,20 @@ public class SecurityPromptTemplate {
         meta.append("[Doc").append(docIndex);
 
         Map<String, Object> metadata = doc.getMetadata();
-        Object scoreObj = metadata.get(VectorDocumentMetadata.SIMILARITY_SCORE);
-        if (scoreObj == null) {
-            scoreObj = metadata.get("score");
-        }
-        if (scoreObj instanceof Number) {
-            meta.append("|sim=").append(String.format("%.2f", ((Number) scoreObj).doubleValue()));
+        Double docScore = doc.getScore();
+        if (docScore != null) {
+            meta.append("|sim=").append(String.format("%.2f", docScore));
+        } else {
+            Object scoreObj = metadata.get(VectorDocumentMetadata.SIMILARITY_SCORE);
+            if (scoreObj == null) {
+                scoreObj = metadata.get("score");
+            }
+            if (scoreObj == null) {
+                scoreObj = metadata.get("distance");
+            }
+            if (scoreObj instanceof Number) {
+                meta.append("|sim=").append(String.format("%.2f", ((Number) scoreObj).doubleValue()));
+            }
         }
 
         Object typeObj = metadata.get("documentType");
@@ -824,6 +880,12 @@ public class SecurityPromptTemplate {
         private String[] baselineFrequentPaths;
         private Integer[] baselineAccessHours;
 
+        private Long baselineUpdateCount;
+        private Double baselineAvgTrustScore;
+
+        private String previousUserAgentBrowser;
+        private String currentUserAgentBrowser;
+
         private Long lastRequestIntervalMs;
         private String previousPath;
 
@@ -921,6 +983,38 @@ public class SecurityPromptTemplate {
 
         public void setBaselineAccessHours(Integer[] baselineAccessHours) {
             this.baselineAccessHours = baselineAccessHours;
+        }
+
+        public Long getBaselineUpdateCount() {
+            return baselineUpdateCount;
+        }
+
+        public void setBaselineUpdateCount(Long baselineUpdateCount) {
+            this.baselineUpdateCount = baselineUpdateCount;
+        }
+
+        public Double getBaselineAvgTrustScore() {
+            return baselineAvgTrustScore;
+        }
+
+        public void setBaselineAvgTrustScore(Double baselineAvgTrustScore) {
+            this.baselineAvgTrustScore = baselineAvgTrustScore;
+        }
+
+        public String getPreviousUserAgentBrowser() {
+            return previousUserAgentBrowser;
+        }
+
+        public void setPreviousUserAgentBrowser(String previousUserAgentBrowser) {
+            this.previousUserAgentBrowser = previousUserAgentBrowser;
+        }
+
+        public String getCurrentUserAgentBrowser() {
+            return currentUserAgentBrowser;
+        }
+
+        public void setCurrentUserAgentBrowser(String currentUserAgentBrowser) {
+            this.currentUserAgentBrowser = currentUserAgentBrowser;
         }
 
         public Long getLastRequestIntervalMs() {

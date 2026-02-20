@@ -4,12 +4,16 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -239,6 +243,44 @@ public class ZeroTrustActionRedisRepository {
             stringRedisTemplate.delete(userBlockedKey);
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove blocked flag: userId={}", userId, e);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void approveOverrideAtomically(String userId, ZeroTrustAction newAction) {
+        if (userId == null || userId.isBlank() || newAction == null) {
+            return;
+        }
+
+        try {
+            String blockKey = ZeroTrustRedisKeys.userBlocked(userId);
+            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
+            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
+
+            Map<String, Object> fields = new HashMap<>();
+            fields.put("action", newAction.name());
+            fields.put("updatedAt", Instant.now().toString());
+
+            redisTemplate.execute(new SessionCallback<List<Object>>() {
+                @Override
+                public List<Object> execute(RedisOperations operations) throws DataAccessException {
+                    operations.multi();
+                    operations.delete(blockKey);
+                    operations.opsForHash().putAll(analysisKey, fields);
+
+                    Duration ttl = newAction.getDefaultTtl();
+                    if (ttl != null) {
+                        operations.expire(analysisKey, ttl);
+                    }
+
+                    return operations.exec();
+                }
+            });
+
+            stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed atomic override approval: userId={}, action={}",
+                    userId, newAction, e);
         }
     }
 

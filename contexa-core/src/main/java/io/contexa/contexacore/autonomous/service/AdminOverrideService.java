@@ -122,10 +122,11 @@ public class AdminOverrideService {
 
         try {
             ZeroTrustAction ztAction = ZeroTrustAction.fromString(action);
-            actionRedisRepository.saveAction(userId, ztAction, null);
 
             if (!ztAction.isBlocking()) {
-                actionRedisRepository.removeBlockedFlag(userId);
+                actionRedisRepository.approveOverrideAtomically(userId, ztAction);
+            } else {
+                actionRedisRepository.saveAction(userId, ztAction, null);
             }
         } catch (Exception e) {
             log.error("[AdminOverrideService] Redis analysis update failed: userId={}", userId, e);

@@ -244,8 +244,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
 
         if (event != null && event.getUserAgent() != null) {
-            String currentOS = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
-            ctx.setCurrentUserAgentOS(currentOS);
+            ctx.setCurrentUserAgentOS(
+                    SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent()));
+            ctx.setCurrentUserAgentBrowser(
+                    SecurityEventEnricher.extractBrowserSignature(event.getUserAgent()));
         }
 
         if (behaviorAnalysis.getBaselineContext() != null) {
@@ -262,6 +264,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     ctx.setBaselineUserAgents(baseline.getNormalUserAgents());
                     ctx.setBaselineFrequentPaths(baseline.getFrequentPaths());
                     ctx.setBaselineAccessHours(baseline.getNormalAccessHours());
+                    ctx.setBaselineUpdateCount(baseline.getUpdateCount());
+                    ctx.setBaselineAvgTrustScore(baseline.getAvgTrustScore());
+                    if (baseline.getNormalUserAgents() != null
+                            && baseline.getNormalUserAgents().length > 0) {
+                        ctx.setPreviousUserAgentBrowser(
+                                baseline.getNormalUserAgents()[0]);
+                    }
                 }
             } catch (Exception e) {
                 log.error("[Layer1] Failed to load baseline patterns for user {}: {}",
@@ -395,7 +404,40 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 recentActions.removeFirst();
             }
 
-            recentActions.add(event.getDescription() != null ? event.getDescription() : "action");
+            recentActions.add(buildActionSummary(event));
+        }
+
+        private String buildActionSummary(SecurityEvent event) {
+            StringBuilder action = new StringBuilder();
+
+            if (event.getTimestamp() != null) {
+                action.append(String.format("%02d:%02d",
+                        event.getTimestamp().getHour(),
+                        event.getTimestamp().getMinute()));
+            }
+            action.append(" | ");
+
+            if (event.getMetadata() != null) {
+                Object method = event.getMetadata().get("httpMethod");
+                if (method != null) action.append(method).append(" ");
+            }
+
+            String path = null;
+            if (event.getMetadata() != null) {
+                Object p = event.getMetadata().get("requestPath");
+                if (p == null) p = event.getMetadata().get("targetResource");
+                if (p != null) path = p.toString();
+            }
+            if (path != null) {
+                action.append(path);
+            } else if (event.getDescription() != null) {
+                action.append(event.getDescription());
+            }
+
+            action.append(" | ");
+            if (event.getSourceIp() != null) action.append(event.getSourceIp());
+
+            return action.toString();
         }
     }
 
