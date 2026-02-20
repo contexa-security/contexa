@@ -95,6 +95,7 @@ io.contexa.autoconfigure.iam.xacml.IamXacmlPepAutoConfiguration
 io.contexa.autoconfigure.iam.xacml.IamXacmlPapAutoConfiguration
 
 # IAM AIAM (AI-Powered IAM)
+io.contexa.autoconfigure.iam.aiam.IamAiamZeroTrustSseAutoConfiguration
 io.contexa.autoconfigure.iam.aiam.IamAiamInfrastructureAutoConfiguration
 io.contexa.autoconfigure.iam.aiam.IamAiamWebAutoConfiguration
 io.contexa.autoconfigure.iam.aiam.IamAiamServiceStrategyAutoConfiguration

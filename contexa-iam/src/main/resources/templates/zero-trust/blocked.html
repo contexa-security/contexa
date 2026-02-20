@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle='계정 차단')}"></head>
+<body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
+
+<div class="flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-lg p-8 rounded-xl text-center"
+         style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(71, 85, 105, 0.3);">
+        <div class="mb-6">
+            <svg class="mx-auto w-16 h-16" fill="none" stroke="#ef4444" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
+            </svg>
+        </div>
+        <h1 class="text-2xl font-bold mb-3" style="color: #f87171;">계정이 차단되었습니다</h1>
+        <p class="mb-6" style="color: #94a3b8;">
+            보안 사유로 계정 접근이 제한되었습니다.<br/>
+            관리자의 차단 해제 승인이 필요합니다.
+        </p>
+
+        <div id="request-form" class="mb-4">
+            <textarea id="reason-input"
+                      class="w-full p-3 rounded-lg text-sm mb-4"
+                      style="background: rgba(15, 23, 42, 0.8); color: #e2e8f0; border: 1px solid #334155;"
+                      rows="3"
+                      placeholder="차단 해제 사유를 입력하세요 (선택사항)"></textarea>
+            <button id="unblock-btn"
+                    class="w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all duration-300 cursor-pointer"
+                    style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
+                차단 해제 요청
+            </button>
+        </div>
+
+        <div id="request-result" class="hidden">
+            <p id="result-message" class="text-sm" style="color: #4ade80;"></p>
+        </div>
+    </div>
+</div>
+
+<script th:src="@{/js/zero-trust/blocked.js}"></script>
+</body>
+</html>

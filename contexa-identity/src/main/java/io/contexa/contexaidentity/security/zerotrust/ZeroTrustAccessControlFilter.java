@@ -21,6 +21,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -65,7 +67,10 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             requestUri = requestUri.substring(contextPath.length());
         }
 
-        return requestUri.startsWith("/logout");
+        return requestUri.startsWith("/logout")
+                || requestUri.startsWith("/zero-trust")
+                || requestUri.startsWith("/api/aiam/sse/zero-trust")
+                || requestUri.startsWith("/api/aiam/zero-trust");
     }
 
     @Override
@@ -116,8 +121,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                     request.getRequestURI(),
                     body);
         } else {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN,
-                    "Account blocked - contact administrator");
+            response.sendRedirect("/zero-trust/blocked");
         }
     }
 
@@ -177,7 +181,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                     request.getRequestURI(),
                     body);
         } else {
-            response.sendError(423, "Security review in progress - please retry");
+            String returnUrl = URLEncoder.encode(request.getRequestURI(), StandardCharsets.UTF_8);
+            response.sendRedirect("/zero-trust/analysis-pending?returnUrl=" + returnUrl);
         }
     }
 

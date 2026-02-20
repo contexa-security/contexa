@@ -5,6 +5,7 @@ import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.streaming.StandardStreamingService;
 import io.contexa.contexaiam.aiam.protocol.context.PolicyContext;
 import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
+import io.contexa.contexaiam.aiam.event.ZeroTrustSsePublisher;
 import io.contexa.contexaiam.aiam.web.*;
 import io.contexa.contexaiam.properties.SecurityStepUpProperties;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
@@ -43,5 +44,26 @@ public class IamAiamWebAutoConfiguration {
             AdminOverrideService adminOverrideService,
             StringRedisTemplate stringRedisTemplate) {
         return new AdminOverrideController(adminOverrideService, stringRedisTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ZeroTrustSseController zeroTrustSseController(
+            ZeroTrustSsePublisher zeroTrustSsePublisher) {
+        return new ZeroTrustSseController(zeroTrustSsePublisher);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ZeroTrustPageController zeroTrustPageController() {
+        return new ZeroTrustPageController();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ZeroTrustUnblockController zeroTrustUnblockController(
+            AdminOverrideService adminOverrideService,
+            StringRedisTemplate stringRedisTemplate) {
+        return new ZeroTrustUnblockController(adminOverrideService, stringRedisTemplate);
     }
 }
