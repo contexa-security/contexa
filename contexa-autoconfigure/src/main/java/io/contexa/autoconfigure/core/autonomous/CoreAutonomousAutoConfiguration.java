@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
+import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -99,8 +100,9 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
             SecurityLearningService securityLearningService,
-            ZeroTrustActionRedisRepository actionRedisRepository) {
-        return new AdminOverrideService(securityLearningService, actionRedisRepository);
+            ZeroTrustActionRedisRepository actionRedisRepository,
+            @Autowired(required = false) RedisDistributedLockService lockService) {
+        return new AdminOverrideService(securityLearningService, actionRedisRepository, lockService);
     }
 
     @Bean

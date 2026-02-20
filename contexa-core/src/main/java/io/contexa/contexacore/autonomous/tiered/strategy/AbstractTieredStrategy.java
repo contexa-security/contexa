@@ -307,12 +307,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
         try {
             StringBuilder queryBuilder = new StringBuilder();
-            if (event.getUserId() != null && !event.getUserId().equals("unknown")) {
-                queryBuilder.append("User: ").append(event.getUserId());
-            }
 
             if (event.getSourceIp() != null) {
-                if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
                 queryBuilder.append("IP: ").append(event.getSourceIp());
             }
 

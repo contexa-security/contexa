@@ -8,6 +8,8 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.time.Instant;
+import java.util.HashMap;
+import java.util.Map;
 
 
 @Data
@@ -31,7 +33,10 @@ public class BaselineVector implements Serializable {
 
     
     @Builder.Default
-    private Long updateCount = 0L;           
+    private Long updateCount = 0L;
+
+    @Builder.Default
+    private Map<String, Long> elementFrequencies = new HashMap<>();
     
 
     

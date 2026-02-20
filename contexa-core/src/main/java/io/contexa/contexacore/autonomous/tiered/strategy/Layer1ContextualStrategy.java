@@ -91,6 +91,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
+
+            cacheEscalationContext(event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
+
             String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
@@ -112,7 +115,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         .timeout(Duration.ofMillis(llmTimeoutMs))
                         .onErrorResume(Exception.class, e -> {
                             log.error("[Layer1] LLM execution failed, escalating to Layer 2: {}", event.getEventId(), e);
-                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\",\"threatCategory\":\"UNKNOWN\"}");
+                            return Mono.just("{\"riskScore\":0.7,\"confidence\":0.3,\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\",\"threatCategory\":\"UNKNOWN\"}");
                         })
                         .block();
 
@@ -127,11 +130,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             if (decision.getAction() == ZeroTrustAction.BLOCK) {
                 triggerPolicyEvolution(event, decision,
                         buildAnalysisContext(sessionCtx, behaviorCtx, relatedDocuments));
-            }
-
-            if (decision.getAction() == ZeroTrustAction.ESCALATE) {
-                cacheEscalationContext(
-                        event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
             }
 
             enrichDecisionWithContext(decision, sessionContext, behaviorAnalysis);
@@ -371,8 +369,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private SecurityDecision createFallbackDecision(long startTime) {
         return SecurityDecision.builder()
                 .action(ZeroTrustAction.ESCALATE)
-                .riskScore(Double.NaN)
-                .confidence(Double.NaN)
+                .riskScore(0.7)
+                .confidence(0.3)
                 .analysisTime(startTime)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .processingLayer(1)

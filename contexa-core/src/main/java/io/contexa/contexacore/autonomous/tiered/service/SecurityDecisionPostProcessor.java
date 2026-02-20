@@ -103,36 +103,42 @@ public class SecurityDecisionPostProcessor {
     private String buildBehaviorSentence(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sentence = new StringBuilder();
 
-        if (event.getTimestamp() != null) {
-            sentence.append(String.format("%02d:%02d",
-                    event.getTimestamp().getHour(),
-                    event.getTimestamp().getMinute()));
-        }
-
-        sentence.append(" | ");
         String method = null;
         String path = extractPath(event);
         if (event.getMetadata() != null) {
             Object m = event.getMetadata().get("httpMethod");
             if (m != null) method = m.toString();
         }
-        if (method != null) sentence.append(method).append(" ");
+
+        sentence.append("User accessed ");
         if (path != null) {
             sentence.append(path);
         } else if (event.getDescription() != null) {
             sentence.append(event.getDescription());
         }
+        if (method != null) {
+            sentence.append(" via ").append(method);
+        }
+        if (event.getSourceIp() != null) {
+            sentence.append(" from ").append(event.getSourceIp());
+        }
 
-        sentence.append(" | ");
-        if (event.getSourceIp() != null) sentence.append(event.getSourceIp());
-
-        sentence.append(" | ");
-        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
         String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
-        if (browser != null) sentence.append(browser);
-        if (os != null) sentence.append("/").append(os);
+        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
+        if (browser != null) {
+            sentence.append(" using ").append(browser);
+        }
+        if (os != null) {
+            sentence.append(" on ").append(os);
+        }
 
-        sentence.append(" | observed: ").append(decision.getAction().name().toLowerCase());
+        if (event.getTimestamp() != null) {
+            sentence.append(String.format(" at %02d:%02d",
+                    event.getTimestamp().getHour(),
+                    event.getTimestamp().getMinute()));
+        }
+
+        sentence.append(", observed ").append(decision.getAction().name().toLowerCase());
 
         return sentence.toString();
     }

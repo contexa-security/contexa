@@ -104,7 +104,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .onErrorResume(Exception.class, e -> {
                             log.error("[Layer2] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
-                            return Mono.just("{\"riskScore\":null,\"confidence\":null,\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\"}");
+                            return Mono.just("{\"riskScore\":0.9,\"confidence\":0.3,\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\",\"threatCategory\":\"UNKNOWN\"}");
                         })
                         .block();
 
@@ -332,8 +332,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime) {
         return SecurityDecision.builder()
                 .action(ZeroTrustAction.BLOCK)
-                .riskScore(Double.NaN)
-                .confidence(Double.NaN)
+                .riskScore(0.9)
+                .confidence(0.3)
                 .analysisTime(startTime)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .processingLayer(2)

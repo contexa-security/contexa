@@ -50,6 +50,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     .currentRiskLevel(riskScore)
                     .success(true)
                     .build();
+            result.addAnalysisData("analysisRequirement", analysisRequirement);
 
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore);
             result.setRiskScore(analysisResult.getFinalScore());
@@ -91,7 +92,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 layer1Assessment = contextualStrategy.evaluate(event);
                 long layer1ElapsedMs = System.currentTimeMillis() - layer1StartTime;
 
-                if (!layer1Assessment.isShouldEscalate()) {
+                /*if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.getRiskScore());
                     result.setConfidence(layer1Assessment.getConfidence());
                     result.addIndicators(layer1Assessment.getIndicators());
@@ -108,7 +109,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     publishDecisionApplied(userId, layer1Assessment.getAction(), "LAYER1", requestPath);
 
                     return result;
-                }
+                }*/
 
                 publishLayer1Complete(userId, ZeroTrustAction.ESCALATE.name(),
                         layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
@@ -150,8 +151,8 @@ public class ColdPathEventProcessor implements IPathProcessor {
         } catch (Exception e) {
             log.error("[ColdPath] Tiered AI analysis failed, using fallback riskScore: eventId={}", event.getEventId(), e);
             result.setFinalScore(riskScore);
-            result.setAction(ZeroTrustAction.ESCALATE.name());
-            result.setConfidence(Double.NaN);
+            result.setAction(ZeroTrustAction.CHALLENGE.name());
+            result.setConfidence(0.3);
             result.setAnalysisDepth(0);
             return result;
         }

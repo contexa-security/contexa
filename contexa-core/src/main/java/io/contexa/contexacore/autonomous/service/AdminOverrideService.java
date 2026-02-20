@@ -5,8 +5,10 @@ import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -15,11 +17,17 @@ public class AdminOverrideService {
 
     private final SecurityLearningService securityLearningService;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final RedisDistributedLockService lockService;
+
+    private static final String BASELINE_LOCK_PREFIX = "baseline:update:";
+    private static final Duration BASELINE_LOCK_TIMEOUT = Duration.ofSeconds(10);
 
     public AdminOverrideService(SecurityLearningService securityLearningService,
-                                ZeroTrustActionRedisRepository actionRedisRepository) {
+                                ZeroTrustActionRedisRepository actionRedisRepository,
+                                RedisDistributedLockService lockService) {
         this.securityLearningService = securityLearningService;
         this.actionRedisRepository = actionRedisRepository;
+        this.lockService = lockService;
     }
 
     public AdminOverride approve(String requestId, String userId, String adminId,
@@ -77,7 +85,17 @@ public class AdminOverrideService {
                     .analysisTime(System.currentTimeMillis())
                     .build();
 
-            securityLearningService.learnAndStore(userId, adminApprovedDecision, event);
+            if (lockService != null) {
+                lockService.executeWithLock(
+                        BASELINE_LOCK_PREFIX + userId,
+                        BASELINE_LOCK_TIMEOUT,
+                        () -> {
+                            securityLearningService.learnAndStore(userId, adminApprovedDecision, event);
+                            return null;
+                        });
+            } else {
+                securityLearningService.learnAndStore(userId, adminApprovedDecision, event);
+            }
 
         } catch (Exception e) {
             log.error("[AdminOverrideService] Baseline update failed: userId={}, overrideId={}",

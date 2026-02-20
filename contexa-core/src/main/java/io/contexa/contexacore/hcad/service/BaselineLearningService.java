@@ -1,12 +1,9 @@
 package io.contexa.contexacore.hcad.service;
 
-import io.contexa.contexacommon.hcad.domain.BaselineMatchStatus;
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
-import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.hcad.util.UserAgentParser;
 import io.contexa.contexacore.properties.HcadProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +26,11 @@ public class BaselineLearningService {
     private static final String BASELINE_KEY_PREFIX = "security:hcad:baseline:";
     private static final Duration BASELINE_TTL = Duration.ofDays(30);
 
+    private static final String FREQ_PREFIX_IP = "ip:";
+    private static final String FREQ_PREFIX_UA = "ua:";
+    private static final String FREQ_PREFIX_OS = "os:";
+    private static final String FREQ_PREFIX_PATH = "path:";
+
     public boolean learnIfNormal(String userId, SecurityDecision decision, SecurityEvent event) {
         if (!hcadProperties.getBaseline().getLearning().isEnabled()) {
             return false;
@@ -44,7 +46,7 @@ public class BaselineLearningService {
             return true;
 
         } catch (Exception e) {
-            log.error("[BaselineLearningService] SecurityEvent 기반 학습 실패: userId={}", userId, e);
+            log.error("[BaselineLearningService] SecurityEvent learning failed: userId={}", userId, e);
             return false;
         }
     }
@@ -69,14 +71,15 @@ public class BaselineLearningService {
             return current;
         }
         String uaSignatureForValidation = extractUASignature(currentUserAgent);
-        if ("Browser (Desktop)".equals(uaSignatureForValidation)) {
-            log.error("[Baseline][AI Native v8.5] UA parsing failed - learning blocked: userId={}, ua={}",
+        if ("Browser".equals(uaSignatureForValidation) || "unknown".equals(uaSignatureForValidation)) {
+            log.error("[Baseline] UA parsing failed - learning blocked: userId={}, ua={}",
                     userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
             return current;
         }
 
         if (current == null) {
 
+            Map<String, Long> frequencies = new HashMap<>();
             BaselineVector.BaselineVectorBuilder builder = BaselineVector.builder()
                     .userId(userId)
                     .avgTrustScore(currentTrustScore)
@@ -87,54 +90,68 @@ public class BaselineLearningService {
             if (currentIp != null) {
                 String ipRange = extractIpRange(currentIp);
                 builder.normalIpRanges(new String[]{ipRange});
+                if (ipRange != null) {
+                    frequencies.put(FREQ_PREFIX_IP + ipRange, 1L);
+                }
             }
             if (currentHour != null) {
                 builder.normalAccessHours(new Integer[]{currentHour});
             }
             if (currentPath != null) {
                 builder.frequentPaths(new String[]{currentPath});
+                frequencies.put(FREQ_PREFIX_PATH + currentPath, 1L);
             }
 
             String uaSignature = extractUASignature(currentUserAgent);
             if (uaSignature != null && !uaSignature.equals("unknown") &&
                     !uaSignature.equals("unknown (unknown)")) {
                 builder.normalUserAgents(new String[]{uaSignature});
+                frequencies.put(FREQ_PREFIX_UA + uaSignature, 1L);
             } else {
 
                 String truncatedUA = currentUserAgent.length() > 100
                         ? currentUserAgent.substring(0, 100) : currentUserAgent;
                 builder.normalUserAgents(new String[]{truncatedUA});
+                frequencies.put(FREQ_PREFIX_UA + truncatedUA, 1L);
                 log.error("[Baseline] SecurityEvent first learning - UA parsing failed, storing raw: {}", truncatedUA);
             }
 
             String os = extractOS(currentUserAgent);
             if (!os.equals("Unknown")) {
                 builder.normalOperatingSystems(new String[]{os});
+                frequencies.put(FREQ_PREFIX_OS + os, 1L);
             }
 
+            builder.elementFrequencies(frequencies);
             return builder.build();
         }
 
         double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
         double alpha = hcadProperties.getBaseline().getLearning().getAlpha();
-        double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
+        double confidenceWeight = decision.getConfidence() > 0.0 ? decision.getConfidence() : 1.0;
+        double weightedAlpha = alpha * confidenceWeight;
+        double newTrustScore = weightedAlpha * currentTrustScore + (1 - weightedAlpha) * oldTrustScore;
 
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
         long oldRequestCount = current.getAvgRequestCount() != null ? current.getAvgRequestCount() : 0L;
 
-        String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp);
+        Map<String, Long> frequencies = current.getElementFrequencies() != null
+                ? new HashMap<>(current.getElementFrequencies())
+                : new HashMap<>();
+
+        String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp, frequencies);
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
-        String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath);
+        String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath, frequencies);
 
         String normalizedUA = extractUASignature(currentUserAgent);
         String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
                 !normalizedUA.equals("unknown (unknown)"))
                 ? normalizedUA : currentUserAgent;
-        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate);
+        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate, frequencies);
 
         String currentOS = extractOS(currentUserAgent);
         String[] normalOperatingSystems = updateNormalOperatingSystems(
-                current.getNormalOperatingSystems(), currentOS);
+                current.getNormalOperatingSystems(), currentOS, frequencies);
 
         return BaselineVector.builder()
                 .userId(userId)
@@ -148,6 +165,7 @@ public class BaselineLearningService {
                 .frequentPaths(frequentPaths)
                 .normalUserAgents(normalUserAgents)
                 .normalOperatingSystems(normalOperatingSystems)
+                .elementFrequencies(frequencies)
                 .build();
     }
 
@@ -248,7 +266,7 @@ public class BaselineLearningService {
         return normalized.isEmpty() ? "0" : normalized;
     }
 
-    private String[] updateNormalIpRanges(String[] current, String newIp) {
+    private String[] updateNormalIpRanges(String[] current, String newIp, Map<String, Long> frequencies) {
         if (newIp == null) {
             return current;
         }
@@ -256,6 +274,8 @@ public class BaselineLearningService {
         if (ipRange == null) {
             return current;
         }
+
+        frequencies.merge(FREQ_PREFIX_IP + ipRange, 1L, Long::sum);
 
         if (current == null || current.length == 0) {
             return new String[]{ipRange};
@@ -268,10 +288,10 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 5) {
-
-            String[] updated = new String[5];
-            System.arraycopy(current, 1, updated, 0, 4);
-            updated[4] = ipRange;
+            int lfuIndex = findLeastFrequentIndex(current, FREQ_PREFIX_IP, frequencies);
+            frequencies.remove(FREQ_PREFIX_IP + current[lfuIndex]);
+            String[] updated = Arrays.copyOf(current, current.length);
+            updated[lfuIndex] = ipRange;
             return updated;
         }
 
@@ -306,10 +326,12 @@ public class BaselineLearningService {
         return updated;
     }
 
-    private String[] updateFrequentPaths(String[] current, String newPath) {
+    private String[] updateFrequentPaths(String[] current, String newPath, Map<String, Long> frequencies) {
         if (newPath == null || newPath.isEmpty()) {
             return current;
         }
+
+        frequencies.merge(FREQ_PREFIX_PATH + newPath, 1L, Long::sum);
 
         if (current == null || current.length == 0) {
             return new String[]{newPath};
@@ -322,10 +344,10 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 10) {
-
-            String[] updated = new String[10];
-            System.arraycopy(current, 1, updated, 0, 9);
-            updated[9] = newPath;
+            int lfuIndex = findLeastFrequentIndex(current, FREQ_PREFIX_PATH, frequencies);
+            frequencies.remove(FREQ_PREFIX_PATH + current[lfuIndex]);
+            String[] updated = Arrays.copyOf(current, current.length);
+            updated[lfuIndex] = newPath;
             return updated;
         }
 
@@ -335,7 +357,7 @@ public class BaselineLearningService {
         return updated;
     }
 
-    private String[] updateNormalUserAgents(String[] current, String newUserAgent) {
+    private String[] updateNormalUserAgents(String[] current, String newUserAgent, Map<String, Long> frequencies) {
         if (newUserAgent == null || newUserAgent.isEmpty()) {
             return current;
         }
@@ -343,6 +365,8 @@ public class BaselineLearningService {
         if (newUserAgent.length() > 100) {
             newUserAgent = newUserAgent.substring(0, 100);
         }
+
+        frequencies.merge(FREQ_PREFIX_UA + newUserAgent, 1L, Long::sum);
 
         if (current == null || current.length == 0) {
             return new String[]{newUserAgent};
@@ -355,10 +379,10 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 5) {
-
-            String[] updated = new String[5];
-            System.arraycopy(current, 1, updated, 0, 4);
-            updated[4] = newUserAgent;
+            int lfuIndex = findLeastFrequentIndex(current, FREQ_PREFIX_UA, frequencies);
+            frequencies.remove(FREQ_PREFIX_UA + current[lfuIndex]);
+            String[] updated = Arrays.copyOf(current, current.length);
+            updated[lfuIndex] = newUserAgent;
             return updated;
         }
 
@@ -368,10 +392,12 @@ public class BaselineLearningService {
         return updated;
     }
 
-    private String[] updateNormalOperatingSystems(String[] current, String newOS) {
+    private String[] updateNormalOperatingSystems(String[] current, String newOS, Map<String, Long> frequencies) {
         if (newOS == null || newOS.isEmpty() || newOS.equals("Unknown")) {
             return current;
         }
+
+        frequencies.merge(FREQ_PREFIX_OS + newOS, 1L, Long::sum);
 
         if (current == null || current.length == 0) {
             return new String[]{newOS};
@@ -384,10 +410,10 @@ public class BaselineLearningService {
         }
 
         if (current.length >= 5) {
-
-            String[] updated = new String[5];
-            System.arraycopy(current, 1, updated, 0, 4);
-            updated[4] = newOS;
+            int lfuIndex = findLeastFrequentIndex(current, FREQ_PREFIX_OS, frequencies);
+            frequencies.remove(FREQ_PREFIX_OS + current[lfuIndex]);
+            String[] updated = Arrays.copyOf(current, current.length);
+            updated[lfuIndex] = newOS;
             return updated;
         }
 
@@ -395,6 +421,19 @@ public class BaselineLearningService {
         System.arraycopy(current, 0, updated, 0, current.length);
         updated[current.length] = newOS;
         return updated;
+    }
+
+    private int findLeastFrequentIndex(String[] elements, String freqPrefix, Map<String, Long> frequencies) {
+        int minIndex = 0;
+        long minFreq = Long.MAX_VALUE;
+        for (int i = 0; i < elements.length; i++) {
+            long freq = frequencies.getOrDefault(freqPrefix + elements[i], 0L);
+            if (freq < minFreq) {
+                minFreq = freq;
+                minIndex = i;
+            }
+        }
+        return minIndex;
     }
 
     public BaselineVector getBaseline(String userId) {
@@ -421,7 +460,11 @@ public class BaselineLearningService {
                         .normalIpRanges(orgBaseline.getNormalIpRanges())
                         .normalAccessHours(orgBaseline.getNormalAccessHours())
                         .frequentPaths(orgBaseline.getFrequentPaths())
-                        .normalUserAgents(null)
+                        .normalUserAgents(orgBaseline.getNormalUserAgents())
+                        .normalOperatingSystems(orgBaseline.getNormalOperatingSystems())
+                        .elementFrequencies(orgBaseline.getElementFrequencies() != null
+                                ? new HashMap<>(orgBaseline.getElementFrequencies())
+                                : new HashMap<>())
                         .build();
             }
         }
@@ -452,10 +495,11 @@ public class BaselineLearningService {
                     .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
 
                     .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
+                    .elementFrequencies(parseFrequencyMap(data.get("elementFrequencies")))
                     .build();
 
         } catch (Exception e) {
-            log.error("[BaselineLearningService] 사용자 Baseline 조회 실패: userId={}", userId, e);
+            log.error("[BaselineLearningService] User baseline retrieval failed: userId={}", userId, e);
             return null;
         }
     }
@@ -482,10 +526,13 @@ public class BaselineLearningService {
                     .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
                     .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
                     .frequentPaths(parseStringArray(data.get("frequentPaths")))
+                    .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
+                    .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
+                    .elementFrequencies(parseFrequencyMap(data.get("elementFrequencies")))
                     .build();
 
         } catch (Exception e) {
-            log.error("[BaselineLearningService] 조직 Baseline 조회 실패: organizationId={}", organizationId, e);
+            log.error("[BaselineLearningService] Organization baseline retrieval failed: organizationId={}", organizationId, e);
             return null;
         }
     }
@@ -505,12 +552,15 @@ public class BaselineLearningService {
             return userId.substring(0, atIndex);
         }
 
-        return "default";
+        return null;
     }
 
     private String[] parseStringArray(Object value) {
         if (value instanceof String && !((String) value).isEmpty()) {
-            return ((String) value).split(",");
+            String[] parts = ((String) value).split(",");
+            return Arrays.stream(parts)
+                    .filter(s -> !s.isEmpty())
+                    .toArray(String[]::new);
         }
         return null;
     }
@@ -519,6 +569,8 @@ public class BaselineLearningService {
         if (value instanceof String && !((String) value).isEmpty()) {
             try {
                 return Arrays.stream(((String) value).split(","))
+                        .filter(s -> !s.isEmpty())
+                        .map(String::trim)
                         .map(Integer::parseInt)
                         .toArray(Integer[]::new);
             } catch (NumberFormatException e) {
@@ -565,11 +617,16 @@ public class BaselineLearningService {
                 data.put("normalOperatingSystems", String.join(",", baseline.getNormalOperatingSystems()));
             }
 
+            String serializedFrequencies = serializeFrequencyMap(baseline.getElementFrequencies());
+            if (serializedFrequencies != null) {
+                data.put("elementFrequencies", serializedFrequencies);
+            }
+
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, BASELINE_TTL);
 
         } catch (Exception e) {
-            log.error("[BaselineLearningService] Baseline 저장 실패: userId={}", userId, e);
+            log.error("[BaselineLearningService] Baseline save failed: userId={}", userId, e);
         }
     }
 
@@ -612,6 +669,32 @@ public class BaselineLearningService {
         return Instant.now();
     }
 
+    private Map<String, Long> parseFrequencyMap(Object value) {
+        if (value instanceof String && !((String) value).isEmpty()) {
+            Map<String, Long> map = new HashMap<>();
+            for (String entry : ((String) value).split(",")) {
+                int eqIdx = entry.lastIndexOf('=');
+                if (eqIdx > 0 && eqIdx < entry.length() - 1) {
+                    try {
+                        map.put(entry.substring(0, eqIdx), Long.parseLong(entry.substring(eqIdx + 1)));
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+            return map;
+        }
+        return new HashMap<>();
+    }
+
+    private String serializeFrequencyMap(Map<String, Long> frequencies) {
+        if (frequencies == null || frequencies.isEmpty()) {
+            return null;
+        }
+        return frequencies.entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(java.util.stream.Collectors.joining(","));
+    }
+
     public String buildBaselinePromptContext(String userId, SecurityEvent currentEvent) {
         if (userId == null) {
             return "Baseline: User ID not available";
@@ -626,6 +709,8 @@ public class BaselineLearningService {
         String[] normalIps = baseline.getNormalIpRanges();
         Integer[] normalHours = baseline.getNormalAccessHours();
         String[] normalUserAgents = baseline.getNormalUserAgents();
+        String[] normalOS = baseline.getNormalOperatingSystems();
+        String[] frequentPaths = baseline.getFrequentPaths();
         String baselineUASignature = normalUserAgents != null && normalUserAgents.length > 0
                 ? extractUASignature(normalUserAgents[0]) : "none";
 
@@ -645,6 +730,14 @@ public class BaselineLearningService {
         }
 
         sb.append("Known UA: ").append(baselineUASignature).append("\n");
+
+        if (normalOS != null && normalOS.length > 0) {
+            sb.append("Known OS: ").append(String.join(", ", normalOS)).append("\n");
+        }
+
+        if (frequentPaths != null && frequentPaths.length > 0) {
+            sb.append("Frequent Paths: ").append(String.join(", ", frequentPaths)).append("\n");
+        }
 
         return sb.toString();
     }
