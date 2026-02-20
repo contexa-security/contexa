@@ -97,7 +97,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId);
 
         switch (currentAction) {
-            case BLOCK -> handleBlocked(request, response, userId);
+            case CHALLENGE -> handleBlocked(request, response, userId);
             case ESCALATE -> handleEscalate(request, response, userId);
             default -> filterChain.doFilter(request, response);
         }
@@ -107,10 +107,13 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                HttpServletResponse response,
                                String userId) throws IOException {
 
+        String redirectUrl = request.getContextPath() + "/zero-trust/blocked";
+
         Map<String, Object> body = new HashMap<>();
         body.put("error", "ACCOUNT_BLOCKED");
         body.put("message", "Your account has been blocked due to security concerns");
         body.put("adminReviewRequired", true);
+        body.put("redirectUrl", redirectUrl);
 
         if (WebUtil.isApiOrAjaxRequest(request)) {
             responseWriter.writeErrorResponse(
@@ -121,7 +124,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                     request.getRequestURI(),
                     body);
         } else {
-            response.sendRedirect("/zero-trust/blocked");
+            response.sendRedirect(redirectUrl);
         }
     }
 
@@ -165,10 +168,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private void respondWithReviewInProgress(HttpServletRequest request,
                                              HttpServletResponse response) throws IOException {
 
+        String returnUrl = URLEncoder.encode(request.getRequestURI(), StandardCharsets.UTF_8);
+        String redirectUrl = request.getContextPath()
+                + "/zero-trust/analysis-pending?returnUrl=" + returnUrl;
+
         Map<String, Object> body = new HashMap<>();
         body.put("error", "SECURITY_REVIEW_IN_PROGRESS");
         body.put("message", "Security analysis in progress");
         body.put("retryAfterSeconds", RETRY_AFTER_SECONDS);
+        body.put("redirectUrl", redirectUrl);
 
         response.setHeader("Retry-After", String.valueOf(RETRY_AFTER_SECONDS));
 
@@ -181,8 +189,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                     request.getRequestURI(),
                     body);
         } else {
-            String returnUrl = URLEncoder.encode(request.getRequestURI(), StandardCharsets.UTF_8);
-            response.sendRedirect("/zero-trust/analysis-pending?returnUrl=" + returnUrl);
+            response.sendRedirect(redirectUrl);
         }
     }
 

@@ -1,7 +1,7 @@
 /**
  * Contexa MFA SDK - Unified JavaScript SDK for Multi-Factor Authentication
  *
- * Version: 2.0.0 (Complete Refactoring)
+ * Version: 2.1.0 (Zero Trust Global Interceptor)
  * License: Apache 2.0
  *
  * This SDK consolidates 8 legacy JavaScript files (1,871 lines) into a clean,
@@ -1197,36 +1197,147 @@
         window.fetch = async function(...args) {
             const response = await originalFetch.apply(this, args);
 
-            // Detect 401 response
+            // Detect 401 MFA Challenge response
             if (response.status === 401) {
                 try {
-                    // Clone response to read body (original can only be read once)
                     const clonedResponse = response.clone();
                     const data = await clonedResponse.json();
 
-                    // Check for MFA_CHALLENGE_REQUIRED response
                     if (data.error === 'MFA_CHALLENGE_REQUIRED' && data.mfaUrl) {
                         ContexaMFAUtils.log(
                             `MFA Challenge detected, redirecting to: ${data.mfaUrl}`,
                             'info',
                             data
                         );
-
-                        // Auto redirect to MFA page
                         window.location.href = data.mfaUrl;
-
-                        // Wait during redirect (keep Promise until page navigation)
                         return new Promise(() => {});
                     }
                 } catch (e) {
-                    // Ignore if JSON parsing fails (normal 401 response)
+                    // Non-JSON 401 response, pass through
+                }
+            }
+
+            // Detect 403 Account Blocked response
+            if (response.status === 403) {
+                try {
+                    const clonedResponse = response.clone();
+                    const data = await clonedResponse.json();
+
+                    if (data.error === 'ACCOUNT_BLOCKED' && data.redirectUrl) {
+                        ContexaMFAUtils.log(
+                            `Account blocked detected, redirecting to: ${data.redirectUrl}`,
+                            'info',
+                            data
+                        );
+                        window.location.href = data.redirectUrl;
+                        return new Promise(() => {});
+                    }
+                } catch (e) {
+                    // Non-JSON 403 response, pass through
+                }
+            }
+
+            // Detect 423 Security Review In Progress response
+            if (response.status === 423) {
+                try {
+                    const clonedResponse = response.clone();
+                    const data = await clonedResponse.json();
+
+                    if (data.error === 'SECURITY_REVIEW_IN_PROGRESS' && data.redirectUrl) {
+                        ContexaMFAUtils.log(
+                            `Security review in progress, redirecting to: ${data.redirectUrl}`,
+                            'info',
+                            data
+                        );
+                        window.location.href = data.redirectUrl;
+                        return new Promise(() => {});
+                    }
+                } catch (e) {
+                    // Non-JSON 423 response, pass through
                 }
             }
 
             return response;
         };
 
-        ContexaMFAUtils.log('Global fetch interceptor installed for MFA Challenge handling', 'debug');
+        ContexaMFAUtils.log(
+            'Global fetch interceptor installed for MFA Challenge and Zero Trust handling', 'debug');
+    })();
+
+    // ===========================
+    // Module 6: Global XHR Interceptor
+    // ===========================
+
+    /**
+     * Intercepts XMLHttpRequest responses to detect security-related status codes
+     * (401 MFA Challenge, 403 Account Blocked, 423 Security Review)
+     * and automatically redirects to the appropriate page.
+     */
+    (function installGlobalXhrInterceptor() {
+        var OriginalXHR = window.XMLHttpRequest;
+
+        function InterceptedXHR() {
+            var xhr = new OriginalXHR();
+            var originalOpen = xhr.open;
+
+            xhr.open = function() {
+                return originalOpen.apply(xhr, arguments);
+            };
+
+            xhr.addEventListener('load', function() {
+                try {
+                    var status = xhr.status;
+                    if (status !== 401 && status !== 403 && status !== 423) {
+                        return;
+                    }
+
+                    var contentType = xhr.getResponseHeader('Content-Type');
+                    if (!contentType || contentType.indexOf('application/json') === -1) {
+                        return;
+                    }
+
+                    var data = JSON.parse(xhr.responseText);
+
+                    // 401 MFA Challenge
+                    if (status === 401 && data.error === 'MFA_CHALLENGE_REQUIRED' && data.mfaUrl) {
+                        ContexaMFAUtils.log(
+                            'XHR: MFA Challenge detected, redirecting to: ' + data.mfaUrl,
+                            'info', data);
+                        window.location.href = data.mfaUrl;
+                        return;
+                    }
+
+                    // 403 Account Blocked
+                    if (status === 403 && data.error === 'ACCOUNT_BLOCKED' && data.redirectUrl) {
+                        ContexaMFAUtils.log(
+                            'XHR: Account blocked detected, redirecting to: ' + data.redirectUrl,
+                            'info', data);
+                        window.location.href = data.redirectUrl;
+                        return;
+                    }
+
+                    // 423 Security Review In Progress
+                    if (status === 423 && data.error === 'SECURITY_REVIEW_IN_PROGRESS'
+                            && data.redirectUrl) {
+                        ContexaMFAUtils.log(
+                            'XHR: Security review in progress, redirecting to: ' + data.redirectUrl,
+                            'info', data);
+                        window.location.href = data.redirectUrl;
+                        return;
+                    }
+                } catch (e) {
+                    // JSON parse failed, pass through
+                }
+            });
+
+            return xhr;
+        }
+
+        InterceptedXHR.prototype = OriginalXHR.prototype;
+        window.XMLHttpRequest = InterceptedXHR;
+
+        ContexaMFAUtils.log(
+            'Global XHR interceptor installed for MFA Challenge and Zero Trust handling', 'debug');
     })();
 
     // ===========================
@@ -1237,7 +1348,7 @@
         Client: ContexaMFAClient,
         Utils: ContexaMFAUtils,
         StateTracker: MfaStateTracker,
-        version: '2.0.0'
+        version: '2.1.0'
     };
 
     // Legacy 호환성: 전역 인스턴스 자동 생성
@@ -1246,6 +1357,6 @@
         window.mfaStateTracker.restoreFromSession();
     }
 
-    ContexaMFAUtils.log(`Contexa MFA SDK v2.0.0 loaded successfully`, 'info');
+    ContexaMFAUtils.log(`Contexa MFA SDK v2.1.0 loaded successfully`, 'info');
 
 })(window);
