@@ -92,7 +92,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 layer1Assessment = contextualStrategy.evaluate(event);
                 long layer1ElapsedMs = System.currentTimeMillis() - layer1StartTime;
 
-                /*if (!layer1Assessment.isShouldEscalate()) {
+                if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.getRiskScore());
                     result.setConfidence(layer1Assessment.getConfidence());
                     result.addIndicators(layer1Assessment.getIndicators());
@@ -109,7 +109,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     publishDecisionApplied(userId, layer1Assessment.getAction(), "LAYER1", requestPath);
 
                     return result;
-                }*/
+                }
 
                 publishLayer1Complete(userId, ZeroTrustAction.ESCALATE.name(),
                         layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
