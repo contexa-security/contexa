@@ -74,9 +74,9 @@ public class TieredStrategyProperties {
         @Data
         public static class Timeout {
 
-            private long totalMs = 15000;
+            private long totalMs = 7000;
 
-            private long llmMs = 30000;
+            private long llmMs = 5000;
         }
 
         @Data
@@ -105,7 +105,7 @@ public class TieredStrategyProperties {
         private Rag rag = new Rag();
         private Cache cache = new Cache();
 
-        private long timeoutMs = 30000;
+        private long timeoutMs = 10000;
         private boolean enableSoar = false;
         private int ragTopK = 10;
 

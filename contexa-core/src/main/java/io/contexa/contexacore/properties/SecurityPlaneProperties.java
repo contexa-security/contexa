@@ -97,11 +97,11 @@ public class SecurityPlaneProperties {
     @Data
     public static class LlmExecutorSettings {
 
-        private int corePoolSize = 10;
+        private int corePoolSize = 4;
 
-        private int maxPoolSize = 10;
+        private int maxPoolSize = 4;
 
-        private int queueCapacity = 1000;
+        private int queueCapacity = 100;
     }
 
     @Data
