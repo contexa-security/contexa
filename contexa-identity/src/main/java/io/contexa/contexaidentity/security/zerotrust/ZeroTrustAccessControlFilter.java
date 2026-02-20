@@ -92,7 +92,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId);
 
         switch (currentAction) {
-            case CHALLENGE -> handleBlocked(request, response, userId);
+            case BLOCK -> handleBlocked(request, response, userId);
             case ESCALATE -> handleEscalate(request, response, userId);
             default -> filterChain.doFilter(request, response);
         }

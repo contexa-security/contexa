@@ -10,7 +10,6 @@ import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
-import io.contexa.contexacore.autonomous.service.AdminOverrideRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
@@ -74,13 +73,6 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AdminOverrideRepository adminOverrideRepository(
-            RedisTemplate<String, Object> redisTemplate) {
-        return new AdminOverrideRepository(redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ZeroTrustActionRedisRepository zeroTrustActionRedisRepository(
             RedisTemplate<String, Object> redisTemplate,
             StringRedisTemplate stringRedisTemplate) {
@@ -106,10 +98,9 @@ public class CoreAutonomousAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AdminOverrideService adminOverrideService(
-            AdminOverrideRepository adminOverrideRepository,
             SecurityLearningService securityLearningService,
             ZeroTrustActionRedisRepository actionRedisRepository) {
-        return new AdminOverrideService(adminOverrideRepository, securityLearningService, actionRedisRepository);
+        return new AdminOverrideService(securityLearningService, actionRedisRepository);
     }
 
     @Bean

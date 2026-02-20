@@ -73,11 +73,14 @@
                             <a th:href="@{/admin/blacklist/{id}(id=${b.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">상세</a>
-                            <a th:if="${b.status.name() == 'RESOLVED'}"
-                               th:href="@{/admin/blacklist/delete/{id}(id=${b.id})}"
-                               class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
-                               style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);"
-                               onclick="return confirm('이 기록을 삭제하시겠습니까?');">삭제</a>
+                            <form th:if="${b.status.name() == 'RESOLVED'}"
+                                  th:action="@{/admin/blacklist/{id}/delete(id=${b.id})}" method="post"
+                                  class="inline-block"
+                                  onsubmit="return confirm('이 기록을 삭제하시겠습니까?');">
+                                <button type="submit"
+                                        class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">삭제</button>
+                            </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(blockedUsers)}">

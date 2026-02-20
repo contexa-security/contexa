@@ -81,11 +81,6 @@ public class BlacklistController {
         return "redirect:/admin/blacklist";
     }
 
-    @PostMapping("/delete/{id}")
-    public String deleteBlockRecordGet(@PathVariable Long id, RedirectAttributes ra) {
-        return deleteBlockRecord(id, ra);
-    }
-
     private String extractCurrentUserId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getName() != null) {
