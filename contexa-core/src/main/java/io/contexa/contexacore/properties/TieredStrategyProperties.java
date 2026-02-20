@@ -74,9 +74,9 @@ public class TieredStrategyProperties {
         @Data
         public static class Timeout {
 
-            private long totalMs = 7000;
+            private long totalMs = 15000;
 
-            private long llmMs = 5000;
+            private long llmMs = 10000;
         }
 
         @Data

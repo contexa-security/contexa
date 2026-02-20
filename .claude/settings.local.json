@@ -130,7 +130,8 @@
       "Bash(.\\\\gradlew.bat build:*)",
       "Bash(d:projectscontexagradlew.bat compileJava)",
       "Bash(gradlew:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(gh api:*)"
     ],
     "deny": [],
     "ask": []
