@@ -34,28 +34,43 @@ public class BlockedUserService implements IBlockedUserRecorder {
                             String sourceIp, String userAgent) {
         int blockCount = blockedUserJpaRepository.countByUserId(userId) + 1;
 
-        BlockedUser blockedUser = BlockedUser.builder()
-                .userId(userId)
-                .username(username)
-                .requestId(requestId)
-                .riskScore(riskScore)
-                .confidence(confidence)
-                .reasoning(reasoning)
-                .blockedAt(LocalDateTime.now())
-                .blockCount(blockCount)
-                .status(BlockedUserStatus.BLOCKED)
-                .sourceIp(sourceIp)
-                .userAgent(userAgent)
-                .build();
+        Optional<BlockedUser> existingOpt = blockedUserJpaRepository
+                .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED);
 
-        blockedUserJpaRepository.save(blockedUser);
+        if (existingOpt.isPresent()) {
+            BlockedUser existing = existingOpt.get();
+            existing.setRequestId(requestId);
+            existing.setRiskScore(riskScore);
+            existing.setConfidence(confidence);
+            existing.setReasoning(reasoning);
+            existing.setBlockedAt(LocalDateTime.now());
+            existing.setBlockCount(blockCount);
+            existing.setSourceIp(sourceIp);
+            existing.setUserAgent(userAgent);
+            blockedUserJpaRepository.save(existing);
+        } else {
+            BlockedUser blockedUser = BlockedUser.builder()
+                    .userId(userId)
+                    .username(username)
+                    .requestId(requestId)
+                    .riskScore(riskScore)
+                    .confidence(confidence)
+                    .reasoning(reasoning)
+                    .blockedAt(LocalDateTime.now())
+                    .blockCount(blockCount)
+                    .status(BlockedUserStatus.BLOCKED)
+                    .sourceIp(sourceIp)
+                    .userAgent(userAgent)
+                    .build();
+            blockedUserJpaRepository.save(blockedUser);
+        }
     }
 
     @Override
     @Transactional
     public void resolveBlock(String userId, String adminId, String resolvedAction, String reason) {
         Optional<BlockedUser> blockedOpt = blockedUserJpaRepository
-                .findByUserIdAndStatus(userId, BlockedUserStatus.BLOCKED);
+                .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED);
 
         if (blockedOpt.isEmpty()) {
             return;
@@ -98,7 +113,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     @Transactional
     public void requestUnblock(String userId, String reason) {
         Optional<BlockedUser> blockedOpt = blockedUserJpaRepository
-                .findByUserIdAndStatus(userId, BlockedUserStatus.BLOCKED);
+                .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED);
 
         if (blockedOpt.isEmpty()) {
             return;

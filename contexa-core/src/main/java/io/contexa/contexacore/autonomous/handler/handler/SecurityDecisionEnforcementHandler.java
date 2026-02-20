@@ -83,7 +83,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         actionRedisRepository.saveAction(userId, ztAction, additionalFields);
 
-        if (ztAction == ZeroTrustAction.BLOCK) {
+        if (ztAction == ZeroTrustAction.CHALLENGE) {
             handleBlockDecision(userId, event, result);
         }
     }
