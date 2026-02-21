@@ -94,7 +94,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                 factorContext.getFlowTypeName(),
                 factorContext.getUsername(),
                 usernameFromToken);
-        response.sendRedirect(request.getContextPath() + "/loginForm?message=ott_setup_issue&repository=" +
+        response.sendRedirect(request.getContextPath() + "/login?message=ott_setup_issue&repository=" +
                 sessionRepository.getRepositoryType());
     }
 
@@ -103,7 +103,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
         log.warn("Session not found in {} repository during OTT generation for user: {}",
                 sessionRepository.getRepositoryType(), username);
 
-        String redirectUrl = request.getContextPath() + "/loginForm?error=session_not_found&repository=" +
+        String redirectUrl = request.getContextPath() + "/login?error=session_not_found&repository=" +
                 sessionRepository.getRepositoryType();
         response.sendRedirect(redirectUrl);
     }
