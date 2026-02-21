@@ -1,10 +1,9 @@
 package io.contexa.contexacoreenterprise.soar.service;
 
-import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SessionState;
-import io.contexa.contexacoreenterprise.soar.service.SoarToolCallingService;
-import io.contexa.contexaiam.aiam.web.SoarSimulationController.SimulationStartRequest;
-import io.contexa.contexaiam.aiam.web.SoarSimulationController.SimulationEvent;
+import io.contexa.contexacore.domain.SoarContext;
+import io.contexa.contexacoreenterprise.soar.domain.SimulationEvent;
+import io.contexa.contexacoreenterprise.soar.domain.SimulationStartRequest;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
