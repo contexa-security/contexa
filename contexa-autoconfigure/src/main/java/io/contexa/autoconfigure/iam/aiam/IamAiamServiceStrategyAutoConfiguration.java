@@ -1,8 +1,11 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.AILabFactory;
+import io.contexa.contexacoreenterprise.soar.controller.SoarActionController;
 import io.contexa.contexacoreenterprise.soar.controller.SoarSimulationController;
+import io.contexa.contexacoreenterprise.soar.service.SoarActionService;
 import io.contexa.contexacoreenterprise.soar.service.SoarSimulationService;
 import io.contexa.contexacoreenterprise.soar.service.SoarToolCallingService;
 import io.contexa.contexaiam.aiam.service.DataIngestionServiceImpl;
@@ -72,5 +75,20 @@ public class IamAiamServiceStrategyAutoConfiguration {
             @Autowired(required = false) SoarToolCallingService soarToolCallingService,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
         return new SoarSimulationService(soarToolCallingService, brokerTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SoarActionService.class)
+    public SoarActionController soarActionController(SoarActionService soarActionService) {
+        return new SoarActionController(soarActionService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ApprovalService.class)
+    public SoarActionService soarActionService(
+            @Autowired(required = false) ApprovalService approvalService) {
+        return new SoarActionService(approvalService);
     }
 }
