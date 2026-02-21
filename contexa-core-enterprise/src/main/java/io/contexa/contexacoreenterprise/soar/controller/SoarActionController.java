@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.soar.controller;
 
+import io.contexa.contexacoreenterprise.soar.domain.ApprovalResponseDto;
 import io.contexa.contexacoreenterprise.soar.service.SoarActionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
