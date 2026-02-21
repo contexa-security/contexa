@@ -254,33 +254,6 @@ public class OAuth2TokenService implements TokenService {
     }
 
     @Override
-    public void blacklistRefreshToken(String refreshToken, String username, String reason) {
-        Assert.hasText(refreshToken, "refreshToken cannot be empty");
-        Assert.hasText(username, "username cannot be empty");
-
-        OAuth2Authorization authorization = authorizationService.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN);
-        if (authorization == null) {
-            return;
-        }
-
-        OAuth2Authorization.Builder builder = OAuth2Authorization.from(authorization);
-
-        OAuth2Authorization.Token<OAuth2RefreshToken> refreshTokenMeta = authorization.getRefreshToken();
-        if (refreshTokenMeta != null && !refreshTokenMeta.isInvalidated()) {
-            builder.token(refreshTokenMeta.getToken(), metadata ->
-                    metadata.put(OAuth2Authorization.Token.INVALIDATED_METADATA_NAME, true));
-        }
-
-        OAuth2Authorization.Token<OAuth2AccessToken> accessTokenMeta = authorization.getAccessToken();
-        if (accessTokenMeta != null && !accessTokenMeta.isInvalidated()) {
-            builder.token(accessTokenMeta.getToken(), metadata ->
-                    metadata.put(OAuth2Authorization.Token.INVALIDATED_METADATA_NAME, true));
-        }
-
-        authorizationService.save(builder.build());
-    }
-
-    @Override
     public ObjectMapper getObjectMapper() {
         return this.objectMapper;
     }

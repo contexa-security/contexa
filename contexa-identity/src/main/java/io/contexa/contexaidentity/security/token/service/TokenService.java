@@ -12,14 +12,11 @@ import org.springframework.security.core.Authentication;
 
 public interface TokenService extends TokenProvider, TokenValidator  {
 
-    String ACCESS_TOKEN = "accessToken";
-    String REFRESH_TOKEN = "refreshToken";
     String ACCESS_TOKEN_HEADER  = "Authorization";
     String REFRESH_TOKEN_HEADER = "X-Refresh-Token";
     String BEARER_PREFIX        = "Bearer ";
 
     AuthContextProperties properties();
-    void blacklistRefreshToken(String refreshToken, String username, String reason);
     record RefreshResult(String accessToken, String refreshToken) {}
     ObjectMapper getObjectMapper(); 
 
