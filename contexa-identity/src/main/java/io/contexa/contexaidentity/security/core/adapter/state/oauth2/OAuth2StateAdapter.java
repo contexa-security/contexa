@@ -112,15 +112,15 @@ public final class OAuth2StateAdapter implements StateAdapter {
     private void configureLogout(HttpSecurity http, ApplicationContext appContext) throws Exception {
         try {
             LogoutHandler logoutHandler = appContext.getBean("compositeLogoutHandler", LogoutHandler.class);
-            LogoutSuccessHandler logoutSuccessHandler = appContext.getBean("oauth2LogoutSuccessHandler", LogoutSuccessHandler.class);
+//            LogoutSuccessHandler logoutSuccessHandler = appContext.getBean("oauth2LogoutSuccessHandler", LogoutSuccessHandler.class);
 
             http.setSharedObject(LogoutHandler.class, logoutHandler);
-            http.setSharedObject(LogoutSuccessHandler.class, logoutSuccessHandler);
+//            http.setSharedObject(LogoutSuccessHandler.class, logoutSuccessHandler);
 
             http.logout(logout -> logout
                     .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/logout"))
                     .addLogoutHandler(logoutHandler)
-                    .logoutSuccessHandler(logoutSuccessHandler)
+//                    .logoutSuccessHandler(logoutSuccessHandler)
                     .invalidateHttpSession(false)
                     .clearAuthentication(true)
             );
