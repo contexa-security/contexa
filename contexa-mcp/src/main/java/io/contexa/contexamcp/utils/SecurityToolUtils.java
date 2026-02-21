@@ -66,33 +66,6 @@ public class SecurityToolUtils {
         auditLog(toolName, message, null);
     }
 
-    public static void logSecurityEvent(String severity, String eventType, 
-                                       String description, Map<String, Object> metadata) {
-        Map<String, Object> event = new HashMap<>();
-        event.put("timestamp", LocalDateTime.now().format(AUDIT_DATE_FORMAT));
-        event.put("severity", severity);
-        event.put("type", eventType);
-        event.put("description", description);
-        
-        if (metadata != null && !metadata.isEmpty()) {
-            event.put("metadata", metadata);
-        }
-        
-        switch (severity.toUpperCase()) {
-            case "CRITICAL":
-                log.error("CRITICAL SECURITY EVENT: {}", event);
-                break;
-            case "HIGH":
-                log.error("HIGH SECURITY EVENT: {}", event);
-                break;
-            case "MEDIUM":
-                log.error("MEDIUM SECURITY EVENT: {}", event);
-                break;
-            default:
-                log.error("SECURITY EVENT [{}]: {}", severity, event);
-        }
-    }
-
     public static boolean isValidIpv4Address(String ip) {
         if (!StringUtils.hasText(ip)) {
             return false;
@@ -237,17 +210,4 @@ public class SecurityToolUtils {
         log.error("METRIC: tool={}, metric={}, value={}", toolName, metricName, value);
     }
 
-    public static Map<String, Object> formatResult(boolean success, String message, 
-                                                   Map<String, Object> details) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("success", success);
-        result.put("message", message);
-        result.put("timestamp", LocalDateTime.now().format(AUDIT_DATE_FORMAT));
-        
-        if (details != null && !details.isEmpty()) {
-            result.put("details", details);
-        }
-        
-        return result;
-    }
 }

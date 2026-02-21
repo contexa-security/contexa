@@ -1,6 +1,5 @@
 package io.contexa.contexacoreenterprise.mcp.integration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.modelcontextprotocol.client.McpSyncClient;
 import io.modelcontextprotocol.spec.McpSchema;
 import lombok.RequiredArgsConstructor;

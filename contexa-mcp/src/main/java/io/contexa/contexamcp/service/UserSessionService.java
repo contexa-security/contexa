@@ -121,12 +121,6 @@ public class UserSessionService {
         }
     }
 
-    public Optional<SessionInfo> getSession(String sessionId) {
-        String sessionKey = SESSION_KEY_PREFIX + sessionId;
-        SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
-        return Optional.ofNullable(session);
-    }
-
     public void cleanupExpiredSessions() {
         Set<String> userSessionKeys = redisTemplate.keys(USER_SESSIONS_KEY_PREFIX + "*");
         if (userSessionKeys == null || userSessionKeys.isEmpty()) {

@@ -3,6 +3,10 @@ package io.contexa.autoconfigure.enterprise.soar;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import io.contexa.contexacoreenterprise.properties.ToolProperties;
+import io.contexa.contexacoreenterprise.soar.controller.SoarActionController;
+import io.contexa.contexacoreenterprise.soar.controller.SoarSimulationController;
+import io.contexa.contexacoreenterprise.soar.service.SoarActionService;
+import io.contexa.contexacoreenterprise.soar.service.SoarSimulationService;
 import io.contexa.contexacoreenterprise.soar.tool.provider.SoarToolIntegrationProvider;
 import io.contexa.contexacoreenterprise.soar.strategy.SoarDiagnosisStrategy;
 import io.contexa.contexacoreenterprise.soar.service.SoarToolExecutionService;
@@ -41,8 +45,10 @@ import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -66,10 +72,6 @@ import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 @EnableConfigurationProperties({ ContexaProperties.class, SoarProperties.class, ToolProperties.class })
 @EnableRetry
 public class EnterpriseSoarAutoConfiguration {
-
-    public EnterpriseSoarAutoConfiguration() {
-
-    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -225,6 +227,37 @@ public class EnterpriseSoarAutoConfiguration {
             UnifiedApprovalService unifiedApprovalService) {
         return new SoarToolCallingService(
                 aiNativeProcessor, interactionManager, toolResolver, unifiedApprovalService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SoarSimulationController soarSimulationController(
+            SoarSimulationService simulationService,
+            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
+        return new SoarSimulationController(simulationService,brokerTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SoarSimulationService soarSimulationService(
+            SoarToolCallingService soarToolCallingService,
+            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
+        return new SoarSimulationService(soarToolCallingService, brokerTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(SoarActionService.class)
+    public SoarActionController soarActionController(SoarActionService soarActionService) {
+        return new SoarActionController(soarActionService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(ApprovalService.class)
+    public SoarActionService soarActionService(
+            @Autowired(required = false) ApprovalService approvalService) {
+        return new SoarActionService(approvalService);
     }
 
     @Bean

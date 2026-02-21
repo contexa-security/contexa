@@ -259,7 +259,8 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             }
             
         } catch (Exception e) {
-                    }
+            log.error("Failed to extract risk level from tool: {}", toolCallback.getToolDefinition().name(), e);
+        }
 
         return SoarTool.RiskLevel.MEDIUM;
     }

@@ -2,8 +2,6 @@ package io.contexa.autoconfigure.enterprise.mcp;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaEnterpriseProperties;
-import io.contexa.contexacoreenterprise.mcp.tool.execution.config.ToolExecutionProperties;
-import io.contexa.contexamcp.completions.SecurityCommandCompletion;
 import io.contexa.contexamcp.prompts.SecurityAnalysisPrompts;
 import io.contexa.contexamcp.resources.SecurityLogResource;
 import io.contexa.contexamcp.resources.SystemInfoResource;
@@ -30,8 +28,7 @@ import java.util.List;
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @ConditionalOnProperty(prefix = "spring.ai.mcp.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
-        ContexaEnterpriseProperties.class,
-        ToolExecutionProperties.class
+        ContexaEnterpriseProperties.class
 })
 public class EnterpriseMcpAutoConfiguration {
 
@@ -109,12 +106,6 @@ public class EnterpriseMcpAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityCommandCompletion securityCommandCompletion() {
-        return new SecurityCommandCompletion();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public ToolCallbackProvider mcpToolProvider(
             NetworkScanTool networkScanTool,
             LogAnalysisTool logAnalysisTool,
@@ -165,34 +156,5 @@ public class EnterpriseMcpAutoConfiguration {
         prompts.add(securityAnalysisPrompts.createThreatAssessmentSpec());
 
         return prompts;
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(name = "mcpCompletions")
-    public List<McpServerFeatures.SyncCompletionSpecification> mcpCompletions(
-            SecurityCommandCompletion securityCommandCompletion) {
-
-        List<McpServerFeatures.SyncCompletionSpecification> completions = new ArrayList<>();
-
-        var completionInfo = securityCommandCompletion.createCompletionSpecification();
-        if (completionInfo != null) {
-            // TODO: Convert completion specification to SyncCompletionSpecification type
-            log.error("Completion spec created but type conversion not implemented");
-        } else {
-            log.error("Failed to generate Completion info");
-        }
-
-        return completions;
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public McpServerInfoLogger mcpServerInfoLogger() {
-        return new McpServerInfoLogger();
-    }
-
-    public static class McpServerInfoLogger {
-        public McpServerInfoLogger() {
-        }
     }
 }

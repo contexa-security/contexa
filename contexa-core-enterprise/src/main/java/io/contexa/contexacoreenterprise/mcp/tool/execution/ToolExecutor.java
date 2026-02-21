@@ -2,18 +2,14 @@ package io.contexa.contexacoreenterprise.mcp.tool.execution;
 
 import lombok.Builder;
 import lombok.Data;
-import org.springframework.ai.tool.ToolCallback;
 
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
+/**
+ * Container for tool execution model classes.
+ * Used by ToolAuthorizationService for authorization and approval workflows.
+ */
 public interface ToolExecutor {
-
-    CompletableFuture<ToolResult> execute(
-        ToolCallback tool,
-        ToolRequest request,
-        ExecutionContext context
-    );
 
     @Data
     @Builder

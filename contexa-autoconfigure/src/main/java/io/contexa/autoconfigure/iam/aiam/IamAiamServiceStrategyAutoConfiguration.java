@@ -59,36 +59,4 @@ public class IamAiamServiceStrategyAutoConfiguration {
     public StudioQueryDiagnosisStrategy studioQueryDiagnosisStrategy(AILabFactory labFactory) {
         return new StudioQueryDiagnosisStrategy(labFactory);
     }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SoarSimulationController soarSimulationController(
-            SoarSimulationService simulationService,
-            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
-        return new SoarSimulationController(simulationService,brokerTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SoarToolCallingService.class)
-    public SoarSimulationService soarSimulationService(
-            @Autowired(required = false) SoarToolCallingService soarToolCallingService,
-            @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
-        return new SoarSimulationService(soarToolCallingService, brokerTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(SoarActionService.class)
-    public SoarActionController soarActionController(SoarActionService soarActionService) {
-        return new SoarActionController(soarActionService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(ApprovalService.class)
-    public SoarActionService soarActionService(
-            @Autowired(required = false) ApprovalService approvalService) {
-        return new SoarActionService(approvalService);
-    }
 }

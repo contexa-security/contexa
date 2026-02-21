@@ -43,9 +43,6 @@ public class EnhancedToolCallback implements ToolCallback {
     private final boolean requiresApproval = false;
     
     @Builder.Default
-    private final boolean contextAware = false;
-    
-    @Builder.Default
     private final boolean securityValidation = false;
     
     private final String source;  
@@ -68,21 +65,12 @@ public class EnhancedToolCallback implements ToolCallback {
         boolean success = false;
         
         try {
-            
-            beforeExecution(arguments);
-
             if (securityValidation) {
                 validateSecurity(arguments);
             }
 
-            if (contextAware) {
-                arguments = enrichWithContext(arguments);
-            }
-
             result = delegate.call(arguments);
             success = true;
-
-            afterExecution(result);
 
             return result;
 
@@ -131,21 +119,6 @@ public class EnhancedToolCallback implements ToolCallback {
         return metadata.get(key);
     }
 
-    private void beforeExecution(String arguments) {
-
-        if (requiresApproval) {
-                        
-        }
-    }
-    
-    private void afterExecution(String result) {
-
-        if (metadata.containsKey("cache_results") && 
-            Boolean.TRUE.equals(metadata.get("cache_results"))) {
-            
-        }
-    }
-    
     private void validateSecurity(String arguments) {
         
         if (riskLevel == SoarTool.RiskLevel.CRITICAL) {
@@ -156,11 +129,6 @@ public class EnhancedToolCallback implements ToolCallback {
             arguments.contains("rm -rf"))) {
             throw new SecurityException("Dangerous command detected: " + arguments);
         }
-    }
-    
-    private String enrichWithContext(String arguments) {
-
-        return arguments;
     }
     
     private void handleExecutionError(Exception e) {

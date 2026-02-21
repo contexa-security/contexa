@@ -281,7 +281,7 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
                 recordExecution(failedTool, failedDuration, false);
                 break;
             default:
-                log.warn("Unknown event type: {}", eventType);
+                log.error("Unknown event type: {}", eventType);
         }
     }
 

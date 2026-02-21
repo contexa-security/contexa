@@ -12,7 +12,6 @@ import org.springframework.ai.tool.annotation.ToolParam;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.regex.Pattern;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -31,10 +30,6 @@ import java.util.regex.Pattern;
 public class IpBlockingTool {
 
     private final IpBlockingService ipBlockingService;
-
-    private static final Pattern IP_PATTERN = Pattern.compile(
-            "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$"
-    );
 
     @Tool(
             name = "ip_blocking",
@@ -69,7 +64,7 @@ public class IpBlockingTool {
                 throw new IllegalArgumentException("Reason must be at least 10 characters");
             }
 
-            if (!isValidIpAddress(ipAddress)) {
+            if (!SecurityToolUtils.isValidIpv4Address(ipAddress)) {
                 log.error("Invalid IP address format: {}", ipAddress);
                 return Response.builder()
                         .success(false)
@@ -79,7 +74,7 @@ public class IpBlockingTool {
                         .build();
             }
 
-            if (isInternalIp(ipAddress)) {
+            if (SecurityToolUtils.isInternalIpAddress(ipAddress)) {
                 log.error("Cannot block internal IP address: {}", ipAddress);
                 return Response.builder()
                         .success(false)
@@ -157,21 +152,6 @@ public class IpBlockingTool {
                     .blocked(false)
                     .build();
         }
-    }
-
-    private boolean isValidIpAddress(String ip) {
-        if (ip == null || ip.isEmpty()) {
-            return false;
-        }
-        return IP_PATTERN.matcher(ip).matches();
-    }
-
-    private boolean isInternalIp(String ip) {
-        return ip.startsWith("10.") ||
-                ip.startsWith("172.16.") ||
-                ip.startsWith("192.168.") ||
-                ip.equals("127.0.0.1") ||
-                ip.equals("0.0.0.0");
     }
 
     private String generateRuleId(String ipAddress, long timestamp) {

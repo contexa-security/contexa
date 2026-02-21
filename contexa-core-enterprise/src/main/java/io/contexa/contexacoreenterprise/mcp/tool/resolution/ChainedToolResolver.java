@@ -153,10 +153,9 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             .delegate(tool)
             .toolType(determineToolType(tool, metadata))
             .securityValidation(true)
-            .contextAware(true)
             .source(resolverName)
             .metadata(metadata)
-            .metricsCollector(metricsCollector)  
+            .metricsCollector(metricsCollector)
             .build();
     }
 
@@ -181,7 +180,8 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             try {
                 return EnhancedToolCallback.ToolType.valueOf(type);
             } catch (Exception e) {
-                            }
+                log.error("Invalid tool type: {}", type, e);
+            }
         }
 
         if (metadata.containsKey("source")) {
@@ -196,12 +196,12 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             return EnhancedToolCallback.ToolType.FALLBACK;
         }
 
-        return EnhancedToolCallback.ToolType.SOAR;
-    }
+        // SpringBean-resolved tools are native Spring AI tools
+        if (metadata.containsKey("resolver") && "SpringBeanToolCallbackResolver".equals(metadata.get("resolver"))) {
+            return EnhancedToolCallback.ToolType.NATIVE;
+        }
 
-    private Map<String, ToolCallback> getStaticTools() {
-        
-        return Map.of();
+        return EnhancedToolCallback.ToolType.SOAR;
     }
 
     public void clearCache() {
@@ -256,7 +256,8 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
                     toolNames.addAll(tools.keySet());
                 }
             } catch (Exception e) {
-                            }
+                log.error("Failed to get tool names from resolver: {}", resolver.getClass().getSimpleName(), e);
+            }
         }
 
         return toolNames;
@@ -313,11 +314,6 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             staticToolCallbackResolver,
             fallbackToolResolver
         );
-    }
-
-    @Deprecated
-    public Map<String, Object> getStatistics() {
-        return getToolStatistics();
     }
 
     public static class ToolNotFoundException extends RuntimeException {

@@ -68,28 +68,6 @@ public class AuditLogService {
         return jdbcTemplate.query(sql, new AuditLogRowMapper(), userId, limit);
     }
 
-    public List<AuditLog> findByAction(String action, int limit) {
-        String sql = """
-            SELECT * FROM audit_log 
-            WHERE action = ? 
-            ORDER BY timestamp DESC 
-            LIMIT ?
-            """;
-        
-        return jdbcTemplate.query(sql, new AuditLogRowMapper(), action, limit);
-    }
-
-    public List<AuditLog> findByResource(String resourceType, String resourceId, int limit) {
-        String sql = """
-            SELECT * FROM audit_log 
-            WHERE resource_uri = ? AND resource_identifier = ? 
-            ORDER BY timestamp DESC 
-            LIMIT ?
-            """;
-        
-        return jdbcTemplate.query(sql, new AuditLogRowMapper(), resourceType, resourceId, limit);
-    }
-
     public List<AuditLog> findByTimeRange(Instant startTime, Instant endTime, int limit) {
         String sql = """
             SELECT * FROM audit_log 

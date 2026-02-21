@@ -293,14 +293,21 @@ public class NetworkScanTool {
             return false;
         }
 
-        String ipv4Pattern = "^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}" +
-                "(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)" +
-                "(?:/(?:3[0-2]|[12]?[0-9]))?$";
+        // CIDR notation (e.g., 192.168.1.0/24)
+        if (target.contains("/")) {
+            String[] parts = target.split("/");
+            if (parts.length != 2) return false;
+            if (!SecurityToolUtils.isValidIpv4Address(parts[0])) return false;
+            try {
+                int prefix = Integer.parseInt(parts[1]);
+                return prefix >= 0 && prefix <= 32;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
 
-        String hostnamePattern = "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*" +
-                "[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$";
-
-        return target.matches(ipv4Pattern) || target.matches(hostnamePattern);
+        // Plain IP or hostname
+        return SecurityToolUtils.isValidIpv4Address(target) || SecurityToolUtils.isValidDomain(target);
     }
 
     private String[] expandTargetRange(String target) {
