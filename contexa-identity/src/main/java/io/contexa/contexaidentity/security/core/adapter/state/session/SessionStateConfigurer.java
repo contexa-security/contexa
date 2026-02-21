@@ -24,12 +24,6 @@ public class SessionStateConfigurer extends AbstractHttpConfigurer<SessionStateC
 
     @Override
     public void configure(HttpSecurity http) throws Exception {
-        LogoutHandler logoutHandler = appContext.getBean("compositeLogoutHandler", LogoutHandler.class);
 
-        http.logout(logout -> logout
-                .addLogoutHandler(logoutHandler)
-                .invalidateHttpSession(true)
-                .clearAuthentication(true)
-        );
     }
 }
