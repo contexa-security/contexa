@@ -2,10 +2,6 @@ package io.contexa.contexacoreenterprise.soar.controller;
 
 import io.contexa.contexacoreenterprise.soar.domain.*;
 import io.contexa.contexacoreenterprise.soar.service.SoarSimulationService;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
@@ -22,6 +18,7 @@ import java.util.Map;
 
 @Slf4j
 @RequestMapping("/api/soar/simulation")
+@RestController
 public class SoarSimulationController {
     
     private final SoarSimulationService simulationService;
