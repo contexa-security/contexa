@@ -40,11 +40,6 @@ public class PlatformSecurityConfig {
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
                     .securityContext(sc -> sc.securityContextRepository(aiReactiveSecurityContextRepository))
-                    .logout(logout -> logout
-                            .addLogoutHandler(applicationContext.getBean("compositeLogoutHandler", LogoutHandler.class))
-                            .invalidateHttpSession(false)
-                            .clearAuthentication(true)
-                    )
             ;
         };
         return registry
@@ -78,7 +73,7 @@ public class PlatformSecurityConfig {
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
                                         .passkeyChallengePages("/custom/challenge/passkey"))*/
                         .order(60)
-                ).session(Customizer.withDefaults())
+                ).oauth2(Customizer.withDefaults())
                 .build();
     }
 }
