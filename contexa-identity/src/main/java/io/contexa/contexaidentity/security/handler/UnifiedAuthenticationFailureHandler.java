@@ -146,7 +146,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             failureType = FailureType.MFA_GLOBAL_FAILURE;
         }
 
-        String failureRedirectUrl = request.getContextPath() + "/loginForm?error=" + errorCode.toLowerCase();
+        String failureRedirectUrl = request.getContextPath() + "/login?error=" + errorCode.toLowerCase();
 
         Map<String, Object> errorDetails = new HashMap<>();
         errorDetails.put("message", errorMessage);

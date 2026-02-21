@@ -261,8 +261,8 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         String loginPageUrl = primaryAuthOptions.getLoginPage();
 
         if (!StringUtils.hasText(loginPageUrl)) {
-            loginPageUrl = "/loginForm";
-            log.warn("loginPage not configured in PrimaryAuthenticationOptions. Using default: /loginForm");
+            loginPageUrl = "/mfa/login";
+            log.warn("loginPage not configured in PrimaryAuthenticationOptions. Using default: /mfa/login");
         }
 
         ObjectMapper objectMapper;

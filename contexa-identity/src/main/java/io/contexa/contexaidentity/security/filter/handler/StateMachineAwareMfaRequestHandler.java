@@ -97,40 +97,40 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             case MFA_SUCCESSFUL -> {
                 responseBody.put("status", "MFA_COMPLETED");
                 responseBody.put("message", "MFA authentication completed successfully.");
-                responseBody.put("redirectUrl", contextPath + "/home");
+                responseBody.put("redirectUrl", contextPath + "/");
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             }
             case MFA_NOT_REQUIRED -> {
                 responseBody.put("status", "MFA_NOT_REQUIRED");
                 responseBody.put("message", "MFA is not required.");
-                responseBody.put("redirectUrl", contextPath + "/home");
+                responseBody.put("redirectUrl", contextPath + "/");
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             }
             case MFA_FAILED_TERMINAL, MFA_RETRY_LIMIT_EXCEEDED -> {
                 responseBody.put("status", "MFA_FAILED");
                 responseBody.put("message", "MFA authentication failed.");
-                responseBody.put("redirectUrl", contextPath + "/loginForm");
+                responseBody.put("redirectUrl", contextPath + "/mfa/login");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
                         "MFA_FAILED", "MFA authentication failed", requestUri, responseBody);
             }
             case MFA_SESSION_EXPIRED -> {
                 responseBody.put("status", "SESSION_EXPIRED");
                 responseBody.put("message", "MFA session has expired.");
-                responseBody.put("redirectUrl", contextPath + "/loginForm");
+                responseBody.put("redirectUrl", contextPath + "/mfa/login");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
                         "SESSION_EXPIRED", "Session expired", requestUri, responseBody);
             }
             case MFA_CANCELLED -> {
                 responseBody.put("status", "MFA_CANCELLED");
                 responseBody.put("message", "MFA was cancelled by user.");
-                responseBody.put("redirectUrl", contextPath + "/loginForm");
+                responseBody.put("redirectUrl", contextPath + "/mfa/login");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                         "MFA_CANCELLED", "MFA cancelled", requestUri, responseBody);
             }
             case MFA_SYSTEM_ERROR -> {
                 responseBody.put("status", "SYSTEM_ERROR");
                 responseBody.put("message", "A system error has occurred.");
-                responseBody.put("redirectUrl", contextPath + "/loginForm");
+                responseBody.put("redirectUrl", contextPath + "/mfa/login");
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                         "SYSTEM_ERROR", "System error", requestUri, responseBody);
             }
@@ -340,7 +340,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             Map<String, Object> cancelResponse = createSuccessResponse(context, "MFA_CANCELLED",
                     "MFA was cancelled by user.");
             cancelResponse.put("cancelledAt", System.currentTimeMillis());
-            cancelResponse.put("redirectUrl", request.getContextPath() + "/loginForm");
+            cancelResponse.put("redirectUrl", request.getContextPath() + "/mfa/login");
 
             responseWriter.writeSuccessResponse(response, cancelResponse, HttpServletResponse.SC_OK);
 
