@@ -269,15 +269,13 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
             case "execution_success":
                 String tool = metadata.containsKey("tool") ?
                     (String) metadata.get("tool") : "unknown";
-                long execDuration = metadata.containsKey("duration") ?
-                    ((Number) metadata.get("duration")).longValue() : 0L;
+                long execDuration = resolveExecutionDurationMillis(metadata);
                 recordExecution(tool, execDuration, true);
                 break;
             case "execution_failure":
                 String failedTool = metadata.containsKey("tool") ?
                     (String) metadata.get("tool") : "unknown";
-                long failedDuration = metadata.containsKey("duration") ?
-                    ((Number) metadata.get("duration")).longValue() : 0L;
+                long failedDuration = resolveExecutionDurationMillis(metadata);
                 recordExecution(failedTool, failedDuration, false);
                 break;
             default:
@@ -294,5 +292,19 @@ public class MCPToolMetrics implements DomainMetrics, EventRecorder {
         } else if ("execution".equals(operationName) && executionTimer != null) {
             executionTimer.record(durationNanos, TimeUnit.NANOSECONDS);
         }
+    }
+
+    private long resolveExecutionDurationMillis(Map<String, Object> metadata) {
+        if (metadata.containsKey("durationMillis")) {
+            return ((Number) metadata.get("durationMillis")).longValue();
+        }
+        if (metadata.containsKey("durationNanos")) {
+            return ((Number) metadata.get("durationNanos")).longValue() / 1_000_000;
+        }
+        if (metadata.containsKey("duration")) {
+            long duration = ((Number) metadata.get("duration")).longValue();
+            return duration > 10_000_000 ? duration / 1_000_000 : duration;
+        }
+        return 0L;
     }
 }

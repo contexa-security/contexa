@@ -2,6 +2,7 @@ package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
 import io.contexa.contexamcp.service.IpBlockingService;
+import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -30,6 +31,7 @@ import java.time.Instant;
 public class IpBlockingTool {
 
     private final IpBlockingService ipBlockingService;
+    private final HighRiskToolAuthorizationService authorizationService;
 
     @Tool(
             name = "ip_blocking",
@@ -55,6 +57,9 @@ public class IpBlockingTool {
         long startTime = System.currentTimeMillis();
 
         try {
+            if (!hasRequiredPermissions()) {
+                throw new SecurityException("Insufficient permissions to block IP address");
+            }
 
             if (ipAddress == null || ipAddress.trim().isEmpty()) {
                 throw new IllegalArgumentException("IP address is required");
@@ -152,6 +157,10 @@ public class IpBlockingTool {
                     .blocked(false)
                     .build();
         }
+    }
+
+    private boolean hasRequiredPermissions() {
+        return authorizationService.isAuthorized("ip_blocking");
     }
 
     private String generateRuleId(String ipAddress, long timestamp) {

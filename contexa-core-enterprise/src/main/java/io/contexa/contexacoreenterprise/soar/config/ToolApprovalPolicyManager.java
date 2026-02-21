@@ -4,7 +4,6 @@ import io.contexa.contexacommon.annotation.SoarTool;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -75,13 +74,25 @@ public class ToolApprovalPolicyManager {
     }
 
     public ApprovalPolicy getPolicy(String toolName) {
-        
-        if (toolPolicies.containsKey(toolName)) {
-            return toolPolicies.get(toolName);
+        if (toolName == null || toolName.isBlank()) {
+            return defaultPolicy;
+        }
+
+        String normalizedToolName = normalizeToolName(toolName);
+        String snakeCaseToolName = toSnakeCase(normalizedToolName);
+
+        ApprovalPolicy exactPolicy = toolPolicies.get(normalizedToolName);
+        if (exactPolicy != null) {
+            return exactPolicy;
+        }
+
+        ApprovalPolicy snakeCasePolicy = toolPolicies.get(snakeCaseToolName);
+        if (snakeCasePolicy != null) {
+            return snakeCasePolicy;
         }
 
         for (PatternBasedPolicy patternPolicy : patternPolicies) {
-            if (patternPolicy.matches(toolName)) {
+            if (patternPolicy.matches(normalizedToolName) || patternPolicy.matches(snakeCaseToolName)) {
                 return patternPolicy.getPolicy();
             }
         }
@@ -90,7 +101,10 @@ public class ToolApprovalPolicyManager {
     }
 
     public void setPolicy(String toolName, ApprovalPolicy policy) {
-        toolPolicies.put(toolName, policy);
+        if (toolName == null || toolName.isBlank() || policy == null) {
+            return;
+        }
+        toolPolicies.put(normalizeToolName(toolName), policy);
             }
 
     public void addPatternPolicy(String pattern, ApprovalPolicy policy) {
@@ -145,8 +159,46 @@ public class ToolApprovalPolicyManager {
         addPatternPolicy(".*get.*", lowRiskPolicy);
         addPatternPolicy(".*search.*", lowRiskPolicy);
         addPatternPolicy(".*analyze.*", lowRiskPolicy);
+
+        registerExplicitToolPolicies();
         
             }
+
+    private void registerExplicitToolPolicies() {
+        setPolicy("ip_blocking", createPolicy(true, SoarTool.RiskLevel.HIGH, 180, "IP blocking requires approval"));
+        setPolicy("network_isolation", createPolicy(true, SoarTool.RiskLevel.CRITICAL, 120, "Network isolation requires immediate approval"));
+        setPolicy("process_kill", createPolicy(true, SoarTool.RiskLevel.HIGH, 180, "Process termination requires approval"));
+        setPolicy("session_termination", createPolicy(true, SoarTool.RiskLevel.HIGH, 180, "Session termination requires approval"));
+        setPolicy("file_quarantine", createPolicy(true, SoarTool.RiskLevel.HIGH, 180, "File quarantine requires approval"));
+        setPolicy("network_scan", createPolicy(false, SoarTool.RiskLevel.MEDIUM, 300, "Network scan does not require approval"));
+        setPolicy("log_analysis", createPolicy(false, SoarTool.RiskLevel.LOW, 600, "Log analysis is read-only"));
+        setPolicy("threat_intelligence", createPolicy(false, SoarTool.RiskLevel.LOW, 600, "Threat intelligence is read-only"));
+        setPolicy("audit_log_query", createPolicy(false, SoarTool.RiskLevel.LOW, 600, "Audit log query is read-only"));
+    }
+
+    private ApprovalPolicy createPolicy(boolean requiresApproval,
+                                        SoarTool.RiskLevel riskLevel,
+                                        int timeoutSeconds,
+                                        String description) {
+        ApprovalPolicy policy = new ApprovalPolicy();
+        policy.setRequiresApproval(requiresApproval);
+        policy.setRiskLevel(riskLevel);
+        policy.setTimeoutSeconds(timeoutSeconds);
+        policy.setDescription(description);
+        return policy;
+    }
+
+    private String normalizeToolName(String toolName) {
+        String normalized = toolName.trim();
+        if (normalized.startsWith("JavaSDKMCPClient_")) {
+            normalized = normalized.substring("JavaSDKMCPClient_".length());
+        }
+        return normalized;
+    }
+
+    private String toSnakeCase(String value) {
+        return value.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(Locale.ROOT);
+    }
 
     public Map<String, Object> getAllPolicies() {
         Map<String, Object> allPolicies = new HashMap<>();

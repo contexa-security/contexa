@@ -88,7 +88,9 @@ public class EnhancedToolCallback implements ToolCallback {
                 long durationNanos = executionTime * 1_000_000; 
                 Map<String, Object> metadata = new HashMap<>();
                 metadata.put("tool", getToolName());
-                metadata.put("duration", durationNanos);
+                metadata.put("duration", executionTime);
+                metadata.put("durationMillis", executionTime);
+                metadata.put("durationNanos", durationNanos);
                 metadata.put("success", success);
                 metadata.put("toolType", toolType.name());
                 metadata.put("source", source);

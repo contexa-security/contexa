@@ -173,38 +173,6 @@ public class SecurityToolUtils {
         return "MINIMAL";
     }
 
-    public static void logExecutionTime(String toolName, String operation, long startTime) {
-        long duration = System.currentTimeMillis() - startTime;
-        
-        if (duration > 5000) {
-            log.error("SLOW OPERATION: Tool={}, Operation={}, Duration={}ms",
-                    toolName, operation, duration);
-        } else {
-            log.error("Tool={}, Operation={}, Duration={}ms", toolName, operation, duration);
-        }
-    }
-
-    public static void requireNonEmpty(String value, String fieldName) {
-        if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException(fieldName + " is required and cannot be empty");
-        }
-    }
-
-    public static void requireNonNull(Object value, String fieldName) {
-        if (value == null) {
-            throw new IllegalArgumentException(fieldName + " is required and cannot be null");
-        }
-    }
-
-    public static void requireInRange(int value, int min, int max, String fieldName) {
-        if (value < min || value > max) {
-            throw new IllegalArgumentException(
-                String.format("%s must be between %d and %d, but was %d", 
-                             fieldName, min, max, value)
-            );
-        }
-    }
-
     public static void recordMetric(String toolName, String metricName, Object value) {
         // TODO: Integrate with metrics system (e.g., Micrometer)
         log.error("METRIC: tool={}, metric={}, value={}", toolName, metricName, value);

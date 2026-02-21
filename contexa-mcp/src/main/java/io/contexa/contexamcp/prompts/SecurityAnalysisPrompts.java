@@ -2,7 +2,6 @@ package io.contexa.contexamcp.prompts;
 
 import io.modelcontextprotocol.server.McpServerFeatures;
 import io.modelcontextprotocol.spec.McpSchema;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
@@ -12,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-@RequiredArgsConstructor
 public class SecurityAnalysisPrompts {
 
     public McpSchema.Prompt getLogAnalysisPrompt() {

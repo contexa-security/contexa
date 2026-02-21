@@ -1,5 +1,7 @@
 package io.contexa.contexaidentity.security.handler.logout;
 
+import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -13,9 +15,11 @@ import org.springframework.security.web.csrf.CsrfTokenRepository;
 public class SessionLogoutStrategy implements LogoutStrategy {
 
     private final CsrfTokenRepository csrfTokenRepository;
+    private final AuthContextProperties properties;
 
-    public SessionLogoutStrategy(CsrfTokenRepository csrfTokenRepository) {
+    public SessionLogoutStrategy(CsrfTokenRepository csrfTokenRepository, AuthContextProperties properties) {
         this.csrfTokenRepository = csrfTokenRepository;
+        this.properties = properties;
     }
 
     @Override
@@ -23,7 +27,7 @@ public class SessionLogoutStrategy implements LogoutStrategy {
         if (authentication instanceof JwtAuthenticationToken) {
             return false;
         }
-        return request.getSession(false) != null;
+        return properties.getStateType() == StateType.SESSION;
     }
 
     @Override

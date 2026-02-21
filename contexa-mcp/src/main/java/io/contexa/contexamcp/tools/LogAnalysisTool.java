@@ -4,7 +4,6 @@ import io.contexa.contexacommon.annotation.SoarTool;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -16,7 +15,6 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
-@RequiredArgsConstructor
 @SoarTool(
         name = "log_analysis",
         description = "Analyze logs for security threats, anomalies, and forensic evidence",
@@ -57,14 +55,8 @@ public class LogAnalysisTool {
             @ToolParam(description = "Time range to analyze (e.g., last_hour, last_24h, custom)", required = false)
             String timeRange,
 
-            @ToolParam(description = "List of specific patterns or keywords to search", required = false)
-            List<String> searchPatterns,
-
             @ToolParam(description = "Max lines to analyze (default: 100)", required = false)
-            Integer maxLines,
-
-            @ToolParam(description = "Whether to perform detailed analysis (default: false)", required = false)
-            Boolean detailed
+            Integer maxLines
     ) {
         long startTime = System.currentTimeMillis();
 
@@ -74,7 +66,7 @@ public class LogAnalysisTool {
 
             List<LogEntry> logs = collectLogs(logSource, timeRange, maxLines);
 
-            AnalysisResult analysisResult = analyzeLogs(logs, searchPatterns);
+            AnalysisResult analysisResult = analyzeLogs(logs);
 
             ThreatAssessment threatAssessment = assessThreats(analysisResult);
 
@@ -147,7 +139,7 @@ public class LogAnalysisTool {
         return logs;
     }
 
-    private AnalysisResult analyzeLogs(List<LogEntry> logs, List<String> searchPatterns) {
+    private AnalysisResult analyzeLogs(List<LogEntry> logs) {
         AnalysisResult result = new AnalysisResult();
         result.totalLogs = logs.size();
         result.securityEvents = new ArrayList<>();

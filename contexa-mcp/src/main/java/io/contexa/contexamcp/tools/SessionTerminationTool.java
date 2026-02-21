@@ -1,6 +1,7 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
+import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
 import io.contexa.contexamcp.service.UserSessionService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
@@ -32,6 +33,7 @@ import java.util.stream.Collectors;
 public class SessionTerminationTool {
 
     private final UserSessionService userSessionService;
+    private final HighRiskToolAuthorizationService authorizationService;
 
     @Tool(
             name = "session_termination",
@@ -75,6 +77,10 @@ public class SessionTerminationTool {
                         .build();
             }
 
+            if (!hasRequiredPermissions()) {
+                throw new SecurityException("Insufficient permissions for session termination");
+            }
+
             List<UserSessionService.SessionInfo> activeSessions =
                     userSessionService.findActiveSessionsByUserId(userId);
 
@@ -89,11 +95,18 @@ public class SessionTerminationTool {
 
             List<String> terminatedSessionIds = new ArrayList<>();
             int terminatedCount = 0;
+            String preservedSessionId = null;
+            if (Boolean.TRUE.equals(preserveCurrentSession)) {
+                preservedSessionId = activeSessions.stream()
+                        .filter(session -> session.getLastAccessedAt() != null)
+                        .max(java.util.Comparator.comparing(UserSessionService.SessionInfo::getLastAccessedAt))
+                        .map(UserSessionService.SessionInfo::getSessionId)
+                        .orElse(null);
+            }
 
             for (UserSessionService.SessionInfo session : activeSessions) {
 
-                if (Boolean.TRUE.equals(preserveCurrentSession) &&
-                        activeSessions.indexOf(session) == 0) {
+                if (preservedSessionId != null && preservedSessionId.equals(session.getSessionId())) {
                     continue;
                 }
 
@@ -163,6 +176,10 @@ public class SessionTerminationTool {
                     .error(e.getMessage())
                     .build();
         }
+    }
+
+    private boolean hasRequiredPermissions() {
+        return authorizationService.isAuthorized("session_termination");
     }
 
     @Data

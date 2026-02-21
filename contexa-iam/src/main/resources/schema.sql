@@ -155,7 +155,13 @@ CREATE TABLE AUDIT_LOG (
                            action VARCHAR(255),
                            decision VARCHAR(255) NOT NULL,
                            reason VARCHAR(1024),
-                           client_ip VARCHAR(255)
+                           outcome VARCHAR(255),
+                           resource_uri VARCHAR(1024),
+                           client_ip VARCHAR(255),
+                           session_id VARCHAR(255),
+                           status VARCHAR(255),
+                           parameters TEXT,
+                           details TEXT
 );
 
 -- 비즈니스 정책 생성용 메타데이터 테이블들

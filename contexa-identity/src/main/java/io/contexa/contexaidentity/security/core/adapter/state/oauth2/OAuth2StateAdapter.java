@@ -118,7 +118,7 @@ public final class OAuth2StateAdapter implements StateAdapter {
             http.setSharedObject(LogoutSuccessHandler.class, logoutSuccessHandler);
 
             http.logout(logout -> logout
-                    .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/logout"))
+                    .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/logout"))
                     .addLogoutHandler(logoutHandler)
                     .logoutSuccessHandler(logoutSuccessHandler)
                     .invalidateHttpSession(false)

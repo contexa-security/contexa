@@ -72,14 +72,6 @@ public class FallbackToolResolver implements ToolCallbackResolver {
         return null;
     }
 
-    private ToolCallback createDefaultFallback(String toolName) {
-        return new FallbackToolCallback(
-            toolName + "_default_fallback",
-            "Tool not found",
-            String.format("Requested tool '%s' was not found. Please verify the tool name or contact the administrator.", toolName)
-        );
-    }
-
     public void registerFallback(String toolName, ToolCallback fallback) {
         fallbackTools.put(toolName, fallback);
             }

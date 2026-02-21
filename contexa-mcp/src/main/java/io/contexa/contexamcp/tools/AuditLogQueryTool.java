@@ -35,7 +35,7 @@ public class AuditLogQueryTool {
     private final AuditLogService auditLogService;
 
     @Tool(
-            name = "queryAuditLogs",
+            name = "audit_log_query",
             description = """
             Query audit logs to analyze security threats.
             Search logs by user ID, IP address, and date range.

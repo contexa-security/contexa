@@ -6,6 +6,6 @@ import lombok.Data;
 public class JwtsTokenSettings {
 
     private String loginUri = "/api/login";
-    private String logoutUri = "/api/logout";
+    private String logoutUri = "/logout";
     private String refreshUri = "/api/refresh";
 }

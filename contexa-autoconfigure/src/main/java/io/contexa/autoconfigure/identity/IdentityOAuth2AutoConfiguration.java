@@ -1,6 +1,8 @@
 package io.contexa.autoconfigure.identity;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
@@ -80,10 +82,12 @@ import java.security.KeyStore;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @AutoConfiguration
@@ -195,6 +199,7 @@ public class IdentityOAuth2AutoConfiguration {
         authorizationObjectMapper.registerModules(SecurityJackson2Modules.getModules(classLoader));
         authorizationObjectMapper.registerModule(new OAuth2AuthorizationServerJackson2Module());
         authorizationObjectMapper.addMixIn(MfaGrantedAuthority.class, MfaGrantedAuthorityMixin.class);
+        registerImmutableCollectionMixins(authorizationObjectMapper);
 
         JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper rowMapper =
                 new JdbcOAuth2AuthorizationService.OAuth2AuthorizationRowMapper(registeredClientRepository);
@@ -323,12 +328,12 @@ public class IdentityOAuth2AutoConfiguration {
             if (context.getPrincipal() != null) {
                 var authorities = context.getPrincipal().getAuthorities();
                 if (authorities != null && !authorities.isEmpty()) {
-                    var roles = authorities.stream()
+                    List<String> roles = authorities.stream()
                             .map(grantedAuthority -> {
                                 String auth = grantedAuthority.getAuthority();
                                 return auth.startsWith("ROLE_") ? auth.substring(5) : auth;
                             })
-                            .toList();
+                            .collect(Collectors.toList());
                     context.getClaims().claim("roles", roles);
                 }
             }
@@ -380,9 +385,10 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(name = "compositeLogoutHandler")
     public LogoutHandler compositeLogoutHandler(
             TokenService tokenService,
-            AuthResponseWriter responseWriter) {
+            AuthResponseWriter responseWriter,
+            AuthContextProperties authContextProperties) {
 
-        SessionLogoutStrategy sessionStrategy = new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository());
+        SessionLogoutStrategy sessionStrategy = new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository(), authContextProperties);
         OAuth2LogoutStrategy oauth2Strategy = new OAuth2LogoutStrategy(tokenService);
 
         return new CompositeLogoutHandler(
@@ -486,5 +492,24 @@ public class IdentityOAuth2AutoConfiguration {
         });
 
         return authorizedClientManager;
+    }
+
+    private void registerImmutableCollectionMixins(ObjectMapper objectMapper) {
+        String[] immutableTypes = {
+                "java.util.ImmutableCollections$ListN",
+                "java.util.ImmutableCollections$List12",
+                "java.util.ImmutableCollections$SubList"
+        };
+        for (String className : immutableTypes) {
+            try {
+                objectMapper.addMixIn(Class.forName(className), ImmutableListDeserializationMixin.class);
+            } catch (ClassNotFoundException ignored) {
+            }
+        }
+    }
+
+    @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS)
+    @JsonDeserialize(as = ArrayList.class)
+    private abstract static class ImmutableListDeserializationMixin {
     }
 }

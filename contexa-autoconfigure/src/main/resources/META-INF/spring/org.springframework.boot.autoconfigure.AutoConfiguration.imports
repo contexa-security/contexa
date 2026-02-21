@@ -49,10 +49,6 @@ io.contexa.autoconfigure.enterprise.dashboard.EnterpriseDashboardAutoConfigurati
 
 # Enterprise SOAR
 io.contexa.autoconfigure.enterprise.soar.EnterpriseSoarAutoConfiguration
-io.contexa.autoconfigure.enterprise.soar.EnterpriseSoarAutoConfiguration
-
-# Enterprise MCP (Model Context Protocol)
-io.contexa.autoconfigure.enterprise.mcp.EnterpriseMcpAutoConfiguration
 
 # Identity StateMachine
 io.contexa.autoconfigure.identity.IdentityStateMachineAutoConfiguration

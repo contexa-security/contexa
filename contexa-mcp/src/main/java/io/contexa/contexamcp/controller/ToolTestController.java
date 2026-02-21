@@ -181,11 +181,9 @@ public class ToolTestController {
             response.put("threatIntelligence", threatResult);
 
                         LogAnalysisTool.Response logResult = logAnalysisTool.analyzeLog(
-                "security",  
-                "last_24h",  
-                List.of(String.format("user:%s", username), String.format("ip:%s", ipAddress)),  
-                1000,        
-                true         
+                "security",
+                "last_24h",
+                1000
             );
             response.put("logAnalysis", logResult);
 

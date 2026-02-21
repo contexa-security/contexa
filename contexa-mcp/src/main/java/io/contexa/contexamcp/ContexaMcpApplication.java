@@ -1,6 +1,5 @@
 package io.contexa.contexamcp;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.ai.model.anthropic.autoconfigure.AnthropicChatAutoConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -23,7 +22,6 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
         UserDetailsServiceAutoConfiguration.class,
         AnthropicChatAutoConfiguration.class
 })
-@RequiredArgsConstructor
 public class ContexaMcpApplication {
 
     public static void main(String[] args) {

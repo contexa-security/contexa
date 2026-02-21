@@ -79,12 +79,9 @@ public class SystemInfoResource {
             );
 
             Map<String, Object> security = Map.of(
-                "security_manager_enabled", false,  
+                "security_manager_enabled", false,
                 "tls_version", System.getProperty("https.protocols", "TLSv1.2,TLSv1.3"),
                 "file_encoding", System.getProperty("file.encoding"),
-                "user_name", System.getProperty("user.name"),
-                "user_home", System.getProperty("user.home"),
-                "temp_dir", System.getProperty("java.io.tmpdir"),
                 "security_providers", java.security.Security.getProviders().length,
                 "firewall_status", checkFirewallStatus(),
                 "antivirus_status", checkAntivirusStatus(),
@@ -101,9 +98,6 @@ public class SystemInfoResource {
             );
 
             Map<String, Object> network = Map.of(
-                "hostname", InetAddress.getLocalHost().getHostName(),
-                "ip_address", InetAddress.getLocalHost().getHostAddress(),
-                "loopback_address", InetAddress.getLoopbackAddress().getHostAddress(),
                 "network_interfaces", getNetworkInterfaceCount(),
                 "open_ports", getOpenPortsCount(),
                 "active_connections", getActiveConnectionsCount()

@@ -1,6 +1,7 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
+import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +28,7 @@ import java.util.*;
         allowedEnvironments = {"staging", "production"}
 )
 public class FileQuarantineTool {
+    private final HighRiskToolAuthorizationService authorizationService;
 
     private static final Map<String, QuarantinedFile> QUARANTINE_VAULT = new java.util.concurrent.ConcurrentHashMap<>();
     private static final String QUARANTINE_PATH = "/var/quarantine/";
@@ -272,17 +274,7 @@ public class FileQuarantineTool {
     }
 
     private boolean hasRequiredPermissions() {
-        // TODO: Implement RBAC permission validation against SOAR security context
-        log.error("Permission check not implemented - defaulting to allow");
-        return true;
-    }
-
-    private boolean isSystemFile(String filePath) {
-
-        return filePath.startsWith("/etc/") ||
-                filePath.startsWith("/usr/") ||
-                filePath.startsWith("/bin/") ||
-                filePath.startsWith("C:\\Windows\\");
+        return authorizationService.isAuthorized("file_quarantine");
     }
 
     private FileMetadata collectFileMetadata(String filePath) {

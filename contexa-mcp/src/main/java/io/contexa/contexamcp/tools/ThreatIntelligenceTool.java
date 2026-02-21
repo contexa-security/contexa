@@ -4,7 +4,6 @@ import io.contexa.contexacommon.annotation.SoarTool;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -13,7 +12,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
-@RequiredArgsConstructor
 @SoarTool(
         name = "threat_intelligence",
         description = "Query threat intelligence for IoCs and threat actors",

@@ -4,7 +4,6 @@ import io.contexa.contexacommon.annotation.SoarTool;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -13,7 +12,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
-@RequiredArgsConstructor
 @SoarTool(
         name = "network_scan",
         description = "Perform network scanning and vulnerability detection",
@@ -53,6 +51,7 @@ public class NetworkScanTool {
             Boolean verbose
     ) {
         long startTime = System.currentTimeMillis();
+        boolean verboseOutput = Boolean.TRUE.equals(verbose);
 
         String cleanedTarget = extractIPFromText(target);
 
@@ -85,10 +84,15 @@ public class NetworkScanTool {
             SecurityToolUtils.recordMetric("network_scan", "vulnerabilities_found", threatAnalysis.uniqueVulnerabilities);
             SecurityToolUtils.recordMetric("network_scan", "execution_time_ms",
                     System.currentTimeMillis() - startTime);
+            if (verboseOutput) {
+                SecurityToolUtils.recordMetric("network_scan", "verbose_mode_count", 1);
+            }
 
             return Response.builder()
                     .success(true)
-                    .message(results.size() + " hosts scanned successfully")
+                    .message(verboseOutput
+                            ? String.format("%d hosts scanned successfully (scanType=%s)", results.size(), effectiveScanType)
+                            : results.size() + " hosts scanned successfully")
                     .results(results)
                     .threatAnalysis(threatAnalysis)
                     .build();
@@ -334,8 +338,17 @@ public class NetworkScanTool {
     }
 
     private List<Integer> scanPorts(String host, List<Integer> ports) {
+        if (ports == null || ports.isEmpty()) {
+            return List.of();
+        }
 
-        return generateRandomPorts();
+        List<Integer> detectedOpenPorts = new ArrayList<>();
+        for (Integer port : ports) {
+            if (port != null && port > 0 && port <= 65535 && Math.random() > 0.4) {
+                detectedOpenPorts.add(port);
+            }
+        }
+        return detectedOpenPorts;
     }
 
     private Map<Integer, String> detectServices(List<Integer> ports) {

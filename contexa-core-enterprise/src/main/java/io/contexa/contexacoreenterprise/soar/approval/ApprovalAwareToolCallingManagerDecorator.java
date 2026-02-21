@@ -149,6 +149,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
         List<ToolCallInfo> highRiskTools = new ArrayList<>();
 
         for (ToolCallInfo toolCall : toolCalls) {
+            boolean requiresApproval = policyManager.requiresApproval(toolCall.name);
 
             SoarTool.RiskLevel riskLevel = policyManager.getRiskLevel(toolCall.name);
 
@@ -156,7 +157,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
                 riskLevel = checkToolRiskFromOptions(toolCall.name, toolCallingOptions, riskLevel);
             }
 
-            if (isHighRisk(riskLevel)) {
+            if (requiresApproval || isHighRisk(riskLevel)) {
                 highRiskTools.add(toolCall);
             }
         }
@@ -188,8 +189,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
     private boolean isHighRisk(SoarTool.RiskLevel riskLevel) {
         return riskLevel == SoarTool.RiskLevel.HIGH ||
-                riskLevel == SoarTool.RiskLevel.CRITICAL ||
-                riskLevel == SoarTool.RiskLevel.MEDIUM;
+                riskLevel == SoarTool.RiskLevel.CRITICAL;
     }
 
     private boolean requestAndWaitForApproval(
@@ -319,7 +319,9 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("tool", tool.name);
-            metadata.put("duration", duration * 1_000_000);
+            metadata.put("duration", duration);
+            metadata.put("durationMillis", duration);
+            metadata.put("durationNanos", duration * 1_000_000);
             metadata.put("success", success);
             metadata.put("request_id", requestId);
 

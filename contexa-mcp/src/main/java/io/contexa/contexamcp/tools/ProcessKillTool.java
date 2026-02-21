@@ -1,6 +1,7 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
+import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -29,6 +30,7 @@ import java.util.Set;
         allowedEnvironments = {"staging", "production"}
 )
 public class ProcessKillTool {
+    private final HighRiskToolAuthorizationService authorizationService;
 
     private static final Set<String> PROTECTED_PROCESSES = Set.of(
             "system", "kernel", "init", "systemd", "explorer.exe", "csrss.exe",
@@ -251,9 +253,7 @@ public class ProcessKillTool {
     }
 
     private boolean hasRequiredPermissions() {
-        // TODO: Implement RBAC permission validation against SOAR security context
-        log.error("Permission check not implemented - defaulting to allow");
-        return true;
+        return authorizationService.isAuthorized("process_kill");
     }
 
     private String getProcessNameByPid(int pid) {

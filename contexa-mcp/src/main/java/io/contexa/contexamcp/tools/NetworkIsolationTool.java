@@ -1,6 +1,7 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
+import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +28,7 @@ import java.util.*;
         allowedEnvironments = {"staging", "production"}
 )
 public class NetworkIsolationTool {
+    private final HighRiskToolAuthorizationService authorizationService;
 
     private static final Map<String, IsolationRule> ISOLATION_RULES = new java.util.concurrent.ConcurrentHashMap<>();
     private static final Set<String> PROTECTED_HOSTS = Set.of(
@@ -356,9 +358,7 @@ public class NetworkIsolationTool {
     }
 
     private boolean hasRequiredPermissions() {
-        // TODO: Implement RBAC permission validation against SOAR security context
-        log.error("Permission check not implemented - defaulting to allow");
-        return true;
+        return authorizationService.isAuthorized("network_isolation");
     }
 
     private List<String> identifyAffectedServices(String target) {
@@ -422,10 +422,6 @@ public class NetworkIsolationTool {
 
     private String blockOutboundTraffic(String target) {
         return "iptables -A OUTPUT -d " + target + " -j DROP";
-    }
-
-    private String blockPort(String target, int port) {
-        return "iptables -A INPUT -s " + target + " -p tcp --dport " + port + " -j DROP";
     }
 
     private void addFirewallRule(String action, String ip, Integer port) {

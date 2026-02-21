@@ -3,10 +3,8 @@ package io.contexa.autoconfigure.enterprise.tool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.soar.SoarLab;
-import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacoreenterprise.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
-import io.contexa.contexacoreenterprise.properties.ToolProperties;
 import io.contexa.contexacoreenterprise.mcp.integration.*;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProvider;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProviderImpl;
@@ -17,11 +15,9 @@ import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
 import io.contexa.contexacoreenterprise.soar.config.ToolApprovalPolicyManager;
-import io.contexa.contexacoreenterprise.soar.helper.ToolCallDetectionHelper;
 import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
 import io.contexa.contexacoreenterprise.soar.tool.exception.SoarToolExecutionExceptionProcessor;
 import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
-import io.contexa.contexacoreenterprise.tool.pipeline.PipelineSoarToolExecutionStep;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -44,11 +40,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.time.Duration;
@@ -134,12 +128,6 @@ public class EnterpriseToolAutoConfiguration {
             FallbackToolResolver fallbackToolResolver,
             MCPToolMetrics metricsCollector) {
 
-        List<ToolCallbackResolver> resolvers = Arrays.asList(
-                mcpToolResolver,
-                springBeanResolver,
-                staticToolResolver,
-                fallbackToolResolver);
-
         ChainedToolResolver chainedResolver = new ChainedToolResolver(
                 metricsCollector,
                 springBeanResolver,
@@ -193,34 +181,10 @@ public class EnterpriseToolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ToolInventoryLogger toolInventoryLogger(
-            Optional<ChainedToolResolver> chainedResolver,
-            Optional<McpFunctionCallbackProvider> mcpProvider) {
-
-        return new ToolInventoryLogger() {
-            @jakarta.annotation.PostConstruct
-            public void logToolInventory() {
-
-                if (chainedResolver.isPresent()) {
-                    Set<String> toolNames = chainedResolver.get().getRegisteredToolNames();
-                }
-
-                if (mcpProvider.isPresent()) {
-                    Map<String, Object> stats = mcpProvider.get().getMcpToolStatistics();
-                }
-            }
-        };
-    }
-
-    private interface ToolInventoryLogger {
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "spring.ai.mcp.client", name = "enabled", havingValue = "true", matchIfMissing = true)
     public McpFunctionCallbackProvider mcpFunctionCallbackProvider(
-            McpSyncClient braveSearchMcpClient,
-            McpSyncClient securityMcpClient) {
+            @Autowired(required = false) @Qualifier("braveSearchMcpClient") McpSyncClient braveSearchMcpClient,
+            @Autowired(required = false) @Qualifier("securityMcpClient") McpSyncClient securityMcpClient) {
         return new McpFunctionCallbackProvider(braveSearchMcpClient, securityMcpClient);
     }
 
@@ -426,17 +390,6 @@ public class EnterpriseToolAutoConfiguration {
         return new ToolAuthorizationService();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public ToolExecutionConfigurationLogger configurationLogger() {
-        return new ToolExecutionConfigurationLogger();
-    }
-
-    public static class ToolExecutionConfigurationLogger {
-        public ToolExecutionConfigurationLogger() {
-        }
-    }
-
     @Bean(name = "soarToolCallingManager")
     @ConditionalOnMissingBean
     public ToolCallingManager soarToolCallingManager() {
@@ -455,21 +408,6 @@ public class EnterpriseToolAutoConfiguration {
     public SoarToolExecutionExceptionProcessor toolExecutionExceptionProcessor(
             @Value("${spring.ai.tools.throw-exception-on-error:false}") boolean throwOnError) {
         return new SoarToolExecutionExceptionProcessor(throwOnError);
-    }
-
-    @Bean
-    @Qualifier("pipelineSoarToolExecutionStep")
-    @ConditionalOnMissingBean(name = "pipelineSoarToolExecutionStep")
-    public PipelineSoarToolExecutionStep pipelineSoarToolExecutionStep(
-            ToolCapableLLMClient toolCapableLLMClient,
-            ApprovalAwareToolCallingManagerDecorator approvalAwareToolCallingManager,
-            ToolCallDetectionHelper toolCallDetectionHelper,
-            ChainedToolResolver chainedToolResolver) {
-        return new PipelineSoarToolExecutionStep(
-                toolCapableLLMClient,
-                approvalAwareToolCallingManager,
-                toolCallDetectionHelper,
-                chainedToolResolver);
     }
 
     public EnterpriseToolAutoConfiguration() {

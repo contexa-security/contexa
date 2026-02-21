@@ -18,7 +18,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 @Slf4j
 @Service
@@ -27,32 +26,43 @@ public class AuditLogService {
     
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final RowMapper<AuditLog> auditLogRowMapper = new AuditLogRowMapper();
 
     @Transactional
     public void saveAuditLog(AuditLog auditLog) {
         String sql = """
             INSERT INTO audit_log (
-                id, timestamp, principal_name, resource_identifier, action, 
+                timestamp, principal_name, resource_identifier, action, 
                 decision, reason, client_ip, details, outcome, 
                 resource_uri, parameters, session_id, status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """;
+
+        Instant timestamp = auditLog.getTimestamp() != null ? auditLog.getTimestamp() : Instant.now();
+        String principalName = hasText(auditLog.getUsername()) ? auditLog.getUsername() : auditLog.getUserId();
+        if (!hasText(principalName)) {
+            principalName = "SYSTEM";
+        }
+        String resourceIdentifier = hasText(auditLog.getResourceId()) ? auditLog.getResourceId() : "unknown";
+        String outcome = hasText(auditLog.getResult()) ? auditLog.getResult() : "UNKNOWN";
+        String decision = hasText(auditLog.getDecision()) ? auditLog.getDecision() : "ALLOW";
+        String reason = hasText(auditLog.getErrorMessage()) ? auditLog.getErrorMessage() : null;
+        String metadataJson = serializeMetadata(auditLog.getMetadata());
         
         jdbcTemplate.update(sql,
-            UUID.randomUUID(),
-            Timestamp.from(auditLog.getTimestamp()),
-            auditLog.getUsername() != null ? auditLog.getUsername() : auditLog.getUserId(),
-            auditLog.getResourceId(),
+            Timestamp.from(timestamp),
+            principalName,
+            resourceIdentifier,
             auditLog.getAction(),
-            auditLog.getDecision() != null ? auditLog.getDecision() : "ALLOW",
-            auditLog.getErrorMessage() != null ? auditLog.getErrorMessage() : "N/A",
+            decision,
+            reason,
             auditLog.getIpAddress(),
-            auditLog.getErrorMessage(),
-            auditLog.getResult(),
+            reason,
+            outcome,
             auditLog.getResourceType(),
-            serializeMetadata(auditLog.getMetadata()),
+            metadataJson,
             auditLog.getSessionId(),
-            auditLog.getResult()
+            outcome
         );
         
             }
@@ -65,7 +75,7 @@ public class AuditLogService {
             LIMIT ?
             """;
         
-        return jdbcTemplate.query(sql, new AuditLogRowMapper(), userId, limit);
+        return jdbcTemplate.query(sql, auditLogRowMapper, userId, limit);
     }
 
     public List<AuditLog> findByTimeRange(Instant startTime, Instant endTime, int limit) {
@@ -76,7 +86,7 @@ public class AuditLogService {
             LIMIT ?
             """;
         
-        return jdbcTemplate.query(sql, new AuditLogRowMapper(), 
+        return jdbcTemplate.query(sql, auditLogRowMapper,
             Timestamp.from(startTime), Timestamp.from(endTime), limit);
     }
 
@@ -88,7 +98,7 @@ public class AuditLogService {
             LIMIT ?
             """;
         
-        return jdbcTemplate.query(sql, new AuditLogRowMapper(), ipAddress, limit);
+        return jdbcTemplate.query(sql, auditLogRowMapper, ipAddress, limit);
     }
 
     public List<AuditLog> findFailedActions(int limit) {
@@ -99,7 +109,7 @@ public class AuditLogService {
             LIMIT ?
             """;
         
-        return jdbcTemplate.query(sql, new AuditLogRowMapper(), limit);
+        return jdbcTemplate.query(sql, auditLogRowMapper, limit);
     }
 
     public List<AuditLog> findSecurityEvents(int limit) {
@@ -111,7 +121,7 @@ public class AuditLogService {
             LIMIT ?
             """;
         
-        return jdbcTemplate.query(sql, new AuditLogRowMapper(), limit);
+        return jdbcTemplate.query(sql, auditLogRowMapper, limit);
     }
 
     public List<Map<String, Object>> getUserActionStatistics(Instant startTime, Instant endTime) {
@@ -168,16 +178,17 @@ public class AuditLogService {
         sql.append(" ORDER BY timestamp DESC LIMIT ?");
         params.add(limit);
 
-        return jdbcTemplate.query(sql.toString(), new AuditLogRowMapper(), params.toArray());
+        return jdbcTemplate.query(sql.toString(), auditLogRowMapper, params.toArray());
     }
 
     public void auditToolExecution(String toolName, String userId, String action,
                                   boolean success, Map<String, Object> metadata) {
+        String executedAction = hasText(action) ? action : "TOOL_EXECUTION";
         AuditLog auditLog = AuditLog.builder()
             .timestamp(Instant.now())
             .userId(userId)
             .username(userId)  
-            .action("TOOL_EXECUTION")
+            .action(executedAction)
             .resourceType("TOOL")
             .resourceId(toolName)
             .result(success ? "SUCCESS" : "FAILURE")
@@ -188,19 +199,21 @@ public class AuditLogService {
         saveAuditLog(auditLog);
     }
 
-    private static class AuditLogRowMapper implements RowMapper<AuditLog> {
+    private class AuditLogRowMapper implements RowMapper<AuditLog> {
         @Override
         public AuditLog mapRow(ResultSet rs, int rowNum) throws SQLException {
+            Timestamp timestamp = rs.getTimestamp("timestamp");
             return AuditLog.builder()
-                .id(rs.getObject("id", UUID.class))
-                .timestamp(rs.getTimestamp("timestamp").toInstant())
+                .id(rs.getLong("id"))
+                .timestamp(timestamp != null ? timestamp.toInstant() : null)
                 .userId(rs.getString("principal_name"))
                 .username(rs.getString("principal_name"))
                 .action(rs.getString("action"))
                 .resourceType(rs.getString("resource_uri"))
                 .resourceId(rs.getString("resource_identifier"))
                 .ipAddress(rs.getString("client_ip"))
-                .userAgent(null)  
+                .userAgent(null)
+                .decision(rs.getString("decision"))
                 .result(rs.getString("outcome"))
                 .errorMessage(rs.getString("reason"))
                 .sessionId(rs.getString("session_id"))
@@ -209,19 +222,22 @@ public class AuditLogService {
         }
         
         private Map<String, Object> parseJsonMetadata(String json) {
-            
+             
             if (json == null || json.isEmpty() || "{}".equals(json)) {
                 return Map.of();
             }
-            
-            return Map.of("raw", json);
+            try {
+                return objectMapper.readValue(json, Map.class);
+            } catch (Exception e) {
+                return Map.of("raw", json);
+            }
         }
     }
 
     @Data
     @Builder
     public static class AuditLog {
-        private UUID id;
+        private Long id;
         private Instant timestamp;
         private String userId;
         private String username;
@@ -247,5 +263,9 @@ public class AuditLogService {
             log.error("Failed to serialize metadata to JSON", e);
             return "{}";
         }
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

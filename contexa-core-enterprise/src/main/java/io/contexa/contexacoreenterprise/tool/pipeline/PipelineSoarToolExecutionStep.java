@@ -363,6 +363,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
     private void logToolExecutionSuccess(String requestId, Object response, long startTime) {
         long totalTime = System.currentTimeMillis() - startTime;
+        log.error("[SOAR-TOOL-STEP] Tool execution completed. Request: {}, total time: {}ms", requestId, totalTime);
     }
 
     private void logToolExecutionError(String requestId, Throwable error, long startTime) {
@@ -379,35 +380,6 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
     @Override
     public int getOrder() {
         return 45;
-    }
-
-    private String generateToolExecutionSummary(List<String> executedTools) {
-        if (executedTools == null || executedTools.isEmpty()) {
-            return "No tools were executed.";
-        }
-
-        StringBuilder summary = new StringBuilder();
-        summary.append("Tool execution summary:\n");
-        for (String tool : executedTools) {
-            summary.append("- ").append(tool).append(": ");
-            summary.append(getToolDescription(tool)).append("\n");
-        }
-        return summary.toString();
-    }
-
-    private String getToolDescription(String toolName) {
-        return switch (toolName) {
-            case "ip_blocking" -> "Malicious IP blocking completed";
-            case "network_isolation" -> "Network isolation performed";
-            case "process_kill" -> "Malicious process terminated";
-            case "session_termination" -> "Session termination completed";
-            case "file_quarantine" -> "File quarantine performed";
-            case "threat_intelligence" -> "Threat intelligence lookup completed";
-            case "log_analysis" -> "Log analysis completed";
-            case "network_scan" -> "Network scan performed";
-            case "audit_logs", "queryAuditLogs" -> "Audit log query completed";
-            default -> "Operation completed";
-        };
     }
 
     private void validateToolParameters(String toolName, String arguments) {
@@ -502,12 +474,6 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
     private void recordToolExecutionMetrics(ToolCallContext toolContext,
                                             PipelineExecutionContext context) {
         Map<String, Object> metrics = toolContext.getMetrics();
-
-        String metricsJson = String.format(
-                "Tool Execution Metrics: iterations=%d, totalExecutions=%d, uniqueTools=%d, duration=%dms",
-                metrics.get("iterations"), metrics.get("totalExecutions"),
-                metrics.get("uniqueTools"), metrics.get("duration")
-        );
 
         long duration = (long) metrics.get("duration");
         if (duration > 60000) {

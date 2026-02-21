@@ -63,9 +63,12 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
 
             for (String toolName : toolNames) {
                 if (shouldPreCache(toolName)) {
-                    ToolCallback tool = delegatingResolver.resolve(toolName);
-                    if (tool != null) {
-                        toolCache.put(toolName, tool);
+                    ToolCallback resolvedTool = delegatingResolver.resolve(toolName);
+                    if (resolvedTool != null) {
+                        String resolverName = identifyResolver(resolvedTool);
+                        ToolCallback enhancedTool = enhanceToolCallback(resolvedTool, toolName, resolverName);
+                        toolCache.put(toolName, enhancedTool);
+                        toolSourceMapping.put(toolName, resolverName);
                     }
                 }
             }
@@ -210,24 +213,32 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
 
     @Override
     public ToolCallback[] getAllToolCallbacks() {
-        List<ToolCallback> allTools = new ArrayList<>();
+        Map<String, ToolCallback> allTools = new LinkedHashMap<>();
 
         for (ToolCallbackResolver resolver : getResolvers()) {
             try {
-                
+                String resolverName = resolver.getClass().getSimpleName();
+                 
                 if (resolver instanceof SpringBeanToolCallbackResolver springResolver) {
                     var tools = springResolver.getAllTools();
-                    allTools.addAll(tools.values());
+                    for (ToolCallback tool : tools.values()) {
+                        addToolWithEnhancement(allTools, tool, resolverName);
+                    }
                 }
-                
+                 
                 else if (resolver instanceof McpToolResolver mcpResolver) {
                     var tools = mcpResolver.getAllTools();
-                    allTools.addAll(tools);
+                    for (ToolCallback tool : tools) {
+                        ToolCallback resolvedTool = mcpResolver.resolve(tool.getToolDefinition().name());
+                        addToolWithEnhancement(allTools, resolvedTool != null ? resolvedTool : tool, resolverName);
+                    }
                 }
-                
+                 
                 else if (resolver instanceof StaticToolCallbackResolver staticResolver) {
                     var tools = staticResolver.getAllTools();
-                    allTools.addAll(tools.values());
+                    for (ToolCallback tool : tools.values()) {
+                        addToolWithEnhancement(allTools, tool, resolverName);
+                    }
                 }
             } catch (Exception e) {
                 log.error("Failed to collect tools from resolver: {} - {}",
@@ -235,30 +246,16 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             }
         }
 
-                return allTools.toArray(new ToolCallback[0]);
+                return allTools.values().toArray(new ToolCallback[0]);
     }
 
     public Set<String> getRegisteredToolNames() {
         Set<String> toolNames = new HashSet<>();
 
         toolNames.addAll(toolCache.keySet());
-
-        for (ToolCallbackResolver resolver : getResolvers()) {
-            try {
-                if (resolver instanceof SpringBeanToolCallbackResolver springResolver) {
-                    var tools = springResolver.getAllTools();
-                    toolNames.addAll(tools.keySet());
-                } else if (resolver instanceof McpToolResolver mcpResolver) {
-                    var tools = mcpResolver.getAllTools();
-                    tools.forEach(tool -> toolNames.add(tool.getToolDefinition().name()));
-                } else if (resolver instanceof StaticToolCallbackResolver staticResolver) {
-                    var tools = staticResolver.getAllTools();
-                    toolNames.addAll(tools.keySet());
-                }
-            } catch (Exception e) {
-                log.error("Failed to get tool names from resolver: {}", resolver.getClass().getSimpleName(), e);
-            }
-        }
+        Arrays.stream(getAllToolCallbacks())
+            .map(tool -> tool.getToolDefinition().name())
+            .forEach(toolNames::add);
 
         return toolNames;
     }
@@ -314,6 +311,23 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
             staticToolCallbackResolver,
             fallbackToolResolver
         );
+    }
+
+    private void addToolWithEnhancement(Map<String, ToolCallback> target,
+                                        ToolCallback tool,
+                                        String resolverName) {
+        if (tool == null) {
+            return;
+        }
+
+        String toolName = tool.getToolDefinition().name();
+        ToolCallback enhancedTool = enhanceToolCallback(tool, toolName, resolverName);
+        target.put(toolName, enhancedTool);
+
+        if (toolCache.size() < 1000) {
+            toolCache.put(toolName, enhancedTool);
+        }
+        toolSourceMapping.put(toolName, resolverName);
     }
 
     public static class ToolNotFoundException extends RuntimeException {

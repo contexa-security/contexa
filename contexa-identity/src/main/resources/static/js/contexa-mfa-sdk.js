@@ -452,7 +452,7 @@
                     selectFactor: '/mfa/select-factor',
                     requestOttCode: '/mfa/request-ott-code',
                     config: '/api/mfa/config',
-                    logout: '/api/logout'
+                    logout: '/logout'
                 },
                 webauthn: {
                     assertionOptions: '/webauthn/authenticate/options',
@@ -764,7 +764,7 @@
         /**
          * Logout - Server-side token invalidation and session cleanup
          *
-         * Sends POST to /api/logout with Authorization and X-Refresh-Token headers.
+         * Sends POST to /logout with Authorization and X-Refresh-Token headers.
          * Server CompositeLogoutHandler processes:
          *   - SessionLogoutStrategy: session invalidation, CSRF cleanup
          *   - OAuth2LogoutStrategy: refresh/access token invalidation via OAuth2AuthorizationService
@@ -796,7 +796,7 @@
                 }
             }
 
-            const logoutUrl = this.endpoints.api?.logout || '/api/logout';
+            const logoutUrl = this.endpoints.api?.logout || '/logout';
 
             const response = await fetch(logoutUrl, {
                 method: 'POST',
