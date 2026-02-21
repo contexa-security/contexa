@@ -41,7 +41,6 @@ public class OAuth2LogoutStrategy implements LogoutStrategy {
 
         try {
             tokenService.invalidateRefreshToken(refreshToken);
-            tokenService.blacklistRefreshToken(refreshToken, username, REASON_LOGOUT);
         } catch (AuthenticationException ex) {
             log.error("Failed to invalidate tokens during logout for user {}: {}", username, ex.getMessage());
         } catch (Exception ex) {
