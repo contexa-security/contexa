@@ -13,10 +13,12 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @EnableJpaAuditing
 @EnableJpaRepositories(basePackages = {"io.contexa.contexacommon.repository"})
 @EntityScan(basePackages = {"io.contexa.contexacommon.entity"})
-@SpringBootApplication(exclude = {
-        SecurityAutoConfiguration.class,
-        UserDetailsServiceAutoConfiguration.class
-})
+@SpringBootApplication(
+        exclude = {
+                SecurityAutoConfiguration.class,
+                UserDetailsServiceAutoConfiguration.class
+        }
+)
 public class ContexaMcpApplication {
 
     public static void main(String[] args) {

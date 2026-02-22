@@ -5,7 +5,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -19,7 +18,6 @@ import java.util.stream.Collectors;
  * Data is volatile and will be lost on server restart - rebuild from IAM PolicyService if needed.
  */
 @Slf4j
-@Repository
 public class SynthesisPolicyRepository {
 
     private final Map<Long, Policy> policies = new ConcurrentHashMap<>();
