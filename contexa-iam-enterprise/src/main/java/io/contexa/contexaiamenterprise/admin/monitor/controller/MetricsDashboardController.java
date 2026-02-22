@@ -1,4 +1,4 @@
-package io.contexa.contexaiam.admin.web.monitoring.controller;
+package io.contexa.contexaiamenterprise.admin.monitor.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
