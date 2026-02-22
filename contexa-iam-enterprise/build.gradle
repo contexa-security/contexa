@@ -5,10 +5,8 @@ dependencies {
     implementation project(':contexa-core')
     implementation project(':contexa-core-enterprise')
     implementation project(':contexa-common')
-    // contexa-autoconfigure는 Starter에서 포함 (순환 의존성 방지)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
-    // WebFlux는 AutoConfiguration에서 처리
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
     implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
