@@ -133,7 +133,8 @@
       "Bash(python3:*)",
       "Bash(gh api:*)",
       "Bash(for file in /d/projects/contexa/contexa-core-enterprise/src/main/java/io/contexa/contexacoreenterprise/mcp/**/*.java)",
-      "Bash(do grep -H \"extends\\\\|implements\" \"$file\")"
+      "Bash(do grep -H \"extends\\\\|implements\" \"$file\")",
+      "Bash(head:*)"
     ],
     "deny": [],
     "ask": []

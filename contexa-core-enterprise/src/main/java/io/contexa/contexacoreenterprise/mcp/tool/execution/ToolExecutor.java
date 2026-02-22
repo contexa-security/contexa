@@ -2,6 +2,7 @@ package io.contexa.contexacoreenterprise.mcp.tool.execution;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.Map;
 
@@ -13,20 +14,16 @@ public interface ToolExecutor {
 
     @Data
     @Builder
+    @EqualsAndHashCode(of = {"toolName", "parameters"})
     class ToolRequest {
         private String toolName;
         private Map<String, Object> parameters;
         private Map<String, String> headers;
         private String rawInput;
-        
+
         public String toJson() {
-            
+
             return rawInput != null ? rawInput : "{}";
-        }
-        
-        @Override
-        public int hashCode() {
-            return java.util.Objects.hash(toolName, parameters);
         }
     }
     
