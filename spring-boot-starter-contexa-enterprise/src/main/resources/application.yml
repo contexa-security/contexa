@@ -1,6 +1,8 @@
 contexa:
   hcad:
     enable-simulated-user-agent: true
+  enterprise:
+    enabled: true
 
 logging:
   level:
