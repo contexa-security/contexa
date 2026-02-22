@@ -5,6 +5,14 @@ dependencies {
     api project(':contexa-identity')
     api project(':contexa-iam')
 
+    // Spring AI model starters (Auto-Configuration for end-user apps)
+    api 'org.springframework.ai:spring-ai-starter-model-openai'
+    api 'org.springframework.ai:spring-ai-starter-model-anthropic'
+    api 'org.springframework.ai:spring-ai-starter-model-ollama'
+
+    // Spring AI vector store starter
+    api 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'

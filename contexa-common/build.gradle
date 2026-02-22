@@ -7,6 +7,9 @@ jar {
 }
 
 dependencies {
+    // Spring AI model types (ToolCallback used in ToolResolver)
+    api 'org.springframework.ai:spring-ai-model'
+
     // Spring Security (UserDto, Authority, UnifiedCustomUserDetails용)
     api 'org.springframework.boot:spring-boot-starter-security'
 
