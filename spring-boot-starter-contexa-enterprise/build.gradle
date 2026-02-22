@@ -7,6 +7,7 @@ dependencies {
 
     // ========== Contexa Enterprise 모듈 ==========
     api project(':contexa-core-enterprise')
+    api project(':contexa-iam-enterprise')
 
     // ========== MCP 통합 (Enterprise 전용) ==========
     api project(':contexa-mcp')

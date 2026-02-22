@@ -16,7 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
+import io.contexa.contexacore.metrics.AuthorizationMetrics;
 
 import java.util.function.Supplier;
 
@@ -29,7 +29,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     private final int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1; 
     private final Supplier<SecurityContextHolderStrategy> securityContextHolderStrategy = SecurityContextHolder::getContextHolderStrategy;
     private ZeroTrustEventPublisher zeroTrustEventPublisher;
-    private EventPublishingMetrics metricsCollector;
+    private AuthorizationMetrics metricsCollector;
 
     public AuthorizationManagerMethodInterceptor(Pointcut pointcut, ProtectableMethodAuthorizationManager authorizationManager) {
         this.pointcut = pointcut;
@@ -103,7 +103,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
     }
 
-    public void setMetricsCollector(EventPublishingMetrics metricsCollector) {
+    public void setMetricsCollector(AuthorizationMetrics metricsCollector) {
         this.metricsCollector = metricsCollector;
     }
 

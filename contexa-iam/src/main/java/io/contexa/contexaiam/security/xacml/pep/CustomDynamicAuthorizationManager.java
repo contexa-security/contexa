@@ -3,7 +3,7 @@ package io.contexa.contexaiam.security.xacml.pep;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
+import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -46,7 +46,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ObjectMapper objectMapper;
     private final ContextHandler contextHandler;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
-    private final EventPublishingMetrics metricsCollector;
+    private final AuthorizationMetrics metricsCollector;
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {

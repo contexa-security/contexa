@@ -2,7 +2,7 @@ package io.contexa.autoconfigure.iam.xacml;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust.EventPublishingMetrics;
+import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.ExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -43,7 +43,7 @@ public class IamXacmlPepAutoConfiguration {
             ObjectMapper objectMapper,
             ContextHandler contextHandler,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            @Autowired(required = false) EventPublishingMetrics metricsCollector) {
+            @Autowired(required = false) AuthorizationMetrics metricsCollector) {
         return new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, auditLogService,
                 objectMapper, contextHandler, zeroTrustEventPublisher, metricsCollector);

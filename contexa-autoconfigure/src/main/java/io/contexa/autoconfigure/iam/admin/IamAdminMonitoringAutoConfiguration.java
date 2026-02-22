@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
+import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.admin.web.monitoring.service.DashboardService;
@@ -82,5 +83,11 @@ public class IamAdminMonitoringAutoConfiguration {
     @ConditionalOnMissingBean
     public AuditLogService auditLogService(AuditLogRepository auditLogRepository) {
         return new AuditLogService(auditLogRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AdminEnterpriseModelAdvice adminEnterpriseModelAdvice() {
+        return new AdminEnterpriseModelAdvice();
     }
 }

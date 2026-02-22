@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.dashboard.metrics.zerotrust;
 
+import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexacoreenterprise.dashboard.core.AbstractMicrometerMetrics;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -12,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
-public class EventPublishingMetrics extends AbstractMicrometerMetrics {
+public class EventPublishingMetrics extends AbstractMicrometerMetrics implements AuthorizationMetrics {
 
     private Counter loginCounter;
     private Counter protectableCounter;
