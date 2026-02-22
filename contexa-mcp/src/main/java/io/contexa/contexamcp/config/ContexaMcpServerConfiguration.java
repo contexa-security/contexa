@@ -5,7 +5,7 @@ import io.contexa.contexamcp.prompts.SecurityAnalysisPrompts;
 import io.contexa.contexamcp.resources.SecurityLogResource;
 import io.contexa.contexamcp.resources.SystemInfoResource;
 import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
-import io.contexa.contexamcp.service.AuditLogService;
+import io.contexa.contexamcp.service.McpAuditLogService;
 import io.contexa.contexamcp.service.IpBlockingService;
 import io.contexa.contexamcp.service.UserSessionService;
 import io.contexa.contexamcp.tools.AuditLogQueryTool;
@@ -25,6 +25,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,24 @@ public class ContexaMcpServerConfiguration {
     @ConditionalOnMissingBean
     public HighRiskToolAuthorizationService highRiskToolAuthorizationService(Environment environment) {
         return new HighRiskToolAuthorizationService(environment);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public UserSessionService userSessionService(RedisTemplate<String, Object> redisTemplate) {
+        return new UserSessionService(redisTemplate);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public McpAuditLogService mcpAuditLogService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
+        return new McpAuditLogService(jdbcTemplate, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public IpBlockingService ipBlockingService(RedisTemplate<String, Object> redisTemplate) {
+        return new IpBlockingService(redisTemplate);
     }
 
     @Bean
@@ -77,8 +97,8 @@ public class ContexaMcpServerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditLogQueryTool auditLogQueryTool(AuditLogService auditLogService) {
-        return new AuditLogQueryTool(auditLogService);
+    public AuditLogQueryTool auditLogQueryTool(McpAuditLogService mcpAuditLogService) {
+        return new AuditLogQueryTool(mcpAuditLogService);
     }
 
     @Bean

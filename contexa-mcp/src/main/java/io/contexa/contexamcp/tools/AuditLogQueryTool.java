@@ -1,7 +1,7 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
-import io.contexa.contexamcp.service.AuditLogService;
+import io.contexa.contexamcp.service.McpAuditLogService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -32,7 +32,7 @@ import java.util.StringJoiner;
 )
 public class AuditLogQueryTool {
 
-    private final AuditLogService auditLogService;
+    private final McpAuditLogService mcpAuditLogService;
 
     @Tool(
             name = "audit_log_query",
@@ -79,7 +79,7 @@ public class AuditLogQueryTool {
             Instant startTime = StringUtils.hasText(dateFrom) ? Instant.parse(dateFrom) : null;
             Instant endTime = StringUtils.hasText(dateTo) ? Instant.parse(dateTo) : null;
 
-            List<AuditLogService.AuditLog> logs = auditLogService.findByCombinedFilters(
+            List<McpAuditLogService.AuditLog> logs = mcpAuditLogService.findByCombinedFilters(
                     userId, ipAddress, startTime, endTime, effectiveLimit);
 
             StringJoiner criteriaJoiner = new StringJoiner(", ");
@@ -129,7 +129,7 @@ public class AuditLogQueryTool {
         }
     }
 
-    private String analyzeThreatLevel(List<AuditLogService.AuditLog> logs) {
+    private String analyzeThreatLevel(List<McpAuditLogService.AuditLog> logs) {
         if (logs.isEmpty()) {
             return "NONE";
         }
@@ -153,7 +153,7 @@ public class AuditLogQueryTool {
         return "NONE";
     }
 
-    private ThreatAnalysis performDetailedAnalysis(List<AuditLogService.AuditLog> logs) {
+    private ThreatAnalysis performDetailedAnalysis(List<McpAuditLogService.AuditLog> logs) {
         if (logs.isEmpty()) {
             return ThreatAnalysis.builder()
                     .failedLoginAttempts(0)
@@ -206,7 +206,7 @@ public class AuditLogQueryTool {
     public static class Response {
         private boolean success;
         private String message;
-        private List<AuditLogService.AuditLog> logs;
+        private List<McpAuditLogService.AuditLog> logs;
         private int totalCount;
         private String threatLevel;
         private ThreatAnalysis threatAnalysis;
