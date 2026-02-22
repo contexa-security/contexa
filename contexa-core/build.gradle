@@ -16,7 +16,7 @@ dependencies {
     // Spring AI model libraries (ModelProvider implementations)
     api 'org.springframework.ai:spring-ai-openai'
     api 'org.springframework.ai:spring-ai-anthropic'
-    api 'org.springframework.ai:spring-ai-starter-model-ollama'
+    api 'org.springframework.ai:spring-ai-ollama'
 
     // Spring AI vector store & RAG
     api 'org.springframework.ai:spring-ai-advisors-vector-store'
@@ -28,8 +28,7 @@ dependencies {
     // Jackson JSON Schema support
     implementation 'com.fasterxml.jackson.module:jackson-module-jsonSchema:2.15.3'
 
-    // Caffeine cache for TrustSecurityExpressionRoot
-    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+    // Caffeine provided by root subprojects (3.2.2)
 
     // ND4J for SIMD-optimized vector operations (HCAD performance boost)
     implementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
@@ -48,6 +47,19 @@ dependencies {
     implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.32.0'
     // Spring Boot Starter는 제거 (수동 설정 사용)
     // implementation 'io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter:1.32.0-alpha'
+
+    // Module-specific dependencies (moved from root subprojects)
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-cache'
+    implementation("org.redisson:redisson-spring-boot-starter:3.48.0")
+    implementation("org.springframework.kafka:spring-kafka")
+    implementation 'io.micrometer:micrometer-tracing-bridge-brave'
+    implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'io.github.resilience4j:resilience4j-spring-boot3'
+    implementation 'io.github.resilience4j:resilience4j-circuitbreaker'
+    implementation 'io.github.resilience4j:resilience4j-retry'
+    implementation 'io.github.resilience4j:resilience4j-bulkhead'
+    implementation 'io.github.resilience4j:resilience4j-timelimiter'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'

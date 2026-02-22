@@ -35,6 +35,10 @@ dependencies {
 bootJar.enabled = false
 jar.enabled = true
 
+tasks.named('resolveMainClassName') {
+    enabled = false
+}
+
 tasks.named('test') {
     useJUnitPlatform()
 }

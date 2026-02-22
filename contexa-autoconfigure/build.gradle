@@ -34,6 +34,15 @@ dependencies {
     // WebFlux (contexa-iam 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-webflux'
 
+    // Spring AI AutoConfiguration types (CoreLLMTieredAutoConfiguration uses ChatClientAutoConfiguration)
+    compileOnly 'org.springframework.ai:spring-ai-autoconfigure-model-chat-client'
+
+    // Module-specific compileOnly (moved from root subprojects)
+    compileOnly 'org.springframework.boot:spring-boot-starter-mail'
+    compileOnly("org.springframework.kafka:spring-kafka")
+    compileOnly 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    compileOnly("org.redisson:redisson-spring-boot-starter:3.48.0")
+
     // Spring AI MCP (contexa-core, contexa-mcp 사용)
     compileOnly 'org.springframework.ai:spring-ai-starter-mcp-client'
     compileOnly 'org.springframework.ai:spring-ai-starter-mcp-server'
@@ -43,6 +52,10 @@ dependencies {
 // 라이브러리 모듈이므로 bootJar 비활성화
 bootJar.enabled = false
 jar.enabled = true
+
+tasks.named('resolveMainClassName') {
+    enabled = false
+}
 
 tasks.named('test') {
     useJUnitPlatform()

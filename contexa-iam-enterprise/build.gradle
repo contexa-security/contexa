@@ -1,6 +1,10 @@
 bootJar.enabled = false
 jar.enabled = true
 
+tasks.named('resolveMainClassName') {
+    enabled = false
+}
+
 dependencies {
     implementation project(':contexa-core')
     implementation project(':contexa-core-enterprise')
@@ -10,7 +14,13 @@ dependencies {
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
 
-    implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
+    // OpenTelemetry API provided by root subprojects
+
+    // Module-specific dependencies (moved from root subprojects)
+    implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
+    implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
+    implementation 'com.querydsl:querydsl-core:5.1.0'
+    annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'
