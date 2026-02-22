@@ -296,7 +296,7 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(ApprovalService.class)
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public ApprovalService unifiedApprovalService(
+    public UnifiedApprovalService unifiedApprovalService(
             SoarApprovalRequestRepository repository,
             ApprovalRequestFactory approvalRequestFactory,
             ToolExecutionContextRepository executionContextRepository,

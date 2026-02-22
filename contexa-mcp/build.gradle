@@ -3,7 +3,6 @@ jar.enabled = true
 
 dependencies {
     implementation project(':contexa-common')
-    // MCP server is a standalone app, so implementation is sufficient
     implementation 'org.springframework.ai:spring-ai-starter-mcp-server'
     implementation("org.springframework.ai:spring-ai-starter-mcp-server-webmvc")
 //    implementation("org.springframework.security:spring-security-oauth2-authorization-server:2.0.0-M2")
