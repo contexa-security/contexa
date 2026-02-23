@@ -3,18 +3,15 @@ package io.contexa.contexaiam.admin.web.auth.service;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -26,8 +23,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final AdminOverrideService adminOverrideService;
-    private final RedisTemplate<String, Object> redisTemplate;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final ZeroTrustActionRedisRepository actionRedisRepository;
 
     @Override
     @Transactional
@@ -183,15 +179,9 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
     private void clearRedisBlockKeys(String userId, String resolvedAction) {
         try {
-            String userBlockedKey = ZeroTrustRedisKeys.userBlocked(userId);
-            redisTemplate.delete(userBlockedKey);
-
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            redisTemplate.opsForHash().put(analysisKey, "action", resolvedAction);
-            redisTemplate.expire(analysisKey, Duration.ofSeconds(30));
-
-            String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
-            stringRedisTemplate.opsForValue().set(lastActionKey, resolvedAction, Duration.ofHours(24));
+            actionRedisRepository.removeBlockedFlag(userId);
+            ZeroTrustAction action = ZeroTrustAction.fromString(resolvedAction);
+            actionRedisRepository.saveAction(userId, action, null);
         } catch (Exception e) {
             log.error("[BlockedUserService] Failed to clear Redis block keys: userId={}", userId, e);
         }

@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -434,7 +435,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW);
+            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+            actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
             boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
             if (isLlmTriggeredMfa) {
                 learnOnLlmChallengedMfaSuccess(userId, request);

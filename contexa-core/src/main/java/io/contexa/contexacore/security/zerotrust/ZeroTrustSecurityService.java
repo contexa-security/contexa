@@ -2,6 +2,7 @@ package io.contexa.contexacore.security.zerotrust;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,7 +34,8 @@ public class ZeroTrustSecurityService {
             return;
         }
         try {
-            ZeroTrustAction action = actionRedisRepository.getCurrentAction(userId);
+            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+            ZeroTrustAction action = actionRedisRepository.getCurrentAction(userId, contextBindingHash);
             double threatScore = threatScoreUtil.getThreatScore(userId);
             double trustScore = 1.0 - threatScore;
 

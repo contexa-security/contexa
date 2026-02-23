@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.event.listener;
 
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +68,9 @@ public class ZeroTrustEventListener {
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {
         String userId = event.getUserId();
 
-        if (shouldSkipPublishing(userId)) {
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
+                event.getSessionId(), event.getClientIp(), event.getUserAgent());
+        if (shouldSkipPublishing(userId, contextBindingHash)) {
             return;
         }
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
@@ -85,7 +88,7 @@ public class ZeroTrustEventListener {
         kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
     }
 
-    private boolean shouldSkipPublishing(String userId) {
+    private boolean shouldSkipPublishing(String userId, String contextBindingHash) {
         if (userId == null || userId.isBlank()) {
             return false;
         }
@@ -94,12 +97,15 @@ public class ZeroTrustEventListener {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             Boolean hasKey = redisTemplate.hasKey(analysisKey);
 
-            if (Boolean.TRUE.equals(hasKey)) {
-                Long ttl = redisTemplate.getExpire(analysisKey);
-                // ttl > 0: TTL set and still valid (ALLOW, CHALLENGE, ESCALATE)
-                // ttl == -1: no TTL (BLOCK - permanent)
-                // Both cases should skip publishing
-                return ttl > 0 || ttl == -1;
+            if (hasKey) {
+                long ttl = redisTemplate.getExpire(analysisKey);
+                if (ttl > 0 || ttl == -1) {
+                    if (contextBindingHash != null) {
+                        Object storedHash = redisTemplate.opsForHash().get(analysisKey, "contextBindingHash");
+                        return storedHash == null || storedHash.toString().equals(contextBindingHash);
+                    }
+                    return true;
+                }
             }
 
             return false;

@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.utils;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 
 import java.security.MessageDigest;
@@ -100,6 +101,58 @@ public class SessionFingerprintUtil {
             log.error("[SessionFingerprint] SHA-256 algorithm not available", e);
             return input.hashCode() + "";
         }
+    }
+
+    public static String generateContextBindingHash(HttpServletRequest request) {
+        if (request == null) {
+            return null;
+        }
+        return generateContextBindingHash(
+                request.getRequestedSessionId(),
+                extractClientIp(request),
+                request.getHeader("User-Agent")
+        );
+    }
+
+    public static String generateContextBindingHash(String sessionId, String ip, String userAgent) {
+        if (sessionId == null && ip == null && userAgent == null) {
+            return null;
+        }
+        String raw = "CTX:" + (sessionId != null ? sessionId : "")
+                + "|" + (ip != null ? ip : "")
+                + "|" + (userAgent != null ? userAgent : "");
+        return hashStringLong(raw);
+    }
+
+    private static String hashStringLong(String input) {
+        if (input == null || input.isEmpty()) {
+            return "0000000000000000";
+        }
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] hash = md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return HEX_FORMAT.formatHex(hash).substring(0, 16);
+        } catch (NoSuchAlgorithmException e) {
+            log.error("[SessionFingerprint] SHA-256 algorithm not available", e);
+            return String.valueOf(input.hashCode());
+        }
+    }
+
+    private static String extractClientIp(HttpServletRequest request) {
+        String[] headers = {
+                "X-Forwarded-For", "X-Real-IP", "Proxy-Client-IP",
+                "WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"
+        };
+        for (String header : headers) {
+            String ip = request.getHeader(header);
+            if (ip != null && !ip.isEmpty() && !"unknown".equalsIgnoreCase(ip)) {
+                if (ip.contains(",")) {
+                    return ip.split(",")[0].trim();
+                }
+                return ip.trim();
+            }
+        }
+        return request.getRemoteAddr();
     }
 
     public static double calculateSimilarity(String fp1, String fp2) {

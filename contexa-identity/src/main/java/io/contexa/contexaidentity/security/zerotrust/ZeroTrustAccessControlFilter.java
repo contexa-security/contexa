@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.zerotrust;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
 import jakarta.servlet.FilterChain;
@@ -89,7 +90,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         }
 
         String userId = extractUserId(auth);
-        ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId);
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+        ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId, contextBindingHash);
 
         switch (currentAction) {
             case BLOCK -> handleBlocked(request, response, userId);

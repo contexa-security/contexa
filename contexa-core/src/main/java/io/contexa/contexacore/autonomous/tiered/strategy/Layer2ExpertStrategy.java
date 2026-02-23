@@ -305,7 +305,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         }
         try {
             SoarContext soarContext = new SoarContext();
-            soarContext.setSessionId(event.getEventId());
+            soarContext.setSessionId(event.getSessionId());
             soarContext.setOrganizationId("default");
             soarContext.setCreatedAt(LocalDateTime.now());
 

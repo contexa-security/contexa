@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistApiController;
@@ -9,8 +10,6 @@ import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 
 @AutoConfiguration
 public class IamAdminBlacklistAutoConfiguration {
@@ -20,10 +19,9 @@ public class IamAdminBlacklistAutoConfiguration {
     public BlockedUserService blockedUserService(
             BlockedUserJpaRepository blockedUserJpaRepository,
             AdminOverrideService adminOverrideService,
-            RedisTemplate<String, Object> redisTemplate,
-            StringRedisTemplate stringRedisTemplate) {
+            ZeroTrustActionRedisRepository actionRedisRepository) {
         return new BlockedUserService(
-                blockedUserJpaRepository, adminOverrideService, redisTemplate, stringRedisTemplate);
+                blockedUserJpaRepository, adminOverrideService, actionRedisRepository);
     }
 
     @Bean

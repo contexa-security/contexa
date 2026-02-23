@@ -5,6 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -80,6 +81,12 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         additionalFields.put("threatEvidence", result.getThreatIndicators() != null
                 ? String.join(", ", result.getThreatIndicators()) : "");
         additionalFields.put("analysisDepth", result.getAiAnalysisLevel());
+
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
+                event.getSessionId(), event.getSourceIp(), event.getUserAgent());
+        if (contextBindingHash != null) {
+            additionalFields.put("contextBindingHash", contextBindingHash);
+        }
 
         actionRedisRepository.saveAction(userId, ztAction, additionalFields);
 

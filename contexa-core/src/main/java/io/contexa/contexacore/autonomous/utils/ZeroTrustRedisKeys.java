@@ -64,6 +64,11 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:hcad:lastAction:%s", NAMESPACE, userId);
     }
 
+    public static String hcadLastVerifiedActionContext(String userId) {
+        validateUserId(userId);
+        return String.format("%s:hcad:lastActionContext:%s", NAMESPACE, userId);
+    }
+
     public static String userBlocked(String userId) {
         validateUserId(userId);
         return String.format("security:blocked:users:%s", userId);
