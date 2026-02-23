@@ -15,8 +15,7 @@ import reactor.core.publisher.Mono;
 import java.util.Map;
 
 @Slf4j
-@ResponseBody
-@PreAuthorize("isAuthenticated()")
+@RestController
 @RequestMapping("/api/soar/approval")
 public class SoarApprovalController {
     
