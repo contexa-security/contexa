@@ -1,8 +1,10 @@
 package io.contexa.contexacoreenterprise.soar.controller;
 
+import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.soar.approval.ApprovalService;
+import io.contexa.contexacoreenterprise.mcp.tool.resolution.ChainedToolResolver;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
-import io.contexa.contexacoreenterprise.soar.service.SoarToolExecutionService;
+import io.contexa.contexacoreenterprise.soar.service.SoarToolCallingService;
 import io.contexa.contexacoreenterprise.soar.tool.observation.SoarToolObservationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -20,15 +22,18 @@ import java.util.Map;
 public class SoarApprovalController {
     
     private final ApprovalService approvalService;
-    private final SoarToolExecutionService soarToolExecutionService;
+    private final SoarToolCallingService soarToolCallingService;
+    private final ChainedToolResolver chainedToolResolver;
     private final SimpMessagingTemplate brokerTemplate;
 
     public SoarApprovalController(
             ApprovalService approvalService,
-            SoarToolExecutionService soarToolExecutionService,
+            SoarToolCallingService soarToolCallingService,
+            ChainedToolResolver chainedToolResolver,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
         this.approvalService = approvalService;
-        this.soarToolExecutionService = soarToolExecutionService;
+        this.soarToolCallingService = soarToolCallingService;
+        this.chainedToolResolver = chainedToolResolver;
         this.brokerTemplate = brokerTemplate;
     }
 
@@ -40,12 +45,17 @@ public class SoarApprovalController {
         String incidentId = (String) request.getOrDefault("incidentId", "incident-" + System.currentTimeMillis());
         String organizationId = (String) request.getOrDefault("organizationId", "default-org");
 
-        return soarToolExecutionService.executeWithHumanApproval(prompt, incidentId, organizationId)
+        SoarContext soarContext = new SoarContext();
+        soarContext.setIncidentId(incidentId);
+        soarContext.setOrganizationId(organizationId);
+        soarContext.setRequiresApproval(true);
+
+        return soarToolCallingService.executeWithApproval(prompt, incidentId, organizationId, soarContext)
             .map(result -> {
                 Map<String, Object> response = Map.of(
                     "success", true,
                     "incidentId", incidentId,
-                    "result", result,
+                    "result", result.toMap(),
                     "timestamp", java.time.Instant.now()
                 );
                 return ResponseEntity.ok(response);
@@ -62,6 +72,15 @@ public class SoarApprovalController {
             });
     }
 
+    @PostMapping("/process")
+    public ResponseEntity<Map<String, Object>> processApproval(@RequestBody Map<String, Object> payload) {
+        String approvalId = (String) payload.get("approvalId");
+        if (approvalId == null || approvalId.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "approvalId is required"));
+        }
+        return approveRequest(approvalId, payload);
+    }
+
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/approve/{approvalId}")
     public ResponseEntity<Map<String, Object>> approveRequest(
@@ -69,17 +88,21 @@ public class SoarApprovalController {
             @RequestBody Map<String, Object> approvalData) {
         
         boolean approved = Boolean.TRUE.equals(approvalData.get("approved"));
-        String reason = (String) approvalData.getOrDefault("reason", "");
+        String comment = (String) approvalData.getOrDefault("comment",
+                approvalData.getOrDefault("reason", ""));
+        String reviewer = (String) approvalData.getOrDefault("approverId",
+                approvalData.getOrDefault("reviewer", "system"));
 
         try {
-            
-            approvalService.processApproval(approvalId, approved, reason);
+
+            approvalService.handleApprovalResponse(approvalId, approved, comment, reviewer);
 
             Map<String, Object> message = Map.of(
                 "type", "APPROVAL_PROCESSED",
                 "approvalId", approvalId,
                 "approved", approved,
-                "reason", reason,
+                "comment", comment,
+                "reviewer", reviewer,
                 "timestamp", java.time.Instant.now()
             );
 
@@ -137,8 +160,8 @@ public class SoarApprovalController {
     @GetMapping("/tools")
     public ResponseEntity<Map<String, Object>> getRegisteredTools() {
         try {
-            Map<String, Object> stats = soarToolExecutionService.getExecutionStatistics();
-            java.util.Set<String> tools = soarToolExecutionService.getRegisteredTools();
+            Map<String, Object> stats = chainedToolResolver.getToolStatistics();
+            java.util.Set<String> tools = chainedToolResolver.getRegisteredToolNames();
             
             Map<String, Object> response = Map.of(
                 "success", true,
@@ -249,19 +272,19 @@ public class SoarApprovalController {
         try {
             
             boolean approvalServiceHealthy = (approvalService != null);
-            boolean toolExecutionServiceHealthy = (soarToolExecutionService != null);
+            boolean toolResolverHealthy = (chainedToolResolver != null);
 
-            int registeredToolCount = soarToolExecutionService.getRegisteredTools().size();
+            int registeredToolCount = chainedToolResolver.getRegisteredToolNames().size();
 
             Map<String, Object> globalStats = SoarToolObservationContext.getGlobalExecutionStatistics();
-            
-            boolean overallHealthy = approvalServiceHealthy && toolExecutionServiceHealthy && registeredToolCount >= 0;
-            
+
+            boolean overallHealthy = approvalServiceHealthy && toolResolverHealthy && registeredToolCount >= 0;
+
             Map<String, Object> healthStatus = Map.of(
                 "status", overallHealthy ? "UP" : "DOWN",
                 "components", Map.of(
                     "approvalService", approvalServiceHealthy ? "UP" : "DOWN",
-                    "toolExecutionService", toolExecutionServiceHealthy ? "UP" : "DOWN"
+                    "chainedToolResolver", toolResolverHealthy ? "UP" : "DOWN"
                 ),
                 "metrics", Map.of(
                     "registeredToolCount", registeredToolCount,

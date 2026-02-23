@@ -4,7 +4,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.Cursor;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ScanOptions;
 
 import java.time.Instant;
 import java.util.*;
@@ -120,8 +122,17 @@ public class UserSessionService {
     }
 
     public void cleanupExpiredSessions() {
-        Set<String> userSessionKeys = redisTemplate.keys(USER_SESSIONS_KEY_PREFIX + "*");
-        if (userSessionKeys == null || userSessionKeys.isEmpty()) {
+        Set<String> userSessionKeys = new HashSet<>();
+        ScanOptions options = ScanOptions.scanOptions()
+                .match(USER_SESSIONS_KEY_PREFIX + "*")
+                .count(100)
+                .build();
+        try (Cursor<String> cursor = redisTemplate.scan(options)) {
+            while (cursor.hasNext()) {
+                userSessionKeys.add(cursor.next());
+            }
+        }
+        if (userSessionKeys.isEmpty()) {
             return;
         }
 

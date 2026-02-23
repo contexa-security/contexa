@@ -14,6 +14,8 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.messaging.simp.annotation.SubscribeMapping;
 
+import org.springframework.stereotype.Controller;
+
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -21,6 +23,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
+@Controller
 public class WebSocketApprovalHandler {
     
     private final ObjectMapper objectMapper;

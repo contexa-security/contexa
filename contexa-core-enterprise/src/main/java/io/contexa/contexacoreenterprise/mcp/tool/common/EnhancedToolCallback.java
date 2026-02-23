@@ -9,6 +9,7 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -121,15 +122,26 @@ public class EnhancedToolCallback implements ToolCallback {
         return metadata.get(key);
     }
 
+    private static final List<String> DANGEROUS_PATTERNS = List.of(
+        "sudo ", "rm -rf ", "; rm ", "| rm ", "&& rm ",
+        "chmod 777", "mkfs.", "> /dev/", "dd if="
+    );
+
     private void validateSecurity(String arguments) {
-        
         if (riskLevel == SoarTool.RiskLevel.CRITICAL) {
-            log.error("Executing CRITICAL risk tool: {}", getToolName());
+            log.error("Executing CRITICAL risk tool: {} with risk level CRITICAL", getToolName());
         }
 
-        if (arguments != null && (arguments.contains("sudo") ||
-            arguments.contains("rm -rf"))) {
-            throw new SecurityException("Dangerous command detected: " + arguments);
+        if (arguments == null || arguments.isEmpty()) {
+            return;
+        }
+
+        String lowerArgs = arguments.toLowerCase();
+        for (String pattern : DANGEROUS_PATTERNS) {
+            if (lowerArgs.contains(pattern)) {
+                throw new SecurityException(
+                    "Dangerous command pattern detected in tool " + getToolName() + ": " + pattern);
+            }
         }
     }
     

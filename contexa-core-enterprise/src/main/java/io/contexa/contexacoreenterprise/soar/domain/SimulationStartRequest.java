@@ -21,5 +21,6 @@ public class SimulationStartRequest {
     private String severity;
     private String organizationId;
     private String userQuery;
+    private String executionMode;
     private Map<String, Object> metadata;
 }

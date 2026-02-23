@@ -1,6 +1,7 @@
 package io.contexa.contexacoreenterprise.soar.config;
 
 import io.contexa.contexacommon.annotation.SoarTool;
+import io.contexa.contexacoreenterprise.mcp.tool.resolution.McpToolResolver;
 import jakarta.annotation.PostConstruct;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
@@ -122,10 +123,15 @@ public class ToolApprovalPolicyManager {
         addPatternPolicy(".*block.*", highRiskPolicy);
         addPatternPolicy(".*isolate.*", highRiskPolicy);
         addPatternPolicy(".*delete.*", highRiskPolicy);
+        addPatternPolicy(".*remove.*", highRiskPolicy);
+        addPatternPolicy(".*drop.*", highRiskPolicy);
         addPatternPolicy(".*shutdown.*", highRiskPolicy);
         addPatternPolicy(".*kill.*", highRiskPolicy);
         addPatternPolicy(".*reboot.*", highRiskPolicy);
         addPatternPolicy(".*restart.*", highRiskPolicy);
+        addPatternPolicy(".*admin.*", highRiskPolicy);
+        addPatternPolicy(".*security.*", highRiskPolicy);
+        addPatternPolicy(".*system.*", highRiskPolicy);
 
         ApprovalPolicy criticalRiskPolicy = new ApprovalPolicy();
         criticalRiskPolicy.setRequiresApproval(true);
@@ -190,8 +196,8 @@ public class ToolApprovalPolicyManager {
 
     private String normalizeToolName(String toolName) {
         String normalized = toolName.trim();
-        if (normalized.startsWith("JavaSDKMCPClient_")) {
-            normalized = normalized.substring("JavaSDKMCPClient_".length());
+        if (normalized.startsWith(McpToolResolver.MCP_CLIENT_PREFIX)) {
+            normalized = normalized.substring(McpToolResolver.MCP_CLIENT_PREFIX.length());
         }
         return normalized;
     }

@@ -64,6 +64,26 @@ public class SoarSimulationController {
             });
     }
 
+    @PostMapping("/stop/{sessionId}")
+    public ResponseEntity<Map<String, Object>> stopSimulation(@PathVariable String sessionId) {
+        try {
+            simulationService.stopSimulation(sessionId);
+            return ResponseEntity.ok(Map.of(
+                "sessionId", sessionId,
+                "status", "CANCELLED",
+                "message", "Simulation stopped",
+                "timestamp", LocalDateTime.now()
+            ));
+        } catch (IllegalArgumentException e) {
+            log.error("Session not found for stop: {}", sessionId);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Failed to stop simulation: {}", sessionId, e);
+            return ResponseEntity.internalServerError()
+                .body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/session/{sessionId}")
     public ResponseEntity<SessionStatusResponse> getSessionStatus(@PathVariable String sessionId) {
                 
@@ -87,6 +107,7 @@ public class SoarSimulationController {
         simulationService.handleApproval(
             request.getSessionId(),
             request.getApprovalId(),
+            request.getToolName(),
             request.isApproved(),
             request.getReason()
         );
@@ -142,14 +163,13 @@ public class SoarSimulationController {
     }
     
     private void notifyApprovalResult(ApprovalRequest request) {
-        ApprovalEvent event = ApprovalEvent.builder()
-            .sessionId(request.getSessionId())
-            .approvalId(request.getApprovalId())
-            .toolName(request.getToolName())
-            .approved(request.isApproved())
-            .reason(request.getReason())
-            .timestamp(LocalDateTime.now())
-            .build();
+        Map<String, Object> event = new java.util.HashMap<>();
+        event.put("sessionId", request.getSessionId());
+        event.put("approvalId", request.getApprovalId());
+        event.put("toolName", request.getToolName());
+        event.put("approved", request.isApproved());
+        event.put("reason", request.getReason());
+        event.put("timestamp", LocalDateTime.now());
 
         brokerTemplate.convertAndSend("/topic/soar/approvals", event);
     }

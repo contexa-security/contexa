@@ -85,8 +85,7 @@ public class UnifiedApprovalService implements ApprovalService {
             if (error != null) {
                 log.error("Approval processing error: {}", requestId, error);
                 updateApprovalStatus(requestId, ApprovalRequest.ApprovalStatus.EXPIRED, null, "Timeout or error");
-            } else {
-                            }
+            }
         });
 
         return future;
@@ -136,7 +135,8 @@ public class UnifiedApprovalService implements ApprovalService {
         if (sink != null) {
             Sinks.EmitResult result = sink.tryEmitValue(approved);
             if (result.isSuccess()) {
-                            }
+                log.error("Approval sink completed: requestId={}, approved={}", requestId, approved);
+            }
         }
     }
 
@@ -245,6 +245,8 @@ public class UnifiedApprovalService implements ApprovalService {
 
                 future.complete(false);
 
+                updateApprovalStatus(requestId, ApprovalRequest.ApprovalStatus.EXPIRED, null, "Timeout");
+
                 try {
                     eventPublisher.publishEvent(ApprovalEvent.timeout(this, requestId));
                 } catch (Exception e) {
@@ -339,7 +341,8 @@ public class UnifiedApprovalService implements ApprovalService {
                     soarContext.getIncidentId() : "INC-" + UUID.randomUUID());
             request.setOrganizationId(soarContext.getOrganizationId() != null ?
                     soarContext.getOrganizationId() : "default-org");
-            request.setSessionId(soarContext.getIncidentId()); 
+            request.setSessionId(soarContext.getSessionId() != null ?
+                    soarContext.getSessionId() : soarContext.getIncidentId());
 
             String severity = soarContext.getSeverity() != null ? soarContext.getSeverity() : "MEDIUM";
             request.setRiskLevel(mapSeverityToRiskLevel(severity));
@@ -481,9 +484,14 @@ public class UnifiedApprovalService implements ApprovalService {
         long expiredCount = 0;
 
         try {
-            
             LocalDateTime since = LocalDateTime.now().minusDays(1);
 
+            approvedCount = repository.findByStatusOrderByCreatedAtDesc("APPROVED")
+                    .stream().filter(r -> r.getCreatedAt() != null && r.getCreatedAt().isAfter(since)).count();
+            rejectedCount = repository.findByStatusOrderByCreatedAtDesc("REJECTED")
+                    .stream().filter(r -> r.getCreatedAt() != null && r.getCreatedAt().isAfter(since)).count();
+            expiredCount = repository.findByStatusOrderByCreatedAtDesc("EXPIRED")
+                    .stream().filter(r -> r.getCreatedAt() != null && r.getCreatedAt().isAfter(since)).count();
         } catch (Exception e) {
             log.error("Failed to query statistics", e);
         }

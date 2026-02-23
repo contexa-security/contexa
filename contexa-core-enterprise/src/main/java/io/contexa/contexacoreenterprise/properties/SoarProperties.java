@@ -18,6 +18,9 @@ public class SoarProperties {
     private ApprovalSettings approval = new ApprovalSettings();
 
     @NestedConfigurationProperty
+    private ToolExecutionSettings toolExecution = new ToolExecutionSettings();
+
+    @NestedConfigurationProperty
     private NotificationSettings notification = new NotificationSettings();
 
     @Data
@@ -25,6 +28,14 @@ public class SoarProperties {
         private boolean enabled = true;
         private int order = 100;
         private int timeout = 300;
+    }
+
+    @Data
+    public static class ToolExecutionSettings {
+        private int maxIterations = 10;
+        private long timeoutMs = 30000;
+        private int llmTimeoutSeconds = 30;
+        private int contextExpiryMinutes = 30;
     }
 
     @Data

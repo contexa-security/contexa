@@ -2,15 +2,21 @@ package io.contexa.contexacoreenterprise.soar.service;
 
 import io.contexa.contexacore.domain.SessionState;
 import io.contexa.contexacore.domain.SoarContext;
+import io.contexa.contexacore.domain.SoarExecutionMode;
 import io.contexa.contexacoreenterprise.soar.domain.SimulationEvent;
 import io.contexa.contexacoreenterprise.soar.domain.SimulationStartRequest;
+import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProvider;
 import lombok.Builder;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.annotation.Scheduled;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
+
+import java.time.Duration;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -21,13 +27,16 @@ public class SoarSimulationService {
     
     private final SoarToolCallingService soarToolCallingService;
     private final SimpMessagingTemplate brokerTemplate;
+    private final McpClientProvider mcpClientProvider;
 
     private final Map<String, SimulationSession> activeSessions = new ConcurrentHashMap<>();
 
     public SoarSimulationService(SoarToolCallingService soarToolCallingService,
-                                 @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
+                                 @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate,
+                                 McpClientProvider mcpClientProvider) {
         this.soarToolCallingService = soarToolCallingService;
         this.brokerTemplate = brokerTemplate;
+        this.mcpClientProvider = mcpClientProvider;
     }
 
     public Mono<SimulationResult> startSimulation(SimulationStartRequest request) {
@@ -35,6 +44,7 @@ public class SoarSimulationService {
         SoarContext soarContext = createSoarContext(request);
 
         String sessionId = UUID.randomUUID().toString();
+        soarContext.setSessionId(sessionId);
         String conversationId = UUID.randomUUID().toString();
 
         SimulationSession session = SimulationSession.builder()
@@ -81,7 +91,7 @@ public class SoarSimulationService {
             })
             .subscribeOn(Schedulers.boundedElastic())
             .doOnError(error -> {
-                log.error("SOAR 시뮬레이션 실패: sessionId={}", sessionId, error);
+                log.error("SOAR simulation failed: sessionId={}", sessionId, error);
                 session.setStatus("FAILED");
                 session.setError(error.getMessage());
                 notifySimulationError(sessionId, error);
@@ -89,7 +99,7 @@ public class SoarSimulationService {
             .doFinally(signal -> {
                 
                 if (!"COMPLETED".equals(session.getStatus()) && !"FAILED".equals(session.getStatus())) {
-                    log.warn("비정상 종료 감지, 완료 이벤트 강제 전송: sessionId={}, signal={}", sessionId, signal);
+                    log.error("Abnormal termination detected, forcing completion event: sessionId={}, signal={}", sessionId, signal);
                     session.setStatus("COMPLETED");
                     session.setEndTime(LocalDateTime.now());
 
@@ -105,6 +115,23 @@ public class SoarSimulationService {
                     notifySimulationComplete(sessionId, fallbackResult);
                 }
             });
+    }
+
+    public void stopSimulation(String sessionId) {
+        SimulationSession session = activeSessions.get(sessionId);
+        if (session == null) {
+            throw new IllegalArgumentException("Session not found: " + sessionId);
+        }
+        session.setStatus("CANCELLED");
+        session.setEndTime(LocalDateTime.now());
+        activeSessions.remove(sessionId);
+
+        SimulationErrorEvent event = SimulationErrorEvent.builder()
+            .sessionId(sessionId)
+            .error("Simulation cancelled by user")
+            .timestamp(LocalDateTime.now())
+            .build();
+        brokerTemplate.convertAndSend("/topic/soar/error", event);
     }
 
     public Optional<SessionStatus> getSessionStatus(String sessionId) {
@@ -126,18 +153,18 @@ public class SoarSimulationService {
             .build());
     }
 
-    public void handleApproval(String sessionId, String approvalId, boolean approved, String reason) {
-                
+    public void handleApproval(String sessionId, String approvalId, String toolName, boolean approved, String reason) {
+
         SimulationSession session = activeSessions.get(sessionId);
         if (session == null) {
-            log.warn("세션을 찾을 수 없음: {}", sessionId);
+            log.error("Session not found: {}", sessionId);
             return;
         }
 
         session.getPendingApprovals().remove(approvalId);
 
-        if (approved) {
-            session.getSoarContext().approveTool(approvalId);
+        if (approved && toolName != null) {
+            session.getSoarContext().approveTool(toolName);
         }
 
         notifyApprovalProcessed(sessionId, approvalId, approved, reason);
@@ -148,12 +175,40 @@ public class SoarSimulationService {
     public Map<String, Boolean> getMcpServerStatus() {
         Map<String, Boolean> status = new HashMap<>();
 
-        status.put("context7", true);    
-        status.put("sequential", true);  
-        status.put("magic", false);      
-        status.put("playwright", false); 
-        
+        if (mcpClientProvider == null) {
+            return status;
+        }
+
+        mcpClientProvider.getAllClients().keySet()
+            .forEach(name -> status.put(name, true));
+
         return status;
+    }
+
+    private static final int MAX_ACTIVE_SESSIONS = 100;
+    private static final int SESSION_EXPIRY_MINUTES = 30;
+
+    @Scheduled(fixedDelay = 300000)
+    public void cleanupExpiredSessions() {
+        LocalDateTime expiryThreshold = LocalDateTime.now().minusMinutes(SESSION_EXPIRY_MINUTES);
+        List<String> expiredIds = new ArrayList<>();
+
+        activeSessions.forEach((id, session) -> {
+            LocalDateTime lastActive = session.getEndTime() != null
+                    ? session.getEndTime()
+                    : session.getStartTime();
+            if (lastActive != null && lastActive.isBefore(expiryThreshold)) {
+                expiredIds.add(id);
+            }
+        });
+
+        for (String id : expiredIds) {
+            activeSessions.remove(id);
+        }
+
+        if (!expiredIds.isEmpty()) {
+            log.error("Cleaned up {} expired sessions, active: {}", expiredIds.size(), activeSessions.size());
+        }
     }
 
     private SoarContext createSoarContext(SimulationStartRequest request) {
@@ -162,7 +217,6 @@ public class SoarSimulationService {
         String incidentId = request.getIncidentId();
         if (incidentId == null || incidentId.trim().isEmpty()) {
             incidentId = "INC-" + UUID.randomUUID().toString();
-            log.warn("incidentId가 비어있어 자동 생성: {}", incidentId);
         }
         context.setIncidentId(incidentId);
         context.setThreatType(request.getThreatType());
@@ -171,6 +225,9 @@ public class SoarSimulationService {
         context.setDetectedSource(request.getDetectedSource());
         context.setSeverity(request.getSeverity());
         context.setOrganizationId(request.getOrganizationId());
+        if (request.getExecutionMode() != null) {
+            context.setExecutionMode(SoarExecutionMode.fromCode(request.getExecutionMode()));
+        }
         context.setSessionState(SessionState.ACTIVE);
         context.setCreatedAt(LocalDateTime.now());
 
@@ -199,43 +256,37 @@ public class SoarSimulationService {
         );
     }
     
-    private void startPipelineTracking(String sessionId) {
-        
-        Schedulers.boundedElastic().schedule(() -> {
-            SimulationSession session = activeSessions.get(sessionId);
-            if (session == null) return;
+    private static final String[] PIPELINE_STAGES = {
+        "PREPROCESSING",
+        "CONTEXT_RETRIEVAL",
+        "PROMPT_GENERATION",
+        "LLM_EXECUTION",
+        "RESPONSE_PARSING",
+        "POSTPROCESSING"
+    };
 
-            String[] stages = {
-                "PREPROCESSING",
-                "CONTEXT_RETRIEVAL",
-                "PROMPT_GENERATION",
-                "LLM_EXECUTION",
-                "RESPONSE_PARSING",
-                "POSTPROCESSING"
-            };
-            
-            for (int i = 0; i < stages.length; i++) {
-                if (!"ACTIVE".equals(session.getStatus()) && 
-                    !"INITIALIZING".equals(session.getStatus())) {
-                    break;
+    private void startPipelineTracking(String sessionId) {
+        Flux.interval(Duration.ofSeconds(2))
+            .take(PIPELINE_STAGES.length)
+            .subscribeOn(Schedulers.boundedElastic())
+            .subscribe(tick -> {
+                SimulationSession session = activeSessions.get(sessionId);
+                if (session == null) {
+                    return;
                 }
-                
-                String stage = stages[i];
-                int progress = (i + 1) * 100 / stages.length;
-                
+                if (!"ACTIVE".equals(session.getStatus()) &&
+                    !"INITIALIZING".equals(session.getStatus())) {
+                    return;
+                }
+
+                int idx = tick.intValue();
+                String stage = PIPELINE_STAGES[idx];
+                int progress = (idx + 1) * 100 / PIPELINE_STAGES.length;
+
                 session.setCurrentStage(stage);
                 session.setProgress(progress);
-
                 notifyPipelineProgress(sessionId, stage, progress);
-
-                try {
-                    Thread.sleep(2000); 
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
-            }
-        });
+            });
     }
     
     private void resumeWorkflow(String sessionId) {

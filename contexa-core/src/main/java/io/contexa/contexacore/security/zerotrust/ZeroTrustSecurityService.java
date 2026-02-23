@@ -127,7 +127,7 @@ public class ZeroTrustSecurityService {
                 log.error("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
             case CHALLENGE -> {
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
+                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
             }
             case ESCALATE -> {
                 adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));

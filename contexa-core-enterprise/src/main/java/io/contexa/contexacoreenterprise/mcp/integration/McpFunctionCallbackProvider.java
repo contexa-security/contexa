@@ -9,6 +9,8 @@ import org.springframework.ai.tool.ToolCallback;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -18,7 +20,9 @@ public class McpFunctionCallbackProvider {
     private final McpSyncClient braveSearchMcpClient;
     private final McpSyncClient securityMcpClient;
     private final Map<String, ToolCallback> toolCallbacks = new ConcurrentHashMap<>();
-    private final Map<String, String> toolClientMapping = new ConcurrentHashMap<>();  
+    private final Map<String, String> toolClientMapping = new ConcurrentHashMap<>();
+    private final ReentrantLock initLock = new ReentrantLock();
+    private volatile boolean initialized = false;
 
     public ToolCallback[] getMcpToolCallbacks() {
         initializeMcpCallbacks();
@@ -54,20 +58,33 @@ public class McpFunctionCallbackProvider {
             .collect(Collectors.toList());
     }
 
-    private synchronized void initializeMcpCallbacks() {
-        if (!toolCallbacks.isEmpty()) {
-            return; 
+    private void initializeMcpCallbacks() {
+        if (initialized) {
+            return;
         }
-
-        if (braveSearchMcpClient != null) {
-            registerMcpClientTools("brave-search", braveSearchMcpClient);
+        try {
+            if (initLock.tryLock(5, TimeUnit.SECONDS)) {
+                try {
+                    if (!initialized) {
+                        if (braveSearchMcpClient != null) {
+                            registerMcpClientTools("brave-search", braveSearchMcpClient);
+                        }
+                        if (securityMcpClient != null) {
+                            registerMcpClientTools("security", securityMcpClient);
+                        }
+                        logInitializationSummary();
+                        initialized = true;
+                    }
+                } finally {
+                    initLock.unlock();
+                }
+            } else {
+                log.error("MCP callback initialization lock timeout");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.error("MCP callback initialization interrupted", e);
         }
-
-        if (securityMcpClient != null) {
-            registerMcpClientTools("security", securityMcpClient);
-        }
-        
-                logInitializationSummary();
     }
 
     private void logInitializationSummary() {

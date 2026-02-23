@@ -146,9 +146,10 @@ public class SoarContext extends DomainContext {
         this.sessionState = newState;
     }
 
+    @Override
     public String getUserId() {
-        
-        return "system-user";
+        String parentUserId = super.getUserId();
+        return (parentUserId != null && !parentUserId.isEmpty()) ? parentUserId : "system-user";
     }
     
     public void addConversationEntry(String role, String message) {

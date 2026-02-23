@@ -131,33 +131,36 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
             }
 
     private void discoverAndCacheSoarTools() {
-        
-        Map<String, ToolCallback> toolCallbackBeans = 
+        java.util.Set<String> processedBeans = new java.util.HashSet<>();
+
+        Map<String, ToolCallback> toolCallbackBeans =
             applicationContext.getBeansOfType(ToolCallback.class);
 
         for (Map.Entry<String, ToolCallback> entry : toolCallbackBeans.entrySet()) {
             String beanName = entry.getKey();
             ToolCallback toolCallback = entry.getValue();
-            
+
             try {
                 processSoarTool(beanName, toolCallback);
+                processedBeans.add(beanName);
             } catch (Exception e) {
                 log.error("Tool processing failed: {} - {}", beanName, e.getMessage());
             }
         }
 
-        Map<String, Object> soarToolBeans = 
+        Map<String, Object> soarToolBeans =
             applicationContext.getBeansWithAnnotation(SoarTool.class);
 
         for (Map.Entry<String, Object> entry : soarToolBeans.entrySet()) {
             String beanName = entry.getKey();
             Object bean = entry.getValue();
 
-            if (!(bean instanceof ToolCallback)) {
+            if (!processedBeans.contains(beanName) && !(bean instanceof ToolCallback)) {
                 try {
                     ToolCallback wrapped = wrapAsToolCallback(beanName, bean);
                     if (wrapped != null) {
                         processSoarTool(beanName, wrapped);
+                        processedBeans.add(beanName);
                     }
                 } catch (Exception e) {
                     log.error("Tool wrapping failed: {} - {}", beanName, e.getMessage());
@@ -307,19 +310,21 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
     }
 
     private void logDiscoveredTools() {
-        if (!log.isInfoEnabled()) {
+        if (!log.isErrorEnabled()) {
             return;
         }
 
         Map<String, List<ToolMetadata>> byCategory = metadataCache.values().stream()
             .collect(Collectors.groupingBy(m -> m.category));
-        
+
         for (Map.Entry<String, List<ToolMetadata>> entry : byCategory.entrySet()) {
             String category = entry.getKey();
             List<ToolMetadata> tools = entry.getValue();
+            log.error("SOAR tool category [{}]: {} tools discovered", category, tools.size());
 
             for (ToolMetadata tool : tools) {
-                            }
+                log.error("  Tool: name={}, risk={}", tool.name, tool.riskLevel);
+            }
         }
 
         Map<SoarTool.RiskLevel, Long> riskStats = riskLevelCache.values().stream()
@@ -327,9 +332,10 @@ public class SoarToolIntegrationProvider implements ToolIntegrationProvider {
                 level -> level,
                 Collectors.counting()
             ));
-        
-                for (Map.Entry<SoarTool.RiskLevel, Long> entry : riskStats.entrySet()) {
-                    }
+
+        for (Map.Entry<SoarTool.RiskLevel, Long> entry : riskStats.entrySet()) {
+            log.error("  Risk level {}: {} tools", entry.getKey(), entry.getValue());
+        }
     }
 
     public static class ToolMetadata {

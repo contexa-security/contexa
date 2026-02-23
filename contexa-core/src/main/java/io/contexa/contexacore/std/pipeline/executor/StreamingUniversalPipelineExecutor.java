@@ -56,6 +56,21 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
             AIRequest<T> request,
             PipelineConfiguration configuration) {
 
+        boolean isSoar = request.getContext() instanceof SoarContext;
+        if (isSoar) {
+            // SOAR requests fallback to non-streaming pipeline for approval gate support
+            return execute(request, configuration, AIResponse.class)
+                    .map(response -> {
+                        try {
+                            return objectMapper.writeValueAsString(response);
+                        } catch (Exception e) {
+                            log.error("Failed to serialize SOAR fallback response", e);
+                            return "{}";
+                        }
+                    })
+                    .flux();
+        }
+
         return Flux.defer(() -> {
             StreamingPipelineExecutionContext context =
                     new StreamingPipelineExecutionContext(request.getRequestId());
@@ -64,9 +79,7 @@ public class StreamingUniversalPipelineExecutor extends UniversalPipelineExecuto
             Sinks.Many<String> sink = Sinks.many().multicast().onBackpressureBuffer();
             context.setStreamSink(sink);
 
-            boolean isSoar = request.getContext() instanceof SoarContext;
-
-            Disposable disposable = executeFullPipelineWithStreaming(request, configuration, context, isSoar)
+            Disposable disposable = executeFullPipelineWithStreaming(request, configuration, context, false)
                     .doOnSuccess(v -> {
                         AIResponse finalResponse = context.getStepResult(
                                 PipelineConfiguration.PipelineStep.POSTPROCESSING,

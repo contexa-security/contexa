@@ -29,10 +29,13 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
     private final StaticToolCallbackResolver staticToolCallbackResolver;
     private final FallbackToolResolver fallbackToolResolver;
 
+    private static final int MAX_CACHE_SIZE = 1000;
+    private static final int EVICTION_BATCH_SIZE = 200;
+
     private DelegatingToolCallbackResolver delegatingResolver;
     private CircuitBreaker circuitBreaker;
     private final Map<String, ToolCallback> toolCache = new ConcurrentHashMap<>();
-    private final Map<String, String> toolSourceMapping = new ConcurrentHashMap<>(); 
+    private final Map<String, String> toolSourceMapping = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -117,10 +120,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
 
                 ToolCallback enhancedTool = enhanceToolCallback(tool, toolName, resolverName);
 
-                if (toolCache.size() < 1000) {
-                    toolCache.put(toolName, enhancedTool);
-                }
-                toolSourceMapping.put(toolName, resolverName);
+                cacheToolCallback(toolName, enhancedTool, resolverName);
 
                 return enhancedTool;
             }
@@ -209,7 +209,24 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
 
     public void clearCache() {
         toolCache.clear();
+        toolSourceMapping.clear();
+    }
+
+    private void cacheToolCallback(String toolName, ToolCallback callback, String resolverName) {
+        if (toolCache.size() >= MAX_CACHE_SIZE) {
+            Iterator<String> it = toolCache.keySet().iterator();
+            int evicted = 0;
+            while (it.hasNext() && evicted < EVICTION_BATCH_SIZE) {
+                String key = it.next();
+                it.remove();
+                toolSourceMapping.remove(key);
+                evicted++;
             }
+            log.error("Cache eviction triggered: removed {} entries, remaining {}", evicted, toolCache.size());
+        }
+        toolCache.put(toolName, callback);
+        toolSourceMapping.put(toolName, resolverName);
+    }
 
     @Override
     public ToolCallback[] getAllToolCallbacks() {
@@ -324,10 +341,7 @@ public class ChainedToolResolver implements ToolCallbackResolver, ToolResolver {
         ToolCallback enhancedTool = enhanceToolCallback(tool, toolName, resolverName);
         target.put(toolName, enhancedTool);
 
-        if (toolCache.size() < 1000) {
-            toolCache.put(toolName, enhancedTool);
-        }
-        toolSourceMapping.put(toolName, resolverName);
+        cacheToolCallback(toolName, enhancedTool, resolverName);
     }
 
     public static class ToolNotFoundException extends RuntimeException {

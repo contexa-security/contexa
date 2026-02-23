@@ -1,24 +1,26 @@
-package io.contexa.contexacoreenterprise.tool.pipeline;
+package io.contexa.contexacoreenterprise.soar.tool;
 
 import io.contexa.contexacore.std.components.prompt.PromptGenerator.PromptGenerationResult;
-import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.SessionState;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacoreenterprise.mcp.tool.resolution.ChainedToolResolver;
+import io.contexa.contexacoreenterprise.mcp.tool.resolution.McpToolResolver;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacore.std.pipeline.step.LLMExecutionStep;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
 import io.contexa.contexacoreenterprise.soar.helper.ToolCallDetectionHelper;
+import org.springframework.ai.model.tool.ToolCallingManager;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
-import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.ChatOptions;
@@ -38,20 +40,26 @@ import java.util.*;
 public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
     private final ToolCapableLLMClient toolCapableLLMClient;
-    private final ApprovalAwareToolCallingManagerDecorator approvalAwareToolCallingManager;
+    private final ToolCallingManager toolCallingManager;
     private final ToolCallDetectionHelper toolCallDetectionHelper;
     private final ChainedToolResolver chainedToolResolver;
+    private final ObjectMapper objectMapper;
+    private final SoarProperties soarProperties;
 
     public PipelineSoarToolExecutionStep(
             ToolCapableLLMClient toolCapableLLMClient,
-            ApprovalAwareToolCallingManagerDecorator approvalAwareToolCallingManager,
+            ToolCallingManager toolCallingManager,
             ToolCallDetectionHelper toolCallDetectionHelper,
-            ChainedToolResolver chainedToolResolver) {
+            ChainedToolResolver chainedToolResolver,
+            ObjectMapper objectMapper,
+            SoarProperties soarProperties) {
         super(toolCapableLLMClient);
         this.toolCapableLLMClient = toolCapableLLMClient;
-        this.approvalAwareToolCallingManager = approvalAwareToolCallingManager;
+        this.toolCallingManager = toolCallingManager;
         this.toolCallDetectionHelper = toolCallDetectionHelper;
         this.chainedToolResolver = chainedToolResolver;
+        this.objectMapper = objectMapper;
+        this.soarProperties = soarProperties;
     }
 
     @Override
@@ -67,11 +75,11 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
         }
 
         return preparePrompt(context)
-                .flatMap(prompt -> executeWithTools(prompt, context))
+                .flatMap(prompt -> executeWithTools(prompt, context, soarContext))
                 .map(response -> (Object) response)
                 .doOnSuccess(response -> {
                     context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response);
-                    logToolExecutionSuccess(request.getRequestId(), response.toString(), stepStartTime);
+                    // Tool execution success logged via metrics
                 })
                 .doOnError(error -> logToolExecutionError(request.getRequestId(), error, stepStartTime))
                 .onErrorResume(error -> {
@@ -99,7 +107,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                 .doOnError(error -> log.error("[SOAR-TOOL-STEP] Streaming tool execution failed", error));
     }
 
-    private Mono<String> executeWithTools(Prompt prompt, PipelineExecutionContext context) {
+    private Mono<String> executeWithTools(Prompt prompt, PipelineExecutionContext context, SoarContext soarContext) {
         ToolCallback[] unifiedTools = chainedToolResolver.getAllToolCallbacks();
         List<String> toolNames = Arrays.stream(unifiedTools).map(tool -> tool.getToolDefinition().name()).toList();
         HashSet<String> uniqueToolNames = new HashSet<>(toolNames);
@@ -118,18 +126,24 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
         Prompt promptWithOptions = new Prompt(prompt.getInstructions(), chatOptions);
 
         return toolCapableLLMClient.callToolCallbacksResponse(promptWithOptions, unifiedTools)
-                .flatMap(chatResponse -> processToolCallsWithSpringAI(chatResponse, context, promptWithOptions, unifiedTools));
+                .flatMap(chatResponse -> processToolCallsWithSpringAI(chatResponse, context, promptWithOptions, unifiedTools, soarContext));
     }
 
     private Mono<String> processToolCallsWithSpringAI(
             ChatResponse initialResponse,
             PipelineExecutionContext context,
             Prompt originalPrompt,
-            ToolCallback[] unifiedTools) {
+            ToolCallback[] unifiedTools,
+            SoarContext soarContext) {
 
         return Mono.fromCallable(() -> {
-
-            ToolCallContext toolContext = new ToolCallContext();
+            if (toolCallingManager instanceof ApprovalAwareToolCallingManagerDecorator decorator) {
+                decorator.setCurrentContext(soarContext);
+            }
+            try {
+            ToolCallContext toolContext = new ToolCallContext(
+                    soarProperties.getToolExecution().getMaxIterations(),
+                    soarProperties.getToolExecution().getTimeoutMs());
             ChatResponse currentResponse = initialResponse;
 
             while (hasToolCalls(currentResponse) && toolContext.shouldContinue()) {
@@ -149,7 +163,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                 boolean toolExecutionFailed = false;
 
                 try {
-                    toolExecutionResult = approvalAwareToolCallingManager.executeToolCalls(originalPrompt, currentResponse);
+                    toolExecutionResult = toolCallingManager.executeToolCalls(originalPrompt, currentResponse);
                 } catch (Exception e) {
                     log.error("Error occurred during tool execution: {}", e.getMessage());
                     toolExecutionFailed = true;
@@ -170,7 +184,8 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                 Prompt continuePrompt = new Prompt(toolExecutionResult.conversationHistory(), originalPrompt.getOptions());
 
                 try {
-                    currentResponse = toolCapableLLMClient.callToolCallbacksResponse(continuePrompt, unifiedTools).block(java.time.Duration.ofSeconds(30));
+                    currentResponse = toolCapableLLMClient.callToolCallbacksResponse(continuePrompt, unifiedTools)
+                            .block(java.time.Duration.ofSeconds(soarProperties.getToolExecution().getLlmTimeoutSeconds()));
                 } catch (Exception e) {
                     log.error("LLM re-invocation failed", e);
                     break;
@@ -182,6 +197,11 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
             String finalResponse = generateFinalResponse(currentResponse, context);
             recordToolExecutionMetrics(toolContext, context);
             return finalResponse;
+            } finally {
+                if (toolCallingManager instanceof ApprovalAwareToolCallingManagerDecorator decorator) {
+                    decorator.clearCurrentContext();
+                }
+            }
         });
     }
 
@@ -193,11 +213,11 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
         for (Generation generation : response.getResults()) {
             AssistantMessage message = generation.getOutput();
-            if (message != null && message.getToolCalls() != null) {
+            if (message != null) {
                 message.getToolCalls().forEach(toolCall -> {
                     String name = toolCall.name();
-                    if (name.startsWith("JavaSDKMCPClient_")) {
-                        name = name.substring("JavaSDKMCPClient_".length());
+                    if (name.startsWith(McpToolResolver.MCP_CLIENT_PREFIX)) {
+                        name = name.substring(McpToolResolver.MCP_CLIENT_PREFIX.length());
                     }
                     toolNames.add(name);
 
@@ -206,7 +226,8 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
                     try {
                         validateToolParameters(name, arguments);
                     } catch (IllegalArgumentException e) {
-                        log.error("Tool parameter validation failed: {}", e.getMessage());
+                        log.error("Tool parameter validation failed, skipping tool: {}", e.getMessage());
+                        return;
                     }
 
                 });
@@ -274,8 +295,6 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
     private String convertToJson(SoarResponse response) {
         try {
-            var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
             var node = objectMapper.createObjectNode();
             node.put("analysisResult", response.getAnalysisResult() != null ? response.getAnalysisResult() : "");
             node.put("summary", response.getSummary() != null ? response.getSummary() : "");
@@ -341,11 +360,7 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
     private boolean hasToolCalls(ChatResponse chatResponse) {
 
-        boolean hasTools = toolCallDetectionHelper.hasToolCalls(chatResponse);
-
-        toolCallDetectionHelper.logDetectionResult(chatResponse, hasTools);
-
-        return hasTools;
+        return toolCallDetectionHelper.hasToolCalls(chatResponse);
     }
 
     public Mono<Prompt> preparePrompt(PipelineExecutionContext context) {
@@ -359,11 +374,6 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
             return promptResult.getPrompt();
         });
-    }
-
-    private void logToolExecutionSuccess(String requestId, Object response, long startTime) {
-        long totalTime = System.currentTimeMillis() - startTime;
-        log.error("[SOAR-TOOL-STEP] Tool execution completed. Request: {}, total time: {}ms", requestId, totalTime);
     }
 
     private void logToolExecutionError(String requestId, Throwable error, long startTime) {
@@ -393,7 +403,6 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
         if (arguments != null) {
             try {
-                var objectMapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 var node = objectMapper.readTree(arguments);
                 for (String field : prohibitedFields) {
                     if (node.has(field)) {
@@ -415,10 +424,15 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
     private static class ToolCallContext {
         private int iterationCount = 0;
         private final long startTime = System.currentTimeMillis();
-        private static final int MAX_ITERATIONS = 10;
-        private static final long TIMEOUT_MS = 30000;
+        private final int maxIterations;
+        private final long timeoutMs;
         private final List<String> executedTools = new ArrayList<>();
         private final Map<String, Integer> toolExecutionCount = new HashMap<>();
+
+        public ToolCallContext(int maxIterations, long timeoutMs) {
+            this.maxIterations = maxIterations;
+            this.timeoutMs = timeoutMs;
+        }
 
         public List<String> getExecutedTools() {
             return new ArrayList<>(executedTools);
@@ -434,12 +448,12 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
 
         public boolean shouldContinue() {
 
-            if (iterationCount >= MAX_ITERATIONS) {
+            if (iterationCount >= maxIterations) {
                 return false;
             }
 
-            if (System.currentTimeMillis() - startTime > TIMEOUT_MS) {
-                log.error("Timeout exceeded 30 seconds");
+            if (System.currentTimeMillis() - startTime > timeoutMs) {
+                log.error("Timeout exceeded {}ms", timeoutMs);
                 return false;
             }
 

@@ -14,7 +14,9 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class McpToolResolver implements ToolCallbackResolver {
-    
+
+    public static final String MCP_CLIENT_PREFIX = "JavaSDKMCPClient_";
+
     private final McpClientProvider mcpProvider;
     private final McpFunctionCallbackProvider mcpFunctionCallbackProvider;
 
@@ -22,8 +24,8 @@ public class McpToolResolver implements ToolCallbackResolver {
     public ToolCallback resolve(String toolName) {
 
         String actualToolName = toolName;
-        if (toolName != null && toolName.startsWith("JavaSDKMCPClient_")) {
-            actualToolName = toolName.substring("JavaSDKMCPClient_".length());
+        if (toolName.startsWith(MCP_CLIENT_PREFIX)) {
+            actualToolName = toolName.substring(MCP_CLIENT_PREFIX.length());
                     }
         
         try {

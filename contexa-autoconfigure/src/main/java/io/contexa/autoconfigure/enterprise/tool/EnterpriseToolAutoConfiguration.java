@@ -5,10 +5,11 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.soar.SoarLab;
 import io.contexa.contexacoreenterprise.dashboard.metrics.mcp.MCPToolMetrics;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
-import io.contexa.contexacoreenterprise.mcp.integration.*;
+import io.contexa.contexacoreenterprise.mcp.integration.McpFunctionCallbackProvider;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProvider;
 import io.contexa.contexacoreenterprise.mcp.tool.provider.McpClientProviderImpl;
 import io.contexa.contexacoreenterprise.mcp.tool.resolution.*;
+import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
 import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
@@ -17,7 +18,6 @@ import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
 import io.contexa.contexacoreenterprise.soar.config.ToolApprovalPolicyManager;
 import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
 import io.contexa.contexacoreenterprise.soar.tool.exception.SoarToolExecutionExceptionProcessor;
-import io.contexa.contexacoreenterprise.tool.authorization.ToolAuthorizationService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.McpSyncClient;
@@ -35,6 +35,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -46,7 +47,9 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.annotation.EnableAsync;
 
 import java.time.Duration;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @AutoConfiguration
@@ -59,11 +62,8 @@ public class EnterpriseToolAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SoarLab soarLab(@Autowired(required = false) SoarLabImpl impl) {
-        if (impl != null) {
-            return request -> impl.processAsync(request);
-        }
-        return null;
+    public SoarLab soarLab(SoarLabImpl impl) {
+        return impl::processAsync;
     }
 
     @Bean
@@ -89,7 +89,8 @@ public class EnterpriseToolAutoConfiguration {
             McpApprovalNotificationService notificationService,
             ToolExecutionContextRepository contextRepository,
             AsyncToolExecutionService asyncExecutionService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            SoarProperties soarProperties) {
 
         return new ApprovalAwareToolCallingManagerDecorator(
                 defaultToolCallingManager,
@@ -99,7 +100,8 @@ public class EnterpriseToolAutoConfiguration {
                 notificationService,
                 contextRepository,
                 asyncExecutionService,
-                objectMapper);
+                objectMapper,
+                soarProperties);
     }
 
     @Bean
@@ -128,14 +130,12 @@ public class EnterpriseToolAutoConfiguration {
             FallbackToolResolver fallbackToolResolver,
             MCPToolMetrics metricsCollector) {
 
-        ChainedToolResolver chainedResolver = new ChainedToolResolver(
+        return new ChainedToolResolver(
                 metricsCollector,
                 springBeanResolver,
                 mcpToolResolver,
                 staticToolResolver,
                 fallbackToolResolver);
-
-        return chainedResolver;
     }
 
     @Bean
@@ -382,18 +382,6 @@ public class EnterpriseToolAutoConfiguration {
             boolean enabled,
             String status,
             int toolCount) {
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(ToolAuthorizationService.class)
-    public ToolAuthorizationService toolAuthorizationService() {
-        return new ToolAuthorizationService();
-    }
-
-    @Bean(name = "soarToolCallingManager")
-    @ConditionalOnMissingBean
-    public ToolCallingManager soarToolCallingManager() {
-        return DefaultToolCallingManager.builder().build();
     }
 
     @Bean

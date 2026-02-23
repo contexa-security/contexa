@@ -93,11 +93,10 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
 
         return createErrorResponse(
             "APPROVAL_TIMEOUT",
-            "Approval response timed out, escalated to supervisor",
+            "Approval response timed out, escalation logged",
             Map.of(
                 "toolName", toolName,
-                "escalated", true,
-                "escalatedTo", "supervisor",
+                "escalationLogged", true,
                 "escalationTime", Instant.now(),
                 "retryable", false
             )
@@ -208,7 +207,7 @@ public class SoarToolExecutionExceptionProcessor implements ToolExecutionExcepti
     }
 
     private void escalateToSupervisor(String toolName) {
-                
+        log.error("Escalation required for tool: {} - manual supervisor review needed", toolName);
     }
 
     private RecoveryStrategy getRecoveryStrategy(String toolName) {

@@ -246,26 +246,23 @@ class SoarAnalysisEnhanced {
             // this.handleApprovalRequest(message); // 제거!
         });
         
-        // Session management topics
-        this.websocket.subscribe('/topic/session/status', (message) => {
+        // Session management topics (backend: /topic/soar/events)
+        this.websocket.subscribe('/topic/soar/events', (message) => {
             this.handleSessionStatus(message);
         });
-        
-        // Pipeline progress topics
-        this.websocket.subscribe('/topic/pipeline/progress', (message) => {
+
+        // Pipeline progress topics (backend: /topic/soar/pipeline)
+        this.websocket.subscribe('/topic/soar/pipeline', (message) => {
             this.handlePipelineProgress(message);
         });
-        
-        this.websocket.subscribe('/topic/pipeline/stage', (message) => {
-            this.handlePipelineStage(message);
-        });
-        
-        // Tool execution topics
-        this.websocket.subscribe('/topic/tool/execution', (message) => {
+
+        // Tool execution topics (backend: /topic/soar/tools)
+        this.websocket.subscribe('/topic/soar/tools', (message) => {
             this.handleToolExecution(message);
         });
-        
-        this.websocket.subscribe('/topic/tool/result', (message) => {
+
+        // Tool result topics (backend: /topic/soar/complete)
+        this.websocket.subscribe('/topic/soar/complete', (message) => {
             this.handleToolResult(message);
         });
         
@@ -436,7 +433,7 @@ class SoarAnalysisEnhanced {
         }
         
         // 버튼 텍스트 업데이트: "도구 실행 중..."으로 변경
-        const btnText = document.getElementById('btn-text');
+        const btnText = document.getElementById('btnText');
         if (btnText) {
             btnText.innerHTML = '<span class="loading-spinner"></span> 도구 실행 중...';
         }
@@ -1116,7 +1113,7 @@ class SoarAnalysisEnhanced {
             const analyzeBtn = document.getElementById('analyzeSoarBtn');
             if (analyzeBtn) {
                 analyzeBtn.disabled = false;
-                const btnText = document.getElementById('btn-text');
+                const btnText = document.getElementById('btnText');
                 if (btnText) {
                     btnText.innerHTML = '<i class="fas fa-robot mr-3"></i>AI + MCP + SOAR 시뮬레이션 시작';
                 }
@@ -1199,7 +1196,7 @@ class SoarAnalysisEnhanced {
             const analyzeBtn = document.getElementById('analyzeSoarBtn');
             if (analyzeBtn) {
                 analyzeBtn.disabled = false;
-                const btnText = document.getElementById('btn-text');
+                const btnText = document.getElementById('btnText');
                 if (btnText) {
                     btnText.innerHTML = '<i class="fas fa-robot mr-3"></i>AI + MCP + SOAR 시뮬레이션 시작';
                 }
@@ -1229,7 +1226,7 @@ class SoarAnalysisEnhanced {
                 const analyzeBtn = document.getElementById('analyzeSoarBtn');
                 if (analyzeBtn) {
                     analyzeBtn.disabled = false;
-                    const btnText = document.getElementById('btn-text');
+                    const btnText = document.getElementById('btnText');
                     if (btnText) {
                         btnText.innerHTML = '<i class="fas fa-robot mr-3"></i>AI + MCP + SOAR 시뮬레이션 시작';
                     }
@@ -1272,7 +1269,7 @@ class SoarAnalysisEnhanced {
             const analyzeBtn = document.getElementById('analyzeSoarBtn');
             if (analyzeBtn) {
                 analyzeBtn.disabled = false;
-                const btnText = document.getElementById('btn-text');
+                const btnText = document.getElementById('btnText');
                 if (btnText) {
                     btnText.innerHTML = '<i class="fas fa-robot mr-3"></i>AI + MCP + SOAR 시뮬레이션 시작';
                 }
@@ -1386,7 +1383,7 @@ class SoarAnalysisEnhanced {
             const analyzeBtn = document.getElementById('analyzeSoarBtn');
             if (analyzeBtn) {
                 analyzeBtn.disabled = false;
-                const btnText = document.getElementById('btn-text');
+                const btnText = document.getElementById('btnText');
                 if (btnText) {
                     btnText.innerHTML = '<i class="fas fa-robot mr-3"></i>AI + MCP + SOAR 시뮬레이션 시작';
                 }
@@ -2286,33 +2283,48 @@ class SoarAnalysisEnhanced {
      * Display metadata
      */
     displayMetadata(metadata) {
+        const formattedTime = metadata.timestamp ? new Date(metadata.timestamp).toLocaleString('ko-KR') : 'N/A';
+
         const metadataGrid = document.getElementById('metadataGrid');
-        if (!metadataGrid) return;
-        
-        const formattedTime = new Date(metadata.timestamp).toLocaleString('ko-KR');
-        
-        metadataGrid.innerHTML = `
-            <div class="metadata-item">
-                <span class="metadata-label">응답 ID:</span>
-                <span class="metadata-value">${metadata.responseId}</span>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">요청 ID:</span>
-                <span class="metadata-value">${metadata.requestId}</span>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">상태:</span>
-                <span class="metadata-value status-${metadata.status.toLowerCase()}">${metadata.status}</span>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">위협 수준:</span>
-                <span class="metadata-value threat-${metadata.threatLevel.toLowerCase()}">${metadata.threatLevel}</span>
-            </div>
-            <div class="metadata-item">
-                <span class="metadata-label">완료 시간:</span>
-                <span class="metadata-value">${formattedTime}</span>
-            </div>
-        `;
+        if (metadataGrid) {
+            metadataGrid.innerHTML = `
+                <div class="metadata-item">
+                    <span class="metadata-label">응답 ID:</span>
+                    <span class="metadata-value">${metadata.responseId || 'N/A'}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">요청 ID:</span>
+                    <span class="metadata-value">${metadata.requestId || 'N/A'}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">상태:</span>
+                    <span class="metadata-value ${metadata.status ? 'status-' + metadata.status.toLowerCase() : ''}">${metadata.status || 'N/A'}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">위협 수준:</span>
+                    <span class="metadata-value ${metadata.threatLevel ? 'threat-' + metadata.threatLevel.toLowerCase() : ''}">${metadata.threatLevel || 'N/A'}</span>
+                </div>
+                <div class="metadata-item">
+                    <span class="metadata-label">완료 시간:</span>
+                    <span class="metadata-value">${formattedTime}</span>
+                </div>
+            `;
+        }
+
+        const metadataSection = document.getElementById('metadataSection');
+        if (metadataSection) {
+            metadataSection.innerHTML = `
+                <div class="metadata-content">
+                    <h4 class="text-sm font-semibold text-gray-400 mb-2">메타데이터</h4>
+                    <div class="text-xs text-gray-500">
+                        <div><strong>세션 ID:</strong> ${metadata.sessionId || 'N/A'}</div>
+                        <div><strong>대화 ID:</strong> ${metadata.conversationId || 'N/A'}</div>
+                        <div><strong>상태:</strong> ${metadata.status || 'N/A'}</div>
+                        <div><strong>시간:</strong> ${formattedTime}</div>
+                    </div>
+                </div>
+            `;
+        }
     }
     
     /**
@@ -2347,31 +2359,6 @@ class SoarAnalysisEnhanced {
         linkElement.click();
         
         this.showNotification('분석 결과를 다운로드합니다', 'success');
-    }
-    
-    /**
-     * Show notification
-     */
-    showNotification(message, type = 'info') {
-        const notification = document.createElement('div');
-        notification.className = `notification notification-${type}`;
-        notification.innerHTML = `
-            <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'}"></i>
-            <span>${message}</span>
-        `;
-        
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.classList.add('show');
-        }, 100);
-        
-        setTimeout(() => {
-            notification.classList.remove('show');
-            setTimeout(() => {
-                document.body.removeChild(notification);
-            }, 300);
-        }, 3000);
     }
     
     /**
@@ -2501,29 +2488,6 @@ class SoarAnalysisEnhanced {
     }
     
     /**
-     * Display metadata information
-     * @param {Object} metadata - The metadata to display
-     */
-    displayMetadata(metadata) {
-        console.log('📊 Displaying metadata:', metadata);
-        
-        const metadataSection = document.getElementById('metadataSection');
-        if (metadataSection) {
-            metadataSection.innerHTML = `
-                <div class="metadata-content">
-                    <h4 class="text-sm font-semibold text-gray-400 mb-2">메타데이터</h4>
-                    <div class="text-xs text-gray-500">
-                        <div><strong>세션 ID:</strong> ${metadata.sessionId || 'N/A'}</div>
-                        <div><strong>대화 ID:</strong> ${metadata.conversationId || 'N/A'}</div>
-                        <div><strong>상태:</strong> ${metadata.status || 'N/A'}</div>
-                        <div><strong>시간:</strong> ${metadata.timestamp ? new Date(metadata.timestamp).toLocaleString() : 'N/A'}</div>
-                    </div>
-                </div>
-            `;
-        }
-    }
-    
-    /**
      * Enable analyze button
      */
     enableAnalyzeButton() {
@@ -2532,7 +2496,6 @@ class SoarAnalysisEnhanced {
             analyzeBtn.disabled = false;
             analyzeBtn.classList.remove('disabled', 'opacity-50', 'cursor-not-allowed');
             
-            // HTML의 실제 ID는 btnText (btn-text가 아님)
             const btnText = document.getElementById('btnText');
             if (btnText) {
                 btnText.innerHTML = '<i class="fas fa-robot"></i> AI SOAR 분석 시작';

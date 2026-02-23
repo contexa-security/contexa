@@ -47,13 +47,12 @@ public class AsyncToolExecutionService {
     @Transactional
     public CompletableFuture<ToolExecutionResult> executeApprovedTool(String requestId) {
 
-        if (executingTasks.containsKey(requestId)) {
-            log.error("Tool already executing: {}", requestId);
-            return executingTasks.get(requestId);
-        }
-
         CompletableFuture<ToolExecutionResult> future = new CompletableFuture<>();
-        executingTasks.put(requestId, future);
+        CompletableFuture<ToolExecutionResult> existing = executingTasks.putIfAbsent(requestId, future);
+        if (existing != null) {
+            log.error("Tool already executing: {}", requestId);
+            return existing;
+        }
 
         try {
             
@@ -139,28 +138,37 @@ public class AsyncToolExecutionService {
 
     private ChatResponse reconstructChatResponse(ToolExecutionContext context) throws JsonProcessingException {
         if (context.getChatResponse() == null || context.getChatResponse().isEmpty()) {
-            
             return createChatResponseFromToolCall(context);
         }
 
-        Map<String, Object> responseData = objectMapper.readValue(
-                context.getChatResponse(),
-                new TypeReference<Map<String, Object>>() {}
-        );
+        String chatResponseJson = context.getChatResponse().trim();
+        List<AssistantMessage.ToolCall> toolCalls = new ArrayList<>();
 
-        AssistantMessage assistantMessage = new AssistantMessage("");
-
-        if (context.getToolCallId() != null) {
-            
-            AssistantMessage.ToolCall toolCall = new AssistantMessage.ToolCall(
+        if (chatResponseJson.startsWith("[")) {
+            List<Map<String, Object>> toolCallsData = objectMapper.readValue(
+                    chatResponseJson,
+                    new TypeReference<List<Map<String, Object>>>() {}
+            );
+            for (Map<String, Object> toolData : toolCallsData) {
+                toolCalls.add(new AssistantMessage.ToolCall(
+                        (String) toolData.get("toolCallId"),
+                        "function",
+                        (String) toolData.get("toolName"),
+                        (String) toolData.get("arguments")
+                ));
+            }
+        } else if (context.getToolCallId() != null) {
+            toolCalls.add(new AssistantMessage.ToolCall(
                     context.getToolCallId(),
                     "function",
                     context.getToolName(),
                     context.getToolArguments()
-            );
-            
-            assistantMessage = new AssistantMessage("", Map.of(), List.of(toolCall));
+            ));
         }
+
+        AssistantMessage assistantMessage = toolCalls.isEmpty()
+                ? new AssistantMessage("")
+                : new AssistantMessage("", Map.of(), toolCalls);
 
         Generation generation = new Generation(assistantMessage);
         return new ChatResponse(List.of(generation));
@@ -265,6 +273,7 @@ public class AsyncToolExecutionService {
         });
     }
 
+    @Scheduled(fixedDelay = 30000)
     @Transactional
     public void processApprovedTools() {
         try {
@@ -286,12 +295,14 @@ public class AsyncToolExecutionService {
         }
     }
 
+    @Scheduled(fixedDelay = 60000)
     @Transactional
     public void cleanupExpiredContexts() {
         try {
             int cancelled = contextRepository.cancelExpiredContexts(LocalDateTime.now());
             if (cancelled > 0) {
-                            }
+                log.error("Cleanup expired contexts: cancelled {} entries", cancelled);
+            }
         } catch (Exception e) {
             log.error("Error cleaning up expired contexts", e);
         }

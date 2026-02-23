@@ -94,8 +94,6 @@ public class ToolCallDetectionHelper {
             return toolCallInfos;
         }
 
-        toolCallInfos.addAll(extractStandardToolCalls(chatResponse));
-
         if (toolCallInfos.isEmpty()) {
             toolCallInfos.addAll(extractGenerationToolCalls(chatResponse));
         }
@@ -105,16 +103,6 @@ public class ToolCallDetectionHelper {
         }
         
                 return toolCallInfos;
-    }
-
-    private List<ToolCallInfo> extractStandardToolCalls(ChatResponse chatResponse) {
-        List<ToolCallInfo> toolCallInfos = new ArrayList<>();
-        
-        if (chatResponse.hasToolCalls()) {
-
-                    }
-        
-        return toolCallInfos;
     }
 
     private List<ToolCallInfo> extractGenerationToolCalls(ChatResponse chatResponse) {
@@ -242,12 +230,4 @@ public class ToolCallDetectionHelper {
         }
     }
 
-    public void logDetectionResult(ChatResponse chatResponse, boolean hasToolCalls) {
-        if (hasToolCalls) {
-            List<ToolCallInfo> toolCalls = extractToolCalls(chatResponse);
-                        for (ToolCallInfo toolCall : toolCalls) {
-                            }
-        } else {
-                    }
-    }
 }

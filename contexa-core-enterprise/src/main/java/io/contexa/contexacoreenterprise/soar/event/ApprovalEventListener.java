@@ -5,6 +5,7 @@ import io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalRequestFactory;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalRequestValidator;
+import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
 import io.contexa.contexacoreenterprise.soar.event.ApprovalEvent;
 import io.contexa.contexacoreenterprise.soar.event.ApprovalEvent.EventType;
 import lombok.RequiredArgsConstructor;
@@ -16,14 +17,17 @@ import org.springframework.transaction.annotation.Transactional;
 @Slf4j
 @RequiredArgsConstructor
 public class ApprovalEventListener {
-    
+
     private final ApprovalService approvalService;
-    
+
     @Autowired
     private ApprovalRequestFactory approvalRequestFactory;
-    
+
     @Autowired
     private ApprovalRequestValidator approvalRequestValidator;
+
+    @Autowired(required = false)
+    private AsyncToolExecutionService asyncToolExecutionService;
 
     @EventListener
     @Transactional
@@ -62,13 +66,18 @@ public class ApprovalEventListener {
 
     @EventListener
     public void handleApprovalCompleted(ApprovalEvent event) {
-        if (event.getEventType() != EventType.APPROVAL_GRANTED && 
+        if (event.getEventType() != EventType.APPROVAL_GRANTED &&
             event.getEventType() != EventType.APPROVAL_DENIED) {
             return;
         }
-        
-        boolean isApproved = event.getEventType() == EventType.APPROVAL_GRANTED;
 
+        if (event.getEventType() == EventType.APPROVAL_GRANTED && asyncToolExecutionService != null) {
+            try {
+                asyncToolExecutionService.executeApprovedTool(event.getRequestId());
+            } catch (Exception e) {
+                log.error("Failed to trigger async tool execution: {}", event.getRequestId(), e);
+            }
+        }
     }
 
     @EventListener

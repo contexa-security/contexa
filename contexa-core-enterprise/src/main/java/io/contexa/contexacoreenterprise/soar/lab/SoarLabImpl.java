@@ -26,7 +26,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
     @Override
     protected SoarResponse doProcess(SoarRequest request) throws Exception {
         
-        PipelineConfiguration config = createPipelineConfiguration(request);
+        PipelineConfiguration config = createPipelineConfiguration();
 
         AIRequest<SoarContext> aiRequest = new AIRequest<>(request.getContext(), new TemplateType("Soar"), new DiagnosisType("Soar"))
                 .withParameter("query", request.getQuery())
@@ -38,11 +38,10 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
     @Override
     protected Mono<SoarResponse> doProcessAsync(SoarRequest request) {
         
-        PipelineConfiguration config = createPipelineConfiguration(request);
+        PipelineConfiguration config = createPipelineConfiguration();
 
         return orchestrator.execute(request, config, SoarResponse.class)
-                .cast(SoarResponse.class)
-                .doOnSuccess(response -> log.error("[DefaultSoarLab] PipelineOrchestrator async processing completed: {}", request.getSessionId()));
+                .cast(SoarResponse.class);
     }
 
     @Override
@@ -51,12 +50,10 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
         return Flux.defer(() -> {
             try {
                 
-                PipelineConfiguration config = createPipelineConfiguration(request);
+                PipelineConfiguration config = createPipelineConfiguration();
 
                 return orchestrator.executeStream(request, config)
                         .cast(String.class)
-                        .doOnNext(chunk -> log.error("[DefaultSoarLab] Streaming chunk received: {}", chunk.length()))
-                        .doOnComplete(() -> log.error("[DefaultSoarLab] PipelineOrchestrator streaming completed: {}", request.getSessionId()))
                         .doOnError(error -> log.error("[DefaultSoarLab] PipelineOrchestrator streaming failed: {}", error.getMessage()));
 
             } catch (Exception e) {
@@ -71,7 +68,7 @@ public class SoarLabImpl extends AbstractAILab<SoarRequest, SoarResponse>  {
         return true;
     }
 
-    private PipelineConfiguration createPipelineConfiguration(SoarRequest request) {
+    private PipelineConfiguration createPipelineConfiguration() {
         return PipelineConfiguration.builder()
                 .addStep(PipelineConfiguration.PipelineStep.CONTEXT_RETRIEVAL)
                 .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
