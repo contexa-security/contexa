@@ -67,7 +67,6 @@ import org.thymeleaf.templatemode.TemplateMode;
 import org.thymeleaf.templateresolver.ClassLoaderTemplateResolver;
 
 @AutoConfiguration
-@ConditionalOnClass(name = "io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService")
 @ConditionalOnProperty(prefix = "contexa.enterprise", name = "enabled", havingValue = "true", matchIfMissing = false)
 @EnableConfigurationProperties({ ContexaProperties.class, SoarProperties.class, ToolProperties.class })
 @EnableRetry
@@ -247,14 +246,12 @@ public class EnterpriseSoarAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(SoarActionService.class)
     public SoarActionController soarActionController(SoarActionService soarActionService) {
         return new SoarActionController(soarActionService);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ApprovalService.class)
     public SoarActionService soarActionService(
             @Autowired(required = false) ApprovalService approvalService) {
         return new SoarActionService(approvalService);
