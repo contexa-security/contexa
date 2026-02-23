@@ -39,9 +39,7 @@ public class SoarInteractionManager {
     private final Map<String, InteractionSession> sessionCache = new ConcurrentHashMap<>();
     
     private static final String SESSION_KEY_PREFIX = "soar:session:";
-    private static final String APPROVAL_KEY_PREFIX = "soar:approval:";
     private static final Duration SESSION_TTL = Duration.ofHours(2);
-    private static final Duration APPROVAL_TTL = Duration.ofMinutes(30);
 
     public String createSession(SoarContext context) {
         String sessionId = UUID.randomUUID().toString();
@@ -55,10 +53,8 @@ public class SoarInteractionManager {
             .status(SessionStatus.ACTIVE)
             .createdAt(LocalDateTime.now())
             .lastActivityAt(LocalDateTime.now())
-            .interactionCount(0)
             .approvalRequests(new ArrayList<>())
             .executedTools(new ArrayList<>())
-            .conversationHistory(new ArrayList<>())
             .metadata(new HashMap<>())
             .build();
 
@@ -80,12 +76,6 @@ public class SoarInteractionManager {
         }
         
         return Optional.ofNullable(session);
-    }
-
-    public SessionStatus getSessionStatus(String sessionId) {
-        return getSession(sessionId)
-            .map(InteractionSession::getStatus)
-            .orElse(SessionStatus.NOT_FOUND);
     }
 
     public void updateSession(InteractionSession session) {
@@ -135,7 +125,6 @@ public class SoarInteractionManager {
                 .build();
             
             session.getApprovalRequests().add(requestInfo);
-            session.setInteractionCount(session.getInteractionCount() + 1);
             updateSession(session);
 
             sendApprovalRequest(requestId, toolName, sessionId);
@@ -173,33 +162,9 @@ public class SoarInteractionManager {
                     });
     }
 
-    public void addConversationEntry(String sessionId, String role, String message) {
-        getSession(sessionId).ifPresent(session -> {
-            ConversationEntry entry = ConversationEntry.builder()
-                .role(role)
-                .message(message)
-                .timestamp(LocalDateTime.now())
-                .build();
-            
-            session.getConversationHistory().add(entry);
-
-            if (session.getConversationHistory().size() > 100) {
-                session.setConversationHistory(
-                    new ArrayList<>(session.getConversationHistory().subList(
-                        session.getConversationHistory().size() - 100,
-                        session.getConversationHistory().size()
-                    ))
-                );
-            }
-            
-            updateSession(session);
-        });
-    }
-
     public void closeSession(String sessionId, String reason) {
         getSession(sessionId).ifPresent(session -> {
             session.setStatus(SessionStatus.CLOSED);
-            session.setClosedAt(LocalDateTime.now());
             session.getMetadata().put("closeReason", reason);
 
             updateSession(session);
@@ -207,25 +172,6 @@ public class SoarInteractionManager {
 
             notifySessionClosed(sessionId, reason);
         });
-    }
-
-    public List<InteractionSession> getActiveSessions() {
-        // Use SCAN instead of keys() to avoid blocking Redis
-        List<InteractionSession> sessions = new ArrayList<>();
-        try (var cursor = redisTemplate.scan(
-                org.springframework.data.redis.core.ScanOptions.scanOptions()
-                    .match(SESSION_KEY_PREFIX + "*")
-                    .count(100)
-                    .build())) {
-            while (cursor.hasNext()) {
-                String key = (String) cursor.next();
-                InteractionSession session = (InteractionSession) redisTemplate.opsForValue().get(key);
-                if (session != null && session.getStatus() == SessionStatus.ACTIVE) {
-                    sessions.add(session);
-                }
-            }
-        }
-        return sessions;
     }
 
     private void saveSession(InteractionSession session) {
@@ -299,11 +245,8 @@ public class SoarInteractionManager {
         private SessionStatus status;
         private LocalDateTime createdAt;
         private LocalDateTime lastActivityAt;
-        private LocalDateTime closedAt;
-        private int interactionCount;
         private List<ApprovalRequestInfo> approvalRequests;
         private List<ExecutedToolInfo> executedTools;
-        private List<ConversationEntry> conversationHistory;
         private Map<String, Object> metadata;
     }
     
@@ -315,7 +258,6 @@ public class SoarInteractionManager {
         private String requestId;
         private String toolName;
         private LocalDateTime requestedAt;
-        private LocalDateTime respondedAt;
         private io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus status;
     }
     
@@ -328,16 +270,6 @@ public class SoarInteractionManager {
         private LocalDateTime executedAt;
         private boolean success;
         private String result;
-    }
-    
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class ConversationEntry {
-        private String role;
-        private String message;
-        private LocalDateTime timestamp;
     }
     
     public enum SessionStatus {

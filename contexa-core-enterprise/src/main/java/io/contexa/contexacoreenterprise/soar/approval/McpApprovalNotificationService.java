@@ -49,38 +49,6 @@ public class McpApprovalNotificationService {
     private final List<NotificationHistory> notificationHistory = new CopyOnWriteArrayList<>();
     private static final int MAX_HISTORY_SIZE = 100;
 
-    public SseEmitter registerEmitter(String clientId) {
-        
-        SseEmitter emitter = new SseEmitter(600000L);
-        
-        emitter.onCompletion(() -> {
-            sseEmitters.remove(clientId);
-            broadcastEmitters.remove(emitter);
-                    });
-        
-        emitter.onTimeout(() -> {
-            sseEmitters.remove(clientId);
-            broadcastEmitters.remove(emitter);
-                    });
-        
-        emitter.onError(error -> {
-            sseEmitters.remove(clientId);
-            broadcastEmitters.remove(emitter);
-            log.error("SSE error: {}", clientId, error);
-        });
-        
-        sseEmitters.put(clientId, emitter);
-        broadcastEmitters.add(emitter);
-
-        sendToClient(clientId, new NotificationMessage(
-            "CONNECTION",
-            "Connected to approval notification service",
-            Map.of("clientId", clientId, "timestamp", LocalDateTime.now())
-        ));
-        
-                return emitter;
-    }
-
     @EventListener
     @Async
     public void handleApprovalRequested(ApprovalEvent event) {
@@ -110,37 +78,6 @@ public class McpApprovalNotificationService {
     public void handleApprovalTimeout(ApprovalEvent event) {
         if (event.getEventType() == ApprovalEvent.EventType.APPROVAL_TIMEOUT) {
             sendApprovalTimeout(event.getRequestId());
-        }
-    }
-
-    @EventListener
-    @Async
-    public void handleToolExecuted(ApprovalEvent event) {
-        if (event.getEventType() == ApprovalEvent.EventType.TOOL_EXECUTED) {
-            Map<String, Object> metadata = event.getMetadata();
-            if (metadata != null) {
-                String toolName = (String) metadata.get("toolName");
-                Object result = metadata.get("result");
-                Long executionTime = (Long) metadata.get("executionTime");
-                if (toolName != null && executionTime != null) {
-                    sendExecutionCompleted(toolName, result, executionTime);
-                }
-            }
-        }
-    }
-
-    @EventListener
-    @Async
-    public void handleToolFailed(ApprovalEvent event) {
-        if (event.getEventType() == ApprovalEvent.EventType.TOOL_FAILED) {
-            Map<String, Object> metadata = event.getMetadata();
-            if (metadata != null) {
-                String toolName = (String) metadata.get("toolName");
-                String error = (String) metadata.get("error");
-                if (toolName != null && error != null) {
-                    sendExecutionFailed(toolName, new RuntimeException(error));
-                }
-            }
         }
     }
 
@@ -317,23 +254,6 @@ public class McpApprovalNotificationService {
                 "toolName", toolName,
                 "error", exception.getMessage(),
                 "errorType", exception.getClass().getSimpleName(),
-                "timestamp", LocalDateTime.now()
-            )
-        );
-        
-        broadcast(notification);
-        addToHistory(notification);
-    }
-
-    @Async
-    public void sendToolCallDetected(List<String> toolNames) {
-                
-        NotificationMessage notification = new NotificationMessage(
-            "TOOL_CALL_DETECTED",
-            "Tool calls detected in chat response",
-            Map.of(
-                "tools", toolNames,
-                "count", toolNames.size(),
                 "timestamp", LocalDateTime.now()
             )
         );
@@ -521,32 +441,6 @@ public class McpApprovalNotificationService {
             log.error("Async approval request notification save failed: {}", request.getRequestId(), e);
             
             sendApprovalRequest(request);
-        }
-    }
-
-    @Async
-    public void sendAsyncApprovalResult(String requestId, boolean approved, String approvedBy) {
-                
-        try {
-            ApprovalNotification notification = ApprovalNotification.builder()
-                .requestId(requestId)
-                .notificationType(approved ? "APPROVAL_GRANTED" : "APPROVAL_DENIED")
-                .title(approved ? "Tool execution approved" : "Tool execution denied")
-                .message(String.format(
-                    "Tool execution for request ID %s has been %s.\nProcessed by: %s",
-                    requestId,
-                    approved ? "approved" : "denied",
-                    approvedBy
-                ))
-                .userId(approvedBy)
-                .priority("HIGH")
-                .actionRequired(false)
-                .build();
-            
-            notificationRepository.save(notification);
-
-        } catch (Exception e) {
-            log.error("Async approval result notification save failed: {}", requestId, e);
         }
     }
 

@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 
-import reactor.core.publisher.Mono;
 
 public interface ApprovalService {
 
@@ -39,13 +38,6 @@ public interface ApprovalService {
 
     default void sendApprovalNotification(ApprovalRequest request) {
         throw new UnsupportedOperationException("sendApprovalNotification not implemented");
-    }
-
-    default Mono<Boolean> waitForApproval(String requestId) {
-        return Mono.defer(() -> {
-            ApprovalRequest.ApprovalStatus status = getApprovalStatus(requestId);
-            return Mono.just(status == ApprovalRequest.ApprovalStatus.APPROVED);
-        });
     }
 
     default void processApproval(String approvalId, boolean approved, String reason) {

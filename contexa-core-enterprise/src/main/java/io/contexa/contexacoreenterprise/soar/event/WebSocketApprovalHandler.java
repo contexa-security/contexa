@@ -1,9 +1,8 @@
 package io.contexa.contexacoreenterprise.soar.event;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
-import jakarta.annotation.PostConstruct;
+
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.handler.annotation.DestinationVariable;
@@ -26,26 +25,19 @@ import java.util.concurrent.ConcurrentHashMap;
 @Controller
 public class WebSocketApprovalHandler {
     
-    private final ObjectMapper objectMapper;
     private final UnifiedApprovalService unifiedApprovalService;
     private final Map<String, String> activeUserSessions = new ConcurrentHashMap<>();
     private final SimpMessagingTemplate brokerTemplate;
 
-    public WebSocketApprovalHandler(ObjectMapper objectMapper,
+    public WebSocketApprovalHandler(
                                     UnifiedApprovalService unifiedApprovalService,
                                     @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
-        this.objectMapper = objectMapper;
         this.unifiedApprovalService = unifiedApprovalService;
         this.brokerTemplate = brokerTemplate;
     }
 
-    @PostConstruct
-    public void init() {
-                                    }
-
     private static final String TOPIC_APPROVALS = "/topic/soar/approvals";
     private static final String TOPIC_APPROVAL_RESULT = "/topic/soar/approval-results/";
-    private static final String QUEUE_USER_APPROVALS = "/queue/approvals";
 
     @SubscribeMapping("/soar/approvals")
     public Map<String, Object> subscribeToApprovals(Principal principal) {
@@ -68,11 +60,6 @@ public class WebSocketApprovalHandler {
 
         return response;
     }
-
-    @MessageMapping("/heartbeat")
-    public void handleHeartbeat(@Payload Map<String, Object> payload) {
-        
-            }
 
     @SubscribeMapping("/soar/approval-results/{approvalId}")
     public Map<String, Object> subscribeToApprovalResult(
@@ -310,35 +297,6 @@ public class WebSocketApprovalHandler {
         }
     }
 
-    public void sendTimeoutNotification(String approvalId, long timeoutSeconds) {
-        Map<String, Object> message = Map.of(
-            "type", "APPROVAL_TIMEOUT",
-            "approvalId", approvalId,
-            "timeoutSeconds", timeoutSeconds,
-            "timestamp", LocalDateTime.now()
-        );
-        
-        brokerTemplate.convertAndSend(
-            TOPIC_APPROVAL_RESULT + approvalId,
-            (Object) message
-        );
-
-        log.error("WebSocket timeout notification: {} ({}s)", approvalId, timeoutSeconds);
-    }
-
-    public void sendErrorNotification(String approvalId, String error) {
-        Map<String, Object> message = Map.of(
-            "type", "APPROVAL_ERROR",
-            "approvalId", approvalId,
-            "error", error,
-            "timestamp", LocalDateTime.now()
-        );
-        
-        brokerTemplate.convertAndSend(TOPIC_APPROVAL_RESULT + approvalId, (Object) message);
-
-        log.error("WebSocket error notification: {} - {}", approvalId, error);
-    }
-
     public void broadcastMessage(String topic, Map<String, Object> data) {
         try {
             brokerTemplate.convertAndSend(topic, (Object) data);
@@ -364,42 +322,4 @@ public class WebSocketApprovalHandler {
         }
     }
 
-    public void registerUserSession(String sessionId, String userId) {
-        activeUserSessions.put(sessionId, userId);
-            }
-
-    public void removeUserSession(String sessionId) {
-        String userId = activeUserSessions.remove(sessionId);
-        if (userId != null) {
-                    }
-    }
-
-    public int getActiveSessionCount() {
-        return activeUserSessions.size();
-    }
-
-    public void sendTestBroadcast(String message) {
-        if (brokerTemplate == null) {
-            log.error("TEST: SimpMessagingTemplate is null");
-            return;
-        }
-        
-        Map<String, Object> testMessage = new HashMap<>();
-        testMessage.put("type", "TEST_BROADCAST");
-        testMessage.put("message", message);
-        testMessage.put("timestamp", LocalDateTime.now().toString());
-        testMessage.put("activeSessions", activeUserSessions.size());
-
-        try {
-            brokerTemplate.convertAndSend("/topic/test", (Object) testMessage);
-                    } catch (Exception e) {
-            log.error("TEST: /topic/test send failed", e);
-        }
-
-        try {
-            brokerTemplate.convertAndSend("/topic/soar/approvals", (Object) testMessage);
-                    } catch (Exception e) {
-            log.error("TEST: /topic/soar/approvals send failed", e);
-        }
-    }
 }

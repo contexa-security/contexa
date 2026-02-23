@@ -12,11 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
-
-import java.time.Duration;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -63,8 +60,6 @@ public class SoarSimulationService {
         activeSessions.put(sessionId, session);
 
         notifySimulationStarted(sessionId, request);
-
-        startPipelineTracking(sessionId);
 
         return soarToolCallingService.executeWithApproval(
                 request.getUserQuery() != null ? request.getUserQuery() : buildDefaultQuery(request),
@@ -185,7 +180,6 @@ public class SoarSimulationService {
         return status;
     }
 
-    private static final int MAX_ACTIVE_SESSIONS = 100;
     private static final int SESSION_EXPIRY_MINUTES = 30;
 
     @Scheduled(fixedDelay = 300000)
@@ -256,46 +250,11 @@ public class SoarSimulationService {
         );
     }
     
-    private static final String[] PIPELINE_STAGES = {
-        "PREPROCESSING",
-        "CONTEXT_RETRIEVAL",
-        "PROMPT_GENERATION",
-        "LLM_EXECUTION",
-        "RESPONSE_PARSING",
-        "POSTPROCESSING"
-    };
-
-    private void startPipelineTracking(String sessionId) {
-        Flux.interval(Duration.ofSeconds(2))
-            .take(PIPELINE_STAGES.length)
-            .subscribeOn(Schedulers.boundedElastic())
-            .subscribe(tick -> {
-                SimulationSession session = activeSessions.get(sessionId);
-                if (session == null) {
-                    return;
-                }
-                if (!"ACTIVE".equals(session.getStatus()) &&
-                    !"INITIALIZING".equals(session.getStatus())) {
-                    return;
-                }
-
-                int idx = tick.intValue();
-                String stage = PIPELINE_STAGES[idx];
-                int progress = (idx + 1) * 100 / PIPELINE_STAGES.length;
-
-                session.setCurrentStage(stage);
-                session.setProgress(progress);
-                notifyPipelineProgress(sessionId, stage, progress);
-            });
-    }
-    
     private void resumeWorkflow(String sessionId) {
         SimulationSession session = activeSessions.get(sessionId);
         if (session == null) return;
-        
-                session.setStatus("ACTIVE");
 
-        startPipelineTracking(sessionId);
+        session.setStatus("ACTIVE");
     }
 
     private void notifySimulationStarted(String sessionId, SimulationStartRequest request) {
@@ -313,18 +272,6 @@ public class SoarSimulationService {
         
         brokerTemplate.convertAndSend("/topic/soar/events", event);
             }
-    
-    private void notifyPipelineProgress(String sessionId, String stage, int progress) {
-        PipelineProgressEvent event = PipelineProgressEvent.builder()
-            .sessionId(sessionId)
-            .stage(stage)
-            .progress(progress)
-            .message(getPipelineStageMessage(stage))
-            .timestamp(LocalDateTime.now())
-            .build();
-
-        brokerTemplate.convertAndSend("/topic/soar/pipeline", event);
-    }
     
     private void notifySimulationComplete(String sessionId, SoarToolCallingService.SoarExecutionResult result) {
         SimulationCompleteEvent event = SimulationCompleteEvent.builder()
@@ -363,18 +310,6 @@ public class SoarSimulationService {
         brokerTemplate.convertAndSend("/topic/soar/approvals", event);
     }
     
-    private String getPipelineStageMessage(String stage) {
-        return switch (stage) {
-            case "PREPROCESSING" -> "입력 데이터 전처리 중...";
-            case "CONTEXT_RETRIEVAL" -> "보안 컨텍스트 검색 중...";
-            case "PROMPT_GENERATION" -> "AI 프롬프트 생성 중...";
-            case "LLM_EXECUTION" -> "SOAR 도구 실행 중...";
-            case "RESPONSE_PARSING" -> "응답 파싱 중...";
-            case "POSTPROCESSING" -> "최종 결과 처리 중...";
-            default -> stage;
-        };
-    }
-
     @Data
     @Builder
     public static class SimulationSession {
@@ -413,16 +348,6 @@ public class SoarSimulationService {
         private List<String> executedTools;
         private List<String> pendingApprovals;
         private Map<String, Boolean> mcpServersStatus;
-    }
-    
-    @Data
-    @Builder
-    public static class PipelineProgressEvent {
-        private String sessionId;
-        private String stage;
-        private int progress;
-        private String message;
-        private LocalDateTime timestamp;
     }
     
     @Data

@@ -42,7 +42,6 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
     private final McpApprovalNotificationService notificationService;
 
     private final ToolExecutionContextRepository contextRepository;
-    private final AsyncToolExecutionService asyncExecutionService;
     private final ObjectMapper objectMapper;
     private final SoarProperties soarProperties;
 
@@ -311,15 +310,6 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
             this.type = type;
             this.arguments = arguments;
         }
-    }
-
-    public int getPendingApprovalsCount() {
-        return pendingApprovals.size();
-    }
-
-    public void cancelAllPendingApprovals() {
-        pendingApprovals.forEach((id, future) -> future.cancel(true));
-        pendingApprovals.clear();
     }
 
     public void setCurrentContext(SoarContext context) {

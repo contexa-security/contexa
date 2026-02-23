@@ -15,9 +15,7 @@ public class ApprovalEvent extends ApplicationEvent {
         APPROVAL_GRANTED,      
         APPROVAL_DENIED,       
         APPROVAL_TIMEOUT,      
-        APPROVAL_CANCELLED,    
-        TOOL_EXECUTED,         
-        TOOL_FAILED           
+        APPROVAL_CANCELLED
     }
     
     private final EventType eventType;
@@ -72,15 +70,4 @@ public class ApprovalEvent extends ApplicationEvent {
             reason != null ? reason : "Approval cancelled", null, null);
     }
 
-    public static ApprovalEvent toolExecuted(Object source, String requestId, Map<String, Object> result) {
-        return new ApprovalEvent(source, EventType.TOOL_EXECUTED, requestId, 
-            "Tool executed successfully", null, result);
-    }
-
-    public static ApprovalEvent toolFailed(Object source, String requestId, String error) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("error", error);
-        return new ApprovalEvent(source, EventType.TOOL_FAILED, requestId, 
-            "Tool execution failed", null, metadata);
-    }
 }

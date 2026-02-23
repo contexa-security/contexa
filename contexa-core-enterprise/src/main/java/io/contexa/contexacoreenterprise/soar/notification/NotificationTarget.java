@@ -93,7 +93,4 @@ public class NotificationTarget {
                 && supportsChannel(NotificationChannel.WEBSOCKET);
     }
 
-    public boolean canReceiveSSE() {
-        return active && supportsChannel(NotificationChannel.SSE);
-    }
 }

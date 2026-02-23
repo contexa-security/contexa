@@ -1,6 +1,5 @@
 package io.contexa.contexacoreenterprise.soar.retriever;
 
-import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacore.domain.SoarContext;
@@ -8,18 +7,8 @@ import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.document.Document;
-import org.springframework.ai.rag.Query;
-import org.springframework.ai.rag.advisor.RetrievalAugmentationAdvisor;
-import org.springframework.ai.rag.preretrieval.query.transformation.QueryTransformer;
-import org.springframework.ai.rag.postretrieval.document.DocumentPostProcessor;
-import org.springframework.ai.rag.retrieval.search.VectorStoreDocumentRetriever;
-import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -34,19 +23,6 @@ public class SoarContextRetriever extends ContextRetriever {
     private final ContextRetrieverRegistry registry;
     private final SoarProperties soarProperties;
 
-    @Autowired(required = false)
-    private ChatClient.Builder chatClientBuilder;
-
-    @Autowired(required = false)
-    @Qualifier("riskScoreAggregator")
-    private DocumentPostProcessor riskScoreAggregator;
-
-    @Autowired(required = false)
-    @Qualifier("threatCorrelator")
-    private DocumentPostProcessor threatCorrelator;
-
-    private RetrievalAugmentationAdvisor soarAdvisor;
-
     public SoarContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry registry,
@@ -58,11 +34,6 @@ public class SoarContextRetriever extends ContextRetriever {
 
     @PostConstruct
     public void registerSelf() {
-
-        if (chatClientBuilder != null) {
-            createSoarAdvisor();
-        }
-
         registry.registerRetriever(SoarContext.class, this);
     }
 
@@ -72,34 +43,6 @@ public class SoarContextRetriever extends ContextRetriever {
             return retrieveSoarContextWithRAG((AIRequest<SoarContext>) request);
         }
         return super.retrieveContext(request);
-    }
-
-    private void createSoarAdvisor() {
-
-        QueryTransformer soarQueryTransformer = new SoarQueryTransformer(chatClientBuilder);
-
-        FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
-        var filter = filterBuilder.and(
-                filterBuilder.in("documentType",
-                        "incident",
-                        VectorDocumentType.THREAT.getValue(),
-                        "security_alert",
-                        "soar_playbook"),
-                filterBuilder.gte("severity", 0.5)
-        ).build();
-
-        VectorStoreDocumentRetriever retriever = VectorStoreDocumentRetriever.builder()
-                .vectorStore(vectorStore)
-                .similarityThreshold(soarProperties.getSimilarityThreshold())
-                .topK(soarProperties.getTopK())
-                .filterExpression(filter)
-                .build();
-
-        soarAdvisor = RetrievalAugmentationAdvisor.builder()
-                .documentRetriever(retriever)
-                .queryTransformers(soarQueryTransformer)
-                .build();
-
     }
 
     private ContextRetrievalResult retrieveSoarContextWithRAG(AIRequest<SoarContext> request) {
@@ -138,21 +81,6 @@ public class SoarContextRetriever extends ContextRetriever {
                     Map.of("error", e.getMessage())
             );
         }
-    }
-
-    private List<Document> searchSecurityKnowledge(SoarContext context) {
-
-        String searchQuery = buildSearchQuery(context);
-
-        SearchRequest searchRequest = SearchRequest.builder()
-                .query(searchQuery)
-                .topK(5)
-                .similarityThreshold(0.7)
-                .build();
-
-        List<Document> documents = vectorStore.similaritySearch(searchRequest);
-
-        return documents;
     }
 
     private String buildSearchQuery(SoarContext context) {
@@ -227,43 +155,6 @@ public class SoarContextRetriever extends ContextRetriever {
         contextBuilder.append("4. 최종 요약 및 다음 단계\n");
 
         return contextBuilder.toString();
-    }
-
-    private static class SoarQueryTransformer implements QueryTransformer {
-        private final ChatClient chatClient;
-
-        public SoarQueryTransformer(ChatClient.Builder chatClientBuilder) {
-            this.chatClient = chatClientBuilder.build();
-        }
-
-        @Override
-        public Query transform(Query originalQuery) {
-            if (originalQuery == null || originalQuery.text() == null) {
-                return originalQuery;
-            }
-
-            String prompt = String.format("""
-                    보안 인시던트 대응을 위한 검색 쿼리를 최적화하세요:
-                    
-                    원본 쿼리: %s
-                    
-                    최적화 지침:
-                    1. 보안 위협 지표(IOC)를 포함하세요
-                    2. MITRE ATT&CK 프레임워크 용어를 추가하세요
-                    3. 관련 CVE, CWE 참조를 포함하세요
-                    4. 위협 액터 및 캠페인 이름을 포함하세요
-                    5. 시간적 컨텍스트를 명확히 하세요
-                    
-                    최적화된 쿼리만 반환하세요.
-                    """, originalQuery.text());
-
-            String transformedText = chatClient.prompt()
-                    .user(prompt)
-                    .call()
-                    .content();
-
-            return new Query(transformedText);
-        }
     }
 
     private String getDefaultContext() {

@@ -10,7 +10,6 @@ import io.contexa.contexacore.std.operations.AICoreOperations;
 import java.time.LocalDateTime;
 
 import io.contexa.contexacoreenterprise.soar.manager.SoarInteractionManager;
-import io.contexa.contexacoreenterprise.mcp.tool.resolution.ChainedToolResolver;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +25,6 @@ public class SoarToolCallingService {
 
     private final AICoreOperations<SoarContext> aiNativeProcessor;
     private final SoarInteractionManager interactionManager;
-    private final ChainedToolResolver toolResolver;
     private final ObjectMapper objectMapper;
 
     public Mono<SoarExecutionResult> executeWithApproval(

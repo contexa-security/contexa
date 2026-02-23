@@ -188,31 +188,42 @@ public class SoarApprovalController {
     @GetMapping("/status/{incidentId}")
     public ResponseEntity<Map<String, Object>> getExecutionStatus(@PathVariable String incidentId) {
         try {
-            
+            int pendingCount = approvalService.getPendingCount();
+            var pendingIds = approvalService.getPendingApprovalIds();
+
+            String currentStatus;
+            if (pendingCount > 0) {
+                currentStatus = "AWAITING_APPROVAL";
+            } else {
+                currentStatus = "IDLE";
+            }
+
             Map<String, Object> status = Map.of(
                 "incidentId", incidentId,
-                "status", "PROCESSING", 
+                "status", currentStatus,
+                "pendingApprovalCount", pendingCount,
+                "pendingApprovalIds", pendingIds,
                 "lastUpdate", java.time.Instant.now()
             );
-            
+
             Map<String, Object> response = Map.of(
                 "success", true,
                 "status", status,
                 "timestamp", java.time.Instant.now()
             );
-            
+
             return ResponseEntity.ok(response);
-            
+
         } catch (Exception e) {
             log.error("Failed to retrieve tool execution status: {}", incidentId, e);
-            
+
             Map<String, Object> errorResponse = Map.of(
                 "success", false,
                 "incidentId", incidentId,
                 "error", e.getMessage(),
                 "timestamp", java.time.Instant.now()
             );
-            
+
             return ResponseEntity.internalServerError().body(errorResponse);
         }
     }

@@ -8,7 +8,6 @@ import io.contexa.contexacoreenterprise.domain.entity.ToolExecutionContext;
 import io.contexa.contexacore.repository.SoarApprovalRequestRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
-import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import io.contexa.contexacoreenterprise.soar.event.ApprovalEvent;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -17,7 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
-import reactor.core.publisher.Mono;
+
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
@@ -33,7 +32,6 @@ public class UnifiedApprovalService implements ApprovalService {
     private final ApprovalRequestFactory approvalRequestFactory;
     private final ToolExecutionContextRepository executionContextRepository;
     private final ApprovalPolicyRepository policyRepository;
-    private final SoarApprovalNotifier soarNotifier;
     private final ApplicationEventPublisher eventPublisher;
     private final StringRedisTemplate redisTemplate;
 
@@ -378,20 +376,6 @@ public class UnifiedApprovalService implements ApprovalService {
             case "LOW" -> ApprovalRequest.RiskLevel.LOW;
             default -> ApprovalRequest.RiskLevel.MEDIUM;
         };
-    }
-
-    public Mono<Boolean> waitForApproval(String approvalId) {
-        Sinks.One<Boolean> sink = pendingSinks.get(approvalId);
-        if (sink != null) {
-            return sink.asMono();
-        }
-
-        CompletableFuture<Boolean> future = pendingApprovals.get(approvalId);
-        if (future != null) {
-            return Mono.fromFuture(future);
-        }
-
-        return Mono.error(new IllegalArgumentException("No pending approval found: " + approvalId));
     }
 
     private void publishApprovalResult(String approvalId, boolean approved) {

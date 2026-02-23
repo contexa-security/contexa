@@ -224,31 +224,11 @@ public class ApprovalRequestValidator {
 
     private void validateStatusSpecificFields(ApprovalRequest request, List<String> errors) {
         ApprovalStatus status = request.getStatus();
-        
-        switch (status) {
-            case APPROVED:
-                if (request.getApprovedBy() == null || request.getApprovedBy().trim().isEmpty()) {
-                    errors.add("APPROVED status requires approvedBy");
-                }
-                break;
-                
-            case REJECTED:
-                if (request.getRejectionReason() == null || request.getRejectionReason().trim().isEmpty()) {
-                    
-                                    }
-                break;
-                
-            case EXPIRED:
-            case CANCELLED:
-                
-                break;
-                
-            case PENDING:
-                
-                break;
-                
-            default:
-                log.error("Unknown status: {}", status);
+
+        if (status == ApprovalStatus.APPROVED) {
+            if (request.getApprovedBy() == null || request.getApprovedBy().trim().isEmpty()) {
+                errors.add("APPROVED status requires approvedBy");
+            }
         }
     }
 

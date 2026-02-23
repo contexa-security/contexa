@@ -434,10 +434,6 @@ public class PipelineSoarToolExecutionStep extends LLMExecutionStep {
             this.timeoutMs = timeoutMs;
         }
 
-        public List<String> getExecutedTools() {
-            return new ArrayList<>(executedTools);
-        }
-
         public long getElapsedTime() {
             return System.currentTimeMillis() - startTime;
         }

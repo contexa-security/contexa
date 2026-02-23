@@ -12,7 +12,6 @@ import io.contexa.contexacoreenterprise.mcp.tool.resolution.*;
 import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalAwareToolCallingManagerDecorator;
-import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
 import io.contexa.contexacoreenterprise.soar.approval.McpApprovalNotificationService;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
 import io.contexa.contexacoreenterprise.soar.config.ToolApprovalPolicyManager;
@@ -88,7 +87,6 @@ public class EnterpriseToolAutoConfiguration {
             ToolExecutionMetrics executionMetrics,
             McpApprovalNotificationService notificationService,
             ToolExecutionContextRepository contextRepository,
-            AsyncToolExecutionService asyncExecutionService,
             ObjectMapper objectMapper,
             SoarProperties soarProperties) {
 
@@ -99,7 +97,6 @@ public class EnterpriseToolAutoConfiguration {
                 executionMetrics,
                 notificationService,
                 contextRepository,
-                asyncExecutionService,
                 objectMapper,
                 soarProperties);
     }

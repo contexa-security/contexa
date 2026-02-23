@@ -27,20 +27,6 @@ public class NotificationTargetManager {
                 .toList();
     }
 
-    public List<NotificationTarget> getOnlineTargets() {
-        return targets.values().stream()
-                .filter(NotificationTarget::isOnline)
-                .toList();
-    }
-
-    public void updateWebSocketSession(String targetId, String sessionId, boolean online) {
-        NotificationTarget target = targets.get(targetId);
-        if (target != null) {
-            target.setWebSocketSessionId(sessionId);
-            target.setOnline(online);
-        }
-    }
-
     public void initializeDefaultTargets() {
         NotificationTarget adminTarget = NotificationTarget.createDefault(
                 "admin", "System Administrator", "admin@contexa.com");

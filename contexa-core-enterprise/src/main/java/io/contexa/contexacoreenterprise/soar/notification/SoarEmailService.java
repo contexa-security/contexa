@@ -181,14 +181,4 @@ public class SoarEmailService {
         };
     }
 
-    public boolean isEmailEnabled() {
-        return soarProperties.getNotification().getEmail().isEnabled();
-    }
-
-    public void validateEmailConfiguration() {
-        if (soarProperties.getNotification().getEmail().isEnabled() && mailSender == null) {
-            log.error("Email is enabled but JavaMailSender is not configured");
-            soarProperties.getNotification().getEmail().setEnabled(false);
-        }
-    }
 }

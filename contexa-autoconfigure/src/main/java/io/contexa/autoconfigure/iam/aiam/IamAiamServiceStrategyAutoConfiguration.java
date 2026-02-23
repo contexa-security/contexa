@@ -1,13 +1,7 @@
 package io.contexa.autoconfigure.iam.aiam;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.AILabFactory;
-import io.contexa.contexacoreenterprise.soar.controller.SoarActionController;
-import io.contexa.contexacoreenterprise.soar.controller.SoarSimulationController;
-import io.contexa.contexacoreenterprise.soar.service.SoarActionService;
-import io.contexa.contexacoreenterprise.soar.service.SoarSimulationService;
-import io.contexa.contexacoreenterprise.soar.service.SoarToolCallingService;
 import io.contexa.contexaiam.aiam.service.DataIngestionServiceImpl;
 import io.contexa.contexaiam.aiam.strategy.ConditionTemplateDiagnosisStrategy;
 import io.contexa.contexaiam.aiam.strategy.PolicyGenerationDiagnosisStrategy;
@@ -15,13 +9,9 @@ import io.contexa.contexaiam.aiam.strategy.ResourceNamingDiagnosisStrategy;
 import io.contexa.contexaiam.aiam.strategy.StudioQueryDiagnosisStrategy;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 
 @AutoConfiguration

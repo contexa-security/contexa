@@ -12,8 +12,6 @@ public class SoarProperties {
 
     private int topK = 20;
 
-    private int lookbackHours = 24;
-
     @NestedConfigurationProperty
     private ApprovalSettings approval = new ApprovalSettings();
 
@@ -25,8 +23,6 @@ public class SoarProperties {
 
     @Data
     public static class ApprovalSettings {
-        private boolean enabled = true;
-        private int order = 100;
         private int timeout = 300;
     }
 

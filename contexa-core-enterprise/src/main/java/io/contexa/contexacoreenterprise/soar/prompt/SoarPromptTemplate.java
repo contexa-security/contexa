@@ -7,14 +7,10 @@ import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.converter.BeanOutputConverter;
 
 @Slf4j
 @RequiredArgsConstructor
 public class SoarPromptTemplate implements PromptTemplate {
-
-     private final BeanOutputConverter<SoarResponse> responseConverter =
-         new BeanOutputConverter<>(SoarResponse.class);
 
     private static final String TOOL_EXECUTION_ROLE = """
         당신은 SOAR 보안 도구 실행 시스템입니다.

@@ -19,7 +19,9 @@ import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.model.tool.ToolExecutionResult;
 import org.springframework.ai.tool.ToolCallback;
+import org.springframework.ai.model.tool.DefaultToolCallingManager;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +41,8 @@ public class AsyncToolExecutionService {
     private final ChainedToolResolver chainedToolResolver;
 
     @Autowired(required = false)
-    private ApprovalAwareToolCallingManagerDecorator toolCallingManager;
+    @Qualifier("defaultToolCallingManager")
+    private DefaultToolCallingManager toolCallingManager;
 
     private final Map<String, CompletableFuture<ToolExecutionResult>> executingTasks = new ConcurrentHashMap<>();
 
@@ -308,29 +311,4 @@ public class AsyncToolExecutionService {
         }
     }
 
-    @Transactional
-    public void retryFailedTools() {
-        try {
-            List<ToolExecutionContext> retryableContexts =
-                    contextRepository.findRetryableContexts(LocalDateTime.now());
-
-            for (ToolExecutionContext context : retryableContexts) {
-                if (context.canRetry()) {
-
-                    context.setStatus("APPROVED");
-                    contextRepository.save(context);
-                }
-            }
-        } catch (Exception e) {
-            log.error("Error processing failed tool retries", e);
-        }
-    }
-
-    public int getExecutingTaskCount() {
-        return executingTasks.size();
-    }
-
-    public boolean isExecuting(String requestId) {
-        return executingTasks.containsKey(requestId);
-    }
 }

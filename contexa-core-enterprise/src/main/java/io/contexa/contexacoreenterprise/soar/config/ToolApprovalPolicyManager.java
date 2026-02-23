@@ -206,28 +206,6 @@ public class ToolApprovalPolicyManager {
         return value.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(Locale.ROOT);
     }
 
-    public Map<String, Object> getAllPolicies() {
-        Map<String, Object> allPolicies = new HashMap<>();
-        allPolicies.put("toolPolicies", toolPolicies);
-        allPolicies.put("patternPolicies", patternPolicies);
-        allPolicies.put("defaultPolicy", defaultPolicy);
-        return allPolicies;
-    }
-
-    public Map<String, Object> getPolicyStatistics() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalToolPolicies", toolPolicies.size());
-        stats.put("totalPatternPolicies", patternPolicies.size());
-
-        Map<SoarTool.RiskLevel, Integer> riskDistribution = new HashMap<>();
-        for (ApprovalPolicy policy : toolPolicies.values()) {
-            riskDistribution.merge(policy.getRiskLevel(), 1, Integer::sum);
-        }
-        stats.put("riskDistribution", riskDistribution);
-        
-        return stats;
-    }
-
     @Data
     public static class ApprovalPolicy {
         private boolean requiresApproval;

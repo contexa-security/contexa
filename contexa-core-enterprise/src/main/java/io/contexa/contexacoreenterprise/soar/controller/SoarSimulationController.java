@@ -5,9 +5,6 @@ import io.contexa.contexacoreenterprise.soar.service.SoarSimulationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.ResponseEntity;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.handler.annotation.Payload;
-import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -135,33 +132,6 @@ public class SoarSimulationController {
             .build());
     }
 
-    @MessageMapping("/soar/pipeline/update")
-    @SendTo("/topic/soar/pipeline")
-    public PipelineUpdateMessage handlePipelineUpdate(@Payload PipelineUpdateMessage update) {
-                return update;
-    }
-
-    @MessageMapping("/soar/tool/request")
-    @SendTo("/topic/soar/tools")
-    public ToolExecutionMessage handleToolRequest(@Payload ToolExecutionMessage request) {
-                return request;
-    }
-    
-    private void notifySimulationStart(String sessionId, SimulationStartRequest request) {
-        SimulationEvent event = SimulationEvent.builder()
-            .sessionId(sessionId)
-            .eventType("SIMULATION_STARTED")
-            .data(Map.of(
-                "incidentId", request.getIncidentId(),
-                "threatType", request.getThreatType(),
-                "severity", request.getSeverity()
-            ))
-            .timestamp(LocalDateTime.now())
-            .build();
-
-        brokerTemplate.convertAndSend("/topic/soar/events", event);
-    }
-    
     private void notifyApprovalResult(ApprovalRequest request) {
         Map<String, Object> event = new java.util.HashMap<>();
         event.put("sessionId", request.getSessionId());
