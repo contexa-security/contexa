@@ -4,5 +4,4 @@ public interface ISecurityPlaneAgent {
 
     void start();
     void stop();
-    boolean isRunning();
 }

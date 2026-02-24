@@ -135,7 +135,13 @@
       "Bash(for file in /d/projects/contexa/contexa-core-enterprise/src/main/java/io/contexa/contexacoreenterprise/mcp/**/*.java)",
       "Bash(do grep -H \"extends\\\\|implements\" \"$file\")",
       "Bash(head:*)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "WebFetch(domain:www.runlayer.com)",
+      "WebFetch(domain:venturebeat.com)",
+      "WebFetch(domain:techcrunch.com)",
+      "WebFetch(domain:www.techbuddies.io)",
+      "WebFetch(domain:www.felicis.com)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []
