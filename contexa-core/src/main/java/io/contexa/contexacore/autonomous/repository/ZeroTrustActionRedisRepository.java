@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.repository;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -9,6 +10,8 @@ import org.springframework.data.redis.core.RedisOperations;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -28,6 +31,18 @@ public class ZeroTrustActionRedisRepository {
     public ZeroTrustAction getCurrentAction(String userId) {
         if (userId == null || userId.isBlank()) {
             return ZeroTrustAction.PENDING_ANALYSIS;
+        }
+
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes)
+                    RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                String contextBindingHash = SessionFingerprintUtil
+                        .generateContextBindingHash(attrs.getRequest());
+                return getCurrentAction(userId, contextBindingHash);
+            }
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to get request context, falling back to non-context check: userId={}", userId, e);
         }
 
         try {
@@ -296,9 +311,11 @@ public class ZeroTrustActionRedisRepository {
             String lastActionKey = ZeroTrustRedisKeys.hcadLastVerifiedAction(userId);
             stringRedisTemplate.opsForValue().set(lastActionKey, newAction.name(), LAST_VERIFIED_ACTION_TTL);
 
+            String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
             if (contextBindingHash != null) {
-                String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
                 stringRedisTemplate.opsForValue().set(lastContextKey, contextBindingHash, LAST_VERIFIED_ACTION_TTL);
+            } else {
+                stringRedisTemplate.delete(lastContextKey);
             }
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to save action with previous and context: userId={}, action={}", userId, newAction, e);

@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
@@ -12,6 +13,8 @@ import org.springframework.security.access.PermissionEvaluator;
 import org.springframework.security.access.expression.method.MethodSecurityExpressionOperations;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
@@ -53,7 +56,8 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             return ZeroTrustAction.PENDING_ANALYSIS;
         }
 
-        String actionCacheKey = "action:" + userId;
+        String contextHash = resolveContextBindingHash();
+        String actionCacheKey = "action:" + userId + (contextHash != null ? ":" + contextHash : "");
         ZeroTrustAction cachedAction = getActionFromLocalCache(actionCacheKey);
         if (cachedAction != null) {
             return cachedAction;
@@ -65,6 +69,19 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             putActionToLocalCache(actionCacheKey, action);
         }
         return action;
+    }
+
+    private String resolveContextBindingHash() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes)
+                    RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                return SessionFingerprintUtil.generateContextBindingHash(attrs.getRequest());
+            }
+        } catch (Exception e) {
+            // Non-web context - no context hash available
+        }
+        return null;
     }
 
     @Override

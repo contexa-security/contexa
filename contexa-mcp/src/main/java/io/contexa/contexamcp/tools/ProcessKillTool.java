@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -159,21 +158,13 @@ public class ProcessKillTool {
         ProcessInfo info = new ProcessInfo();
 
         if (processId != null) {
-
             info.pid = processId;
             info.name = getProcessNameByPid(processId);
-            info.ppid = getParentPid(processId);
         } else {
-
             info.name = processName;
             info.pid = findProcessIdByName(processName);
-            info.ppid = getParentPid(info.pid);
         }
 
-        info.user = "system";
-        info.startTime = LocalDateTime.now().minusHours(2).toString();
-        info.memoryUsage = "256MB";
-        info.cpuUsage = "15%";
         info.childPids = getChildProcesses(info.pid);
 
         return info;
@@ -257,13 +248,7 @@ public class ProcessKillTool {
     }
 
     private String getProcessNameByPid(int pid) {
-
         return "malware.exe";
-    }
-
-    private int getParentPid(int pid) {
-
-        return pid > 1000 ? pid - 100 : 1;
     }
 
     private int findProcessIdByName(String name) {
@@ -307,12 +292,7 @@ public class ProcessKillTool {
 
     private static class ProcessInfo {
         int pid;
-        int ppid;
         String name;
-        String user;
-        String startTime;
-        String memoryUsage;
-        String cpuUsage;
         List<Integer> childPids;
     }
 }

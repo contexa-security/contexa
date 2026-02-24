@@ -9,36 +9,17 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
 @UtilityClass
 public class SecurityToolUtils {
 
-    private static final Pattern IPV4_PATTERN = Pattern.compile(
-        "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$"
-    );
+    private static final String IPV4_REGEX =
+        "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$";
 
-    private static final Pattern IPV6_PATTERN = Pattern.compile(
-        "^(([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}|" +
-        "([0-9a-fA-F]{1,4}:){1,7}:|" +
-        "([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}|" +
-        "([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}|" +
-        "([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}|" +
-        "([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}|" +
-        "([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}|" +
-        "[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})|" +
-        ":((:[0-9a-fA-F]{1,4}){1,7}|:))$"
-    );
-
-    private static final Pattern DOMAIN_PATTERN = Pattern.compile(
-        "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
-    );
-
-    private static final Pattern PORT_PATTERN = Pattern.compile(
-        "^([1-9]|[1-9]\\d{1,3}|[1-5]\\d{4}|6[0-4]\\d{3}|65[0-4]\\d{2}|655[0-2]\\d|6553[0-5])$"
-    );
+    private static final String DOMAIN_REGEX =
+        "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$";
     
     private static final DateTimeFormatter AUDIT_DATE_FORMAT = 
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
@@ -70,18 +51,7 @@ public class SecurityToolUtils {
         if (!StringUtils.hasText(ip)) {
             return false;
         }
-        return IPV4_PATTERN.matcher(ip.trim()).matches();
-    }
-
-    public static boolean isValidIpv6Address(String ip) {
-        if (!StringUtils.hasText(ip)) {
-            return false;
-        }
-        return IPV6_PATTERN.matcher(ip.trim()).matches();
-    }
-
-    public static boolean isValidIpAddress(String ip) {
-        return isValidIpv4Address(ip) || isValidIpv6Address(ip);
+        return ip.trim().matches(IPV4_REGEX);
     }
 
     public static boolean isInternalIpAddress(String ip) {
@@ -130,19 +100,8 @@ public class SecurityToolUtils {
         if (domain.length() > 253) {
             return false;
         }
-        
-        return DOMAIN_PATTERN.matcher(domain.trim()).matches();
-    }
 
-    public static boolean isValidPort(int port) {
-        return port >= 1 && port <= 65535;
-    }
-
-    public static boolean isValidPort(String portStr) {
-        if (!StringUtils.hasText(portStr)) {
-            return false;
-        }
-        return PORT_PATTERN.matcher(portStr.trim()).matches();
+        return domain.trim().matches(DOMAIN_REGEX);
     }
 
     public static String sanitizeForLog(String input) {
@@ -163,14 +122,6 @@ public class SecurityToolUtils {
             .replaceAll("secret=\\S+", "secret=***");
         
         return sanitized;
-    }
-
-    public static String calculateThreatLevel(int score) {
-        if (score >= 80) return "CRITICAL";
-        if (score >= 60) return "HIGH";
-        if (score >= 40) return "MEDIUM";
-        if (score >= 20) return "LOW";
-        return "MINIMAL";
     }
 
     public static void recordMetric(String toolName, String metricName, Object value) {
