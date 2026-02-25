@@ -304,6 +304,12 @@ public class SecurityPromptTemplate {
             section.append(".\n");
         }
 
+        if (behaviorAnalysis != null && Boolean.TRUE.equals(behaviorAnalysis.getContextBindingHashMismatch())) {
+            section.append("ALERT: Context binding hash MISMATCH detected. ");
+            section.append("The session fingerprint (IP+UserAgent+SessionId) does not match ");
+            section.append("the stored binding hash. This is a strong indicator of session hijacking.\n");
+        }
+
         Integer requestCount = sessionContext.getRequestCount();
         if (requestCount != null && requestCount > 0) {
             if (sessionAge != null && sessionAge > 0) {
@@ -311,6 +317,15 @@ public class SecurityPromptTemplate {
                 section.append(String.format(
                         "Requests in this session: %d (%.1f per minute).\n",
                         requestCount, requestsPerMinute));
+
+                if (behaviorAnalysis != null && behaviorAnalysis.getBaselineAvgRequestRate() != null
+                        && behaviorAnalysis.getBaselineAvgRequestRate() > 0) {
+                    double baselineRate = behaviorAnalysis.getBaselineAvgRequestRate();
+                    double ratio = requestsPerMinute / baselineRate;
+                    section.append(String.format(
+                            "Baseline average request rate: %.1f per minute (current is %.1fx of baseline).\n",
+                            baselineRate, ratio));
+                }
             } else {
                 section.append(String.format("Requests in this session: %d.\n", requestCount));
             }
@@ -889,6 +904,9 @@ public class SecurityPromptTemplate {
         private Long lastRequestIntervalMs;
         private String previousPath;
 
+        private Boolean contextBindingHashMismatch;
+        private Double baselineAvgRequestRate;
+
         public List<String> getSimilarEvents() {
             return similarEvents != null ? similarEvents : List.of();
         }
@@ -1031,6 +1049,22 @@ public class SecurityPromptTemplate {
 
         public void setPreviousPath(String previousPath) {
             this.previousPath = previousPath;
+        }
+
+        public Boolean getContextBindingHashMismatch() {
+            return contextBindingHashMismatch;
+        }
+
+        public void setContextBindingHashMismatch(Boolean contextBindingHashMismatch) {
+            this.contextBindingHashMismatch = contextBindingHashMismatch;
+        }
+
+        public Double getBaselineAvgRequestRate() {
+            return baselineAvgRequestRate;
+        }
+
+        public void setBaselineAvgRequestRate(Double baselineAvgRequestRate) {
+            this.baselineAvgRequestRate = baselineAvgRequestRate;
         }
     }
 }

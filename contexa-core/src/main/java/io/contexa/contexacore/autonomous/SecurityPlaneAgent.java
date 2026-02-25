@@ -135,11 +135,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         }
     }
 
-    @Override
-    public boolean isRunning() {
-        return running.get() && currentState == AgentState.RUNNING;
-    }
-
     @Autowired
     @Qualifier("llmAnalysisExecutor")
     private Executor llmAnalysisExecutor;

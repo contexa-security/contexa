@@ -74,6 +74,16 @@ public class ZeroTrustRedisKeys {
         return String.format("security:blocked:users:%s", userId);
     }
 
+    public static String blockMfaPending(String userId) {
+        validateUserId(userId);
+        return String.format("%s:block:mfa:pending:%s", NAMESPACE, userId);
+    }
+
+    public static String blockMfaVerified(String userId) {
+        validateUserId(userId);
+        return String.format("%s:block:mfa:verified:%s", NAMESPACE, userId);
+    }
+
     public static String userBlockCount(String userId) {
         validateUserId(userId);
         return String.format("%s:user:block:count:%s", NAMESPACE, userId);

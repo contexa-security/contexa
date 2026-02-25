@@ -1,0 +1,1274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contexa — AI-Native Security Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Pretendard:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080E17;
+    --bg2: #0D1B2A;
+    --surface: #111E2E;
+    --border: #1B2F45;
+    --red: #E63946;
+    --cyan: #00C2E0;
+    --gold: #FFD166;
+    --green: #06D6A0;
+    --text: #E8EDF2;
+    --muted: #5A7A96;
+    --serif: 'DM Serif Display', Georgia, serif;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Pretendard', -apple-system, sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-weight: 300;
+    overflow-x: hidden;
+  }
+
+  /* ── NOISE OVERLAY ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 0.4;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 48px;
+    background: rgba(8, 14, 23, 0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(27, 47, 69, 0.5);
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    letter-spacing: 0.15em;
+    text-decoration: none;
+  }
+
+  .nav-logo span { color: var(--cyan); }
+
+  .nav-links {
+    display: flex;
+    gap: 36px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--cyan); }
+
+  .nav-cta {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--bg);
+    background: var(--cyan);
+    padding: 8px 20px;
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    transition: opacity 0.2s;
+  }
+
+  .nav-cta:hover { opacity: 0.85; }
+
+  /* ── HERO ── */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 120px 48px 80px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero-bg-circle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .hero-bg-circle:nth-child(1) {
+    width: 700px; height: 700px;
+    right: -200px; top: -150px;
+    background: radial-gradient(circle, rgba(0,194,224,0.06) 0%, transparent 70%);
+  }
+
+  .hero-bg-circle:nth-child(2) {
+    width: 500px; height: 500px;
+    right: 50px; top: 100px;
+    background: radial-gradient(circle, rgba(230,57,70,0.05) 0%, transparent 70%);
+  }
+
+  .hero-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--red);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: fadeUp 0.8s ease forwards 0.2s;
+  }
+
+  .hero-title {
+    font-family: var(--serif);
+    font-size: clamp(48px, 7vw, 96px);
+    line-height: 1.05;
+    max-width: 820px;
+    margin-bottom: 32px;
+    opacity: 0;
+    animation: fadeUp 0.9s ease forwards 0.4s;
+  }
+
+  .hero-title em {
+    font-style: italic;
+    color: var(--cyan);
+  }
+
+  .hero-title .strike {
+    position: relative;
+    color: var(--muted);
+  }
+
+  .hero-title .strike::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0;
+    top: 50%;
+    height: 2px;
+    background: var(--red);
+    transform: translateY(-50%);
+  }
+
+  .hero-sub {
+    font-size: 17px;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.7;
+    margin-bottom: 48px;
+    opacity: 0;
+    animation: fadeUp 0.9s ease forwards 0.6s;
+  }
+
+  .hero-sub strong { color: var(--text); font-weight: 500; }
+
+  .hero-actions {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    opacity: 0;
+    animation: fadeUp 0.9s ease forwards 0.8s;
+  }
+
+  .btn-primary {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--bg);
+    background: var(--cyan);
+    padding: 14px 32px;
+    text-decoration: none;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-primary:hover {
+    background: #00d4f5;
+    transform: translateY(-1px);
+  }
+
+  .btn-ghost {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 14px 32px;
+    text-decoration: none;
+    transition: all 0.2s;
+  }
+
+  .btn-ghost:hover {
+    color: var(--text);
+    border-color: var(--cyan);
+  }
+
+  /* ── STATS BAR ── */
+  .stats-bar {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    opacity: 0;
+    animation: fadeUp 0.9s ease forwards 1s;
+  }
+
+  .stat-item {
+    padding: 32px 48px;
+    border-right: 1px solid var(--border);
+  }
+
+  .stat-item:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: var(--serif);
+    font-size: 48px;
+    color: var(--cyan);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-num.red { color: var(--red); }
+  .stat-num.gold { color: var(--gold); }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+  }
+
+  /* ── SECTION COMMON ── */
+  section { padding: 120px 48px; }
+
+  .section-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: var(--serif);
+    font-size: clamp(36px, 4vw, 56px);
+    line-height: 1.1;
+    margin-bottom: 20px;
+  }
+
+  .section-sub {
+    font-size: 16px;
+    color: var(--muted);
+    max-width: 560px;
+    line-height: 1.7;
+    margin-bottom: 64px;
+  }
+
+  /* ── PROBLEM SECTION ── */
+  .problem {
+    background: var(--bg2);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .problem::before {
+    content: '';
+    position: absolute;
+    left: -100px; top: -100px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(230,57,70,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .breach-timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-width: 900px;
+    margin-bottom: 64px;
+  }
+
+  .breach-item {
+    display: grid;
+    grid-template-columns: 120px 1fr auto;
+    align-items: center;
+    gap: 32px;
+    padding: 28px 32px;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    transition: background 0.2s;
+    position: relative;
+  }
+
+  .breach-item:last-child { border-bottom: 1px solid var(--border); }
+  .breach-item:hover { background: rgba(27,47,69,0.3); }
+
+  .breach-year {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .breach-company {
+    font-size: 15px;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .breach-desc {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .breach-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    padding: 4px 10px;
+    background: rgba(230,57,70,0.1);
+    color: var(--red);
+    border: 1px solid rgba(230,57,70,0.3);
+    white-space: nowrap;
+  }
+
+  .problem-insight {
+    max-width: 900px;
+    padding: 32px;
+    border-left: 3px solid var(--red);
+    background: rgba(230,57,70,0.05);
+  }
+
+  .problem-insight p {
+    font-family: var(--serif);
+    font-size: 22px;
+    line-height: 1.5;
+    color: var(--text);
+  }
+
+  .problem-insight p span { color: var(--red); }
+
+  /* ── VS SECTION ── */
+  .versus {
+    position: relative;
+  }
+
+  .vs-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 0;
+    max-width: 1000px;
+    align-items: stretch;
+  }
+
+  .vs-card {
+    padding: 40px;
+    border: 1px solid var(--border);
+  }
+
+  .vs-card.old {
+    background: rgba(255,255,255,0.02);
+    opacity: 0.7;
+  }
+
+  .vs-card.new {
+    background: rgba(0,194,224,0.04);
+    border-color: rgba(0,194,224,0.3);
+  }
+
+  .vs-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    margin-bottom: 24px;
+  }
+
+  .vs-card.old .vs-label { color: var(--muted); }
+  .vs-card.new .vs-label { color: var(--cyan); }
+
+  .vs-items {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .vs-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .vs-item .icon {
+    font-size: 14px;
+    margin-top: 1px;
+    flex-shrink: 0;
+  }
+
+  .vs-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 32px;
+  }
+
+  .vs-circle {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── HOW IT WORKS ── */
+  .how {
+    background: var(--bg2);
+  }
+
+  .layers {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 800px;
+  }
+
+  .layer {
+    display: grid;
+    grid-template-columns: 64px 1fr;
+    gap: 0;
+    position: relative;
+  }
+
+  .layer-num {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 32px;
+  }
+
+  .layer-num-inner {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .layer:nth-child(1) .layer-num-inner {
+    background: rgba(0,194,224,0.15);
+    color: var(--cyan);
+    border: 1px solid rgba(0,194,224,0.3);
+  }
+
+  .layer:nth-child(2) .layer-num-inner {
+    background: rgba(255,209,102,0.15);
+    color: var(--gold);
+    border: 1px solid rgba(255,209,102,0.3);
+  }
+
+  .layer:nth-child(3) .layer-num-inner {
+    background: rgba(6,214,160,0.15);
+    color: var(--green);
+    border: 1px solid rgba(6,214,160,0.3);
+  }
+
+  .layer-content {
+    padding: 28px 32px;
+    border: 1px solid var(--border);
+    border-left: none;
+    margin-bottom: 2px;
+  }
+
+  .layer-name {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .layer:nth-child(1) .layer-name { color: var(--cyan); }
+  .layer:nth-child(2) .layer-name { color: var(--gold); }
+  .layer:nth-child(3) .layer-name { color: var(--green); }
+
+  .layer-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  .layer-desc strong { color: var(--text); font-weight: 500; }
+
+  .layer-speed {
+    font-family: var(--mono);
+    font-size: 11px;
+    margin-top: 12px;
+  }
+
+  .layer:nth-child(1) .layer-speed { color: rgba(0,194,224,0.6); }
+  .layer:nth-child(2) .layer-speed { color: rgba(255,209,102,0.6); }
+  .layer:nth-child(3) .layer-speed { color: rgba(6,214,160,0.6); }
+
+  /* ── INSTALL SECTION ── */
+  .install {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .install::after {
+    content: '';
+    position: absolute;
+    right: -200px; bottom: -200px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,194,224,0.05) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .code-block {
+    background: #050B14;
+    border: 1px solid var(--border);
+    max-width: 680px;
+    margin-bottom: 40px;
+    position: relative;
+  }
+
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-dots {
+    display: flex;
+    gap: 6px;
+  }
+
+  .code-dots span {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+
+  .code-dots span:nth-child(1) { background: #FF5F57; }
+  .code-dots span:nth-child(2) { background: #FEBC2E; }
+  .code-dots span:nth-child(3) { background: #28C840; }
+
+  .code-filename {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .code-body {
+    padding: 24px;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+  }
+
+  .code-comment { color: #3D5A73; }
+  .code-keyword { color: var(--cyan); }
+  .code-string { color: var(--gold); }
+  .code-annotation { color: var(--green); }
+  .code-class { color: #C9D1D9; }
+  .code-method { color: #79C0FF; }
+
+  .install-steps {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    max-width: 900px;
+    margin-top: 48px;
+  }
+
+  .install-step {
+    padding: 28px;
+    border: 1px solid var(--border);
+    position: relative;
+  }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: 0.15em;
+    margin-bottom: 12px;
+  }
+
+  .step-title {
+    font-size: 15px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── MOAT SECTION ── */
+  .moat {
+    background: var(--bg2);
+  }
+
+  .moat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    max-width: 1000px;
+  }
+
+  .moat-item {
+    padding: 36px;
+    border: 1px solid var(--border);
+    transition: border-color 0.2s;
+  }
+
+  .moat-item:hover { border-color: rgba(0,194,224,0.3); }
+
+  .moat-icon {
+    font-size: 28px;
+    margin-bottom: 16px;
+  }
+
+  .moat-title {
+    font-size: 15px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+
+  .moat-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── KISA SECTION ── */
+  .kisa {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 64px 48px;
+    display: flex;
+    align-items: center;
+    gap: 64px;
+  }
+
+  .kisa-badge {
+    flex-shrink: 0;
+    width: 120px; height: 120px;
+    border-radius: 50%;
+    border: 2px solid var(--green);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: rgba(6,214,160,0.05);
+  }
+
+  .kisa-badge .level {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 500;
+    color: var(--green);
+  }
+
+  .kisa-badge .label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--green);
+    letter-spacing: 0.1em;
+    opacity: 0.7;
+  }
+
+  .kisa-text h3 {
+    font-family: var(--serif);
+    font-size: 28px;
+    margin-bottom: 12px;
+  }
+
+  .kisa-text p {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 600px;
+  }
+
+  .kisa-text p strong { color: var(--green); font-weight: 500; }
+
+  /* ── CTA ── */
+  .cta-section {
+    text-align: center;
+    padding: 140px 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta-section::before {
+    content: '';
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: 800px; height: 400px;
+    background: radial-gradient(ellipse, rgba(0,194,224,0.07) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .cta-eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--cyan);
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+
+  .cta-title {
+    font-family: var(--serif);
+    font-size: clamp(40px, 5vw, 72px);
+    line-height: 1.1;
+    margin-bottom: 24px;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .cta-title em { font-style: italic; color: var(--cyan); }
+
+  .cta-sub {
+    font-size: 16px;
+    color: var(--muted);
+    margin-bottom: 48px;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.7;
+  }
+
+  .cta-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-logo {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+  }
+
+  .footer-logo span { color: var(--cyan); }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+    list-style: none;
+  }
+
+  .footer-links a {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-decoration: none;
+    letter-spacing: 0.08em;
+    transition: color 0.2s;
+  }
+
+  .footer-links a:hover { color: var(--cyan); }
+
+  .footer-copy {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    opacity: 0.5;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.7s ease, transform 0.7s ease;
+  }
+
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
+
+  @media (max-width: 768px) {
+    nav { padding: 16px 24px; }
+    .nav-links { display: none; }
+    section { padding: 80px 24px; }
+    .hero { padding: 100px 24px 60px; }
+    .stats-bar { grid-template-columns: 1fr; }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+    .vs-grid { grid-template-columns: 1fr; }
+    .vs-divider { padding: 16px 0; }
+    .install-steps { grid-template-columns: 1fr; }
+    .moat-grid { grid-template-columns: 1fr; }
+    .kisa { flex-direction: column; gap: 32px; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="#" class="nav-logo">CONTE<span>X</span>A</a>
+  <ul class="nav-links">
+    <li><a href="#problem">문제</a></li>
+    <li><a href="#solution">솔루션</a></li>
+    <li><a href="#install">시작하기</a></li>
+    <li><a href="#docs">문서</a></li>
+    <li><a href="https://github.com" target="_blank">GitHub</a></li>
+  </ul>
+  <a href="#install" class="nav-cta">GET STARTED →</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-bg-circle"></div>
+  <div class="hero-bg-circle"></div>
+
+  <p class="hero-eyebrow">AI-Native Zero Trust Security Platform</p>
+
+  <h1 class="hero-title">
+    자격증명은 탈취할 수 있습니다.<br>
+    <em>행동은 복제할 수 없습니다.</em>
+  </h1>
+
+  <p class="hero-sub">
+    Spring Security 위에 Contexa 하나를 얹으면,<br>
+    <strong>기존 코드 변경 없이</strong> AI 행동 분석이 작동합니다.<br>
+    쿠팡 사태는 Contexa가 있었다면 <strong>5분 안에 차단</strong>됩니다.
+  </p>
+
+  <div class="hero-actions">
+    <a href="#install" class="btn-primary">빠른 시작 →</a>
+    <a href="#solution" class="btn-ghost">작동 원리 보기</a>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar reveal">
+  <div class="stat-item">
+    <div class="stat-num red">3년 연속</div>
+    <div class="stat-label">정상 자격증명 기반 글로벌 침해</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">5개월</div>
+    <div class="stat-label">쿠팡 — 평균 침해 미탐지 기간</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num gold">+300%</div>
+    <div class="stat-label">AI 기반 공격 증가율 (2년)</div>
+  </div>
+</div>
+
+<!-- PROBLEM -->
+<section class="problem" id="problem">
+  <div class="section-tag reveal">// THE PROBLEM</div>
+  <h2 class="section-title reveal">규칙 기반 보안은<br>구조적으로 실패합니다</h2>
+  <p class="section-sub reveal">
+    공격자는 열쇠를 훔쳤습니다. 규칙 기반 시스템은 열쇠가 유효하면 통과시킵니다.
+    Okta도, Snowflake도, 쿠팡도 — 모두 같은 이유로 뚫렸습니다.
+  </p>
+
+  <div class="breach-timeline reveal">
+    <div class="breach-item">
+      <div class="breach-year">2023</div>
+      <div>
+        <div class="breach-company">Okta</div>
+        <div class="breach-desc">정상 지원 토큰으로 고객사 수백 곳 연쇄 침해</div>
+      </div>
+      <div class="breach-tag">정상 자격증명</div>
+    </div>
+    <div class="breach-item">
+      <div class="breach-year">2024</div>
+      <div>
+        <div class="breach-company">Snowflake</div>
+        <div class="breach-desc">유효한 자격증명으로 160개 기업 동시 침해</div>
+      </div>
+      <div class="breach-tag">정상 자격증명</div>
+    </div>
+    <div class="breach-item">
+      <div class="breach-year">2024</div>
+      <div>
+        <div class="breach-company">Change Healthcare</div>
+        <div class="breach-desc">랜섬웨어, 미국 의료 시스템 전체 마비 ($22B 피해)</div>
+      </div>
+      <div class="breach-tag">내부 침투</div>
+    </div>
+    <div class="breach-item">
+      <div class="breach-year">2025</div>
+      <div>
+        <div class="breach-company">쿠팡</div>
+        <div class="breach-desc">퇴직자 인증키 5개월 방치 — 3,370만 명 유출</div>
+      </div>
+      <div class="breach-tag">정상 자격증명</div>
+    </div>
+  </div>
+
+  <div class="problem-insight reveal">
+    <p>이것은 기술의 실패가 아닙니다.<br><span>보안 패러다임의 실패입니다.</span></p>
+  </div>
+</section>
+
+<!-- VS -->
+<section class="versus" id="solution">
+  <div class="section-tag reveal">// THE SOLUTION</div>
+  <h2 class="section-title reveal">맥락으로 판단합니다</h2>
+  <p class="section-sub reveal">
+    자격증명이 아니라 행동의 진정성을 검증합니다.
+    공격자가 열쇠를 훔쳐도, 행동 환경 전체를 복제하는 것은 불가능합니다.
+  </p>
+
+  <div class="vs-grid reveal">
+    <div class="vs-card old">
+      <div class="vs-label">// 기존 보안 — 자격증명 검증</div>
+      <div class="vs-items">
+        <div class="vs-item">
+          <span class="icon">✓</span>
+          <span>ID / PW 가 맞는가?</span>
+        </div>
+        <div class="vs-item">
+          <span class="icon">✓</span>
+          <span>토큰이 유효한가?</span>
+        </div>
+        <div class="vs-item">
+          <span class="icon">✓</span>
+          <span>권한이 있는가?</span>
+        </div>
+        <div class="vs-item" style="color: var(--red); margin-top: 8px;">
+          <span class="icon">→</span>
+          <span>세 가지 통과 = 무조건 허용<br><small style="opacity:0.6">퇴직자도, 공격자도 들어온다</small></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="vs-divider">
+      <div class="vs-circle">VS</div>
+    </div>
+
+    <div class="vs-card new">
+      <div class="vs-label">// Contexa — 행동의 진정성 검증</div>
+      <div class="vs-items">
+        <div class="vs-item">
+          <span class="icon" style="color:var(--cyan)">✓</span>
+          <span>평소 접속 위치와 같은가?</span>
+        </div>
+        <div class="vs-item">
+          <span class="icon" style="color:var(--cyan)">✓</span>
+          <span>접속 시간대가 정상인가?</span>
+        </div>
+        <div class="vs-item">
+          <span class="icon" style="color:var(--cyan)">✓</span>
+          <span>디바이스 / OS / Agent 가 같은가?</span>
+        </div>
+        <div class="vs-item">
+          <span class="icon" style="color:var(--cyan)">✓</span>
+          <span>요청 흐름이 업무 패턴과 일치하는가?</span>
+        </div>
+        <div class="vs-item" style="color: var(--green); margin-top: 8px;">
+          <span class="icon">→</span>
+          <span>모두 일치해야만 허용<br><small style="opacity:0.6">행동 환경 전체를 복제하는 것은 불가능</small></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="how">
+  <div class="section-tag reveal">// HOW IT WORKS</div>
+  <h2 class="section-title reveal">3-Layer 행동 기반 분석</h2>
+  <p class="section-sub reveal">
+    모든 요청을 LLM으로 처리하지 않습니다.
+    @Protectable 민감 리소스에만 정밀 분석이 작동합니다.
+  </p>
+
+  <div class="layers reveal">
+    <div class="layer">
+      <div class="layer-num"><div class="layer-num-inner">01</div></div>
+      <div class="layer-content">
+        <div class="layer-name">Behavioral Baseline</div>
+        <div class="layer-desc">
+          사용자의 <strong>행동 지문</strong>을 수집합니다. 위치 · 시간 · 디바이스 · OS · Agent · 요청 흐름.
+          리소스 정보를 제외한 순수한 행동 패턴만 학습합니다.
+        </div>
+        <div class="layer-speed">처리시간: &lt; 10ms</div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-num"><div class="layer-num-inner">02</div></div>
+      <div class="layer-content">
+        <div class="layer-name">RAG 유사도 분석</div>
+        <div class="layer-desc">
+          과거 <strong>허용된 정상 패턴</strong>과 현재 요청을 비교합니다.
+          Deny 패턴 저장 금지로 RAG 오염 공격을 원천 차단합니다.
+        </div>
+        <div class="layer-speed">처리시간: &lt; 100ms</div>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-num"><div class="layer-num-inner">03</div></div>
+      <div class="layer-content">
+        <div class="layer-name">LLM 최종 판단 — @Protectable 전용</div>
+        <div class="layer-desc">
+          <strong>민감 리소스 접근 시에만</strong> 의미와 맥락으로 판단합니다.
+          규칙 없이 의도를 읽습니다. 새로운 공격 패턴도 별도 업데이트 없이 탐지합니다.
+        </div>
+        <div class="layer-speed">처리시간: 비동기 백그라운드 처리</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL -->
+<section class="install" id="install">
+  <div class="section-tag reveal">// QUICK START</div>
+  <h2 class="section-title reveal">의존성 하나면 됩니다</h2>
+  <p class="section-sub reveal">
+    기존 Spring Security 코드를 변경하지 않아도 됩니다.
+    Contexa는 Spring Security 위에서 작동합니다.
+  </p>
+
+  <div class="code-block reveal">
+    <div class="code-header">
+      <div class="code-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="code-filename">build.gradle</div>
+    </div>
+    <div class="code-body">
+      <span class="code-comment">// 1. 의존성 추가</span><br>
+      <span class="code-keyword">implementation</span> <span class="code-string">'io.contexa:spring-boot-starter-contexa:1.0.0'</span>
+    </div>
+  </div>
+
+  <div class="code-block reveal">
+    <div class="code-header">
+      <div class="code-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="code-filename">UserController.java</div>
+    </div>
+    <div class="code-body">
+      <span class="code-comment">// 2. 민감 리소스에 어노테이션 선언</span><br><br>
+      <span class="code-annotation">@Protectable</span><br>
+      <span class="code-annotation">@GetMapping</span>(<span class="code-string">"/api/customers"</span>)<br>
+      <span class="code-keyword">public</span> <span class="code-class">ResponseEntity</span>&lt;?&gt; <span class="code-method">getCustomers</span>() {<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment">// 기존 코드 그대로</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> customerService.<span class="code-method">findAll</span>();<br>
+      }
+    </div>
+  </div>
+
+  <div class="code-block reveal">
+    <div class="code-header">
+      <div class="code-dots">
+        <span></span><span></span><span></span>
+      </div>
+      <div class="code-filename">application.yml</div>
+    </div>
+    <div class="code-body">
+      <span class="code-comment"># 3. 모델 설정 (고객이 선택)</span><br><br>
+      <span class="code-keyword">contexa</span>:<br>
+      &nbsp;&nbsp;<span class="code-keyword">ai</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">model</span>: <span class="code-string">gpt-4o</span> &nbsp;<span class="code-comment"># or claude-3-5, ollama...</span><br>
+      &nbsp;&nbsp;<span class="code-keyword">baseline</span>:<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">learning-period</span>: <span class="code-string">7d</span><br>
+      &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">allow-cache-ttl</span>: <span class="code-string">30m</span>
+    </div>
+  </div>
+
+  <div class="install-steps reveal">
+    <div class="install-step">
+      <div class="step-num">STEP 01</div>
+      <div class="step-title">의존성 추가</div>
+      <div class="step-desc">build.gradle 또는 pom.xml에 한 줄 추가합니다.</div>
+    </div>
+    <div class="install-step">
+      <div class="step-num">STEP 02</div>
+      <div class="step-title">@Protectable 선언</div>
+      <div class="step-desc">민감 API에 어노테이션만 붙이면 자동으로 보호됩니다.</div>
+    </div>
+    <div class="install-step">
+      <div class="step-num">STEP 03</div>
+      <div class="step-title">모델 선택</div>
+      <div class="step-desc">고객 환경에 맞는 LLM을 yml에서 선택합니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- MOAT -->
+<section class="moat">
+  <div class="section-tag reveal">// TECHNICAL MOAT</div>
+  <h2 class="section-title reveal">설계로 만든 해자</h2>
+  <p class="section-sub reveal">
+    시간이 지날수록 따라잡기 어려운 구조적 차별화입니다.
+  </p>
+
+  <div class="moat-grid reveal">
+    <div class="moat-item">
+      <div class="moat-icon">🧠</div>
+      <div class="moat-title">규칙 완전 제거</div>
+      <div class="moat-desc">규칙은 공격자가 학습하고 우회합니다. Contexa는 규칙 없이 의미로 판단합니다.</div>
+    </div>
+    <div class="moat-item">
+      <div class="moat-icon">🛡️</div>
+      <div class="moat-title">RAG 오염 방지</div>
+      <div class="moat-desc">Allow 패턴만 학습합니다. Deny 저장 금지로 RAG를 역이용하는 공격을 차단합니다.</div>
+    </div>
+    <div class="moat-item">
+      <div class="moat-icon">🔒</div>
+      <div class="moat-title">리소스 레벨 제외</div>
+      <div class="moat-desc">리소스 정보가 RAG에 없어 역공학이 불가능합니다. 리소스 추가 시 재학습도 불필요합니다.</div>
+    </div>
+    <div class="moat-item">
+      <div class="moat-icon">⚡</div>
+      <div class="moat-title">Spring Native 통합</div>
+      <div class="moat-desc">Spring Security 심장부에서 작동합니다. Okta, Auth0는 외부에서 감싸는 구조입니다.</div>
+    </div>
+    <div class="moat-item">
+      <div class="moat-icon">🎯</div>
+      <div class="moat-title">최소 침습 통합</div>
+      <div class="moat-desc">기존 코드 변경 없이 어노테이션 하나로 작동합니다. 전면 교체가 필요 없습니다.</div>
+    </div>
+    <div class="moat-item">
+      <div class="moat-icon">🔓</div>
+      <div class="moat-title">오픈소스 Core</div>
+      <div class="moat-desc">Spring 생태계 표준으로 자리잡습니다. 5,000명 현직 개발자 채널로 즉시 확산됩니다.</div>
+    </div>
+  </div>
+</section>
+
+<!-- KISA -->
+<div class="kisa reveal">
+  <div class="kisa-badge">
+    <div class="level">L4</div>
+    <div class="label">ZERO TRUST</div>
+    <div class="label">AUTONOMOUS</div>
+  </div>
+  <div class="kisa-text">
+    <h3>KISA 제로트러스트 2.0 — 초과 달성</h3>
+    <p>
+      KISA가 요구하는 AI/ML 기반 동적 신뢰 평가, 자동화된 SOAR, 지속적 학습 루프, 행동 기반 이상 탐지를
+      <strong>이미 모두 구현했습니다.</strong> 정부 청사진은 Contexa에게 미래 과제가 아닌 현재입니다.
+    </p>
+  </div>
+</div>
+
+<!-- CTA -->
+<section class="cta-section">
+  <div class="cta-eyebrow">// GET STARTED TODAY</div>
+  <h2 class="cta-title">
+    다음 침해는<br><em>Contexa</em>가 막습니다
+  </h2>
+  <p class="cta-sub">
+    Spring 개발자라면 오늘 바로 시작할 수 있습니다.
+    의존성 하나, 어노테이션 하나면 됩니다.
+  </p>
+  <div class="cta-actions">
+    <a href="#" class="btn-primary">문서 보기 →</a>
+    <a href="https://github.com" class="btn-ghost" target="_blank">GitHub ↗</a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">CONTE<span>X</span>A</div>
+  <ul class="footer-links">
+    <li><a href="#">문서</a></li>
+    <li><a href="#">GitHub</a></li>
+    <li><a href="#">데모</a></li>
+    <li><a href="#">Enterprise</a></li>
+    <li><a href="#">문의</a></li>
+  </ul>
+  <div class="footer-copy">© 2025 Contexa. AI-Native Security Platform.</div>
+</footer>
+
+<script>
+  // Scroll reveal
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry, i) => {
+      if (entry.isIntersecting) {
+        setTimeout(() => {
+          entry.target.classList.add('visible');
+        }, 80);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // Stagger children in groups
+  document.querySelectorAll('.breach-timeline .breach-item, .layers .layer, .moat-grid .moat-item, .install-steps .install-step').forEach((el, i) => {
+    el.style.transitionDelay = `${i * 80}ms`;
+    el.classList.add('reveal');
+    observer.observe(el);
+  });
+</script>
+
+</body>
+</html>

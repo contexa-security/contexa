@@ -34,8 +34,6 @@ public class PolicyApprovalService {
     @Autowired(required = false)
     private PolicyActivationService policyActivationService;
 
-    private static final Duration WORKFLOW_TTL = Duration.ofDays(7);
-
     private final Map<Long, ApprovalWorkflow> memoryWorkflows = new ConcurrentHashMap<>();
 
     @Transactional
@@ -222,8 +220,7 @@ public class PolicyApprovalService {
         PolicyEvolutionProposal proposal = proposalRepository.findById(proposalId)
             .orElseThrow(() -> new ApprovalException("Proposal not found: " + proposalId));
         
-        if (proposal.getStatus() != ProposalStatus.PENDING && 
-            proposal.getStatus() != ProposalStatus.APPROVED) {
+        if (proposal.getStatus() != ProposalStatus.PENDING) {
             throw new ApprovalException("Proposal is not in valid state for approval: " + 
                 proposal.getStatus());
         }
@@ -239,9 +236,8 @@ public class PolicyApprovalService {
             return Approver.builder()
                 .approverId(parts[0])
                 .name(parts.length > 1 ? parts[1] : parts[0])
-                .email(parts.length > 2 ? parts[2] : "approver@contexa.com")
+                .email(parts.length > 2 ? parts[2] : governanceProperties.getApproval().getDefaultEmail())
                 .level(level)
-                .currentWorkload(0)
                 .build();
         }
         return createDefaultApprover(level);
@@ -251,9 +247,8 @@ public class PolicyApprovalService {
         return Approver.builder()
             .approverId("DEFAULT_" + level.name())
             .name("Default " + level.name() + " Approver")
-            .email("approver@contexa.com")
+            .email(governanceProperties.getApproval().getDefaultEmail())
             .level(level)
-            .currentWorkload(0)
             .build();
     }
     
@@ -288,7 +283,7 @@ public class PolicyApprovalService {
             .approver(approver)
             .status(RequestStatus.PENDING)
             .createdAt(LocalDateTime.now())
-            .expiresAt(LocalDateTime.now().plusDays(3))
+            .expiresAt(LocalDateTime.now().plusDays(governanceProperties.getApproval().getExpiryDays()))
             .proposalSummary(createProposalSummary(proposal))
             .build();
     }
@@ -364,7 +359,8 @@ public class PolicyApprovalService {
             proposalRepository.save(proposal);
         }
 
-        removeWorkflow(workflow.getProposalId());
+        workflow.setStatus(WorkflowStatus.COMPLETED);
+        saveWorkflow(workflow.getProposalId(), workflow);
     }
     
     private void initiateNextApproval(ApprovalWorkflow workflow) {
@@ -446,26 +442,24 @@ public class PolicyApprovalService {
     }
 
     private void saveWorkflow(Long proposalId, ApprovalWorkflow workflow) {
+        // Write-through: always save to memory for consistency
+        memoryWorkflows.put(proposalId, workflow);
+
         if (isRedisAvailable()) {
             try {
-                
                 String key = ZeroTrustRedisKeys.approvalWorkflow(proposalId);
-                redisTemplate.opsForValue().set(key, workflow, WORKFLOW_TTL);
+                redisTemplate.opsForValue().set(key, workflow, Duration.ofDays(governanceProperties.getApproval().getWorkflowTtlDays()));
 
                 String indexKey = ZeroTrustRedisKeys.approvalWorkflowIndex();
                 redisTemplate.opsForSet().add(indexKey, proposalId);
 
                 for (ApprovalRequest request : workflow.getRequests()) {
                     String requestKey = ZeroTrustRedisKeys.approvalRequest(request.getRequestId());
-                    redisTemplate.opsForValue().set(requestKey, proposalId, WORKFLOW_TTL);
+                    redisTemplate.opsForValue().set(requestKey, proposalId, Duration.ofDays(governanceProperties.getApproval().getWorkflowTtlDays()));
                 }
-
-                            } catch (Exception e) {
-                log.error("Redis save failed, memory fallback: {}", e.getMessage());
-                memoryWorkflows.put(proposalId, workflow);
+            } catch (Exception e) {
+                log.error("Redis save failed, memory fallback active: {}", e.getMessage());
             }
-        } else {
-            memoryWorkflows.put(proposalId, workflow);
         }
     }
 
@@ -588,7 +582,6 @@ public class PolicyApprovalService {
         private String name;
         private String email;
         private ApproverLevel level;
-        private int currentWorkload;
     }
 
     @lombok.Builder
@@ -622,7 +615,8 @@ public class PolicyApprovalService {
     public enum WorkflowStatus {
         PENDING,
         APPROVED,
-        REJECTED
+        REJECTED,
+        COMPLETED
     }
 
     public enum RequestStatus {

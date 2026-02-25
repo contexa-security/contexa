@@ -17,8 +17,6 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import org.springframework.beans.factory.annotation.Autowired;
-import reactor.core.publisher.Mono;
-
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -32,7 +30,6 @@ public class PolicyEvolutionEngine {
     private static final Pattern INLINE_CODE_PATTERN = Pattern.compile("`([^`]+)`");
     private static final Pattern NUMERIC_IMPACT_PATTERN = Pattern.compile(
             "(?:영향도|효과|impact|effectiveness|score)\\s*[:=]\\s*(0\\.\\d+|1\\.0)", Pattern.CASE_INSENSITIVE);
-    private static final Pattern DECIMAL_VALUE_PATTERN = Pattern.compile("\\b(0\\.[0-9]{1,2})\\b");
     private static final Pattern PERCENTAGE_IMPACT_PATTERN = Pattern.compile(
             "(?:영향도|효과|impact|effectiveness)\\s*[:=]?\\s*(\\d{1,3})%", Pattern.CASE_INSENSITIVE);
     private static final Pattern CONFIDENCE_SCORE_PATTERN = Pattern.compile(
@@ -181,11 +178,6 @@ public class PolicyEvolutionEngine {
             case LOW -> PolicyEvolutionProposal.RiskLevel.LOW;
             default -> PolicyEvolutionProposal.RiskLevel.MEDIUM;
         };
-    }
-
-    public Mono<PolicyEvolutionProposal> evolvePolicyAsync(SecurityEvent event, LearningMetadata metadata) {
-        return Mono.fromCallable(() -> evolvePolicy(event, metadata))
-                .doOnError(e -> log.error("Async policy evolution failed", e));
     }
 
     private Map<String, Object> collectContext(SecurityEvent event, LearningMetadata metadata) {
@@ -369,7 +361,7 @@ public class PolicyEvolutionEngine {
 
             return result;
         } catch (Exception e) {
-            
+
             if (metricsCollector != null) {
                 long duration = System.currentTimeMillis() - startTime;
                 metricsCollector.recordAICall(duration, "chatModel", false);
@@ -383,7 +375,7 @@ public class PolicyEvolutionEngine {
             }
 
             log.error("AI call failed", e);
-            return "AI analysis failed: " + e.getMessage();
+            throw new RuntimeException("AI call failed: " + e.getMessage(), e);
         }
     }
 
@@ -452,18 +444,15 @@ public class PolicyEvolutionEngine {
 
     private String extractSpelExpression(String aiResponse) {
         if (aiResponse == null || aiResponse.isEmpty()) {
-            
             if (metricsCollector != null) {
                 metricsCollector.recordSpelExtraction("empty_response", false);
             }
-            return "isAuthenticated()";
+            return null;
         }
 
         try {
-            
             String spelExpression = extractFromCodeBlock(aiResponse);
             if (spelExpression != null) {
-                
                 if (metricsCollector != null) {
                     metricsCollector.recordSpelExtraction("code_block", true);
                 }
@@ -472,7 +461,6 @@ public class PolicyEvolutionEngine {
 
             spelExpression = extractSpelFunctionPattern(aiResponse);
             if (spelExpression != null) {
-
                 if (metricsCollector != null) {
                     metricsCollector.recordSpelExtraction("function_pattern", true);
                 }
@@ -480,14 +468,14 @@ public class PolicyEvolutionEngine {
             }
 
         } catch (Exception e) {
-            log.error("SpEL expression extraction failed, using default: {}", e.getMessage());
+            log.error("SpEL expression extraction failed: {}", e.getMessage());
         }
 
         if (metricsCollector != null) {
-            metricsCollector.recordSpelExtraction("fallback_default", false);
+            metricsCollector.recordSpelExtraction("extraction_failed", false);
         }
 
-        return "isAuthenticated()";
+        return null;
     }
 
     private String extractFromCodeBlock(String aiResponse) {
@@ -592,20 +580,7 @@ public class PolicyEvolutionEngine {
                     return value;
                 }
             } catch (NumberFormatException e) {
-                            }
-        }
-
-        matcher = DECIMAL_VALUE_PATTERN.matcher(aiResponse);
-
-        while (matcher.find()) {
-            try {
-                double value = Double.parseDouble(matcher.group(1));
-                
-                if (value >= 0.0 && value <= 1.0) {
-                    return value;
-                }
-            } catch (NumberFormatException e) {
-                
+                // fall through to return null
             }
         }
 
@@ -721,7 +696,7 @@ public class PolicyEvolutionEngine {
             LearningMetadata metadata) {
 
         return switch (metadata.getLearningType()) {
-            case THREAT_RESPONSE -> PolicyEvolutionProposal.ProposalType.CREATE_POLICY;
+            case THREAT_RESPONSE -> PolicyEvolutionProposal.ProposalType.THREAT_RESPONSE;
             case ACCESS_PATTERN -> PolicyEvolutionProposal.ProposalType.OPTIMIZE_RULE;
             case POLICY_FEEDBACK -> PolicyEvolutionProposal.ProposalType.UPDATE_POLICY;
             case FALSE_POSITIVE_LEARNING -> PolicyEvolutionProposal.ProposalType.ADJUST_THRESHOLD;

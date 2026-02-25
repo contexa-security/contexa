@@ -1,9 +1,11 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
+import io.contexa.contexamcp.adapter.ThreatIntelligenceAdapter;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
@@ -12,6 +14,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
+@RequiredArgsConstructor
 @SoarTool(
         name = "threat_intelligence",
         description = "Query threat intelligence for IoCs and threat actors",
@@ -26,14 +29,7 @@ import java.util.*;
 )
 public class ThreatIntelligenceTool {
 
-    private static final Map<String, ThreatInfo> THREAT_DATABASE = new HashMap<>();
-    private static final Map<String, List<String>> THREAT_ACTOR_DATABASE = new HashMap<>();
-
-    static {
-
-        initializeThreatDatabase();
-        initializeThreatActors();
-    }
+    private final ThreatIntelligenceAdapter threatIntelAdapter;
 
     @Tool(
             name = "threat_intelligence",
@@ -57,33 +53,17 @@ public class ThreatIntelligenceTool {
             Boolean checkRelated,
 
             @ToolParam(description = "Max age of info (days)", required = false)
-            Integer maxAge
-    ) {
+            Integer maxAge) {
+
         long startTime = System.currentTimeMillis();
 
         try {
+            validateRequest(indicator);
 
-            validateRequest(indicator, indicatorType);
+            String detectedType = detectOrValidateType(indicator, indicatorType);
 
-            String detectedType = null;
-            if (indicatorType != null && !indicatorType.trim().isEmpty()) {
-                Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
-                if (validTypes.contains(indicatorType.toLowerCase())) {
-                    detectedType = indicatorType.toLowerCase();
-                } else {
-                    log.error("Invalid indicatorType '{}' - using auto-detection", indicatorType);
-                    detectedType = detectIndicatorType(indicator);
-                }
-            } else {
-                detectedType = detectIndicatorType(indicator);
-            }
-
-            ThreatIntelligence intelligence = lookupThreatIntelligence(
-                    indicator, detectedType, maxAge);
-
-            if (Boolean.TRUE.equals(includeContext) && intelligence != null) {
-                enrichWithContext(intelligence);
-            }
+            boolean externalUsed = threatIntelAdapter.isAvailable();
+            ThreatIntelligence intelligence = lookupThreatIntelligence(indicator, detectedType);
 
             List<String> relatedIocs = new ArrayList<>();
             if (Boolean.TRUE.equals(checkRelated) && intelligence != null) {
@@ -91,16 +71,16 @@ public class ThreatIntelligenceTool {
             }
 
             ThreatAssessment assessment = assessThreat(intelligence, relatedIocs);
-
             List<String> recommendations = generateRecommendations(assessment);
 
             SecurityToolUtils.auditLog(
                     "threat_intelligence",
                     "query",
                     "SOAR-System",
-                    String.format("Indicator=%s, Type=%s, ThreatLevel=%s",
+                    String.format("Indicator=%s, Type=%s, ThreatLevel=%s, Provider=%s",
                             indicator, detectedType,
-                            assessment != null ? assessment.threatLevel : "UNKNOWN"),
+                            assessment != null ? assessment.threatLevel : "UNKNOWN",
+                            threatIntelAdapter.getProviderName()),
                     "SUCCESS"
             );
 
@@ -124,6 +104,8 @@ public class ThreatIntelligenceTool {
                     .relatedIocs(relatedIocs)
                     .recommendations(recommendations)
                     .queryTime(LocalDateTime.now().toString())
+                    .externalProviderUsed(externalUsed)
+                    .providerName(threatIntelAdapter.getProviderName())
                     .build();
 
         } catch (Exception e) {
@@ -140,19 +122,21 @@ public class ThreatIntelligenceTool {
         }
     }
 
-    private void validateRequest(String indicator, String indicatorType) {
+    private void validateRequest(String indicator) {
         if (indicator == null || indicator.trim().isEmpty()) {
             throw new IllegalArgumentException("Indicator is required");
         }
+    }
 
+    private String detectOrValidateType(String indicator, String indicatorType) {
         if (indicatorType != null && !indicatorType.trim().isEmpty()) {
             Set<String> validTypes = Set.of("ip", "domain", "hash", "email", "url");
-
-            if (!validTypes.contains(indicatorType.toLowerCase())) {
-                log.error("Invalid indicator type '{}' - falling back to auto-detection", indicatorType);
-
+            if (validTypes.contains(indicatorType.toLowerCase())) {
+                return indicatorType.toLowerCase();
             }
+            log.error("Invalid indicator type '{}' - falling back to auto-detection", indicatorType);
         }
+        return detectIndicatorType(indicator);
     }
 
     private String detectIndicatorType(String indicator) {
@@ -170,61 +154,30 @@ public class ThreatIntelligenceTool {
         return "unknown";
     }
 
-    private ThreatIntelligence lookupThreatIntelligence(String indicator,
-                                                        String type,
-                                                        Integer maxAge) {
+    private ThreatIntelligence lookupThreatIntelligence(String indicator, String type) {
+        ThreatIntelligenceAdapter.QueryResult result =
+                threatIntelAdapter.queryIndicator(indicator, type);
 
-        ThreatInfo info = THREAT_DATABASE.get(indicator);
-
-        if (info == null) {
-
-            if (Math.random() > 0.6) {
-                return generateSampleThreatIntelligence(indicator, type);
-            }
+        if (!result.found()) {
             return null;
-        }
-
-        if (maxAge != null) {
-            LocalDateTime cutoffDate = LocalDateTime.now().minusDays(maxAge);
-            if (info.lastSeen.isBefore(cutoffDate)) {
-                return null;
-            }
         }
 
         return ThreatIntelligence.builder()
                 .indicator(indicator)
                 .type(type)
-                .reputation("malicious")
-                .confidenceScore(info.confidenceScore)
-                .firstSeen(info.firstSeen.toString())
-                .lastSeen(info.lastSeen.toString())
-                .malwareFamily(info.malwareFamily)
-                .attackCampaign(info.campaign)
-                .tags(info.tags)
+                .reputation(result.reputation())
+                .confidenceScore(result.confidenceScore())
+                .malwareFamily(result.malwareFamily())
+                .attackCampaign(result.attackCampaign())
+                .tags(result.tags())
+                .context(result.context())
+                .source(result.source())
                 .build();
     }
 
-    private void enrichWithContext(ThreatIntelligence intelligence) {
-        intelligence.context = new HashMap<>();
-        intelligence.context.put("geographic_location", "Russia");
-        intelligence.context.put("asn", "AS12345");
-        intelligence.context.put("organization", "BadActor Inc.");
-        intelligence.context.put("threat_actor", "APT28");
-        intelligence.context.put("ttps", Arrays.asList("T1566", "T1055", "T1003"));
-    }
-
     private List<String> findRelatedIocs(String indicator, String type) {
-        List<String> related = new ArrayList<>();
-
-        if ("ip".equals(type)) {
-            related.add("malware.badactor.com");
-            related.add("5d41402abc4b2a76b9719d911017c592");
-        } else if ("domain".equals(type)) {
-            related.add(generateRandomIP());
-            related.add("evil@badactor.com");
-        }
-
-        return related;
+        // Related IoC lookup delegated to adapter in future iteration
+        return Collections.emptyList();
     }
 
     private ThreatAssessment assessThreat(ThreatIntelligence intelligence,
@@ -264,9 +217,11 @@ public class ThreatIntelligenceTool {
                 .riskScore(riskScore)
                 .verdict(verdict)
                 .factors(Arrays.asList(
-                        "Known malware association",
-                        "Recent threat activity",
-                        "Multiple related IoCs"
+                        "Reputation: " + intelligence.reputation,
+                        "Confidence: " + intelligence.confidenceScore,
+                        relatedIocs.isEmpty()
+                                ? "No related IoCs"
+                                : relatedIocs.size() + " related IoCs found"
                 ))
                 .build();
     }
@@ -281,14 +236,8 @@ public class ThreatIntelligenceTool {
             score += 30;
         }
 
-        score += (int)(intelligence.confidenceScore * 20);
-
+        score += (int) (intelligence.confidenceScore * 20);
         score += Math.min(relatedIocs.size() * 5, 20);
-
-        LocalDateTime lastSeen = LocalDateTime.parse(intelligence.lastSeen);
-        if (lastSeen.isAfter(LocalDateTime.now().minusDays(7))) {
-            score += 10;
-        }
 
         return Math.min(score, 100);
     }
@@ -323,55 +272,17 @@ public class ThreatIntelligenceTool {
                 recommendations.add("Add to watchlist");
                 recommendations.add("Monitor for changes in threat status");
                 break;
+            default:
+                break;
         }
 
         recommendations.add("Document findings in incident tracking system");
-
         return recommendations;
-    }
-
-    private ThreatIntelligence generateSampleThreatIntelligence(String indicator, String type) {
-        return ThreatIntelligence.builder()
-                .indicator(indicator)
-                .type(type)
-                .reputation("suspicious")
-                .confidenceScore(0.75)
-                .firstSeen(LocalDateTime.now().minusDays(30).toString())
-                .lastSeen(LocalDateTime.now().minusHours(2).toString())
-                .malwareFamily("Generic.Trojan")
-                .attackCampaign("Unknown Campaign")
-                .tags(Arrays.asList("malware", "c2", "botnet"))
-                .build();
-    }
-
-    private static void initializeThreatDatabase() {
-        String emotetIP = generateRandomIP();
-        THREAT_DATABASE.put(emotetIP, new ThreatInfo(
-                emotetIP, 0.95, "Emotet", "Emotet Campaign 2024",
-                LocalDateTime.now().minusDays(60), LocalDateTime.now().minusHours(1),
-                Arrays.asList("emotet", "malware", "banking-trojan")
-        ));
-
-        THREAT_DATABASE.put("malware.badactor.com", new ThreatInfo(
-                "malware.badactor.com", 0.88, "CobaltStrike", "APT29 Campaign",
-                LocalDateTime.now().minusDays(30), LocalDateTime.now().minusDays(1),
-                Arrays.asList("apt29", "cobaltstrike", "c2")
-        ));
-    }
-
-    private static void initializeThreatActors() {
-        THREAT_ACTOR_DATABASE.put("APT28", Arrays.asList(
-                generateRandomIP(), "apt28.badactor.com", "fancy.bear.ru"
-        ));
-
-        THREAT_ACTOR_DATABASE.put("APT29", Arrays.asList(
-                generateRandomIP(), "cozy.bear.com", "nobelium.actor"
-        ));
     }
 
     @Data
     @Builder
-    // Threat data is simulated from internal database - no external feeds connected
+    // Threat intelligence queries external providers via adapter
     public static class Response {
         private boolean success;
         private String message;
@@ -383,8 +294,8 @@ public class ThreatIntelligenceTool {
         private List<String> recommendations;
         private String queryTime;
         private String error;
-        @Builder.Default
-        private boolean simulated = true;
+        private boolean externalProviderUsed;
+        private String providerName;
     }
 
     @Data
@@ -394,12 +305,11 @@ public class ThreatIntelligenceTool {
         private String type;
         private String reputation;
         private double confidenceScore;
-        private String firstSeen;
-        private String lastSeen;
         private String malwareFamily;
         private String attackCampaign;
         private List<String> tags;
         private Map<String, Object> context;
+        private String source;
     }
 
     @Data
@@ -409,36 +319,5 @@ public class ThreatIntelligenceTool {
         private int riskScore;
         private String verdict;
         private List<String> factors;
-    }
-
-    private static class ThreatInfo {
-        String indicator;
-        double confidenceScore;
-        String malwareFamily;
-        String campaign;
-        LocalDateTime firstSeen;
-        LocalDateTime lastSeen;
-        List<String> tags;
-
-        ThreatInfo(String indicator, double confidenceScore, String malwareFamily,
-                   String campaign, LocalDateTime firstSeen, LocalDateTime lastSeen,
-                   List<String> tags) {
-            this.indicator = indicator;
-            this.confidenceScore = confidenceScore;
-            this.malwareFamily = malwareFamily;
-            this.campaign = campaign;
-            this.firstSeen = firstSeen;
-            this.lastSeen = lastSeen;
-            this.tags = tags;
-        }
-    }
-
-    private static String generateRandomIP() {
-        Random random = new Random();
-        int a = random.nextInt(256);
-        int b = random.nextInt(256);
-        int c = random.nextInt(256);
-        int d = random.nextInt(256);
-        return String.format("%d.%d.%d.%d", a, b, c, d);
     }
 }

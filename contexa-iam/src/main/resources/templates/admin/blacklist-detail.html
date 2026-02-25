@@ -93,6 +93,9 @@
                             <span th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}"
                                   class="px-3 py-1 rounded-full text-xs font-semibold"
                                   style="background: rgba(251, 191, 36, 0.2); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);">UNBLOCK REQUESTED</span>
+                            <span th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(168, 85, 247, 0.2); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.3);">TIMEOUT RESPONDED</span>
                             <span th:if="${blocked.status.name() == 'RESOLVED'}"
                                   class="px-3 py-1 rounded-full text-xs font-semibold"
                                   style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">RESOLVED</span>
@@ -112,6 +115,43 @@
                         <span class="text-xs" style="color: #64748b;">요청 사유</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.unblockReason ?: 'N/A'}"></p>
                     </div>
+                    <div>
+                        <span class="text-xs" style="color: #64748b;">MFA 인증 상태</span>
+                        <p>
+                            <span th:if="${blocked.mfaVerified != null AND blocked.mfaVerified}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">MFA Verified</span>
+                            <span th:if="${blocked.mfaVerified == null OR !blocked.mfaVerified}"
+                                  class="px-3 py-1 rounded-full text-xs font-semibold"
+                                  style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">MFA Not Verified</span>
+                        </p>
+                    </div>
+                    <div th:if="${blocked.mfaVerified != null AND blocked.mfaVerified AND blocked.mfaVerifiedAt != null}">
+                        <span class="text-xs" style="color: #64748b;">MFA 인증 일시</span>
+                        <p class="text-sm" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.mfaVerifiedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
+                    </div>
+                </div>
+
+                <div th:if="${blocked.mfaVerified != null AND blocked.mfaVerified}"
+                     class="mt-4 p-3 rounded-lg text-sm"
+                     style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80;">
+                    MFA 인증이 완료된 해지 요청입니다. 정상 사용자일 가능성이 높습니다.
+                </div>
+                <div th:if="${blocked.mfaVerified == null OR !blocked.mfaVerified}"
+                     class="mt-4 p-3 rounded-lg text-sm"
+                     style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;">
+                    MFA 인증 없이 제출된 해지 요청입니다. 공격자 가능성을 검토하세요.
+                </div>
+            </div>
+
+            <div th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
+                <h3 class="text-sm font-semibold mb-3" style="color: #c084fc;">SOAR 자동 대응 완료</h3>
+                <div class="p-4 rounded-lg"
+                     style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3);">
+                    <p class="text-sm" style="color: #e2e8f0;">
+                        차단 후 24시간 내 해지 요청이 없어 공격자로 판정되었습니다.<br/>
+                        자동 대응이 실행되었습니다: IP 차단 + 세션 무효화
+                    </p>
                 </div>
             </div>
 

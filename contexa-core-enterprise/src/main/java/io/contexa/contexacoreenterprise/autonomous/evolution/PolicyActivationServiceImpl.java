@@ -5,20 +5,18 @@ import io.contexa.contexacore.autonomous.domain.ActivationResult;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
+import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import lombok.Builder;
 import lombok.Data;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 
 public class PolicyActivationServiceImpl implements PolicyActivationService {
 
@@ -29,6 +27,9 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
 
     @Autowired
     private ApplicationEventPublisher eventPublisher;
+
+    @Autowired(required = false)
+    private SpelValidationService spelValidationService;
 
     private final Map<Long, ActivationTask> activationTasks = new ConcurrentHashMap<>();
 
@@ -46,9 +47,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             ActivationTask task = createActivationTask(proposal, activatedBy);
             activationTasks.put(proposalId, task);
 
-            CompletableFuture<ActivationResult> future = executeActivation(task);
-
-            return future.get(30, TimeUnit.SECONDS);
+            return executeActivation(task);
 
         } catch (Exception e) {
             logger.error("Failed to activate policy: {}", proposalId, e);
@@ -101,32 +100,29 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
             .build();
     }
 
-    @Async
-    public CompletableFuture<ActivationResult> executeActivation(ActivationTask task) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                task.setStatus(ActivationStatus.PREPARING);
-                prepareActivation(task);
+    private ActivationResult executeActivation(ActivationTask task) {
+        try {
+            task.setStatus(ActivationStatus.PREPARING);
+            prepareActivation(task);
 
-                task.setStatus(ActivationStatus.VALIDATING);
-                validateActivation(task);
+            task.setStatus(ActivationStatus.VALIDATING);
+            validateActivation(task);
 
-                task.setStatus(ActivationStatus.APPLYING);
-                applyActivation(task);
+            task.setStatus(ActivationStatus.APPLYING);
+            applyActivation(task);
 
-                task.setStatus(ActivationStatus.VERIFYING);
-                verifyActivation(task);
+            task.setStatus(ActivationStatus.VERIFYING);
+            verifyActivation(task);
 
-                task.setStatus(ActivationStatus.ACTIVE);
+            task.setStatus(ActivationStatus.ACTIVE);
 
-                return ActivationResult.success(task.getProposalId(), null);
+            return ActivationResult.success(task.getProposalId(), null);
 
-            } catch (Exception e) {
-                task.setStatus(ActivationStatus.FAILED);
+        } catch (Exception e) {
+            task.setStatus(ActivationStatus.FAILED);
 
-                return ActivationResult.failure(task.getProposalId(), e.getMessage());
-            }
-        });
+            return ActivationResult.failure(task.getProposalId(), e.getMessage());
+        }
     }
 
     private void prepareActivation(ActivationTask task) throws Exception {
@@ -143,6 +139,7 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
                 if (proposal.getSpelExpression() == null || proposal.getSpelExpression().isEmpty()) {
                     throw new ActivationException("SpEL expression is required for policy creation/update");
                 }
+                validateSpelExpression(proposal.getSpelExpression());
                 break;
 
             case DELETE_POLICY:
@@ -158,6 +155,17 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
 
             default:
                 break;
+        }
+    }
+
+    private void validateSpelExpression(String spelExpression) throws ActivationException {
+        if (spelValidationService == null) {
+            logger.error("SpEL validation service not available - blocking activation for expression: {}", spelExpression);
+            throw new ActivationException("SpEL validation service not available");
+        }
+        SpelValidationService.ValidationResult result = spelValidationService.validate(spelExpression);
+        if (!result.valid()) {
+            throw new ActivationException("SpEL validation failed: " + String.join(", ", result.errors()));
         }
     }
 
@@ -232,11 +240,8 @@ public class PolicyActivationServiceImpl implements PolicyActivationService {
         APPLYING,
         VERIFYING,
         ACTIVE,
-        INACTIVE,
         DEACTIVATED,
-        FAILED,
-        ROLLED_BACK,
-        NOT_FOUND
+        FAILED
     }
 
     @Builder

@@ -1,9 +1,13 @@
 package io.contexa.contexacoreenterprise.autonomous.monitor;
 
+import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
+import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
 import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -422,31 +426,61 @@ public class PolicyAuditLogger {
         return conflict;
     }
 
-    // TODO: Implement approval timeline validation logic
+    private static final int APPROVAL_TIMELINE_DAYS = 30;
+    private static final int MIN_POLICY_NAME_LENGTH = 3;
+    private static final int MAX_POLICY_NAME_LENGTH = 200;
+
     private boolean withinApprovalTimeline(Long proposalId) {
-        log.error("withinApprovalTimeline() is not implemented, returning constant true: proposalId={}", proposalId);
-        return true;
+        List<SynthesisPolicyRepository.Policy> policies = synthesisPolicyRepository.findByProposalId(proposalId);
+        if (policies.isEmpty()) {
+            return true;
+        }
+        LocalDateTime cutoff = LocalDateTime.now().minusDays(APPROVAL_TIMELINE_DAYS);
+        return policies.stream()
+                .anyMatch(p -> p.getCreatedAt() != null && p.getCreatedAt().isAfter(cutoff));
     }
 
-    // TODO: Implement policy naming convention validation logic
     private boolean validatePolicyNamingConvention(Long proposalId) {
-        log.error("validatePolicyNamingConvention() is not implemented, returning constant true: proposalId={}", proposalId);
-        return true;
+        List<SynthesisPolicyRepository.Policy> policies = synthesisPolicyRepository.findByProposalId(proposalId);
+        if (policies.isEmpty()) {
+            return true;
+        }
+        return policies.stream().allMatch(p -> {
+            String name = p.getPolicyName();
+            if (name == null || name.isBlank()) return false;
+            if (name.length() < MIN_POLICY_NAME_LENGTH || name.length() > MAX_POLICY_NAME_LENGTH) return false;
+            return Character.isLetter(name.charAt(0));
+        });
     }
 
     private boolean validatePolicyContent(Long proposalId) {
-        
-        return true;
+        List<SynthesisPolicyRepository.Policy> policies = synthesisPolicyRepository.findByProposalId(proposalId);
+        if (policies.isEmpty()) {
+            return true;
+        }
+        return policies.stream().allMatch(p -> {
+            String spel = p.getSpelExpression();
+            return spel != null && !spel.isBlank() && !"isAuthenticated()".equals(spel);
+        });
     }
 
     private boolean hasPassedRequiredTests(Long policyId) {
-        
-        return true;
+        return synthesisPolicyRepository.findById(policyId)
+                .map(p -> {
+                    Map<String, Object> metadata = p.getMetadata();
+                    return metadata != null && Boolean.TRUE.equals(metadata.get("test_passed"));
+                })
+                .orElse(true);
     }
 
     private boolean hasRequiredDocumentation(Long policyId) {
-        
-        return true;
+        return synthesisPolicyRepository.findById(policyId)
+                .map(p -> {
+                    Map<String, Object> metadata = p.getMetadata();
+                    if (metadata == null) return false;
+                    return metadata.containsKey("documentation") || metadata.containsKey("description");
+                })
+                .orElse(true);
     }
 
     public ComplianceReport generateComplianceReport(LocalDateTime startDate, LocalDateTime endDate) {
@@ -589,7 +623,53 @@ public class PolicyAuditLogger {
         
             }
 
-    public List<AuditLogEntry> searchAuditLogs(String eventType, String actor, 
+    @EventListener
+    @Async
+    public void onGovernanceDecision(PolicyEvolutionGovernance.GovernanceEvent event) {
+        PolicyEvolutionGovernance.GovernanceDecision decision = event.getDecision();
+        String actor = decision.isAutoApproved() ? "SYSTEM_AUTO" : "GOVERNANCE_ENGINE";
+
+        AuditLogEntry entry = new AuditLogEntry(
+            "GOVERNANCE_DECISION",
+            actor,
+            "Proposal#" + event.getProposalId(),
+            decision.getDecision().name()
+        );
+
+        entry.addDetail("proposalId", event.getProposalId());
+        entry.addDetail("decisionType", decision.getDecision().name());
+        entry.addDetail("reason", decision.getReason());
+        entry.addDetail("requiredApprovers", decision.getRequiredApprovers());
+        entry.addDetail("autoApproved", decision.isAutoApproved());
+        if (decision.getRiskAssessment() != null) {
+            entry.addDetail("riskScore", decision.getRiskAssessment().getRiskScore());
+            entry.addDetail("adjustedRisk", decision.getRiskAssessment().getAdjustedRisk());
+        }
+        entry.setOutcome(decision.getDecision().name());
+
+        auditLogs.put(entry.auditId, entry);
+    }
+
+    @EventListener
+    @Async
+    public void onApprovalEvent(PolicyApprovalService.ApprovalEvent event) {
+        AuditLogEntry entry = new AuditLogEntry(
+            "APPROVAL_WORKFLOW",
+            "APPROVAL_SERVICE",
+            "Proposal#" + event.getProposalId(),
+            event.getEventType().name()
+        );
+
+        entry.addDetail("workflowId", event.getWorkflowId());
+        entry.addDetail("proposalId", event.getProposalId());
+        entry.addDetail("eventType", event.getEventType().name());
+        entry.addDetail("workflowStatus", event.getWorkflowStatus().name());
+        entry.setOutcome(event.getWorkflowStatus().name());
+
+        auditLogs.put(entry.auditId, entry);
+    }
+
+    public List<AuditLogEntry> searchAuditLogs(String eventType, String actor,
                                                LocalDateTime startDate, LocalDateTime endDate) {
         return auditLogs.values().stream()
             .filter(log -> eventType == null || log.eventType.equals(eventType))

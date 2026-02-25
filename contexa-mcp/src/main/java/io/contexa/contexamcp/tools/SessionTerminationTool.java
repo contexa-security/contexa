@@ -1,6 +1,7 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
+import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
 import io.contexa.contexamcp.service.UserSessionService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
@@ -10,10 +11,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -34,6 +38,7 @@ public class SessionTerminationTool {
 
     private final UserSessionService userSessionService;
     private final HighRiskToolAuthorizationService authorizationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Tool(
             name = "session_termination",
@@ -55,16 +60,18 @@ public class SessionTerminationTool {
             Boolean notifyUser,
 
             @ToolParam(description = "Preserve current session (for admin session protection)", required = false)
-            Boolean preserveCurrentSession
-    ) {
+            Boolean preserveCurrentSession) {
+
         long startTime = System.currentTimeMillis();
 
         try {
-
             if (userId == null || userId.trim().isEmpty()) {
-
-                log.error("User ID not specified - SOAR system default processing");
-                userId = "admin@company.com";
+                log.error("User ID is required for session termination");
+                return Response.builder()
+                        .success(false)
+                        .message("User ID is required for session termination")
+                        .terminatedCount(0)
+                        .build();
             }
 
             if (reason == null || reason.trim().isEmpty()) {
@@ -105,7 +112,6 @@ public class SessionTerminationTool {
             }
 
             for (UserSessionService.SessionInfo session : activeSessions) {
-
                 if (preservedSessionId != null && preservedSessionId.equals(session.getSessionId())) {
                     continue;
                 }
@@ -118,13 +124,17 @@ public class SessionTerminationTool {
                     terminatedSessionIds.add(session.getSessionId());
                     terminatedCount++;
                 } else {
-                    log.error("Failed to terminate session: {}",
-                            session.getSessionId());
+                    log.error("Failed to terminate session: {}", session.getSessionId());
                 }
             }
 
-            if (Boolean.TRUE.equals(notifyUser) && terminatedCount > 0) {
+            // Publish security action event for cross-module session invalidation
+            if (terminatedCount > 0) {
+                publishSessionTerminateEvent(userId, reason, terminatedSessionIds);
+            }
 
+            if (Boolean.TRUE.equals(notifyUser) && terminatedCount > 0) {
+                // User notification delegated to event listener
             }
 
             SecurityToolUtils.auditLog(
@@ -146,8 +156,10 @@ public class SessionTerminationTool {
                             .sessionId(session.getSessionId())
                             .ipAddress(session.getIpAddress())
                             .deviceInfo(session.getUserAgent())
-                            .loginTime(session.getCreatedAt().toString())
-                            .lastActivity(session.getLastAccessedAt().toString())
+                            .loginTime(session.getCreatedAt() != null
+                                    ? session.getCreatedAt().toString() : "unknown")
+                            .lastActivity(session.getLastAccessedAt() != null
+                                    ? session.getLastAccessedAt().toString() : "unknown")
                             .terminated(terminatedSessionIds.contains(session.getSessionId()))
                             .build())
                     .collect(Collectors.toList());
@@ -178,13 +190,30 @@ public class SessionTerminationTool {
         }
     }
 
+    private void publishSessionTerminateEvent(String userId, String reason,
+                                               List<String> sessionIds) {
+        try {
+            SecurityActionEvent event = SecurityActionEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .actionType(SecurityActionEvent.ActionType.SESSION_TERMINATE_ALL)
+                    .userId(userId)
+                    .reason(reason)
+                    .triggeredBy("SOAR-System")
+                    .metadata(Map.of("terminatedSessionIds", sessionIds))
+                    .build();
+            eventPublisher.publishEvent(event);
+        } catch (Exception e) {
+            log.error("Failed to publish session termination event for user: {}", userId, e);
+        }
+    }
+
     private boolean hasRequiredPermissions() {
         return authorizationService.isAuthorized("session_termination");
     }
 
     @Data
     @Builder
-    // Session termination uses Redis-based session store - no OS-level session management
+    // Session termination uses Redis + event publishing for cross-module invalidation
     public static class Response {
         private boolean success;
         private String message;
@@ -194,8 +223,6 @@ public class SessionTerminationTool {
         private List<SessionDetail> sessionDetails;
         private String timestamp;
         private String error;
-        @Builder.Default
-        private boolean simulated = true;
     }
 
     @Data

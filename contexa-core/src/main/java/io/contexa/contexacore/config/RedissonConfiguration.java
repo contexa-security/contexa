@@ -42,7 +42,6 @@ public class RedissonConfiguration {
             .setConnectTimeout((int) timeout.toMillis())
             .setTimeout(3000)
             .setRetryAttempts(3)
-            .setRetryInterval(1500)
             .setPingConnectionInterval(0);
 
         return Redisson.create(config);

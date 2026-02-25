@@ -1,8 +1,10 @@
 package io.contexa.contexamcp.tools;
 
 import io.contexa.contexacommon.annotation.SoarTool;
-import io.contexa.contexamcp.service.IpBlockingService;
+import io.contexa.contexacommon.soar.event.SecurityActionEvent;
+import io.contexa.contexamcp.adapter.ExternalFirewallAdapter;
 import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
+import io.contexa.contexamcp.service.IpBlockingService;
 import io.contexa.contexamcp.utils.SecurityToolUtils;
 import lombok.Builder;
 import lombok.Data;
@@ -10,9 +12,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -32,6 +37,8 @@ public class IpBlockingTool {
 
     private final IpBlockingService ipBlockingService;
     private final HighRiskToolAuthorizationService authorizationService;
+    private final ExternalFirewallAdapter firewallAdapter;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Tool(
             name = "ip_blocking",
@@ -52,8 +59,8 @@ public class IpBlockingTool {
             Integer durationMinutes,
 
             @ToolParam(description = "Related security ticket ID", required = false)
-            String ticketId
-    ) {
+            String ticketId) {
+
         long startTime = System.currentTimeMillis();
 
         try {
@@ -93,42 +100,12 @@ public class IpBlockingTool {
                     ? Duration.ofMinutes(durationMinutes)
                     : null;
 
+            // Step 1: Internal Redis blocking
             IpBlockingService.BlockResult blockResult = ipBlockingService.blockIp(
-                    ipAddress,
-                    reason,
-                    duration,
-                    "SOAR-System"
-            );
+                    ipAddress, reason, duration, "SOAR-System");
 
-            boolean blockSuccess = blockResult.isSuccess();
-
-            SecurityToolUtils.auditLog(
-                    "ip_blocking",
-                    "block",
-                    "SOAR-System",
-                    String.format("IP=%s, Reason=%s, Duration=%s, Ticket=%s",
-                            ipAddress, reason, durationMinutes, ticketId),
-                    blockSuccess ? "SUCCESS" : "FAILED"
-            );
-
-            SecurityToolUtils.recordMetric("ip_blocking", "execution_count", 1);
-            SecurityToolUtils.recordMetric("ip_blocking", "execution_time_ms",
-                    System.currentTimeMillis() - startTime);
-
-            if (blockSuccess) {
-                return Response.builder()
-                        .success(true)
-                        .message(blockResult.getMessage())
-                        .ipAddress(ipAddress)
-                        .blocked(true)
-                        .blockedAt(Instant.now().toString())
-                        .expiresAt(blockResult.getBlockedUntil() != null
-                                ? blockResult.getBlockedUntil().toString()
-                                : "PERMANENT")
-                        .ruleId(generateRuleId(ipAddress, System.currentTimeMillis()))
-                        .build();
-            } else {
-                log.error("Failed to block IP: {} - {}", ipAddress, blockResult.getMessage());
+            if (!blockResult.isSuccess()) {
+                log.error("Internal IP blocking failed: {} - {}", ipAddress, blockResult.getMessage());
                 return Response.builder()
                         .success(false)
                         .message(blockResult.getMessage())
@@ -136,6 +113,49 @@ public class IpBlockingTool {
                         .blocked(false)
                         .build();
             }
+
+            // Step 2: External firewall blocking via adapter
+            boolean externalEngaged = firewallAdapter.isAvailable();
+            String externalRuleId = null;
+            if (externalEngaged) {
+                ExternalFirewallAdapter.BlockResult fwResult =
+                        firewallAdapter.blockIp(ipAddress, reason, durationMinutes);
+                if (!fwResult.success()) {
+                    log.error("External firewall blocking failed: {} - {}", ipAddress, fwResult.message());
+                }
+                externalRuleId = fwResult.ruleId();
+            }
+
+            // Step 3: Publish security action event
+            publishIpBlockEvent(ipAddress, reason, durationMinutes, ticketId);
+
+            SecurityToolUtils.auditLog(
+                    "ip_blocking", "block", "SOAR-System",
+                    String.format("IP=%s, Reason=%s, Duration=%s, Ticket=%s, FW=%s",
+                            ipAddress, reason, durationMinutes, ticketId,
+                            firewallAdapter.getVendorName()),
+                    "SUCCESS"
+            );
+
+            SecurityToolUtils.recordMetric("ip_blocking", "execution_count", 1);
+            SecurityToolUtils.recordMetric("ip_blocking", "execution_time_ms",
+                    System.currentTimeMillis() - startTime);
+
+            return Response.builder()
+                    .success(true)
+                    .message(blockResult.getMessage())
+                    .ipAddress(ipAddress)
+                    .blocked(true)
+                    .blockedAt(Instant.now().toString())
+                    .expiresAt(blockResult.getBlockedUntil() != null
+                            ? blockResult.getBlockedUntil().toString()
+                            : "PERMANENT")
+                    .ruleId(externalRuleId != null
+                            ? externalRuleId
+                            : generateRuleId(ipAddress, System.currentTimeMillis()))
+                    .externalFirewallEngaged(externalEngaged)
+                    .firewallVendor(firewallAdapter.getVendorName())
+                    .build();
 
         } catch (IllegalArgumentException e) {
             log.error("Invalid input for IP blocking: {}", e.getMessage());
@@ -159,6 +179,26 @@ public class IpBlockingTool {
         }
     }
 
+    private void publishIpBlockEvent(String ipAddress, String reason,
+                                      Integer durationMinutes, String ticketId) {
+        try {
+            SecurityActionEvent event = SecurityActionEvent.builder()
+                    .eventId(UUID.randomUUID().toString())
+                    .actionType(SecurityActionEvent.ActionType.IP_BLOCK)
+                    .sourceIp(ipAddress)
+                    .reason(reason)
+                    .triggeredBy("SOAR-System")
+                    .metadata(Map.of(
+                            "durationMinutes", durationMinutes != null ? durationMinutes : 0,
+                            "ticketId", ticketId != null ? ticketId : ""
+                    ))
+                    .build();
+            eventPublisher.publishEvent(event);
+        } catch (Exception e) {
+            log.error("Failed to publish IP block event for: {}", ipAddress, e);
+        }
+    }
+
     private boolean hasRequiredPermissions() {
         return authorizationService.isAuthorized("ip_blocking");
     }
@@ -171,7 +211,7 @@ public class IpBlockingTool {
 
     @Data
     @Builder
-    // Blocking is performed via Redis - no actual firewall rules are modified
+    // IP blocking uses Redis (internal) + external firewall adapter
     public static class Response {
         private boolean success;
         private String message;
@@ -180,7 +220,7 @@ public class IpBlockingTool {
         private String blockedAt;
         private String expiresAt;
         private String ruleId;
-        @Builder.Default
-        private boolean simulated = true;
+        private boolean externalFirewallEngaged;
+        private String firewallVendor;
     }
 }

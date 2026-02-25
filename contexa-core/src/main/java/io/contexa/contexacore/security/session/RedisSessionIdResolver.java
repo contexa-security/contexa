@@ -15,7 +15,6 @@ import java.util.regex.Pattern;
 @Slf4j
 public class RedisSessionIdResolver implements SessionIdResolver {
 
-    private static final String DEFAULT_SESSION_COOKIE_NAME = "SESSION";
     private static final String SESSION_ATTRIBUTE_NAME = "org.springframework.session.SessionRepository.CURRENT_SESSION_ID";
     private static final Pattern SESSION_ID_PATTERN = Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
 

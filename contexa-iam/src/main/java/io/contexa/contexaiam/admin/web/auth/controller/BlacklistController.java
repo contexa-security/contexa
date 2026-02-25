@@ -32,6 +32,9 @@ public class BlacklistController {
             case "resolved" -> blockedUserService.getAllBlockHistory().stream()
                     .filter(b -> b.getStatus() == BlockedUserStatus.RESOLVED)
                     .toList();
+            case "timeout_responded" -> blockedUserService.getAllBlockHistory().stream()
+                    .filter(b -> b.getStatus() == BlockedUserStatus.TIMEOUT_RESPONDED)
+                    .toList();
             case null, default -> blockedUserService.getAllBlockHistory();
         };
         model.addAttribute("blockedUsers", blockedUsers);

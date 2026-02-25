@@ -1,14 +1,14 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
-import io.contexa.contexaidentity.security.utils.WebUtil;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
-import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.utils.WebUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,6 +21,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -73,6 +75,10 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         }
 
         if (requestUri.startsWith("/api/mfa/")) {
+            return true;
+        }
+
+        if (requestUri.startsWith("/zero-trust")) {
             return true;
         }
 
@@ -175,22 +181,30 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
                                    HttpServletResponse response) throws IOException {
 
         String mfaPageUrl = buildMfaPageUrl(context, request);
+        String challengeNoticeUrl = buildChallengeNoticeUrl(mfaPageUrl, request);
 
         if (WebUtil.isApiOrAjaxRequest(request)) {
-            writeMfaChallengeResponse(response, request, context, mfaPageUrl);
+            writeMfaChallengeResponse(response, request, context, mfaPageUrl, challengeNoticeUrl);
         } else {
-            response.sendRedirect(mfaPageUrl);
+            response.sendRedirect(challengeNoticeUrl);
         }
+    }
+
+    private String buildChallengeNoticeUrl(String mfaPageUrl, HttpServletRequest request) {
+        String encodedMfaUrl = URLEncoder.encode(mfaPageUrl, StandardCharsets.UTF_8);
+        return request.getContextPath() + "/zero-trust/challenge-required?mfaUrl=" + encodedMfaUrl;
     }
 
     private void writeMfaChallengeResponse(HttpServletResponse response,
                                            HttpServletRequest request,
                                            FactorContext context,
-                                           String mfaPageUrl) throws IOException {
+                                           String mfaPageUrl,
+                                           String challengeNoticeUrl) throws IOException {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("error", "MFA_CHALLENGE_REQUIRED");
         responseBody.put("message", "MFA verification required");
         responseBody.put("mfaUrl", mfaPageUrl);
+        responseBody.put("challengeNoticeUrl", challengeNoticeUrl);
         responseBody.put("sessionId", context.getMfaSessionId());
         responseBody.put("currentState", context.getCurrentState().name());
 

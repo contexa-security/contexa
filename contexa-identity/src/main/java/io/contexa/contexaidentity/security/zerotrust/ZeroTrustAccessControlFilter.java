@@ -1,18 +1,21 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -33,26 +36,30 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     public static final String ROLE_BLOCKED = "ROLE_BLOCKED";
     public static final String ROLE_REVIEW_REQUIRED = "ROLE_REVIEW_REQUIRED";
+    public static final String BLOCK_MFA_FLOW_ATTRIBUTE = "BLOCK_MFA_FLOW";
 
     private static final String ESCALATE_RETRY_KEY_PREFIX = "security:escalate:retry:";
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
+    private static final Duration BLOCK_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int RETRY_AFTER_SECONDS = 30;
 
     private final ZeroTrustActionRedisRepository actionRedisRepository;
     private final AuthResponseWriter responseWriter;
     private final StringRedisTemplate stringRedisTemplate;
-
-    @Setter
-    @Autowired(required = false)
-    private IBlockedUserRecorder blockedUserRecorder;
+    private final IBlockedUserRecorder blockedUserRecorder;
+    private final ChallengeMfaInitializer challengeMfaInitializer;
+    private final AuthUrlProvider authUrlProvider;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRedisRepository actionRedisRepository,
             AuthResponseWriter responseWriter,
-            StringRedisTemplate stringRedisTemplate) {
+            StringRedisTemplate stringRedisTemplate, IBlockedUserRecorder blockedUserRecorder, ChallengeMfaInitializer challengeMfaInitializer, AuthUrlProvider authUrlProvider) {
         this.actionRedisRepository = actionRedisRepository;
         this.responseWriter = responseWriter;
         this.stringRedisTemplate = stringRedisTemplate;
+        this.blockedUserRecorder = blockedUserRecorder;
+        this.challengeMfaInitializer = challengeMfaInitializer;
+        this.authUrlProvider = authUrlProvider;
     }
 
     @Override
@@ -93,11 +100,105 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
         ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId, contextBindingHash);
 
+        String requestUri = resolveRequestUri(request);
+
         switch (currentAction) {
-            case BLOCK -> handleBlocked(request, response, userId);
+            case BLOCK -> handleBlockWithMfa(request, response, filterChain, auth, userId, requestUri);
             case ESCALATE -> handleEscalate(request, response, userId);
             default -> filterChain.doFilter(request, response);
         }
+    }
+
+    private void handleBlockWithMfa(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain,
+                                    Authentication auth,
+                                    String userId,
+                                    String requestUri) throws IOException, ServletException {
+
+        if (isBlockMfaPending(userId)) {
+            if (isMfaRelatedPath(requestUri)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            if (challengeMfaInitializer != null) {
+                initializeBlockMfa(request, response, auth, userId);
+                return;
+            }
+        }
+
+        handleBlocked(request, response, userId);
+    }
+
+    private boolean isBlockMfaPending(String userId) {
+        try {
+            String key = ZeroTrustRedisKeys.blockMfaPending(userId);
+            return "true".equals(stringRedisTemplate.opsForValue().get(key));
+        } catch (Exception e) {
+            log.error("[ZeroTrustAccessControlFilter] Failed to check block-mfa-pending: userId={}", userId, e);
+            return false;
+        }
+    }
+
+    private boolean isMfaRelatedPath(String requestUri) {
+        return requestUri.startsWith("/mfa/")
+                || requestUri.startsWith("/api/mfa/");
+    }
+
+    private void initializeBlockMfa(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    Authentication auth,
+                                    String userId) throws IOException {
+        try {
+            request.setAttribute(BLOCK_MFA_FLOW_ATTRIBUTE, true);
+
+            FactorContext context = challengeMfaInitializer.initializeChallengeFlow(
+                    request, response, auth);
+
+            String mfaPageUrl = buildMfaPageUrl(context, request);
+            if (WebUtil.isApiOrAjaxRequest(request)) {
+                Map<String, Object> body = new HashMap<>();
+                body.put("error", "BLOCK_MFA_REQUIRED");
+                body.put("message", "MFA verification required for block resolution");
+                body.put("mfaUrl", mfaPageUrl);
+
+                responseWriter.writeErrorResponse(
+                        response,
+                        HttpServletResponse.SC_UNAUTHORIZED,
+                        "BLOCK_MFA_REQUIRED",
+                        "MFA verification required for block resolution",
+                        request.getRequestURI(),
+                        body);
+            } else {
+                response.sendRedirect(mfaPageUrl);
+            }
+        } catch (Exception e) {
+            log.error("[ZeroTrustAccessControlFilter] Failed to initialize block MFA: userId={}", userId, e);
+            handleBlocked(request, response, userId);
+        }
+    }
+
+    private String buildMfaPageUrl(FactorContext context, HttpServletRequest request) {
+        if (authUrlProvider == null) {
+            return request.getContextPath() + "/mfa/select-factor";
+        }
+
+        MfaState currentState = context.getCurrentState();
+        String contextPath = request.getContextPath();
+
+        if (currentState == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION) {
+            AuthType currentFactor = context.getCurrentProcessingFactor();
+            if (currentFactor != null) {
+                return switch (currentFactor) {
+                    case MFA_OTT -> contextPath + authUrlProvider.getOttRequestCodeUi();
+                    case MFA_PASSKEY -> contextPath + authUrlProvider.getPasskeyChallengeUi();
+                    default -> contextPath + authUrlProvider.getMfaSelectFactor();
+                };
+            }
+        }
+
+        return contextPath + authUrlProvider.getMfaSelectFactor();
     }
 
     private void handleBlocked(HttpServletRequest request,
@@ -218,6 +319,15 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         }
 
         handleBlocked(request, response, userId);
+    }
+
+    private String resolveRequestUri(HttpServletRequest request) {
+        String requestUri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        if (StringUtils.hasText(contextPath)) {
+            requestUri = requestUri.substring(contextPath.length());
+        }
+        return requestUri;
     }
 
     private boolean hasAuthority(Authentication auth, String authority) {

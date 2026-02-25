@@ -44,7 +44,7 @@
         } else if (action === 'CHALLENGE') {
             showError('추가 인증이 필요합니다. MFA 인증 페이지로 이동합니다.');
             setTimeout(function () {
-                window.location.href = '/login';
+                window.location.href = '/mfa/login';
             }, 2000);
         }
     }

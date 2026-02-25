@@ -69,8 +69,16 @@ public class ChallengeMfaInitializer {
 
         enhanceFactorContextWithSecurityInfo(context, request);
         context.setAttribute(CHALLENGE_INITIATED_ATTRIBUTE, true);
-        context.setAttribute(CHALLENGE_REASON_ATTRIBUTE, "ZERO_TRUST_ADAPTIVE");
         context.setAttribute(FactorContextAttributes.Timestamps.PRIMARY_AUTH_COMPLETED_AT, System.currentTimeMillis());
+
+        Boolean blockMfaFlow = (Boolean) request.getAttribute(
+                ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
+        if (Boolean.TRUE.equals(blockMfaFlow)) {
+            context.setAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE, true);
+            context.setAttribute(CHALLENGE_REASON_ATTRIBUTE, "BLOCK_MFA_VERIFICATION");
+        } else {
+            context.setAttribute(CHALLENGE_REASON_ATTRIBUTE, "ZERO_TRUST_ADAPTIVE");
+        }
 
         try {
             stateMachineIntegrator.initializeStateMachine(context, request, response);

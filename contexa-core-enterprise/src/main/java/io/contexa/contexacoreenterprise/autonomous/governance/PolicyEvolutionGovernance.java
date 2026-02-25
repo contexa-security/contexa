@@ -60,8 +60,8 @@ public class PolicyEvolutionGovernance {
     }
 
     private RiskAssessment reassessRisk(PolicyEvolutionProposal proposal) {
-                
         RiskAssessment assessment = new RiskAssessment();
+        GovernanceProperties.RiskWeightSettings weights = governanceProperties.getRiskWeights();
 
         PolicyEvolutionProposal.RiskLevel baseRisk = proposal.getRiskLevel();
         assessment.setBaseRisk(baseRisk);
@@ -71,53 +71,52 @@ public class PolicyEvolutionGovernance {
         switch (proposal.getProposalType()) {
             case DELETE_POLICY:
             case REVOKE_ACCESS:
-                riskScore += 0.3; 
+                riskScore += weights.getDeletePolicyWeight();
                 break;
             case CREATE_POLICY:
             case GRANT_ACCESS:
-                riskScore += 0.2; 
+                riskScore += weights.getCreatePolicyWeight();
                 break;
             case UPDATE_POLICY:
             case OPTIMIZE_RULE:
-                riskScore += 0.1; 
+                riskScore += weights.getUpdatePolicyWeight();
                 break;
             default:
-                riskScore += 0.05;
+                riskScore += weights.getDefaultTypeWeight();
         }
 
         Double confidence = proposal.getConfidenceScore();
         if (confidence != null) {
             if (confidence < 0.5) {
-                riskScore += 0.3; 
+                riskScore += weights.getLowConfidenceWeight();
             } else if (confidence < 0.7) {
-                riskScore += 0.1;
+                riskScore += weights.getMediumConfidenceWeight();
             } else if (confidence > 0.9) {
-                riskScore -= 0.1; 
+                riskScore -= weights.getHighConfidenceReduction();
             }
         }
 
         Double expectedImpact = proposal.getExpectedImpact();
-        if (expectedImpact != null && expectedImpact > 0.8) {
-            riskScore += 0.2; 
+        if (expectedImpact != null && expectedImpact > weights.getHighImpactThreshold()) {
+            riskScore += weights.getHighImpactWeight();
         }
 
         if (proposal.getLearningType() != null) {
             switch (proposal.getLearningType()) {
                 case THREAT_RESPONSE:
-                    riskScore += 0.1; 
+                    riskScore += weights.getThreatResponseWeight();
                     break;
                 case ACCESS_PATTERN:
-                    riskScore += 0.05;
+                    riskScore += weights.getAccessPatternWeight();
                     break;
                 case POLICY_FEEDBACK:
-                    
                     break;
             }
         }
 
         riskScore = Math.max(0.0, Math.min(riskScore, 1.0));
         assessment.setRiskScore(riskScore);
-        assessment.setAdjustedRisk(calculateAdjustedRisk(baseRisk, riskScore));
+        assessment.setAdjustedRisk(calculateAdjustedRisk(baseRisk, riskScore, weights));
         assessment.setAssessmentTime(LocalDateTime.now());
 
         Map<String, Object> factors = new HashMap<>();
@@ -126,8 +125,8 @@ public class PolicyEvolutionGovernance {
         factors.put("expectedImpact", expectedImpact);
         factors.put("learningType", proposal.getLearningType());
         assessment.setRiskFactors(factors);
-        
-                return assessment;
+
+        return assessment;
     }
 
     private GovernanceDecision applyGovernanceRules(
@@ -196,7 +195,7 @@ public class PolicyEvolutionGovernance {
             case CRITICAL:
                 return governanceProperties.getCritical().getMinApprovers();
             case HIGH:
-                return 2;
+                return governanceProperties.getCritical().getHighApprovers();
             case MEDIUM:
                 return 1;
             default:
@@ -205,16 +204,17 @@ public class PolicyEvolutionGovernance {
     }
 
     private PolicyEvolutionProposal.RiskLevel calculateAdjustedRisk(
-            PolicyEvolutionProposal.RiskLevel baseRisk, double riskScore) {
-        
+            PolicyEvolutionProposal.RiskLevel baseRisk, double riskScore,
+            GovernanceProperties.RiskWeightSettings weights) {
+
         int adjustedOrdinal = baseRisk.ordinal();
-        
-        if (riskScore > 0.5) {
+
+        if (riskScore > weights.getMajorUpThreshold()) {
             adjustedOrdinal = Math.min(adjustedOrdinal + 2, PolicyEvolutionProposal.RiskLevel.CRITICAL.ordinal());
-        } else if (riskScore > 0.3) {
+        } else if (riskScore > weights.getMinorUpThreshold()) {
             adjustedOrdinal = Math.min(adjustedOrdinal + 1, PolicyEvolutionProposal.RiskLevel.CRITICAL.ordinal());
         }
-        
+
         return PolicyEvolutionProposal.RiskLevel.values()[adjustedOrdinal];
     }
 
@@ -282,7 +282,8 @@ public class PolicyEvolutionGovernance {
     }
 
     @lombok.Data
-    public static class RiskAssessment {
+    public static class RiskAssessment implements java.io.Serializable {
+        private static final long serialVersionUID = 1L;
         private PolicyEvolutionProposal.RiskLevel baseRisk;
         private PolicyEvolutionProposal.RiskLevel adjustedRisk;
         private double riskScore;
@@ -308,11 +309,6 @@ public class PolicyEvolutionGovernance {
         REJECT,
         SKIP,
         ERROR
-    }
-
-    public interface GovernanceRule {
-        boolean allows(PolicyEvolutionProposal proposal, RiskAssessment assessment);
-        String getRuleDescription();
     }
 
     @lombok.Builder

@@ -23,10 +23,16 @@ import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -34,6 +40,7 @@ import org.springframework.security.web.savedrequest.RequestCache;
 import org.springframework.security.web.savedrequest.SavedRequest;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -51,6 +58,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final HcadProperties hcadProperties;
     private final ApplicationContext applicationContext;
     private final AuthUrlProvider authUrlProvider;
+
+    @Setter
+    @Autowired(required = false)
+    private IBlockedUserRecorder blockedUserRecorder;
+
+    @Setter
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
@@ -108,6 +123,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         String userId = finalAuthentication.getName();
         if (factorContext != null && factorContext.isCompleted()) {
+            Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
+            if (Boolean.TRUE.equals(blockMfaFlow)) {
+                handleBlockMfaSuccess(userId, request, response);
+                return;
+            }
             resetActionOnMfaSuccess(userId, request);
         }
 
@@ -427,6 +447,27 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         return false;
+    }
+
+    private void handleBlockMfaSuccess(String userId, HttpServletRequest request,
+                                         HttpServletResponse response) throws IOException {
+        try {
+            if (blockedUserRecorder != null) {
+                blockedUserRecorder.markMfaVerified(userId);
+            }
+
+            if (stringRedisTemplate != null) {
+                String verifiedKey = ZeroTrustRedisKeys.blockMfaVerified(userId);
+                stringRedisTemplate.opsForValue().set(verifiedKey, "true", Duration.ofHours(1));
+
+                String pendingKey = ZeroTrustRedisKeys.blockMfaPending(userId);
+                stringRedisTemplate.delete(pendingKey);
+            }
+        } catch (Exception e) {
+            log.error("[MFA] Failed to process block MFA success for user: {}", userId, e);
+        }
+
+        response.sendRedirect(request.getContextPath() + "/zero-trust/blocked");
     }
 
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {

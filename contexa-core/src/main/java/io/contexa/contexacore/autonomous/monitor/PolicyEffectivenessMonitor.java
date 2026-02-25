@@ -252,17 +252,13 @@ public class PolicyEffectivenessMonitor {
     }
     
     private double calculateCostEfficiency(PolicyMetrics metrics) {
-        
+
         double cpuUsage = getAverageMetric(metrics, MetricType.CPU_USAGE);
         double memoryUsage = getAverageMetric(metrics, MetricType.MEMORY_USAGE);
         double effectiveness = calculateBlockRate(metrics);
-        
-        double resourceUsage = (cpuUsage + memoryUsage) / 2;
-        if (resourceUsage > 0) {
-            return effectiveness / resourceUsage;
-        }
-        
-        return effectiveness;
+
+        double resourceUsage = Math.max((cpuUsage + memoryUsage) / 2, 0.01);
+        return Math.min(effectiveness / resourceUsage, 1.0);
     }
     
     private double calculateImprovementRate(PolicyMetrics metrics) {

@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 
 @AutoConfiguration
@@ -43,14 +44,14 @@ public class IamAiamWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ZeroTrustPageController zeroTrustPageController() {
-        return new ZeroTrustPageController();
+    public ZeroTrustPageController zeroTrustPageController(StringRedisTemplate stringRedisTemplate) {
+        return new ZeroTrustPageController(stringRedisTemplate);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustUnblockController zeroTrustUnblockController(
-            BlockedUserService blockedUserService) {
-        return new ZeroTrustUnblockController(blockedUserService);
+            BlockedUserService blockedUserService, StringRedisTemplate stringRedisTemplate) {
+        return new ZeroTrustUnblockController(blockedUserService, stringRedisTemplate);
     }
 }

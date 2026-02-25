@@ -135,6 +135,38 @@ public class BlockedUserService implements IBlockedUserRecorder {
         blockedUserJpaRepository.save(blocked);
     }
 
+    @Transactional
+    public void requestUnblockWithMfa(String userId, String reason, boolean mfaVerified) {
+        Optional<BlockedUser> blockedOpt = blockedUserJpaRepository
+                .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED);
+
+        if (blockedOpt.isEmpty()) {
+            return;
+        }
+
+        BlockedUser blocked = blockedOpt.get();
+        blocked.setStatus(BlockedUserStatus.UNBLOCK_REQUESTED);
+        blocked.setUnblockRequestedAt(LocalDateTime.now());
+        blocked.setUnblockReason(reason);
+        blocked.setMfaVerified(mfaVerified);
+        if (mfaVerified) {
+            blocked.setMfaVerifiedAt(LocalDateTime.now());
+        }
+        blockedUserJpaRepository.save(blocked);
+    }
+
+    @Override
+    @Transactional
+    public void markMfaVerified(String userId) {
+        blockedUserJpaRepository
+                .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED)
+                .ifPresent(b -> {
+                    b.setMfaVerified(true);
+                    b.setMfaVerifiedAt(LocalDateTime.now());
+                    blockedUserJpaRepository.save(b);
+                });
+    }
+
     @Transactional(readOnly = true)
     public List<BlockedUser> getUnblockRequested() {
         return blockedUserJpaRepository.findByStatusOrderByBlockedAtDesc(BlockedUserStatus.UNBLOCK_REQUESTED);

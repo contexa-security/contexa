@@ -1,12 +1,33 @@
 package io.contexa.contexacoreenterprise.autonomous.notification;
 
 import io.contexa.contexacore.autonomous.notification.NotificationService;
+import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.Async;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
 public class DefaultNotificationService implements NotificationService {
+
+    @EventListener
+    @Async
+    public void onApprovalNotification(PolicyApprovalService.NotificationEvent event) {
+        Map<String, Object> data = new HashMap<>();
+        data.put("requestId", event.getRequestId());
+        data.put("proposalId", event.getProposalId());
+        data.put("recipientId", event.getRecipientId());
+        data.put("recipientEmail", event.getRecipientEmail());
+
+        sendNotification(
+            event.getType().name(),
+            event.getMessage(),
+            data,
+            Priority.HIGH
+        );
+    }
 
     @Override
     public void sendNotification(String type, String message, Map<String, Object> data, Priority priority) {

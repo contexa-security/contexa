@@ -71,4 +71,11 @@ public class BlockedUser {
 
     @Column(name = "unblock_reason", columnDefinition = "TEXT")
     private String unblockReason;
+
+    @Column(name = "mfa_verified")
+    @Builder.Default
+    private Boolean mfaVerified = false;
+
+    @Column(name = "mfa_verified_at")
+    private LocalDateTime mfaVerifiedAt;
 }

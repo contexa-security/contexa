@@ -8,6 +8,7 @@ import io.contexa.contexacore.domain.SoarIncidentStatus;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.SoarIncident;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
+import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacoreenterprise.properties.SecurityAutonomousProperties;
 import lombok.extern.slf4j.Slf4j;
@@ -25,15 +26,18 @@ public class AutonomousLearningCoordinator {
 
     private final PolicyEvolutionEngine evolutionEngine;
     private final PolicyProposalRepository proposalRepository;
+    private final PolicyEvolutionGovernance governanceService;
     private final EvolutionMetricsCollector evolutionMetricsCollector;
     private final SecurityAutonomousProperties securityAutonomousProperties;
 
     public AutonomousLearningCoordinator(PolicyEvolutionEngine evolutionEngine,
                                          PolicyProposalRepository proposalRepository,
+                                         PolicyEvolutionGovernance governanceService,
                                          EvolutionMetricsCollector evolutionMetricsCollector,
                                          SecurityAutonomousProperties securityAutonomousProperties) {
         this.evolutionEngine = evolutionEngine;
         this.proposalRepository = proposalRepository;
+        this.governanceService = governanceService;
         this.evolutionMetricsCollector = evolutionMetricsCollector;
         this.securityAutonomousProperties = securityAutonomousProperties;
     }
@@ -43,6 +47,10 @@ public class AutonomousLearningCoordinator {
 
     private final Map<String, Integer> dailyProposalCount = new ConcurrentHashMap<>();
 
+    // TODO: IncidentResolvedEvent is not published anywhere in the codebase yet.
+    //  This listener will be activated when the incident management module is integrated
+    //  and publishes IncidentResolvedEvent upon incident resolution.
+    //  Currently, only ThreatPolicyTriggerEvent path is active (see onThreatPolicyTrigger).
     @EventListener
     @Async
     public void onIncidentResolved(IncidentResolvedEvent event) {
@@ -286,15 +294,18 @@ public class AutonomousLearningCoordinator {
         String today = LocalDateTime.now().toLocalDate().toString();
         int maxProposals = securityAutonomousProperties.getLearning().getEvolution().getMaxProposals();
 
-        int newCount = dailyProposalCount.compute(today, (key, current) -> {
-            if (current == null) return 1;
-            if (current >= maxProposals) return current;
-            return current + 1;
-        });
-
         dailyProposalCount.entrySet().removeIf(entry -> !entry.getKey().equals(today));
 
-        return newCount <= maxProposals;
+        int currentCount = dailyProposalCount.getOrDefault(today, 0);
+        if (currentCount >= maxProposals) {
+            if (evolutionMetricsCollector != null) {
+                evolutionMetricsCollector.recordDailyLimitReached();
+            }
+            return false;
+        }
+
+        dailyProposalCount.merge(today, 1, Integer::sum);
+        return true;
     }
 
     private void triggerPolicyEvolution(SecurityEvent securityEvent, LearningMetadata metadata) {
@@ -307,6 +318,12 @@ public class AutonomousLearningCoordinator {
             totalProposalsGenerated.incrementAndGet();
 
             metadata.markAsCompleted("Policy proposal generated: " + proposal.getId());
+
+            try {
+                governanceService.evaluateProposal(proposal.getId());
+            } catch (Exception ge) {
+                log.error("Governance evaluation failed for proposal: {}", proposal.getId(), ge);
+            }
 
         } catch (Exception e) {
             log.error("Policy evolution failed", e);

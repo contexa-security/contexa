@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.enterprise.autonomous;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyActivationServiceImpl;
+import io.contexa.contexacoreenterprise.repository.SynthesisPolicyRepository;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
@@ -26,6 +27,7 @@ public class PolicyActivationEventListener {
     private final PolicyService policyService;
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final CustomDynamicAuthorizationManager authorizationManager;
+    private final SynthesisPolicyRepository synthesisPolicyRepository;
 
     @EventListener
     @Async
@@ -57,11 +59,15 @@ public class PolicyActivationEventListener {
 
             linkProposalToPolicy(proposal, savedPolicy);
 
+            cachePolicyForWorkbench(savedPolicy, proposal);
+
+            reloadAuthorizationSystem();
+
         } catch (Exception e) {
             log.error("AI policy activation failed: proposalId={}, error={}",
                     proposalId, e.getMessage(), e);
 
-            throw new RuntimeException("AI policy activation failed: " + e.getMessage(), e);
+            rollbackProposalStatus(proposalId);
         }
     }
 
@@ -150,13 +156,59 @@ public class PolicyActivationEventListener {
         }
     }
 
-    private void reloadAuthorizationSystem() {
+    private void cachePolicyForWorkbench(Policy savedPolicy, PolicyEvolutionProposal proposal) {
         try {
-            policyRetrievalPoint.clearUrlPoliciesCache();
-            policyRetrievalPoint.clearMethodPoliciesCache();
-            authorizationManager.reload();
+            SynthesisPolicyRepository.Policy cachePolicy = SynthesisPolicyRepository.Policy.builder()
+                    .policyId(savedPolicy.getId())
+                    .proposalId(proposal.getId())
+                    .policyName(savedPolicy.getName())
+                    .policyType(proposal.getProposalType() != null ? proposal.getProposalType().name() : "UNKNOWN")
+                    .spelExpression(proposal.getSpelExpression())
+                    .status(SynthesisPolicyRepository.PolicyStatus.ACTIVE)
+                    .createdBy(proposal.getApprovedBy())
+                    .build();
+            synthesisPolicyRepository.save(cachePolicy);
         } catch (Exception e) {
-            log.error("Failed to reload authorization system", e);
+            log.error("Failed to cache policy for workbench: policyId={}", savedPolicy.getId(), e);
         }
+    }
+
+    private void rollbackProposalStatus(Long proposalId) {
+        try {
+            proposalRepository.findById(proposalId).ifPresent(p -> {
+                p.setStatus(PolicyEvolutionProposal.ProposalStatus.ROLLED_BACK);
+                proposalRepository.save(p);
+            });
+        } catch (Exception rollbackEx) {
+            log.error("Failed to rollback proposal status: proposalId={}", proposalId, rollbackEx);
+        }
+    }
+
+    private static final int MAX_RELOAD_RETRIES = 3;
+
+    private void reloadAuthorizationSystem() {
+        Exception lastException = null;
+        for (int attempt = 1; attempt <= MAX_RELOAD_RETRIES; attempt++) {
+            try {
+                policyRetrievalPoint.clearUrlPoliciesCache();
+                policyRetrievalPoint.clearMethodPoliciesCache();
+                authorizationManager.reload();
+                return;
+            } catch (Exception e) {
+                lastException = e;
+                log.error("Authorization system reload failed (attempt {}/{}): {}",
+                        attempt, MAX_RELOAD_RETRIES, e.getMessage());
+                if (attempt < MAX_RELOAD_RETRIES) {
+                    try {
+                        Thread.sleep(500L * attempt);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+        }
+        throw new RuntimeException("Authorization system reload failed after " +
+                MAX_RELOAD_RETRIES + " retries", lastException);
     }
 }

@@ -1138,13 +1138,15 @@
                     const clonedResponse = response.clone();
                     const data = await clonedResponse.json();
 
-                    if (data.error === 'MFA_CHALLENGE_REQUIRED' && data.mfaUrl) {
+                    if ((data.error === 'MFA_CHALLENGE_REQUIRED' || data.error === 'BLOCK_MFA_REQUIRED')
+                        && (data.challengeNoticeUrl || data.mfaUrl)) {
+                        var redirectTarget = data.challengeNoticeUrl || data.mfaUrl;
                         ContexaMFAUtils.log(
-                            `MFA Challenge detected, redirecting to: ${data.mfaUrl}`,
+                            `MFA Challenge detected, redirecting to: ${redirectTarget}`,
                             'info',
                             data
                         );
-                        window.location.href = data.mfaUrl;
+                        window.location.href = redirectTarget;
                         return new Promise(() => {});
                     }
                 } catch (e) {
@@ -1234,11 +1236,12 @@
                     var data = JSON.parse(xhr.responseText);
 
                     // 401 MFA Challenge
-                    if (status === 401 && data.error === 'MFA_CHALLENGE_REQUIRED' && data.mfaUrl) {
+                    if (status === 401 && data.error === 'MFA_CHALLENGE_REQUIRED' && (data.challengeNoticeUrl || data.mfaUrl)) {
+                        var xhrRedirectTarget = data.challengeNoticeUrl || data.mfaUrl;
                         ContexaMFAUtils.log(
-                            'XHR: MFA Challenge detected, redirecting to: ' + data.mfaUrl,
+                            'XHR: MFA Challenge detected, redirecting to: ' + xhrRedirectTarget,
                             'info', data);
-                        window.location.href = data.mfaUrl;
+                        window.location.href = xhrRedirectTarget;
                         return;
                     }
 

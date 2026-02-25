@@ -5,6 +5,7 @@ import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -361,8 +362,13 @@ public class IdentitySecurityCoreAutoConfiguration {
     public ZeroTrustAccessControlFilter zeroTrustAccessControlFilter(
             ZeroTrustActionRedisRepository actionRedisRepository,
             AuthResponseWriter responseWriter,
-            StringRedisTemplate stringRedisTemplate) {
-        return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter, stringRedisTemplate);
+            StringRedisTemplate stringRedisTemplate,
+            IBlockedUserRecorder blockedUserRecorder,
+            ChallengeMfaInitializer challengeMfaInitializer,
+            AuthUrlProvider authUrlProvider
+            ) {
+        return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter, stringRedisTemplate,
+                blockedUserRecorder, challengeMfaInitializer, authUrlProvider);
     }
 
     @Bean

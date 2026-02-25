@@ -272,7 +272,7 @@ public class PolicyWorkbenchController {
                 days = 30;
             }
 
-            PolicyProposalAnalytics.DashboardStatistics stats = analyticsService.generateDashboardStatistics();
+            PolicyProposalAnalytics.DashboardStatistics stats = analyticsService.generateDashboardStatistics(days);
 
             Map<String, Integer> proposalsByTypeConverted = new HashMap<>();
             if (stats.getProposalsByType() != null) {

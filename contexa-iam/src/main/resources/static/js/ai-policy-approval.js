@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 async function loadStatistics() {
     try {
-        const response = await axios.get('/api/ai/policies/statistics');
+        const response = await axios.get('/api/policies/analytics');
         const stats = response.data;
 
         document.getElementById('totalPolicies').textContent = stats.total || 0;
@@ -74,7 +74,7 @@ async function loadPolicies(page = 0) {
         if (source) params.source = source;
         if (status) params.status = status;
 
-        const response = await axios.get('/api/ai/policies', { params });
+        const response = await axios.get('/api/policies/proposals', { params });
         const data = response.data;
 
         currentPage = data.number;
@@ -192,7 +192,7 @@ function createPolicyRow(policy) {
  */
 async function showPolicyDetail(policyId) {
     try {
-        const response = await axios.get(`/api/ai/policies/${policyId}`);
+        const response = await axios.get(`/api/policies/proposals/${policyId}`);
         const policy = response.data;
 
         currentPolicyId = policyId;
@@ -303,7 +303,7 @@ async function showPolicyDetail(policyId) {
  */
 async function approvePolicy(policyId) {
     try {
-        const response = await axios.post(`/api/ai/policies/${policyId}/approve`, {
+        const response = await axios.post(`/api/policies/proposals/${policyId}/approve`, {
             activateImmediately: true
         });
 
@@ -352,7 +352,7 @@ async function confirmReject() {
     }
 
     try {
-        const response = await axios.post(`/api/ai/policies/${currentPolicyId}/reject`, {
+        const response = await axios.post(`/api/policies/proposals/${currentPolicyId}/reject`, {
             reason: reason
         });
 
@@ -405,7 +405,8 @@ async function batchApprove() {
     }
 
     try {
-        const response = await axios.post('/api/ai/policies/batch/approve', {
+        // TODO: Batch approval endpoint not yet implemented on server
+        const response = await axios.post('/api/policies/proposals/batch/approve', {
             policyIds: Array.from(selectedPolicies),
             activateImmediately: true
         });

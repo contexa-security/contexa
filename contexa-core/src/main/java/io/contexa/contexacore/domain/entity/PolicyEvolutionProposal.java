@@ -218,7 +218,7 @@ public class PolicyEvolutionProposal {
                 case APPROVED:
                     return target == ACTIVATED || target == REJECTED;
                 case ACTIVATED:
-                    return target == DEACTIVATED || target == EXPIRED;
+                    return target == DEACTIVATED || target == EXPIRED || target == ROLLED_BACK;
                 case REJECTED:
                 case DEACTIVATED:
                 case EXPIRED:
@@ -251,6 +251,7 @@ public class PolicyEvolutionProposal {
         this.status = ProposalStatus.APPROVED;
         this.approvedBy = approver;
         this.reviewedAt = LocalDateTime.now();
+        this.approvedAt = LocalDateTime.now();
     }
 
     public void reject(String reviewer, String reason) {

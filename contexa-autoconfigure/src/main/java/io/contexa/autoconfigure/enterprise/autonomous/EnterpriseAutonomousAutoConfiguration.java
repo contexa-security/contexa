@@ -99,9 +99,10 @@ public class EnterpriseAutonomousAutoConfiguration {
     public AutonomousLearningCoordinator autonomousLearningCoordinator(
             PolicyEvolutionEngine evolutionEngine,
             PolicyProposalRepository proposalRepository,
+            PolicyEvolutionGovernance governanceService,
             EvolutionMetricsCollector evolutionMetricsCollector,
             SecurityAutonomousProperties securityAutonomousProperties) {
-        return new AutonomousLearningCoordinator(evolutionEngine, proposalRepository, evolutionMetricsCollector, securityAutonomousProperties);
+        return new AutonomousLearningCoordinator(evolutionEngine, proposalRepository, governanceService, evolutionMetricsCollector, securityAutonomousProperties);
     }
 
     @Bean
@@ -151,13 +152,15 @@ public class EnterpriseAutonomousAutoConfiguration {
             ProposalToPolicyConverter proposalToPolicyConverter,
             PolicyService policyService,
             PolicyRetrievalPoint policyRetrievalPoint,
-            CustomDynamicAuthorizationManager authorizationManager) {
+            CustomDynamicAuthorizationManager authorizationManager,
+            SynthesisPolicyRepository synthesisPolicyRepository) {
         return new PolicyActivationEventListener(
                 proposalRepository,
                 proposalToPolicyConverter,
                 policyService,
                 policyRetrievalPoint,
-                authorizationManager);
+                authorizationManager,
+                synthesisPolicyRepository);
     }
 
     @Bean

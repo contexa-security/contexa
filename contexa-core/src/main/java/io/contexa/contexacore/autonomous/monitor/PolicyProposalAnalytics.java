@@ -73,9 +73,19 @@ public class PolicyProposalAnalytics {
     }
 
     public DashboardStatistics generateDashboardStatistics() {
+        return generateDashboardStatistics(0);
+    }
+
+    public DashboardStatistics generateDashboardStatistics(int days) {
         DashboardStatistics stats = new DashboardStatistics();
 
         List<PolicyEvolutionProposal> allProposals = proposalRepository.findAll();
+        if (days > 0) {
+            LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
+            allProposals = allProposals.stream()
+                .filter(p -> p.getCreatedAt().isAfter(cutoff))
+                .collect(Collectors.toList());
+        }
         stats.setTotalProposals(allProposals.size());
 
         Map<ProposalStatus, Long> statusCounts = allProposals.stream()
