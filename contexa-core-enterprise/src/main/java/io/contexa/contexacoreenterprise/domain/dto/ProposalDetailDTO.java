@@ -1,6 +1,7 @@
 package io.contexa.contexacoreenterprise.domain.dto;
 
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
 import lombok.AllArgsConstructor;
@@ -22,7 +23,7 @@ public class ProposalDetailDTO {
     private String description;
     private PolicyEvolutionProposal.ProposalType proposalType;
     private ProposalStatus status;
-    private PolicyEvolutionProposal.RiskLevel riskLevel;
+    private ProposalImpactLevel impactLevel;
 
     private String sourceEventId;
     private String analysisLabId;

@@ -235,14 +235,14 @@ public class PolicyWorkbenchController {
             
             ImpactAnalysisDTO analysis = ImpactAnalysisDTO.builder()
                 .proposalId(id)
-                .riskLevel(proposal.getRiskLevel())
-                .adjustedRiskLevel(decision.getRiskAssessment() != null ? 
-                    decision.getRiskAssessment().getAdjustedRisk() : proposal.getRiskLevel())
+                .impactLevel(proposal.getImpactLevel())
+                .adjustedImpactLevel(decision.getRiskAssessment() != null ?
+                    decision.getRiskAssessment().getAdjustedImpact() : proposal.getImpactLevel())
                 .expectedImpact(proposal.getExpectedImpact())
                 .actualImpact(proposal.getActualImpact())
                 .confidenceScore(proposal.getConfidenceScore())
-                .riskFactors(decision.getRiskAssessment() != null ? 
-                    decision.getRiskAssessment().getRiskFactors() : null)
+                .impactFactors(decision.getRiskAssessment() != null ?
+                    decision.getRiskAssessment().getImpactFactors() : null)
                 .recommendation(decision.getReason())
                 .autoApprovalEligible(decision.isAutoApproved())
                 .requiredApprovers(decision.getRequiredApprovers())
@@ -280,17 +280,17 @@ public class PolicyWorkbenchController {
                     proposalsByTypeConverted.put(type.toString(), count.intValue()));
             }
             
-            Map<String, Integer> proposalsByRiskConverted = new HashMap<>();
-            if (stats.getProposalsByRiskLevel() != null) {
-                stats.getProposalsByRiskLevel().forEach((risk, count) -> 
-                    proposalsByRiskConverted.put(risk.toString(), count.intValue()));
+            Map<String, Integer> proposalsByImpactConverted = new HashMap<>();
+            if (stats.getProposalsByImpactLevel() != null) {
+                stats.getProposalsByImpactLevel().forEach((impact, count) ->
+                    proposalsByImpactConverted.put(impact.toString(), count.intValue()));
             }
-            
+
             AnalyticsDTO analytics = AnalyticsDTO.builder()
                 .totalProposals((int) stats.getTotalProposals())
                 .approvalRate(stats.getApprovalRate())
                 .proposalsByType(proposalsByTypeConverted)
-                .proposalsByRiskLevel(proposalsByRiskConverted)
+                .proposalsByImpactLevel(proposalsByImpactConverted)
                 .build();
             
             return ResponseEntity.ok(analytics);
@@ -386,7 +386,7 @@ public class PolicyWorkbenchController {
                             .proposalId(proposal.getId())
                             .proposalTitle(proposal.getTitle())
                             .proposalType(proposal.getProposalType())
-                            .riskLevel(proposal.getRiskLevel())
+                            .impactLevel(proposal.getImpactLevel())
                             .createdAt(req.getCreatedAt())
                             .expiresAt(req.getExpiresAt())
                             .build())
@@ -410,7 +410,7 @@ public class PolicyWorkbenchController {
             .title(proposal.getTitle())
             .proposalType(proposal.getProposalType())
             .status(proposal.getStatus())
-            .riskLevel(proposal.getRiskLevel())
+            .impactLevel(proposal.getImpactLevel())
             .confidenceScore(proposal.getConfidenceScore())
             .createdAt(proposal.getCreatedAt())
             .reviewedAt(proposal.getReviewedAt())
@@ -424,7 +424,7 @@ public class PolicyWorkbenchController {
             .description(proposal.getDescription())
             .proposalType(proposal.getProposalType())
             .status(proposal.getStatus())
-            .riskLevel(proposal.getRiskLevel())
+            .impactLevel(proposal.getImpactLevel())
             .sourceEventId(proposal.getSourceEventId())
             .analysisLabId(proposal.getAnalysisLabId())
             .aiReasoning(proposal.getAiReasoning())

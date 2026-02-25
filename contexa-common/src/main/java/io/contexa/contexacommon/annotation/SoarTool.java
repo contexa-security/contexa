@@ -16,9 +16,6 @@ public @interface SoarTool {
     String description() default "";
     
     
-    RiskLevel riskLevel() default RiskLevel.MEDIUM;
-    
-    
     ApprovalRequirement approval() default ApprovalRequirement.AUTO;
     
     
@@ -41,24 +38,6 @@ public @interface SoarTool {
     
     
     long timeoutMs() default 30000;
-    
-    
-    enum RiskLevel {
-        LOW(0.2),
-        MEDIUM(0.5),
-        HIGH(0.7),
-        CRITICAL(0.9);
-        
-        private final double score;
-        
-        RiskLevel(double score) {
-            this.score = score;
-        }
-        
-        public double getScore() {
-            return score;
-        }
-    }
     
     
     enum ApprovalRequirement {

@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.domain;
 
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,12 +17,12 @@ import java.util.Map;
 public class ImpactAnalysisDTO {
     
     private Long proposalId;
-    private PolicyEvolutionProposal.RiskLevel riskLevel;
-    private PolicyEvolutionProposal.RiskLevel adjustedRiskLevel;
+    private ProposalImpactLevel impactLevel;
+    private ProposalImpactLevel adjustedImpactLevel;
     private Double expectedImpact;
     private Double actualImpact;
     private Double confidenceScore;
-    private Map<String, Object> riskFactors;
+    private Map<String, Object> impactFactors;
     private String recommendation;
     private boolean autoApprovalEligible;
     private int requiredApprovers;

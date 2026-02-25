@@ -5,7 +5,6 @@ import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.domain.SoarExecutionMode;
-import io.contexa.contexacommon.annotation.SoarTool;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacoreenterprise.repository.ToolExecutionContextRepository;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
@@ -137,10 +136,7 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
         List<ToolCallInfo> highRiskTools = new ArrayList<>();
 
         for (ToolCallInfo toolCall : toolCalls) {
-            boolean requiresApproval = policyManager.requiresApproval(toolCall.name);
-            SoarTool.RiskLevel riskLevel = policyManager.getRiskLevel(toolCall.name);
-
-            if (requiresApproval || riskLevel == SoarTool.RiskLevel.HIGH || riskLevel == SoarTool.RiskLevel.CRITICAL) {
+            if (policyManager.requiresApproval(toolCall.name)) {
                 highRiskTools.add(toolCall);
             }
         }
@@ -180,7 +176,6 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
     }
 
     private ApprovalRequest buildApprovalRequest(String requestId, List<ToolCallInfo> tools) {
-        SoarTool.RiskLevel soarRiskLevel = determineMaxRiskLevel(tools);
         SoarContext soarContext = currentContext.get();
 
         Map<String, Object> contextMap = new HashMap<>();
@@ -206,29 +201,11 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
                 .requestedAt(LocalDateTime.now())
                 .requestedBy("AI System")
                 .toolName(tools.stream().map(t -> t.name).collect(Collectors.joining(", ")))
-                .riskLevel(convertToApprovalRiskLevel(soarRiskLevel))
                 .reason("Approval required for high-risk tool execution")
                 .status(ApprovalRequest.ApprovalStatus.PENDING)
                 .context(contextMap)
                 .parameters(parameters)
                 .build();
-    }
-
-    private ApprovalRequest.RiskLevel convertToApprovalRiskLevel(SoarTool.RiskLevel soarRiskLevel) {
-        return switch (soarRiskLevel) {
-            case CRITICAL -> ApprovalRequest.RiskLevel.CRITICAL;
-            case HIGH -> ApprovalRequest.RiskLevel.HIGH;
-            case MEDIUM -> ApprovalRequest.RiskLevel.MEDIUM;
-            case LOW -> ApprovalRequest.RiskLevel.LOW;
-            default -> ApprovalRequest.RiskLevel.INFO;
-        };
-    }
-
-    private SoarTool.RiskLevel determineMaxRiskLevel(List<ToolCallInfo> tools) {
-        return tools.stream()
-                .map(tool -> policyManager.getRiskLevel(tool.name))
-                .max(Comparator.comparingInt(Enum::ordinal))
-                .orElse(SoarTool.RiskLevel.LOW);
     }
 
     private ToolExecutionResult createDenialResult(
@@ -423,7 +400,6 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
         String responseJson = objectMapper.writeValueAsString(allToolCallsData);
 
         String toolNames = toolCalls.stream().map(t -> t.name).collect(Collectors.joining(", "));
-        SoarTool.RiskLevel maxRiskLevel = determineMaxRiskLevel(toolCalls);
 
         ToolExecutionContext context = ToolExecutionContext.builder()
                 .requestId(requestId)
@@ -437,7 +413,6 @@ public class ApprovalAwareToolCallingManagerDecorator implements ToolCallingMana
                 .chatOptions(chatOptionsJson)
                 .chatResponse(responseJson)
                 .status("PENDING")
-                .riskLevel(maxRiskLevel.name())
                 .expiresAt(LocalDateTime.now().plusMinutes(soarProperties.getToolExecution().getContextExpiryMinutes()))
                 .build();
 

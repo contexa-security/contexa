@@ -18,7 +18,6 @@ import java.util.stream.Collectors;
 @SoarTool(
         name = "log_analysis",
         description = "Analyze logs for security threats, anomalies, and forensic evidence",
-        riskLevel = SoarTool.RiskLevel.LOW,
         approval = SoarTool.ApprovalRequirement.AUTO,
         auditRequired = true,
         retryable = true,

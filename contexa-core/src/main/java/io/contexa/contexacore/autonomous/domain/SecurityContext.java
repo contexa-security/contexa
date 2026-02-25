@@ -87,13 +87,6 @@ public class SecurityContext {
         return 0.5; 
     }
 
-    public UserSecurityContext.RiskLevel getCurrentRiskLevel() {
-        if (userSecurityContext != null) {
-            return userSecurityContext.getRiskLevel();
-        }
-        return UserSecurityContext.RiskLevel.MEDIUM;
-    }
-
     public Double getTrustScore() {
         return getCurrentTrustScore();
     }
@@ -123,17 +116,14 @@ public class SecurityContext {
         if (userSecurityContext != null) {
             return userSecurityContext.requiresMfa();
         }
-        
-        UserSecurityContext.RiskLevel riskLevel = getCurrentRiskLevel();
-        return riskLevel == UserSecurityContext.RiskLevel.HIGH ||
-               riskLevel == UserSecurityContext.RiskLevel.CRITICAL;
+        return false;
     }
 
     public boolean requiresSessionInvalidation() {
         if (userSecurityContext != null) {
             return userSecurityContext.requiresSessionInvalidation();
         }
-        return getCurrentRiskLevel() == UserSecurityContext.RiskLevel.CRITICAL;
+        return false;
     }
 
     public long getRecentProtectableAccessCount(int minutes) {
@@ -236,12 +226,10 @@ public class SecurityContext {
         summary.put("userId", userId);
         summary.put("organizationId", organizationId);
         summary.put("trustScore", getCurrentTrustScore());
-        summary.put("riskLevel", getCurrentRiskLevel());
         summary.put("behaviorPatternCount", behaviorPatterns != null ? behaviorPatterns.size() : 0);
         summary.put("threatIndicatorCount", threatIndicators != null ? threatIndicators.size() : 0);
         summary.put("protectableAccessCount", protectableAccessHistory != null ? protectableAccessHistory.size() : 0);
         summary.put("recentAccessDenied", getRecentAccessDeniedCount(60));
-        summary.put("riskLevel", getCurrentRiskLevel());
         summary.put("requiresMfa", requiresMfa());
         summary.put("createdAt", createdAt);
         summary.put("updatedAt", updatedAt);

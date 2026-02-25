@@ -309,7 +309,7 @@ create table public.condition_template
     risk_level                 varchar(255)
         constraint condition_template_risk_level_check
             check ((risk_level)::text = ANY
-                   ((ARRAY ['LOW'::character varying, 'MEDIUM'::character varying, 'HIGH'::character varying])::text[]))
+                   ((ARRAY ['LOW'::character varying, 'MEDIUM'::character varying, 'HIGH'::character varying, 'CRITICAL'::character varying])::text[]))
 );
 
 alter table public.condition_template

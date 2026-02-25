@@ -12,7 +12,6 @@ import io.contexa.contexacoreenterprise.autonomous.evolution.PolicyEvolutionEngi
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyApprovalService;
 import io.contexa.contexacoreenterprise.autonomous.governance.PolicyEvolutionGovernance;
 import io.contexa.contexacoreenterprise.autonomous.monitor.PolicyAuditLogger;
-import io.contexa.contexacoreenterprise.autonomous.notification.DefaultNotificationService;
 import io.contexa.contexacoreenterprise.autonomous.validation.SpelValidationService;
 import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
@@ -111,13 +110,6 @@ public class EnterpriseAutonomousAutoConfiguration {
     public PolicyAuditLogger policyAuditLogger(
             SynthesisPolicyRepository synthesisPolicyRepository) {
         return new PolicyAuditLogger(synthesisPolicyRepository);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.autonomous.policy-evolution", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public DefaultNotificationService defaultNotificationService() {
-        return new DefaultNotificationService();
     }
 
     @Bean

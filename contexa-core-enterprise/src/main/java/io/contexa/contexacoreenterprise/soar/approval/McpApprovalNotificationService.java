@@ -1,6 +1,7 @@
 package io.contexa.contexacoreenterprise.soar.approval;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacore.domain.ApprovalRequest.ApprovalType;
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.entity.ApprovalNotification;
 import io.contexa.contexacoreenterprise.domain.entity.ToolExecutionContext;
@@ -107,9 +108,9 @@ public class McpApprovalNotificationService {
 
         eventPublisher.publishEvent(new ApprovalRequestEvent(request));
 
-        String riskLevelName = request.getRiskLevel() != null ? 
-            request.getRiskLevel().name() : "MEDIUM";
-        scheduleTimeout(request.getRequestId(), getTimeoutDuration(riskLevelName));
+        String approvalTypeName = request.getApprovalType() != null ?
+            request.getApprovalType().name() : "MANUAL";
+        scheduleTimeout(request.getRequestId(), getTimeoutDuration(approvalTypeName));
 
         addToHistory(notification);
     }
@@ -212,8 +213,8 @@ public class McpApprovalNotificationService {
             data.put("toolName", request.getToolName());
         }
         
-        if (request.getRiskLevel() != null) {
-            data.put("riskLevel", request.getRiskLevel().toString());
+        if (request.getApprovalType() != null) {
+            data.put("approvalType", request.getApprovalType().toString());
         }
         
         if (request.getRequestedAt() != null) {
@@ -413,14 +414,14 @@ public class McpApprovalNotificationService {
                 .notificationType("APPROVAL_REQUEST")
                 .title("High-risk tool execution approval request")
                 .message(String.format(
-                    "Approval required for tool '%s' execution.\nRisk level: %s\nRequested by: %s",
+                    "Approval required for tool '%s' execution.\nApproval type: %s\nRequested by: %s",
                     request.getToolName(),
-                    request.getRiskLevel(),
+                    request.getApprovalType(),
                     request.getRequestedBy()
                 ))
                 .userId(request.getUserId())
                 .targetRole("SECURITY_ADMIN") 
-                .priority(mapRiskToPriority(request.getRiskLevel()))
+                .priority(mapApprovalTypeToPriority(request.getApprovalType()))
                 .actionRequired(true)
                 .groupId(executionContext.getIncidentId())
                 .expiresAt(LocalDateTime.now().plusMinutes(30)) 
@@ -428,7 +429,7 @@ public class McpApprovalNotificationService {
 
             Map<String, Object> metadata = new HashMap<>();
             metadata.put("toolName", request.getToolName());
-            metadata.put("riskLevel", request.getRiskLevel() != null ? request.getRiskLevel().toString() : "UNKNOWN");
+            metadata.put("approvalType", request.getApprovalType() != null ? request.getApprovalType().toString() : "UNKNOWN");
             metadata.put("executionContextId", executionContext.getId());
             metadata.put("sessionId", executionContext.getSessionId());
             notification.setNotificationData(metadata);
@@ -444,16 +445,16 @@ public class McpApprovalNotificationService {
         }
     }
 
-    private String mapRiskToPriority(ApprovalRequest.RiskLevel riskLevel) {
-        if (riskLevel == null) {
+    private String mapApprovalTypeToPriority(ApprovalType approvalType) {
+        if (approvalType == null) {
             return "MEDIUM";
         }
-        return switch (riskLevel) {
-            case CRITICAL -> "CRITICAL";
-            case HIGH -> "HIGH";
-            case MEDIUM -> "MEDIUM";
-            case LOW -> "LOW";
-            default -> "INFO";
+        return switch (approvalType) {
+            case MULTI, UNANIMOUS, EMERGENCY -> "CRITICAL";
+            case MANUAL -> "HIGH";
+            case SINGLE -> "MEDIUM";
+            case AUTO -> "LOW";
+            default -> "MEDIUM";
         };
     }
 

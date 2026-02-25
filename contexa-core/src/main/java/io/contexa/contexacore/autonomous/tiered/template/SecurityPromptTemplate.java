@@ -465,12 +465,7 @@ public class SecurityPromptTemplate {
                 {
                   "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
                   "riskScore":<0.0-1.0>,
-                  "confidence":<0.3-0.95>,
-                  "reasoning":"<your final interpretation>",
-                  "evidence":["<fact from timeline>","<fact from profile>"],
-                  "legitimateHypothesis":"<why this could be normal behavior>",
-                  "suspiciousHypothesis":"<why this could be malicious>",
-                  "mitre":"<TAG|none>"
+                  "confidence":<0.3-0.95>
                 }
 
                 ACTIONS:

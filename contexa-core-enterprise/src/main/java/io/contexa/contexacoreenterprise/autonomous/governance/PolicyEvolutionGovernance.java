@@ -1,10 +1,13 @@
 package io.contexa.contexacoreenterprise.autonomous.governance;
 
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.repository.PolicyProposalRepository;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
 import io.contexa.contexacoreenterprise.properties.GovernanceProperties;
+import lombok.Builder;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -16,7 +19,9 @@ import java.util.*;
 @Slf4j
 @RequiredArgsConstructor
 public class PolicyEvolutionGovernance {
-    
+
+    private static final String SYSTEM_AUTO_ACTOR = "SYSTEM_AUTO";
+
     private final PolicyProposalRepository proposalRepository;
     private final PolicyActivationService activationService;
     private final PolicyApprovalService approvalService;
@@ -32,11 +37,13 @@ public class PolicyEvolutionGovernance {
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found: " + proposalId));
 
             if (!canEvaluate(proposal)) {
-                return GovernanceDecision.builder()
+                GovernanceDecision skipDecision = GovernanceDecision.builder()
                     .proposalId(proposalId)
                     .decision(DecisionType.SKIP)
                     .reason("Proposal cannot be evaluated in current state: " + proposal.getStatus())
                     .build();
+                publishGovernanceEvent(proposal, skipDecision);
+                return skipDecision;
             }
 
             RiskAssessment riskAssessment = reassessRisk(proposal);
@@ -59,72 +66,64 @@ public class PolicyEvolutionGovernance {
         }
     }
 
+    // Reassesses proposal impact by aggregating weighted factors (type, impact, learning)
+    // into a [0.0, 1.0] score, then shifting the base impact level up or down by 0/1/2 levels.
+    // Confidence-based impact adjustment is handled in PolicyEvolutionEngine only (no double-counting).
+    // All weights are externalized in GovernanceProperties for operational tuning.
     private RiskAssessment reassessRisk(PolicyEvolutionProposal proposal) {
         RiskAssessment assessment = new RiskAssessment();
-        GovernanceProperties.RiskWeightSettings weights = governanceProperties.getRiskWeights();
+        GovernanceProperties.ImpactWeightSettings weights = governanceProperties.getImpactWeights();
 
-        PolicyEvolutionProposal.RiskLevel baseRisk = proposal.getRiskLevel();
-        assessment.setBaseRisk(baseRisk);
+        ProposalImpactLevel baseImpact = proposal.getImpactLevel();
+        assessment.setBaseImpact(baseImpact);
 
-        double riskScore = 0.0;
+        double impactScore = 0.0;
 
         switch (proposal.getProposalType()) {
             case DELETE_POLICY:
             case REVOKE_ACCESS:
-                riskScore += weights.getDeletePolicyWeight();
+                impactScore += weights.getDeletePolicyWeight();
                 break;
             case CREATE_POLICY:
             case GRANT_ACCESS:
-                riskScore += weights.getCreatePolicyWeight();
+                impactScore += weights.getCreatePolicyWeight();
                 break;
             case UPDATE_POLICY:
             case OPTIMIZE_RULE:
-                riskScore += weights.getUpdatePolicyWeight();
+                impactScore += weights.getUpdatePolicyWeight();
                 break;
             default:
-                riskScore += weights.getDefaultTypeWeight();
-        }
-
-        Double confidence = proposal.getConfidenceScore();
-        if (confidence != null) {
-            if (confidence < 0.5) {
-                riskScore += weights.getLowConfidenceWeight();
-            } else if (confidence < 0.7) {
-                riskScore += weights.getMediumConfidenceWeight();
-            } else if (confidence > 0.9) {
-                riskScore -= weights.getHighConfidenceReduction();
-            }
+                impactScore += weights.getDefaultTypeWeight();
         }
 
         Double expectedImpact = proposal.getExpectedImpact();
         if (expectedImpact != null && expectedImpact > weights.getHighImpactThreshold()) {
-            riskScore += weights.getHighImpactWeight();
+            impactScore += weights.getHighImpactWeight();
         }
 
         if (proposal.getLearningType() != null) {
             switch (proposal.getLearningType()) {
                 case THREAT_RESPONSE:
-                    riskScore += weights.getThreatResponseWeight();
+                    impactScore += weights.getThreatResponseWeight();
                     break;
                 case ACCESS_PATTERN:
-                    riskScore += weights.getAccessPatternWeight();
+                    impactScore += weights.getAccessPatternWeight();
                     break;
                 case POLICY_FEEDBACK:
                     break;
             }
         }
 
-        riskScore = Math.max(0.0, Math.min(riskScore, 1.0));
-        assessment.setRiskScore(riskScore);
-        assessment.setAdjustedRisk(calculateAdjustedRisk(baseRisk, riskScore, weights));
+        impactScore = Math.max(0.0, Math.min(impactScore, 1.0));
+        assessment.setImpactScore(impactScore);
+        assessment.setAdjustedImpact(calculateAdjustedImpact(baseImpact, impactScore, weights));
         assessment.setAssessmentTime(LocalDateTime.now());
 
         Map<String, Object> factors = new HashMap<>();
         factors.put("proposalType", proposal.getProposalType());
-        factors.put("confidence", confidence);
         factors.put("expectedImpact", expectedImpact);
         factors.put("learningType", proposal.getLearningType());
-        assessment.setRiskFactors(factors);
+        assessment.setImpactFactors(factors);
 
         return assessment;
     }
@@ -133,7 +132,41 @@ public class PolicyEvolutionGovernance {
             PolicyEvolutionProposal proposal, 
             RiskAssessment riskAssessment) {
 
-        PolicyEvolutionProposal.RiskLevel adjustedRisk = riskAssessment.getAdjustedRisk();
+        ProposalImpactLevel adjustedImpact = riskAssessment.getAdjustedImpact();
+
+        // Reject proposals that do not meet minimum quality requirements
+        GovernanceProperties.RejectionSettings rejectionSettings = governanceProperties.getRejection();
+
+        if (proposal.getSpelExpression() == null || proposal.getSpelExpression().isBlank()) {
+            return GovernanceDecision.builder()
+                .proposalId(proposal.getId())
+                .decision(DecisionType.REJECT)
+                .riskAssessment(riskAssessment)
+                .reason("SpEL expression is null or blank")
+                .build();
+        }
+
+        Double confidence = proposal.getConfidenceScore();
+        double conf = confidence != null ? confidence : 0.0;
+        if (conf < rejectionSettings.getAbsoluteMinConfidence()) {
+            return GovernanceDecision.builder()
+                .proposalId(proposal.getId())
+                .decision(DecisionType.REJECT)
+                .riskAssessment(riskAssessment)
+                .reason(String.format("Confidence %.2f below absolute minimum %.2f",
+                    conf, rejectionSettings.getAbsoluteMinConfidence()))
+                .build();
+        }
+
+        if (adjustedImpact == ProposalImpactLevel.CRITICAL && conf < rejectionSettings.getCriticalMinConfidence()) {
+            return GovernanceDecision.builder()
+                .proposalId(proposal.getId())
+                .decision(DecisionType.REJECT)
+                .riskAssessment(riskAssessment)
+                .reason(String.format("CRITICAL impact with confidence %.2f below minimum %.2f",
+                    conf, rejectionSettings.getCriticalMinConfidence()))
+                .build();
+        }
 
         if (canAutoApprove(proposal, riskAssessment)) {
                         return GovernanceDecision.builder()
@@ -145,15 +178,15 @@ public class PolicyEvolutionGovernance {
                 .build();
         }
 
-        if (needsMultiApproval(adjustedRisk)) {
-            int requiredApprovers = calculateRequiredApprovers(adjustedRisk);
+        if (needsMultiApproval(adjustedImpact)) {
+            int requiredApprovers = calculateRequiredApprovers(adjustedImpact);
                         
             return GovernanceDecision.builder()
                 .proposalId(proposal.getId())
                 .decision(DecisionType.MULTI_APPROVAL_REQUIRED)
                 .riskAssessment(riskAssessment)
                 .requiredApprovers(requiredApprovers)
-                .reason(String.format("%s risk requires %d approvers", adjustedRisk, requiredApprovers))
+                .reason(String.format("%s impact requires %d approvers", adjustedImpact, requiredApprovers))
                 .build();
         }
 
@@ -171,8 +204,14 @@ public class PolicyEvolutionGovernance {
             return false;
         }
 
-        PolicyEvolutionProposal.RiskLevel maxRisk = PolicyEvolutionProposal.RiskLevel.valueOf(governanceProperties.getAutoApprove().getMaxRisk());
-        if (riskAssessment.getAdjustedRisk().ordinal() > maxRisk.ordinal()) {
+        ProposalImpactLevel maxImpact;
+        try {
+            maxImpact = ProposalImpactLevel.valueOf(governanceProperties.getAutoApprove().getMaxImpact());
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid auto-approve maxImpact configuration: {}", governanceProperties.getAutoApprove().getMaxImpact(), e);
+            return false;
+        }
+        if (riskAssessment.getAdjustedImpact().ordinal() > maxImpact.ordinal()) {
             return false;
         }
 
@@ -184,38 +223,48 @@ public class PolicyEvolutionGovernance {
         return true;
     }
 
-    private boolean needsMultiApproval(PolicyEvolutionProposal.RiskLevel riskLevel) {
-        PolicyEvolutionProposal.RiskLevel threshold =
-            PolicyEvolutionProposal.RiskLevel.valueOf(governanceProperties.getMultiApproval().getThreshold());
-        return riskLevel.ordinal() >= threshold.ordinal();
+    private boolean needsMultiApproval(ProposalImpactLevel impactLevel) {
+        ProposalImpactLevel threshold;
+        try {
+            threshold = ProposalImpactLevel.valueOf(governanceProperties.getMultiApproval().getThreshold());
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid multi-approval threshold configuration: {}", governanceProperties.getMultiApproval().getThreshold(), e);
+            return true;
+        }
+        return impactLevel.ordinal() >= threshold.ordinal();
     }
 
-    private int calculateRequiredApprovers(PolicyEvolutionProposal.RiskLevel riskLevel) {
-        switch (riskLevel) {
+    private int calculateRequiredApprovers(ProposalImpactLevel impactLevel) {
+        GovernanceProperties.ApproverCountSettings approvers = governanceProperties.getApproverCount();
+        switch (impactLevel) {
             case CRITICAL:
-                return governanceProperties.getCritical().getMinApprovers();
+                return approvers.getCriticalApprovers();
             case HIGH:
-                return governanceProperties.getCritical().getHighApprovers();
+                return approvers.getHighApprovers();
             case MEDIUM:
-                return 1;
+                return approvers.getMediumApprovers();
             default:
-                return 1;
+                return approvers.getDefaultApprovers();
         }
     }
 
-    private PolicyEvolutionProposal.RiskLevel calculateAdjustedRisk(
-            PolicyEvolutionProposal.RiskLevel baseRisk, double riskScore,
-            GovernanceProperties.RiskWeightSettings weights) {
+    private ProposalImpactLevel calculateAdjustedImpact(
+            ProposalImpactLevel baseImpact, double impactScore,
+            GovernanceProperties.ImpactWeightSettings weights) {
 
-        int adjustedOrdinal = baseRisk.ordinal();
+        int adjustedOrdinal = baseImpact.ordinal();
 
-        if (riskScore > weights.getMajorUpThreshold()) {
-            adjustedOrdinal = Math.min(adjustedOrdinal + 2, PolicyEvolutionProposal.RiskLevel.CRITICAL.ordinal());
-        } else if (riskScore > weights.getMinorUpThreshold()) {
-            adjustedOrdinal = Math.min(adjustedOrdinal + 1, PolicyEvolutionProposal.RiskLevel.CRITICAL.ordinal());
+        if (impactScore > weights.getMajorUpThreshold()) {
+            adjustedOrdinal = Math.min(adjustedOrdinal + 2, ProposalImpactLevel.CRITICAL.ordinal());
+        } else if (impactScore > weights.getMinorUpThreshold()) {
+            adjustedOrdinal = Math.min(adjustedOrdinal + 1, ProposalImpactLevel.CRITICAL.ordinal());
+        } else if (impactScore < weights.getMajorDownThreshold()) {
+            adjustedOrdinal = Math.max(adjustedOrdinal - 2, ProposalImpactLevel.LOW.ordinal());
+        } else if (impactScore < weights.getMinorDownThreshold()) {
+            adjustedOrdinal = Math.max(adjustedOrdinal - 1, ProposalImpactLevel.LOW.ordinal());
         }
 
-        return PolicyEvolutionProposal.RiskLevel.values()[adjustedOrdinal];
+        return ProposalImpactLevel.values()[adjustedOrdinal];
     }
 
     private void executeDecision(PolicyEvolutionProposal proposal, GovernanceDecision decision) {
@@ -225,11 +274,11 @@ public class PolicyEvolutionGovernance {
                 case AUTO_APPROVE:
                     
                     proposal.setStatus(ProposalStatus.APPROVED);
-                    proposal.setApprovedBy("SYSTEM_AUTO");
+                    proposal.setApprovedBy(SYSTEM_AUTO_ACTOR);
                     proposal.setReviewedAt(LocalDateTime.now());
                     proposalRepository.save(proposal);
 
-                    activationService.activatePolicy(proposal.getId(), "SYSTEM_AUTO");
+                    activationService.activatePolicy(proposal.getId(), SYSTEM_AUTO_ACTOR);
                     break;
                     
                 case MULTI_APPROVAL_REQUIRED:
@@ -258,7 +307,7 @@ public class PolicyEvolutionGovernance {
                     break;
                     
                 default:
-                    log.error("Unhandled decision type: {}", decision.getDecision());
+                    throw new GovernanceException("Unhandled decision type: " + decision.getDecision());
             }
         } catch (Exception e) {
             log.error("Failed to execute decision for proposal: {}", proposal.getId(), e);
@@ -281,18 +330,18 @@ public class PolicyEvolutionGovernance {
         eventPublisher.publishEvent(event);
     }
 
-    @lombok.Data
+    @Data
     public static class RiskAssessment implements java.io.Serializable {
         private static final long serialVersionUID = 1L;
-        private PolicyEvolutionProposal.RiskLevel baseRisk;
-        private PolicyEvolutionProposal.RiskLevel adjustedRisk;
-        private double riskScore;
-        private Map<String, Object> riskFactors;
+        private ProposalImpactLevel baseImpact;
+        private ProposalImpactLevel adjustedImpact;
+        private double impactScore;
+        private Map<String, Object> impactFactors;
         private LocalDateTime assessmentTime;
     }
 
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class GovernanceDecision {
         private Long proposalId;
         private DecisionType decision;
@@ -311,8 +360,8 @@ public class PolicyEvolutionGovernance {
         ERROR
     }
 
-    @lombok.Builder
-    @lombok.Data
+    @Builder
+    @Data
     public static class GovernanceEvent {
         private Long proposalId;
         private GovernanceDecision decision;

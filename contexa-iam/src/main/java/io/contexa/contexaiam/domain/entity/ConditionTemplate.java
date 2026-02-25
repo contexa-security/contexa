@@ -62,11 +62,6 @@ public class ConditionTemplate implements Serializable {
     @Builder.Default
     private Integer complexityScore = 1; 
 
-    @Column(name = "risk_level")
-    @Enumerated(EnumType.STRING)
-    @Builder.Default
-    private RiskLevel riskLevel = RiskLevel.LOW; 
-
     @Column(name = "approval_required")
     @Builder.Default
     private Boolean approvalRequired = false; 
@@ -79,12 +74,6 @@ public class ConditionTemplate implements Serializable {
     @Enumerated(EnumType.STRING)
     @Builder.Default
     private ConditionClassification classification = ConditionClassification.UNIVERSAL; 
-
-    public enum RiskLevel {
-        LOW,    
-        MEDIUM, 
-        HIGH    
-    }
 
     public enum ConditionClassification {
         UNIVERSAL,          
@@ -121,19 +110,44 @@ public class ConditionTemplate implements Serializable {
 
         if (score <= 3) {
             this.classification = ConditionClassification.UNIVERSAL;
-            this.riskLevel = RiskLevel.LOW;
             this.contextDependent = false;
             this.approvalRequired = false;
         } else if (score <= 6) {
             this.classification = ConditionClassification.CONTEXT_DEPENDENT;
-            this.riskLevel = RiskLevel.MEDIUM;
             this.contextDependent = true;
-            this.approvalRequired = false; 
+            this.approvalRequired = false;
         } else {
             this.classification = ConditionClassification.CUSTOM_COMPLEX;
-            this.riskLevel = RiskLevel.HIGH;
             this.contextDependent = true;
-            this.approvalRequired = true; 
+            this.approvalRequired = true;
+        }
+
+        // Override: simple but high-impact expressions require approval regardless of complexity
+        applyDangerousExpressionOverride();
+    }
+
+    private void applyDangerousExpressionOverride() {
+        if (spelTemplate == null) {
+            return;
+        }
+        String spel = spelTemplate.toLowerCase().replaceAll("\\s+", "");
+
+        // permitAll grants access to everyone - always requires approval
+        if (spel.contains("permitall")) {
+            this.approvalRequired = true;
+            return;
+        }
+
+        // denyAll blocks everything - broad impact requires approval
+        if (spel.contains("denyall")) {
+            this.approvalRequired = true;
+            return;
+        }
+
+        // isAuthenticated() alone allows any authenticated user without role checks
+        if (spel.contains("isauthenticated()") && !spel.contains("hasrole") &&
+                !spel.contains("hasauthority") && !spel.contains("haspermission")) {
+            this.approvalRequired = true;
         }
     }
 

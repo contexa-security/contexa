@@ -10,12 +10,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -62,12 +61,6 @@ public class PolicyGenerationCollectionService {
                         .collect(Collectors.groupingBy(
                                 cond -> cond.getClassification() != null ?
                                         cond.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL));
-
-        Map<ConditionTemplate.RiskLevel, List<ConditionTemplate>> riskGrouped =
-                allConditions.stream()
-                        .collect(Collectors.groupingBy(
-                                cond -> cond.getRiskLevel() != null ?
-                                        cond.getRiskLevel() : ConditionTemplate.RiskLevel.LOW));
 
         return allConditions.stream().map(cond -> {
                     String enhancedDescription = enhanceConditionDescription(cond);

@@ -18,7 +18,6 @@ import java.util.*;
 @SoarTool(
         name = "threat_intelligence",
         description = "Query threat intelligence for IoCs and threat actors",
-        riskLevel = SoarTool.RiskLevel.LOW,
         approval = SoarTool.ApprovalRequirement.AUTO,
         auditRequired = true,
         retryable = true,

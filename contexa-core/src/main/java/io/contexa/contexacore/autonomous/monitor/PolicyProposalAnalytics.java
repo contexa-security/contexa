@@ -3,7 +3,7 @@ package io.contexa.contexacore.autonomous.monitor;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalType;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
-import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.RiskLevel;
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import io.contexa.contexacore.repository.PolicyEvolutionProposalRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -102,12 +102,12 @@ public class PolicyProposalAnalytics {
             ));
         stats.setProposalsByType(typeCounts);
 
-        Map<RiskLevel, Long> riskCounts = allProposals.stream()
+        Map<ProposalImpactLevel, Long> impactCounts = allProposals.stream()
             .collect(Collectors.groupingBy(
-                PolicyEvolutionProposal::getRiskLevel,
+                PolicyEvolutionProposal::getImpactLevel,
                 Collectors.counting()
             ));
-        stats.setProposalsByRiskLevel(riskCounts);
+        stats.setProposalsByImpactLevel(impactCounts);
 
         long approvedCount = statusCounts.getOrDefault(ProposalStatus.APPROVED, 0L);
         long rejectedCount = statusCounts.getOrDefault(ProposalStatus.REJECTED, 0L);
@@ -151,8 +151,8 @@ public class PolicyProposalAnalytics {
         Map<ProposalType, List<DataPoint>> typesTrend = generateTypeTrends(proposals, days);
         analysis.setTypesTrend(typesTrend);
 
-        Map<RiskLevel, List<DataPoint>> riskTrend = generateRiskTrends(proposals, days);
-        analysis.setRiskLevelTrend(riskTrend);
+        Map<ProposalImpactLevel, List<DataPoint>> impactTrend = generateImpactTrends(proposals, days);
+        analysis.setImpactLevelTrend(impactTrend);
 
         List<DataPoint> approvalRateTrend = generateApprovalRateTrend(proposals, days);
         analysis.setApprovalRateTrend(approvalRateTrend);
@@ -207,27 +207,27 @@ public class PolicyProposalAnalytics {
         return trends;
     }
 
-    private Map<RiskLevel, List<DataPoint>> generateRiskTrends(List<PolicyEvolutionProposal> proposals, int days) {
-        Map<RiskLevel, List<DataPoint>> trends = new HashMap<>();
-        
-        for (RiskLevel risk : RiskLevel.values()) {
-            List<DataPoint> riskTrend = new ArrayList<>();
-            
+    private Map<ProposalImpactLevel, List<DataPoint>> generateImpactTrends(List<PolicyEvolutionProposal> proposals, int days) {
+        Map<ProposalImpactLevel, List<DataPoint>> trends = new HashMap<>();
+
+        for (ProposalImpactLevel impact : ProposalImpactLevel.values()) {
+            List<DataPoint> impactTrend = new ArrayList<>();
+
             for (int i = days - 1; i >= 0; i--) {
                 LocalDateTime date = LocalDateTime.now().minusDays(i).truncatedTo(ChronoUnit.DAYS);
                 LocalDateTime nextDate = date.plusDays(1);
-                
+
                 long count = proposals.stream()
-                    .filter(p -> p.getRiskLevel() == risk)
+                    .filter(p -> p.getImpactLevel() == impact)
                     .filter(p -> p.getCreatedAt().isAfter(date) && p.getCreatedAt().isBefore(nextDate))
                     .count();
-                
-                riskTrend.add(new DataPoint(date, count, date.toLocalDate().toString()));
+
+                impactTrend.add(new DataPoint(date, count, date.toLocalDate().toString()));
             }
-            
-            trends.put(risk, riskTrend);
+
+            trends.put(impact, impactTrend);
         }
-        
+
         return trends;
     }
 
@@ -329,12 +329,12 @@ public class PolicyProposalAnalytics {
             insights.addInsight("Most active policy type: " + mostActiveType);
         }
 
-        Map<RiskLevel, List<DataPoint>> riskTrends = analysis.getRiskLevelTrend();
-        double highRiskIncrease = calculateTrendSlope(riskTrends.get(RiskLevel.HIGH));
-        
-        if (highRiskIncrease > 0.5) {
-            insights.addInsight("Increasing trend in high-risk policy proposals");
-            insights.setHighRiskAlert(true);
+        Map<ProposalImpactLevel, List<DataPoint>> impactTrends = analysis.getImpactLevelTrend();
+        double highImpactIncrease = calculateTrendSlope(impactTrends.get(ProposalImpactLevel.HIGH));
+
+        if (highImpactIncrease > 0.5) {
+            insights.addInsight("Increasing trend in high-impact policy proposals");
+            insights.setHighImpactAlert(true);
         }
 
         List<DataPoint> approvalTrend = analysis.getApprovalRateTrend();
@@ -432,12 +432,12 @@ public class PolicyProposalAnalytics {
             ));
         metrics.setPerformanceByType(performanceByType);
 
-        Map<RiskLevel, Double> performanceByRisk = approvedProposals.stream()
+        Map<ProposalImpactLevel, Double> performanceByImpact = approvedProposals.stream()
             .collect(Collectors.groupingBy(
-                PolicyEvolutionProposal::getRiskLevel,
+                PolicyEvolutionProposal::getImpactLevel,
                 Collectors.averagingDouble(p -> effectivenessMonitor.calculateActualImpact(p.getId()))
             ));
-        metrics.setPerformanceByRisk(performanceByRisk);
+        metrics.setPerformanceByImpact(performanceByImpact);
 
         return metrics;
     }
@@ -446,7 +446,7 @@ public class PolicyProposalAnalytics {
         private long totalProposals;
         private Map<ProposalStatus, Long> proposalsByStatus;
         private Map<ProposalType, Long> proposalsByType;
-        private Map<RiskLevel, Long> proposalsByRiskLevel;
+        private Map<ProposalImpactLevel, Long> proposalsByImpactLevel;
         private double approvalRate;
         private double averageProcessingTime;
         private long activePolicies;
@@ -466,9 +466,9 @@ public class PolicyProposalAnalytics {
             this.proposalsByType = proposalsByType; 
         }
         
-        public Map<RiskLevel, Long> getProposalsByRiskLevel() { return proposalsByRiskLevel; }
-        public void setProposalsByRiskLevel(Map<RiskLevel, Long> proposalsByRiskLevel) { 
-            this.proposalsByRiskLevel = proposalsByRiskLevel; 
+        public Map<ProposalImpactLevel, Long> getProposalsByImpactLevel() { return proposalsByImpactLevel; }
+        public void setProposalsByImpactLevel(Map<ProposalImpactLevel, Long> proposalsByImpactLevel) {
+            this.proposalsByImpactLevel = proposalsByImpactLevel;
         }
         
         public double getApprovalRate() { return approvalRate; }
@@ -492,7 +492,7 @@ public class PolicyProposalAnalytics {
     public static class TrendAnalysis {
         private List<DataPoint> dailyProposalTrend;
         private Map<ProposalType, List<DataPoint>> typesTrend;
-        private Map<RiskLevel, List<DataPoint>> riskLevelTrend;
+        private Map<ProposalImpactLevel, List<DataPoint>> impactLevelTrend;
         private List<DataPoint> approvalRateTrend;
         private List<DataPoint> effectivenessTrend;
         private TrendInsights insights;
@@ -507,9 +507,9 @@ public class PolicyProposalAnalytics {
             this.typesTrend = typesTrend; 
         }
         
-        public Map<RiskLevel, List<DataPoint>> getRiskLevelTrend() { return riskLevelTrend; }
-        public void setRiskLevelTrend(Map<RiskLevel, List<DataPoint>> riskLevelTrend) { 
-            this.riskLevelTrend = riskLevelTrend; 
+        public Map<ProposalImpactLevel, List<DataPoint>> getImpactLevelTrend() { return impactLevelTrend; }
+        public void setImpactLevelTrend(Map<ProposalImpactLevel, List<DataPoint>> impactLevelTrend) {
+            this.impactLevelTrend = impactLevelTrend;
         }
         
         public List<DataPoint> getApprovalRateTrend() { return approvalRateTrend; }
@@ -529,7 +529,7 @@ public class PolicyProposalAnalytics {
     public static class TrendInsights {
         private double proposalGrowthRate;
         private ProposalType mostActiveType;
-        private boolean highRiskAlert;
+        private boolean highImpactAlert;
         private boolean approvalRateDeclining;
         private double averageEffectiveness;
         private List<String> insights = new ArrayList<>();
@@ -548,8 +548,8 @@ public class PolicyProposalAnalytics {
             this.mostActiveType = mostActiveType; 
         }
         
-        public boolean isHighRiskAlert() { return highRiskAlert; }
-        public void setHighRiskAlert(boolean highRiskAlert) { this.highRiskAlert = highRiskAlert; }
+        public boolean isHighImpactAlert() { return highImpactAlert; }
+        public void setHighImpactAlert(boolean highImpactAlert) { this.highImpactAlert = highImpactAlert; }
         
         public boolean isApprovalRateDeclining() { return approvalRateDeclining; }
         public void setApprovalRateDeclining(boolean approvalRateDeclining) { 
@@ -571,7 +571,7 @@ public class PolicyProposalAnalytics {
         private String worstPerformingPolicy;
         private double worstPerformanceScore;
         private Map<ProposalType, Double> performanceByType;
-        private Map<RiskLevel, Double> performanceByRisk;
+        private Map<ProposalImpactLevel, Double> performanceByImpact;
 
         public double getAverageEffectiveness() { return averageEffectiveness; }
         public void setAverageEffectiveness(double averageEffectiveness) { 
@@ -603,9 +603,9 @@ public class PolicyProposalAnalytics {
             this.performanceByType = performanceByType; 
         }
         
-        public Map<RiskLevel, Double> getPerformanceByRisk() { return performanceByRisk; }
-        public void setPerformanceByRisk(Map<RiskLevel, Double> performanceByRisk) { 
-            this.performanceByRisk = performanceByRisk; 
+        public Map<ProposalImpactLevel, Double> getPerformanceByImpact() { return performanceByImpact; }
+        public void setPerformanceByImpact(Map<ProposalImpactLevel, Double> performanceByImpact) {
+            this.performanceByImpact = performanceByImpact;
         }
     }
 

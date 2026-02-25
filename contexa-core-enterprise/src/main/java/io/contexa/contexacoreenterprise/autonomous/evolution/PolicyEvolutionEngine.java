@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.evolution;
 
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import io.contexa.contexacore.autonomous.domain.LearningMetadata;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
@@ -15,6 +16,7 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import io.contexa.contexacore.domain.SoarIncidentDto;
 import io.contexa.contexacoreenterprise.properties.PolicyEvolutionProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import java.time.LocalDateTime;
@@ -35,6 +37,23 @@ public class PolicyEvolutionEngine {
     private static final Pattern CONFIDENCE_SCORE_PATTERN = Pattern.compile(
             "(?:신뢰도|confidence)\\s*[:=]\\s*(0\\.\\d+|1\\.0)", Pattern.CASE_INSENSITIVE);
 
+    // Word-boundary patterns for English textual impact keywords.
+    // Korean keywords use contains() because Korean suffixes attach naturally.
+    private static final Pattern WORD_VERY_HIGH = Pattern.compile(
+            "\\b(?:very high|excellent)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WORD_HIGH = Pattern.compile(
+            "\\b(?:high|significant)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WORD_MOD_HIGH = Pattern.compile(
+            "\\b(?:moderate[- ]high|good)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WORD_MEDIUM = Pattern.compile(
+            "\\b(?:medium|moderate)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WORD_MOD_LOW = Pattern.compile(
+            "\\b(?:moderate[- ]low|fair)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WORD_LOW = Pattern.compile(
+            "\\b(?:low|minor)\\b", Pattern.CASE_INSENSITIVE);
+    private static final Pattern WORD_VERY_LOW = Pattern.compile(
+            "\\b(?:very low|minimal)\\b", Pattern.CASE_INSENSITIVE);
+
     private final ChatModel chatModel;
     private final UnifiedVectorService unifiedVectorService;
 
@@ -54,6 +73,10 @@ public class PolicyEvolutionEngine {
             Map<String, Object> context = collectContext(event, metadata);
 
             List<Document> similarCases = searchSimilarCases(event, metadata);
+            boolean similarCaseSearchFailed = (similarCases == null);
+            if (similarCaseSearchFailed) {
+                similarCases = new ArrayList<>();
+            }
 
             if (metricsCollector != null) {
                 metricsCollector.recordSimilarCasesFound(similarCases.size());
@@ -64,7 +87,12 @@ public class PolicyEvolutionEngine {
             if (proposal.getConfidenceScore() == null) {
                 proposal.setConfidenceScore(policyEvolutionProperties.getConfidence().getThreshold());
             }
-            proposal.setRiskLevel(mapSeverityToRiskLevel(event.getSeverity()));
+            // Reduce confidence when vector store failed (AI generated without context)
+            if (similarCaseSearchFailed && proposal.getConfidenceScore() != null) {
+                proposal.setConfidenceScore(proposal.getConfidenceScore() * 0.8);
+            }
+            proposal.setImpactLevel(determineProposalImpactLevel(
+                    event.getSeverity(), proposal.getProposalType(), proposal.getConfidenceScore()));
 
             storeLearningData(event, metadata, proposal);
 
@@ -74,13 +102,13 @@ public class PolicyEvolutionEngine {
                 metricsCollector.recordProposalCreation(
                     duration,
                     proposal.getProposalType().name(),
-                    proposal.getRiskLevel().name(),
+                    proposal.getImpactLevel().name(),
                     proposal.getConfidenceScore()
                 );
 
                 Map<String, Object> eventMetadata = new HashMap<>();
                 eventMetadata.put("proposal_type", proposal.getProposalType().name());
-                eventMetadata.put("risk_level", proposal.getRiskLevel().name());
+                eventMetadata.put("impact_level", proposal.getImpactLevel().name());
                 eventMetadata.put("confidence_score", proposal.getConfidenceScore());
                 eventMetadata.put("duration", duration);
                 metricsCollector.recordEvent("proposal_created", eventMetadata);
@@ -105,14 +133,14 @@ public class PolicyEvolutionEngine {
         }
     }
 
-    public PolicyEvolutionProposal evolvePolicy(io.contexa.contexacore.domain.SoarIncidentDto incident, LearningMetadata metadata) {
+    public PolicyEvolutionProposal evolvePolicy(SoarIncidentDto incident, LearningMetadata metadata) {
 
         SecurityEvent event = convertSoarIncidentToSecurityEvent(incident);
 
         return evolvePolicy(event, metadata);
     }
 
-    private SecurityEvent convertSoarIncidentToSecurityEvent(io.contexa.contexacore.domain.SoarIncidentDto incident) {
+    private SecurityEvent convertSoarIncidentToSecurityEvent(SoarIncidentDto incident) {
         SecurityEvent.Severity severity = mapIncidentSeverityToEventSeverity(incident.getSeverity());
 
         Map<String, Object> metadata = new HashMap<>();
@@ -152,7 +180,7 @@ public class PolicyEvolutionEngine {
             .build();
     }
 
-    private SecurityEvent.Severity mapIncidentSeverityToEventSeverity(io.contexa.contexacore.domain.SoarIncidentDto.IncidentSeverity incidentSeverity) {
+    private SecurityEvent.Severity mapIncidentSeverityToEventSeverity(SoarIncidentDto.IncidentSeverity incidentSeverity) {
         if (incidentSeverity == null) {
             return SecurityEvent.Severity.MEDIUM;
         }
@@ -167,16 +195,50 @@ public class PolicyEvolutionEngine {
         };
     }
 
-    private PolicyEvolutionProposal.RiskLevel mapSeverityToRiskLevel(SecurityEvent.Severity severity) {
-        if (severity == null) {
-            return PolicyEvolutionProposal.RiskLevel.MEDIUM;
+    // Determines proposal impact level based on three independent factors:
+    // 1. Event severity provides the baseline signal
+    // 2. Proposal type adjusts for operational impact (destructive ops carry higher impact)
+    // 3. Confidence adjusts for AI certainty (low confidence = higher impact level)
+    // This replaces the previous 1:1 severity-to-risk copy (pass-through anti-pattern).
+    private ProposalImpactLevel determineProposalImpactLevel(
+            SecurityEvent.Severity severity,
+            PolicyEvolutionProposal.ProposalType proposalType,
+            Double confidenceScore) {
+
+        // Base ordinal from event severity (0=LOW, 1=MEDIUM, 2=HIGH, 3=CRITICAL)
+        int baseOrdinal = switch (severity != null ? severity : SecurityEvent.Severity.MEDIUM) {
+            case CRITICAL -> 3;
+            case HIGH -> 2;
+            case MEDIUM -> 1;
+            case LOW, INFO -> 0;
+            default -> 1;
+        };
+
+        // Destructive or reactive proposal types carry higher operational impact
+        int typeAdjustment = switch (proposalType != null ? proposalType : PolicyEvolutionProposal.ProposalType.SUGGEST_TRAINING) {
+            case DELETE_POLICY, REVOKE_ACCESS -> 1;
+            case THREAT_RESPONSE, INCIDENT_RESPONSE -> 1;
+            case OPTIMIZE_RULE, ADJUST_THRESHOLD, SUGGEST_TRAINING -> -1;
+            default -> 0;
+        };
+
+        // Low AI confidence increases impact level; high confidence reduces it
+        int confidenceAdjustment = 0;
+        double conf = confidenceScore != null ? confidenceScore : 0.5;
+        if (conf < policyEvolutionProperties.getConfidence().getLowThreshold()) {
+            confidenceAdjustment = 1;
+        } else if (conf > policyEvolutionProperties.getConfidence().getHighThreshold()) {
+            confidenceAdjustment = -1;
         }
-        return switch (severity) {
-            case CRITICAL -> PolicyEvolutionProposal.RiskLevel.CRITICAL;
-            case HIGH -> PolicyEvolutionProposal.RiskLevel.HIGH;
-            case MEDIUM -> PolicyEvolutionProposal.RiskLevel.MEDIUM;
-            case LOW -> PolicyEvolutionProposal.RiskLevel.LOW;
-            default -> PolicyEvolutionProposal.RiskLevel.MEDIUM;
+
+        int finalOrdinal = Math.max(0, Math.min(3, baseOrdinal + typeAdjustment + confidenceAdjustment));
+
+        return switch (finalOrdinal) {
+            case 0 -> ProposalImpactLevel.LOW;
+            case 1 -> ProposalImpactLevel.MEDIUM;
+            case 2 -> ProposalImpactLevel.HIGH;
+            case 3 -> ProposalImpactLevel.CRITICAL;
+            default -> ProposalImpactLevel.MEDIUM;
         };
     }
 
@@ -213,6 +275,8 @@ public class PolicyEvolutionEngine {
                 .build();
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
 
+            // Defensive cap: SearchRequest.topK should limit results, but verify in case
+            // the vector store implementation returns more documents than requested
             if (documents.size() > policyEvolutionProperties.getMax().getContextSize()) {
                 documents = documents.subList(0, policyEvolutionProperties.getMax().getContextSize());
             }
@@ -221,7 +285,7 @@ public class PolicyEvolutionEngine {
             
         } catch (Exception e) {
             log.error("Similar case search failed: {}", e.getMessage());
-            return new ArrayList<>();
+            return null;
         }
     }
 
@@ -331,7 +395,7 @@ public class PolicyEvolutionEngine {
         if (!similarCases.isEmpty()) {
             prompt.append("\n## Similar Cases\n");
             similarCases.stream()
-                .limit(3)
+                .limit(policyEvolutionProperties.getMax().getPromptSimilarCases())
                 .forEach(doc -> prompt.append(String.format("- %s\n", doc.getText())));
         }
 
@@ -542,12 +606,12 @@ public class PolicyEvolutionEngine {
     }
 
     private Double extractExpectedImpact(String aiResponse) {
+        double defaultImpact = policyEvolutionProperties.getDefaults().getExpectedImpact();
         if (aiResponse == null || aiResponse.isEmpty()) {
-            return 0.7; 
+            return defaultImpact;
         }
 
         try {
-            
             Double impact = extractNumericImpact(aiResponse);
             if (impact != null) {
                 return impact;
@@ -567,7 +631,7 @@ public class PolicyEvolutionEngine {
             log.error("Impact extraction failed, using default: {}", e.getMessage());
         }
 
-        return 0.7; 
+        return defaultImpact;
     }
 
     private Double extractNumericImpact(String aiResponse) {
@@ -597,47 +661,50 @@ public class PolicyEvolutionEngine {
                     return percentage / 100.0;
                 }
             } catch (NumberFormatException e) {
-                            }
+                log.error("Percentage impact parsing failed: {}", e.getMessage());
+            }
         }
 
         return null;
     }
 
+    // 7-level Likert scale mapping (0.3 ~ 0.9, equal 0.1 intervals).
+    // Korean keywords use contains() because Korean suffixes attach naturally (e.g., "높은 영향도").
+    // English keywords use word-boundary regex to prevent false positives
+    // (e.g., "highway" should not match "high", "follow" should not match "low").
     private Double extractTextualImpact(String aiResponse) {
         String lowerResponse = aiResponse.toLowerCase();
 
-        if (lowerResponse.contains("매우 높") || lowerResponse.contains("very high") ||
-            lowerResponse.contains("excellent") || lowerResponse.contains("탁월")) {
+        if (lowerResponse.contains("매우 높") || lowerResponse.contains("탁월")
+                || WORD_VERY_HIGH.matcher(aiResponse).find()) {
             return 0.9;
         }
 
-        if (lowerResponse.contains("높은") || lowerResponse.contains("high") ||
-            lowerResponse.contains("significant") || lowerResponse.contains("상당")) {
+        if (lowerResponse.contains("높은") || lowerResponse.contains("상당")
+                || WORD_HIGH.matcher(aiResponse).find()) {
             return 0.8;
         }
 
-        if (lowerResponse.contains("중상") || lowerResponse.contains("moderate-high") ||
-            lowerResponse.contains("good")) {
+        if (lowerResponse.contains("중상") || WORD_MOD_HIGH.matcher(aiResponse).find()) {
             return 0.7;
         }
 
-        if (lowerResponse.contains("중간") || lowerResponse.contains("medium") ||
-            lowerResponse.contains("moderate") || lowerResponse.contains("보통")) {
+        if (lowerResponse.contains("중간") || lowerResponse.contains("보통")
+                || WORD_MEDIUM.matcher(aiResponse).find()) {
             return 0.6;
         }
 
-        if (lowerResponse.contains("중하") || lowerResponse.contains("moderate-low") ||
-            lowerResponse.contains("fair")) {
+        if (lowerResponse.contains("중하") || WORD_MOD_LOW.matcher(aiResponse).find()) {
             return 0.5;
         }
 
-        if (lowerResponse.contains("낮은") || lowerResponse.contains("low") ||
-            lowerResponse.contains("minor") || lowerResponse.contains("적은")) {
+        if (lowerResponse.contains("낮은") || lowerResponse.contains("적은")
+                || WORD_LOW.matcher(aiResponse).find()) {
             return 0.4;
         }
 
-        if (lowerResponse.contains("매우 낮") || lowerResponse.contains("very low") ||
-            lowerResponse.contains("minimal") || lowerResponse.contains("미미")) {
+        if (lowerResponse.contains("매우 낮") || lowerResponse.contains("미미")
+                || WORD_VERY_LOW.matcher(aiResponse).find()) {
             return 0.3;
         }
 
@@ -752,7 +819,9 @@ public class PolicyEvolutionEngine {
             .analysisLabId(metadata.getSourceLabId())
             .aiReasoning("Error occurred: " + e.getMessage())
             .confidenceScore(0.0)
-            .riskLevel(PolicyEvolutionProposal.RiskLevel.LOW)
+            .impactLevel(ProposalImpactLevel.HIGH)
+            .status(PolicyEvolutionProposal.ProposalStatus.REJECTED)
+            .rejectionReason("AI call failure: " + e.getMessage())
             .createdAt(LocalDateTime.now())
             .build();
     }

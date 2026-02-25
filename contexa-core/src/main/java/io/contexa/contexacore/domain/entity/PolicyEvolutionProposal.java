@@ -128,9 +128,9 @@ public class PolicyEvolutionProposal {
     private LearningMetadata.LearningType learningType;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "risk_level", length = 20)
+    @Column(name = "impact_level", length = 20)
     @Builder.Default
-    private RiskLevel riskLevel = RiskLevel.MEDIUM;
+    private ProposalImpactLevel impactLevel = ProposalImpactLevel.MEDIUM;
 
     @Column(name = "version_id")
     private Long versionId;
@@ -207,39 +207,18 @@ public class PolicyEvolutionProposal {
         ROLLED_BACK;
 
         public boolean canTransitionTo(ProposalStatus target) {
-            switch (this) {
-                case DRAFT:
-                    return target == PENDING_APPROVAL || target == PENDING || target == REJECTED;
-                case PENDING:
-                case PENDING_APPROVAL:
-                    return target == UNDER_REVIEW || target == APPROVED || target == REJECTED || target == ON_HOLD;
-                case UNDER_REVIEW:
-                    return target == APPROVED || target == REJECTED || target == ON_HOLD;
-                case APPROVED:
-                    return target == ACTIVATED || target == REJECTED;
-                case ACTIVATED:
-                    return target == DEACTIVATED || target == EXPIRED || target == ROLLED_BACK;
-                case REJECTED:
-                case DEACTIVATED:
-                case EXPIRED:
-                    return false;
-                case ON_HOLD:
-                    return target == UNDER_REVIEW || target == REJECTED;
-                default:
-                    return false;
-            }
+            return switch (this) {
+                case DRAFT -> target == PENDING_APPROVAL || target == PENDING || target == REJECTED;
+                case PENDING, PENDING_APPROVAL ->
+                        target == UNDER_REVIEW || target == APPROVED || target == REJECTED || target == ON_HOLD;
+                case UNDER_REVIEW -> target == APPROVED || target == REJECTED || target == ON_HOLD;
+                case APPROVED -> target == ACTIVATED || target == REJECTED;
+                case ACTIVATED -> target == DEACTIVATED || target == EXPIRED || target == ROLLED_BACK;
+                case REJECTED, DEACTIVATED, EXPIRED -> false;
+                case ON_HOLD -> target == UNDER_REVIEW || target == REJECTED;
+                default -> false;
+            };
         }
-    }
-
-    public enum RiskLevel {
-        
-        LOW,
-
-        MEDIUM,
-
-        HIGH,
-
-        CRITICAL
     }
 
     public void approve(String approver) {
@@ -296,7 +275,7 @@ public class PolicyEvolutionProposal {
 
     @JsonIgnore
     public boolean canAutoApprove() {
-        return riskLevel == RiskLevel.LOW &&
+        return impactLevel == ProposalImpactLevel.LOW &&
                confidenceScore != null &&
                confidenceScore >= 0.9;
     }

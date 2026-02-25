@@ -56,9 +56,6 @@ public class UserSecurityContext {
     @Builder.Default
     private List<PermissionChange> permissionHistory = new ArrayList<>();
 
-    @Builder.Default
-    private RiskLevel riskLevel = RiskLevel.MEDIUM;
-
     private MfaStatus mfaStatus;
 
     @Builder.Default
@@ -107,32 +104,6 @@ public class UserSecurityContext {
         private String method; 
         private LocalDateTime lastVerified;
         private int failedAttempts;
-    }
-
-    public enum RiskLevel {
-        CRITICAL(1.0),
-        HIGH(0.8),
-        MEDIUM(0.5),
-        LOW(0.3),
-        MINIMAL(0.1);
-        
-        private final double score;
-        
-        RiskLevel(double score) {
-            this.score = score;
-        }
-        
-        public double getScore() {
-            return score;
-        }
-        
-        public static RiskLevel fromThreatScore(double threatScore) {
-            if (threatScore >= 0.8) return CRITICAL;
-            if (threatScore >= 0.6) return HIGH;
-            if (threatScore >= 0.4) return MEDIUM;
-            if (threatScore >= 0.2) return LOW;
-            return MINIMAL;
-        }
     }
 
     public void addSession(SessionContext session) {
@@ -190,7 +161,6 @@ public class UserSecurityContext {
 
     public void updateThreatScore(double score) {
         this.currentThreatScore = Math.max(0.0, Math.min(1.0, score));
-        this.riskLevel = RiskLevel.fromThreatScore(currentThreatScore);
         updateLastActivity();
     }
 
@@ -203,16 +173,14 @@ public class UserSecurityContext {
         this.updatedAt = LocalDateTime.now();
     }
 
+    // MFA/session decisions are driven by ZeroTrustAction (CHALLENGE/BLOCK) in the AI-native ZT pipeline.
+    // RiskLevel-based conditions removed: updateThreatScore() has no callers, riskLevel is always MEDIUM.
     public boolean requiresMfa() {
-        
-        boolean highRisk = riskLevel == RiskLevel.HIGH || riskLevel == RiskLevel.CRITICAL;
-        return highRisk ||
-               (mfaStatus != null && !mfaStatus.isEnabled()) ||
+        return (mfaStatus != null && !mfaStatus.isEnabled()) ||
                (failureCounters != null && failureCounters.values().stream().anyMatch(c -> c > 3));
     }
 
     public boolean requiresSessionInvalidation() {
-        return riskLevel == RiskLevel.CRITICAL ||
-               (failureCounters != null && failureCounters.values().stream().anyMatch(c -> c > 5));
+        return failureCounters != null && failureCounters.values().stream().anyMatch(c -> c > 5);
     }
 }

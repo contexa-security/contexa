@@ -38,7 +38,7 @@ public class AnalyticsDTO {
 
     private Map<String, Integer> proposalsByType;
 
-    private Map<String, Integer> proposalsByRiskLevel;
+    private Map<String, Integer> proposalsByImpactLevel;
 
     private List<DailyTrend> dailyTrends;
 

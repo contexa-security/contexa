@@ -101,12 +101,6 @@ public class PolicyBuilderController {
                                 cond -> cond.getClassification() != null ?
                                         cond.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL));
 
-        Map<ConditionTemplate.RiskLevel, List<ConditionTemplate>> riskGrouped =
-                allConditions.stream()
-                        .collect(Collectors.groupingBy(
-                                cond -> cond.getRiskLevel() != null ?
-                                        cond.getRiskLevel() : ConditionTemplate.RiskLevel.LOW));
-
         List<ConditionTemplateDto> conditionDtos = allConditions.stream().map(cond -> {
                     
                     Set<String> requiredVars = extractVariablesFromSpel(cond.getSpelTemplate());
@@ -205,15 +199,15 @@ public class PolicyBuilderController {
                                 c -> c.getClassification() != null ? c.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL,
                                 Collectors.counting()));
 
-        Map<ConditionTemplate.RiskLevel, Long> byRiskLevel =
+        Map<ConditionTemplate.ConditionClassification, Long> byClassification2 =
                 conditions.stream()
                         .collect(Collectors.groupingBy(
-                                c -> c.getRiskLevel() != null ? c.getRiskLevel() : ConditionTemplate.RiskLevel.LOW,
+                                c -> c.getClassification() != null ? c.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL,
                                 Collectors.counting()));
 
         stats.put("total", conditions.size());
         stats.put("byClassification", byClassification);
-        stats.put("byRiskLevel", byRiskLevel);
+        stats.put("byClassification", byClassification2);
         stats.put("averageComplexity", conditions.stream()
                 .mapToInt(c -> c.getComplexityScore() != null ? c.getComplexityScore() : 1)
                 .average().orElse(0.0));

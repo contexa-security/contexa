@@ -21,7 +21,6 @@ import java.util.StringJoiner;
 @SoarTool(
         name = "audit_log_query",
         description = "Query and analyze audit logs for security threats",
-        riskLevel = SoarTool.RiskLevel.LOW,
         approval = SoarTool.ApprovalRequirement.AUTO,
         auditRequired = true,
         retryable = true,

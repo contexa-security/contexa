@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.autonomous.governance;
 
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import io.contexa.contexacore.autonomous.PolicyActivationService;
@@ -85,7 +86,7 @@ public class PolicyApprovalService {
             PolicyEvolutionProposal proposal = validateProposal(proposalId);
 
             List<ApproverLevel> levels = determineApproverLevels(
-                riskAssessment.getAdjustedRisk(), requiredApprovers);
+                riskAssessment.getAdjustedImpact(), requiredApprovers);
 
             List<Approver> approvers = new ArrayList<>();
             for (ApproverLevel level : levels) {
@@ -253,15 +254,15 @@ public class PolicyApprovalService {
     }
     
     private List<ApproverLevel> determineApproverLevels(
-            PolicyEvolutionProposal.RiskLevel riskLevel, int requiredApprovers) {
-        
+            ProposalImpactLevel impactLevel, int requiredApprovers) {
+
         List<ApproverLevel> levels = new ArrayList<>();
-        
-        if (riskLevel == PolicyEvolutionProposal.RiskLevel.CRITICAL) {
+
+        if (impactLevel == ProposalImpactLevel.CRITICAL) {
             levels.add(ApproverLevel.EXECUTIVE);
             if (requiredApprovers > 1) levels.add(ApproverLevel.SENIOR);
             if (requiredApprovers > 2) levels.add(ApproverLevel.STANDARD);
-        } else if (riskLevel == PolicyEvolutionProposal.RiskLevel.HIGH) {
+        } else if (impactLevel == ProposalImpactLevel.HIGH) {
             levels.add(ApproverLevel.SENIOR);
             if (requiredApprovers > 1) levels.add(ApproverLevel.STANDARD);
         } else {
@@ -292,7 +293,7 @@ public class PolicyApprovalService {
         Map<String, Object> summary = new HashMap<>();
         summary.put("title", proposal.getTitle());
         summary.put("type", proposal.getProposalType());
-        summary.put("risk", proposal.getRiskLevel());
+        summary.put("impact", proposal.getImpactLevel());
         summary.put("confidence", proposal.getConfidenceScore());
         summary.put("expectedImpact", proposal.getExpectedImpact());
         summary.put("aiReasoning", proposal.getAiReasoning());

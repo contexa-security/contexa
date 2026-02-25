@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 @SoarTool(
         name = "session_termination",
         description = "Terminate all active sessions for a specific user",
-        riskLevel = SoarTool.RiskLevel.HIGH,
         approval = SoarTool.ApprovalRequirement.REQUIRED,
         auditRequired = true,
         retryable = false,

@@ -1,8 +1,8 @@
 package io.contexa.contexacoreenterprise.soar.approval;
 
+import io.contexa.contexacore.domain.ApprovalRequest.ApprovalType;
 import io.contexa.contexacore.domain.ApprovalRequest;
 import io.contexa.contexacore.domain.ApprovalRequest.ApprovalStatus;
-import io.contexa.contexacore.domain.ApprovalRequest.RiskLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -61,8 +61,8 @@ public class ApprovalRequestValidator {
             errors.add("status is required");
         }
 
-        if (request.getRiskLevel() == null) {
-            errors.add("riskLevel is required");
+        if (request.getApprovalType() == null) {
+            errors.add("approvalType is required");
         }
 
         if (request.getRequestedAt() == null) {
@@ -83,9 +83,9 @@ public class ApprovalRequestValidator {
             warnings.add("Set default status: PENDING");
         }
 
-        if (request.getRiskLevel() == null) {
-            request.setRiskLevel(RiskLevel.MEDIUM);
-            warnings.add("Set default riskLevel: MEDIUM");
+        if (request.getApprovalType() == null) {
+            request.setApprovalType(ApprovalType.MANUAL);
+            warnings.add("Set default approvalType: MANUAL");
         }
 
         if (request.getRequestedAt() == null) {
@@ -193,32 +193,32 @@ public class ApprovalRequestValidator {
     }
 
     private void validateApproverCount(ApprovalRequest request, List<String> warnings) {
-        RiskLevel riskLevel = request.getRiskLevel();
+        ApprovalType approvalType = request.getApprovalType();
         Integer requiredApprovers = request.getRequiredApprovers();
-        
-        if (riskLevel == RiskLevel.CRITICAL && requiredApprovers < 2) {
-            warnings.add("CRITICAL risk level typically requires at least 2 approvers");
+
+        if (approvalType == ApprovalType.MULTI && requiredApprovers < 2) {
+            warnings.add("MULTI approval type typically requires at least 2 approvers");
         }
-        
-        if (riskLevel == RiskLevel.HIGH && requiredApprovers < 1) {
-            warnings.add("HIGH risk level requires at least 1 approver");
+
+        if (approvalType == ApprovalType.MANUAL && requiredApprovers < 1) {
+            warnings.add("MANUAL approval type requires at least 1 approver");
         }
     }
 
     private void validateTimeout(ApprovalRequest request, List<String> warnings) {
         Integer timeout = request.getApprovalTimeout();
-        RiskLevel riskLevel = request.getRiskLevel();
-        
+        ApprovalType approvalType = request.getApprovalType();
+
         if (timeout == null || timeout <= 0) {
-            return; 
+            return;
         }
 
-        if (riskLevel == RiskLevel.CRITICAL && timeout > 120) {
-            warnings.add("CRITICAL requests should have shorter timeout (recommended: 120 seconds)");
+        if (approvalType == ApprovalType.MULTI && timeout > 120) {
+            warnings.add("MULTI approval requests should have shorter timeout (recommended: 120 seconds)");
         }
-        
-        if (riskLevel == RiskLevel.INFO && timeout < 600) {
-            warnings.add("INFO level requests can have longer timeout (recommended: 600 seconds)");
+
+        if (approvalType == ApprovalType.AUTO && timeout < 600) {
+            warnings.add("AUTO approval requests can have longer timeout (recommended: 600 seconds)");
         }
     }
 
@@ -234,11 +234,11 @@ public class ApprovalRequestValidator {
 
     private void validateRoles(ApprovalRequest request, List<String> warnings) {
         Set<String> requiredRoles = request.getRequiredRoles();
-        
+
         if (requiredRoles == null || requiredRoles.isEmpty()) {
-            RiskLevel riskLevel = request.getRiskLevel();
-            if (riskLevel == RiskLevel.CRITICAL || riskLevel == RiskLevel.HIGH) {
-                warnings.add("High risk requests should specify required roles");
+            ApprovalType approvalType = request.getApprovalType();
+            if (approvalType == ApprovalType.MULTI || approvalType == ApprovalType.MANUAL) {
+                warnings.add("Multi/manual approval requests should specify required roles");
             }
         }
     }

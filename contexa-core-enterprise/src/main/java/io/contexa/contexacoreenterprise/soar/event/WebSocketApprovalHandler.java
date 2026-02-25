@@ -245,7 +245,8 @@ public class WebSocketApprovalHandler {
             message.put("toolName", request.getToolName());
             message.put("description", request.getActionDescription() != null ? 
                        request.getActionDescription() : request.getToolDescription());
-            message.put("riskLevel", request.getRiskLevel().name());
+            message.put("approvalType", request.getApprovalType() != null ?
+                       request.getApprovalType().name() : "MANUAL");
             message.put("requestedBy", request.getRequestedBy());
             message.put("timestamp", LocalDateTime.now().toString());
             message.put("parameters", request.getParameters());

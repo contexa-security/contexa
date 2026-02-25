@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.soar.approval;
 
+import io.contexa.contexacore.domain.ApprovalRequest.ApprovalType;
 import io.contexa.contexacore.domain.*;
 import io.contexa.contexacore.domain.entity.SoarApprovalRequest;
 import io.contexa.contexacore.soar.approval.ApprovalService;
@@ -74,7 +75,7 @@ public class UnifiedApprovalService implements ApprovalService {
             log.error("Failed to publish notification event (approval process continues): {}", requestId, e);
         }
 
-        Duration timeout = getTimeout(request.getRiskLevel());
+        Duration timeout = getTimeout(request.getApprovalType());
         scheduleTimeout(requestId, future, timeout);
 
         future.whenComplete((result, error) -> {
@@ -142,7 +143,7 @@ public class UnifiedApprovalService implements ApprovalService {
     public boolean waitForApprovalSync(ApprovalRequest request) {
         try {
             CompletableFuture<Boolean> future = requestApproval(request);
-            Duration timeout = getTimeout(request.getRiskLevel());
+            Duration timeout = getTimeout(request.getApprovalType());
 
             return future.get(timeout.toSeconds(), TimeUnit.SECONDS);
 
@@ -183,8 +184,8 @@ public class UnifiedApprovalService implements ApprovalService {
         entity.setDescription(completeRequest.getToolDescription());
         entity.setParameters(completeRequest.getParameters());
         entity.setStatus(ApprovalRequest.ApprovalStatus.PENDING.name());
-        entity.setRiskLevel(completeRequest.getRiskLevel() != null ?
-                completeRequest.getRiskLevel().name() : "MEDIUM");
+        entity.setRiskLevel(completeRequest.getApprovalType() != null ?
+                completeRequest.getApprovalType().name() : "MANUAL");
         
         entity.setRequestedBy(completeRequest.getRequestedBy() != null ?
                 completeRequest.getRequestedBy() : "system");
@@ -254,16 +255,16 @@ public class UnifiedApprovalService implements ApprovalService {
         }, timeout.getSeconds(), TimeUnit.SECONDS);
     }
 
-    private Duration getTimeout(ApprovalRequest.RiskLevel riskLevel) {
-        if (riskLevel == null) {
+    private Duration getTimeout(ApprovalType approvalType) {
+        if (approvalType == null) {
             return TIMEOUT_DEFAULT;
         }
 
-        return switch (riskLevel) {
-            case CRITICAL -> TIMEOUT_CRITICAL;
-            case HIGH -> TIMEOUT_HIGH;
-            case MEDIUM -> TIMEOUT_MEDIUM;
-            case LOW -> TIMEOUT_LOW;
+        return switch (approvalType) {
+            case MULTI, UNANIMOUS, EMERGENCY -> TIMEOUT_CRITICAL;
+            case MANUAL -> TIMEOUT_HIGH;
+            case SINGLE -> TIMEOUT_MEDIUM;
+            case AUTO -> TIMEOUT_LOW;
             default -> TIMEOUT_DEFAULT;
         };
     }
@@ -343,7 +344,7 @@ public class UnifiedApprovalService implements ApprovalService {
                     soarContext.getSessionId() : soarContext.getIncidentId());
 
             String severity = soarContext.getSeverity() != null ? soarContext.getSeverity() : "MEDIUM";
-            request.setRiskLevel(mapSeverityToRiskLevel(severity));
+            request.setApprovalType(mapSeverityToApprovalType(severity));
         }
 
         if (policyRepository != null) {
@@ -364,17 +365,17 @@ public class UnifiedApprovalService implements ApprovalService {
         return request;
     }
 
-    private ApprovalRequest.RiskLevel mapSeverityToRiskLevel(String severity) {
+    private ApprovalType mapSeverityToApprovalType(String severity) {
         if (severity == null) {
-            return ApprovalRequest.RiskLevel.MEDIUM;
+            return ApprovalType.MANUAL;
         }
 
         return switch (severity.toUpperCase()) {
-            case "CRITICAL" -> ApprovalRequest.RiskLevel.CRITICAL;
-            case "HIGH" -> ApprovalRequest.RiskLevel.HIGH;
-            case "MEDIUM" -> ApprovalRequest.RiskLevel.MEDIUM;
-            case "LOW" -> ApprovalRequest.RiskLevel.LOW;
-            default -> ApprovalRequest.RiskLevel.MEDIUM;
+            case "CRITICAL" -> ApprovalType.MULTI;
+            case "HIGH" -> ApprovalType.MANUAL;
+            case "MEDIUM" -> ApprovalType.SINGLE;
+            case "LOW" -> ApprovalType.AUTO;
+            default -> ApprovalType.MANUAL;
         };
     }
 
@@ -507,7 +508,7 @@ public class UnifiedApprovalService implements ApprovalService {
             CompletableFuture<Boolean> future = new CompletableFuture<>();
             pendingApprovals.put(request.getRequestId(), future);
 
-            Duration timeout = getTimeout(request.getRiskLevel());
+            Duration timeout = getTimeout(request.getApprovalType());
             scheduleAsyncTimeout(request.getRequestId(), future, timeout, executionContext);
 
         } catch (Exception e) {

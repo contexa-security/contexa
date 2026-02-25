@@ -1,7 +1,6 @@
 package io.contexa.contexacoreenterprise.mcp.tool.common;
 
 import io.contexa.contexacoreenterprise.dashboard.metrics.mcp.MCPToolMetrics;
-import io.contexa.contexacommon.annotation.SoarTool;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -34,9 +33,6 @@ public class EnhancedToolCallback implements ToolCallback {
     private final ToolCallback delegate;
     private final ToolType toolType;
 
-    @Builder.Default
-    private final SoarTool.RiskLevel riskLevel = SoarTool.RiskLevel.MEDIUM;
-    
     @Builder.Default
     private final Map<String, Object> metadata = new ConcurrentHashMap<>();
     
@@ -108,10 +104,10 @@ public class EnhancedToolCallback implements ToolCallback {
     }
 
     public String getDescription() {
-        return String.format("%s - %s (risk level: %s)",
+        return String.format("%s - %s (type: %s)",
             delegate.getToolDefinition().description(),
             toolType.description,
-            riskLevel);
+            toolType.name());
     }
 
     public void addMetadata(String key, Object value) {
@@ -128,10 +124,6 @@ public class EnhancedToolCallback implements ToolCallback {
     );
 
     private void validateSecurity(String arguments) {
-        if (riskLevel == SoarTool.RiskLevel.CRITICAL) {
-            log.error("Executing CRITICAL risk tool: {} with risk level CRITICAL", getToolName());
-        }
-
         if (arguments == null || arguments.isEmpty()) {
             return;
         }

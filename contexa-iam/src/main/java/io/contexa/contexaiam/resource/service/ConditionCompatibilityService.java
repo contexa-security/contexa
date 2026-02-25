@@ -573,10 +573,10 @@ public class ConditionCompatibilityService {
         return results;
     }
 
-    public Map<ConditionTemplate.RiskLevel, List<ConditionTemplate>> groupByRiskLevel(List<ConditionTemplate> conditions) {
+    public Map<ConditionTemplate.ConditionClassification, List<ConditionTemplate>> groupByClassification(List<ConditionTemplate> conditions) {
         return conditions.stream()
             .collect(Collectors.groupingBy(
-                condition -> condition.getRiskLevel() != null ? 
-                    condition.getRiskLevel() : ConditionTemplate.RiskLevel.LOW));
+                condition -> condition.getClassification() != null ?
+                    condition.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL));
     }
 } 

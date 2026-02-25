@@ -642,8 +642,8 @@ public class PolicyAuditLogger {
         entry.addDetail("requiredApprovers", decision.getRequiredApprovers());
         entry.addDetail("autoApproved", decision.isAutoApproved());
         if (decision.getRiskAssessment() != null) {
-            entry.addDetail("riskScore", decision.getRiskAssessment().getRiskScore());
-            entry.addDetail("adjustedRisk", decision.getRiskAssessment().getAdjustedRisk());
+            entry.addDetail("impactScore", decision.getRiskAssessment().getImpactScore());
+            entry.addDetail("adjustedImpact", decision.getRiskAssessment().getAdjustedImpact());
         }
         entry.setOutcome(decision.getDecision().name());
 

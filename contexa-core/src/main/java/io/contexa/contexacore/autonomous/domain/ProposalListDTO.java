@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.domain;
 
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,7 +20,7 @@ public class ProposalListDTO {
     private String title;
     private PolicyEvolutionProposal.ProposalType proposalType;
     private ProposalStatus status;
-    private PolicyEvolutionProposal.RiskLevel riskLevel;
+    private ProposalImpactLevel impactLevel;
     private Double confidenceScore;
     private LocalDateTime createdAt;
     private LocalDateTime reviewedAt;

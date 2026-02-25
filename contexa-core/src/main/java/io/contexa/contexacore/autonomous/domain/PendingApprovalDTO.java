@@ -1,6 +1,7 @@
 package io.contexa.contexacore.autonomous.domain;
 
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,7 +19,7 @@ public class PendingApprovalDTO {
     private Long proposalId;
     private String proposalTitle;
     private PolicyEvolutionProposal.ProposalType proposalType;
-    private PolicyEvolutionProposal.RiskLevel riskLevel;
+    private ProposalImpactLevel impactLevel;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
 }

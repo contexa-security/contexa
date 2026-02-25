@@ -1,6 +1,7 @@
 package io.contexa.contexacore.repository;
 
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
+import io.contexa.contexacore.domain.entity.ProposalImpactLevel;
 import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal.ProposalStatus;
 import io.contexa.contexacore.autonomous.domain.LearningMetadata;
 import org.springframework.data.domain.Page;
@@ -42,17 +43,17 @@ public interface PolicyProposalRepository extends JpaRepository<PolicyEvolutionP
 
     List<PolicyEvolutionProposal> findByLearningType(LearningMetadata.LearningType learningType);
 
-    List<PolicyEvolutionProposal> findByRiskLevel(PolicyEvolutionProposal.RiskLevel riskLevel);
+    List<PolicyEvolutionProposal> findByImpactLevel(ProposalImpactLevel impactLevel);
 
     @Query("SELECT p FROM PolicyEvolutionProposal p " +
            "WHERE p.status = 'PENDING' " +
-           "AND p.riskLevel IN ('HIGH', 'CRITICAL') " +
-           "ORDER BY p.riskLevel DESC, p.createdAt ASC")
-    List<PolicyEvolutionProposal> findPendingHighRiskProposals();
+           "AND p.impactLevel IN ('HIGH', 'CRITICAL') " +
+           "ORDER BY p.impactLevel DESC, p.createdAt ASC")
+    List<PolicyEvolutionProposal> findPendingHighImpactProposals();
 
     @Query("SELECT p FROM PolicyEvolutionProposal p " +
            "WHERE p.status = 'PENDING' " +
-           "AND p.riskLevel = 'LOW' " +
+           "AND p.impactLevel = 'LOW' " +
            "AND p.confidenceScore >= 0.9")
     List<PolicyEvolutionProposal> findAutoApprovableProposals();
 

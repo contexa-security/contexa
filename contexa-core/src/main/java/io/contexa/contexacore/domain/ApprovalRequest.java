@@ -24,7 +24,6 @@ public class ApprovalRequest implements Serializable {
     private String actionType;
     private Map<String, Object> parameters;
     private String reason;
-    private RiskLevel riskLevel;
     private ApprovalType approvalType;
     private ApprovalStatus status;
     private LocalDateTime requestedAt;
@@ -73,30 +72,6 @@ public class ApprovalRequest implements Serializable {
             return (String) metadata.get("phone");
         }
         return null;
-    }
-
-    public enum RiskLevel {
-        CRITICAL("치명적", 9),
-        HIGH("높음", 7),
-        MEDIUM("중간", 5),
-        LOW("낮음", 3),
-        INFO("정보", 1);
-        
-        private final String description;
-        private final int score;
-        
-        RiskLevel(String description, int score) {
-            this.description = description;
-            this.score = score;
-        }
-        
-        public String getDescription() {
-            return description;
-        }
-        
-        public int getScore() {
-            return score;
-        }
     }
 
     public enum ApprovalType {
@@ -171,8 +146,7 @@ public class ApprovalRequest implements Serializable {
 
     @JsonIgnore
     public boolean isAutoApprovable() {
-        return this.riskLevel != null &&
-               (this.riskLevel == RiskLevel.LOW || this.riskLevel == RiskLevel.INFO);
+        return this.approvalType != null && this.approvalType == ApprovalType.AUTO;
     }
     
     public Integer getTimeoutMinutes() {
@@ -219,11 +193,6 @@ public class ApprovalRequest implements Serializable {
                 request.metadata = new java.util.HashMap<>();
             }
             request.metadata.put("toolDescription", description);
-            return this;
-        }
-        
-        public ApprovalRequestBuilder riskLevel(RiskLevel riskLevel) {
-            request.riskLevel = riskLevel;
             return this;
         }
         

@@ -167,8 +167,8 @@ public class ProposalToPolicyConverter {
             priority += (int) confidenceAdjustment;
         }
 
-        if (proposal.getRiskLevel() != null) {
-            switch (proposal.getRiskLevel()) {
+        if (proposal.getImpactLevel() != null) {
+            switch (proposal.getImpactLevel()) {
                 case CRITICAL:
                     priority -= 100;
                     break;

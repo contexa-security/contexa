@@ -3,6 +3,7 @@ package io.contexa.contexacommon.domain.response;
 import com.fasterxml.jackson.annotation.JsonSetter;
 import com.fasterxml.jackson.annotation.Nulls;
 import io.contexa.contexacommon.domain.request.AIResponse;
+import io.contexa.contexacommon.enums.RiskLevel;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -35,8 +36,6 @@ public class BehavioralAnalysisResponse extends AIResponse {
 
     @JsonSetter(nulls = Nulls.SKIP)
     private TimelineVisualizationData visualizationData;
-
-    public enum RiskLevel { LOW, MEDIUM, HIGH, CRITICAL }
 
     @Getter @Setter
     @AllArgsConstructor

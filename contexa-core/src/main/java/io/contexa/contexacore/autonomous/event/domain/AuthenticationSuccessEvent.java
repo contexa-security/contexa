@@ -31,7 +31,6 @@ public class AuthenticationSuccessEvent {
     private String mfaMethod;
 
     private Double trustScore;
-    private RiskLevel riskLevel;  
     private Map<String, Object> riskIndicators;
     private boolean anomalyDetected;
 
@@ -40,21 +39,4 @@ public class AuthenticationSuccessEvent {
     private LocalDateTime lastLoginTime;
 
     private Map<String, Object> metadata;
-
-    public RiskLevel calculateRiskLevel() {
-
-        if (riskLevel != null) {
-            return riskLevel;
-        }
-
-        if (anomalyDetected) {
-            return RiskLevel.CRITICAL;
-        }
-
-        return RiskLevel.UNKNOWN;
-    }
-
-    public enum RiskLevel {
-        MINIMAL, LOW, MEDIUM, HIGH, CRITICAL, UNKNOWN
-    }
 }

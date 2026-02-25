@@ -24,7 +24,6 @@ import java.util.UUID;
 @SoarTool(
         name = "ip_blocking",
         description = "Block malicious IP addresses in network firewall",
-        riskLevel = SoarTool.RiskLevel.HIGH,
         approval = SoarTool.ApprovalRequirement.REQUIRED,
         auditRequired = true,
         retryable = false,

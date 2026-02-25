@@ -36,13 +36,9 @@ public class ConditionClassificationController {
                     condition -> condition.getClassification() != null ? 
                         condition.getClassification() : ConditionTemplate.ConditionClassification.UNIVERSAL));
 
-        Map<ConditionTemplate.RiskLevel, List<ConditionTemplate>> riskGrouped = 
-            compatibilityService.groupByRiskLevel(allConditions);
-
         Map<String, Object> response = new HashMap<>();
         response.put("total", allConditions.size());
         response.put("byClassification", classifiedConditions);
-        response.put("byRiskLevel", riskGrouped);
         response.put("statistics", calculateStatistics(allConditions));
 
                 return ResponseEntity.ok(response);
@@ -91,7 +87,6 @@ public class ConditionClassificationController {
         ConditionTemplate.ConditionClassification oldClassification = condition.getClassification();
 
         condition.setClassification(request.classification);
-        condition.setRiskLevel(request.riskLevel);
         condition.setApprovalRequired(request.approvalRequired);
         condition.setContextDependent(request.contextDependent);
         
@@ -260,7 +255,6 @@ public class ConditionClassificationController {
         public final String name;
         public final String description;
         public final ConditionTemplate.ConditionClassification classification;
-        public final ConditionTemplate.RiskLevel riskLevel;
         public final Integer complexityScore;
         public final Boolean approvalRequired;
         public final String compatibilityReason;
@@ -270,7 +264,6 @@ public class ConditionClassificationController {
             this.name = condition.getName();
             this.description = condition.getDescription();
             this.classification = condition.getClassification();
-            this.riskLevel = condition.getRiskLevel();
             this.complexityScore = condition.getComplexityScore();
             this.approvalRequired = condition.getApprovalRequired();
             this.compatibilityReason = result.getReason();
@@ -279,7 +272,6 @@ public class ConditionClassificationController {
 
     public static class ClassificationUpdateRequest {
         public ConditionTemplate.ConditionClassification classification;
-        public ConditionTemplate.RiskLevel riskLevel;
         public Boolean approvalRequired;
         public Boolean contextDependent;
         public Integer complexityScore;

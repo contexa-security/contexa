@@ -52,7 +52,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
                     ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
-                    var promptSpec = chatClient.prompt(context.getPrompt());
+                    ChatClient.ChatClientRequestSpec promptSpec = chatClient.prompt(context.getPrompt());
 
                     String eventUserId = context.getUserId();
                     String eventSessionId = context.getSessionId();
@@ -100,7 +100,94 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                         }
                     }
 
-                    String response = promptSpec.call().content();
+//                    String response = promptSpec.call().content();
+
+                    String systemPrompt = """
+            You are a Zero Trust security analyst AI.
+            You will receive contextual information about a security event,
+            including the user's behavioral profile, session timeline,
+            and similar past events.
+            
+            Read all context carefully and make a holistic judgment
+            about whether this request is legitimate or suspicious.
+            Do NOT apply simple rule-matching. Interpret the overall
+            narrative and meaning of the combined signals.
+            
+            Respond with ONLY a JSON object. No explanation, no markdown.
+            
+            === DECISION ===
+            Based on ALL the context above - user profile, session timeline,
+            similar past events, and current request - make a holistic security judgment.
+            
+            Consider the overall narrative: Does this session's activity
+            pattern tell a story of legitimate use or suspicious behavior?
+            
+            You MUST provide both a legitimate and suspicious hypothesis
+            before making your final decision. Extract specific evidence
+            from the timeline and profile to support each hypothesis.
+            
+            RESPOND WITH JSON ONLY:
+            {
+              "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
+              "riskScore":<0.0-1.0>,
+              "confidence":<0.3-0.95>
+            }
+            
+            ACTIONS:
+            - ALLOW: Legitimate hypothesis is strongly supported
+            - CHALLENGE: Both hypotheses are plausible, need verification
+            - BLOCK: Suspicious hypothesis is strongly supported
+            - ESCALATE: Insufficient context for confident judgment
+            """;
+
+                    String userContext = """
+            === EVENT ===
+            EventId: cf731fdf-27a0-4c95-a326-274655136ec6
+            Timestamp: 2026-02-25T18:02:20.180844500
+            CurrentHour: 18
+            User: admin
+            HttpMethod: GET
+            Path: TestSecurityService.getNormalData
+            
+            === CURRENT REQUEST ===
+            User is requesting GET TestSecurityService.getNormalData from loopback using Chrome/120 on Windows at 18:02.
+            
+            === USER PROFILE ===
+            This is a new user without established behavioral baseline.
+            No historical data available to compare against.
+            
+            === NETWORK ===
+            IP: 0:0:0:0:0:0:0:1
+            SessionId: 552725CA663A31A010FCA804AED9C6E1
+            UserAgent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36
+            CurrentOS: Windows
+            CurrentUA: Chrome/120
+            
+            === SESSION TIMELINE ===
+            Session started 0 minutes ago.
+            Requests in this session: 1.
+            Recent activity in this session:
+              1. 18:02 | GET TestSecurityService.getNormalData | 0:0:0:0:0:0:0:1
+            
+            === SIMILAR PAST EVENTS ===
+            No similar past events found for this user.
+            
+            === BASELINE ===
+            STATUS: [NEW_USER] No baseline established
+            IMPACT: Cannot compare against historical patterns
+            
+            ZERO TRUST WARNING:
+            - This is a new user without established behavioral baseline.
+            - Cannot verify if this is the legitimate user or an attacker.
+            - confidence MUST be <= 0.5 due to insufficient historical data.
+            - riskScore should be >= 0.5 for unverified users.
+            """;
+
+                    // system + user 분리 대신 단일 메시지로 통합
+                    String response = chatClient.prompt()
+                            .user(systemPrompt + "\n" + userContext)
+                            .call()
+                            .content();
 
                     if (response == null || response.isBlank()) {
                         log.error("LLM response is null or empty - RequestId: {}", context.getRequestId());
