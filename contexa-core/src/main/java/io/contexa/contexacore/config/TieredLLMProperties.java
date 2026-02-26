@@ -7,9 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
-import java.util.Arrays;
-import java.util.List;
-
 @Slf4j
 @Data
 @ConfigurationProperties(prefix = "spring.ai.security")
@@ -17,9 +14,6 @@ public class TieredLLMProperties {
 
     public static final String DEFAULT_LAYER1_MODEL = "qwen2.5:14b";
     public static final String DEFAULT_LAYER2_MODEL = "exaone3.5:latest";
-    public static final String DEFAULT_PROVIDER_PRIORITY = "ollama,anthropic,openai";
-
-    private String providerPriority = DEFAULT_PROVIDER_PRIORITY;
 
     @NestedConfigurationProperty
     private LayerConfig layer1 = new LayerConfig();
@@ -40,13 +34,6 @@ public class TieredLLMProperties {
             private String model;
         }
 
-        public String getModelWithFallback() {
-            if (backup != null && backup.getModel() != null) {
-                return model;
-            }
-            return model;
-        }
-
         public boolean hasBackupModel() {
             return backup != null && backup.getModel() != null;
         }
@@ -54,10 +41,6 @@ public class TieredLLMProperties {
 
     @Data
     public static class TieredConfig {
-        private boolean enabled = true;
-
-        @NestedConfigurationProperty
-        private TrafficDistribution trafficDistribution = new TrafficDistribution();
 
         @NestedConfigurationProperty
         private LayerDetails layer1 = new LayerDetails();
@@ -65,26 +48,9 @@ public class TieredLLMProperties {
         @NestedConfigurationProperty
         private LayerDetails layer2 = new LayerDetails();
 
-        @NestedConfigurationProperty
-        private AdaptiveConfig adaptive = new AdaptiveConfig();
-
-        @Data
-        public static class TrafficDistribution {
-            private double layer1Percentage = 95.0;
-            private double layer2Percentage = 5.0;
-        }
-
         @Data
         public static class LayerDetails {
-            private boolean enabled = true;
             private Integer timeoutMs;
-            private Integer cacheTtlSeconds;
-            private Double embeddingSimilarityThreshold;
-            private Integer contextWindowMinutes;
-            private Integer vectorSearchLimit;
-            private Integer behaviorBaselineDays;
-            private boolean enableSoar;
-            private Double autoExecuteThreshold;
 
             public Double getDefaultTemperature(int tier) {
                 return switch (tier) {
@@ -93,14 +59,6 @@ public class TieredLLMProperties {
                     default -> 0.5;
                 };
             }
-        }
-
-        @Data
-        public static class AdaptiveConfig {
-            private boolean enabled = true;
-            private double learningRate = 0.01;
-            private int peakHoursStart = 9;
-            private int peakHoursEnd = 18;
         }
     }
 
@@ -114,7 +72,6 @@ public class TieredLLMProperties {
         };
 
         if (modelName == null || modelName.trim().isEmpty()) {
-            log.debug("Model for Tier {} is not configured. Will use provider default model (auto-inheritance)", tier);
             return null;
         }
 
@@ -150,13 +107,12 @@ public class TieredLLMProperties {
         };
 
         if (timeout == null || timeout <= 0) {
-            log.warn("Invalid timeout value: {} (tier: {}), using default", timeout, tier);
             return getDefaultTimeoutForTier(tier);
         }
 
-        if (timeout > 30000) {
-            log.warn("Timeout is too long: {}ms (tier: {}), limiting to 30s", timeout, tier);
-            return 30000;
+        if (timeout > 120000) {
+            log.error("Timeout exceeds maximum: {}ms (tier: {}), limiting to 120s", timeout, tier);
+            return 120000;
         }
 
         return timeout;
@@ -172,7 +128,7 @@ public class TieredLLMProperties {
         };
 
         if (temperature == null || temperature < 0.0 || temperature > 1.0) {
-            log.warn("Invalid temperature value: {} (tier: {}), using default", temperature, tier);
+            log.error("Invalid temperature value: {} (tier: {}), using default", temperature, tier);
             return getDefaultTemperatureForTier(tier);
         }
 
@@ -194,34 +150,6 @@ public class TieredLLMProperties {
                 lowerName.contains("deepseek");
     }
 
-    public boolean isCloudModel(String modelName) {
-        if (modelName == null)
-            return false;
-
-        String lowerName = modelName.toLowerCase();
-        return lowerName.contains("claude") ||
-                lowerName.contains("gpt") ||
-                lowerName.contains("anthropic") ||
-                lowerName.contains("openai") ||
-                lowerName.contains("o1");
-    }
-
-    /**
-     * Returns provider priority configuration as a List.
-     * Priority setting determines the order of model selection.
-     *
-     * @return List of provider priorities
-     */
-    public List<String> getProviderPriorityList() {
-        if (providerPriority == null || providerPriority.trim().isEmpty()) {
-            return Arrays.asList(DEFAULT_PROVIDER_PRIORITY.split(","));
-        }
-        return Arrays.stream(providerPriority.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .toList();
-    }
-
     private void validateTier(int tier) {
         if (tier < 1 || tier > 2) {
             throw new ModelSelectionException("Invalid tier value: " + tier + " (must be 1-2)", tier);
@@ -230,9 +158,9 @@ public class TieredLLMProperties {
 
     private Integer getDefaultTimeoutForTier(int tier) {
         return switch (tier) {
-            case 1 -> 100;
-            case 2 -> 5000;
-            default -> 1000;
+            case 1 -> 30000;
+            case 2 -> 60000;
+            default -> 30000;
         };
     }
 
@@ -246,48 +174,11 @@ public class TieredLLMProperties {
 
     @PostConstruct
     public void validateConfiguration() {
-        applyDefaultModels();
-        validateLayerConfig(1, layer1);
-        validateLayerConfig(2, layer2);
-        validateTrafficDistribution();
-    }
-
-    private void applyDefaultModels() {
-        // Auto-inheritance: Do not apply default values
-        // When layer model is not set, provider default model (primaryChatModel) will be used automatically
         if (layer1 == null) {
             layer1 = new LayerConfig();
         }
-
         if (layer2 == null) {
             layer2 = new LayerConfig();
-        }
-        // Keep null when model is not set -> DynamicModelSelectionStrategy will use primaryChatModel
-    }
-
-    private void validateLayerConfig(int tier, LayerConfig config) {
-        if (config == null) {
-            log.info("Layer {} configuration missing. Will use provider default model (auto-inheritance)", tier);
-            return;
-        }
-
-        if (config.getModel() == null || config.getModel().trim().isEmpty()) {
-            log.info("Layer {} model not configured. Will use provider default model (auto-inheritance)", tier);
-            return;
-        }
-    }
-
-    private void validateTrafficDistribution() {
-        if (tiered == null || tiered.getTrafficDistribution() == null) {
-            log.warn("Traffic distribution configuration missing. Using defaults (Layer1=95%, Layer2=5%)");
-            return;
-        }
-
-        TieredConfig.TrafficDistribution dist = tiered.getTrafficDistribution();
-        double total = dist.getLayer1Percentage() + dist.getLayer2Percentage();
-
-        if (Math.abs(total - 100.0) > 0.01) {
-            log.warn("Traffic distribution total is not 100%: {}%", total);
         }
     }
 }

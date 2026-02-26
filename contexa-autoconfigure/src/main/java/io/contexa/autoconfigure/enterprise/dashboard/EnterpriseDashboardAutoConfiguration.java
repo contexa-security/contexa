@@ -10,7 +10,6 @@ import io.contexa.contexacoreenterprise.dashboard.metrics.vectorstore.VectorStor
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.UnifiedSecurityMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.unified.SystemMetricsCollector;
 import io.contexa.contexacoreenterprise.dashboard.metrics.soar.ToolExecutionMetrics;
-import io.contexa.contexacoreenterprise.dashboard.metrics.evolution.EvolutionMetricsCollector;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -87,12 +86,4 @@ public class EnterpriseDashboardAutoConfiguration {
         return new ToolExecutionMetrics(registry);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "contexa.dashboard.metrics", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public EvolutionMetricsCollector evolutionMetricsCollector(
-            MeterRegistry registry,
-            UnifiedSecurityMetricsCollector unifiedMetrics) {
-        return new EvolutionMetricsCollector(registry, unifiedMetrics);
-    }
 }

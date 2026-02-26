@@ -53,7 +53,8 @@ import java.util.List;
         SecurityKafkaProperties.class,
         SecurityRedisProperties.class,
         SecurityRouterProperties.class,
-        SecurityPipelineProperties.class
+        SecurityPipelineProperties.class,
+        TieredStrategyProperties.class
 })
 public class CoreAutonomousAutoConfiguration {
 
@@ -64,12 +65,6 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityEventEnricher securityEventEnricher() {
         return new SecurityEventEnricher();
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public TieredStrategyProperties tieredStrategyProperties() {
-        return new TieredStrategyProperties();
     }
 
     @Bean

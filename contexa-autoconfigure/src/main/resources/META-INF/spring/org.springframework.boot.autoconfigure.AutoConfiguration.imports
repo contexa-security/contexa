@@ -41,9 +41,6 @@ io.contexa.autoconfigure.core.autonomous.CoreAutonomousStrategyAutoConfiguration
 # Enterprise JPA (Repository & Entity)
 io.contexa.autoconfigure.enterprise.EnterpriseJpaAutoConfiguration
 
-# Enterprise Autonomous
-io.contexa.autoconfigure.enterprise.autonomous.EnterpriseAutonomousAutoConfiguration
-
 # Enterprise Dashboard
 io.contexa.autoconfigure.enterprise.dashboard.EnterpriseDashboardAutoConfiguration
 

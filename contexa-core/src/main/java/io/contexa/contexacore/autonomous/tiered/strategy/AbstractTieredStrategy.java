@@ -4,7 +4,6 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
-import io.contexa.contexacore.autonomous.event.ThreatPolicyTriggerEvent;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
@@ -18,8 +17,6 @@ import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
@@ -42,13 +39,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final UnifiedVectorService unifiedVectorService;
     protected final BaselineLearningService baselineLearningService;
     protected final TieredStrategyProperties tieredStrategyProperties;
-
-    private ApplicationEventPublisher eventPublisher;
-
-    @Autowired
-    public void setEventPublisher(ApplicationEventPublisher eventPublisher) {
-        this.eventPublisher = eventPublisher;
-    }
 
     private static final Cache<String, SecurityPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             Caffeine.newBuilder()
@@ -473,26 +463,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             return response.substring(startIndex, endIndex + 1);
         }
         return response;
-    }
-
-    // --- Policy evolution trigger ---
-
-    protected void triggerPolicyEvolution(SecurityEvent event, SecurityDecision decision,
-                                          Map<String, Object> analysisContext) {
-        if (eventPublisher == null) {
-            return;
-        }
-        ZeroTrustAction action = decision.getAction();
-        if (action != ZeroTrustAction.BLOCK && action != ZeroTrustAction.CHALLENGE) {
-            return;
-        }
-
-        ThreatPolicyTriggerEvent triggerEvent = new ThreatPolicyTriggerEvent(
-                this, event, action.name(),
-                decision.getRiskScore(), decision.getConfidence(),
-                decision.getReasoning(), decision.getThreatCategory(),
-                getLayerName(), analysisContext);
-        eventPublisher.publishEvent(triggerEvent);
     }
 
     protected Map<String, Object> buildAnalysisContext(SecurityPromptTemplate.SessionContext sessionCtx,

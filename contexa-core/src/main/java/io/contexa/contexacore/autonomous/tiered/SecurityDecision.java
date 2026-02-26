@@ -30,7 +30,6 @@ public class SecurityDecision {
     private List<String> mitigationActions;       
     private String reasoning;                      
 
-    private String attackScenario;                 
     private List<String> iocIndicators;            
     private Map<String, String> mitreMapping;      
     private String soarPlaybook;                   

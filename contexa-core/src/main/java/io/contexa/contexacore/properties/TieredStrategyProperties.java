@@ -2,10 +2,8 @@ package io.contexa.contexacore.properties;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
 
 @Data
-@Configuration
 @ConfigurationProperties(prefix = "spring.ai.security.tiered")
 public class TieredStrategyProperties {
 
@@ -82,9 +80,9 @@ public class TieredStrategyProperties {
         @Data
         public static class Timeout {
 
-            private long totalMs = 50000;
+            private long totalMs = 15000;
 
-            private long llmMs = 30000;
+            private long llmMs = 10000;
         }
 
         @Data

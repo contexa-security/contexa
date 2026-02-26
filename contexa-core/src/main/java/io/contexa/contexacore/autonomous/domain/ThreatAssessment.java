@@ -6,10 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 @Data
 @Builder
@@ -17,11 +14,8 @@ import java.util.Set;
 @AllArgsConstructor
 public class ThreatAssessment {
 
-    private String assessmentId;
     private String eventId;
     private double riskScore;
-    private String description;
-    private String evaluator;
     private LocalDateTime assessedAt;
     private List<String> indicators;
     private List<String> recommendedActions;

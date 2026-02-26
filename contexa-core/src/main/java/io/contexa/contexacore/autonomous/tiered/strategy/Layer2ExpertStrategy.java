@@ -121,12 +121,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
             SecurityDecision expertDecision = convertToSecurityDecision(response, event);
 
-            if (expertDecision.getAction() == ZeroTrustAction.BLOCK
-                    || expertDecision.getAction() == ZeroTrustAction.CHALLENGE) {
-                triggerPolicyEvolution(event, expertDecision,
-                        buildAnalysisContext(sessionCtx, behaviorCtx, relatedDocuments));
-            }
-
             if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
             }

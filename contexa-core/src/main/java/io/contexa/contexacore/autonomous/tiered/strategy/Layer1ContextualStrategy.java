@@ -132,11 +132,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SecurityDecision decision = convertToSecurityDecision(response, event);
 
-            if (decision.getAction() == ZeroTrustAction.BLOCK) {
-                triggerPolicyEvolution(event, decision,
-                        buildAnalysisContext(sessionCtx, behaviorCtx, relatedDocuments));
-            }
-
             enrichDecisionWithContext(decision, sessionContext, behaviorAnalysis);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);

@@ -35,8 +35,6 @@ public class SecurityEvent {
 
     private String sourceIp;
 
-    private String protocol;
-
     private String userId;  
     private String userName;
     private String sessionId;

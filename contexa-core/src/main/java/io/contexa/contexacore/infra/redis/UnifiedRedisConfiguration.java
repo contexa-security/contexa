@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
-import io.contexa.contexacore.domain.entity.PolicyEvolutionProposal;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
@@ -24,25 +23,6 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class UnifiedRedisConfiguration {
 
     public static final String SOAR_APPROVAL_CHANNEL = "soar:approval:requests";
-
-    @Bean
-    public RedisTemplate<String, PolicyEvolutionProposal> policyProposalRedisTemplate(
-            RedisConnectionFactory connectionFactory) {
-        RedisTemplate<String, PolicyEvolutionProposal> template = new RedisTemplate<>();
-        template.setConnectionFactory(connectionFactory);
-
-        ObjectMapper objectMapper = createObjectMapper();
-        GenericJackson2JsonRedisSerializer serializer =
-                new GenericJackson2JsonRedisSerializer(objectMapper);
-
-        template.setKeySerializer(new StringRedisSerializer());
-        template.setValueSerializer(serializer);
-        template.setHashKeySerializer(new StringRedisSerializer());
-        template.setHashValueSerializer(serializer);
-
-        template.afterPropertiesSet();
-        return template;
-    }
 
     @Bean
     public RedisTemplate<String, SecurityEvent> securityEventRedisTemplate(
