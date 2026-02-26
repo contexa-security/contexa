@@ -467,7 +467,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             log.error("[MFA] Failed to process block MFA success for user: {}", userId, e);
         }
 
-        response.sendRedirect(request.getContextPath() + "/zero-trust/blocked");
+        String redirectUrl = request.getContextPath() + "/zero-trust/blocked";
+
+        if (isApiRequest(request)) {
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("authenticated", true);
+            responseData.put("status", "BLOCK_MFA_VERIFIED");
+            responseData.put("redirectUrl", redirectUrl);
+            writeJsonResponse(response, responseData);
+        } else {
+            response.sendRedirect(redirectUrl);
+        }
     }
 
     private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {

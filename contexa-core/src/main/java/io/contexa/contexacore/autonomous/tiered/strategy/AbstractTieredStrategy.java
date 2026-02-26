@@ -169,8 +169,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return decision;
     }
 
-    // --- Shared utilities ---
-
     protected List<String> extractSimilarEventsSummary(List<Document> documents) {
         if (documents == null || documents.isEmpty()) {
             return Collections.emptyList();

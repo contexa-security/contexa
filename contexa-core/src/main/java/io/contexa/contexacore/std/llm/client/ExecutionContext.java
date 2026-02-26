@@ -144,27 +144,10 @@ public class ExecutionContext {
                 .build();
     }
 
-    public static ExecutionContext forAnalysisLevel(AnalysisLevel level, Prompt prompt) {
-        return ExecutionContext.builder()
-                .prompt(prompt)
-                .analysisLevel(level)
-                .tier(level.getDefaultTier())
-                .streamingMode(false)
-                .toolExecutionEnabled(false)
-                .advisorEnabled(true)
-                .build();
-    }
-
     public Integer getEffectiveTier() {
         if (analysisLevel != null) {
             return analysisLevel.getDefaultTier();
         }
         return tier;
     }
-
-    public String getEffectiveModelName() {
-
-        return preferredModel;
-    }
-
 }

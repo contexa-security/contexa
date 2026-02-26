@@ -57,7 +57,7 @@ public class SecurityResponse {
                 action = extractString(json, "\"action\"");
             }
             //TODO
-            response.setAction("ALLOW");
+            response.setAction("BLOCK");
 
             String reasoning = extractString(json, "\"d\"");
             if (reasoning == null) {
