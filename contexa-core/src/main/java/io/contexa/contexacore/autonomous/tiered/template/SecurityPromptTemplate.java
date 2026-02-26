@@ -463,9 +463,7 @@ public class SecurityPromptTemplate {
 
                 RESPOND WITH JSON ONLY:
                 {
-                  "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
-                  "riskScore":<0.0-1.0>,
-                  "confidence":<0.3-0.95>
+                  "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE"
                 }
 
                 ACTIONS:
