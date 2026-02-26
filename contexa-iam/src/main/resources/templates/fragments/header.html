@@ -42,7 +42,7 @@
                         <span>관리자</span>
                         <span class="nav-glow"></span>
                     </a>
-                    <a id="logoutLink" href="#" class="nav-link group nav-logout">
+                    <a id="logoutLink" th:href="@{/logout}" class="nav-link group nav-logout">
                         <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
                         <span>로그아웃</span>
                         <span class="nav-glow"></span>
@@ -154,11 +154,26 @@
         if (!logoutLink) return;
         logoutLink.addEventListener('click', async function(e) {
             e.preventDefault();
-            var mfa = new ContexaMFA.Client();
             try {
+                var mfa = new ContexaMFA.Client();
+                await mfa.init();
                 await mfa.logout();
             } catch (err) {
-                // Client state cleared in finally block regardless
+                var form = document.createElement('form');
+                form.method = 'POST';
+                form.action = '/logout';
+                var csrf = document.querySelector('meta[name="_csrf"]');
+                var csrfParam = document.querySelector('meta[name="_csrf_parameter"]');
+                if (csrf && csrfParam) {
+                    var input = document.createElement('input');
+                    input.type = 'hidden';
+                    input.name = csrfParam.content;
+                    input.value = csrf.content;
+                    form.appendChild(input);
+                }
+                document.body.appendChild(form);
+                form.submit();
+                return;
             }
             window.location.href = '/';
         });

@@ -1111,6 +1111,36 @@
                 this.stateTracker.reset();
             }
         }
+
+        /**
+         * Logout (High-level API)
+         *
+         * Server-side session/token invalidation via CompositeLogoutHandler.
+         * Clears client-side state (TokenMemory, sessionStorage) regardless of outcome.
+         *
+         * @returns {Promise<Object>} Logout result with status field
+         */
+        async logout() {
+            try {
+                const result = await this.apiClient.logout();
+                this.clearClientState();
+                return result;
+            } catch (error) {
+                this.clearClientState();
+                throw error;
+            }
+        }
+
+        /**
+         * Clear all client-side authentication state
+         */
+        clearClientState() {
+            this.stateTracker.reset();
+            if (window.TokenMemory) {
+                window.TokenMemory.accessToken = null;
+                window.TokenMemory.refreshToken = null;
+            }
+        }
     }
 
     // ===========================
