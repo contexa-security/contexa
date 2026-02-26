@@ -45,9 +45,10 @@ spring:
         model: mxbai-embed-large
       chat:
         options:
-          model: qwen2.5:14b
-          temperature: 0.3
-          timeout: 10s
+          model: qwen2.5:7b
+          keep-alive: "24h"
+          num-ctx: 4096      # 프롬프트 길이에 맞게 고정
+          num-predict: 512   # 응답 최대 토큰 제한 (JSON이므로 512로 충분)
 #
     openai:
       api-key: ${OPENAI_API_KEY:sk-dummy-key}
@@ -65,7 +66,7 @@ spring:
 #    # - Layer 2: High-performance model (exaone3.5:latest, 5% traffic, ESCALATE)
 #    security:
 #      layer1:
-#        model: qwen2.5:14b  # Layer 1: Lightweight local model
+#        model: qwen2.5:7b  # Layer 1: Lightweight local model
 #      layer2:
 #        model: exaone3.5:latest  # Layer 2: High-performance model
 

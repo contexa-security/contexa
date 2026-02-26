@@ -12,6 +12,7 @@ public class AdvisorRegistry {
 
     private final Map<String, Advisor> advisors = new ConcurrentHashMap<>();
     private final Map<String, List<Advisor>> domainAdvisors = new ConcurrentHashMap<>();
+    private volatile List<Advisor> enabledAdvisorsCache = null;
 
     public synchronized void register(Advisor advisor) {
         if (advisor == null) {
@@ -29,6 +30,8 @@ public class AdvisorRegistry {
             String domain = baseAdvisor.getDomain();
             domainAdvisors.computeIfAbsent(domain, k -> new ArrayList<>()).add(advisor);
         }
+
+        enabledAdvisorsCache = null;
     }
 
     public void registerAll(Collection<? extends Advisor> advisorList) {
@@ -52,6 +55,8 @@ public class AdvisorRegistry {
                 }
             }
         }
+
+        enabledAdvisorsCache = null;
     }
 
     public Optional<Advisor> get(String advisorName) {
@@ -66,10 +71,16 @@ public class AdvisorRegistry {
     }
 
     public List<Advisor> getEnabled() {
-        return advisors.values().stream()
+        List<Advisor> cached = enabledAdvisorsCache;
+        if (cached != null) {
+            return cached;
+        }
+        List<Advisor> result = advisors.values().stream()
                 .filter(this::isAdvisorEnabled)
                 .sorted(Comparator.comparingInt(Advisor::getOrder))
-                .collect(Collectors.toList());
+                .collect(Collectors.toUnmodifiableList());
+        enabledAdvisorsCache = result;
+        return result;
     }
 
     private boolean isAdvisorEnabled(Advisor advisor) {
@@ -102,6 +113,7 @@ public class AdvisorRegistry {
                 baseAdvisor.setEnabled(true);
             }
         });
+        enabledAdvisorsCache = null;
     }
 
     public void disableAll() {
@@ -110,6 +122,7 @@ public class AdvisorRegistry {
                 baseAdvisor.setEnabled(false);
             }
         });
+        enabledAdvisorsCache = null;
     }
 
     public void enableDomain(String domain) {
@@ -120,6 +133,7 @@ public class AdvisorRegistry {
                     baseAdvisor.setEnabled(true);
                 }
             });
+            enabledAdvisorsCache = null;
         }
     }
 
@@ -131,6 +145,7 @@ public class AdvisorRegistry {
                     baseAdvisor.setEnabled(false);
                 }
             });
+            enabledAdvisorsCache = null;
         }
     }
 

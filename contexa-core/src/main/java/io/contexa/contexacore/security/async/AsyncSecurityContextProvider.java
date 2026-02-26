@@ -1,5 +1,7 @@
 package io.contexa.contexacore.security.async;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
@@ -17,11 +19,17 @@ public class AsyncSecurityContextProvider {
     private static final String AUTH_KEY_PREFIX = "async:auth:";
     private static final String SESSION_KEY_PREFIX = "async:auth:session:";
     private static final Duration DEFAULT_TTL = Duration.ofHours(24);
+    private static final Duration CACHE_TTL = Duration.ofMinutes(5);
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final Cache<String, Optional<AsyncAuthenticationData>> authCache;
 
     public AsyncSecurityContextProvider(RedisTemplate<String, Object> redisTemplate) {
         this.redisTemplate = redisTemplate;
+        this.authCache = Caffeine.newBuilder()
+                .maximumSize(1000)
+                .expireAfterWrite(CACHE_TTL)
+                .build();
     }
 
     public void saveAuthenticationForAsync(Authentication auth, String sessionId) {
@@ -49,12 +57,13 @@ public class AsyncSecurityContextProvider {
                     .expiresAt(now.plus(DEFAULT_TTL))
                     .build();
 
-            String userKey = sessionId != null
-                    ? AUTH_KEY_PREFIX + userId + ":" + sessionId
-                    : AUTH_KEY_PREFIX + userId;
+            String userKey = AUTH_KEY_PREFIX + userId;
             redisTemplate.opsForValue().set(userKey, data, DEFAULT_TTL);
+            authCache.put(userId, Optional.of(data));
 
             if (sessionId != null) {
+                String compositeKey = AUTH_KEY_PREFIX + userId + ":" + sessionId;
+                redisTemplate.opsForValue().set(compositeKey, data, DEFAULT_TTL);
                 String sessionKey = SESSION_KEY_PREFIX + sessionId;
                 redisTemplate.opsForValue().set(sessionKey, userId, DEFAULT_TTL);
             }
@@ -113,24 +122,30 @@ public class AsyncSecurityContextProvider {
         try {
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getName())) {
-                return getAuthenticationByUserId(auth.getName());
+                return getCachedAuthenticationByUserId(auth.getName());
             }
         } catch (Exception ignored) {
         }
 
         if (fallbackUserId != null) {
-            return getAuthenticationByUserId(fallbackUserId);
+            return getCachedAuthenticationByUserId(fallbackUserId);
         }
 
         return Optional.empty();
     }
 
+    private Optional<AsyncAuthenticationData> getCachedAuthenticationByUserId(String userId) {
+        return authCache.get(userId, this::getAuthenticationByUserId);
+    }
+
     public void removeAuthentication(String userId, String sessionId) {
         try {
+            if (userId != null) {
+                redisTemplate.delete(AUTH_KEY_PREFIX + userId);
+                authCache.invalidate(userId);
+            }
             if (userId != null && sessionId != null) {
                 redisTemplate.delete(AUTH_KEY_PREFIX + userId + ":" + sessionId);
-            } else if (userId != null) {
-                redisTemplate.delete(AUTH_KEY_PREFIX + userId);
             }
             if (sessionId != null) {
                 redisTemplate.delete(SESSION_KEY_PREFIX + sessionId);
@@ -146,16 +161,17 @@ public class AsyncSecurityContextProvider {
         }
 
         try {
-            String userKey = sessionId != null
-                    ? AUTH_KEY_PREFIX + userId + ":" + sessionId
-                    : AUTH_KEY_PREFIX + userId;
+            String userKey = AUTH_KEY_PREFIX + userId;
             Object data = redisTemplate.opsForValue().get(userKey);
 
             if (data instanceof AsyncAuthenticationData authData) {
                 authData.setExpiresAt(Instant.now().plus(DEFAULT_TTL));
                 redisTemplate.opsForValue().set(userKey, authData, DEFAULT_TTL);
+                authCache.invalidate(userId);
 
                 if (sessionId != null) {
+                    String compositeKey = AUTH_KEY_PREFIX + userId + ":" + sessionId;
+                    redisTemplate.expire(compositeKey, DEFAULT_TTL);
                     String sessionKey = SESSION_KEY_PREFIX + sessionId;
                     redisTemplate.expire(sessionKey, DEFAULT_TTL);
                 }
