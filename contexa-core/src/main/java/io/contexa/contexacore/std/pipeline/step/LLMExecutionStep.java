@@ -45,12 +45,7 @@ public class LLMExecutionStep implements PipelineStep {
                     .onErrorResume(error -> {
                         log.error("[PIPELINE-STEP] Structured output execution failed. Attempting String fallback. Request: {}", request.getRequestId());
 
-                        return preparePrompt(context)
-                                .flatMap(llmClient::call)
-                                .doOnSuccess(response -> {
-                                    context.addStepResult(PipelineConfiguration.PipelineStep.LLM_EXECUTION, response);
-                                })
-                                .cast(Object.class);
+                        return Mono.just(error.getMessage());
                     });
         }
 

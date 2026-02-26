@@ -127,7 +127,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         try {
             SecurityDecision decision = buildSecurityDecision(result);
-            securityLearningService.learnAndStore(userId, decision, event);
+            securityLearningService.learnBaselineOnly(userId, decision, event);
         } catch (Exception e) {
             log.error("[SecurityDecisionEnforcementHandler] Baseline learning failed (non-critical): userId={}", userId, e);
         }

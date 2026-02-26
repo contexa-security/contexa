@@ -38,6 +38,21 @@ public class SecurityLearningService {
     }
 
     /**
+     * Baseline learning only (no vector storage or session update).
+     * For use by SecurityDecisionEnforcementHandler where Layer1/Layer2
+     * already performed postProcessDecision().
+     */
+    public void learnBaselineOnly(String userId, SecurityDecision decision, SecurityEvent event) {
+        if (baselineLearningService != null && userId != null && !userId.isBlank()) {
+            try {
+                baselineLearningService.learnIfNormal(userId, decision, event);
+            } catch (Exception e) {
+                log.error("[SecurityLearningService] Baseline learning failed: userId={}", userId, e);
+            }
+        }
+    }
+
+    /**
      * Session context update + vector DB storage only.
      * Use for analysis layer results (Layer1, Layer2) where baseline learning is not needed.
      */

@@ -20,6 +20,8 @@ import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -84,12 +86,15 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
             SecurityPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event, relatedDocuments);
-            String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
+            SecurityPromptTemplate.StructuredPrompt structured =
+                    promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
             SecurityResponse response;
             if (llmOrchestrator != null) {
                 ExecutionContext context = ExecutionContext.builder()
-                        .prompt(new Prompt(promptText))
+                        .prompt(new Prompt(List.of(
+                                new SystemMessage(structured.systemText()),
+                                new UserMessage(structured.userText()))))
                         .tier(2)
                         .securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
                         .timeoutMs((int) tieredStrategyProperties.getLayer2().getTimeoutMs())

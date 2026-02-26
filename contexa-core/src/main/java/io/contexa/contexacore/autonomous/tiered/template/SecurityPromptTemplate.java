@@ -36,18 +36,26 @@ public class SecurityPromptTemplate {
     }
 
     /**
-     * Builds the complete security analysis prompt by assembling all sections.
+     * Structured prompt with separated system (fixed) and user (variable) text.
+     * Splitting enables Ollama KV cache prefix reuse for the system portion.
+     */
+    public record StructuredPrompt(String systemText, String userText) {}
+
+    /**
+     * Builds a structured prompt with system/user separation for KV cache optimization.
+     * The system text (instructions + decision format) is fixed across requests,
+     * allowing Ollama to reuse its KV cache prefix.
      *
      * @param event the security event to analyze
      * @param sessionContext the current session context
      * @param behaviorAnalysis the behavioral analysis data
      * @param relatedDocuments the RAG-retrieved related documents
-     * @return the complete prompt string
+     * @return structured prompt with separated system and user text
      */
-    public String buildPrompt(SecurityEvent event,
-                              SessionContext sessionContext,
-                              BehaviorAnalysis behaviorAnalysis,
-                              List<Document> relatedDocuments) {
+    public StructuredPrompt buildStructuredPrompt(SecurityEvent event,
+                                                   SessionContext sessionContext,
+                                                   BehaviorAnalysis behaviorAnalysis,
+                                                   List<Document> relatedDocuments) {
 
         String userId = extractUserId(sessionContext);
         String baselineContext = extractBaselineContext(behaviorAnalysis);
@@ -56,20 +64,33 @@ public class SecurityPromptTemplate {
         DetectedPatterns patterns = collectDetectedPatterns(relatedDocuments, userId);
         enrichPatternsFromBaseline(patterns, behaviorAnalysis);
 
-        StringBuilder prompt = new StringBuilder();
-        prompt.append(buildSystemInstruction());
-        prompt.append(buildEventSection(event, userId));
-        prompt.append(buildCurrentRequestNarrative(event, behaviorAnalysis, patterns));
-        prompt.append(buildUserProfileNarrative(patterns, behaviorAnalysis, baselineStatus));
-        prompt.append(buildNetworkPromptSection(event));
-        appendIfPresent(prompt, buildPayloadSection(event));
-        prompt.append(buildSessionTimelineSection(sessionContext, behaviorAnalysis));
-        appendIfPresent(prompt, buildSessionDeviceChangeSection(behaviorAnalysis));
-        prompt.append(buildSimilarEventsSection(behaviorAnalysis, patterns));
-        appendIfPresent(prompt, buildNewUserBaselineSection(baselineStatus));
-        prompt.append(buildDecisionSection());
+        String systemText = buildSystemInstruction() + buildDecisionSection();
 
-        return prompt.toString();
+        StringBuilder userPart = new StringBuilder();
+        userPart.append(buildEventSection(event, userId));
+        userPart.append(buildCurrentRequestNarrative(event, behaviorAnalysis, patterns));
+        userPart.append(buildUserProfileNarrative(patterns, behaviorAnalysis, baselineStatus));
+        userPart.append(buildNetworkPromptSection(event));
+        appendIfPresent(userPart, buildPayloadSection(event));
+        userPart.append(buildSessionTimelineSection(sessionContext, behaviorAnalysis));
+        appendIfPresent(userPart, buildSessionDeviceChangeSection(behaviorAnalysis));
+        userPart.append(buildSimilarEventsSection(behaviorAnalysis, patterns));
+        appendIfPresent(userPart, buildNewUserBaselineSection(baselineStatus));
+
+        return new StructuredPrompt(systemText, userPart.toString());
+    }
+
+    /**
+     * Builds the complete security analysis prompt as a single string.
+     * Backward-compatible wrapper around buildStructuredPrompt().
+     */
+    public String buildPrompt(SecurityEvent event,
+                              SessionContext sessionContext,
+                              BehaviorAnalysis behaviorAnalysis,
+                              List<Document> relatedDocuments) {
+
+        StructuredPrompt structured = buildStructuredPrompt(event, sessionContext, behaviorAnalysis, relatedDocuments);
+        return structured.systemText() + structured.userText();
     }
 
     private String extractUserId(SessionContext sessionContext) {
@@ -98,14 +119,17 @@ public class SecurityPromptTemplate {
     }
 
     private String buildEventSection(SecurityEvent event, String userId) {
+        TieredStrategyProperties.Layer1.Prompt promptConfig = tieredStrategyProperties.getLayer1().getPrompt();
         StringBuilder section = new StringBuilder();
         section.append("=== EVENT ===\n");
 
-        if (isValidData(event.getEventId())) {
+        if (promptConfig.isIncludeEventId() && isValidData(event.getEventId())) {
             section.append("EventId: ").append(PromptTemplateUtils.sanitizeUserInput(event.getEventId())).append("\n");
         }
         if (event.getTimestamp() != null) {
-            section.append("Timestamp: ").append(event.getTimestamp()).append("\n");
+            if (promptConfig.isIncludeRawTimestamp()) {
+                section.append("Timestamp: ").append(event.getTimestamp()).append("\n");
+            }
             section.append("CurrentHour: ").append(event.getTimestamp().getHour()).append("\n");
         }
         if (userId != null) {
@@ -464,6 +488,8 @@ public class SecurityPromptTemplate {
                 RESPOND WITH JSON ONLY:
                 {
                   "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE"
+                  "riskScore":<0.0-1.0>,
+                  "confidence":<0.3-0.95>
                 }
 
                 ACTIONS:
@@ -585,22 +611,28 @@ public class SecurityPromptTemplate {
     }
 
     private String buildNetworkDetails(SecurityEvent event) {
+        TieredStrategyProperties.Layer1.Prompt promptConfig = tieredStrategyProperties.getLayer1().getPrompt();
         StringBuilder network = new StringBuilder();
 
         PromptTemplateUtils.appendIpWithValidation(network, event.getSourceIp());
 
-        if (isValidData(event.getSessionId())) {
-            String sanitizedSessionId = PromptTemplateUtils.sanitizeUserInput(event.getSessionId());
-            network.append("SessionId: ").append(sanitizedSessionId).append("\n");
-        } else {
-            network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
+        if (promptConfig.isIncludeRawSessionId()) {
+            if (isValidData(event.getSessionId())) {
+                String sanitizedSessionId = PromptTemplateUtils.sanitizeUserInput(event.getSessionId());
+                network.append("SessionId: ").append(sanitizedSessionId).append("\n");
+            } else {
+                network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
+            }
         }
 
         if (isValidData(event.getUserAgent())) {
             String ua = event.getUserAgent();
-            int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer1().getUserAgent();
-            String sanitizedUa = PromptTemplateUtils.sanitizeAndTruncate(ua, maxUserAgent);
-            network.append("UserAgent: ").append(sanitizedUa).append("\n");
+
+            if (promptConfig.isIncludeFullUserAgent()) {
+                int maxUserAgent = tieredStrategyProperties.getTruncation().getLayer1().getUserAgent();
+                String sanitizedUa = PromptTemplateUtils.sanitizeAndTruncate(ua, maxUserAgent);
+                network.append("UserAgent: ").append(sanitizedUa).append("\n");
+            }
 
             String currentOS = SecurityEventEnricher.extractOSFromUserAgent(ua);
             if (currentOS != null) {

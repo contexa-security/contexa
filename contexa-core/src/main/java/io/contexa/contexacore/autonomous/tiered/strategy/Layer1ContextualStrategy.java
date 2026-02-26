@@ -19,6 +19,8 @@ import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -94,13 +96,16 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             cacheEscalationContext(event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
 
-            String promptText = promptTemplate.buildPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
+            SecurityPromptTemplate.StructuredPrompt structured =
+                    promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
                 ExecutionContext context = ExecutionContext.builder()
-                        .prompt(new Prompt(promptText))
+                        .prompt(new Prompt(List.of(
+                                new SystemMessage(structured.systemText()),
+                                new UserMessage(structured.userText()))))
                         .tier(1)
                         .securityTaskType(ExecutionContext.SecurityTaskType.CONTEXTUAL_ANALYSIS)
                         .timeoutMs((int) llmTimeoutMs)
@@ -211,7 +216,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private List<Document> searchRelatedContext(SecurityEvent event) {
         double similarityThreshold = tieredStrategyProperties.getLayer1().getRag().getSimilarityThreshold();
-        int topK = Math.min(15, tieredStrategyProperties.getLayer1().getVectorSearchLimit() * 2);
+        int topK = tieredStrategyProperties.getLayer1().getVectorSearchLimit();
         return searchRelatedContextBase(event, topK, similarityThreshold);
     }
 

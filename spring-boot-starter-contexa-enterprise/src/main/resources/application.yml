@@ -41,7 +41,6 @@ spring:
     ollama:
       base-url: http://127.0.0.1:11434
       embedding:
-        enabled: true
         model: mxbai-embed-large
       chat:
         options:

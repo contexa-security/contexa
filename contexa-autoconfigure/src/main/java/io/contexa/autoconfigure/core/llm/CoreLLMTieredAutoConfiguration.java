@@ -13,6 +13,8 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.anthropic.AnthropicChatModel;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.client.advisor.api.Advisor;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration;
@@ -95,6 +97,17 @@ public class CoreLLMTieredAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
+    public ChatClient primaryChatClient(ChatModel primaryChatModel, AdvisorRegistry advisorRegistry) {
+        ChatClient.Builder builder = ChatClient.builder(primaryChatModel);
+        List<Advisor> advisors = advisorRegistry.getEnabled();
+        if (!advisors.isEmpty()) {
+            builder = builder.defaultAdvisors(advisors.toArray(new Advisor[0]));
+        }
+        return builder.build();
+    }
+
+    @Bean
     @ConditionalOnMissingBean(StreamingHandler.class)
     public StreamingHandler streamingHandler(JsonStreamingProcessor jsonStreamingProcessor) {
         return new DefaultStreamingHandler(tieredLLMProperties, jsonStreamingProcessor);
@@ -105,7 +118,7 @@ public class CoreLLMTieredAutoConfiguration {
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ModelSelectionStrategy modelSelectionStrategy,
             StreamingHandler streamingHandler,
-            AdvisorRegistry advisorRegistry) {
+            AdvisorRegistry advisorRegistry, ChatClient primaryChatClient) {
 
         return new UnifiedLLMOrchestrator(modelSelectionStrategy, streamingHandler, tieredLLMProperties, advisorRegistry);
     }

@@ -61,7 +61,7 @@ public class TieredStrategyProperties {
         private Cache cache = new Cache();
         private Timeout timeout = new Timeout();
         private Prompt prompt = new Prompt();
-        private int vectorSearchLimit = 10;
+        private int vectorSearchLimit = 5;
 
         @Data
         public static class Prompt {
@@ -69,6 +69,14 @@ public class TieredStrategyProperties {
             private int maxSimilarEvents = 3;
 
             private int maxRagDocuments = 5;
+
+            private boolean includeEventId = false;
+
+            private boolean includeRawTimestamp = false;
+
+            private boolean includeRawSessionId = false;
+
+            private boolean includeFullUserAgent = false;
         }
 
         @Data
