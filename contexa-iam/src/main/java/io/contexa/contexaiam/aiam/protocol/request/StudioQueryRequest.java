@@ -14,7 +14,6 @@ import java.util.Map;
 @Setter
 public class StudioQueryRequest extends AIRequest<StudioQueryContext> {
     
-    private String userId;
     private LocalDateTime timestamp;
     private Map<String, Object> metadata;
 

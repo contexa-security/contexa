@@ -27,8 +27,7 @@ public final class RequestInfoExtractor {
                 .method(request.getMethod())
                 .clientIp(extractClientIp(request, security))
                 .userAgent(extractUserAgent(request))
-                .sessionId(request.getSession(false) != null ?
-                        request.getSession(false).getId() : null)
+                .sessionId(request.getRequestedSessionId())
                 .requestId(extractRequestId(request))
                 .servletPath(request.getServletPath())
                 .queryString(request.getQueryString())

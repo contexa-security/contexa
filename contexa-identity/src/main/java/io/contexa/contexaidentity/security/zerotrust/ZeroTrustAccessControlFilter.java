@@ -316,10 +316,14 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                         HttpServletResponse response) throws IOException {
         try {
             String requestId = UUID.randomUUID().toString();
+            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
 
             Map<String, Object> fields = new HashMap<>();
             fields.put("promotedFrom", "ESCALATE");
             fields.put("promotionReason", "ESCALATE TTL expired without resolution");
+            if (contextBindingHash != null) {
+                fields.put("contextBindingHash", contextBindingHash);
+            }
 
             actionRedisRepository.saveAction(userId, ZeroTrustAction.BLOCK, fields);
             actionRedisRepository.setBlockedFlag(userId);

@@ -486,10 +486,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         try {
-            String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
-            actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
             boolean isLlmTriggeredMfa = isIsLlmTriggeredMfa(userId);
             if (isLlmTriggeredMfa) {
+                String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+                actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnOnLlmChallengedMfaSuccess(userId, request);
             }
 

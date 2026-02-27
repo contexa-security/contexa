@@ -75,15 +75,13 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
     public void storeQueryRequest(StudioQueryRequest request) {
         try {
             Map<String, Object> metadata = new HashMap<>();
-            metadata.put("userId", request.getUserId());
             metadata.put("naturalLanguageQuery", request.getNaturalLanguageQuery());
             metadata.put("timestamp", LocalDateTime.now().format(ISO_FORMATTER));
             metadata.put("documentType", VectorDocumentType.STUDIO_QUERY.getValue());
             metadata.put("requestId", UUID.randomUUID().toString());
 
             String queryText = String.format(
-                    "사용자 %s의 자연어 질의: %s",
-                    request.getUserId(),
+                    "자연어 질의: %s",
                     request.getNaturalLanguageQuery()
             );
 

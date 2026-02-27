@@ -216,7 +216,12 @@ public class ZeroTrustActionRedisRepository {
         try {
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
 
+            Object previousAction = redisTemplate.opsForHash().get(analysisKey, "action");
+
             Map<String, Object> fields = new HashMap<>();
+            if (previousAction != null) {
+                fields.put("previousAction", previousAction.toString());
+            }
             fields.put("action", action.name());
             fields.put("updatedAt", Instant.now().toString());
             if (additionalFields != null) {
