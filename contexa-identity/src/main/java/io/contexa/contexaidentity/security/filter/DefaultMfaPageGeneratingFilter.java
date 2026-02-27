@@ -465,6 +465,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     }
                                 } catch (error) {
                                     console.error('OTT verification failed:', error);
+
+                                    // BLOCK MFA: redirect to blocked page on retry limit exceeded
+                                    if (error.response && error.response.blockMfaFailed) {
+                                        window.location.href = error.response.redirectUrl || '/zero-trust/blocked';
+                                        return;
+                                    }
+
                                     if (error.response && error.response.attemptsMade != null) {
                                         currentAttempts = error.response.attemptsMade;
                                     } else {
