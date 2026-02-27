@@ -18,7 +18,8 @@
             MFA 인증 후 차단 해제를 요청할 수 있습니다.
         </p>
         <p class="mb-6" style="color: #94a3b8;" th:if="${mfaFailed or mfaExhausted}">
-            보안 사유로 계정 접근이 제한되었습니다. 관리자에게 문의 바랍니다.
+            보안 사유로 계정 접근이 제한되었습니다.<br/>
+            관리자에게 문의 바랍니다.
         </p>
 
         <!-- MFA not verified: show initiate button or exhausted message -->
@@ -35,7 +36,8 @@
             <div th:if="${mfaExhausted}" class="mb-4 p-3 rounded-lg"
                  style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
                 <p class="text-sm font-semibold" style="color: #f87171;">
-                    MFA 인증 기회가 소진되었습니다. 관리자에게 문의하세요.
+                    MFA 인증 기회가 소진되었습니다.<br/>
+                    관리자에게 문의하세요.
                 </p>
             </div>
 
