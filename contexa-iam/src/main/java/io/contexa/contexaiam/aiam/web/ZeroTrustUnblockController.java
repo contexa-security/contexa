@@ -22,6 +22,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ZeroTrustUnblockController {
 
+    private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
+
     private final BlockedUserService blockedUserService;
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -36,6 +38,21 @@ public class ZeroTrustUnblockController {
         }
 
         try {
+            String failCountKey = ZeroTrustRedisKeys.blockMfaFailCount(userId);
+            String failCountStr = stringRedisTemplate.opsForValue().get(failCountKey);
+            int failCount = 0;
+            if (failCountStr != null) {
+                try {
+                    failCount = Integer.parseInt(failCountStr);
+                } catch (NumberFormatException ignored) {
+                }
+            }
+            if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "success", false,
+                        "message", "MFA attempts exhausted"));
+            }
+
             String pendingKey = ZeroTrustRedisKeys.blockMfaPending(userId);
             stringRedisTemplate.opsForValue().set(pendingKey, "true", Duration.ofMinutes(10));
 

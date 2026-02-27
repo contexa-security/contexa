@@ -18,10 +18,7 @@ public class SecurityToolUtils {
     private static final String IPV4_REGEX =
         "^((25[0-5]|(2[0-4]|1\\d|[1-9]|)\\d)\\.?\\b){4}$";
 
-    private static final String DOMAIN_REGEX =
-        "^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.)*[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$";
-    
-    private static final DateTimeFormatter AUDIT_DATE_FORMAT = 
+    private static final DateTimeFormatter AUDIT_DATE_FORMAT =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
     public static void auditLog(String toolName, String action, String user, Object... parameters) {
@@ -41,10 +38,6 @@ public class SecurityToolUtils {
         // TODO: Integrate with persistent audit store (e.g., AuditLogService)
         log.error("AUDIT: tool={}, action={}, user={}, params={}",
                 toolName, action, auditEntry.get("user"), auditEntry.get("parameters"));
-    }
-
-    public static void auditLog(String toolName, String message) {
-        auditLog(toolName, message, null);
     }
 
     public static boolean isValidIpv4Address(String ip) {
@@ -92,19 +85,7 @@ public class SecurityToolUtils {
         return false;
     }
 
-    public static boolean isValidDomain(String domain) {
-        if (!StringUtils.hasText(domain)) {
-            return false;
-        }
-
-        if (domain.length() > 253) {
-            return false;
-        }
-
-        return domain.trim().matches(DOMAIN_REGEX);
-    }
-
-    public static String sanitizeForLog(String input) {
+    private static String sanitizeForLog(String input) {
         if (input == null) {
             return "null";
         }

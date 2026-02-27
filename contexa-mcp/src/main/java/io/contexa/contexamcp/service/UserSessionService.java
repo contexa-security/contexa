@@ -36,11 +36,15 @@ public class UserSessionService {
 
         for (Object id : sessionIds) {
             String sessionKey = SESSION_KEY_PREFIX + id;
-            SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
-            if (session == null) {
+            Object sessionObj = redisTemplate.opsForValue().get(sessionKey);
+            if (sessionObj == null) {
                 staleSessionIds.add(id);
-            } else if (session.isActive()) {
-                result.add(session);
+            } else if (sessionObj instanceof SessionInfo session) {
+                if (session.isActive()) {
+                    result.add(session);
+                }
+            } else {
+                staleSessionIds.add(id);
             }
         }
 
@@ -55,10 +59,10 @@ public class UserSessionService {
 
     public boolean terminateSession(String sessionId) {
         String sessionKey = SESSION_KEY_PREFIX + sessionId;
-        SessionInfo session = (SessionInfo) redisTemplate.opsForValue().get(sessionKey);
+        Object sessionObj = redisTemplate.opsForValue().get(sessionKey);
 
-        if (session == null) {
-            log.error("Session not found: {}", sessionId);
+        if (!(sessionObj instanceof SessionInfo session)) {
+            log.error("Session not found or invalid type: {}", sessionId);
             return false;
         }
 

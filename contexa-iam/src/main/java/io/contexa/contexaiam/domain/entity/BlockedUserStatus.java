@@ -4,5 +4,6 @@ public enum BlockedUserStatus {
     BLOCKED,
     UNBLOCK_REQUESTED,
     RESOLVED,
-    TIMEOUT_RESPONDED
+    TIMEOUT_RESPONDED,
+    MFA_FAILED
 }

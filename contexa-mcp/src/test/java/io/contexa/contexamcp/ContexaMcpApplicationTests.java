@@ -17,7 +17,7 @@ class ContexaMcpApplicationTests {
     void threatIntelligenceRequiresIndicator() {
         ThreatIntelligenceTool tool = new ThreatIntelligenceTool(new NoOpThreatIntelligenceAdapter());
         ThreatIntelligenceTool.Response response = tool.queryThreatIntelligence(
-                null, null, false, false, null);
+                null, null);
         assertFalse(response.isSuccess());
         assertNotNull(response.getError());
     }
@@ -26,7 +26,7 @@ class ContexaMcpApplicationTests {
     void threatIntelligenceNoOpAdapterReturnsNoResults() {
         ThreatIntelligenceTool tool = new ThreatIntelligenceTool(new NoOpThreatIntelligenceAdapter());
         ThreatIntelligenceTool.Response response = tool.queryThreatIntelligence(
-                "192.168.1.1", "ip", false, false, null);
+                "192.168.1.1", "ip");
         assertTrue(response.isSuccess());
         assertNull(response.getIntelligence());
         assertFalse(response.isExternalProviderUsed());

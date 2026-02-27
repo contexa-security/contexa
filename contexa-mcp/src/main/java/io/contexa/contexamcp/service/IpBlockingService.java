@@ -76,12 +76,12 @@ public class IpBlockingService {
         }
     }
 
-    public boolean isBlocked(String ipAddress) {
+    private boolean isBlocked(String ipAddress) {
         String blockKey = BLOCKED_IP_KEY_PREFIX + ipAddress;
         return Boolean.TRUE.equals(redisTemplate.hasKey(blockKey));
     }
 
-    public boolean isWhitelisted(String ipAddress) {
+    private boolean isWhitelisted(String ipAddress) {
         return Boolean.TRUE.equals(
             redisTemplate.opsForSet().isMember(WHITELIST_IP_KEY, ipAddress)
         );

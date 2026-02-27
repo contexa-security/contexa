@@ -1199,6 +1199,16 @@
                         window.location.href = data.redirectUrl;
                         return new Promise(() => {});
                     }
+
+                    if (data.error === 'BLOCK_MFA_FAILED' && data.redirectUrl) {
+                        ContexaMFAUtils.log(
+                            `Block MFA failed (${data.failCount}/${data.maxAttempts}), redirecting to: ${data.redirectUrl}`,
+                            'info',
+                            data
+                        );
+                        window.location.href = data.redirectUrl;
+                        return new Promise(() => {});
+                    }
                 } catch (e) {
                     // Non-JSON 403 response, pass through
                 }

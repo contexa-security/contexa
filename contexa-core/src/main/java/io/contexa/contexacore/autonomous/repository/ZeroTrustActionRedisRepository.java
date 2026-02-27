@@ -350,6 +350,49 @@ public class ZeroTrustActionRedisRepository {
         }
     }
 
+    public long incrementBlockMfaFailCount(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return 0;
+        }
+
+        try {
+            String key = ZeroTrustRedisKeys.blockMfaFailCount(userId);
+            Long count = stringRedisTemplate.opsForValue().increment(key);
+            stringRedisTemplate.expire(key, LAST_VERIFIED_ACTION_TTL);
+            return count != null ? count : 0;
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to increment block MFA fail count: userId={}", userId, e);
+            return 0;
+        }
+    }
+
+    public long getBlockMfaFailCount(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return 0;
+        }
+
+        try {
+            String key = ZeroTrustRedisKeys.blockMfaFailCount(userId);
+            String value = stringRedisTemplate.opsForValue().get(key);
+            return value != null ? Long.parseLong(value) : 0;
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to get block MFA fail count: userId={}", userId, e);
+            return 0;
+        }
+    }
+
+    public void clearBlockMfaPending(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+
+        try {
+            stringRedisTemplate.delete(ZeroTrustRedisKeys.blockMfaPending(userId));
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to clear block MFA pending: userId={}", userId, e);
+        }
+    }
+
     public void removeBlockedFlag(String userId) {
         if (userId == null || userId.isBlank()) {
             return;
@@ -360,6 +403,30 @@ public class ZeroTrustActionRedisRepository {
             stringRedisTemplate.delete(userBlockedKey);
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to remove blocked flag: userId={}", userId, e);
+        }
+    }
+
+    public void removeAllUserData(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+
+        try {
+            // Delete Hash type key via redisTemplate
+            redisTemplate.delete(ZeroTrustRedisKeys.hcadAnalysis(userId));
+
+            // Delete String type keys via stringRedisTemplate
+            List<String> stringKeys = List.of(
+                    ZeroTrustRedisKeys.hcadLastVerifiedAction(userId),
+                    ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId),
+                    ZeroTrustRedisKeys.userBlocked(userId),
+                    ZeroTrustRedisKeys.blockMfaPending(userId),
+                    ZeroTrustRedisKeys.blockMfaVerified(userId),
+                    ZeroTrustRedisKeys.blockMfaFailCount(userId)
+            );
+            stringRedisTemplate.delete(stringKeys);
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to remove all user data: userId={}", userId, e);
         }
     }
 

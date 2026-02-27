@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -12,9 +13,11 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
@@ -28,11 +31,17 @@ import java.util.Map;
 @Slf4j
 public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBasedFailureHandler {
 
+    private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
+
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final UserIdentificationService userIdentificationService;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
+
+    @Setter
+    @Autowired(required = false)
+    private IBlockedUserRecorder blockedUserRecorder;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
@@ -105,6 +114,15 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         } catch (Exception e) {
             log.error("Failed to send FACTOR_VERIFICATION_FAILED event for session: {}",
                     factorContext.getMfaSessionId(), e);
+        }
+
+        // BLOCK_MFA_FLOW: allow code entry retries, redirect to BLOCK page only on retry limit exceeded
+        Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(
+                ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
+        if (Boolean.TRUE.equals(blockMfaFlow)
+                && factorContext.getCurrentState() == MfaState.MFA_RETRY_LIMIT_EXCEEDED) {
+            handleBlockMfaFailure(request, response, factorContext);
+            return;
         }
 
         int attempts = factorContext.getAttemptCount(currentProcessingFactor);
@@ -212,6 +230,37 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         } catch (Exception e) {
             log.error("Failed to cleanup session using {} repository: {}",
                     sessionRepository.getRepositoryType(), mfaSessionId, e);
+        }
+    }
+
+    private void handleBlockMfaFailure(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        FactorContext factorContext) throws IOException {
+        String userId = factorContext.getUsername();
+        long failCount = actionRedisRepository.incrementBlockMfaFailCount(userId);
+
+        if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
+            log.error("[UnifiedAuthFailure] BLOCK MFA max attempts reached, triggering SOAR: userId={}", userId);
+            if (blockedUserRecorder != null) {
+                blockedUserRecorder.markMfaFailed(userId);
+            }
+            actionRedisRepository.clearBlockMfaPending(userId);
+        } else {
+            log.error("[UnifiedAuthFailure] BLOCK MFA failed, attempt {}/{}: userId={}", failCount, MAX_BLOCK_MFA_ATTEMPTS, userId);
+        }
+
+        String redirectUrl = request.getContextPath() + "/zero-trust/blocked";
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("blockMfaFailed", true);
+        body.put("redirectUrl", redirectUrl);
+        body.put("failCount", failCount);
+        body.put("maxAttempts", MAX_BLOCK_MFA_ATTEMPTS);
+
+        if (!response.isCommitted()) {
+            responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
+                    "BLOCK_MFA_FAILED", "Block MFA verification failed",
+                    request.getRequestURI(), body);
         }
     }
 

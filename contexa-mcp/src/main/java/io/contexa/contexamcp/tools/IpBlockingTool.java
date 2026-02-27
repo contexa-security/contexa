@@ -115,11 +115,13 @@ public class IpBlockingTool {
 
             // Step 2: External firewall blocking via adapter
             boolean externalEngaged = firewallAdapter.isAvailable();
+            boolean externalFirewallSuccess = false;
             String externalRuleId = null;
             if (externalEngaged) {
                 ExternalFirewallAdapter.BlockResult fwResult =
                         firewallAdapter.blockIp(ipAddress, reason, durationMinutes);
-                if (!fwResult.success()) {
+                externalFirewallSuccess = fwResult.success();
+                if (!externalFirewallSuccess) {
                     log.error("External firewall blocking failed: {} - {}", ipAddress, fwResult.message());
                 }
                 externalRuleId = fwResult.ruleId();
@@ -153,6 +155,7 @@ public class IpBlockingTool {
                             ? externalRuleId
                             : generateRuleId(ipAddress, System.currentTimeMillis()))
                     .externalFirewallEngaged(externalEngaged)
+                    .externalFirewallSuccess(externalFirewallSuccess)
                     .firewallVendor(firewallAdapter.getVendorName())
                     .build();
 
@@ -220,6 +223,7 @@ public class IpBlockingTool {
         private String expiresAt;
         private String ruleId;
         private boolean externalFirewallEngaged;
+        private boolean externalFirewallSuccess;
         private String firewallVendor;
     }
 }

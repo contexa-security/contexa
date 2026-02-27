@@ -13,4 +13,6 @@ public interface IBlockedUserRecorder {
     void resolveBlock(String userId, String adminId, String resolvedAction, String reason);
 
     default void markMfaVerified(String userId) {}
+
+    default void markMfaFailed(String userId) {}
 }

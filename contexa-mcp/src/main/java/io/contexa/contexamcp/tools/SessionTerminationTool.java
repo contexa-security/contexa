@@ -55,9 +55,6 @@ public class SessionTerminationTool {
             @ToolParam(description = "Reason for termination", required = true)
             String reason,
 
-            @ToolParam(description = "Notify user", required = false)
-            Boolean notifyUser,
-
             @ToolParam(description = "Preserve current session (for admin session protection)", required = false)
             Boolean preserveCurrentSession) {
 
@@ -130,10 +127,6 @@ public class SessionTerminationTool {
             // Publish security action event for cross-module session invalidation
             if (terminatedCount > 0) {
                 publishSessionTerminateEvent(userId, reason, terminatedSessionIds);
-            }
-
-            if (Boolean.TRUE.equals(notifyUser) && terminatedCount > 0) {
-                // User notification delegated to event listener
             }
 
             SecurityToolUtils.auditLog(

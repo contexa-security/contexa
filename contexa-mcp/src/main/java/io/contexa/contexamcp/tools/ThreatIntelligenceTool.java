@@ -43,16 +43,7 @@ public class ThreatIntelligenceTool {
             String indicator,
 
             @ToolParam(description = "Indicator type (ip, domain, hash, email, url). Auto-detected if not specified", required = false)
-            String indicatorType,
-
-            @ToolParam(description = "Include detailed context", required = false)
-            Boolean includeContext,
-
-            @ToolParam(description = "Check related IoCs", required = false)
-            Boolean checkRelated,
-
-            @ToolParam(description = "Max age of info (days)", required = false)
-            Integer maxAge) {
+            String indicatorType) {
 
         long startTime = System.currentTimeMillis();
 
@@ -64,12 +55,7 @@ public class ThreatIntelligenceTool {
             boolean externalUsed = threatIntelAdapter.isAvailable();
             ThreatIntelligence intelligence = lookupThreatIntelligence(indicator, detectedType);
 
-            List<String> relatedIocs = new ArrayList<>();
-            if (Boolean.TRUE.equals(checkRelated) && intelligence != null) {
-                relatedIocs = findRelatedIocs(indicator, detectedType);
-            }
-
-            ThreatAssessment assessment = assessThreat(intelligence, relatedIocs);
+            ThreatAssessment assessment = assessThreat(intelligence);
             List<String> recommendations = generateRecommendations(assessment);
 
             SecurityToolUtils.auditLog(
@@ -100,7 +86,6 @@ public class ThreatIntelligenceTool {
                     .indicatorType(detectedType)
                     .intelligence(intelligence)
                     .assessment(assessment)
-                    .relatedIocs(relatedIocs)
                     .recommendations(recommendations)
                     .queryTime(LocalDateTime.now().toString())
                     .externalProviderUsed(externalUsed)
@@ -174,13 +159,7 @@ public class ThreatIntelligenceTool {
                 .build();
     }
 
-    private List<String> findRelatedIocs(String indicator, String type) {
-        // Related IoC lookup delegated to adapter in future iteration
-        return Collections.emptyList();
-    }
-
-    private ThreatAssessment assessThreat(ThreatIntelligence intelligence,
-                                          List<String> relatedIocs) {
+    private ThreatAssessment assessThreat(ThreatIntelligence intelligence) {
         if (intelligence == null) {
             return ThreatAssessment.builder()
                     .threatLevel("NONE")
@@ -189,7 +168,7 @@ public class ThreatIntelligenceTool {
                     .build();
         }
 
-        int riskScore = calculateRiskScore(intelligence, relatedIocs);
+        int riskScore = calculateRiskScore(intelligence);
 
         String threatLevel;
         String verdict;
@@ -217,16 +196,12 @@ public class ThreatIntelligenceTool {
                 .verdict(verdict)
                 .factors(Arrays.asList(
                         "Reputation: " + intelligence.reputation,
-                        "Confidence: " + intelligence.confidenceScore,
-                        relatedIocs.isEmpty()
-                                ? "No related IoCs"
-                                : relatedIocs.size() + " related IoCs found"
+                        "Confidence: " + intelligence.confidenceScore
                 ))
                 .build();
     }
 
-    private int calculateRiskScore(ThreatIntelligence intelligence,
-                                   List<String> relatedIocs) {
+    private int calculateRiskScore(ThreatIntelligence intelligence) {
         int score = 0;
 
         if ("malicious".equals(intelligence.reputation)) {
@@ -236,7 +211,6 @@ public class ThreatIntelligenceTool {
         }
 
         score += (int) (intelligence.confidenceScore * 20);
-        score += Math.min(relatedIocs.size() * 5, 20);
 
         return Math.min(score, 100);
     }
@@ -289,7 +263,6 @@ public class ThreatIntelligenceTool {
         private String indicatorType;
         private ThreatIntelligence intelligence;
         private ThreatAssessment assessment;
-        private List<String> relatedIocs;
         private List<String> recommendations;
         private String queryTime;
         private String error;

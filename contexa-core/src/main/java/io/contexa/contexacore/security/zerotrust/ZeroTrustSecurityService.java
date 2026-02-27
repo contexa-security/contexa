@@ -82,6 +82,33 @@ public class ZeroTrustSecurityService {
         }
     }
 
+    public void cleanupOnLogout(String userId, String sessionId) {
+        if (userId == null) {
+            return;
+        }
+
+        try {
+            // User-scoped keys: HCAD analysis, block flags, MFA states
+            actionRedisRepository.removeAllUserData(userId);
+
+            // Threat score
+            redisTemplate.delete(ZeroTrustRedisKeys.threatScore(userId));
+
+            // Session-scoped keys
+            if (sessionId != null) {
+                redisTemplate.delete(ZeroTrustRedisKeys.sessionActions(sessionId));
+                redisTemplate.delete(ZeroTrustRedisKeys.sessionMetadata(sessionId));
+                redisTemplate.delete(ZeroTrustRedisKeys.sessionRisk(sessionId));
+
+                // Remove current sessionId from userSessions Set
+                String userSessionsKey = ZeroTrustRedisKeys.userSessions(userId);
+                redisTemplate.opsForSet().remove(userSessionsKey, sessionId);
+            }
+        } catch (Exception e) {
+            log.error("[ZeroTrust] Failed to cleanup on logout: userId={}", userId, e);
+        }
+    }
+
     public void invalidateAllUserSessions(String userId, String reason) {
         if (userId == null) {
             return;

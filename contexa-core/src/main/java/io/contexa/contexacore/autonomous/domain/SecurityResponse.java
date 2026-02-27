@@ -5,10 +5,12 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 @Data
 @Builder
 @NoArgsConstructor
@@ -84,7 +86,7 @@ public class SecurityResponse {
             response.setSuspiciousHypothesis(suspiciousHypothesis);
 
         } catch (Exception e) {
-            
+            log.error("[SecurityResponse] Failed to parse JSON response", e);
             return null;
         }
 

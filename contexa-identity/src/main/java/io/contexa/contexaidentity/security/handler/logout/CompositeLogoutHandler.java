@@ -1,5 +1,8 @@
 package io.contexa.contexaidentity.security.handler.logout;
 
+import io.contexa.contexacore.autonomous.service.IForceLogoutService;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
+import io.contexa.contexaidentity.security.core.adapter.state.oauth2.DeviceAwareOAuth2AuthorizationService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -18,16 +21,20 @@ import java.util.List;
 import java.util.Map;
 
 @Slf4j
-public class CompositeLogoutHandler implements LogoutHandler {
+public class CompositeLogoutHandler implements LogoutHandler, IForceLogoutService {
 
     private final List<LogoutStrategy> strategies;
     private final TokenService tokenService;
     private final AuthResponseWriter responseWriter;
+    private final ZeroTrustSecurityService zeroTrustSecurityService;
+    private final DeviceAwareOAuth2AuthorizationService authorizationService;
 
     public CompositeLogoutHandler(
             List<LogoutStrategy> strategies,
             TokenService tokenService,
-            AuthResponseWriter responseWriter) {
+            AuthResponseWriter responseWriter,
+            ZeroTrustSecurityService zeroTrustSecurityService,
+            DeviceAwareOAuth2AuthorizationService authorizationService) {
 
         Assert.notEmpty(strategies, "strategies cannot be empty");
         Assert.notNull(tokenService, "tokenService cannot be null");
@@ -35,6 +42,8 @@ public class CompositeLogoutHandler implements LogoutHandler {
         this.strategies = strategies;
         this.tokenService = tokenService;
         this.responseWriter = responseWriter;
+        this.zeroTrustSecurityService = zeroTrustSecurityService;
+        this.authorizationService = authorizationService;
     }
 
     @Override
@@ -58,6 +67,33 @@ public class CompositeLogoutHandler implements LogoutHandler {
             if (!response.isCommitted()) {
                 writeLogoutResponse(request, response, errorOccurred, errorMessage);
             }
+        }
+    }
+
+    @Override
+    public void forceLogoutByUserId(String userId, String reason) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+
+        log.error("[ForceLogout] Executing force-logout: userId={}, reason={}", userId, reason);
+
+        try {
+            zeroTrustSecurityService.invalidateAllUserSessions(userId, reason);
+        } catch (Exception e) {
+            log.error("[ForceLogout] Failed to invalidate ZeroTrust sessions: userId={}", userId, e);
+        }
+
+        try {
+            zeroTrustSecurityService.cleanupOnLogout(userId, null);
+        } catch (Exception e) {
+            log.error("[ForceLogout] Failed to cleanup ZeroTrust Redis data: userId={}", userId, e);
+        }
+
+        try {
+            authorizationService.invalidateAllByPrincipalName(userId);
+        } catch (Exception e) {
+            log.error("[ForceLogout] Failed to invalidate OAuth2 authorizations: userId={}", userId, e);
         }
     }
 

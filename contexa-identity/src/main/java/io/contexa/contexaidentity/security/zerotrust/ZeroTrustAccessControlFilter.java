@@ -42,6 +42,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int RETRY_AFTER_SECONDS = 30;
+    private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
 
     private final ZeroTrustActionRedisRepository actionRedisRepository;
     private final AuthResponseWriter responseWriter;
@@ -117,6 +118,13 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                     String requestUri) throws IOException, ServletException {
 
         if (isBlockMfaPending(userId)) {
+            long failCount = actionRedisRepository.getBlockMfaFailCount(userId);
+            if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
+                log.error("[ZeroTrustAccessControlFilter] BLOCK MFA attempts exhausted, denying MFA: userId={}", userId);
+                handleBlocked(request, response, userId);
+                return;
+            }
+
             if (isMfaRelatedPath(requestUri)) {
                 filterChain.doFilter(request, response);
                 return;

@@ -18,6 +18,7 @@ import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
 import io.contexa.contexacoreenterprise.soar.helper.ToolCallDetectionHelper;
 import io.contexa.contexacoreenterprise.soar.event.ApprovalEventListener;
 import io.contexa.contexacoreenterprise.soar.event.WebSocketApprovalHandler;
+import io.contexa.contexacoreenterprise.soar.handler.SoarAutoResponseHandler;
 import io.contexa.contexacoreenterprise.soar.tool.PipelineSoarToolExecutionStep;
 import io.contexa.contexacoreenterprise.soar.controller.SoarApprovalController;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
@@ -288,6 +289,15 @@ public class EnterpriseSoarAutoConfiguration {
         return new PipelineSoarToolExecutionStep(
                 toolCapableLLMClient, toolCallingManager,
                 toolCallDetectionHelper, chainedToolResolver, objectMapper, soarProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public SoarAutoResponseHandler soarAutoResponseHandler(
+            ChainedToolResolver chainedToolResolver,
+            ObjectMapper objectMapper) {
+        return new SoarAutoResponseHandler(chainedToolResolver, objectMapper);
     }
 
     @Bean

@@ -21,16 +21,31 @@ public class ZeroTrustPageController {
 
     private final StringRedisTemplate stringRedisTemplate;
 
+    private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
+
     @GetMapping("/blocked")
     public String blocked(Principal principal, Model model) {
 
         boolean mfaVerified = false;
+        int mfaFailCount = 0;
         if (principal != null) {
             String userId = principal.getName();
             String verifiedKey = ZeroTrustRedisKeys.blockMfaVerified(userId);
             mfaVerified = Boolean.parseBoolean(stringRedisTemplate.opsForValue().get(verifiedKey));
+
+            String failCountKey = ZeroTrustRedisKeys.blockMfaFailCount(userId);
+            String failCountStr = stringRedisTemplate.opsForValue().get(failCountKey);
+            if (failCountStr != null) {
+                try {
+                    mfaFailCount = Integer.parseInt(failCountStr);
+                } catch (NumberFormatException ignored) {
+                }
+            }
         }
         model.addAttribute("mfaVerified", mfaVerified);
+        model.addAttribute("mfaFailCount", mfaFailCount);
+        model.addAttribute("maxMfaAttempts", MAX_BLOCK_MFA_ATTEMPTS);
+        model.addAttribute("mfaExhausted", mfaFailCount >= MAX_BLOCK_MFA_ATTEMPTS);
         return "zero-trust/blocked";
     }
 

@@ -54,6 +54,11 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:block:mfa:verified:%s", NAMESPACE, userId);
     }
 
+    public static String blockMfaFailCount(String userId) {
+        validateUserId(userId);
+        return String.format("%s:block:mfa:failCount:%s", NAMESPACE, userId);
+    }
+
     public static String soarExecution(String eventId) {
         if (eventId == null || eventId.trim().isEmpty()) {
             throw new IllegalArgumentException("Event ID cannot be null or empty");

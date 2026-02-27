@@ -16,9 +16,13 @@ import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.Authe
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthority;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.MfaGrantedAuthorityMixin;
 import io.contexa.contexaidentity.security.handler.logout.CompositeLogoutHandler;
+import io.contexa.contexaidentity.security.handler.logout.LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutStrategy;
 import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
 import io.contexa.contexaidentity.security.handler.logout.SessionLogoutStrategy;
+import io.contexa.contexaidentity.security.handler.logout.ZeroTrustLogoutStrategy;
+import io.contexa.contexacore.security.session.SessionIdResolver;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexaidentity.security.handler.oauth2.OAuth2TokenSuccessHandler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.OAuth2TokenSettings;
@@ -383,18 +387,24 @@ public class IdentityOAuth2AutoConfiguration {
 
     @Bean("compositeLogoutHandler")
     @ConditionalOnMissingBean(name = "compositeLogoutHandler")
-    public LogoutHandler compositeLogoutHandler(
+    public CompositeLogoutHandler compositeLogoutHandler(
             TokenService tokenService,
             AuthResponseWriter responseWriter,
-            AuthContextProperties authContextProperties) {
+            AuthContextProperties authContextProperties,
+            ZeroTrustSecurityService zeroTrustSecurityService,
+            SessionIdResolver sessionIdResolver,
+            DeviceAwareOAuth2AuthorizationService authorizationService) {
 
         SessionLogoutStrategy sessionStrategy = new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository(), authContextProperties);
         OAuth2LogoutStrategy oauth2Strategy = new OAuth2LogoutStrategy(tokenService);
+        ZeroTrustLogoutStrategy zeroTrustStrategy = new ZeroTrustLogoutStrategy(zeroTrustSecurityService, sessionIdResolver);
 
         return new CompositeLogoutHandler(
-                List.of(sessionStrategy, oauth2Strategy),
+                List.of(sessionStrategy, oauth2Strategy, zeroTrustStrategy),
                 tokenService,
-                responseWriter);
+                responseWriter,
+                zeroTrustSecurityService,
+                authorizationService);
     }
 
     @Bean("oauth2LogoutSuccessHandler")

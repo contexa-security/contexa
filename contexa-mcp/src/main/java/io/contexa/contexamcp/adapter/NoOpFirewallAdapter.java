@@ -13,13 +13,13 @@ public class NoOpFirewallAdapter implements ExternalFirewallAdapter {
     @Override
     public BlockResult blockIp(String ipAddress, String reason, Integer durationMinutes) {
         log.error("No external firewall configured. IP block recorded internally only. ip={}", ipAddress);
-        return new BlockResult(true, "No external firewall - internal Redis block only", null);
+        return new BlockResult(false, "No external firewall configured", null);
     }
 
     @Override
     public BlockResult unblockIp(String ipAddress, String reason) {
         log.error("No external firewall configured. IP unblock recorded internally only. ip={}", ipAddress);
-        return new BlockResult(true, "No external firewall - internal Redis unblock only", null);
+        return new BlockResult(false, "No external firewall configured", null);
     }
 
     @Override

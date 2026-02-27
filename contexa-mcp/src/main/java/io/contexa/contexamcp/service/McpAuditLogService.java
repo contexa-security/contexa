@@ -61,7 +61,6 @@ public class McpAuditLogService {
                 .id(rs.getLong("id"))
                 .timestamp(timestamp != null ? timestamp.toInstant() : null)
                 .userId(rs.getString("principal_name"))
-                .username(rs.getString("principal_name"))
                 .action(rs.getString("action"))
                 .resourceType(rs.getString("resource_uri"))
                 .resourceId(rs.getString("resource_identifier"))
@@ -92,7 +91,6 @@ public class McpAuditLogService {
         private Long id;
         private Instant timestamp;
         private String userId;
-        private String username;
         private String action;
         private String resourceType;
         private String resourceId;

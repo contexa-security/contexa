@@ -9,7 +9,6 @@ import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
 import io.contexa.contexamcp.service.IpBlockingService;
 import io.contexa.contexamcp.service.McpAuditLogService;
 import io.contexa.contexamcp.service.UserSessionService;
-import io.contexa.contexamcp.listener.SoarAutoResponseListener;
 import io.contexa.contexamcp.tools.AuditLogQueryTool;
 import io.contexa.contexamcp.tools.IpBlockingTool;
 import io.contexa.contexamcp.tools.LogAnalysisTool;
@@ -109,14 +108,6 @@ public class ContexaMcpServerConfiguration {
             HighRiskToolAuthorizationService authorizationService,
             ApplicationEventPublisher eventPublisher) {
         return new SessionTerminationTool(userSessionService, authorizationService, eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SoarAutoResponseListener soarAutoResponseListener(
-            IpBlockingTool ipBlockingTool,
-            SessionTerminationTool sessionTerminationTool) {
-        return new SoarAutoResponseListener(ipBlockingTool, sessionTerminationTool);
     }
 
     @Bean

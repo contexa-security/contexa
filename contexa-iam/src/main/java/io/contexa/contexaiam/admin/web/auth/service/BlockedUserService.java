@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
@@ -10,6 +11,7 @@ import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -24,6 +26,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final AdminOverrideService adminOverrideService;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Override
     @Transactional
@@ -164,6 +167,30 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     b.setMfaVerified(true);
                     b.setMfaVerifiedAt(LocalDateTime.now());
                     blockedUserJpaRepository.save(b);
+                });
+    }
+
+    @Override
+    @Transactional
+    public void markMfaFailed(String userId) {
+        blockedUserJpaRepository
+                .findFirstByUserIdAndStatusOrderByBlockedAtDesc(userId, BlockedUserStatus.BLOCKED)
+                .ifPresent(b -> {
+                    b.setStatus(BlockedUserStatus.MFA_FAILED);
+                    blockedUserJpaRepository.save(b);
+
+                    log.error("[BlockedUserService] MFA failed - auto response triggered: userId={}", userId);
+
+                    SecurityActionEvent event = SecurityActionEvent.builder()
+                            .eventId(UUID.randomUUID().toString())
+                            .actionType(SecurityActionEvent.ActionType.SOAR_AUTO_RESPONSE)
+                            .userId(userId)
+                            .sourceIp(b.getSourceIp())
+                            .reason("MFA authentication failed for blocked user")
+                            .triggeredBy("BlockedUserService")
+                            .build();
+
+                    eventPublisher.publishEvent(event);
                 });
     }
 

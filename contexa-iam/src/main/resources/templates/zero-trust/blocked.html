@@ -18,9 +18,25 @@
             MFA 인증 후 차단 해제를 요청할 수 있습니다.
         </p>
 
-        <!-- MFA not verified: show initiate button -->
+        <!-- MFA not verified: show initiate button or exhausted message -->
         <div th:if="${!mfaVerified}" id="mfa-initiate-section" class="mb-4">
-            <button id="initiate-mfa-btn"
+            <!-- MFA fail count warning -->
+            <div th:if="${mfaFailCount > 0 and !mfaExhausted}" class="mb-4 p-3 rounded-lg"
+                 style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3);">
+                <p class="text-sm font-semibold" style="color: #fbbf24;">
+                    MFA 인증 실패: <span th:text="${mfaFailCount}">0</span>/<span th:text="${maxMfaAttempts}">3</span>
+                </p>
+            </div>
+
+            <!-- MFA exhausted -->
+            <div th:if="${mfaExhausted}" class="mb-4 p-3 rounded-lg"
+                 style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
+                <p class="text-sm font-semibold" style="color: #f87171;">
+                    MFA 인증 기회가 소진되었습니다. 관리자에게 문의하세요.
+                </p>
+            </div>
+
+            <button th:if="${!mfaExhausted}" id="initiate-mfa-btn"
                     class="w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all duration-300 cursor-pointer"
                     style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
                 MFA 인증 시작
