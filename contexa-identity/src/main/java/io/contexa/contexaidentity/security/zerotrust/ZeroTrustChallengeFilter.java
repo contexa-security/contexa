@@ -82,6 +82,10 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return true;
         }
 
+        if (requestUri.startsWith("/.well-known/")) {
+            return true;
+        }
+
         return false;
     }
 

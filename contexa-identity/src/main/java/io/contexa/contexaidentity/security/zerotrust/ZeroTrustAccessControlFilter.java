@@ -83,7 +83,8 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         return requestUri.startsWith("/logout")
                 || requestUri.startsWith("/zero-trust")
                 || requestUri.startsWith("/api/aiam/sse/zero-trust")
-                || requestUri.startsWith("/api/aiam/zero-trust");
+                || requestUri.startsWith("/api/aiam/zero-trust")
+                || requestUri.startsWith("/.well-known/");
     }
 
     @Override
