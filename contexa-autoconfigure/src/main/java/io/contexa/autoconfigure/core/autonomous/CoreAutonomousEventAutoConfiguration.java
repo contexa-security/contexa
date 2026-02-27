@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
+import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.domain.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
@@ -38,6 +39,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.redisson.api.RedissonClient;
 
 import org.springframework.kafka.core.KafkaTemplate;
 
@@ -119,6 +121,13 @@ public class CoreAutonomousEventAutoConfiguration {
             Layer2ExpertStrategy expertStrategy,
             LlmAnalysisEventListener llmAnalysisEventListener) {
         return new ColdPathEventProcessor(contextualStrategy, expertStrategy, llmAnalysisEventListener);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(RedissonClient.class)
+    public BlockingDecisionRegistry blockingDecisionRegistry(RedissonClient redissonClient) {
+        return new BlockingDecisionRegistry(redissonClient);
     }
 
     @Bean

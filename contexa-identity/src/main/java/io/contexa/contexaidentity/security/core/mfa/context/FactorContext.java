@@ -389,10 +389,13 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     public static class MfaAttemptDetail implements Serializable {
         private static final long serialVersionUID = 20250522_02L;
         @Nullable
-        private final AuthType factorType;
-        private final boolean success;
-        private final Instant timestamp;
-        private final String detail;
+        private AuthType factorType;
+        private boolean success;
+        private Instant timestamp;
+        private String detail;
+
+        @SuppressWarnings("unused")
+        private MfaAttemptDetail() {}
 
         public MfaAttemptDetail(@Nullable AuthType factorType, boolean success, String detail) {
             this.factorType = factorType;

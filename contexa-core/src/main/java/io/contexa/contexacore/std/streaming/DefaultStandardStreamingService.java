@@ -2,6 +2,7 @@ package io.contexa.contexacore.std.streaming;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
@@ -38,6 +39,7 @@ public class DefaultStandardStreamingService implements StandardStreamingService
     private final ObjectMapper objectMapper;
 
     @Override
+    @Protectable
     public <C extends DomainContext> Flux<ServerSentEvent<String>> stream(
             AIRequest<C> request,
             AICoreOperations<C> aiProcessor) {

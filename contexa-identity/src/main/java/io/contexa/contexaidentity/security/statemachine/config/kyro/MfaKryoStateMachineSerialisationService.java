@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.statemachine.config.kyro;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
+import com.esotericsoftware.kryo.util.DefaultInstantiatorStrategy;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -13,6 +14,7 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexacommon.entity.Users;
 import lombok.extern.slf4j.Slf4j;
+import org.objenesis.strategy.StdInstantiatorStrategy;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -39,10 +41,14 @@ public class MfaKryoStateMachineSerialisationService extends KryoStateMachineSer
     protected void configureKryoInstance(Kryo kryo) {
 
         super.configureKryoInstance(kryo);
+        kryo.setInstantiatorStrategy(
+                new DefaultInstantiatorStrategy(new StdInstantiatorStrategy())
+        );
         kryo.setRegistrationRequired(false);
         kryo.register(DefaultStateMachineContext.class);
         kryo.register(DefaultExtendedState.class);
         kryo.register(FactorContext.class);
+        kryo.register(FactorContext.MfaAttemptDetail.class);
         kryo.register(StateConfig.class);
         kryo.register(StateType.class, new DefaultSerializers.EnumSerializer(StateType.class));
         

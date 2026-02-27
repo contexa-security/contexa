@@ -284,9 +284,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaSessionRepository mfaSessionRepository,
             UserIdentificationService userIdentificationService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            ZeroTrustActionRedisRepository actionRedisRepository) {
+            ZeroTrustActionRedisRepository actionRedisRepository,
+            AuthContextProperties authContextProperties) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
-                mfaSessionRepository, userIdentificationService,zeroTrustEventPublisher,actionRedisRepository);
+                mfaSessionRepository, userIdentificationService, zeroTrustEventPublisher, actionRedisRepository,
+                authContextProperties.getMfa());
     }
 
     @Bean

@@ -184,8 +184,9 @@ public class UnifiedApprovalService implements ApprovalService {
         entity.setDescription(completeRequest.getToolDescription());
         entity.setParameters(completeRequest.getParameters());
         entity.setStatus(ApprovalRequest.ApprovalStatus.PENDING.name());
-        entity.setRiskLevel(completeRequest.getApprovalType() != null ?
+        entity.setApprovalType(completeRequest.getApprovalType() != null ?
                 completeRequest.getApprovalType().name() : "MANUAL");
+        entity.setRiskLevel(mapApprovalTypeToRiskLevel(completeRequest.getApprovalType()));
         
         entity.setRequestedBy(completeRequest.getRequestedBy() != null ?
                 completeRequest.getRequestedBy() : "system");
@@ -376,6 +377,19 @@ public class UnifiedApprovalService implements ApprovalService {
             case "MEDIUM" -> ApprovalType.SINGLE;
             case "LOW" -> ApprovalType.AUTO;
             default -> ApprovalType.MANUAL;
+        };
+    }
+
+    private String mapApprovalTypeToRiskLevel(ApprovalType approvalType) {
+        if (approvalType == null) {
+            return "MEDIUM";
+        }
+        return switch (approvalType) {
+            case MULTI, UNANIMOUS, EMERGENCY -> "CRITICAL";
+            case MANUAL -> "HIGH";
+            case SINGLE -> "MEDIUM";
+            case AUTO -> "LOW";
+            default -> "MEDIUM";
         };
     }
 

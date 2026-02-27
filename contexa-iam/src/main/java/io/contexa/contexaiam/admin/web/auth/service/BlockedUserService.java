@@ -5,12 +5,15 @@ import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +30,10 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final AdminOverrideService adminOverrideService;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
     private final ApplicationEventPublisher eventPublisher;
+
+    @Setter
+    @Autowired(required = false)
+    private BlockingDecisionRegistry blockingDecisionRegistry;
 
     @Override
     @Transactional
@@ -239,6 +246,9 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private void clearRedisBlockKeys(String userId, String resolvedAction) {
         try {
             actionRedisRepository.removeBlockedFlag(userId);
+            if (blockingDecisionRegistry != null) {
+                blockingDecisionRegistry.registerUnblock(userId);
+            }
             ZeroTrustAction action = ZeroTrustAction.fromString(resolvedAction);
             actionRedisRepository.saveAction(userId, action, null);
         } catch (Exception e) {

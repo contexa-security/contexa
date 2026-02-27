@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
@@ -22,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
@@ -38,6 +40,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final UserIdentificationService userIdentificationService;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final MfaSettings mfaSettings;
 
     @Setter
     @Autowired(required = false)
@@ -46,13 +49,17 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
                                                MfaSessionRepository sessionRepository,
-                                               UserIdentificationService userIdentificationService, ZeroTrustEventPublisher zeroTrustEventPublisher, ZeroTrustActionRedisRepository actionRedisRepository) {
+                                               UserIdentificationService userIdentificationService,
+                                               ZeroTrustEventPublisher zeroTrustEventPublisher,
+                                               ZeroTrustActionRedisRepository actionRedisRepository,
+                                               MfaSettings mfaSettings) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.userIdentificationService = userIdentificationService;
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
         this.actionRedisRepository = actionRedisRepository;
+        this.mfaSettings = mfaSettings;
     }
 
     @Override
@@ -106,9 +113,8 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         factorContext.setAttribute("retryCount_" + currentProcessingFactor.name(),
                 factorContext.getAttemptCount(currentProcessingFactor));
 
-        publishAuthenticationFailureEvent(request, exception, factorContext);
+//        publishAuthenticationFailureEvent(request, exception, factorContext);
 
-        // Send state machine transition event for factor verification failure
         try {
             stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_VERIFICATION_FAILED, factorContext, request);
         } catch (Exception e) {
@@ -125,7 +131,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
             return;
         }
 
-        int attempts = factorContext.getAttemptCount(currentProcessingFactor);
+        int attempts = factorContext.getRetryCount();
         Map<String, Object> errorDetails = buildMfaFailureErrorDetails(factorContext, currentProcessingFactor, attempts);
 
         executeDelegateHandler(request, response, exception, factorContext, FailureType.MFA_FACTOR_FAILED, errorDetails);
@@ -273,6 +279,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         errorDetails.put("attemptsMade", attempts);
         errorDetails.put("currentState", factorContext.getCurrentState().name());
         errorDetails.put("timestamp", System.currentTimeMillis());
+        errorDetails.put("maxAttempts", mfaSettings.getMaxRetryAttempts());
         return errorDetails;
     }
 
@@ -349,7 +356,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 return;
             }
 
-            String username = userIdentificationService.extractUserId(request, null, exception);
+            String username = SecurityContextHolder.getContext().getAuthentication().getName();
             Integer failureCount = extractFailureCount(factorContext);
 
             Map<String, Object> payload = new HashMap<>();

@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticatio
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.properties.MfaPageConfig;
+import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -36,6 +37,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private final AuthenticationFlowConfig mfaFlowConfig;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
+    private final MfaSettings mfaSettings;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -353,6 +355,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         opacity: 0.6;
                         cursor: not-allowed;
                     }
+                    .error-message {
+                        display: none;
+                        background: #f8d7da;
+                        color: #721c24;
+                        padding: 12px 16px;
+                        border-radius: 8px;
+                        margin-bottom: 16px;
+                        font-size: 14px;
+                        text-align: center;
+                        line-height: 1.5;
+                    }
                 </style>
             </head>
             <body>
@@ -364,6 +377,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         <div class="label">Account being authenticated</div>
                         <div class="username">{{username}}</div>
                     </div>
+
+                    <div id="error-message" class="error-message"></div>
 
                     <form id="ott-verify-form" method="post" action="{{ottVerifyUrl}}">
                         <div class="form-group">
@@ -393,20 +408,44 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <script>
                         // Enhanced UX through SDK when JavaScript is enabled
                         if (typeof ContexaMFA !== 'undefined') {
+                            var currentAttempts = parseInt('{{attemptsMade}}', 10) || 0;
+                            var maxAttempts = parseInt('{{maxAttempts}}', 10) || 5;
+
                             const verifyForm = document.getElementById('ott-verify-form');
                             const resendForm = document.getElementById('resend-form');
                             const verifyButton = verifyForm.querySelector('button[type="submit"]');
                             const resendButton = resendForm.querySelector('button[type="submit"]');
                             const codeInput = document.getElementById('token');
-            
+                            const errorMsgEl = document.getElementById('error-message');
+
+                            function disableVerificationForm() {
+                                codeInput.disabled = true;
+                                verifyButton.disabled = true;
+                                verifyButton.textContent = 'Verify';
+                                resendButton.disabled = true;
+                                errorMsgEl.textContent = 'Maximum verification attempts exceeded. Please contact your administrator.';
+                                errorMsgEl.style.display = 'block';
+                            }
+
+                            // Show existing attempt info on page load
+                            if (currentAttempts > 0) {
+                                var remaining = maxAttempts - currentAttempts;
+                                if (remaining <= 0) {
+                                    disableVerificationForm();
+                                } else {
+                                    errorMsgEl.textContent = remaining + ' attempt(s) remaining out of ' + maxAttempts + '.';
+                                    errorMsgEl.style.display = 'block';
+                                }
+                            }
+
                             // SDK initialization
                             const mfa = new ContexaMFA.Client({ autoRedirect: false });
                             mfa.init().catch(console.error);
-            
+
                             // Verification Form Progressive Enhancement
                             verifyForm.addEventListener('submit', async (e) => {
                                 e.preventDefault();
-            
+
                                 const code = codeInput.value;
                                 verifyButton.disabled = true;
                                 verifyButton.textContent = 'Verifying...';
@@ -426,12 +465,27 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     }
                                 } catch (error) {
                                     console.error('OTT verification failed:', error);
-                                    alert('Authentication code verification failed: ' + (error.message || 'Unknown error'));
-                                    verifyButton.disabled = false;
-                                    verifyButton.textContent = 'Verify';
+                                    if (error.response && error.response.attemptsMade != null) {
+                                        currentAttempts = error.response.attemptsMade;
+                                    } else {
+                                        currentAttempts++;
+                                    }
+                                    var remaining = maxAttempts - currentAttempts;
+                                    if (remaining <= 0) {
+                                        disableVerificationForm();
+                                    } else {
+                                        var msg = 'Authentication code verification failed. '
+                                            + remaining + ' attempt(s) remaining out of ' + maxAttempts + '.';
+                                        errorMsgEl.textContent = msg;
+                                        errorMsgEl.style.display = 'block';
+                                        verifyButton.disabled = false;
+                                        verifyButton.textContent = 'Verify';
+                                        codeInput.value = '';
+                                        codeInput.focus();
+                                    }
                                 }
                             });
-            
+
                             // Resend button uses form submit as-is (SDK not required)
                         }
                     </script>
@@ -856,16 +910,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     public DefaultMfaPageGeneratingFilter(
             AuthenticationFlowConfig mfaFlowConfig,
             MfaStateMachineIntegrator stateMachineIntegrator,
-            AuthUrlProvider authUrlProvider) {
+            AuthUrlProvider authUrlProvider,
+            MfaSettings mfaSettings) {
         Assert.notNull(mfaFlowConfig, "AuthenticationFlowConfig cannot be null");
         Assert.isTrue(AuthType.MFA.name().equalsIgnoreCase(mfaFlowConfig.getTypeName()),
                 "This filter only works with MFA flow config. Provided flow type: " + mfaFlowConfig.getTypeName());
         Assert.notNull(stateMachineIntegrator, "MfaStateMachineIntegrator cannot be null");
         Assert.notNull(authUrlProvider, "AuthUrlProvider cannot be null");
+        Assert.notNull(mfaSettings, "MfaSettings cannot be null");
 
         this.mfaFlowConfig = mfaFlowConfig;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.authUrlProvider = authUrlProvider;
+        this.mfaSettings = mfaSettings;
 
     }
 
@@ -1512,7 +1569,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String ottResendUrl = extractOttCodeGenerationUrl();
         String fullOttResendUrl = contextPath + ottResendUrl;
 
-        String resendHiddenInputs = resolveHiddenInputs(request);
+        String resendHiddenInputs = resolveResendHiddenInputs(request, username);
+
+        int attemptsMade = 0;
+        int maxAttempts = mfaSettings.getMaxRetryAttempts();
+        FactorContext factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (factorContext != null) {
+            attemptsMade = factorContext.getRetryCount();
+        }
 
         String html = MfaHtmlTemplates.fromTemplate(OTT_VERIFY_TEMPLATE)
                 .withValue("contextPath", contextPath)
@@ -1522,6 +1586,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfToken", getCsrfToken(request))
                 .withValue("csrfHeaderName", getCsrfHeaderName(request))
                 .withValue("csrfParameterName", getCsrfParameterName(request))
+                .withValue("attemptsMade", String.valueOf(attemptsMade))
+                .withValue("maxAttempts", String.valueOf(maxAttempts))
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
                 .render();
@@ -1619,6 +1685,29 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         }
 
         return null;
+    }
+
+    private String resolveResendHiddenInputs(HttpServletRequest request, String username) {
+        Map<String, String> hiddenInputs = new LinkedHashMap<>();
+
+        CsrfToken csrfToken = (CsrfToken) request.getAttribute(CsrfToken.class.getName());
+        if (csrfToken != null) {
+            hiddenInputs.put(csrfToken.getParameterName(), csrfToken.getToken());
+        }
+
+        String mfaSessionId = (String) request.getAttribute("mfaSessionId");
+        if (StringUtils.hasText(mfaSessionId)) {
+            hiddenInputs.put("mfaSessionId", mfaSessionId);
+        }
+
+        if (StringUtils.hasText(username)) {
+            hiddenInputs.put("username", username);
+        }
+
+        return hiddenInputs.entrySet()
+                .stream()
+                .map(entry -> renderHiddenInput(entry.getKey(), entry.getValue()))
+                .collect(Collectors.joining("\n"));
     }
 
     private String resolveHiddenInputs(HttpServletRequest request) {

@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.domain;
 
+import io.contexa.contexacommon.enums.RiskLevel;
 import lombok.*;
 import java.io.Serializable;
 import java.time.LocalDateTime;
@@ -153,11 +154,8 @@ public class ThreatIndicators implements Serializable {
     }
 
     public String calculateRiskLevel() {
-        if (riskScore >= 90) return "CRITICAL";
-        if (riskScore >= 70) return "HIGH";
-        if (riskScore >= 50) return "MEDIUM";
-        if (riskScore >= 30) return "LOW";
-        return "INFO";
+        double normalizedScore = riskScore > 1.0 ? riskScore / 100.0 : riskScore;
+        return RiskLevel.fromScore(normalizedScore).name();
     }
 
     public double calculateThreatScore() {

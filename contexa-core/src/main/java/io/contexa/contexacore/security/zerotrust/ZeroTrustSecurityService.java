@@ -1,6 +1,7 @@
 package io.contexa.contexacore.security.zerotrust;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
@@ -8,7 +9,9 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import jakarta.servlet.http.HttpServletRequest;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -28,6 +31,10 @@ public class ZeroTrustSecurityService {
     private final ThreatScoreUtil threatScoreUtil;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final ZeroTrustActionRedisRepository actionRedisRepository;
+
+    @Setter
+    @Autowired(required = false)
+    private BlockingDecisionRegistry blockingDecisionRegistry;
 
     public void applyZeroTrustToContext(SecurityContext context, String userId, String sessionId, HttpServletRequest request) {
         if (!securityZeroTrustProperties.isEnabled() || context == null || userId == null) {
@@ -90,6 +97,9 @@ public class ZeroTrustSecurityService {
         try {
             // User-scoped keys: HCAD analysis, block flags, MFA states
             actionRedisRepository.removeAllUserData(userId);
+            if (blockingDecisionRegistry != null) {
+                blockingDecisionRegistry.registerUnblock(userId);
+            }
 
             // Threat score
             redisTemplate.delete(ZeroTrustRedisKeys.threatScore(userId));

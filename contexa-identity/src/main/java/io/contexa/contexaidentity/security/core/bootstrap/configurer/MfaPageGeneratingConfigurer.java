@@ -10,6 +10,7 @@ import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
 import io.contexa.contexaidentity.security.filter.DefaultMfaPageGeneratingFilter;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaPageConfig;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -55,11 +56,14 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     applicationContext.getBean(MfaStateMachineIntegrator.class);
             AuthUrlProvider authUrlProvider =
                     applicationContext.getBean(AuthUrlProvider.class);
+            AuthContextProperties authContextProperties =
+                    applicationContext.getBean(AuthContextProperties.class);
 
             DefaultMfaPageGeneratingFilter mfaPageFilter = new DefaultMfaPageGeneratingFilter(
                     flowConfig,
                     stateMachineIntegrator,
-                    authUrlProvider
+                    authUrlProvider,
+                    authContextProperties.getMfa()
             );
 
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);

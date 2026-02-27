@@ -4,6 +4,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -32,6 +33,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     @Setter
     @Autowired(required = false)
     private IBlockedUserRecorder blockedUserRecorder;
+
+    @Setter
+    @Autowired(required = false)
+    private BlockingDecisionRegistry blockingDecisionRegistry;
 
     @Override
     public boolean handle(SecurityEventContext context) {
@@ -100,6 +105,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         String reasoning = result.getReasoning() != null ? result.getReasoning() : "";
 
         actionRedisRepository.setBlockedFlag(userId);
+
+        if (blockingDecisionRegistry != null) {
+            blockingDecisionRegistry.registerBlock(userId);
+        }
 
         if (blockedUserRecorder != null) {
             try {

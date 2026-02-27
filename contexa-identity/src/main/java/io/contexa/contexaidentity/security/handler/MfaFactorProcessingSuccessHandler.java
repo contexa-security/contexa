@@ -92,6 +92,14 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             return;
         }
 
+        MfaState preEventState = factorContext.getCurrentState();
+        if (preEventState != null && preEventState.isTerminal()) {
+            log.error("Blocked factor verification in terminal state: {} for user: {}, session: {}",
+                    preEventState, username, factorContext.getMfaSessionId());
+            handleStateTransitionError(response, request, factorContext);
+            return;
+        }
+
         boolean eventAccepted = stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_VERIFIED_SUCCESS, factorContext, request);
 
         if (!eventAccepted) {

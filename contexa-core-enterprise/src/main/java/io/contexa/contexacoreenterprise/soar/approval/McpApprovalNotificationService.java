@@ -350,12 +350,12 @@ public class McpApprovalNotificationService {
         }
     }
 
-    private long getTimeoutDuration(String riskLevel) {
-        return switch (riskLevel) {
-            case "CRITICAL" -> 120000; 
-            case "HIGH" -> 300000;     
-            case "MEDIUM" -> 600000;   
-            default -> 900000;         
+    private long getTimeoutDuration(String approvalType) {
+        return switch (approvalType) {
+            case "EMERGENCY" -> 120000;
+            case "UNANIMOUS" -> 300000;
+            case "MULTI" -> 600000;
+            default -> 900000;
         };
     }
 

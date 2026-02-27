@@ -1276,7 +1276,7 @@
                     var data = JSON.parse(xhr.responseText);
 
                     // 401 MFA Challenge
-                    if (status === 401 && data.error === 'MFA_CHALLENGE_REQUIRED' && (data.challengeNoticeUrl || data.mfaUrl)) {
+                    if (status === 401 && (data.error === 'MFA_CHALLENGE_REQUIRED' || data.error === 'BLOCK_MFA_REQUIRED') && (data.challengeNoticeUrl || data.mfaUrl)) {
                         var xhrRedirectTarget = data.challengeNoticeUrl || data.mfaUrl;
                         ContexaMFAUtils.log(
                             'XHR: MFA Challenge detected, redirecting to: ' + xhrRedirectTarget,

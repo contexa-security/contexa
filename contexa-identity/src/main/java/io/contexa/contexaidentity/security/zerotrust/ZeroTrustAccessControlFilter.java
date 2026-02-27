@@ -2,6 +2,8 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
+import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
@@ -15,7 +17,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -36,6 +40,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     public static final String ROLE_BLOCKED = "ROLE_BLOCKED";
     public static final String ROLE_REVIEW_REQUIRED = "ROLE_REVIEW_REQUIRED";
+    public static final String ROLE_PENDING_ANALYSIS = "ROLE_PENDING_ANALYSIS";
     public static final String BLOCK_MFA_FLOW_ATTRIBUTE = "BLOCK_MFA_FLOW";
 
     private static final String ESCALATE_RETRY_KEY_PREFIX = "security:escalate:retry:";
@@ -50,6 +55,10 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private final IBlockedUserRecorder blockedUserRecorder;
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthUrlProvider authUrlProvider;
+
+    @Setter
+    @Autowired(required = false)
+    private BlockingDecisionRegistry blockingDecisionRegistry;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRedisRepository actionRedisRepository,
@@ -91,8 +100,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         boolean isBlocked = hasAuthority(auth, ROLE_BLOCKED);
         boolean isEscalated = hasAuthority(auth, ROLE_REVIEW_REQUIRED);
+        boolean isPendingAnalysis = hasAuthority(auth, ROLE_PENDING_ANALYSIS);
 
-        if (!isBlocked && !isEscalated) {
+        if (!isBlocked && !isEscalated && !isPendingAnalysis) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -106,6 +116,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         switch (currentAction) {
             case BLOCK -> handleBlockWithMfa(request, response, filterChain, auth, userId, requestUri);
             case ESCALATE -> handleEscalate(request, response, userId);
+            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId);
             default -> filterChain.doFilter(request, response);
         }
     }
@@ -327,6 +338,28 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         }
 
         handleBlocked(request, response, userId);
+    }
+
+    private void handlePendingAnalysis(HttpServletRequest request,
+                                        HttpServletResponse response,
+                                        FilterChain filterChain,
+                                        String userId) throws ServletException, IOException {
+        if (blockingDecisionRegistry == null) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        BlockableResponseWrapper wrapper = new BlockableResponseWrapper(
+                response, blockingDecisionRegistry, userId);
+        try {
+            filterChain.doFilter(request, wrapper);
+        } catch (IOException e) {
+            if (blockingDecisionRegistry.isBlocked(userId)) {
+                log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
+                return;
+            }
+            throw e;
+        }
     }
 
     private String resolveRequestUri(HttpServletRequest request) {

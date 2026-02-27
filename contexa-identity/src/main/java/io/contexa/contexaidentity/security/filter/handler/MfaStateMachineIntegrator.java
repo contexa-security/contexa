@@ -81,12 +81,7 @@ public class MfaStateMachineIntegrator {
 
     public FactorContext loadFactorContext(String sessionId) {
         try {
-            FactorContext original = stateMachineService.getFactorContext(sessionId);
-            if (original == null) {
-                return null;
-            }
-
-            return original;
+            return stateMachineService.getFactorContext(sessionId);
         } catch (Exception e) {
             log.error("Failed to load FactorContext from unified State Machine for session: {}", sessionId, e);
             return null;
