@@ -175,18 +175,23 @@ public class DefaultStandardStreamingService implements StandardStreamingService
         String errorCode;
         String errorMessage;
 
-        if (error instanceof AIOperationException) {
-            errorCode = "AI_OPERATION_ERROR";
-            errorMessage = error.getMessage();
-        } else if (error instanceof TimeoutException) {
-            errorCode = "TIMEOUT";
-            errorMessage = "Request timed out";
-        } else if (error instanceof IllegalArgumentException) {
-            errorCode = "INVALID_REQUEST";
-            errorMessage = error.getMessage();
-        } else {
-            errorCode = "INTERNAL_ERROR";
-            errorMessage = "An unexpected error occurred";
+        switch (error) {
+            case AIOperationException aiOperationException -> {
+                errorCode = "AI_OPERATION_ERROR";
+                errorMessage = error.getMessage();
+            }
+            case TimeoutException timeoutException -> {
+                errorCode = "TIMEOUT";
+                errorMessage = "Request timed out";
+            }
+            case IllegalArgumentException illegalArgumentException -> {
+                errorCode = "INVALID_REQUEST";
+                errorMessage = error.getMessage();
+            }
+            case null, default -> {
+                errorCode = "INTERNAL_ERROR";
+                errorMessage = "An unexpected error occurred";
+            }
         }
 
         return errorStream(errorCode, errorMessage);
