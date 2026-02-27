@@ -1,12 +1,11 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
-import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -54,12 +53,9 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                 return;
             }
 
-            factorContext.setAttribute(FactorContextAttributes.Timestamps.CHALLENGE_INITIATED_AT,
-                    System.currentTimeMillis());
-
             sessionRepository.refreshSession(factorContext.getMfaSessionId());
 
-            mfaStateMachineIntegrator.saveFactorContext(factorContext);
+            mfaStateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, factorContext, request);
 
             String challengeUiUrl = authUrlProvider.getOttChallengeUi();
             if (!StringUtils.hasText(challengeUiUrl)) {

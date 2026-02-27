@@ -1267,7 +1267,7 @@ create table public.blocked_user
     status          varchar(255) not null
         constraint blocked_user_status_check
             check ((status)::text = ANY
-                   ((ARRAY ['BLOCKED'::character varying, 'RESOLVED'::character varying])::text[])),
+                   ((ARRAY ['BLOCKED'::character varying, 'UNBLOCK_REQUESTED'::character varying, 'RESOLVED'::character varying, 'TIMEOUT_RESPONDED'::character varying, 'MFA_FAILED'::character varying])::text[])),
     user_agent      varchar(255),
     user_id         varchar(255) not null,
     username        varchar(255)
