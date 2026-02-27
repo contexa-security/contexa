@@ -1,6 +1,8 @@
 package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
+import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Controller;
@@ -20,6 +22,7 @@ import java.security.Principal;
 public class ZeroTrustPageController {
 
     private final StringRedisTemplate stringRedisTemplate;
+    private final BlockedUserJpaRepository blockedUserJpaRepository;
 
     private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
 
@@ -27,9 +30,16 @@ public class ZeroTrustPageController {
     public String blocked(Principal principal, Model model) {
 
         boolean mfaVerified = false;
+        boolean mfaFailed = false;
         int mfaFailCount = 0;
         if (principal != null) {
             String userId = principal.getName();
+
+            mfaFailed = blockedUserJpaRepository
+                    .findFirstByUserIdOrderByBlockedAtDesc(userId)
+                    .map(bu -> bu.getStatus() == BlockedUserStatus.MFA_FAILED)
+                    .orElse(false);
+
             String verifiedKey = ZeroTrustRedisKeys.blockMfaVerified(userId);
             mfaVerified = Boolean.parseBoolean(stringRedisTemplate.opsForValue().get(verifiedKey));
 
@@ -43,9 +53,10 @@ public class ZeroTrustPageController {
             }
         }
         model.addAttribute("mfaVerified", mfaVerified);
+        model.addAttribute("mfaFailed", mfaFailed);
         model.addAttribute("mfaFailCount", mfaFailCount);
         model.addAttribute("maxMfaAttempts", MAX_BLOCK_MFA_ATTEMPTS);
-        model.addAttribute("mfaExhausted", mfaFailCount >= MAX_BLOCK_MFA_ATTEMPTS);
+        model.addAttribute("mfaExhausted", mfaFailed || mfaFailCount >= MAX_BLOCK_MFA_ATTEMPTS);
         return "zero-trust/blocked";
     }
 

@@ -208,6 +208,12 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             }
 
             stateMachine = getAndPrepareStateMachine(sessionId, context.getCurrentState(), context);
+
+            FactorContext restoredFc = StateContextHelper.getFactorContext(stateMachine);
+            log.error("[SM-RESEND-1] After restore: SM internal retryCount={}, external retryCount={}, event={}, sessionId={}",
+                    restoredFc != null ? restoredFc.getRetryCount() : "null",
+                    context.getRetryCount(), event, sessionId);
+
             context.incrementVersion();
             StateContextHelper.setFactorContext(stateMachine, context);
 
@@ -330,6 +336,8 @@ public class MfaStateMachineServiceImpl implements MfaStateMachineService {
             externalContext.setCurrentProcessingFactor(contextFromSm.getCurrentProcessingFactor());
             externalContext.setCurrentStepId(contextFromSm.getCurrentStepId());
             externalContext.setMfaRequiredAsPerPolicy(contextFromSm.isMfaRequiredAsPerPolicy());
+            log.error("[SM-SYNC] retryCount sync: external={} -> fromSm={}, sessionId={}",
+                    externalContext.getRetryCount(), contextFromSm.getRetryCount(), externalContext.getMfaSessionId());
             externalContext.setRetryCount(contextFromSm.getRetryCount());
             externalContext.setLastError(contextFromSm.getLastError());
 

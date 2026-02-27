@@ -13,13 +13,16 @@
             </svg>
         </div>
         <h1 class="text-2xl font-bold mb-3" style="color: #f87171;">계정이 차단되었습니다</h1>
-        <p class="mb-6" style="color: #94a3b8;">
+        <p class="mb-6" style="color: #94a3b8;" th:if="${!mfaFailed and !mfaExhausted}">
             보안 사유로 계정 접근이 제한되었습니다.<br/>
             MFA 인증 후 차단 해제를 요청할 수 있습니다.
         </p>
+        <p class="mb-6" style="color: #94a3b8;" th:if="${mfaFailed or mfaExhausted}">
+            보안 사유로 계정 접근이 제한되었습니다. 관리자에게 문의 바랍니다.
+        </p>
 
         <!-- MFA not verified: show initiate button or exhausted message -->
-        <div th:if="${!mfaVerified}" id="mfa-initiate-section" class="mb-4">
+        <div th:if="${!mfaVerified and !mfaFailed}" id="mfa-initiate-section" class="mb-4">
             <!-- MFA fail count warning -->
             <div th:if="${mfaFailCount > 0 and !mfaExhausted}" class="mb-4 p-3 rounded-lg"
                  style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3);">

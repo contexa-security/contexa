@@ -155,6 +155,7 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .target(MfaState.MFA_RETRY_LIMIT_EXCEEDED)
                 .event(MfaEvent.FACTOR_VERIFICATION_FAILED)
                 .guard(retryLimitGuard.negate())
+                .action(handleFailureAction)
                 .and()
 
                 .withExternal()

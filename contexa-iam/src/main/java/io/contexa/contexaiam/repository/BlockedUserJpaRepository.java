@@ -14,6 +14,8 @@ public interface BlockedUserJpaRepository extends JpaRepository<BlockedUser, Lon
 
     Optional<BlockedUser> findFirstByUserIdAndStatusOrderByBlockedAtDesc(String userId, BlockedUserStatus status);
 
+    Optional<BlockedUser> findFirstByUserIdOrderByBlockedAtDesc(String userId);
+
     int countByUserId(String userId);
 
     List<BlockedUser> findByStatusAndBlockedAtBefore(BlockedUserStatus status, LocalDateTime threshold);

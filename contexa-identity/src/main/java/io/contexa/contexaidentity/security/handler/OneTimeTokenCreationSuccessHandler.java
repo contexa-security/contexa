@@ -55,7 +55,13 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
             sessionRepository.refreshSession(factorContext.getMfaSessionId());
 
+            log.error("[OTT-RESEND] Before sendEvent: retryCount={}, state={}, sessionId={}",
+                    factorContext.getRetryCount(), factorContext.getCurrentState(), factorContext.getMfaSessionId());
+
             mfaStateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, factorContext, request);
+
+            log.error("[OTT-RESEND] After sendEvent: retryCount={}, state={}, sessionId={}",
+                    factorContext.getRetryCount(), factorContext.getCurrentState(), factorContext.getMfaSessionId());
 
             String challengeUiUrl = authUrlProvider.getOttChallengeUi();
             if (!StringUtils.hasText(challengeUiUrl)) {

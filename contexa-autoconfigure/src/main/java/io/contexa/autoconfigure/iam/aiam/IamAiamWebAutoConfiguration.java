@@ -8,6 +8,7 @@ import io.contexa.contexaiam.aiam.protocol.context.StudioQueryContext;
 import io.contexa.contexaiam.aiam.event.ZeroTrustSsePublisher;
 import io.contexa.contexaiam.aiam.web.*;
 import io.contexa.contexaiam.properties.SecurityStepUpProperties;
+import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -44,8 +45,9 @@ public class IamAiamWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ZeroTrustPageController zeroTrustPageController(StringRedisTemplate stringRedisTemplate) {
-        return new ZeroTrustPageController(stringRedisTemplate);
+    public ZeroTrustPageController zeroTrustPageController(StringRedisTemplate stringRedisTemplate,
+                                                            BlockedUserJpaRepository blockedUserJpaRepository) {
+        return new ZeroTrustPageController(stringRedisTemplate, blockedUserJpaRepository);
     }
 
     @Bean
