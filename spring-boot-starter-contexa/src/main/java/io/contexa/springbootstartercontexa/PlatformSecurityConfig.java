@@ -20,16 +20,16 @@ import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
 @Slf4j
-@Configuration
+//@Configuration
 @RequiredArgsConstructor
-@EnableWebSecurity
+//@EnableWebSecurity
 public class PlatformSecurityConfig {
 
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
     private final AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository;
     private final ApplicationContext applicationContext;
 
-    @Bean
+//    @Bean
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {

@@ -26,8 +26,8 @@ import java.util.Map;
  * @author contexa
  * @since TIPS Demo v1.0
  */
-@RestController
-@RequestMapping("/api/sse")
+//@RestController
+//@RequestMapping("/api/sse")
 @RequiredArgsConstructor
 @Slf4j
 public class LlmAnalysisSseController {

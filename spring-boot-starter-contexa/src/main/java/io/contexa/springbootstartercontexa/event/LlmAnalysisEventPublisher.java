@@ -22,7 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * @author contexa
  * @since TIPS Demo v1.0
  */
-@Component
+//@Component
 @Slf4j
 public class LlmAnalysisEventPublisher {
 

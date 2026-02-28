@@ -45,8 +45,8 @@ import java.util.Map;
  * - threat_score:{userId} (String) - 위협 점수 (레거시 호환)
  */
 @Slf4j
-@RestController
-@RequestMapping("/api/test-action")
+//@RestController
+//@RequestMapping("/api/test-action")
 @RequiredArgsConstructor
 public class TestActionController {
 

@@ -16,16 +16,15 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 
 @Slf4j
-@Configuration
+//@Configuration
 @RequiredArgsConstructor
-@EnableWebSecurity
+//@EnableWebSecurity
 public class PlatformSecurityConfig {
 
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
     private final AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository;
-    private final ApplicationContext applicationContext;
 
-    @Bean
+//    @Bean
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {

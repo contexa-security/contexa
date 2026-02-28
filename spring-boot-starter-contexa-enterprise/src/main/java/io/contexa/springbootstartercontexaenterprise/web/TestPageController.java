@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  * 인증된 사용자만 접근 가능하며, 사용자 정보를 모델에 전달한다.
  */
 @Slf4j
-@Controller
+//@Controller
 public class TestPageController {
 
     /**

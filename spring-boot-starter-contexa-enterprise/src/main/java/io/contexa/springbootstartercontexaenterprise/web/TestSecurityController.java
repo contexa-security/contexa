@@ -28,8 +28,8 @@ import java.util.Map;
  * 각 엔드포인트는 서비스 메서드를 호출하고, 결과 또는 예외를 JSON으로 반환한다.
  */
 @Slf4j
-@RestController
-@RequestMapping("/api/security-test")
+//@RestController
+//@RequestMapping("/api/security-test")
 @RequiredArgsConstructor
 public class TestSecurityController {
 

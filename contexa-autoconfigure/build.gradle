@@ -37,6 +37,9 @@ dependencies {
     // Spring AI AutoConfiguration types (CoreLLMTieredAutoConfiguration uses ChatClientAutoConfiguration)
     compileOnly 'org.springframework.ai:spring-ai-autoconfigure-model-chat-client'
 
+    // Thymeleaf (EnterpriseSoarAutoConfiguration email template)
+    compileOnly 'org.springframework.boot:spring-boot-starter-thymeleaf'
+
     // Module-specific compileOnly (moved from root subprojects)
     compileOnly 'org.springframework.boot:spring-boot-starter-mail'
     compileOnly("org.springframework.kafka:spring-kafka")

@@ -9,6 +9,8 @@ dependencies {
     // contexa-core 의존성 추가
     // AutoConfiguration에서 contexa-core의 SOAR, Tool 클래스들을 사용하므로 api로 노출
     api project(':contexa-core')
+    // Spring Security (contexa-common compileOnly -> must declare explicitly)
+    implementation 'org.springframework.boot:spring-boot-starter-security'
     // contexa-common transitively included via contexa-core (api scope)
     // NotificationTargetManager extracted to core-enterprise to break circular dependency
     // contexa-autoconfigure depends on core-enterprise (compileOnly), not the reverse

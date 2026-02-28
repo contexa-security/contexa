@@ -4,7 +4,7 @@ import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-@Component
+//@Component
 @RequiredArgsConstructor
 public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
 

@@ -15,7 +15,7 @@ dependencies {
     api 'org.springframework.ai:spring-ai-model'
 
     // Spring Security (UserDto, Authority, UnifiedCustomUserDetails용)
-    api 'org.springframework.boot:spring-boot-starter-security'
+    compileOnly 'org.springframework.boot:spring-boot-starter-security'
 
     // Redis (공통 Redis 설정 제공)
     api 'org.springframework.boot:spring-boot-starter-data-redis'

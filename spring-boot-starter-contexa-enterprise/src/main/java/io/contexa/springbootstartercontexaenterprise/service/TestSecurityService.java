@@ -13,7 +13,7 @@ import org.springframework.stereotype.Service;
  * 메서드 식별자 형식: {패키지}.{클래스}.{메서드}({파라미터타입})
  */
 @Slf4j
-@Service
+//@Service
 public class TestSecurityService {
 
     /**

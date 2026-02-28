@@ -5,13 +5,23 @@ dependencies {
     api project(':contexa-identity')
     api project(':contexa-iam')
 
-    // Spring AI model starters (Auto-Configuration for end-user apps)
-    api 'org.springframework.ai:spring-ai-starter-model-openai'
-    api 'org.springframework.ai:spring-ai-starter-model-anthropic'
-    api 'org.springframework.ai:spring-ai-starter-model-ollama'
+    // Spring AI BOM (transitive to consumer projects for version management)
+    api platform("org.springframework.ai:spring-ai-bom:1.0.0")
 
-    // Spring AI vector store starter
-    api 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
+    // Spring Security (contexa-common/identity compileOnly -> starter provides transitively)
+    api 'org.springframework.boot:spring-boot-starter-security'
+    api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    api 'org.springframework.boot:spring-boot-starter-oauth2-client'
+    api 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
+    api 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
+
+    // Spring AI model starters (compileOnly: users choose which AI model to use)
+    compileOnly 'org.springframework.ai:spring-ai-starter-model-openai'
+    compileOnly 'org.springframework.ai:spring-ai-starter-model-anthropic'
+    compileOnly 'org.springframework.ai:spring-ai-starter-model-ollama'
+
+    // Spring AI vector store starter (compileOnly: users choose their vector store)
+    compileOnly 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-thymeleaf'
