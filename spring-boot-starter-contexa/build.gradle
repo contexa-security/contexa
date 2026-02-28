@@ -5,8 +5,10 @@ dependencies {
     api project(':contexa-identity')
     api project(':contexa-iam')
 
-    // Spring AI BOM (transitive to consumer projects for version management)
+    // BOMs (transitive to consumer projects for version management)
     api platform("org.springframework.ai:spring-ai-bom:1.0.0")
+    api platform("io.github.resilience4j:resilience4j-bom:2.1.0")
+    api platform("org.springframework.statemachine:spring-statemachine-bom:4.0.0")
 
     // Spring Security (contexa-common/identity compileOnly -> starter provides transitively)
     api 'org.springframework.boot:spring-boot-starter-security'

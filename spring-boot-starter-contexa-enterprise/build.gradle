@@ -5,8 +5,9 @@ dependencies {
     // ========== Contexa Community Starter (전체 포함) ==========
     api project(':spring-boot-starter-contexa')
 
-    // ========== Spring AI BOM (explicit for enterprise-only consumers) ==========
+    // ========== BOMs (explicit for enterprise-only consumers) ==========
     api platform("org.springframework.ai:spring-ai-bom:1.0.0")
+    api platform("io.github.resilience4j:resilience4j-bom:2.1.0")
 
     // ========== Contexa Enterprise 모듈 ==========
     api project(':contexa-core-enterprise')
