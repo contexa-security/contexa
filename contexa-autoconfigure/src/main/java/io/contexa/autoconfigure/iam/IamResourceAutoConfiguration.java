@@ -10,6 +10,7 @@ import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.ResourceEnhancementService;
 import io.contexa.contexaiam.resource.WorkbenchInitializer;
 import io.contexa.contexaiam.resource.scanner.MethodResourceScanner;
+import io.contexa.contexaiam.properties.IamAdminProperties;
 import io.contexa.contexaiam.resource.scanner.MvcResourceScanner;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
 import io.contexa.contexaiam.resource.service.AutoConditionTemplateService;
@@ -58,8 +59,8 @@ public class IamResourceAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MvcResourceScanner mvcResourceScanner(ApplicationContext applicationContext) {
-        return new MvcResourceScanner(applicationContext);
+    public MvcResourceScanner mvcResourceScanner(ApplicationContext applicationContext, IamAdminProperties iamAdminProperties) {
+        return new MvcResourceScanner(applicationContext, iamAdminProperties);
     }
 
     @Bean

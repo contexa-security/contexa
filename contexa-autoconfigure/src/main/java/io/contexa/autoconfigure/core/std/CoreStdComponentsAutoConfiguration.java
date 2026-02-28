@@ -10,6 +10,7 @@ import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
 import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.properties.ContexaAdvisorProperties;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.components.prompt.*;
@@ -74,8 +75,8 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @Primary
-    public ContextRetriever contextRetriever(VectorStore vectorStore) {
-        return new ContextRetriever(vectorStore);
+    public ContextRetriever contextRetriever(VectorStore vectorStore, ContexaRagProperties ragProperties) {
+        return new ContextRetriever(vectorStore, ragProperties);
     }
 
     @Bean
@@ -237,8 +238,9 @@ public class CoreStdComponentsAutoConfiguration {
     @ConditionalOnMissingBean
     public BehaviorETLPipeline behaviorETLPipeline(
             VectorStore vectorStore,
-            JdbcTemplate jdbcTemplate) {
-        return new BehaviorETLPipeline(vectorStore, jdbcTemplate);
+            JdbcTemplate jdbcTemplate,
+            ContexaRagProperties ragProperties) {
+        return new BehaviorETLPipeline(vectorStore, jdbcTemplate, ragProperties);
     }
 
     @Bean
