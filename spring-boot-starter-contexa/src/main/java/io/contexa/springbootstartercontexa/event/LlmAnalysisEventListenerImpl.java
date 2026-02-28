@@ -1,10 +1,11 @@
+/*
 package io.contexa.springbootstartercontexa.event;
 
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
-//@Component
+@Component
 @RequiredArgsConstructor
 public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
 
@@ -47,3 +48,4 @@ public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
         eventPublisher.publishError(userId, message);
     }
 }
+*/

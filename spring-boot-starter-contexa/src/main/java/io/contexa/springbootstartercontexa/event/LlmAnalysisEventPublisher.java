@@ -1,3 +1,4 @@
+/*
 package io.contexa.springbootstartercontexa.event;
 
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+*/
 /**
  * LLM 분석 이벤트 발행자
  *
@@ -21,31 +23,40 @@ import java.util.concurrent.CopyOnWriteArrayList;
  *
  * @author contexa
  * @since TIPS Demo v1.0
- */
+ *//*
+
 //@Component
 @Slf4j
 public class LlmAnalysisEventPublisher {
 
-    /**
+    */
+/**
      * 전체 구독자 목록 (브로드캐스트용)
-     */
+     *//*
+
     private final List<SseEmitter> globalEmitters = new CopyOnWriteArrayList<>();
 
-    /**
+    */
+/**
      * 사용자별 구독자 목록 (개인화된 이벤트 전송용)
-     */
+     *//*
+
     private final Map<String, List<SseEmitter>> userEmitters = new ConcurrentHashMap<>();
 
-    /**
+    */
+/**
      * SSE 타임아웃 (5분)
-     */
+     *//*
+
     private static final long SSE_TIMEOUT = 300_000L;
 
-    /**
+    */
+/**
      * 새 구독자 등록 (글로벌)
      *
      * @return SseEmitter 인스턴스
-     */
+     *//*
+
     public SseEmitter addEmitter() {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
 
@@ -79,12 +90,14 @@ public class LlmAnalysisEventPublisher {
         return emitter;
     }
 
-    /**
+    */
+/**
      * 사용자별 구독자 등록
      *
      * @param userId 사용자 ID
      * @return SseEmitter 인스턴스
-     */
+     *//*
+
     public SseEmitter addEmitter(String userId) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
 
@@ -124,11 +137,13 @@ public class LlmAnalysisEventPublisher {
         return emitter;
     }
 
-    /**
+    */
+/**
      * 모든 구독자에게 이벤트 브로드캐스트
      *
      * @param event 전송할 이벤트
-     */
+     *//*
+
     public void publishEvent(LlmAnalysisEvent event) {
         if (globalEmitters.isEmpty()) {
             log.debug("[LlmAnalysisEventPublisher] 구독자 없음, 이벤트 전송 생략: {}", event.getType());
@@ -158,12 +173,14 @@ public class LlmAnalysisEventPublisher {
                 eventType, globalEmitters.size(), deadEmitters.size());
     }
 
-    /**
+    */
+/**
      * 특정 사용자에게만 이벤트 전송
      *
      * @param userId 사용자 ID
      * @param event 전송할 이벤트
-     */
+     *//*
+
     public void publishEventToUser(String userId, LlmAnalysisEvent event) {
         List<SseEmitter> userList = userEmitters.get(userId);
 
@@ -194,9 +211,11 @@ public class LlmAnalysisEventPublisher {
         log.debug("[LlmAnalysisEventPublisher] 사용자 이벤트 전송 완료 - userId: {}, type: {}", userId, eventType);
     }
 
-    /**
+    */
+/**
      * 컨텍스트 수집 완료 이벤트 발행
-     */
+     *//*
+
     public void publishContextCollected(String userId, String requestPath, String analysisRequirement) {
         LlmAnalysisEvent event = LlmAnalysisEvent.contextCollected(userId, requestPath, analysisRequirement);
         publishEvent(event);
@@ -204,18 +223,22 @@ public class LlmAnalysisEventPublisher {
                 userId, requestPath, analysisRequirement);
     }
 
-    /**
+    */
+/**
      * Layer1 분석 시작 이벤트 발행
-     */
+     *//*
+
     public void publishLayer1Start(String userId, String requestPath) {
         LlmAnalysisEvent event = LlmAnalysisEvent.layer1Start(userId, requestPath);
         publishEvent(event);
         log.info("[LlmAnalysisEventPublisher] LAYER1_START - userId: {}, path: {}", userId, requestPath);
     }
 
-    /**
+    */
+/**
      * Layer1 분석 완료 이벤트 발행
-     */
+     *//*
+
     public void publishLayer1Complete(String userId, String action, Double riskScore,
             Double confidence, String reasoning, String mitre, Long elapsedMs) {
         LlmAnalysisEvent event = LlmAnalysisEvent.layer1Complete(
@@ -225,18 +248,22 @@ public class LlmAnalysisEventPublisher {
                 userId, action, riskScore, confidence, elapsedMs);
     }
 
-    /**
+    */
+/**
      * Layer2 에스컬레이션 이벤트 발행
-     */
+     *//*
+
     public void publishLayer2Start(String userId, String requestPath, String reason) {
         LlmAnalysisEvent event = LlmAnalysisEvent.layer2Start(userId, requestPath, reason);
         publishEvent(event);
         log.info("[LlmAnalysisEventPublisher] LAYER2_START - userId: {}, reason: {}", userId, reason);
     }
 
-    /**
+    */
+/**
      * Layer2 분석 완료 이벤트 발행
-     */
+     *//*
+
     public void publishLayer2Complete(String userId, String action, Double riskScore,
             Double confidence, String reasoning, String mitre, Long elapsedMs) {
         LlmAnalysisEvent event = LlmAnalysisEvent.layer2Complete(
@@ -246,9 +273,11 @@ public class LlmAnalysisEventPublisher {
                 userId, action, riskScore, confidence, elapsedMs);
     }
 
-    /**
+    */
+/**
      * 최종 결정 적용 이벤트 발행
-     */
+     *//*
+
     public void publishDecisionApplied(String userId, String action, String layer, String requestPath) {
         LlmAnalysisEvent event = LlmAnalysisEvent.decisionApplied(userId, action, layer, requestPath);
         publishEvent(event);
@@ -256,27 +285,34 @@ public class LlmAnalysisEventPublisher {
                 userId, action, layer, requestPath);
     }
 
-    /**
+    */
+/**
      * 에러 이벤트 발행
-     */
+     *//*
+
     public void publishError(String userId, String message) {
         LlmAnalysisEvent event = LlmAnalysisEvent.error(userId, message);
         publishEvent(event);
         log.error("[LlmAnalysisEventPublisher] ERROR - userId: {}, message: {}", userId, message);
     }
 
-    /**
+    */
+/**
      * 현재 구독자 수 조회
-     */
+     *//*
+
     public int getSubscriberCount() {
         return globalEmitters.size();
     }
 
-    /**
+    */
+/**
      * 사용자별 구독자 수 조회
-     */
+     *//*
+
     public int getUserSubscriberCount(String userId) {
         List<SseEmitter> userList = userEmitters.get(userId);
         return userList != null ? userList.size() : 0;
     }
 }
+*/

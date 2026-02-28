@@ -1,3 +1,4 @@
+/*
 package io.contexa.springbootstartercontexa.web;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -20,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+*/
 /**
  * LLM Action 상태 조회 컨트롤러 (실제 분석 결과 조회)
  *
@@ -43,10 +45,11 @@ import java.util.Map;
  *   - updatedAt: ISO-8601 타임스탬프
  *
  * - threat_score:{userId} (String) - 위협 점수 (레거시 호환)
- */
+ *//*
+
 @Slf4j
-//@RestController
-//@RequestMapping("/api/test-action")
+@RestController
+@RequestMapping("/api/test-action")
 @RequiredArgsConstructor
 public class TestActionController {
 
@@ -55,7 +58,8 @@ public class TestActionController {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    /**
+    */
+/**
      * 현재 사용자의 Action 상태 조회
      *
      * Redis에서 HCAD 분석 결과를 조회하여 반환한다.
@@ -63,7 +67,8 @@ public class TestActionController {
      *
      * @param user 인증된 사용자
      * @return 현재 Action 상태 정보
-     */
+     *//*
+
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getActionStatus(
             @AuthenticationPrincipal UserDetails user) {
@@ -125,7 +130,8 @@ public class TestActionController {
         return ResponseEntity.ok(response);
     }
 
-    /**
+    */
+/**
      * 분석 결과 초기화 (PENDING_ANALYSIS 상태로 복귀)
      *
      * Redis에서 HCAD 분석 결과와 위협 점수를 삭제한다.
@@ -134,7 +140,8 @@ public class TestActionController {
      *
      * @param user 인증된 사용자
      * @return 초기화 결과
-     */
+     *//*
+
     @DeleteMapping("/reset")
     public ResponseEntity<Map<String, Object>> resetAction(
             @AuthenticationPrincipal UserDetails user) {
@@ -167,9 +174,11 @@ public class TestActionController {
         return ResponseEntity.ok(response);
     }
 
-    /**
+    */
+/**
      * 사용자 ID 추출
-     */
+     *//*
+
     private String extractUserId(UserDetails user) {
         if (user != null) {
             return user.getUsername();
@@ -184,3 +193,4 @@ public class TestActionController {
         throw new IllegalStateException("인증된 사용자 정보를 찾을 수 없습니다.");
     }
 }
+*/

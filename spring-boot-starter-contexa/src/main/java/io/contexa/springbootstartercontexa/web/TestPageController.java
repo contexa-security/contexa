@@ -1,3 +1,4 @@
+/*
 package io.contexa.springbootstartercontexa.web;
 
 import io.contexa.contexacommon.security.authority.PermissionAuthority;
@@ -12,17 +13,20 @@ import org.springframework.web.bind.annotation.GetMapping;
 
 import java.util.stream.Collectors;
 
+*/
 /**
  * 보안 테스트 페이지 컨트롤러
  *
  * Thymeleaf 템플릿을 사용하여 보안 테스트 UI를 렌더링한다.
  * 인증된 사용자만 접근 가능하며, 사용자 정보를 모델에 전달한다.
- */
+ *//*
+
 @Slf4j
-//@Controller
+@Controller
 public class TestPageController {
 
-    /**
+    */
+/**
      * 보안 테스트 페이지
      *
      * @Protectable 어노테이션이 적용된 메서드들을 테스트하는 UI를 제공한다.
@@ -35,7 +39,8 @@ public class TestPageController {
      *
      * @param model Thymeleaf 모델
      * @return 템플릿 경로
-     */
+     *//*
+
     @GetMapping("/test/security")
     public String securityTestPage(Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -69,3 +74,4 @@ public class TestPageController {
         return "test/security-test";
     }
 }
+*/

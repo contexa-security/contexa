@@ -1,3 +1,4 @@
+/*
 package io.contexa.springbootstartercontexa;
 
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
@@ -20,9 +21,9 @@ import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
 @Slf4j
-//@Configuration
+@Configuration
 @RequiredArgsConstructor
-//@EnableWebSecurity
+@EnableWebSecurity
 public class PlatformSecurityConfig {
 
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
@@ -44,22 +45,26 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
+*/
 /*
                 .form(form -> form.order(20)
                         .loginPage("/admin/login")
                         .defaultSuccessUrl("/admin")
                 )
                 .oauth2(Customizer.withDefaults())
-*/
+*//*
+
 //                .rest(rest -> rest.order(10)
 //                        .defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
 //                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
 
-                /*.form(form -> form.order(50)).oauth2(Customizer.withDefaults())
+                */
+/*.form(form -> form.order(50)).oauth2(Customizer.withDefaults())
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
-                .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
+                .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*//*
+
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form ->
                                 form.defaultSuccessUrl("/admin")
@@ -68,12 +73,14 @@ public class PlatformSecurityConfig {
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
 //                        .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        /*.mfaPage(page ->
+                        */
+/*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*//*
+
                         .order(60)
                 ).oauth2(Customizer.withDefaults())
                 .build();
     }
-}
+}*/
