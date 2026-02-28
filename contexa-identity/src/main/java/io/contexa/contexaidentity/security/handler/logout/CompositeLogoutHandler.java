@@ -78,16 +78,18 @@ public class CompositeLogoutHandler implements LogoutHandler, IForceLogoutServic
 
         log.error("[ForceLogout] Executing force-logout: userId={}, reason={}", userId, reason);
 
-        try {
-            zeroTrustSecurityService.invalidateAllUserSessions(userId, reason);
-        } catch (Exception e) {
-            log.error("[ForceLogout] Failed to invalidate ZeroTrust sessions: userId={}", userId, e);
-        }
+        if (zeroTrustSecurityService != null) {
+            try {
+                zeroTrustSecurityService.invalidateAllUserSessions(userId, reason);
+            } catch (Exception e) {
+                log.error("[ForceLogout] Failed to invalidate ZeroTrust sessions: userId={}", userId, e);
+            }
 
-        try {
-            zeroTrustSecurityService.cleanupOnLogout(userId, null);
-        } catch (Exception e) {
-            log.error("[ForceLogout] Failed to cleanup ZeroTrust Redis data: userId={}", userId, e);
+            try {
+                zeroTrustSecurityService.cleanupOnLogout(userId, null);
+            } catch (Exception e) {
+                log.error("[ForceLogout] Failed to cleanup ZeroTrust Redis data: userId={}", userId, e);
+            }
         }
 
         try {

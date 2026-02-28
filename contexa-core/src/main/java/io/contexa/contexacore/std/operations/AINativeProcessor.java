@@ -4,7 +4,7 @@ import io.contexa.contexacore.exception.AIOperationException;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
@@ -17,7 +17,7 @@ import java.util.UUID;
 final public class AINativeProcessor<T extends DomainContext> implements AICoreOperations<T> {
 
     private final DistributedSessionManager<T> sessionManager;
-    private final RedisDistributedLockService distributedLockService;
+    private final DistributedLockService distributedLockService;
     private final DistributedStrategyExecutor<T> distributedStrategyExecutor;
     private static final Duration STRATEGIC_LOCK_TIMEOUT = Duration.ofMinutes(30);
     private static final String STRATEGIC_LOCK_PREFIX = "ai:strategy:master:";
@@ -26,7 +26,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
 
     @Autowired
     public AINativeProcessor(DistributedSessionManager<T> sessionManager,
-                             RedisDistributedLockService distributedLockService,
+                             DistributedLockService distributedLockService,
                              DistributedStrategyExecutor<T> distributedStrategyExecutor) {
         this.sessionManager = sessionManager;
         this.distributedLockService = distributedLockService;

@@ -391,19 +391,24 @@ public class IdentityOAuth2AutoConfiguration {
             TokenService tokenService,
             AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
-            ZeroTrustSecurityService zeroTrustSecurityService,
+            ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityServiceProvider,
             SessionIdResolver sessionIdResolver,
             DeviceAwareOAuth2AuthorizationService authorizationService) {
 
-        SessionLogoutStrategy sessionStrategy = new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository(), authContextProperties);
-        OAuth2LogoutStrategy oauth2Strategy = new OAuth2LogoutStrategy(tokenService);
-        ZeroTrustLogoutStrategy zeroTrustStrategy = new ZeroTrustLogoutStrategy(zeroTrustSecurityService, sessionIdResolver);
+        ZeroTrustSecurityService zeroTrustService = zeroTrustSecurityServiceProvider.getIfAvailable();
+
+        List<LogoutStrategy> strategies = new ArrayList<>();
+        strategies.add(new SessionLogoutStrategy(new HttpSessionCsrfTokenRepository(), authContextProperties));
+        strategies.add(new OAuth2LogoutStrategy(tokenService));
+        if (zeroTrustService != null) {
+            strategies.add(new ZeroTrustLogoutStrategy(zeroTrustService, sessionIdResolver));
+        }
 
         return new CompositeLogoutHandler(
-                List.of(sessionStrategy, oauth2Strategy, zeroTrustStrategy),
+                strategies,
                 tokenService,
                 responseWriter,
-                zeroTrustSecurityService,
+                zeroTrustService,
                 authorizationService);
     }
 

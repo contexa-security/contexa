@@ -163,15 +163,22 @@ public class ContexaProperties {
     }
 
     
+    public enum InfrastructureMode {
+        STANDALONE,
+        DISTRIBUTED
+    }
+
     @Data
     public static class Infrastructure {
-        
+
+        private InfrastructureMode mode = InfrastructureMode.STANDALONE;
+
         private Redis redis = new Redis();
 
-        
+
         private Kafka kafka = new Kafka();
 
-        
+
         private Observability observability = new Observability();
 
         @Data

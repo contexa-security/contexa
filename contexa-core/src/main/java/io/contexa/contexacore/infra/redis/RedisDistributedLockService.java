@@ -1,5 +1,6 @@
 package io.contexa.contexacore.infra.redis;
 
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -16,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @RequiredArgsConstructor
-public class RedisDistributedLockService {
+public class RedisDistributedLockService implements DistributedLockService {
 
     private final RedisTemplate<String, Object> redisTemplate;
 
@@ -332,30 +333,4 @@ public class RedisDistributedLockService {
         }
     }
 
-    public static class LockInfo {
-        private final String owner;
-        private final int count;
-        private final long ttlSeconds;
-
-        public LockInfo(String owner, int count, long ttlSeconds) {
-            this.owner = owner;
-            this.count = count;
-            this.ttlSeconds = ttlSeconds;
-        }
-
-        public String getOwner() { return owner; }
-        public int getCount() { return count; }
-        public long getTtlSeconds() { return ttlSeconds; }
-    }
-
-    @FunctionalInterface
-    public interface LockableOperation<T> {
-        T execute() throws Exception;
-    }
-
-    public static class LockAcquisitionException extends RuntimeException {
-        public LockAcquisitionException(String message) {
-            super(message);
-        }
-    }
 }

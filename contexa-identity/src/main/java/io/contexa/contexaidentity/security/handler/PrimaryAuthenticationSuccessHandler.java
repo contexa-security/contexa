@@ -3,7 +3,7 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
@@ -46,7 +46,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator,
                                                MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider,
                                                ZeroTrustEventPublisher zeroTrustEventPublisher,
-                                               ZeroTrustActionRedisRepository actionRedisRepository,
+                                               ZeroTrustActionRepository actionRedisRepository,
                                                SecurityLearningService securityLearningService,
                                                HcadProperties hcadProperties) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,

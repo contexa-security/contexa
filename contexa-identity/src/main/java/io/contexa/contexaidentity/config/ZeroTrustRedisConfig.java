@@ -7,6 +7,7 @@ import io.lettuce.core.TimeoutOptions;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,6 +23,7 @@ import java.time.Duration;
 
 @Configuration
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
 public class ZeroTrustRedisConfig {
 
     private final SecurityZeroTrustProperties securityZeroTrustProperties;

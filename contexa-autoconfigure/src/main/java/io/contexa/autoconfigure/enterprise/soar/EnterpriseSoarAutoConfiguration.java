@@ -45,6 +45,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -167,6 +168,7 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(ApprovalService.class)
     public ApprovalEventListener approvalEventListener(
             ApprovalService approvalService) {
         return new ApprovalEventListener(approvalService);
@@ -182,6 +184,7 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(SoarInteractionManager.class)
     public SoarToolCallingService soarToolCallingService(
             AICoreOperations<SoarContext> aiNativeProcessor,
             SoarInteractionManager interactionManager,
@@ -191,6 +194,7 @@ public class EnterpriseSoarAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SoarSimulationService.class)
     public SoarSimulationController soarSimulationController(
             SoarSimulationService simulationService,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
@@ -199,6 +203,7 @@ public class EnterpriseSoarAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SoarToolCallingService.class)
     public SoarSimulationService soarSimulationService(
             SoarToolCallingService soarToolCallingService,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate,
@@ -235,6 +240,7 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(RedisTemplate.class)
     public SoarInteractionManager soarInteractionManager(
             RedisTemplate<String, Object> redisTemplate,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate,
@@ -255,6 +261,7 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(ApprovalService.class)
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(StringRedisTemplate.class)
     public UnifiedApprovalService unifiedApprovalService(
             SoarApprovalRequestRepository repository,
             ApprovalRequestFactory approvalRequestFactory,
@@ -270,6 +277,7 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(UnifiedApprovalService.class)
     public WebSocketApprovalHandler webSocketApprovalHandler(
             UnifiedApprovalService unifiedApprovalService,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate) {
@@ -304,6 +312,7 @@ public class EnterpriseSoarAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(SoarToolCallingService.class)
     public SoarApprovalController soarApprovalController(
             ApprovalService approvalService,
             SoarToolCallingService soarToolCallingService,

@@ -11,17 +11,17 @@ import java.io.PrintWriter;
 /**
  * HttpServletResponseWrapper that returns a BlockableServletOutputStream
  * (and a PrintWriter backed by it) so every response write is subject
- * to real-time BLOCK checks via BlockingDecisionRegistry.
+ * to real-time BLOCK checks via BlockingSignalBroadcaster.
  */
 public class BlockableResponseWrapper extends HttpServletResponseWrapper {
 
-    private final BlockingDecisionRegistry registry;
+    private final BlockingSignalBroadcaster registry;
     private final String userId;
     private BlockableServletOutputStream blockableStream;
     private PrintWriter writer;
 
     public BlockableResponseWrapper(HttpServletResponse response,
-                                    BlockingDecisionRegistry registry,
+                                    BlockingSignalBroadcaster registry,
                                     String userId) {
         super(response);
         this.registry = registry;

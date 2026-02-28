@@ -1,8 +1,8 @@
 package io.contexa.contexacore.security.zerotrust;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
@@ -30,11 +30,11 @@ public class ZeroTrustSecurityService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ThreatScoreUtil threatScoreUtil;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
 
     @Setter
     @Autowired(required = false)
-    private BlockingDecisionRegistry blockingDecisionRegistry;
+    private BlockingSignalBroadcaster blockingDecisionRegistry;
 
     public void applyZeroTrustToContext(SecurityContext context, String userId, String sessionId, HttpServletRequest request) {
         if (!securityZeroTrustProperties.isEnabled() || context == null || userId == null) {

@@ -12,6 +12,7 @@ import io.contexa.contexaidentity.security.statemachine.config.kyro.MfaKryoState
 import io.contexa.contexaidentity.security.statemachine.core.persist.InMemoryStateMachinePersist;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineService;
 import io.contexa.contexaidentity.security.statemachine.core.service.MfaStateMachineServiceImpl;
+import io.contexa.contexaidentity.security.statemachine.core.service.StandaloneMfaStateMachineServiceImpl;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.statemachine.guard.AllFactorsCompletedGuard;
@@ -27,6 +28,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -122,17 +124,6 @@ public class IdentityStateMachineAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public MfaStateMachineService mfaStateMachineService(
-            StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
-            StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
-            RedissonClient redissonClient,
-            StateMachineProperties properties) {
-        return new MfaStateMachineServiceImpl(
-                stateMachineFactory, stateMachinePersister, redissonClient, properties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public MfaStateMachineIntegrator mfaStateMachineIntegrator(
             MfaStateMachineService mfaStateMachineService,
             MfaSessionRepository mfaSessionRepository,
@@ -146,24 +137,64 @@ public class IdentityStateMachineAutoConfiguration {
         return new InMemoryStateMachinePersist();
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    @SuppressWarnings({ "rawtypes" })
-    public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(
-            RedisStateMachineRepository redisStateMachineRepository) {
-        MfaKryoStateMachineSerialisationService kryoStateMachineSerialisationService = new MfaKryoStateMachineSerialisationService();
-        return new RedisRepositoryStateMachinePersist(redisStateMachineRepository,
-                kryoStateMachineSerialisationService);
+    // --- Distributed mode: Redis/Redisson-based state machine ---
+
+    @Configuration
+    @ConditionalOnBean(RedissonClient.class)
+    static class DistributedStateMachineConfig {
+
+        @Bean
+        @ConditionalOnMissingBean
+        public MfaStateMachineService mfaStateMachineService(
+                StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
+                StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
+                RedissonClient redissonClient,
+                StateMachineProperties properties) {
+            return new MfaStateMachineServiceImpl(
+                    stateMachineFactory, stateMachinePersister, redissonClient, properties);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        @SuppressWarnings({"rawtypes"})
+        public RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist(
+                RedisStateMachineRepository redisStateMachineRepository) {
+            return new RedisRepositoryStateMachinePersist(redisStateMachineRepository,
+                    new MfaKryoStateMachineSerialisationService());
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        @SuppressWarnings({"rawtypes"})
+        public StateMachinePersister<MfaState, MfaEvent, String> stateMachineRuntimePersister(
+                RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist) {
+            return new DefaultStateMachinePersister(
+                    new RedisPersistingStateMachineInterceptor<>(stateMachinePersist));
+        }
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    @SuppressWarnings({ "rawtypes" })
-    public StateMachinePersister<MfaState, MfaEvent, String> stateMachineRuntimePersister(
-            RedisRepositoryStateMachinePersist<MfaState, MfaEvent> stateMachinePersist) {
-        RedisPersistingStateMachineInterceptor<MfaState, MfaEvent, Object> stateMachineInterceptor = new RedisPersistingStateMachineInterceptor<>(
-                stateMachinePersist);
-        return new DefaultStateMachinePersister(stateMachineInterceptor);
+    // --- Standalone mode: In-memory state machine ---
+
+    @Configuration
+    @ConditionalOnMissingBean(RedissonClient.class)
+    static class StandaloneStateMachineConfig {
+
+        @Bean
+        @ConditionalOnMissingBean
+        public StateMachinePersister<MfaState, MfaEvent, String> stateMachineRuntimePersister(
+                InMemoryStateMachinePersist persist) {
+            return new DefaultStateMachinePersister<>(persist);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        public MfaStateMachineService mfaStateMachineService(
+                StateMachineFactory<MfaState, MfaEvent> stateMachineFactory,
+                StateMachinePersister<MfaState, MfaEvent, String> stateMachinePersister,
+                StateMachineProperties properties) {
+            return new StandaloneMfaStateMachineServiceImpl(
+                    stateMachineFactory, stateMachinePersister, properties);
+        }
     }
 
     @Bean

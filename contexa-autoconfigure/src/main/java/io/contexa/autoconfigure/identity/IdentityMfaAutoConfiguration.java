@@ -16,7 +16,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
@@ -37,7 +37,7 @@ public class IdentityMfaAutoConfiguration {
     public DefaultMfaPolicyEvaluator defaultMfaPolicyEvaluator(
             UserRepository userRepository,
             ApplicationContext applicationContext,
-            ZeroTrustActionRedisRepository actionRedisRepository) {
+            ZeroTrustActionRepository actionRedisRepository) {
         return new DefaultMfaPolicyEvaluator(userRepository, applicationContext, actionRedisRepository);
     }
 
@@ -46,7 +46,7 @@ public class IdentityMfaAutoConfiguration {
     public ZeroTrustPolicyEvaluator zeroTrustPolicyEvaluator(
             UserRepository userRepository,
             ApplicationContext applicationContext,
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             HcadProperties hcadProperties) {
         return new ZeroTrustPolicyEvaluator(
                 userRepository, applicationContext, actionRedisRepository, hcadProperties);

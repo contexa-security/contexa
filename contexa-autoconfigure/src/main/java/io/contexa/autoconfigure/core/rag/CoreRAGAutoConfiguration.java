@@ -5,7 +5,7 @@ import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.domain.VectorDocumentType;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.operations.AICoreOperations;
@@ -109,7 +109,7 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean
     public AICoreOperations aiNativeProcessor(
             DistributedSessionManager sessionManager,
-            RedisDistributedLockService distributedLockService,
+            DistributedLockService distributedLockService,
             DistributedStrategyExecutor distributedStrategyExecutor) {
         return new AINativeProcessor(
                 sessionManager, distributedLockService, distributedStrategyExecutor);

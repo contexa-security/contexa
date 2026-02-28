@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * BlockableServletOutputStream can abort in-flight responses immediately.
  */
 @Slf4j
-public class BlockingDecisionRegistry {
+public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
 
     private static final String TOPIC_NAME = "contexa:security:block-signal";
     private static final String BLOCK_PREFIX = "BLOCK:";

@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
@@ -21,12 +21,12 @@ import java.util.stream.Collectors;
 public class DefaultMfaPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
     @Nullable
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
 
     public DefaultMfaPolicyEvaluator(
             UserRepository userRepository,
             ApplicationContext applicationContext,
-            @Nullable ZeroTrustActionRedisRepository actionRedisRepository) {
+            @Nullable ZeroTrustActionRepository actionRedisRepository) {
         super(userRepository, applicationContext);
         this.actionRedisRepository = actionRedisRepository;
     }

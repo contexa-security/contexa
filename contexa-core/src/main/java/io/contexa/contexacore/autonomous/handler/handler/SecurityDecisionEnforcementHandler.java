@@ -4,11 +4,11 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
-import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,7 @@ import java.util.concurrent.CompletableFuture;
 @RequiredArgsConstructor
 public class SecurityDecisionEnforcementHandler implements SecurityEventHandler {
 
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
 
     @Setter
@@ -36,7 +36,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     @Setter
     @Autowired(required = false)
-    private BlockingDecisionRegistry blockingDecisionRegistry;
+    private BlockingSignalBroadcaster blockingDecisionRegistry;
 
     @Override
     public boolean handle(SecurityEventContext context) {

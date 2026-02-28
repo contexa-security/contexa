@@ -21,7 +21,7 @@ import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
-public class ZeroTrustActionRedisRepository {
+public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository {
 
     private static final Duration LAST_VERIFIED_ACTION_TTL = Duration.ofHours(24);
 
@@ -205,6 +205,49 @@ public class ZeroTrustActionRedisRepository {
         } catch (Exception e) {
             log.error("[ZeroTrustActionRedisRepository] Failed to check staleness: userId={}", userId, e);
             return false;
+        }
+    }
+
+    @Override
+    public boolean isBlockMfaPending(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.blockMfaPending(userId);
+            return "true".equals(stringRedisTemplate.opsForValue().get(key));
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to check block-mfa-pending: userId={}", userId, e);
+            return false;
+        }
+    }
+
+    @Override
+    public boolean hasEscalateRetry(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return false;
+        }
+        try {
+            String retryKey = "security:escalate:retry:" + userId;
+            return Boolean.TRUE.equals(stringRedisTemplate.hasKey(retryKey));
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to check escalate retry: userId={}", userId, e);
+            return false;
+        }
+    }
+
+    @Override
+    public void setEscalateRetry(String userId, Duration ttl) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            String retryKey = "security:escalate:retry:" + userId;
+            if (!Boolean.TRUE.equals(stringRedisTemplate.hasKey(retryKey))) {
+                stringRedisTemplate.opsForValue().set(retryKey, "1", ttl);
+            }
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to set escalate retry: userId={}", userId, e);
         }
     }
 
@@ -497,18 +540,4 @@ public class ZeroTrustActionRedisRepository {
         }
     }
 
-    public record ZeroTrustAnalysisData(
-            String action,
-            Double riskScore,
-            Double confidence,
-            String threatEvidence,
-            Integer analysisDepth,
-            String updatedAt
-    ) {
-        public static ZeroTrustAnalysisData pending() {
-            return new ZeroTrustAnalysisData(
-                    ZeroTrustAction.PENDING_ANALYSIS.name(), null, null, null, null, null
-            );
-        }
-    }
 }

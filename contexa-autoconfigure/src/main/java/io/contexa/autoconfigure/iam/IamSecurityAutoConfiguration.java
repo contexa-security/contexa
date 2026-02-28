@@ -1,7 +1,7 @@
 package io.contexa.autoconfigure.iam;
 
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.method.CompositePermissionEvaluator;
@@ -27,7 +27,7 @@ public class IamSecurityAutoConfiguration {
             ContextHandler contextHandler,
             AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
-            ZeroTrustActionRedisRepository actionRedisRepository) {
+            ZeroTrustActionRepository actionRedisRepository) {
 
         return new CustomMethodSecurityExpressionHandler(
                 securityZeroTrustProperties,

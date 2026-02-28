@@ -1,7 +1,7 @@
 package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,7 +22,7 @@ public class CustomWebSecurityExpressionHandler extends DefaultHttpSecurityExpre
 
     private final ContextHandler contextHandler;
     private final AuditLogRepository auditLogRepository;
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
 
     @Override
     public EvaluationContext createEvaluationContext(Supplier<Authentication> authentication, RequestAuthorizationContext requestContext) {

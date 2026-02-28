@@ -3,7 +3,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.url;
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.AbstractAISecurityExpressionRoot;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -17,7 +17,7 @@ public class CustomWebSecurityExpressionRoot extends AbstractAISecurityExpressio
     public CustomWebSecurityExpressionRoot(Authentication authentication, HttpServletRequest request,
                                            AuthorizationContext authorizationContext,
                                            AuditLogRepository auditLogRepository,
-                                           ZeroTrustActionRedisRepository actionRedisRepository) {
+                                           ZeroTrustActionRepository actionRedisRepository) {
         super(authentication, authorizationContext, auditLogRepository, actionRedisRepository);
         this.request = request;
     }

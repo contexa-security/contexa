@@ -2,7 +2,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation.method;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -34,7 +34,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
     private final ContextHandler contextHandler;
     private final AuditLogService auditLogService;
     private final AuditLogRepository auditLogRepository;
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
 
     public CustomMethodSecurityExpressionHandler(
             SecurityZeroTrustProperties securityZeroTrustProperties,
@@ -44,7 +44,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
-            ZeroTrustActionRedisRepository actionRedisRepository) {
+            ZeroTrustActionRepository actionRedisRepository) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(securityZeroTrustProperties, "SecurityZeroTrustProperties cannot be null");
 

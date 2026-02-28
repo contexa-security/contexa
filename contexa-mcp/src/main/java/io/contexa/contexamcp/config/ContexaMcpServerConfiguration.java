@@ -16,7 +16,9 @@ import io.contexa.contexamcp.tools.SessionTerminationTool;
 import io.contexa.contexamcp.tools.ThreatIntelligenceTool;
 import org.springframework.ai.tool.ToolCallbackProvider;
 import org.springframework.ai.tool.method.MethodToolCallbackProvider;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
@@ -24,6 +26,9 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "spring.ai.mcp.server", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -39,6 +44,7 @@ public class ContexaMcpServerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(RedisTemplate.class)
     public UserSessionService userSessionService(RedisTemplate<String, Object> redisTemplate) {
         return new UserSessionService(redisTemplate);
     }
@@ -51,6 +57,7 @@ public class ContexaMcpServerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(RedisTemplate.class)
     public IpBlockingService ipBlockingService(RedisTemplate<String, Object> redisTemplate) {
         return new IpBlockingService(redisTemplate);
     }
@@ -92,6 +99,7 @@ public class ContexaMcpServerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(IpBlockingService.class)
     public IpBlockingTool ipBlockingTool(
             IpBlockingService ipBlockingService,
             HighRiskToolAuthorizationService authorizationService,
@@ -103,6 +111,7 @@ public class ContexaMcpServerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(UserSessionService.class)
     public SessionTerminationTool sessionTerminationTool(
             UserSessionService userSessionService,
             HighRiskToolAuthorizationService authorizationService,
@@ -116,16 +125,26 @@ public class ContexaMcpServerConfiguration {
             LogAnalysisTool logAnalysisTool,
             ThreatIntelligenceTool threatIntelligenceTool,
             AuditLogQueryTool auditLogQueryTool,
-            IpBlockingTool ipBlockingTool,
-            SessionTerminationTool sessionTerminationTool) {
+            ObjectProvider<IpBlockingTool> ipBlockingToolProvider,
+            ObjectProvider<SessionTerminationTool> sessionTerminationToolProvider) {
+
+        List<Object> tools = new ArrayList<>();
+        tools.add(logAnalysisTool);
+        tools.add(threatIntelligenceTool);
+        tools.add(auditLogQueryTool);
+
+        IpBlockingTool ipBlockingTool = ipBlockingToolProvider.getIfAvailable();
+        if (ipBlockingTool != null) {
+            tools.add(ipBlockingTool);
+        }
+
+        SessionTerminationTool sessionTerminationTool = sessionTerminationToolProvider.getIfAvailable();
+        if (sessionTerminationTool != null) {
+            tools.add(sessionTerminationTool);
+        }
 
         return MethodToolCallbackProvider.builder()
-                .toolObjects(
-                        logAnalysisTool,
-                        threatIntelligenceTool,
-                        auditLogQueryTool,
-                        ipBlockingTool,
-                        sessionTerminationTool)
+                .toolObjects(tools.toArray())
                 .build();
     }
 }

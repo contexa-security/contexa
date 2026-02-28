@@ -5,9 +5,15 @@ import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.domain.RiskAssessment;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
+import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
+import io.contexa.contexacore.autonomous.event.listener.InMemorySecurityEventCollector;
+import io.contexa.contexacore.autonomous.event.publisher.InMemorySecurityEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 
 import io.contexa.contexacore.properties.SecurityKafkaProperties;
@@ -24,11 +30,9 @@ import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforce
 import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
-import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
-import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -38,7 +42,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.context.annotation.Configuration;
 import org.redisson.api.RedissonClient;
 
 import org.springframework.kafka.core.KafkaTemplate;
@@ -49,6 +53,8 @@ import java.util.List;
 @ConditionalOnProperty(prefix = "contexa.autonomous", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class })
 public class CoreAutonomousEventAutoConfiguration {
+
+    // === Distributed mode: Kafka/Redisson-dependent beans ===
 
     @Bean
     @ConditionalOnMissingBean
@@ -63,20 +69,54 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(KafkaTemplate.class)
-    public ZeroTrustEventListener zeroTrustEventListener(
-            KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
-            RedisTemplate<String, Object> redisTemplate,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ZeroTrustEventListener(kafkaSecurityEventPublisher, redisTemplate, securityZeroTrustProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnBean(KafkaTemplate.class)
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
             KafkaTemplate<String, Object> kafkaTemplate,
             SecurityKafkaProperties securityKafkaProperties) {
         return new KafkaSecurityEventPublisher(kafkaTemplate, securityKafkaProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnBean(RedissonClient.class)
+    public BlockingDecisionRegistry blockingDecisionRegistry(RedissonClient redissonClient) {
+        return new BlockingDecisionRegistry(redissonClient);
+    }
+
+    // === Standalone mode: In-memory event beans ===
+
+    @Configuration
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
+    static class StandaloneEventConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(SecurityEventCollector.class)
+        public InMemorySecurityEventCollector inMemorySecurityEventCollector() {
+            return new InMemorySecurityEventCollector();
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(SecurityEventPublisher.class)
+        public InMemorySecurityEventPublisher inMemorySecurityEventPublisher(
+                SecurityEventCollector collector) {
+            return new InMemorySecurityEventPublisher(collector);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(BlockingSignalBroadcaster.class)
+        public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster() {
+            return new InMemoryBlockingSignalBroadcaster();
+        }
+    }
+
+    // === Common beans (mode-independent) ===
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ZeroTrustEventListener zeroTrustEventListener(
+            SecurityEventPublisher securityEventPublisher,
+            ZeroTrustActionRepository actionRepository,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ZeroTrustEventListener(securityEventPublisher, actionRepository, securityZeroTrustProperties);
     }
 
     @Bean
@@ -125,26 +165,11 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(RedissonClient.class)
-    public BlockingDecisionRegistry blockingDecisionRegistry(RedissonClient redissonClient) {
-        return new BlockingDecisionRegistry(redissonClient);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRepository,
             SecurityLearningService securityLearningService) {
         return new SecurityDecisionEnforcementHandler(
-                actionRedisRepository, securityLearningService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityDecisionPostProcessor securityDecisionPostProcessor(
-            RedisTemplate<String, Object> redisTemplate,
-            UnifiedVectorService unifiedVectorService) {
-        return new SecurityDecisionPostProcessor(redisTemplate, unifiedVectorService);
+                actionRepository, securityLearningService);
     }
 
     @Bean

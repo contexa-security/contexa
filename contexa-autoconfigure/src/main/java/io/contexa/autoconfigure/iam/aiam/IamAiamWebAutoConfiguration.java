@@ -10,6 +10,7 @@ import io.contexa.contexaiam.aiam.web.*;
 import io.contexa.contexaiam.properties.SecurityStepUpProperties;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -45,6 +46,7 @@ public class IamAiamWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(StringRedisTemplate.class)
     public ZeroTrustPageController zeroTrustPageController(StringRedisTemplate stringRedisTemplate,
                                                             BlockedUserJpaRepository blockedUserJpaRepository) {
         return new ZeroTrustPageController(stringRedisTemplate, blockedUserJpaRepository);
@@ -52,6 +54,7 @@ public class IamAiamWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(StringRedisTemplate.class)
     public ZeroTrustUnblockController zeroTrustUnblockController(
             BlockedUserService blockedUserService, StringRedisTemplate stringRedisTemplate) {
         return new ZeroTrustUnblockController(blockedUserService, stringRedisTemplate);

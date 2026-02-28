@@ -3,6 +3,7 @@ package io.contexa.contexacommon.cache;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -19,6 +20,7 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 @EnableConfigurationProperties(ContexaCacheProperties.class)
 @ConditionalOnProperty(name = "contexa.cache.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnClass({StringRedisTemplate.class, ObjectMapper.class})
+@ConditionalOnBean(StringRedisTemplate.class)
 @Slf4j
 public class ContexaCacheAutoConfiguration {
 

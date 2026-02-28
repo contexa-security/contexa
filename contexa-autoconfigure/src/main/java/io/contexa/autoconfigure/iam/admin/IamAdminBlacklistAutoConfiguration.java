@@ -1,6 +1,6 @@
 package io.contexa.autoconfigure.iam.admin;
 
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistApiController;
@@ -20,7 +20,7 @@ public class IamAdminBlacklistAutoConfiguration {
     public BlockedUserService blockedUserService(
             BlockedUserJpaRepository blockedUserJpaRepository,
             AdminOverrideService adminOverrideService,
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             ApplicationEventPublisher eventPublisher) {
         return new BlockedUserService(
                 blockedUserJpaRepository, adminOverrideService, actionRedisRepository, eventPublisher);

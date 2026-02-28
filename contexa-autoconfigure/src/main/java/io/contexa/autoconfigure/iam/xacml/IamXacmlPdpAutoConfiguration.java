@@ -8,7 +8,7 @@ import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.CustomWebSecurity
 import io.contexa.contexaiam.security.xacml.pdp.evaluation.url.WebSpelExpressionEvaluator;
 import io.contexa.contexaiam.security.xacml.pdp.translator.*;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
@@ -85,7 +85,7 @@ public class IamXacmlPdpAutoConfiguration {
     public CustomWebSecurityExpressionHandler customWebSecurityExpressionHandler(
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
-            ZeroTrustActionRedisRepository actionRedisRepository) {
+            ZeroTrustActionRepository actionRedisRepository) {
         return new CustomWebSecurityExpressionHandler(contextHandler, auditLogRepository, actionRedisRepository);
     }
 

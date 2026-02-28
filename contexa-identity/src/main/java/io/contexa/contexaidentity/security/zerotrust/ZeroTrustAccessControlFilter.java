@@ -3,11 +3,10 @@ package io.contexa.contexaidentity.security.zerotrust;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
-import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -20,7 +19,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -43,30 +41,29 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     public static final String ROLE_PENDING_ANALYSIS = "ROLE_PENDING_ANALYSIS";
     public static final String BLOCK_MFA_FLOW_ATTRIBUTE = "BLOCK_MFA_FLOW";
 
-    private static final String ESCALATE_RETRY_KEY_PREFIX = "security:escalate:retry:";
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int RETRY_AFTER_SECONDS = 30;
     private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
 
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
     private final AuthResponseWriter responseWriter;
-    private final StringRedisTemplate stringRedisTemplate;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthUrlProvider authUrlProvider;
 
     @Setter
     @Autowired(required = false)
-    private BlockingDecisionRegistry blockingDecisionRegistry;
+    private BlockingSignalBroadcaster blockingDecisionRegistry;
 
     public ZeroTrustAccessControlFilter(
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             AuthResponseWriter responseWriter,
-            StringRedisTemplate stringRedisTemplate, IBlockedUserRecorder blockedUserRecorder, ChallengeMfaInitializer challengeMfaInitializer, AuthUrlProvider authUrlProvider) {
+            IBlockedUserRecorder blockedUserRecorder,
+            ChallengeMfaInitializer challengeMfaInitializer,
+            AuthUrlProvider authUrlProvider) {
         this.actionRedisRepository = actionRedisRepository;
         this.responseWriter = responseWriter;
-        this.stringRedisTemplate = stringRedisTemplate;
         this.blockedUserRecorder = blockedUserRecorder;
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.authUrlProvider = authUrlProvider;
@@ -152,13 +149,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     }
 
     private boolean isBlockMfaPending(String userId) {
-        try {
-            String key = ZeroTrustRedisKeys.blockMfaPending(userId);
-            return "true".equals(stringRedisTemplate.opsForValue().get(key));
-        } catch (Exception e) {
-            log.error("[ZeroTrustAccessControlFilter] Failed to check block-mfa-pending: userId={}", userId, e);
-            return false;
-        }
+        return actionRedisRepository.isBlockMfaPending(userId);
     }
 
     private boolean isMfaRelatedPath(String requestUri) {
@@ -251,36 +242,19 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                 String userId) throws IOException {
 
         ZeroTrustAction hashAction = actionRedisRepository.getActionFromHash(userId);
-        String retryKey = ESCALATE_RETRY_KEY_PREFIX + userId;
 
         if (hashAction != null) {
-            markEscalateRetry(retryKey);
+            actionRedisRepository.setEscalateRetry(userId, ESCALATE_RETRY_TTL);
             respondWithReviewInProgress(request, response);
             return;
         }
 
-        try {
-            Boolean retryExists = stringRedisTemplate.hasKey(retryKey);
-            if (retryExists) {
-                respondWithReviewInProgress(request, response);
-                return;
-            }
-        } catch (Exception e) {
-            log.error("[ZeroTrustAccessControlFilter] Failed to check escalate retry flag: userId={}", userId, e);
+        if (actionRedisRepository.hasEscalateRetry(userId)) {
+            respondWithReviewInProgress(request, response);
+            return;
         }
 
         promoteEscalateToBlock(userId, request, response);
-    }
-
-    private void markEscalateRetry(String retryKey) {
-        try {
-            Boolean exists = stringRedisTemplate.hasKey(retryKey);
-            if (!exists) {
-                stringRedisTemplate.opsForValue().set(retryKey, "1", ESCALATE_RETRY_TTL);
-            }
-        } catch (Exception e) {
-            log.error("[ZeroTrustAccessControlFilter] Failed to mark escalate retry: retryKey={}", retryKey, e);
-        }
     }
 
     private void respondWithReviewInProgress(HttpServletRequest request,

@@ -3,7 +3,7 @@ package io.contexa.contexacore.autonomous.event.publisher;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor;
 import io.contexa.contexacore.autonomous.utils.RequestInfoExtractor.RequestInfo;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
@@ -27,7 +27,7 @@ public class ZeroTrustEventPublisher {
     private final TieredStrategyProperties properties;
 
     @Autowired(required = false)
-    private ZeroTrustActionRedisRepository actionRedisRepository;
+    private ZeroTrustActionRepository actionRedisRepository;
 
     public ZeroTrustEventPublisher(
             ApplicationEventPublisher eventPublisher,

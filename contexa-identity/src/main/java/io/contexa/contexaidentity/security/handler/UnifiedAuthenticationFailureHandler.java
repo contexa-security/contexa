@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
@@ -39,7 +39,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final MfaSessionRepository sessionRepository;
     private final UserIdentificationService userIdentificationService;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
     private final MfaSettings mfaSettings;
 
     @Setter
@@ -51,7 +51,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                MfaSessionRepository sessionRepository,
                                                UserIdentificationService userIdentificationService,
                                                ZeroTrustEventPublisher zeroTrustEventPublisher,
-                                               ZeroTrustActionRedisRepository actionRedisRepository,
+                                               ZeroTrustActionRepository actionRedisRepository,
                                                MfaSettings mfaSettings) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;

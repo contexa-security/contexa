@@ -1,27 +1,26 @@
 package io.contexa.contexacore.autonomous.event.listener;
 
+import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
-import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
-import org.springframework.data.redis.core.RedisTemplate;
 
 @Slf4j
 public class ZeroTrustEventListener {
 
-    private final KafkaSecurityEventPublisher kafkaSecurityEventPublisher;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final SecurityEventPublisher securityEventPublisher;
+    private final ZeroTrustActionRepository actionRepository;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     public ZeroTrustEventListener(
-            KafkaSecurityEventPublisher kafkaSecurityEventPublisher,
-            RedisTemplate<String, Object> redisTemplate,
+            SecurityEventPublisher securityEventPublisher,
+            ZeroTrustActionRepository actionRepository,
             SecurityZeroTrustProperties securityZeroTrustProperties) {
-        this.kafkaSecurityEventPublisher = kafkaSecurityEventPublisher;
-        this.redisTemplate = redisTemplate;
+        this.securityEventPublisher = securityEventPublisher;
+        this.actionRepository = actionRepository;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
     }
 
@@ -62,7 +61,7 @@ public class ZeroTrustEventListener {
     }
 
     private void processAuthenticationEvent(ZeroTrustSpringEvent event) {
-        kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
+        securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {
@@ -73,19 +72,19 @@ public class ZeroTrustEventListener {
         if (shouldSkipPublishing(userId, contextBindingHash)) {
             return;
         }
-        kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
+        securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processSessionEvent(ZeroTrustSpringEvent event) {
-        kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
+        securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processThreatEvent(ZeroTrustSpringEvent event) {
-        kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
+        securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processCustomEvent(ZeroTrustSpringEvent event) {
-        kafkaSecurityEventPublisher.publishGenericSecurityEvent(event);
+        securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private boolean shouldSkipPublishing(String userId, String contextBindingHash) {
@@ -94,21 +93,13 @@ public class ZeroTrustEventListener {
         }
 
         try {
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Boolean hasKey = redisTemplate.hasKey(analysisKey);
-
-            if (hasKey) {
-                long ttl = redisTemplate.getExpire(analysisKey);
-                if (ttl > 0 || ttl == -1) {
-                    if (contextBindingHash != null) {
-                        Object storedHash = redisTemplate.opsForHash().get(analysisKey, "contextBindingHash");
-                        return storedHash == null || storedHash.toString().equals(contextBindingHash);
-                    }
-                    return true;
-                }
+            ZeroTrustActionRepository.ZeroTrustAnalysisData data = actionRepository.getAnalysisData(userId);
+            if (data == null || data.action() == null) {
+                return false;
             }
 
-            return false;
+            // Analysis data exists and is valid - skip redundant publishing
+            return true;
 
         } catch (Exception e) {
             log.error("[ZeroTrustEventListener] Failed to check skip condition: userId={}", userId, e);

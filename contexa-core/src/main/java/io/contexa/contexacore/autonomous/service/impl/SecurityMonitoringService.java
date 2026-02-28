@@ -2,7 +2,7 @@ package io.contexa.contexacore.autonomous.service.impl;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.BatchSecurityEventListener;
-import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
+import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
@@ -25,13 +25,13 @@ public class SecurityMonitoringService {
         void processBatch(List<SecurityEvent> events);
     }
 
-    private final KafkaSecurityEventCollector kafkaCollector;
+    private final SecurityEventCollector eventCollector;
     private final AtomicLong eventCounter;
 
     private volatile SecurityEventBatchProcessor batchProcessor;
 
-    public SecurityMonitoringService(KafkaSecurityEventCollector kafkaCollector) {
-        this.kafkaCollector = kafkaCollector;
+    public SecurityMonitoringService(SecurityEventCollector eventCollector) {
+        this.eventCollector = eventCollector;
         this.eventCounter = new AtomicLong(0);
     }
 
@@ -41,7 +41,7 @@ public class SecurityMonitoringService {
 
     @PostConstruct
     public void initialize() {
-        kafkaCollector.registerListener(new DefaultBatchEventListener());
+        eventCollector.registerListener(new DefaultBatchEventListener());
     }
 
     private SecurityEvent preprocessEvent(SecurityEvent event) {

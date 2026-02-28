@@ -6,10 +6,12 @@ import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.redis.core.RedisTemplate;
 
@@ -19,10 +21,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 @Import({
         ApplicationConfig.class,
         AsyncConfig.class,
-        UnifiedRedisConfiguration.class,
-        RedissonConfiguration.class,
-        KafkaConfiguration.class,
-        KafkaTopicConfiguration.class,
         OpenTelemetryConfiguration.class
 })
 public class CoreInfrastructureAutoConfiguration {
@@ -30,8 +28,22 @@ public class CoreInfrastructureAutoConfiguration {
     public CoreInfrastructureAutoConfiguration() {
     }
 
+    // === Distributed mode: Redis/Kafka/Redisson infrastructure ===
+
+    @Configuration
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    @Import({
+            UnifiedRedisConfiguration.class,
+            RedissonConfiguration.class,
+            KafkaConfiguration.class,
+            KafkaTopicConfiguration.class
+    })
+    static class DistributedInfraConfiguration {
+    }
+
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(RedisTemplate.class)
     @ConditionalOnProperty(prefix = "contexa.security.async", name = "enabled", havingValue = "true", matchIfMissing = true)
     public AsyncSecurityContextProvider asyncSecurityContextProvider(RedisTemplate<String, Object> redisTemplate) {
         return new AsyncSecurityContextProvider(redisTemplate);

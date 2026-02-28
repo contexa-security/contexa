@@ -6,7 +6,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -53,7 +53,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final RequestCache requestCache = new HttpSessionRequestCache();
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
     private final HcadProperties hcadProperties;
     private final ApplicationContext applicationContext;
@@ -64,7 +64,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private IBlockedUserRecorder blockedUserRecorder;
 
     @Setter
-    @Autowired
+    @Autowired(required = false)
     private StringRedisTemplate stringRedisTemplate;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
@@ -73,7 +73,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       MfaStateMachineIntegrator stateMachineIntegrator,
                                                       AuthContextProperties authContextProperties,
                                                       ZeroTrustEventPublisher zeroTrustEventPublisher,
-                                                      ZeroTrustActionRedisRepository actionRedisRepository,
+                                                      ZeroTrustActionRepository actionRedisRepository,
                                                       SecurityLearningService securityLearningService,
                                                       HcadProperties hcadProperties,
                                                       ApplicationContext applicationContext,

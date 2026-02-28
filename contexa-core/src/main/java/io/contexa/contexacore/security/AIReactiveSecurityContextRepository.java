@@ -29,10 +29,10 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class AIReactiveSecurityContextRepository extends HttpSessionSecurityContextRepository {
 
-    @Autowired private ZeroTrustSecurityService zeroTrustSecurityService;
-    @Autowired private SessionIdResolver sessionIdResolver;
-    @Autowired private RedisTemplate<String, Object> redisTemplate;
-    @Autowired private AsyncSecurityContextProvider asyncSecurityContextProvider;
+    @Autowired(required = false) private ZeroTrustSecurityService zeroTrustSecurityService;
+    @Autowired(required = false) private SessionIdResolver sessionIdResolver;
+    @Autowired(required = false) private RedisTemplate<String, Object> redisTemplate;
+    @Autowired(required = false) private AsyncSecurityContextProvider asyncSecurityContextProvider;
     @Autowired private SecurityZeroTrustProperties securityZeroTrustProperties;
 
     private Cache<String, Boolean> invalidatedSessionsCache;
@@ -93,7 +93,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
                 Authentication auth = context.getAuthentication();
                 String sessionId = extractSessionId(request);
 
-                if (auth != null && trustResolver.isAuthenticated(auth)) {
+                if (auth != null && trustResolver.isAuthenticated(auth) && zeroTrustSecurityService != null) {
                     String userId = auth.getName();
                     zeroTrustSecurityService.applyZeroTrustToContext(context, userId, sessionId, request);
                 }
@@ -119,7 +119,8 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
                 return;
             }
 
-            if (isInvalidated == null && zeroTrustSecurityService.isSessionInvalidated(sessionId)) {
+            if (isInvalidated == null && zeroTrustSecurityService != null
+                    && zeroTrustSecurityService.isSessionInvalidated(sessionId)) {
                 invalidatedSessionsCache.put(sessionId, true);
                 return;
             }
@@ -183,7 +184,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     }
 
     private String extractSessionId(HttpServletRequest request) {
-        String sessionId = sessionIdResolver.resolve(request);
+        String sessionId = sessionIdResolver != null ? sessionIdResolver.resolve(request) : null;
 
         if (sessionId == null) {
             HttpSession session = request.getSession(false);
@@ -196,6 +197,9 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     }
 
     private void trackSessionInRedis(String userId, String sessionId) {
+        if (redisTemplate == null) {
+            return;
+        }
         try {
             String userSessionsKey = ZeroTrustRedisKeys.userSessions(userId);
             redisTemplate.opsForSet().add(userSessionsKey, sessionId);
@@ -210,7 +214,9 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
             invalidatedSessionsCache.put(sessionId, true);
             lastRedisUpdateCache.invalidate(sessionId);
             removeAsyncAuthenticationContext(userId, sessionId);
-            zeroTrustSecurityService.invalidateSession(sessionId, userId, "User logout");
+            if (zeroTrustSecurityService != null) {
+                zeroTrustSecurityService.invalidateSession(sessionId, userId, "User logout");
+            }
         } catch (Exception e) {
             log.error("[ZeroTrust] Error handling logout for user: {}", userId, e);
         }
@@ -237,7 +243,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     }
 
     public void invalidateAllUserSessions(String userId, String reason) {
-        if (!securityZeroTrustProperties.isEnabled()) {
+        if (!securityZeroTrustProperties.isEnabled() || zeroTrustSecurityService == null) {
             return;
         }
 

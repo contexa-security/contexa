@@ -1,8 +1,8 @@
 package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository.ZeroTrustAnalysisData;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository.ZeroTrustAnalysisData;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
@@ -21,13 +21,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
 
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
     private final HcadProperties hcadProperties;
 
     public ZeroTrustPolicyEvaluator(
             UserRepository userRepository,
             ApplicationContext applicationContext,
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             HcadProperties hcadProperties) {
         super(userRepository, applicationContext);
         this.actionRedisRepository = actionRedisRepository;
@@ -190,7 +190,7 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         }
 
         if (actionRedisRepository == null) {
-            log.error("ZeroTrustActionRedisRepository is not available for Zero Trust action lookup");
+            log.error("ZeroTrustActionRepository is not available for Zero Trust action lookup");
             return ZeroTrustAnalysisData.pending();
         }
 

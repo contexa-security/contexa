@@ -3,11 +3,11 @@ package io.contexa.autoconfigure.identity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
@@ -53,8 +53,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcOperations;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
@@ -267,7 +265,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             TokenService tokenService,
             AuthContextProperties authContextProperties,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
             HcadProperties hcadProperties) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
@@ -284,7 +282,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaSessionRepository mfaSessionRepository,
             UserIdentificationService userIdentificationService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             AuthContextProperties authContextProperties) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
                 mfaSessionRepository, userIdentificationService, zeroTrustEventPublisher, actionRedisRepository,
@@ -301,7 +299,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthContextProperties authContextProperties,
             TokenService tokenService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
             HcadProperties hcadProperties, ApplicationContext applicationContext) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
@@ -335,7 +333,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthUrlProvider authUrlProvider,
             MfaSessionRepository sessionRepository,
             MfaStateMachineIntegrator stateMachineIntegrator,
-            RedisDistributedLockService lockService) {
+            DistributedLockService lockService) {
 
         return new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
@@ -362,14 +360,12 @@ public class IdentitySecurityCoreAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustAccessControlFilter zeroTrustAccessControlFilter(
-            ZeroTrustActionRedisRepository actionRedisRepository,
+            ZeroTrustActionRepository actionRedisRepository,
             AuthResponseWriter responseWriter,
-            StringRedisTemplate stringRedisTemplate,
             IBlockedUserRecorder blockedUserRecorder,
             ChallengeMfaInitializer challengeMfaInitializer,
-            AuthUrlProvider authUrlProvider
-            ) {
-        return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter, stringRedisTemplate,
+            AuthUrlProvider authUrlProvider) {
+        return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
                 blockedUserRecorder, challengeMfaInitializer, authUrlProvider);
     }
 

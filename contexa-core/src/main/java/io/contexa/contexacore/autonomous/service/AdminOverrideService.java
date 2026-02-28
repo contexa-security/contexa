@@ -3,9 +3,9 @@ package io.contexa.contexacore.autonomous.service;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Duration;
@@ -16,15 +16,15 @@ import java.util.UUID;
 public class AdminOverrideService {
 
     private final SecurityLearningService securityLearningService;
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
-    private final RedisDistributedLockService lockService;
+    private final ZeroTrustActionRepository actionRedisRepository;
+    private final DistributedLockService lockService;
 
     private static final String BASELINE_LOCK_PREFIX = "baseline:update:";
     private static final Duration BASELINE_LOCK_TIMEOUT = Duration.ofSeconds(10);
 
     public AdminOverrideService(SecurityLearningService securityLearningService,
-                                ZeroTrustActionRedisRepository actionRedisRepository,
-                                RedisDistributedLockService lockService) {
+                                ZeroTrustActionRepository actionRedisRepository,
+                                DistributedLockService lockService) {
         this.securityLearningService = securityLearningService;
         this.actionRedisRepository = actionRedisRepository;
         this.lockService = lockService;

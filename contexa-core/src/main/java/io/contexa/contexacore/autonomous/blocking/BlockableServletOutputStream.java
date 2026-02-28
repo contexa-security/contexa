@@ -7,20 +7,20 @@ import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
 /**
- * ServletOutputStream wrapper that checks BlockingDecisionRegistry on every
+ * ServletOutputStream wrapper that checks BlockingSignalBroadcaster on every
  * bulk write() and flush(). When a BLOCK decision is detected mid-stream,
  * the stream is aborted with an IOException.
  */
 public class BlockableServletOutputStream extends ServletOutputStream {
 
     private final ServletOutputStream delegate;
-    private final BlockingDecisionRegistry registry;
+    private final BlockingSignalBroadcaster registry;
     private final String userId;
     private final HttpServletResponse response;
     private volatile boolean aborted = false;
 
     public BlockableServletOutputStream(ServletOutputStream delegate,
-                                        BlockingDecisionRegistry registry,
+                                        BlockingSignalBroadcaster registry,
                                         String userId,
                                         HttpServletResponse response) {
         this.delegate = delegate;

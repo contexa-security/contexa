@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.AuthType;
-import io.contexa.contexacore.infra.redis.RedisDistributedLockService;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -41,7 +41,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
     private final AuthUrlProvider authUrlProvider;
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
-    private final RedisDistributedLockService lockService;
+    private final DistributedLockService lockService;
 
     public ZeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
@@ -49,7 +49,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             AuthUrlProvider authUrlProvider,
             MfaSessionRepository sessionRepository,
             MfaStateMachineIntegrator stateMachineIntegrator,
-            RedisDistributedLockService lockService) {
+            DistributedLockService lockService) {
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.responseWriter = responseWriter;
         this.authUrlProvider = authUrlProvider;

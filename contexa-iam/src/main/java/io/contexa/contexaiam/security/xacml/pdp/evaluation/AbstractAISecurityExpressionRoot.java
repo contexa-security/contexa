@@ -2,7 +2,7 @@ package io.contexa.contexaiam.security.xacml.pdp.evaluation;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.expression.SecurityExpressionRoot;
@@ -15,12 +15,12 @@ public abstract class AbstractAISecurityExpressionRoot extends SecurityExpressio
 
     protected final AuthorizationContext authorizationContext;
     protected final AuditLogRepository auditLogRepository;
-    protected final ZeroTrustActionRedisRepository actionRedisRepository;
+    protected final ZeroTrustActionRepository actionRedisRepository;
 
     protected AbstractAISecurityExpressionRoot(Authentication authentication,
                                                AuthorizationContext authorizationContext,
                                                AuditLogRepository auditLogRepository,
-                                               ZeroTrustActionRedisRepository actionRedisRepository) {
+                                               ZeroTrustActionRepository actionRedisRepository) {
         super(authentication);
         this.authorizationContext = authorizationContext;
         this.auditLogRepository = auditLogRepository;

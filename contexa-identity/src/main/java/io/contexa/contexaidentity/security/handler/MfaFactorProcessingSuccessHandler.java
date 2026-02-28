@@ -1,7 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacommon.domain.UserDto;
@@ -50,7 +50,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              TokenService tokenService,
                                              AuthUrlProvider authUrlProvider,
                                              ZeroTrustEventPublisher zeroTrustEventPublisher,
-                                             ZeroTrustActionRedisRepository actionRedisRepository,
+                                             ZeroTrustActionRepository actionRedisRepository,
                                              SecurityLearningService securityLearningService,
                                              HcadProperties hcadProperties,
                                              ApplicationContext applicationContext,

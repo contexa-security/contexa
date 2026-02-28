@@ -7,9 +7,8 @@ import io.contexa.contexacore.infra.session.generator.RedisSessionIdGenerator;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
 import io.contexa.contexacore.infra.session.impl.HttpSessionMfaRepository;
 import io.contexa.contexacore.infra.session.impl.RedisMfaRepository;
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -24,25 +23,31 @@ import java.util.Arrays;
 @Slf4j
 @AutoConfiguration
 @AutoConfigureAfter(name = "io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration")
-@RequiredArgsConstructor
 @EnableConfigurationProperties(AuthContextProperties.class)
 public class CoreSessionAutoConfiguration {
 
     private final AuthContextProperties properties;
     private final Environment environment;
-    private final StringRedisTemplate redisTemplate;
 
-    @PostConstruct
-    public void initialize() {
+    @Autowired(required = false)
+    private StringRedisTemplate redisTemplate;
+
+    public CoreSessionAutoConfiguration(AuthContextProperties properties, Environment environment) {
+        this.properties = properties;
+        this.environment = environment;
     }
 
     @Bean
     @Primary
     @ConditionalOnMissingBean(MfaSessionRepository.class)
     public MfaSessionRepository mfaSessionRepository() {
+        if (redisTemplate == null) {
+            HttpSessionMfaRepository fallback = new HttpSessionMfaRepository(new HttpSessionIdGenerator());
+            fallback.setSessionTimeout(properties.getMfa().getSessionTimeout());
+            return fallback;
+        }
 
         try {
-
             redisTemplate.opsForValue().get("__health_check__");
 
             RedisMfaRepository repository = new RedisMfaRepository(

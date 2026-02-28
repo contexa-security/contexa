@@ -4,8 +4,8 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
-import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
@@ -28,12 +28,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final AdminOverrideService adminOverrideService;
-    private final ZeroTrustActionRedisRepository actionRedisRepository;
+    private final ZeroTrustActionRepository actionRedisRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     @Setter
     @Autowired(required = false)
-    private BlockingDecisionRegistry blockingDecisionRegistry;
+    private BlockingSignalBroadcaster blockingDecisionRegistry;
 
     @Override
     @Transactional
