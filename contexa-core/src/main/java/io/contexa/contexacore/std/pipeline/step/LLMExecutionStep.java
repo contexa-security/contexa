@@ -88,6 +88,7 @@ public class LLMExecutionStep implements PipelineStep {
             }
             return promptResult.getPrompt();
         }).onErrorResume(IllegalStateException.class, e -> {
+
             log.error("[PIPELINE-STEP] {}", e.getMessage());
             return Mono.error(e);
         });
