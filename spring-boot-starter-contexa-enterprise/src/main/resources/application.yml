@@ -46,7 +46,6 @@ spring:
         options:
           model: qwen2.5:7b
           keep-alive: "24h"
-          num-predict: 512
           temperature: 0.2
 #
     openai:

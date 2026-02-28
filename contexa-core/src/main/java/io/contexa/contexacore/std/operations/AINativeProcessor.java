@@ -87,15 +87,12 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     if (lockFailed) {
                         return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
                     }
-
                     String sessionId = sessionManager.createDistributedStrategySession(request, strategyId);
                     String auditId = sessionManager.startAudit(request);
 
                     return distributedStrategyExecutor.executeDistributedStrategyStream(
                             request, (Class<R>) AIResponse.class, sessionId, auditId
-                    ).doOnComplete(() -> {
-                        sessionManager.completeDistributedExecution(sessionId, auditId, request, null, true);
-                    }).doOnError(error -> {
+                    ).doOnError(error -> {
                         handleStrategicFailure(strategyId, request, error);
                     }).doFinally(signalType -> {
                         releaseStrategicLock(lockKey, strategyId);

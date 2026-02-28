@@ -4,7 +4,7 @@ import java.time.Duration;
 
 public enum ZeroTrustAction {
 
-    ALLOW(200, 15),
+    ALLOW(200, 1500),
 
     BLOCK(403, -1),
 

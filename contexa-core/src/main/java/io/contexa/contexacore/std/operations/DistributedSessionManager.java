@@ -50,24 +50,11 @@ public class DistributedSessionManager<T extends DomainContext> {
             } else {
                 auditLogger.failAudit(auditId, request, new Exception("Strategy execution failed"));
             }
-            
-            Map<String, Object> completionData = Map.of(
-                "success", success,
-                "completionTime", System.currentTimeMillis(),
-                "resultType", result != null ? result.getClass().getSimpleName() : "null"
-            );
-            
-            updateSessionState(sessionId, "COMPLETED", completionData);
-            publishExecutionCompletionEvent(sessionId, request, success);
-
         } catch (Exception e) {
             log.error("Failed to complete distributed execution for session: {}", sessionId, e);
         }
     }
 
-    private void updateSessionState(String sessionId, String phase, Map<String, Object> phaseData) {
-    }
-    
     private Map<String, Object> prepareStrategyContext(AIRequest<T> request, String strategyId) {
         return Map.of(
             "strategyId", strategyId,
@@ -84,6 +71,4 @@ public class DistributedSessionManager<T extends DomainContext> {
     private void publishSessionCreationEvent(String sessionId, String strategyId, AIRequest<T> request) {
     }
 
-    private void publishExecutionCompletionEvent(String sessionId, AIRequest<T> request, boolean success) {
-    }
-} 
+}

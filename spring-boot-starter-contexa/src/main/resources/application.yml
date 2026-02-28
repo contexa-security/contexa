@@ -45,8 +45,6 @@ spring:
         options:
           model: qwen2.5:7b
           keep-alive: "24h"
-          num-ctx: 4096      # 프롬프트 길이에 맞게 고정
-          num-predict: 512   # 응답 최대 토큰 제한 (JSON이므로 512로 충분)
 #
     openai:
       api-key: ${OPENAI_API_KEY:sk-dummy-key}

@@ -2,6 +2,7 @@ package io.contexa.contexacore.std.pipeline.streaming;
 
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,7 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                 .filter(chunk -> !chunk.trim().isEmpty())
                 .flatMap(chunk -> processJsonStreaming(chunk, textBuffer, jsonStarted, jsonEnded, jsonBuffer))
                 .filter(text -> !text.isEmpty())
+                .concatWith(Mono.defer(() -> handleStreamCompletion(jsonStarted, jsonEnded, jsonBuffer, textBuffer)))
                 .doOnError(error -> log.error("Error occurred during JSON stream processing", error));
     }
 
@@ -190,6 +192,48 @@ public class JsonStreamingProcessor implements ChunkProcessor {
         }
 
         return -1;
+    }
+
+    /**
+     * Handle stream completion when JSON_END marker was never received.
+     * Emits accumulated JSON buffer as FINAL_RESPONSE with repair attempt.
+     */
+    private Mono<String> handleStreamCompletion(AtomicBoolean jsonStarted,
+                                                AtomicBoolean jsonEnded,
+                                                AtomicReference<StringBuilder> jsonBuffer,
+                                                AtomicReference<StringBuilder> textBuffer) {
+        if (!jsonStarted.get() || jsonEnded.get()) {
+            return Mono.empty();
+        }
+
+        String remainingJson = jsonBuffer.get().toString();
+        String remainingText = textBuffer.get().toString();
+
+        if (!remainingText.isEmpty()) {
+            remainingJson += remainingText;
+        }
+
+        remainingJson = removePartialMarkers(remainingJson.trim());
+
+        if (remainingJson.isEmpty()) {
+            return Mono.empty();
+        }
+
+        String repairedJson = repairJson(remainingJson);
+        log.error("Stream completed without JSON_END marker - emitting incomplete JSON, jsonLen={}", repairedJson.length());
+        return Mono.just(StreamingProtocol.FINAL_RESPONSE_MARKER + repairedJson);
+    }
+
+    private String removePartialMarkers(String text) {
+        if (text == null || text.isEmpty()) {
+            return text;
+        }
+        return text
+                .replace(StreamingProtocol.JSON_START_MARKER, "")
+                .replace(StreamingProtocol.JSON_END_MARKER, "")
+                .replace(StreamingProtocol.FINAL_RESPONSE_MARKER, "")
+                .replace(StreamingProtocol.STREAMING_MARKER, "")
+                .replace(StreamingProtocol.GENERATING_RESULT_MARKER, "");
     }
 
     private String cleanTextChunk(String chunk) {
