@@ -4,21 +4,26 @@ import io.contexa.autoconfigure.core.autonomous.CoreAutonomousEventAutoConfigura
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexaiam.aiam.event.ZeroTrustAnalysisEventListener;
 import io.contexa.contexaiam.aiam.event.ZeroTrustSsePublisher;
-import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
 /**
  * AutoConfiguration for Zero Trust SSE event system.
- * Registers ZeroTrustAnalysisEventListener as @Primary decorator
- * that wraps the existing LlmAnalysisEventListener (e.g., LlmAnalysisEventListenerImpl)
- * while adding Zero Trust SSE event publishing for BLOCK/ESCALATE pages.
+ * <p>
+ * Registers ZeroTrustAnalysisEventListener as {@code @Primary} decorator
+ * that wraps the default LlmAnalysisEventListener (no-op fallback from
+ * {@link CoreAutonomousEventAutoConfiguration}) while adding Zero Trust
+ * SSE event publishing for BLOCK/ESCALATE pages.
+ * <p>
+ * Must run AFTER CoreAutonomousEventAutoConfiguration so the default
+ * {@code llmAnalysisEventListener} bean exists as delegate target.
  */
 @AutoConfiguration
-@AutoConfigureBefore(CoreAutonomousEventAutoConfiguration.class)
+@AutoConfigureAfter(CoreAutonomousEventAutoConfiguration.class)
 public class IamAiamZeroTrustSseAutoConfiguration {
 
     @Bean
@@ -31,11 +36,7 @@ public class IamAiamZeroTrustSseAutoConfiguration {
     @Primary
     public LlmAnalysisEventListener zeroTrustAnalysisEventListener(
             ZeroTrustSsePublisher zeroTrustSsePublisher,
-            ObjectProvider<LlmAnalysisEventListener> existingListeners) {
-        LlmAnalysisEventListener delegate = existingListeners.orderedStream()
-                .filter(l -> !(l instanceof ZeroTrustAnalysisEventListener))
-                .findFirst()
-                .orElse(null);
+            @Qualifier("llmAnalysisEventListener") LlmAnalysisEventListener delegate) {
         return new ZeroTrustAnalysisEventListener(zeroTrustSsePublisher, delegate);
     }
 }
