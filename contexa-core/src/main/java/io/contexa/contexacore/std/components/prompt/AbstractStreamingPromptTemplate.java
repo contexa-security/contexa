@@ -157,8 +157,13 @@ public abstract class AbstractStreamingPromptTemplate extends AbstractBasePrompt
 
             **통합 모드 - 스트리밍 분석 과정 + 최종 JSON 결과**
 
+            **[절대 언어 규칙]**
+            - 모든 자연어 텍스트는 반드시 한국어(한글)로만 작성하세요.
+            - 한자(漢字), 중국어(中文), 일본어를 절대 사용하지 마세요.
+            - 영어는 기술 용어(예: API, JSON, URL)에만 허용됩니다.
+
             **[1단계] 자연어 분석 과정 실시간 스트리밍:**
-            - 사용자의 요청을 분석하는 과정을 단계별로 **한국어**로 설명합니다.
+            - 사용자의 요청을 분석하는 과정을 단계별로 **한국어(한글)**로 설명합니다.
             - 이 단계에서는 절대 JSON 형식이나 코드 블록을 출력해서는 안 됩니다.
 
             **[2단계] 최종 JSON 데이터 출력:**
@@ -289,12 +294,12 @@ public abstract class AbstractStreamingPromptTemplate extends AbstractBasePrompt
         return String.format("""
 
             **중요 실행 지시 (반드시 준수):**
-            1.  먼저, 분석 과정을 **한국어**로 단계별로 설명합니다. (JSON 형식 절대 사용 금지)
+            1.  먼저, 분석 과정을 **한국어(한글)**로 단계별로 설명합니다. (JSON 형식 절대 사용 금지, 한자/중국어 절대 금지)
             2.  모든 분석이 끝나면, 반드시 %s 마커로 시작하여 JSON 데이터를 출력하고 %s 마커로 종료합니다.
 
             **[중요] JSON 출력은 필수입니다. JSON 출력 없이 응답을 종료하면 실패로 간주됩니다.**
 
-            **지금부터 한국어로 자연어 분석을 시작하고, 분석이 끝나면 반드시 JSON 결과를 출력하세요:**
+            **지금부터 한국어(한글)로 자연어 분석을 시작하고, 분석이 끝나면 반드시 JSON 결과를 출력하세요:**
             """,
             StreamingProtocol.JSON_START_MARKER,
             StreamingProtocol.JSON_END_MARKER);

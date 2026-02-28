@@ -16,9 +16,12 @@ public class SentenceBuffer {
     private static final Pattern JSON_MARKER_PATTERN = Pattern.compile("===JSON[^=]*===");
     private static final Pattern JSON_CODE_BLOCK_PATTERN = Pattern.compile("```json[\\s\\S]*?```");
     private static final Pattern CONTROL_CHAR_PATTERN = Pattern.compile("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]");
+    private static final Pattern MARKDOWN_HEADER_PATTERN = Pattern.compile("#{1,6}\\s*");
     private static final Pattern PUNCTUATION_ONLY_PATTERN = Pattern.compile("^[.,!?;:]+$");
     private static final Pattern VALID_CONTENT_PATTERN = Pattern.compile(".*[가-힣a-zA-Z0-9]+.*");
     private static final Pattern NEWLINE_SPLIT_PATTERN = Pattern.compile("\\n");
+
+    private static final int MAX_BUFFER_SIZE = 200;
 
     private static final String[] KOREAN_ENDINGS = {
             "확인했습니다.", "완료했습니다.", "시작했습니다.", "분석했습니다.",
@@ -26,9 +29,8 @@ public class SentenceBuffer {
             "진행했습니다.", "실행했습니다.", "수행했습니다.", "생성했습니다.",
             "했습니다.", "있습니다.", "됩니다.", "습니다.", "입니다.",
             "니다.", "했다.", "했어요.", "했요.", "다.", "요.", "!",
-            
-            "===", "###", "시작 ===", "완료 ===", "진행 ===", "분석 ===",
-            "평가 ===", "생성 ===", "권한분석]", "위험평가]", "정책생성]"
+
+            "권한분석]", "위험평가]", "정책생성]"
     };
 
     public Flux<String> processChunk(String chunk) {
@@ -77,6 +79,10 @@ public class SentenceBuffer {
         cleaned = JSON_CODE_BLOCK_PATTERN.matcher(cleaned).replaceAll("");
         cleaned = CONTROL_CHAR_PATTERN.matcher(cleaned).replaceAll("");
 
+        // Strip markdown header symbols (###, ##, #) and decorative markers (===)
+        cleaned = MARKDOWN_HEADER_PATTERN.matcher(cleaned).replaceAll("");
+        cleaned = cleaned.replace("===", "");
+
         return cleaned;
     }
 
@@ -85,41 +91,61 @@ public class SentenceBuffer {
 
         String[] lines = NEWLINE_SPLIT_PATTERN.split(text);
         StringBuilder remainingBuffer = new StringBuilder();
+        StringBuilder pendingLine = new StringBuilder();
 
         for (int i = 0; i < lines.length; i++) {
             String line = lines[i].trim();
+            if (line.isEmpty()) continue;
+
+            // Merge with pending incomplete line
+            if (pendingLine.length() > 0) {
+                pendingLine.append(" ").append(line);
+                line = pendingLine.toString();
+            }
 
             if (isCompleteLine(line)) {
                 if (isValidSentence(line)) {
                     completeSentences.add(line);
                 }
+                pendingLine.setLength(0);
+            } else if (i == lines.length - 1) {
+                // Last line: keep in buffer for next chunk
+                remainingBuffer.append(pendingLine.length() > 0 ? pendingLine : line);
+                pendingLine.setLength(0);
             } else {
-                
-                if (i == lines.length - 1) {
-                    
-                    remainingBuffer.append(line);
-                } else {
-                    
-                    if (isValidSentence(line)) {
-                        completeSentences.add(line);
-                    }
+                // Middle incomplete line: accumulate with next line
+                if (pendingLine.length() == 0) {
+                    pendingLine.append(line);
                 }
             }
         }
 
+        // Flush pending line to buffer if not consumed
+        if (pendingLine.length() > 0) {
+            if (remainingBuffer.length() > 0) {
+                remainingBuffer.append(" ");
+            }
+            remainingBuffer.append(pendingLine);
+        }
+
         buffer.setLength(0);
         if (!remainingBuffer.isEmpty()) {
-            buffer.append(remainingBuffer.toString());
+            buffer.append(remainingBuffer);
+        }
+
+        // Force flush if buffer exceeds max size to maintain UI responsiveness
+        if (buffer.length() > MAX_BUFFER_SIZE && completeSentences.isEmpty()) {
+            String forced = buffer.toString().trim();
+            if (isValidSentence(forced)) {
+                completeSentences.add(forced);
+            }
+            buffer.setLength(0);
         }
     }
 
     private boolean isCompleteLine(String line) {
         if (line == null || line.trim().isEmpty()) {
             return false;
-        }
-
-        if (line.contains("===") || line.contains("###")) {
-            return true;
         }
 
         for (String ending : KOREAN_ENDINGS) {
@@ -153,14 +179,6 @@ public class SentenceBuffer {
 
     private boolean containsSpecialPattern(String text) {
         if (text == null || text.trim().isEmpty()) return false;
-
-        if (text.contains("===")) {
-            return true;
-        }
-
-        if (text.contains("###")) {
-            return true;
-        }
 
         String[] labKeywords = {
                 "권한분석", "위험평가", "정책생성", "분석 시작", "분석 완료",
@@ -196,4 +214,3 @@ public class SentenceBuffer {
         return Flux.empty();
     }
 }
-

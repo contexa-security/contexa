@@ -155,8 +155,8 @@ public class DefaultStandardStreamingService implements StandardStreamingService
 
     private ServerSentEvent<String> createDataEvent(String data) {
         String sanitizedData = data;
-        if (data != null && data.contains("\n")) {
-            sanitizedData = data.replace("\n", "").replace("\r", "");
+        if (data != null) {
+            sanitizedData = data.replace("\r\n", " ").replace("\n", " ").replace("\r", " ");
         }
         return ServerSentEvent.<String>builder()
                 .data(sanitizedData)
