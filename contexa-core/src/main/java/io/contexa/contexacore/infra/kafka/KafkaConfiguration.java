@@ -1,11 +1,12 @@
 package io.contexa.contexacore.infra.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.kafka.KafkaProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.annotation.EnableKafka;
@@ -22,29 +23,20 @@ import java.util.Map;
 
 @Configuration
 @EnableKafka
+@RequiredArgsConstructor
 public class KafkaConfiguration {
 
-    @Value("${spring.kafka.bootstrap-servers:localhost:9092}")
-    private String bootstrapServers;
-
-    @Value("${spring.kafka.consumer.group-id:security-plane-consumer}")
-    private String groupId;  
-
-    @Value("${spring.kafka.consumer.auto-offset-reset:earliest}")
-    private String autoOffsetReset;
-    
-    @Value("${spring.kafka.consumer.max-poll-records:500}")
-    private int maxPollRecords;
-    
-    @Value("${spring.kafka.consumer.enable-auto-commit:false}")
-    private boolean enableAutoCommit;
-    
-    @Value("${spring.kafka.listener.concurrency:3}")
-    private int concurrency;
+    private final KafkaProperties kafkaProperties;
 
     @Bean
     public Map<String, Object> consumerConfigs() {
         Map<String, Object> props = new HashMap<>();
+        String bootstrapServers = String.join(",", kafkaProperties.getBootstrapServers());
+        String groupId = kafkaProperties.getConsumer().getGroupId() != null ? kafkaProperties.getConsumer().getGroupId() : "security-plane-consumer";
+        String autoOffsetReset = kafkaProperties.getConsumer().getAutoOffsetReset() != null ? kafkaProperties.getConsumer().getAutoOffsetReset() : "earliest";
+        Boolean enableAutoCommit = kafkaProperties.getConsumer().getEnableAutoCommit() != null ? kafkaProperties.getConsumer().getEnableAutoCommit() : false;
+        int maxPollRecords = kafkaProperties.getConsumer().getProperties().containsKey("max.poll.records") ? Integer.parseInt(kafkaProperties.getConsumer().getProperties().get("max.poll.records")) : 500;
+
         props.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
@@ -62,7 +54,7 @@ public class KafkaConfiguration {
     @Bean
     public Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<>();
-        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, String.join(",", kafkaProperties.getBootstrapServers()));
         props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
         props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         props.put(ProducerConfig.ACKS_CONFIG, "all");
@@ -98,6 +90,7 @@ public class KafkaConfiguration {
             new ConcurrentKafkaListenerContainerFactory<>();
         
         factory.setConsumerFactory(consumerFactory());
+        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 3;
         factory.setConcurrency(concurrency);
 
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
@@ -114,6 +107,7 @@ public class KafkaConfiguration {
             new ConcurrentKafkaListenerContainerFactory<>();
 
         factory.setBatchListener(true);
+        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 3;
         factory.setConcurrency(concurrency);
 
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
@@ -146,6 +140,7 @@ public class KafkaConfiguration {
             new DefaultKafkaConsumerFactory<>(props);
         
         factory.setConsumerFactory(jsonConsumerFactory);
+        Integer concurrency = kafkaProperties.getListener().getConcurrency() != null ? kafkaProperties.getListener().getConcurrency() : 3;
         factory.setConcurrency(concurrency);
 
         factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);

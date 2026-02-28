@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.aiam;
 
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexaiam.aiam.components.prompt.*;
 import io.contexa.contexaiam.aiam.components.retriever.*;
@@ -54,27 +55,30 @@ public class IamAiamComponentsAutoConfiguration {
     public PolicyGenerationContextRetriever policyGenerationContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,
-            PolicyGenerationVectorService policyGenerationVectorService) {
+            PolicyGenerationVectorService policyGenerationVectorService,
+            ContexaRagProperties ragProperties) {
         return new PolicyGenerationContextRetriever(
-                vectorStore, contextRetrieverRegistry, policyGenerationVectorService);
+                vectorStore, contextRetrieverRegistry, policyGenerationVectorService, ragProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ConditionTemplateContextRetriever conditionTemplateContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry) {
+            ContextRetrieverRegistry contextRetrieverRegistry,
+            ContexaRagProperties ragProperties) {
         return new ConditionTemplateContextRetriever(
-                vectorStore, contextRetrieverRegistry);
+                vectorStore, contextRetrieverRegistry, ragProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ResourceNamingContextRetriever resourceNamingContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry) {
+            ContextRetrieverRegistry contextRetrieverRegistry,
+            ContexaRagProperties ragProperties) {
         return new ResourceNamingContextRetriever(
-                vectorStore, contextRetrieverRegistry);
+                vectorStore, contextRetrieverRegistry, ragProperties);
     }
 
     @Bean
@@ -82,8 +86,9 @@ public class IamAiamComponentsAutoConfiguration {
     public StudioQueryContextRetriever studioQueryContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,
-            StudioQueryVectorService studioQueryVectorService) {
+            StudioQueryVectorService studioQueryVectorService,
+            ContexaRagProperties ragProperties) {
         return new StudioQueryContextRetriever(
-                vectorStore, contextRetrieverRegistry, studioQueryVectorService);
+                vectorStore, contextRetrieverRegistry, studioQueryVectorService, ragProperties);
     }
 }

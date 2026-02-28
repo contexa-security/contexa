@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.aiam.components.retriever;
 
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -31,8 +32,9 @@ public class PolicyGenerationContextRetriever extends ContextRetriever {
     public PolicyGenerationContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,
-            PolicyGenerationVectorService vectorService) {
-        super(vectorStore);
+            PolicyGenerationVectorService vectorService,
+            ContexaRagProperties ragProperties) {
+        super(vectorStore, ragProperties);
         this.contextRetrieverRegistry = contextRetrieverRegistry;
         this.vectorService = vectorService;
     }

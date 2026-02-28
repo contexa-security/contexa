@@ -44,7 +44,7 @@ import java.time.format.DateTimeFormatter;
 @AutoConfiguration
 @AutoConfigureAfter(io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration.class)
 @ConditionalOnProperty(prefix = "contexa.rag", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties({ ContexaProperties.class, PgVectorStoreProperties.class })
+@EnableConfigurationProperties({ ContexaProperties.class, PgVectorStoreProperties.class, io.contexa.contexacore.properties.ContexaRagProperties.class })
 public class CoreRAGAutoConfiguration {
 
     @Value("${spring.ai.rag.similarity-threshold:0.75}")
@@ -76,8 +76,9 @@ public class CoreRAGAutoConfiguration {
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new BehaviorVectorService(vectorStore, vectorStoreMetrics);
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+            io.contexa.contexacore.properties.ContexaRagProperties ragProperties) {
+        return new BehaviorVectorService(vectorStore, vectorStoreMetrics, ragProperties);
     }
 
     @Bean

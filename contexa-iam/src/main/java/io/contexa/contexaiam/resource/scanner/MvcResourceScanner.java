@@ -1,9 +1,9 @@
 package io.contexa.contexaiam.resource.scanner;
 
 import io.contexa.contexacommon.entity.ManagedResource;
+import io.contexa.contexaiam.properties.IamAdminProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.RestController;
@@ -21,9 +21,7 @@ import java.util.Map;
 public class MvcResourceScanner implements ResourceScanner {
 
     private final ApplicationContext applicationContext;
-
-    @Value("${app.docs.rest-docs-path:/docs/index.html}")
-    private String restDocsPath;
+    private final IamAdminProperties iamAdminProperties;
 
     @Override
     public List<ManagedResource> scan() {
@@ -59,7 +57,7 @@ public class MvcResourceScanner implements ResourceScanner {
             String description = String.format("URL: [%s] %s", httpMethodStr, urlPattern);
 
             String docsAnchor = String.format("%s_%s", beanType.getSimpleName().toLowerCase().replace("controller", ""), handlerMethod.getMethod().getName().toLowerCase());
-            String apiDocsUrl = String.format("%s#%s", restDocsPath, docsAnchor);
+            String apiDocsUrl = String.format("%s#%s", iamAdminProperties.getRestDocsPath(), docsAnchor);
 
             resources.add(ManagedResource.builder()
                     .resourceIdentifier(urlPattern)

@@ -1,5 +1,6 @@
 package io.contexa.contexacoreenterprise.soar.retriever;
 
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacore.domain.SoarContext;
@@ -26,8 +27,9 @@ public class SoarContextRetriever extends ContextRetriever {
     public SoarContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry registry,
-            SoarProperties soarProperties) {
-        super(vectorStore);
+            SoarProperties soarProperties,
+            ContexaRagProperties ragProperties) {
+        super(vectorStore, ragProperties);
         this.registry = registry;
         this.soarProperties = soarProperties;
     }

@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.aiam.labs.policy;
 
 import io.contexa.contexacore.domain.VectorDocumentType;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexaiam.aiam.protocol.response.PolicyResponse;
@@ -22,8 +23,9 @@ public class PolicyGenerationVectorService extends AbstractVectorLabService {
 
     @Autowired
     public PolicyGenerationVectorService(VectorStore vectorStore,
-                                        @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        super(vectorStore, vectorStoreMetrics);
+                                        @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+                                        ContexaRagProperties ragProperties) {
+        super(vectorStore, vectorStoreMetrics, ragProperties);
     }
 
     @Override

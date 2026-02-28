@@ -15,7 +15,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 @AutoConfiguration
 @ConditionalOnProperty(prefix = "contexa", name = "enabled", havingValue = "true", matchIfMissing = true)
-@EnableConfigurationProperties(ContexaProperties.class)
+@EnableConfigurationProperties({ ContexaProperties.class, io.contexa.contexacore.properties.OpenTelemetryProperties.class })
 @Import({
         ApplicationConfig.class,
         AsyncConfig.class,

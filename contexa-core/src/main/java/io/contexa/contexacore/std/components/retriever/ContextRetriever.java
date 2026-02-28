@@ -2,10 +2,10 @@ package io.contexa.contexacore.std.components.retriever;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.List;
 import java.util.Map;
@@ -14,15 +14,11 @@ import java.util.stream.Collectors;
 public class ContextRetriever {
 
     protected final VectorStore vectorStore;
+    private final ContexaRagProperties ragProperties;
 
-    @Value("${spring.ai.rag.default.similarity-threshold:0.7}")
-    private double defaultSimilarityThreshold;
-
-    @Value("${spring.ai.rag.default.top-k:10}")
-    private int defaultTopK;
-
-    public ContextRetriever(VectorStore vectorStore) {
+    public ContextRetriever(VectorStore vectorStore, ContexaRagProperties ragProperties) {
         this.vectorStore = vectorStore;
+        this.ragProperties = ragProperties;
     }
 
     public ContextRetrievalResult retrieveContext(AIRequest<? extends DomainContext> request) {
@@ -30,8 +26,8 @@ public class ContextRetriever {
 
         SearchRequest searchRequest = SearchRequest.builder()
                 .query(query)
-                .topK(defaultTopK)
-                .similarityThreshold(defaultSimilarityThreshold)
+                .topK(ragProperties.getDefaults().getTopK())
+                .similarityThreshold(ragProperties.getDefaults().getSimilarityThreshold())
                 .build();
 
         List<Document> contextDocs = vectorStore.similaritySearch(searchRequest);

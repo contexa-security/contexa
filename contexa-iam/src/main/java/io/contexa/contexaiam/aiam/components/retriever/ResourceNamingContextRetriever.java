@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.aiam.components.retriever;
 
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacommon.domain.request.AIRequest;
@@ -28,8 +29,9 @@ public class ResourceNamingContextRetriever extends ContextRetriever {
 
     public ResourceNamingContextRetriever(
             VectorStore vectorStore,
-            ContextRetrieverRegistry contextRetrieverRegistry) {
-        super(vectorStore);
+            ContextRetrieverRegistry contextRetrieverRegistry,
+            ContexaRagProperties ragProperties) {
+        super(vectorStore, ragProperties);
         this.contextRetrieverRegistry = contextRetrieverRegistry;
     }
 

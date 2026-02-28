@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.rag.etl;
 
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -7,7 +8,6 @@ import org.springframework.ai.reader.JsonReader;
 import org.springframework.ai.reader.TextReader;
 import org.springframework.ai.transformer.splitter.TokenTextSplitter;
 import org.springframework.ai.vectorstore.VectorStore;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -29,30 +29,24 @@ import java.util.stream.Stream;
 @Slf4j
 public class BehaviorETLPipeline {
 
-    @Value("${spring.ai.etl.batch-size:100}")
-    private int batchSize;
-
-    @Value("${spring.ai.etl.chunk-size:500}")
-    private int chunkSize;
-
-    @Value("${spring.ai.etl.chunk-overlap:50}")
-    private int chunkOverlap;
-
-    @Value("${spring.ai.etl.behavior.retention-days:90}")
-    private int retentionDays;
-
     private final VectorStore vectorStore;
     private final JdbcTemplate jdbcTemplate;
+    private final ContexaRagProperties ragProperties;
     private TokenTextSplitter textSplitter;
 
-    public BehaviorETLPipeline(VectorStore vectorStore, JdbcTemplate jdbcTemplate) {
+    public BehaviorETLPipeline(VectorStore vectorStore, JdbcTemplate jdbcTemplate,
+                               ContexaRagProperties ragProperties) {
         this.vectorStore = vectorStore;
         this.jdbcTemplate = jdbcTemplate;
+        this.ragProperties = ragProperties;
     }
 
     @PostConstruct
     public void initialize() {
-        this.textSplitter = new TokenTextSplitter(chunkSize, chunkOverlap, 5, 10000, true);
+        this.textSplitter = new TokenTextSplitter(
+                ragProperties.getEtl().getChunkSize(),
+                ragProperties.getEtl().getChunkOverlap(),
+                5, 10000, true);
     }
 
     @Async
@@ -290,8 +284,8 @@ public class BehaviorETLPipeline {
             return;
         }
 
-        for (int i = 0; i < documents.size(); i += batchSize) {
-            int end = Math.min(i + batchSize, documents.size());
+        for (int i = 0; i < documents.size(); i += ragProperties.getEtl().getBatchSize()) {
+            int end = Math.min(i + ragProperties.getEtl().getBatchSize(), documents.size());
             List<Document> batch = documents.subList(i, end);
             vectorStore.add(batch);
         }
@@ -300,7 +294,7 @@ public class BehaviorETLPipeline {
     }
 
     private void cleanupOldData() {
-        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(retentionDays);
+        LocalDateTime cutoffDate = LocalDateTime.now().minusDays(ragProperties.getEtl().getBehavior().getRetentionDays());
         String cutoffDateStr = cutoffDate.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         try {

@@ -159,8 +159,9 @@ public class EnterpriseSoarAutoConfiguration {
     public SoarContextRetriever soarContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry registry,
-            SoarProperties soarProperties) {
-        return new SoarContextRetriever(vectorStore, registry, soarProperties);
+            SoarProperties soarProperties,
+            io.contexa.contexacore.properties.ContexaRagProperties ragProperties) {
+        return new SoarContextRetriever(vectorStore, registry, soarProperties, ragProperties);
     }
 
     @Bean

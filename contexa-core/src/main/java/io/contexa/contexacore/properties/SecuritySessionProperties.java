@@ -21,7 +21,15 @@ public class SecuritySessionProperties {
     private HijackSettings hijack = new HijackSettings();
 
     @NestedConfigurationProperty
+    private CookieSettings cookie = new CookieSettings();
+
+    @NestedConfigurationProperty
     private ThreatSettings threat = new ThreatSettings();
+
+    @Data
+    public static class CookieSettings {
+        private String name = "SESSION";
+    }
 
     @Data
     public static class CreateSettings {

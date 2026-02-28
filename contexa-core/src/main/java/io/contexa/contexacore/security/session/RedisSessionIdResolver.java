@@ -4,7 +4,6 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import io.contexa.contexacore.properties.SecuritySessionProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.util.StringUtils;
 
@@ -17,9 +16,6 @@ public class RedisSessionIdResolver implements SessionIdResolver {
 
     private static final String SESSION_ATTRIBUTE_NAME = "org.springframework.session.SessionRepository.CURRENT_SESSION_ID";
     private static final Pattern SESSION_ID_PATTERN = Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
-
-    @Value("${server.servlet.session.cookie.name:SESSION}")
-    private String sessionCookieName;
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final SecuritySessionProperties securitySessionProperties;
@@ -107,7 +103,7 @@ public class RedisSessionIdResolver implements SessionIdResolver {
         }
 
         for (Cookie cookie : cookies) {
-            if (sessionCookieName.equals(cookie.getName())) {
+            if (securitySessionProperties.getCookie().getName().equals(cookie.getName())) {
                 String cookieValue = cookie.getValue();
 
                 if (isBase64Encoded(cookieValue)) {

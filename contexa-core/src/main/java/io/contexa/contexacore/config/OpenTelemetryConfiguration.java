@@ -1,5 +1,6 @@
 package io.contexa.contexacore.config;
 
+import io.contexa.contexacore.properties.OpenTelemetryProperties;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Tracer;
@@ -12,8 +13,8 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import io.opentelemetry.semconv.ResourceAttributes;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -21,35 +22,26 @@ import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 public class OpenTelemetryConfiguration {
 
-    @Value("${opentelemetry.service.name:contexa-core}")
-    private String serviceName;
-
-    @Value("${opentelemetry.traces.exporter.endpoint:http://localhost:4317}")
-    private String otlpEndpoint;
-
-    @Value("${opentelemetry.traces.sampler.probability:1.0}")
-    private double samplingProbability;
-
-    @Value("${opentelemetry.enabled:true}")
-    private boolean enabled;
+    private final OpenTelemetryProperties openTelemetryProperties;
 
     @Bean
     public OpenTelemetry openTelemetry() {
-        if (!enabled) {
+        if (!openTelemetryProperties.isEnabled()) {
                         return OpenTelemetry.noop();
         }
 
         Resource resource = Resource.getDefault()
                 .merge(Resource.create(Attributes.builder()
-                        .put(ResourceAttributes.SERVICE_NAME, serviceName)
+                        .put(ResourceAttributes.SERVICE_NAME, openTelemetryProperties.getServiceName())
                         .put(ResourceAttributes.SERVICE_VERSION, "1.0.0")
                         .put(ResourceAttributes.DEPLOYMENT_ENVIRONMENT, getEnvironment())
                         .build()));
 
         OtlpGrpcSpanExporter spanExporter = OtlpGrpcSpanExporter.builder()
-                .setEndpoint(otlpEndpoint)
+                .setEndpoint(openTelemetryProperties.getExporterEndpoint())
                 .setTimeout(10, TimeUnit.SECONDS)
                 .build();
 
@@ -59,7 +51,7 @@ public class OpenTelemetryConfiguration {
                 .setScheduleDelay(5, TimeUnit.SECONDS)
                 .build();
 
-        Sampler sampler = Sampler.traceIdRatioBased(samplingProbability);
+        Sampler sampler = Sampler.traceIdRatioBased(openTelemetryProperties.getSamplingProbability());
 
         SdkTracerProvider tracerProvider = SdkTracerProvider.builder()
                 .setResource(resource)

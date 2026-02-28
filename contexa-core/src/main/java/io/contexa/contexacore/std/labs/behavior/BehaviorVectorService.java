@@ -2,6 +2,7 @@ package io.contexa.contexacore.std.labs.behavior;
 
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.domain.VectorDocumentType;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
 import org.springframework.ai.vectorstore.VectorStore;
@@ -27,8 +28,9 @@ public class BehaviorVectorService extends AbstractVectorLabService {
 
     @Autowired
     public BehaviorVectorService(VectorStore vectorStore,
-                                @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        super(vectorStore, vectorStoreMetrics);
+                                @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+                                ContexaRagProperties ragProperties) {
+        super(vectorStore, vectorStoreMetrics, ragProperties);
     }
 
     @Override

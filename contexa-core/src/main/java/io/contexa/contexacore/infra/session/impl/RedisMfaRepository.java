@@ -1,5 +1,6 @@
 package io.contexa.contexacore.infra.session.impl;
 
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexacore.infra.session.generator.SessionIdGenerator;
@@ -7,7 +8,6 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -32,6 +32,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
 
     private final StringRedisTemplate redisTemplate;
     private final SessionIdGenerator sessionIdGenerator;
+    private final AuthContextProperties authContextProperties;
 
     private static final String SESSION_PREFIX = "mfa:session:v2:";
     private static final String COLLISION_COUNTER_KEY_PREFIX = "mfa:collision:counter:";
@@ -41,9 +42,6 @@ public class RedisMfaRepository implements MfaSessionRepository {
     private static final int MAX_COLLISION_RETRIES = 10;
 
     private Duration sessionTimeout;
-
-    @Value("${spring.auth.cookie-secure:true}")
-    private boolean cookieSecure;
 
     private final AtomicLong totalSessionsCreated = new AtomicLong(0);
     private final AtomicLong sessionCollisionsResolved = new AtomicLong(0);
@@ -57,9 +55,11 @@ public class RedisMfaRepository implements MfaSessionRepository {
                     "    return 0 " +
                     "end";
 
-    public RedisMfaRepository(StringRedisTemplate redisTemplate, SessionIdGenerator sessionIdGenerator) {
+    public RedisMfaRepository(StringRedisTemplate redisTemplate, SessionIdGenerator sessionIdGenerator,
+                              AuthContextProperties authContextProperties) {
         this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate cannot be null");
         this.sessionIdGenerator = Objects.requireNonNull(sessionIdGenerator, "sessionIdGenerator cannot be null");
+        this.authContextProperties = Objects.requireNonNull(authContextProperties, "authContextProperties cannot be null");
     }
 
     @Override
@@ -245,7 +245,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 .path("/")
                 .maxAge(sessionTimeout)
                 .httpOnly(true)
-                .secure(cookieSecure && isSecureRequest)
+                .secure(authContextProperties.isCookieSecure() && isSecureRequest)
                 .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
@@ -256,7 +256,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 .path("/")
                 .maxAge(0)
                 .httpOnly(true)
-                .secure(cookieSecure && isSecureRequest)
+                .secure(authContextProperties.isCookieSecure() && isSecureRequest)
                 .sameSite("Lax")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

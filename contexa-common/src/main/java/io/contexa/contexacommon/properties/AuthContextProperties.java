@@ -36,7 +36,7 @@ public class AuthContextProperties {
     private boolean enableRefreshToken = true;
     private boolean allowMultipleLogins = false;
     private int maxConcurrentLogins = 3;
-    private boolean cookieSecure = false;
+    private boolean cookieSecure = true;
 
     private String tokenPrefix = "Bearer ";
     private String rolesClaim = "roles";

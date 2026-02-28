@@ -49,6 +49,7 @@ public class SoarProperties {
         public static class EmailSettings {
             private boolean enabled = true;
             private String baseUrl = "http://localhost:8080";
+            private String fromAddress = "noreply@contexa.com";
         }
 
         @Data

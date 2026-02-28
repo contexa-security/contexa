@@ -47,7 +47,8 @@ public class CoreSessionAutoConfiguration {
 
             RedisMfaRepository repository = new RedisMfaRepository(
                     redisTemplate,
-                    new RedisSessionIdGenerator(redisTemplate));
+                    new RedisSessionIdGenerator(redisTemplate),
+                    properties);
             repository.setSessionTimeout(properties.getMfa().getSessionTimeout());
 
             return repository;

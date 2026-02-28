@@ -1,40 +1,32 @@
 package io.contexa.contexacore.config;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.redisson.Redisson;
 import org.redisson.api.RedissonClient;
 import org.redisson.config.Config;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.data.redis.RedisProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.boot.convert.DurationUnit;
-import lombok.extern.slf4j.Slf4j;
-import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 
 @Slf4j
 @Configuration
+@RequiredArgsConstructor
 public class RedissonConfiguration {
 
-    @Value("${spring.data.redis.host:localhost}")
-    private String redisHost;
-
-    @Value("${spring.data.redis.port:6379}")
-    private int redisPort;
-
-    @Value("${spring.data.redis.timeout:5000ms}")
-    @DurationUnit(ChronoUnit.MILLIS)
-    private Duration timeout;
+    private final RedisProperties redisProperties;
 
     @Bean
     @ConditionalOnMissingBean(RedissonClient.class)
     public RedissonClient redissonClient() {
         Config config = new Config();
 
-        String address = String.format("redis://%s:%d", redisHost, redisPort);
+        String address = String.format("redis://%s:%d", redisProperties.getHost(), redisProperties.getPort());
+        java.time.Duration timeout = redisProperties.getTimeout() != null ? redisProperties.getTimeout() : java.time.Duration.ofMillis(5000);
         config.useSingleServer()
             .setAddress(address)
-            .setPassword(null)  
+            .setPassword(null)
             .setDatabase(0)
             .setConnectionMinimumIdleSize(2)
             .setConnectionPoolSize(10)

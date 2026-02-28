@@ -4,7 +4,6 @@ import io.contexa.contexacoreenterprise.properties.SoarProperties;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.messaging.MessagingException;
@@ -24,9 +23,6 @@ public class SoarEmailService {
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
     private final SoarProperties soarProperties;
-
-    @Value("${spring.mail.username:noreply@contexa.com}")
-    private String fromAddress;
     
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -119,7 +115,7 @@ public class SoarEmailService {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
         
-        helper.setFrom(fromAddress);
+        helper.setFrom(soarProperties.getNotification().getEmail().getFromAddress());
         helper.setTo(to);
         helper.setSubject(subject);
         helper.setText(htmlContent, true);

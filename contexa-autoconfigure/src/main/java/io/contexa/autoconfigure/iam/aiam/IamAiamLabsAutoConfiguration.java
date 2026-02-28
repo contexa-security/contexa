@@ -35,16 +35,18 @@ public class IamAiamLabsAutoConfiguration {
     @ConditionalOnMissingBean
     public PolicyGenerationVectorService policyGenerationVectorService(
             VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics);
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+            io.contexa.contexacore.properties.ContexaRagProperties ragProperties) {
+        return new PolicyGenerationVectorService(vectorStore, vectorStoreMetrics, ragProperties);
     }
 
        @Bean
     @ConditionalOnMissingBean
     public StudioQueryVectorService studioQueryVectorService(
             VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
-        return new StudioQueryVectorService(vectorStore, vectorStoreMetrics);
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+            io.contexa.contexacore.properties.ContexaRagProperties ragProperties) {
+        return new StudioQueryVectorService(vectorStore, vectorStoreMetrics, ragProperties);
     }
 
     @Bean

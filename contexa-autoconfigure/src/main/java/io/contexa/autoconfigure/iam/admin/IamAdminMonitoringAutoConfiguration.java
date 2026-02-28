@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
+import io.contexa.autoconfigure.properties.ContexaEnterpriseProperties;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
 import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
@@ -87,7 +88,7 @@ public class IamAdminMonitoringAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AdminEnterpriseModelAdvice adminEnterpriseModelAdvice() {
-        return new AdminEnterpriseModelAdvice();
+    public AdminEnterpriseModelAdvice adminEnterpriseModelAdvice(ContexaEnterpriseProperties enterpriseProperties) {
+        return new AdminEnterpriseModelAdvice(enterpriseProperties.isEnabled());
     }
 }

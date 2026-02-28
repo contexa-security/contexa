@@ -1,6 +1,7 @@
 package io.contexa.contexacore.std.rag.service;
 
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacore.std.rag.service.VectorOperations.VectorStoreException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -9,7 +10,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -21,28 +21,16 @@ public abstract class AbstractVectorLabService implements VectorOperations {
 
     protected final VectorStore vectorStore;
     protected final VectorStoreMetrics vectorStoreMetrics;
+    protected final ContexaRagProperties ragProperties;
 
     protected AbstractVectorLabService(
             VectorStore vectorStore,
-            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics) {
+            @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
+            ContexaRagProperties ragProperties) {
         this.vectorStore = vectorStore;
         this.vectorStoreMetrics = vectorStoreMetrics;
+        this.ragProperties = ragProperties;
     }
-
-    @Value("${spring.ai.vectorstore.lab.batch-size:50}")
-    protected int labBatchSize;
-
-    @Value("${spring.ai.vectorstore.lab.validation-enabled:true}")
-    protected boolean validationEnabled;
-
-    @Value("${spring.ai.vectorstore.lab.enrichment-enabled:true}")
-    protected boolean enrichmentEnabled;
-
-    @Value("${spring.ai.vectorstore.lab.top-k:100}")
-    protected int defaultTopK;
-
-    @Value("${spring.ai.vectorstore.lab.similarity-threshold:0.75}")
-    protected double defaultSimilarityThreshold;
 
     private static final DateTimeFormatter ISO_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
@@ -105,8 +93,8 @@ public abstract class AbstractVectorLabService implements VectorOperations {
                 processedDocuments.add(preprocessDocument(doc));
             }
 
-            for (int i = 0; i < processedDocuments.size(); i += labBatchSize) {
-                int end = Math.min(i + labBatchSize, processedDocuments.size());
+            for (int i = 0; i < processedDocuments.size(); i += ragProperties.getLab().getBatchSize()) {
+                int end = Math.min(i + ragProperties.getLab().getBatchSize(), processedDocuments.size());
                 List<Document> batch = processedDocuments.subList(i, end);
                 vectorStore.add(batch);
             }
@@ -146,7 +134,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
 
             int topK = labFilters.containsKey("topK")
                     ? ((Number) labFilters.get("topK")).intValue()
-                    : defaultTopK;
+                    : ragProperties.getLab().getTopK();
             labFilters.remove("topK");
 
             Filter.Expression filterExpression = buildFilterExpression(labFilters);
@@ -154,7 +142,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
             SearchRequest searchRequest = SearchRequest.builder()
                     .query(query)
                     .topK(topK)
-                    .similarityThreshold(defaultSimilarityThreshold)
+                    .similarityThreshold(ragProperties.getLab().getSimilarityThreshold())
                     .filterExpression(filterExpression)
                     .build();
 
@@ -258,11 +246,11 @@ public abstract class AbstractVectorLabService implements VectorOperations {
 
             Document processedDocument = new Document(document.getText(), metadata);
 
-            if (validationEnabled) {
+            if (ragProperties.getLab().isValidationEnabled()) {
                 validateLabSpecificDocument(processedDocument);
             }
 
-            if (enrichmentEnabled) {
+            if (ragProperties.getLab().isEnrichmentEnabled()) {
                 processedDocument = enrichLabSpecificMetadata(processedDocument);
             }
 
