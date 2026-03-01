@@ -114,7 +114,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         switch (currentAction) {
             case BLOCK -> handleBlockWithMfa(request, response, filterChain, auth, userId, requestUri);
             case ESCALATE -> handleEscalate(request, response, userId);
-//            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId);
+            case PENDING_ANALYSIS -> handlePendingAnalysis(request, response, filterChain, userId);
             default -> filterChain.doFilter(request, response);
         }
     }
