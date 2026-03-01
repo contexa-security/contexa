@@ -1,4 +1,3 @@
-/*
 package io.contexa.springbootstartercontexa.web;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -13,7 +12,6 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.security.Principal;
 import java.util.Map;
 
-*/
 /**
  * LLM 분석 SSE 컨트롤러
  *
@@ -27,8 +25,7 @@ import java.util.Map;
  *
  * @author contexa
  * @since TIPS Demo v1.0
- *//*
-
+ */
 @RestController
 @RequestMapping("/api/sse")
 @RequiredArgsConstructor
@@ -37,8 +34,7 @@ public class LlmAnalysisSseController {
 
     private final LlmAnalysisEventPublisher eventPublisher;
 
-    */
-/**
+    /**
      * LLM 분석 이벤트 SSE 스트림 구독 (전체)
      *
      * 모든 LLM 분석 이벤트를 브로드캐스트로 수신합니다.
@@ -53,16 +49,14 @@ public class LlmAnalysisSseController {
      * - DECISION_APPLIED: 최종 결정 적용
      *
      * @return SseEmitter SSE 스트림
-     *//*
-
+     */
     @GetMapping(value = "/llm-analysis", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribeToLlmAnalysis() {
         log.info("[LlmAnalysisSseController] 새 SSE 구독 요청 (전체)");
         return eventPublisher.addEmitter();
     }
 
-    */
-/**
+    /**
      * LLM 분석 이벤트 SSE 스트림 구독 (사용자별)
      *
      * 특정 사용자의 LLM 분석 이벤트만 수신합니다.
@@ -70,8 +64,7 @@ public class LlmAnalysisSseController {
      *
      * @param principal 인증된 사용자 정보
      * @return SseEmitter SSE 스트림
-     *//*
-
+     */
     @GetMapping(value = "/llm-analysis/user", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter subscribeToUserLlmAnalysis(Principal principal) {
         String userId = principal != null ? principal.getName() : "anonymous";
@@ -79,16 +72,14 @@ public class LlmAnalysisSseController {
         return eventPublisher.addEmitter(userId);
     }
 
-    */
-/**
+    /**
      * SSE 구독자 상태 조회
      *
      * 현재 연결된 SSE 구독자 수를 반환합니다.
      * 모니터링 및 디버깅 목적으로 사용됩니다.
      *
      * @return 구독자 상태 정보
-     *//*
-
+     */
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus() {
         int subscriberCount = eventPublisher.getSubscriberCount();
@@ -101,8 +92,7 @@ public class LlmAnalysisSseController {
         ));
     }
 
-    */
-/**
+    /**
      * 테스트용 이벤트 발행 (개발/데모용)
      *
      * 수동으로 LLM 분석 이벤트를 발행합니다.
@@ -114,8 +104,7 @@ public class LlmAnalysisSseController {
      * @param riskScore 위험 점수 (0.0-1.0)
      * @param confidence 신뢰도 (0.0-1.0)
      * @return 발행 결과
-     *//*
-
+     */
     @PostMapping("/test-event")
     public ResponseEntity<Map<String, Object>> publishTestEvent(
             @RequestParam String eventType,
@@ -184,8 +173,7 @@ public class LlmAnalysisSseController {
         ));
     }
 
-    */
-/**
+    /**
      * 테스트용 전체 분석 시뮬레이션 (개발/데모용)
      *
      * 전체 LLM 분석 흐름을 시뮬레이션합니다.
@@ -195,8 +183,7 @@ public class LlmAnalysisSseController {
      * @param escalate Layer2 에스컬레이션 여부
      * @param finalAction 최종 보안 결정
      * @return 시뮬레이션 결과
-     *//*
-
+     */
     @PostMapping("/simulate-analysis")
     public ResponseEntity<Map<String, Object>> simulateAnalysis(
             @RequestParam(defaultValue = "demoUser") String userId,
@@ -271,4 +258,3 @@ public class LlmAnalysisSseController {
         ));
     }
 }
-*/

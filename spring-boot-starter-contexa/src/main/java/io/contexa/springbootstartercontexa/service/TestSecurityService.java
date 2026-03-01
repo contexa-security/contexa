@@ -1,11 +1,9 @@
-/*
 package io.contexa.springbootstartercontexa.service;
 
 import io.contexa.contexacommon.annotation.Protectable;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-*/
 /**
  * 보안 플로우 테스트용 서비스
  *
@@ -13,14 +11,12 @@ import org.springframework.stereotype.Service;
  * AnalysisRequirement에 따라 다른 보안 정책이 적용된다.
  *
  * 메서드 식별자 형식: {패키지}.{클래스}.{메서드}({파라미터타입})
- *//*
-
+ */
 @Slf4j
-//@Service
+@Service
 public class TestSecurityService {
 
-    */
-/**
+    /**
      * 공개 데이터 조회 - 분석 불필요
      *
      * AnalysisRequirement.NOT_REQUIRED:
@@ -31,8 +27,7 @@ public class TestSecurityService {
      *
      * @param resourceId 리소스 식별자
      * @return 공개 데이터 문자열
-     *//*
-
+     */
     @Protectable
     public String getPublicData(String resourceId) {
         log.info("공개 데이터 조회 요청 - resourceId: {}", resourceId);
@@ -44,8 +39,7 @@ public class TestSecurityService {
         return String.format("공개 데이터 [%s]: 이 데이터는 인증된 모든 사용자가 접근 가능합니다.", resourceId);
     }
 
-    */
-/**
+    /**
      * 일반 데이터 조회 - 분석 선호
      *
      * AnalysisRequirement.PREFERRED:
@@ -56,8 +50,7 @@ public class TestSecurityService {
      *
      * @param resourceId 리소스 식별자
      * @return 일반 데이터 문자열
-     *//*
-
+     */
     @Protectable
     public String getNormalData(String resourceId) {
         log.info("일반 데이터 조회 요청 - resourceId: {}", resourceId);
@@ -69,8 +62,7 @@ public class TestSecurityService {
         return String.format("일반 데이터 [%s]: 이 데이터는 ALLOW Action일 때 접근 가능합니다.", resourceId);
     }
 
-    */
-/**
+    /**
      * 민감 데이터 조회 - 분석 필수
      *
      * AnalysisRequirement.REQUIRED:
@@ -82,8 +74,7 @@ public class TestSecurityService {
      *
      * @param resourceId 리소스 식별자
      * @return 민감 데이터 문자열
-     *//*
-
+     */
     @Protectable
     public String getSensitiveData(String resourceId) {
         log.info("민감 데이터 조회 요청 - resourceId: {}", resourceId);
@@ -95,8 +86,7 @@ public class TestSecurityService {
         return String.format("민감 데이터 [%s]: 이 데이터는 LLM 분석 완료 + ALLOW/MONITOR Action일 때만 접근 가능합니다.", resourceId);
     }
 
-    */
-/**
+    /**
      * 중요 데이터 조회 - ALLOW만 허용
      *
      * AnalysisRequirement.STRICT:
@@ -108,8 +98,7 @@ public class TestSecurityService {
      *
      * @param resourceId 리소스 식별자
      * @return 중요 데이터 문자열
-     *//*
-
+     */
     @Protectable
     public String getCriticalData(String resourceId) {
         log.info("중요 데이터 조회 요청 - resourceId: {}", resourceId);
@@ -121,8 +110,7 @@ public class TestSecurityService {
         return String.format("중요 데이터 [%s]: 이 데이터는 ADMIN 권한 + LLM 분석 완료 + ALLOW Action일 때만 접근 가능합니다.", resourceId);
     }
 
-    */
-/**
+    /**
      * 대량 데이터 조회 - 실시간 차단 활성화
      *
      * AnalysisRequirement.PREFERRED + enableRuntimeInterception:
@@ -133,8 +121,7 @@ public class TestSecurityService {
      * 메서드 식별자: io.contexa.springbootstartercontexa.service.TestSecurityService.getBulkData()
      *
      * @return 대량 데이터 문자열
-     *//*
-
+     */
     @Protectable
     public String getBulkData() {
         log.info("대량 데이터 조회 요청");
@@ -158,4 +145,3 @@ public class TestSecurityService {
         return sb.toString();
     }
 }
-*/

@@ -1,4 +1,3 @@
-/*
 package io.contexa.springbootstartercontexa.event;
 
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
@@ -48,4 +47,3 @@ public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
         eventPublisher.publishError(userId, message);
     }
 }
-*/

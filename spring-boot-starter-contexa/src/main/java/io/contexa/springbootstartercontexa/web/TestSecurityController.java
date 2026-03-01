@@ -1,4 +1,3 @@
-/*
 package io.contexa.springbootstartercontexa.web;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
@@ -20,7 +19,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-*/
 /**
  * 보안 플로우 테스트용 REST 컨트롤러
  *
@@ -28,8 +26,7 @@ import java.util.Map;
  * 실제 보안 플로우를 테스트한다.
  *
  * 각 엔드포인트는 서비스 메서드를 호출하고, 결과 또는 예외를 JSON으로 반환한다.
- *//*
-
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/security-test")
@@ -41,8 +38,7 @@ public class TestSecurityController {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER =
         DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    */
-/**
+    /**
      * 공개 데이터 조회 테스트
      *
      * 서비스 메서드: TestSecurityService.getPublicData(String)
@@ -51,8 +47,7 @@ public class TestSecurityController {
      *
      * @param resourceId 리소스 식별자
      * @return 조회 결과 또는 에러 응답
-     *//*
-
+     */
     @GetMapping("/public/{resourceId}")
     public ResponseEntity<Map<String, Object>> testPublicData(
             @PathVariable String resourceId) {
@@ -97,8 +92,7 @@ public class TestSecurityController {
         }
     }
 
-    */
-/**
+    /**
      * 일반 데이터 조회 테스트
      *
      * 서비스 메서드: TestSecurityService.getNormalData(String)
@@ -107,8 +101,7 @@ public class TestSecurityController {
      *
      * @param resourceId 리소스 식별자
      * @return 조회 결과 또는 에러 응답
-     *//*
-
+     */
     @GetMapping("/normal/{resourceId}")
     public ResponseEntity<Map<String, Object>> testNormalData(
             @PathVariable String resourceId) {
@@ -153,8 +146,7 @@ public class TestSecurityController {
         }
     }
 
-    */
-/**
+    /**
      * 민감 데이터 조회 테스트
      *
      * 서비스 메서드: TestSecurityService.getSensitiveData(String)
@@ -163,8 +155,7 @@ public class TestSecurityController {
      *
      * @param resourceId 리소스 식별자
      * @return 조회 결과 또는 에러 응답
-     *//*
-
+     */
     @GetMapping("/sensitive/{resourceId}")
     public ResponseEntity<Map<String, Object>> testSensitiveData(
             @PathVariable String resourceId) {
@@ -209,8 +200,7 @@ public class TestSecurityController {
         }
     }
 
-    */
-/**
+    /**
      * 중요 데이터 조회 테스트
      *
      * 서비스 메서드: TestSecurityService.getCriticalData(String)
@@ -219,8 +209,7 @@ public class TestSecurityController {
      *
      * @param resourceId 리소스 식별자
      * @return 조회 결과 또는 에러 응답
-     *//*
-
+     */
     @GetMapping("/critical/{resourceId}")
     public ResponseEntity<Map<String, Object>> testCriticalData(
             @PathVariable String resourceId) {
@@ -265,8 +254,7 @@ public class TestSecurityController {
         }
     }
 
-    */
-/**
+    /**
      * 대량 데이터 조회 테스트
      *
      * 서비스 메서드: TestSecurityService.getBulkData()
@@ -274,8 +262,7 @@ public class TestSecurityController {
      * 정책: #trust.hasActionOrDefault('ALLOW', 'ALLOW')
      *
      * @return 조회 결과 또는 에러 응답
-     *//*
-
+     */
     @GetMapping("/bulk")
     public ResponseEntity<Map<String, Object>> testBulkData() {
 
@@ -321,11 +308,9 @@ public class TestSecurityController {
         }
     }
 
-    */
-/**
+    /**
      * 성공 응답 생성
-     *//*
-
+     */
     private Map<String, Object> createSuccessResponse(
             String data, String resourceId, String analysisRequirement,
             long processingTime, String timestamp, Authentication auth) {
@@ -342,11 +327,9 @@ public class TestSecurityController {
         return response;
     }
 
-    */
-/**
+    /**
      * 에러 응답 생성
-     *//*
-
+     */
     private Map<String, Object> createErrorResponse(
             Exception e, String resourceId, String analysisRequirement,
             long processingTime, String timestamp, Authentication auth) {
@@ -370,11 +353,9 @@ public class TestSecurityController {
         return response;
     }
 
-    */
-/**
+    /**
      * 유효성 검사 오류 응답 생성
-     *//*
-
+     */
     private Map<String, Object> createValidationErrorResponse(
             IllegalArgumentException e, String resourceId,
             long processingTime, String timestamp) {
@@ -390,11 +371,9 @@ public class TestSecurityController {
         return response;
     }
 
-    */
-/**
+    /**
      * 차단 사유 추출
-     *//*
-
+     */
     private String extractBlockReason(String message) {
         if (message == null) {
             return "Unknown";
@@ -414,4 +393,3 @@ public class TestSecurityController {
         return message;
     }
 }
-*/
