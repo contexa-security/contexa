@@ -125,6 +125,9 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private boolean tryMarkEventAsProcessed(String eventId) {
+        if (redisTemplate == null) {
+            return true;
+        }
         try {
             String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
             Boolean acquired = redisTemplate.opsForValue().setIfAbsent(processingKey, "1", Duration.ofHours(24));

@@ -126,7 +126,85 @@ public class CoreAutonomousAutoConfiguration {
         return new SecurityEventProcessor(handlers);
     }
 
-    // === Distributed mode: Redis-dependent beans ===
+    // === Common beans: work in both standalone and distributed modes ===
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ThreatScoreUtil threatScoreOrchestrator(
+            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ThreatScoreUtil(redisTemplateProvider.getIfAvailable(), securityZeroTrustProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public VectorStoreCacheLayer vectorStoreCacheLayer(
+            VectorStore vectorStore,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public Layer1ContextualStrategy contextualStrategy(
+            UnifiedLLMOrchestrator llmOrchestrator,
+            UnifiedVectorService unifiedVectorService,
+            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityEventEnricher securityEventEnricher,
+            SecurityPromptTemplate securityPromptTemplate,
+            BehaviorVectorService behaviorVectorService,
+            ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
+            SecurityLearningService securityLearningService,
+            TieredStrategyProperties tieredStrategyProperties) {
+        return new Layer1ContextualStrategy(
+                llmOrchestrator, unifiedVectorService, redisTemplateProvider.getIfAvailable(),
+                securityEventEnricher, securityPromptTemplate, behaviorVectorService,
+                baselineLearningServiceProvider.getIfAvailable(),
+                securityLearningService, tieredStrategyProperties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public Layer2ExpertStrategy expertStrategy(
+            UnifiedLLMOrchestrator llmOrchestrator,
+            @Autowired(required = false) ApprovalService approvalService,
+            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityEventEnricher securityEventEnricher,
+            SecurityPromptTemplate securityPromptTemplate,
+            UnifiedVectorService unifiedVectorService,
+            BehaviorVectorService behaviorVectorService,
+            ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
+            TieredStrategyProperties tieredStrategyProperties,
+            SecurityLearningService securityLearningService) {
+        return new Layer2ExpertStrategy(
+                llmOrchestrator, approvalService, redisTemplateProvider.getIfAvailable(),
+                securityEventEnricher, securityPromptTemplate, unifiedVectorService,
+                behaviorVectorService, baselineLearningServiceProvider.getIfAvailable(),
+                tieredStrategyProperties, securityLearningService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityDecisionPostProcessor securityDecisionPostProcessor(
+            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            UnifiedVectorService unifiedVectorService) {
+        return new SecurityDecisionPostProcessor(redisTemplateProvider.getIfAvailable(), unifiedVectorService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityPlaneAgent securityPlaneAgent(
+            SecurityMonitoringService securityMonitor,
+            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityPlaneAuditLogger auditLogger,
+            SecurityEventProcessor processingOrchestrator,
+            SecurityPlaneProperties securityPlaneProperties) {
+        return new SecurityPlaneAgent(
+                securityMonitor, redisTemplateProvider.getIfAvailable(), auditLogger,
+                processingOrchestrator, securityPlaneProperties);
+    }
+
+    // === Distributed mode: Redis-only repository ===
 
     @Configuration
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
@@ -139,77 +217,6 @@ public class CoreAutonomousAutoConfiguration {
                 RedisTemplate<String, Object> redisTemplate,
                 StringRedisTemplate stringRedisTemplate) {
             return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean
-        public ThreatScoreUtil threatScoreOrchestrator(RedisTemplate<String, Object> redisTemplate,
-                SecurityZeroTrustProperties securityZeroTrustProperties) {
-            return new ThreatScoreUtil(redisTemplate, securityZeroTrustProperties);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean
-        public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore,
-                TieredStrategyProperties tieredStrategyProperties) {
-            return new VectorStoreCacheLayer(vectorStore, tieredStrategyProperties);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean
-        public Layer1ContextualStrategy contextualStrategy(
-                UnifiedLLMOrchestrator llmOrchestrator,
-                UnifiedVectorService unifiedVectorService,
-                RedisTemplate<String, Object> redisTemplate,
-                SecurityEventEnricher securityEventEnricher,
-                SecurityPromptTemplate securityPromptTemplate,
-                BehaviorVectorService behaviorVectorService,
-                BaselineLearningService baselineLearningService,
-                SecurityLearningService securityLearningService,
-                TieredStrategyProperties tieredStrategyProperties) {
-            return new Layer1ContextualStrategy(
-                    llmOrchestrator, unifiedVectorService, redisTemplate, securityEventEnricher,
-                    securityPromptTemplate, behaviorVectorService, baselineLearningService,
-                    securityLearningService, tieredStrategyProperties);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean
-        public Layer2ExpertStrategy expertStrategy(
-                UnifiedLLMOrchestrator llmOrchestrator,
-                @Autowired(required = false) ApprovalService approvalService,
-                RedisTemplate<String, Object> redisTemplate,
-                SecurityEventEnricher securityEventEnricher,
-                SecurityPromptTemplate securityPromptTemplate,
-                UnifiedVectorService unifiedVectorService,
-                BehaviorVectorService behaviorVectorService,
-                BaselineLearningService baselineLearningService,
-                TieredStrategyProperties tieredStrategyProperties,
-                SecurityLearningService securityLearningService) {
-            return new Layer2ExpertStrategy(
-                    llmOrchestrator, approvalService, redisTemplate, securityEventEnricher,
-                    securityPromptTemplate, unifiedVectorService, behaviorVectorService,
-                    baselineLearningService, tieredStrategyProperties, securityLearningService);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean
-        public SecurityDecisionPostProcessor securityDecisionPostProcessor(
-                RedisTemplate<String, Object> redisTemplate,
-                UnifiedVectorService unifiedVectorService) {
-            return new SecurityDecisionPostProcessor(redisTemplate, unifiedVectorService);
-        }
-
-        @Bean
-        @ConditionalOnMissingBean
-        public SecurityPlaneAgent securityPlaneAgent(
-                SecurityMonitoringService securityMonitor,
-                RedisTemplate<String, Object> redisTemplate,
-                SecurityPlaneAuditLogger auditLogger,
-                SecurityEventProcessor processingOrchestrator,
-                SecurityPlaneProperties securityPlaneProperties) {
-            return new SecurityPlaneAgent(
-                    securityMonitor, redisTemplate, auditLogger, processingOrchestrator, securityPlaneProperties);
         }
     }
 

@@ -54,8 +54,6 @@ import java.util.List;
 @EnableConfigurationProperties({ ContexaProperties.class, SecurityPlaneProperties.class })
 public class CoreAutonomousEventAutoConfiguration {
 
-    // === Distributed mode: Kafka/Redisson-dependent beans ===
-
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(KafkaTemplate.class)

@@ -16,6 +16,9 @@ public class ThreatScoreUtil {
         if (userId == null || userId.isEmpty()) {
             return securityZeroTrustProperties.getThreat().getInitial();
         }
+        if (redisTemplate == null) {
+            return securityZeroTrustProperties.getThreat().getInitial();
+        }
         try {
             String threatScoreKey = ZeroTrustRedisKeys.threatScore(userId);
             Object threatScoreObj = redisTemplate.opsForValue().get(threatScoreKey);
