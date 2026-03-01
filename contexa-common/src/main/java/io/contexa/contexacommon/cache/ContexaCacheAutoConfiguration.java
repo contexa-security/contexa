@@ -4,11 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.listener.ChannelTopic;
@@ -19,62 +19,70 @@ import org.springframework.data.redis.listener.adapter.MessageListenerAdapter;
 @AutoConfiguration
 @EnableConfigurationProperties(ContexaCacheProperties.class)
 @ConditionalOnProperty(name = "contexa.cache.enabled", havingValue = "true", matchIfMissing = true)
-@ConditionalOnClass({StringRedisTemplate.class, ObjectMapper.class})
-@ConditionalOnBean(StringRedisTemplate.class)
 @Slf4j
 public class ContexaCacheAutoConfiguration {
 
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public ContexaCacheService contexaCacheService(
-            ContexaCacheProperties properties,
-            StringRedisTemplate redisTemplate,
-            ObjectMapper objectMapper) {
+    @Configuration
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    @ConditionalOnBean(StringRedisTemplate.class)
+    static class DistributedCacheConfig {
 
-        
-        return new ContexaCacheService(properties, redisTemplate, objectMapper);
+        @Bean
+        @ConditionalOnMissingBean(ContexaCacheService.class)
+        public RedisContexaCacheService contexaCacheService(
+                ContexaCacheProperties properties,
+                StringRedisTemplate redisTemplate,
+                ObjectMapper objectMapper) {
+            return new RedisContexaCacheService(properties, redisTemplate, objectMapper);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean
+        @ConditionalOnProperty(name = "contexa.cache.type", havingValue = "HYBRID")
+        public ContexaCacheInvalidationListener contexaCacheInvalidationListener(
+                ContexaCacheService cacheService,
+                ContexaCacheProperties properties) {
+            return new ContexaCacheInvalidationListener(cacheService, properties);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(name = "contexaCacheListenerContainer")
+        @ConditionalOnProperty(name = "contexa.cache.type", havingValue = "HYBRID")
+        public RedisMessageListenerContainer contexaCacheListenerContainer(
+                RedisConnectionFactory connectionFactory,
+                MessageListenerAdapter contexaCacheListenerAdapter,
+                ContexaCacheProperties properties) {
+
+            RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+            container.setConnectionFactory(connectionFactory);
+
+            if (properties.getPubsub().isEnabled()) {
+                ChannelTopic topic = new ChannelTopic(properties.getPubsub().getChannel());
+                container.addMessageListener(contexaCacheListenerAdapter, topic);
+            }
+
+            return container;
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(name = "contexaCacheListenerAdapter")
+        @ConditionalOnProperty(name = "contexa.cache.type", havingValue = "HYBRID")
+        public MessageListenerAdapter contexaCacheListenerAdapter(
+                ContexaCacheInvalidationListener listener) {
+            return new MessageListenerAdapter(listener, "handleMessage");
+        }
     }
 
-    
-    @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(name = "contexa.cache.type", havingValue = "HYBRID")
-    public ContexaCacheInvalidationListener contexaCacheInvalidationListener(
-            ContexaCacheService cacheService,
-            ContexaCacheProperties properties) {
+    @Configuration
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
+    static class StandaloneCacheConfig {
 
-        
-        return new ContexaCacheInvalidationListener(cacheService, properties);
-    }
-
-    
-    @Bean
-    @ConditionalOnMissingBean(name = "contexaCacheListenerContainer")
-    @ConditionalOnProperty(name = "contexa.cache.type", havingValue = "HYBRID")
-    public RedisMessageListenerContainer contexaCacheListenerContainer(
-            RedisConnectionFactory connectionFactory,
-            MessageListenerAdapter contexaCacheListenerAdapter,
-            ContexaCacheProperties properties) {
-
-        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
-        container.setConnectionFactory(connectionFactory);
-
-        if (properties.getPubsub().isEnabled()) {
-            ChannelTopic topic = new ChannelTopic(properties.getPubsub().getChannel());
-            container.addMessageListener(contexaCacheListenerAdapter, topic);
-                    }
-
-        return container;
-    }
-
-    
-    @Bean
-    @ConditionalOnMissingBean(name = "contexaCacheListenerAdapter")
-    @ConditionalOnProperty(name = "contexa.cache.type", havingValue = "HYBRID")
-    public MessageListenerAdapter contexaCacheListenerAdapter(
-            ContexaCacheInvalidationListener listener) {
-
-        return new MessageListenerAdapter(listener, "handleMessage");
+        @Bean
+        @ConditionalOnMissingBean(ContexaCacheService.class)
+        public LocalContexaCacheService contexaCacheService(
+                ContexaCacheProperties properties,
+                ObjectMapper objectMapper) {
+            return new LocalContexaCacheService(properties, objectMapper);
+        }
     }
 }
