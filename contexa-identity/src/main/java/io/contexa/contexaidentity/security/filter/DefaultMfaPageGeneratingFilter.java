@@ -38,6 +38,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
     private final MfaSettings mfaSettings;
+    private final String tokenPersistence;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -439,7 +440,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             }
 
                             // SDK initialization
-                            const mfa = new ContexaMFA.Client({ autoRedirect: false });
+                            const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
                             mfa.init().catch(console.error);
 
                             // Verification Form Progressive Enhancement
@@ -620,7 +621,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <script>
                         if (typeof ContexaMFA !== 'undefined') {
                             const authButton = document.getElementById('auth-button');
-                            const mfa = new ContexaMFA.Client({ autoRedirect: false });
+                            const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
             
                             // Disable button initially (until challenge is ready)
                             authButton.disabled = true;
@@ -785,7 +786,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         // Enhanced UX through SDK when JavaScript is enabled
                         if (typeof ContexaMFA !== 'undefined') {
                             const forms = document.querySelectorAll('.factor-form');
-                            const mfa = new ContexaMFA.Client({ autoRedirect: false });
+                            const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
             
                             // SDK initialization
                             mfa.init().catch(console.error);
@@ -918,7 +919,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             AuthenticationFlowConfig mfaFlowConfig,
             MfaStateMachineIntegrator stateMachineIntegrator,
             AuthUrlProvider authUrlProvider,
-            MfaSettings mfaSettings) {
+            MfaSettings mfaSettings,
+            String tokenPersistence) {
         Assert.notNull(mfaFlowConfig, "AuthenticationFlowConfig cannot be null");
         Assert.isTrue(AuthType.MFA.name().equalsIgnoreCase(mfaFlowConfig.getTypeName()),
                 "This filter only works with MFA flow config. Provided flow type: " + mfaFlowConfig.getTypeName());
@@ -930,6 +932,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.authUrlProvider = authUrlProvider;
         this.mfaSettings = mfaSettings;
+        this.tokenPersistence = tokenPersistence != null ? tokenPersistence : "memory";
 
     }
 
@@ -1196,6 +1199,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfToken", getCsrfToken(request))
                 .withValue("csrfHeaderName", getCsrfHeaderName(request))
                 .withValue("csrfParameterName", getCsrfParameterName(request))
+                .withValue("tokenPersistence", tokenPersistence)
                 .withRawHtml("factorButtons", factorButtonsHtml.toString())
                 .render();
 
@@ -1274,7 +1278,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const formFooter = document.getElementById('form-footer');
                 
                             // SDK initialization (autoRedirect: true - auto redirect)
-                            const mfa = new ContexaMFA.Client({ autoRedirect: true });
+                            const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
 
                             loginButton.addEventListener('click', async () => {
                                 const username = document.getElementById('username').value;
@@ -1353,7 +1357,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfHeaderName,
                 csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : ""
+                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : "",
+                tokenPersistence
         );
 
         writer.write(html);
@@ -1430,7 +1435,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             const formFooter = document.getElementById('form-footer');
 
                             // SDK initialization (autoRedirect: true - auto redirect)
-                            const mfa = new ContexaMFA.Client({ autoRedirect: true });
+                            const mfa = new ContexaMFA.Client({ autoRedirect: true, tokenPersistence: '%s' });
 
                             loginButton.addEventListener('click', async () => {
                                 const username = document.getElementById('username').value;
@@ -1509,7 +1514,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 csrfHeaderName,
                 csrfParameterName,
                 errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : ""
+                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : "",
+                tokenPersistence
         );
 
         writer.write(html);
@@ -1595,6 +1601,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfParameterName", getCsrfParameterName(request))
                 .withValue("attemptsMade", String.valueOf(attemptsMade))
                 .withValue("maxAttempts", String.valueOf(maxAttempts))
+                .withValue("tokenPersistence", tokenPersistence)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
                 .render();
@@ -1633,6 +1640,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfParameterName", getCsrfParameterName(request))
                 .withValue("csrfHeaders", csrfHeaders)
                 .withValue("failureUrl", failureUrl)
+                .withValue("tokenPersistence", tokenPersistence)
                 .render();
 
         PrintWriter writer = response.getWriter();

@@ -38,6 +38,8 @@ public class AuthContextProperties {
     private int maxConcurrentLogins = 3;
     private boolean cookieSecure = true;
 
+    private String tokenPersistence = "memory";
+
     private String tokenPrefix = "Bearer ";
     private String rolesClaim = "roles";
     private String scopesClaim = "scopes";

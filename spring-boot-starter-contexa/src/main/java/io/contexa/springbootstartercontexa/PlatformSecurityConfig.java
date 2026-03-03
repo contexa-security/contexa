@@ -7,6 +7,7 @@ import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpCustomizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -22,7 +23,7 @@ public class PlatformSecurityConfig {
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
     private final AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository;
 
-//    @Bean
+    @Bean
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {

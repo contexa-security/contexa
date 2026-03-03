@@ -3,6 +3,7 @@ package io.contexa.springbootstartercontexa.web;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -15,6 +16,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/token-test")
+@ConditionalOnBean(TokenService.class)
 @RequiredArgsConstructor
 public class TokenTestController {
 

@@ -63,7 +63,8 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     flowConfig,
                     stateMachineIntegrator,
                     authUrlProvider,
-                    authContextProperties.getMfa()
+                    authContextProperties.getMfa(),
+                    authContextProperties.getTokenPersistence()
             );
 
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
