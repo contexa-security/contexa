@@ -28,10 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
 
-/**
- * Standalone (in-memory) implementation of MfaStateMachineService.
- * Uses ReentrantLock instead of Redisson RLock for JVM-local locking.
- */
 @Slf4j
 public class StandaloneMfaStateMachineServiceImpl implements MfaStateMachineService {
 
