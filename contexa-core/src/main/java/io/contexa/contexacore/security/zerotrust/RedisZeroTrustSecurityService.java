@@ -71,6 +71,16 @@ public class RedisZeroTrustSecurityService extends AbstractZeroTrustSecurityServ
     }
 
     @Override
+    protected void doRegisterSession(String userId, String sessionId) {
+        try {
+            String key = ZeroTrustRedisKeys.userSessions(userId);
+            redisTemplate.opsForSet().add(key, sessionId);
+        } catch (Exception e) {
+            log.error("[ZeroTrust] Failed to register session: userId={}, sessionId={}", userId, sessionId, e);
+        }
+    }
+
+    @Override
     protected void doCleanupSessionData(String userId, String sessionId) {
         redisTemplate.delete(ZeroTrustRedisKeys.threatScore(userId));
 

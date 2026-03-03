@@ -36,9 +36,6 @@ import java.util.UUID;
 @Slf4j
 public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
-    public static final String ROLE_BLOCKED = "ROLE_BLOCKED";
-    public static final String ROLE_REVIEW_REQUIRED = "ROLE_REVIEW_REQUIRED";
-    public static final String ROLE_PENDING_ANALYSIS = "ROLE_PENDING_ANALYSIS";
     public static final String BLOCK_MFA_FLOW_ATTRIBUTE = "BLOCK_MFA_FLOW";
 
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
@@ -96,9 +93,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
-        boolean isBlocked = hasAuthority(auth, ROLE_BLOCKED);
-        boolean isEscalated = hasAuthority(auth, ROLE_REVIEW_REQUIRED);
-        boolean isPendingAnalysis = hasAuthority(auth, ROLE_PENDING_ANALYSIS);
+        boolean isBlocked = hasAuthority(auth, ZeroTrustAction.BLOCK.getGrantedAuthority());
+        boolean isEscalated = hasAuthority(auth, ZeroTrustAction.ESCALATE.getGrantedAuthority());
+        boolean isPendingAnalysis = hasAuthority(auth, ZeroTrustAction.PENDING_ANALYSIS.getGrantedAuthority());
 
         if (!isBlocked && !isEscalated && !isPendingAnalysis) {
             filterChain.doFilter(request, response);

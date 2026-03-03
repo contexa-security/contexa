@@ -99,15 +99,25 @@ public class SessionFingerprintUtil {
         }
     }
 
+    private static final String CONTEXT_BINDING_HASH_ATTR = "contexa.contextBindingHash";
+
     public static String generateContextBindingHash(HttpServletRequest request) {
         if (request == null) {
             return null;
         }
-        return generateContextBindingHash(
+        String cached = (String) request.getAttribute(CONTEXT_BINDING_HASH_ATTR);
+        if (cached != null) {
+            return cached;
+        }
+        String hash = generateContextBindingHash(
                 request.getRequestedSessionId(),
                 extractClientIp(request),
                 request.getHeader("User-Agent")
         );
+        if (hash != null) {
+            request.setAttribute(CONTEXT_BINDING_HASH_ATTR, hash);
+        }
+        return hash;
     }
 
     public static String generateContextBindingHash(String sessionId, String ip, String userAgent) {

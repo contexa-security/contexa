@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -30,8 +31,6 @@ import java.util.UUID;
 
 @Slf4j
 public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
-
-    public static final String ROLE_MFA_REQUIRED = "ROLE_MFA_REQUIRED";
 
     private static final String LOCK_KEY_PREFIX = "mfa:challenge:init:";
     private static final Duration LOCK_TIMEOUT = Duration.ofSeconds(30);
@@ -272,7 +271,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         }
         return auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .anyMatch(ZeroTrustChallengeFilter.ROLE_MFA_REQUIRED::equals);
+                .anyMatch(ZeroTrustAction.CHALLENGE.getGrantedAuthority()::equals);
     }
 
     private String extractUserId(Authentication auth) {

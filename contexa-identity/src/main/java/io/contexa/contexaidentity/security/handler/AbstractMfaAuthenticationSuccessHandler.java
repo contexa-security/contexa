@@ -153,9 +153,9 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private boolean isIsLlmTriggeredMfa(String userId) {
-        ZeroTrustAction previousAction = actionRedisRepository.getPreviousActionFromHash(userId);
-        return previousAction == ZeroTrustAction.CHALLENGE
-                || previousAction == ZeroTrustAction.ESCALATE;
+        ZeroTrustAction currentAction = actionRedisRepository.getActionFromHash(userId);
+        return currentAction == ZeroTrustAction.CHALLENGE
+                || currentAction == ZeroTrustAction.ESCALATE;
     }
 
     protected void onFinalAuthenticationSuccess(HttpServletRequest request,

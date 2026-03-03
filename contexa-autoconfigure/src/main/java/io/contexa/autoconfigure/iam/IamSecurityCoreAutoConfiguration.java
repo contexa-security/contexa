@@ -22,6 +22,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -56,6 +57,7 @@ public class IamSecurityCoreAutoConfiguration {
     // --- Distributed mode: Redis-based ZeroTrust and session ---
 
     @Configuration
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(RedisTemplate.class)
     static class DistributedSecurityConfig {
 
@@ -81,7 +83,7 @@ public class IamSecurityCoreAutoConfiguration {
     // --- Standalone mode: In-memory session resolver and ZeroTrust ---
 
     @Configuration
-    @ConditionalOnMissingBean(RedisTemplate.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     static class StandaloneSecurityConfig {
 
         @Bean

@@ -50,6 +50,11 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
 
     @Override
     protected ZeroTrustAction getCurrentAction() {
+        ZeroTrustAction fromRequest = resolveActionFromRequest();
+        if (fromRequest != null) {
+            return fromRequest;
+        }
+
         String userId = extractUserId();
         if (userId == null) {
             log.error("getCurrentAction: Unable to extract user ID - returning PENDING_ANALYSIS");
@@ -69,6 +74,22 @@ public class CustomMethodSecurityExpressionRoot extends AbstractAISecurityExpres
             putActionToLocalCache(actionCacheKey, action);
         }
         return action;
+    }
+
+    private ZeroTrustAction resolveActionFromRequest() {
+        try {
+            ServletRequestAttributes attrs = (ServletRequestAttributes)
+                    RequestContextHolder.getRequestAttributes();
+            if (attrs != null) {
+                Object actionObj = attrs.getRequest().getAttribute("contexa.zeroTrustAction");
+                if (actionObj instanceof ZeroTrustAction action) {
+                    return action;
+                }
+            }
+        } catch (Exception e) {
+            // Non-web context
+        }
+        return null;
     }
 
     private String resolveContextBindingHash() {

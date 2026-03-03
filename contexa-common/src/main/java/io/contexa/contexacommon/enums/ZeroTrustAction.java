@@ -4,22 +4,24 @@ import java.time.Duration;
 
 public enum ZeroTrustAction {
 
-    ALLOW(200, 1500),
+    ALLOW(200, 1500, null),
 
-    BLOCK(403, -1),
+    BLOCK(403, -1, "ROLE_BLOCKED"),
 
-    CHALLENGE(401, 1800),
+    CHALLENGE(401, 1800, "ROLE_MFA_REQUIRED"),
 
-    ESCALATE(423, 300),
+    ESCALATE(423, 300, "ROLE_REVIEW_REQUIRED"),
 
-    PENDING_ANALYSIS(503, 0);
+    PENDING_ANALYSIS(503, 0, "ROLE_PENDING_ANALYSIS");
 
     private final int httpStatus;
     private final long defaultTtlSeconds;
+    private final String grantedAuthority;
 
-    ZeroTrustAction(int httpStatus, long defaultTtlSeconds) {
+    ZeroTrustAction(int httpStatus, long defaultTtlSeconds, String grantedAuthority) {
         this.httpStatus = httpStatus;
         this.defaultTtlSeconds = defaultTtlSeconds;
+        this.grantedAuthority = grantedAuthority;
     }
 
     public static ZeroTrustAction fromString(String action) {
@@ -54,5 +56,9 @@ public enum ZeroTrustAction {
 
     public boolean isAccessRestricted() {
         return this == BLOCK || this == CHALLENGE || this == ESCALATE;
+    }
+
+    public String getGrantedAuthority() {
+        return grantedAuthority;
     }
 }

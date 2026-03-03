@@ -1,5 +1,7 @@
 package io.contexa.contexacore.security.zerotrust;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -16,15 +18,23 @@ import org.springframework.security.core.context.SecurityContext;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecurityService {
+
+    private static final String ZERO_TRUST_ACTION_ATTR = "contexa.zeroTrustAction";
 
     protected final ThreatScoreUtil threatScoreUtil;
     protected final SecurityZeroTrustProperties securityZeroTrustProperties;
     protected final ZeroTrustActionRepository actionRepository;
     protected BlockingSignalBroadcaster blockingSignalBroadcaster;
+
+    private final Cache<String, CachedZeroTrustDecision> decisionCache;
+    private final Set<String> registeredSessions = ConcurrentHashMap.newKeySet();
 
     protected AbstractZeroTrustSecurityService(
             ThreatScoreUtil threatScoreUtil,
@@ -33,6 +43,10 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         this.threatScoreUtil = threatScoreUtil;
         this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.actionRepository = actionRepository;
+        this.decisionCache = Caffeine.newBuilder()
+                .maximumSize(10000)
+                .expireAfterWrite(5, TimeUnit.SECONDS)
+                .build();
     }
 
     @Override
@@ -42,11 +56,30 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         }
         try {
             String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
-            ZeroTrustAction action = actionRepository.getCurrentAction(userId, contextBindingHash);
-            double threatScore = threatScoreUtil.getThreatScore(userId);
-            double trustScore = 1.0 - threatScore;
 
+            ZeroTrustAction action;
+            double threatScore;
+
+            CachedZeroTrustDecision cached = decisionCache.getIfPresent(userId);
+            if (cached != null && Objects.equals(cached.contextBindingHash, contextBindingHash)) {
+                action = cached.action;
+                threatScore = cached.threatScore;
+            } else {
+                action = actionRepository.getCurrentAction(userId, contextBindingHash);
+                threatScore = threatScoreUtil.getThreatScore(userId);
+                decisionCache.put(userId, new CachedZeroTrustDecision(action, threatScore, contextBindingHash));
+            }
+
+            double trustScore = 1.0 - threatScore;
             adjustAuthoritiesByAction(context, action, userId, trustScore, threatScore);
+
+            if (sessionId != null && registeredSessions.add(sessionId)) {
+                doRegisterSession(userId, sessionId);
+            }
+
+            if (request != null) {
+                request.setAttribute(ZERO_TRUST_ACTION_ATTR, action);
+            }
 
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to apply Zero Trust to context for user: {}", userId, e);
@@ -66,11 +99,17 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
                 blockingSignalBroadcaster.registerUnblock(userId);
             }
 
+            decisionCache.invalidate(userId);
+            if (sessionId != null) {
+                registeredSessions.remove(sessionId);
+            }
             doCleanupSessionData(userId, sessionId);
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to cleanup on logout: userId={}", userId, e);
         }
     }
+
+    protected abstract void doRegisterSession(String userId, String sessionId);
 
     protected abstract void doCleanupSessionData(String userId, String sessionId);
 
@@ -81,35 +120,31 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
             return;
         }
 
-        Collection<? extends GrantedAuthority> currentAuthorities = auth.getAuthorities();
+        if (auth instanceof ZeroTrustAuthenticationToken ztToken && ztToken.getAction() == action) {
+            return;
+        }
 
+        Collection<? extends GrantedAuthority> currentAuthorities = auth.getAuthorities();
         Set<GrantedAuthority> adjustedAuthorities = new HashSet<>();
 
         switch (action) {
             case ALLOW -> {
-                Object principal = auth.getPrincipal();
-                if (principal instanceof UnifiedCustomUserDetails userDetails) {
-                    adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
-                } else {
-                    adjustedAuthorities.addAll(currentAuthorities);
-                }
+                addOriginalOrCurrentAuthorities(auth, adjustedAuthorities, currentAuthorities);
             }
             case BLOCK -> {
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_BLOCKED"));
+                adjustedAuthorities.add(new SimpleGrantedAuthority(action.getGrantedAuthority()));
                 log.error("[ZeroTrust][AI Native] User BLOCKED (CRITICAL RISK): {}", userId);
             }
             case CHALLENGE -> {
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_MFA_REQUIRED"));
+                adjustedAuthorities.add(new SimpleGrantedAuthority(action.getGrantedAuthority()));
             }
             case ESCALATE -> {
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_REVIEW_REQUIRED"));
+                adjustedAuthorities.add(new SimpleGrantedAuthority(action.getGrantedAuthority()));
                 log.error("[ZeroTrust][AI Native] Security REVIEW required (ESCALATE): {}", userId);
             }
             case PENDING_ANALYSIS -> {
-                if (auth.getPrincipal() instanceof UnifiedCustomUserDetails userDetails) {
-                    adjustedAuthorities.addAll(userDetails.getOriginalAuthorities());
-                }
-                adjustedAuthorities.add(new SimpleGrantedAuthority("ROLE_PENDING_ANALYSIS"));
+                addOriginalOrCurrentAuthorities(auth, adjustedAuthorities, currentAuthorities);
+                adjustedAuthorities.add(new SimpleGrantedAuthority(action.getGrantedAuthority()));
             }
         }
 
@@ -119,9 +154,23 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
                     auth.getCredentials(),
                     adjustedAuthorities,
                     trustScore,
-                    threatScore
+                    threatScore,
+                    action
             );
             context.setAuthentication(adjustedAuth);
         }
     }
+
+    private void addOriginalOrCurrentAuthorities(Authentication auth,
+                                                  Set<GrantedAuthority> target,
+                                                  Collection<? extends GrantedAuthority> current) {
+        Object principal = auth.getPrincipal();
+        if (principal instanceof UnifiedCustomUserDetails userDetails) {
+            target.addAll(userDetails.getOriginalAuthorities());
+        } else {
+            target.addAll(current);
+        }
+    }
+
+    private record CachedZeroTrustDecision(ZeroTrustAction action, double threatScore, String contextBindingHash) {}
 }

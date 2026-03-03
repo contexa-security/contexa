@@ -1,5 +1,6 @@
 package io.contexa.contexacore.security.zerotrust;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.GrantedAuthority;
 
@@ -9,13 +10,16 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
 
     private final double trustScore;
     private final double threatScore;
+    private final ZeroTrustAction action;
 
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
-                                        double trustScore, double threatScore) {
+                                        double trustScore, double threatScore,
+                                        ZeroTrustAction action) {
         super(principal, credentials, authorities);
         this.trustScore = trustScore;
         this.threatScore = threatScore;
+        this.action = action;
     }
 
     public double getTrustScore() {
@@ -24,5 +28,9 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
 
     public double getThreatScore() {
         return threatScore;
+    }
+
+    public ZeroTrustAction getAction() {
+        return action;
     }
 }

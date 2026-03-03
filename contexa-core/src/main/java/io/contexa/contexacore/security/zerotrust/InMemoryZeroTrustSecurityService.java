@@ -40,6 +40,11 @@ public class InMemoryZeroTrustSecurityService extends AbstractZeroTrustSecurityS
     }
 
     @Override
+    protected void doRegisterSession(String userId, String sessionId) {
+        userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
+    }
+
+    @Override
     protected void doCleanupSessionData(String userId, String sessionId) {
         if (sessionId != null) {
             invalidatedSessions.remove(sessionId);
