@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ko" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${_csrf.token}" th:if="${_csrf != null}"/>
+    <meta name="_csrf_header" th:content="${_csrf.headerName}" th:if="${_csrf != null}"/>
+    <title>Contexa Token Authentication Test</title>
+    <link rel="stylesheet" th:href="@{/css/token-test.css}">
+</head>
+<body>
+<div class="container">
+    <header class="hero-header">
+        <div class="hero-content">
+            <h1 class="hero-title">Contexa</h1>
+            <p class="hero-subtitle">Token Authentication Test</p>
+        </div>
+        <div class="hero-right">
+            <div class="auth-status" id="auth-status">
+                <span class="auth-indicator disconnected" id="auth-indicator"></span>
+                <span class="auth-text" id="auth-text">Not Authenticated</span>
+            </div>
+            <div class="hero-badge">
+                <span class="badge-text">OAuth2 Token</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="main-grid-3col">
+        <!-- Column 1: Token Info -->
+        <section class="section token-section">
+            <h2 class="section-title">Token</h2>
+
+            <!-- No Token Notice -->
+            <div class="no-token-notice" id="no-token-notice" style="display: none;">
+                <p class="notice-text">No tokens found in localStorage.</p>
+                <p class="notice-text">Login via <a th:href="@{/login}">Login Page</a> first.</p>
+                <p class="notice-hint">MFA SDK tokenPersistence must be set to 'localStorage'.</p>
+            </div>
+
+            <div class="token-card" id="access-token-card">
+                <div class="token-card-header">
+                    <span class="token-card-label">Access Token</span>
+                    <span class="token-status" id="access-token-status">-</span>
+                </div>
+                <div class="token-raw" id="access-token-raw">-</div>
+                <div class="token-expiry">
+                    <span class="expiry-label">Expires in</span>
+                    <span class="expiry-value" id="access-token-expiry">-</span>
+                </div>
+            </div>
+
+            <div class="token-card" id="refresh-token-card">
+                <div class="token-card-header">
+                    <span class="token-card-label">Refresh Token</span>
+                    <span class="token-status" id="refresh-token-status">-</span>
+                </div>
+                <div class="token-raw" id="refresh-token-raw">-</div>
+                <div class="token-expiry">
+                    <span class="expiry-label">Expires in</span>
+                    <span class="expiry-value" id="refresh-token-expiry">-</span>
+                </div>
+            </div>
+
+            <div class="token-actions">
+                <button class="btn-action" id="btn-refresh-token" disabled>Token Refresh</button>
+                <button class="btn-action" id="btn-validate-token" disabled>Validate</button>
+                <button class="btn-action danger" id="btn-logout">Logout</button>
+            </div>
+
+            <!-- JWT Payload -->
+            <div class="jwt-payload-panel" id="jwt-payload-panel" style="display: none;">
+                <h3 class="jwt-payload-title">JWT Payload</h3>
+                <pre class="jwt-payload-content" id="jwt-payload-content"></pre>
+            </div>
+        </section>
+
+        <!-- Column 2: API Test -->
+        <section class="section api-section">
+            <h2 class="section-title">API Test</h2>
+
+            <div class="api-test-group">
+                <h3 class="api-group-title">Protected Resources</h3>
+                <div class="api-buttons">
+                    <button class="btn-api preferred" id="btn-api-normal" data-endpoint="normal" disabled>
+                        <span class="api-btn-label">Normal Data</span>
+                        <span class="api-btn-badge">PREFERRED</span>
+                    </button>
+                    <button class="btn-api required" id="btn-api-sensitive" data-endpoint="sensitive" disabled>
+                        <span class="api-btn-label">Sensitive Data</span>
+                        <span class="api-btn-badge">REQUIRED</span>
+                    </button>
+                    <button class="btn-api strict" id="btn-api-critical" data-endpoint="critical" disabled>
+                        <span class="api-btn-label">Critical Data</span>
+                        <span class="api-btn-badge">STRICT</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="api-test-group">
+                <h3 class="api-group-title">Token Endpoints</h3>
+                <div class="api-buttons">
+                    <button class="btn-api info" id="btn-api-userinfo" disabled>
+                        <span class="api-btn-label">User Info</span>
+                        <span class="api-btn-badge">GET</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- API Response -->
+            <div class="api-response-panel" id="api-response-panel" style="display: none;">
+                <div class="api-response-header">
+                    <span class="api-response-label">Response</span>
+                    <span class="api-response-status" id="api-response-status"></span>
+                </div>
+                <pre class="api-response-body" id="api-response-body"></pre>
+            </div>
+        </section>
+
+        <!-- Column 3: Timeline -->
+        <section class="section timeline-section">
+            <h2 class="section-title">Timeline</h2>
+            <div class="timeline-container" id="timeline-container">
+                <div class="timeline-entry info">
+                    <span class="timeline-time">--:--:--</span>
+                    <span class="timeline-message">Ready for token authentication test</span>
+                </div>
+            </div>
+            <div class="timeline-controls">
+                <button class="btn-small" id="btn-clear-timeline">Clear</button>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <span class="footer-brand">Contexa Token Auth</span>
+        <span class="footer-sep">|</span>
+        <span class="footer-version">OAuth2 JWT Token Test v1.0</span>
+    </footer>
+</div>
+
+<script th:src="@{/js/contexa-mfa-sdk.js}"></script>
+<script th:src="@{/js/token-test.js}"></script>
+</body>
+</html>

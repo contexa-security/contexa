@@ -36,6 +36,11 @@ public class TestPageController {
      * @param model Thymeleaf 모델
      * @return 템플릿 경로
      */
+    @GetMapping("/test/token")
+    public String tokenTestPage() {
+        return "test/token-test";
+    }
+
     @GetMapping("/test/security")
     public String securityTestPage(Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

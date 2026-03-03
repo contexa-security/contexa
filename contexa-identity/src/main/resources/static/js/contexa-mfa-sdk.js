@@ -821,13 +821,34 @@
     // Module 4: Main Client
     // ===========================
 
+    /**
+     * Token persistence storage key constants
+     */
+    const TOKEN_STORAGE_KEYS = {
+        ACCESS_TOKEN: 'contexa_access_token',
+        REFRESH_TOKEN: 'contexa_refresh_token',
+        EXPIRES_AT: 'contexa_expires_at',
+        REFRESH_EXPIRES_AT: 'contexa_refresh_expires_at'
+    };
+
     class ContexaMFAClient {
+        /**
+         * @param {Object} options
+         * @param {boolean} [options.autoInit=true] - Auto-restore MFA session state
+         * @param {boolean} [options.autoRedirect=true] - Auto-redirect on MFA challenge
+         * @param {'memory'|'localStorage'|'sessionStorage'} [options.tokenPersistence='memory']
+         *        Token storage strategy:
+         *        - 'memory': window.TokenMemory only (default, most secure, lost on page refresh)
+         *        - 'localStorage': persist tokens across sessions (opt-in, XSS risk - use with CSP)
+         *        - 'sessionStorage': persist tokens within tab session (moderate security)
+         */
         constructor(options = {}) {
             this.stateTracker = new MfaStateTracker();
             this.apiClient = ContexaMFAApiClient;
             this.options = {
                 autoInit: true,
                 autoRedirect: true,
+                tokenPersistence: 'memory',
                 ...options
             };
             this.context = null;
@@ -1106,9 +1127,47 @@
                 }
             }
 
+            // Persist tokens to storage if tokenPersistence option is set
+            this.persistTokensToStorage(result);
+
             // 최종 성공 시 세션 정리
             if (result.status === 'MFA_COMPLETED') {
                 this.stateTracker.reset();
+            }
+        }
+
+        /**
+         * Persist tokens to configured storage (localStorage or sessionStorage)
+         * Only activates when tokenPersistence option is not 'memory' (default)
+         */
+        persistTokensToStorage(result) {
+            const persistence = this.options.tokenPersistence;
+            if (persistence === 'memory' || !result.accessToken) {
+                return;
+            }
+
+            const storage = persistence === 'localStorage' ? localStorage
+                          : persistence === 'sessionStorage' ? sessionStorage
+                          : null;
+
+            if (!storage) {
+                return;
+            }
+
+            storage.setItem(TOKEN_STORAGE_KEYS.ACCESS_TOKEN, result.accessToken);
+
+            if (result.refreshToken) {
+                storage.setItem(TOKEN_STORAGE_KEYS.REFRESH_TOKEN, result.refreshToken);
+            }
+
+            if (result.expiresIn) {
+                const expiresAt = Date.now() + result.expiresIn;
+                storage.setItem(TOKEN_STORAGE_KEYS.EXPIRES_AT, String(expiresAt));
+            }
+
+            if (result.refreshExpiresIn) {
+                const refreshExpiresAt = Date.now() + result.refreshExpiresIn;
+                storage.setItem(TOKEN_STORAGE_KEYS.REFRESH_EXPIRES_AT, String(refreshExpiresAt));
             }
         }
 
@@ -1140,6 +1199,28 @@
                 window.TokenMemory.accessToken = null;
                 window.TokenMemory.refreshToken = null;
             }
+
+            this.clearPersistedTokens();
+        }
+
+        /**
+         * Clear tokens from configured persistent storage
+         */
+        clearPersistedTokens() {
+            const persistence = this.options.tokenPersistence;
+            if (persistence === 'memory') {
+                return;
+            }
+
+            const storage = persistence === 'localStorage' ? localStorage
+                          : persistence === 'sessionStorage' ? sessionStorage
+                          : null;
+
+            if (!storage) {
+                return;
+            }
+
+            Object.values(TOKEN_STORAGE_KEYS).forEach(key => storage.removeItem(key));
         }
     }
 
@@ -1326,7 +1407,8 @@
         Client: ContexaMFAClient,
         Utils: ContexaMFAUtils,
         StateTracker: MfaStateTracker,
-        version: '2.1.0'
+        TOKEN_STORAGE_KEYS: TOKEN_STORAGE_KEYS,
+        version: '2.2.0'
     };
 
     // Legacy 호환성: 전역 인스턴스 자동 생성
