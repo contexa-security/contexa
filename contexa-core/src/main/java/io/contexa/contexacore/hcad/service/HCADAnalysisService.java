@@ -2,16 +2,13 @@ package io.contexa.contexacore.hcad.service;
 
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
 import jakarta.servlet.http.HttpServletRequest;
 
 import java.util.HashMap;
 import java.util.Map;
 import io.contexa.contexacore.properties.HcadProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
 
 @Slf4j
@@ -19,47 +16,39 @@ public class HCADAnalysisService {
 
     private final HCADContextExtractor contextExtractor;
     private final HcadProperties hcadProperties;
-    private RedisTemplate<String, Object> redisTemplate;
+    private final HCADDataStore hcadDataStore;
 
-    public HCADAnalysisService(HCADContextExtractor contextExtractor, HcadProperties hcadProperties) {
+    public HCADAnalysisService(HCADContextExtractor contextExtractor,
+                               HcadProperties hcadProperties,
+                               HCADDataStore hcadDataStore) {
         this.contextExtractor = contextExtractor;
         this.hcadProperties = hcadProperties;
-    }
-
-    @Autowired
-    public void setRedisTemplate(@Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
-        this.redisTemplate = redisTemplate;
+        this.hcadDataStore = hcadDataStore;
     }
 
     public HCADAnalysisResult analyze(HttpServletRequest request, Authentication authentication) {
         long startTime = System.currentTimeMillis();
 
         try {
-            
+
             HCADContext context = contextExtractor.extractContext(request, authentication);
             String userId = context.getUserId();
 
-            if (log.isDebugEnabled()) {
-                            }
-
-            Map<String, Object> llmAnalysis = getLLMAnalysisFromRedis(userId);
+            Map<String, Object> llmAnalysis = getLLMAnalysis(userId);
 
             double riskScore = (double) llmAnalysis.getOrDefault("riskScore", 0.0);
             boolean isAnomaly = (boolean) llmAnalysis.getOrDefault("isAnomaly", false);
             double anomalyScore = riskScore;
-            
+
             double trustScore = (double) llmAnalysis.getOrDefault("trustScore", 1.0);
 
             String threatType = (String) llmAnalysis.getOrDefault("threatType", "NONE");
             String threatEvidence = (String) llmAnalysis.getOrDefault("threatEvidence", "");
 
-            String action = (String) llmAnalysis.get("action");  
+            String action = (String) llmAnalysis.get("action");
             double confidence = (double) llmAnalysis.getOrDefault("confidence", Double.NaN);
 
             long processingTime = System.currentTimeMillis() - startTime;
-
-            if (log.isDebugEnabled()) {
-                            }
 
             return HCADAnalysisResult.builder()
                 .userId(userId)
@@ -68,74 +57,62 @@ public class HCADAnalysisService {
                 .threatEvidence(threatEvidence)
                 .isAnomaly(isAnomaly)
                 .anomalyScore(anomalyScore)
-                .action(action)  
-                .confidence(confidence)  
-                
+                .action(action)
+                .confidence(confidence)
+
                 .processingTimeMs(processingTime)
                 .context(context)
                 .build();
 
         } catch (Exception e) {
-            log.error("[HCADAnalysisService][AI Native] 분석 실패: request={}", request.getRequestURI(), e);
+            log.error("[HCADAnalysisService] Analysis failed: request={}", request.getRequestURI(), e);
 
             HCADContext errorContext = new HCADContext();
-            errorContext.setIsNewSession(true);      
-            errorContext.setNewUser(true);           
-            errorContext.setIsNewDevice(true);       
-            errorContext.setRecentRequestCount(0);   
+            errorContext.setIsNewSession(true);
+            errorContext.setNewUser(true);
+            errorContext.setIsNewDevice(true);
+            errorContext.setRecentRequestCount(0);
 
             return HCADAnalysisResult.builder()
                 .userId("error")
                 .trustScore(Double.NaN)
                 .threatType("ANALYSIS_ERROR")
-                .threatEvidence("LLM 분석 조회 실패: " + e.getMessage())
-                .isAnomaly(false) 
+                .threatEvidence("LLM analysis retrieval failed: " + e.getMessage())
+                .isAnomaly(false)
                 .anomalyScore(Double.NaN)
-                .action(null)  
+                .action(null)
                 .confidence(Double.NaN)
-                
+
                 .processingTimeMs(System.currentTimeMillis() - startTime)
-                .context(errorContext)  
+                .context(errorContext)
                 .build();
         }
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> getLLMAnalysisFromRedis(String userId) {
+    private Map<String, Object> getLLMAnalysis(String userId) {
         Map<String, Object> result = new HashMap<>();
 
         result.put("riskScore", Double.NaN);
-        result.put("isAnomaly", false);  
-        result.put("trustScore", Double.NaN);  
+        result.put("isAnomaly", false);
+        result.put("trustScore", Double.NaN);
         result.put("threatType", "NOT_ANALYZED");
         result.put("threatEvidence", "LLM analysis not yet performed for this user");
-
-        result.put("confidence", Double.NaN);  
-
-        if (redisTemplate == null) {
-            log.warn("[HCADAnalysisService][AI Native] RedisTemplate이 null입니다. 기본값 반환");
-            return result;
-        }
+        result.put("confidence", Double.NaN);
 
         try {
-            
-            String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
-            Map<Object, Object> analysis = redisTemplate.opsForHash().entries(analysisKey);
+
+            Map<Object, Object> analysis = hcadDataStore.getHcadAnalysis(userId);
 
             if (!analysis.isEmpty()) {
-                
+
                 boolean isStale = false;
                 if (analysis.containsKey("analyzedAt")) {
                     long analyzedAt = parseLong(analysis.get("analyzedAt"));
                     long ageMs = System.currentTimeMillis() - analyzedAt;
                     if (ageMs > hcadProperties.getAnalysis().getMaxAgeMs()) {
                         isStale = true;
-                        log.warn("[HCADAnalysisService][D3] Stale LLM analysis detected: userId={}, age={}ms, maxAge={}ms",
-                            userId, ageMs, hcadProperties.getAnalysis().getMaxAgeMs());
                     }
-                } else {
-                    
-                                    }
+                }
                 result.put("isStale", isStale);
 
                 if (analysis.containsKey("riskScore")) {
@@ -153,20 +130,17 @@ public class HCADAnalysisService {
                 if (analysis.containsKey("threatEvidence")) {
                     result.put("threatEvidence", analysis.get("threatEvidence").toString());
                 }
-                
+
                 if (analysis.containsKey("action")) {
                     result.put("action", analysis.get("action").toString());
                 }
                 if (analysis.containsKey("confidence")) {
                     result.put("confidence", parseDouble(analysis.get("confidence")));
                 }
-
-                if (log.isDebugEnabled()) {
-                                    }
             }
 
         } catch (Exception e) {
-            log.error("[HCADAnalysisService][AI Native] Redis 조회 실패: userId={}", userId, e);
+            log.error("[HCADAnalysisService] HCAD analysis retrieval failed: userId={}", userId, e);
         }
 
         return result;
@@ -211,9 +185,6 @@ public class HCADAnalysisService {
     }
 
     public void updateBaselineIfNeeded(HCADAnalysisResult result) {
-
-        if (result.isAnomaly() && log.isDebugEnabled()) {
-                    }
     }
 
 }

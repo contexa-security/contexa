@@ -11,7 +11,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -23,7 +23,6 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
-import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -34,21 +33,23 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
+    private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
     private final Cache<String, SessionContext> sessionContextCache;
 
     public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
                                     UnifiedVectorService unifiedVectorService,
-                                    RedisTemplate<String, Object> redisTemplate,
+                                    SecurityContextDataStore dataStore,
                                     SecurityEventEnricher eventEnricher,
                                     SecurityPromptTemplate promptTemplate,
                                     BehaviorVectorService behaviorVectorService,
                                     BaselineLearningService baselineLearningService,
                                     SecurityLearningService securityLearningService,
                                     TieredStrategyProperties tieredStrategyProperties) {
-        super(llmOrchestrator, redisTemplate, eventEnricher, promptTemplate,
+        super(llmOrchestrator, eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
                 tieredStrategyProperties);
+        this.dataStore = dataStore;
 
         this.securityLearningService = securityLearningService;
 
@@ -191,15 +192,14 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             context.setUserAgent(event.getUserAgent());
         }
 
-        if (sessionId != null && redisTemplate != null) {
+        if (sessionId != null && dataStore != null) {
             try {
-                List<String> recentActions = (List<String>) (List<?>) redisTemplate.opsForList()
-                        .range(ZeroTrustRedisKeys.sessionActions(sessionId), -10, -1);
-                if (recentActions != null && !recentActions.isEmpty()) {
+                List<String> recentActions = dataStore.getRecentSessionActions(sessionId, 10);
+                if (!recentActions.isEmpty()) {
                     context.setRecentActions(recentActions);
                 }
             } catch (Exception e) {
-                log.error("[Layer1] Failed to retrieve recent actions from Redis: {}", e.getMessage());
+                log.error("[Layer1] Failed to retrieve recent actions: {}", e.getMessage());
             }
         }
         context.addEvent(event);
@@ -283,21 +283,18 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private void enrichWithActivityContext(
             SecurityPromptTemplate.BehaviorAnalysis ctx, SecurityEvent event) {
-        if (redisTemplate == null || event.getUserId() == null) return;
+        if (dataStore == null || event.getUserId() == null) return;
 
         try {
-            String lastReqKey = "hcad:last:request:" + event.getUserId();
-            Object lastReqTime = redisTemplate.opsForValue().get(lastReqKey);
+            Long lastReqTime = dataStore.getLastRequestTime(event.getUserId());
             if (lastReqTime != null) {
-                long interval = System.currentTimeMillis()
-                        - Long.parseLong(lastReqTime.toString());
+                long interval = System.currentTimeMillis() - lastReqTime;
                 ctx.setLastRequestIntervalMs(interval);
             }
 
-            String prevPathKey = "hcad:previous:path:" + event.getUserId();
-            Object prevPath = redisTemplate.opsForValue().get(prevPathKey);
+            String prevPath = dataStore.getPreviousPath(event.getUserId());
             if (prevPath != null) {
-                ctx.setPreviousPath(prevPath.toString());
+                ctx.setPreviousPath(prevPath);
             }
         } catch (Exception e) {
             log.error("[Layer1] Failed to enrich activity context: {}",

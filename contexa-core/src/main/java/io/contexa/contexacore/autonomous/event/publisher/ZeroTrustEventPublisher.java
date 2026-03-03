@@ -99,6 +99,11 @@ public class ZeroTrustEventPublisher {
             payload.put("isNewUser", requestInfo.getIsNewUser());
             payload.put("isNewDevice", requestInfo.getIsNewDevice());
             payload.put("recentRequestCount", requestInfo.getRecentRequestCount());
+            payload.put("failedLoginAttempts", requestInfo.getFailedLoginAttempts());
+            payload.put("baselineConfidence", requestInfo.getBaselineConfidence());
+            payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
+            payload.put("mfaVerified", requestInfo.getMfaVerified());
+            payload.put("userRoles", requestInfo.getUserRoles());
         }
 
         // Lookup current action for action-based severity determination

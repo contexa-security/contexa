@@ -4,6 +4,9 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.NestedConfigurationProperty;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @ConfigurationProperties(prefix = "hcad")
 public class HcadProperties {
@@ -11,6 +14,9 @@ public class HcadProperties {
     private boolean enabled = true;
 
     private boolean enableSimulatedUserAgent = false;
+
+    @NestedConfigurationProperty
+    private ResourceSettings resource = new ResourceSettings();
 
     @NestedConfigurationProperty
     private AnalysisSettings analysis = new AnalysisSettings();
@@ -262,6 +268,11 @@ public class HcadProperties {
                 private double score = 0.7;
             }
         }
+    }
+
+    @Data
+    public static class ResourceSettings {
+        private List<String> sensitivePatterns = new ArrayList<>();
     }
 
     @Data

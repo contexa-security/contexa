@@ -4,27 +4,24 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.properties.HcadProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.RedisTemplate;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 @Slf4j
 @RequiredArgsConstructor
 public class BaselineLearningService {
 
-    private final @Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate;
+    private final BaselineDataStore baselineDataStore;
     private final HcadProperties hcadProperties;
-
-    private static final String BASELINE_KEY_PREFIX = "security:hcad:baseline:";
-    private static final Duration BASELINE_TTL = Duration.ofDays(30);
 
     private static final String FREQ_PREFIX_IP = "ip:";
     private static final String FREQ_PREFIX_UA = "ua:";
@@ -42,7 +39,8 @@ public class BaselineLearningService {
         try {
             BaselineVector currentBaseline = getBaseline(userId);
             BaselineVector newBaseline = updateWithEMAFromSecurityEvent(currentBaseline, userId, decision, event);
-            saveBaseline(userId, newBaseline);
+            baselineDataStore.saveUserBaseline(userId, newBaseline);
+            updateOrganizationBaseline(userId, newBaseline);
             return true;
 
         } catch (Exception e) {
@@ -67,7 +65,7 @@ public class BaselineLearningService {
         String currentUserAgent = event != null ? event.getUserAgent() : null;
 
         if (currentUserAgent == null || currentUserAgent.isEmpty()) {
-            log.error("[Baseline][AI Native v8.5] UA missing - learning blocked: userId={}", userId);
+            log.error("[Baseline] UA missing - learning blocked: userId={}", userId);
             return current;
         }
         String uaSignatureForValidation = extractUASignature(currentUserAgent);
@@ -437,18 +435,18 @@ public class BaselineLearningService {
     }
 
     public BaselineVector getBaseline(String userId) {
-        if (redisTemplate == null || userId == null) {
+        if (baselineDataStore == null || userId == null) {
             return null;
         }
 
-        BaselineVector userBaseline = getUserBaseline(userId);
+        BaselineVector userBaseline = baselineDataStore.getUserBaseline(userId);
         if (userBaseline != null) {
             return userBaseline;
         }
 
         String organizationId = extractOrganizationId(userId);
         if (organizationId != null) {
-            BaselineVector orgBaseline = getOrganizationBaseline(organizationId);
+            BaselineVector orgBaseline = baselineDataStore.getOrganizationBaseline(organizationId);
             if (orgBaseline != null) {
 
                 return BaselineVector.builder()
@@ -472,69 +470,117 @@ public class BaselineLearningService {
         return null;
     }
 
-    private BaselineVector getUserBaseline(String userId) {
-        try {
-            String key = BASELINE_KEY_PREFIX + userId;
-            Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
+    private static final int ORG_BASELINE_MAX_ARRAY_SIZE = 50;
 
-            if (data.isEmpty()) {
-                return null;
+    private void updateOrganizationBaseline(String userId, BaselineVector userBaseline) {
+        try {
+            String orgId = extractOrganizationId(userId);
+            if (orgId == null) {
+                return;
             }
 
-            return BaselineVector.builder()
-                    .userId(userId)
-                    .avgTrustScore(parseDouble(data.get("avgTrustScore")))
-                    .avgRequestCount(parseLong(data.get("avgRequestCount")))
-                    .updateCount(parseLong(data.get("updateCount")))
-                    .lastUpdated(parseInstant(data.get("lastUpdated")))
+            double alpha = hcadProperties.getBaseline().getLearning().getAlpha();
+            BaselineVector orgBaseline = baselineDataStore.getOrganizationBaseline(orgId);
 
-                    .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
-                    .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
-                    .frequentPaths(parseStringArray(data.get("frequentPaths")))
+            if (orgBaseline == null) {
+                BaselineVector newOrg = BaselineVector.builder()
+                        .userId("org:" + orgId)
+                        .avgTrustScore(userBaseline.getAvgTrustScore())
+                        .avgRequestCount(userBaseline.getAvgRequestCount())
+                        .updateCount(1L)
+                        .lastUpdated(Instant.now())
+                        .normalIpRanges(userBaseline.getNormalIpRanges())
+                        .normalAccessHours(userBaseline.getNormalAccessHours())
+                        .frequentPaths(userBaseline.getFrequentPaths())
+                        .normalUserAgents(userBaseline.getNormalUserAgents())
+                        .normalOperatingSystems(userBaseline.getNormalOperatingSystems())
+                        .elementFrequencies(userBaseline.getElementFrequencies() != null
+                                ? new HashMap<>(userBaseline.getElementFrequencies()) : new HashMap<>())
+                        .build();
+                baselineDataStore.saveOrganizationBaseline(orgId, newOrg);
+                return;
+            }
 
-                    .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
+            double newAvgTrust = orgBaseline.getAvgTrustScore() * (1 - alpha)
+                    + userBaseline.getAvgTrustScore() * alpha;
+            long newAvgRequest = (long) (orgBaseline.getAvgRequestCount() * (1 - alpha)
+                    + userBaseline.getAvgRequestCount() * alpha);
 
-                    .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
-                    .elementFrequencies(parseFrequencyMap(data.get("elementFrequencies")))
+            BaselineVector updated = BaselineVector.builder()
+                    .userId("org:" + orgId)
+                    .avgTrustScore(newAvgTrust)
+                    .avgRequestCount(newAvgRequest)
+                    .updateCount(orgBaseline.getUpdateCount() + 1)
+                    .lastUpdated(Instant.now())
+                    .normalIpRanges(mergeStringArrays(
+                            orgBaseline.getNormalIpRanges(), userBaseline.getNormalIpRanges()))
+                    .normalAccessHours(mergeIntegerArrays(
+                            orgBaseline.getNormalAccessHours(), userBaseline.getNormalAccessHours()))
+                    .frequentPaths(mergeStringArrays(
+                            orgBaseline.getFrequentPaths(), userBaseline.getFrequentPaths()))
+                    .normalUserAgents(mergeStringArrays(
+                            orgBaseline.getNormalUserAgents(), userBaseline.getNormalUserAgents()))
+                    .normalOperatingSystems(mergeStringArrays(
+                            orgBaseline.getNormalOperatingSystems(), userBaseline.getNormalOperatingSystems()))
+                    .elementFrequencies(mergeFrequencies(
+                            orgBaseline.getElementFrequencies(), userBaseline.getElementFrequencies()))
                     .build();
+            baselineDataStore.saveOrganizationBaseline(orgId, updated);
 
         } catch (Exception e) {
-            log.error("[BaselineLearningService] User baseline retrieval failed: userId={}", userId, e);
-            return null;
+            log.error("[BaselineLearningService] Organization baseline update failed: userId={}", userId, e);
         }
     }
 
-    public BaselineVector getOrganizationBaseline(String organizationId) {
-        if (redisTemplate == null || organizationId == null) {
-            return null;
+    private String[] mergeStringArrays(String[] existing, String[] incoming) {
+        if (incoming == null || incoming.length == 0) {
+            return existing;
         }
-
-        try {
-            String key = BASELINE_KEY_PREFIX + "org:" + organizationId;
-            Map<Object, Object> data = redisTemplate.opsForHash().entries(key);
-
-            if (data == null || data.isEmpty()) {
-                return null;
+        if (existing == null || existing.length == 0) {
+            return incoming;
+        }
+        Set<String> merged = new LinkedHashSet<>(Arrays.asList(existing));
+        for (String value : incoming) {
+            if (value != null && !value.isEmpty()) {
+                merged.add(value);
             }
-
-            return BaselineVector.builder()
-                    .userId("org:" + organizationId)
-                    .avgTrustScore(parseDouble(data.get("avgTrustScore")))
-                    .avgRequestCount(parseLong(data.get("avgRequestCount")))
-                    .updateCount(parseLong(data.get("updateCount")))
-                    .lastUpdated(parseInstant(data.get("lastUpdated")))
-                    .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
-                    .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
-                    .frequentPaths(parseStringArray(data.get("frequentPaths")))
-                    .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
-                    .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
-                    .elementFrequencies(parseFrequencyMap(data.get("elementFrequencies")))
-                    .build();
-
-        } catch (Exception e) {
-            log.error("[BaselineLearningService] Organization baseline retrieval failed: organizationId={}", organizationId, e);
-            return null;
         }
+        if (merged.size() > ORG_BASELINE_MAX_ARRAY_SIZE) {
+            return merged.stream()
+                    .skip(merged.size() - ORG_BASELINE_MAX_ARRAY_SIZE)
+                    .toArray(String[]::new);
+        }
+        return merged.toArray(new String[0]);
+    }
+
+    private Integer[] mergeIntegerArrays(Integer[] existing, Integer[] incoming) {
+        if (incoming == null || incoming.length == 0) {
+            return existing;
+        }
+        if (existing == null || existing.length == 0) {
+            return incoming;
+        }
+        Set<Integer> merged = new LinkedHashSet<>(Arrays.asList(existing));
+        for (Integer value : incoming) {
+            if (value != null) {
+                merged.add(value);
+            }
+        }
+        return merged.toArray(new Integer[0]);
+    }
+
+    private Map<String, Long> mergeFrequencies(Map<String, Long> existing, Map<String, Long> incoming) {
+        if (incoming == null || incoming.isEmpty()) {
+            return existing != null ? existing : new HashMap<>();
+        }
+        if (existing == null || existing.isEmpty()) {
+            return new HashMap<>(incoming);
+        }
+        Map<String, Long> merged = new HashMap<>(existing);
+        for (Map.Entry<String, Long> entry : incoming.entrySet()) {
+            merged.merge(entry.getKey(), entry.getValue(), Long::sum);
+        }
+        return merged;
     }
 
     private String extractOrganizationId(String userId) {
@@ -555,166 +601,47 @@ public class BaselineLearningService {
         return null;
     }
 
-    private String[] parseStringArray(Object value) {
-        if (value instanceof String && !((String) value).isEmpty()) {
-            String[] parts = ((String) value).split(",");
-            return Arrays.stream(parts)
-                    .filter(s -> !s.isEmpty())
-                    .toArray(String[]::new);
-        }
-        return null;
-    }
-
-    private Integer[] parseIntegerArray(Object value) {
-        if (value instanceof String && !((String) value).isEmpty()) {
-            try {
-                return Arrays.stream(((String) value).split(","))
-                        .filter(s -> !s.isEmpty())
-                        .map(String::trim)
-                        .map(Integer::parseInt)
-                        .toArray(Integer[]::new);
-            } catch (NumberFormatException e) {
-                log.error("[BaselineLearningService] Integer array parsing failed: {}", value);
-                return null;
-            }
-        }
-        return null;
-    }
-
-    private void saveBaseline(String userId, BaselineVector baseline) {
-        if (redisTemplate == null || userId == null || baseline == null) {
-            return;
-        }
-
-        try {
-            String key = BASELINE_KEY_PREFIX + userId;
-            Map<String, Object> data = new HashMap<>();
-            data.put("userId", userId);
-            data.put("avgTrustScore", baseline.getAvgTrustScore());
-            data.put("avgRequestCount", baseline.getAvgRequestCount());
-            data.put("updateCount", baseline.getUpdateCount());
-
-            data.put("lastUpdated", baseline.getLastUpdated() != null ?
-                    baseline.getLastUpdated().toString() : Instant.now().toString());
-
-            if (baseline.getNormalIpRanges() != null && baseline.getNormalIpRanges().length > 0) {
-                data.put("normalIpRanges", String.join(",", baseline.getNormalIpRanges()));
-            }
-            if (baseline.getNormalAccessHours() != null && baseline.getNormalAccessHours().length > 0) {
-                data.put("normalAccessHours", Arrays.stream(baseline.getNormalAccessHours())
-                        .map(String::valueOf)
-                        .collect(java.util.stream.Collectors.joining(",")));
-            }
-            if (baseline.getFrequentPaths() != null && baseline.getFrequentPaths().length > 0) {
-                data.put("frequentPaths", String.join(",", baseline.getFrequentPaths()));
-            }
-
-            if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
-                data.put("normalUserAgents", String.join(",", baseline.getNormalUserAgents()));
-            }
-
-            if (baseline.getNormalOperatingSystems() != null && baseline.getNormalOperatingSystems().length > 0) {
-                data.put("normalOperatingSystems", String.join(",", baseline.getNormalOperatingSystems()));
-            }
-
-            String serializedFrequencies = serializeFrequencyMap(baseline.getElementFrequencies());
-            if (serializedFrequencies != null) {
-                data.put("elementFrequencies", serializedFrequencies);
-            }
-
-            redisTemplate.opsForHash().putAll(key, data);
-            redisTemplate.expire(key, BASELINE_TTL);
-
-        } catch (Exception e) {
-            log.error("[BaselineLearningService] Baseline save failed: userId={}", userId, e);
-        }
-    }
-
-    private double parseDouble(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).doubleValue();
-        }
-        if (value instanceof String) {
-            try {
-                return Double.parseDouble((String) value);
-            } catch (NumberFormatException e) {
-                return 0.0;
-            }
-        }
-        return 0.0;
-    }
-
-    private long parseLong(Object value) {
-        if (value instanceof Number) {
-            return ((Number) value).longValue();
-        }
-        if (value instanceof String) {
-            try {
-                return Long.parseLong((String) value);
-            } catch (NumberFormatException e) {
-                return 0L;
-            }
-        }
-        return 0L;
-    }
-
-    private Instant parseInstant(Object value) {
-        if (value instanceof String) {
-            try {
-                return Instant.parse((String) value);
-            } catch (Exception e) {
-                return Instant.now();
-            }
-        }
-        return Instant.now();
-    }
-
-    private Map<String, Long> parseFrequencyMap(Object value) {
-        if (value instanceof String && !((String) value).isEmpty()) {
-            Map<String, Long> map = new HashMap<>();
-            for (String entry : ((String) value).split(",")) {
-                int eqIdx = entry.lastIndexOf('=');
-                if (eqIdx > 0 && eqIdx < entry.length() - 1) {
-                    try {
-                        map.put(entry.substring(0, eqIdx), Long.parseLong(entry.substring(eqIdx + 1)));
-                    } catch (NumberFormatException ignored) {
-                    }
-                }
-            }
-            return map;
-        }
-        return new HashMap<>();
-    }
-
-    private String serializeFrequencyMap(Map<String, Long> frequencies) {
-        if (frequencies == null || frequencies.isEmpty()) {
-            return null;
-        }
-        return frequencies.entrySet().stream()
-                .map(e -> e.getKey() + "=" + e.getValue())
-                .collect(java.util.stream.Collectors.joining(","));
-    }
-
     public String buildBaselinePromptContext(String userId, SecurityEvent currentEvent) {
         if (userId == null) {
             return "Baseline: User ID not available";
         }
 
-        BaselineVector baseline = getBaseline(userId);
-        if (baseline == null) {
+        BaselineVector userBaseline = baselineDataStore.getUserBaseline(userId);
+        String orgId = extractOrganizationId(userId);
+        BaselineVector orgBaseline = orgId != null
+                ? baselineDataStore.getOrganizationBaseline(orgId) : null;
 
+        if (userBaseline == null && orgBaseline == null) {
             return buildNewUserWarning(userId, currentEvent);
         }
 
+        StringBuilder sb = new StringBuilder();
+
+        if (userBaseline != null) {
+            sb.append("Personal Baseline:\n");
+            appendBaselineDetails(sb, userBaseline);
+        } else {
+            sb.append("[NO_PERSONAL_BASELINE] This user has no personal behavioral history.\n");
+        }
+
+        if (orgBaseline != null) {
+            sb.append("\nOrganization Baseline");
+            if (userBaseline == null) {
+                sb.append(" (reference only - NOT this user's personal patterns)");
+            }
+            sb.append(":\n");
+            appendBaselineDetails(sb, orgBaseline);
+        }
+
+        return sb.toString();
+    }
+
+    private void appendBaselineDetails(StringBuilder sb, BaselineVector baseline) {
         String[] normalIps = baseline.getNormalIpRanges();
         Integer[] normalHours = baseline.getNormalAccessHours();
         String[] normalUserAgents = baseline.getNormalUserAgents();
         String[] normalOS = baseline.getNormalOperatingSystems();
         String[] frequentPaths = baseline.getFrequentPaths();
-        String baselineUASignature = normalUserAgents != null && normalUserAgents.length > 0
-                ? extractUASignature(normalUserAgents[0]) : "none";
-
-        StringBuilder sb = new StringBuilder();
 
         if (normalIps != null && normalIps.length > 0) {
             sb.append("Known IPs: ").append(String.join(", ", normalIps)).append("\n");
@@ -729,7 +656,9 @@ public class BaselineLearningService {
             sb.append("Known Hours: ").append(hours).append("\n");
         }
 
-        sb.append("Known UA: ").append(baselineUASignature).append("\n");
+        String uaSignature = normalUserAgents != null && normalUserAgents.length > 0
+                ? extractUASignature(normalUserAgents[0]) : "none";
+        sb.append("Known UA: ").append(uaSignature).append("\n");
 
         if (normalOS != null && normalOS.length > 0) {
             sb.append("Known OS: ").append(String.join(", ", normalOS)).append("\n");
@@ -738,8 +667,6 @@ public class BaselineLearningService {
         if (frequentPaths != null && frequentPaths.length > 0) {
             sb.append("Frequent Paths: ").append(String.join(", ", frequentPaths)).append("\n");
         }
-
-        return sb.toString();
     }
 
     private String buildNewUserWarning(String userId, SecurityEvent currentEvent) {

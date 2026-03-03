@@ -10,6 +10,11 @@ import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
+import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
@@ -130,14 +135,6 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ThreatScoreUtil threatScoreOrchestrator(
-            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
-        return new ThreatScoreUtil(redisTemplateProvider.getIfAvailable(), securityZeroTrustProperties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public VectorStoreCacheLayer vectorStoreCacheLayer(
             VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties) {
@@ -149,18 +146,16 @@ public class CoreAutonomousAutoConfiguration {
     public Layer1ContextualStrategy contextualStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
             UnifiedVectorService unifiedVectorService,
-            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityContextDataStore dataStore,
             SecurityEventEnricher securityEventEnricher,
             SecurityPromptTemplate securityPromptTemplate,
             BehaviorVectorService behaviorVectorService,
-            ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
+            BaselineLearningService baselineLearningService,
             SecurityLearningService securityLearningService,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
-                llmOrchestrator, unifiedVectorService, redisTemplateProvider.getIfAvailable(),
-                securityEventEnricher, securityPromptTemplate, behaviorVectorService,
-                baselineLearningServiceProvider.getIfAvailable(),
-                securityLearningService, tieredStrategyProperties);
+                llmOrchestrator, unifiedVectorService, dataStore, securityEventEnricher, securityPromptTemplate, behaviorVectorService,
+                baselineLearningService, securityLearningService, tieredStrategyProperties);
     }
 
     @Bean
@@ -168,39 +163,39 @@ public class CoreAutonomousAutoConfiguration {
     public Layer2ExpertStrategy expertStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
             @Autowired(required = false) ApprovalService approvalService,
-            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityContextDataStore dataStore,
             SecurityEventEnricher securityEventEnricher,
             SecurityPromptTemplate securityPromptTemplate,
             UnifiedVectorService unifiedVectorService,
             BehaviorVectorService behaviorVectorService,
-            ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
+            BaselineLearningService baselineLearningService,
             TieredStrategyProperties tieredStrategyProperties,
             SecurityLearningService securityLearningService) {
         return new Layer2ExpertStrategy(
-                llmOrchestrator, approvalService, redisTemplateProvider.getIfAvailable(),
+                llmOrchestrator, approvalService, dataStore,
                 securityEventEnricher, securityPromptTemplate, unifiedVectorService,
-                behaviorVectorService, baselineLearningServiceProvider.getIfAvailable(),
+                behaviorVectorService, baselineLearningService,
                 tieredStrategyProperties, securityLearningService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
-            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityContextDataStore dataStore,
             UnifiedVectorService unifiedVectorService) {
-        return new SecurityDecisionPostProcessor(redisTemplateProvider.getIfAvailable(), unifiedVectorService);
+        return new SecurityDecisionPostProcessor(dataStore, unifiedVectorService);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public SecurityPlaneAgent securityPlaneAgent(
             SecurityMonitoringService securityMonitor,
-            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            SecurityContextDataStore dataStore,
             SecurityPlaneAuditLogger auditLogger,
             SecurityEventProcessor processingOrchestrator,
             SecurityPlaneProperties securityPlaneProperties) {
         return new SecurityPlaneAgent(
-                securityMonitor, redisTemplateProvider.getIfAvailable(), auditLogger,
+                securityMonitor, dataStore, auditLogger,
                 processingOrchestrator, securityPlaneProperties);
     }
 
@@ -217,6 +212,21 @@ public class CoreAutonomousAutoConfiguration {
                 RedisTemplate<String, Object> redisTemplate,
                 StringRedisTemplate stringRedisTemplate) {
             return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(ThreatScoreUtil.class)
+        public RedisThreatScoreUtil redisThreatScoreUtil(
+                RedisTemplate<String, Object> redisTemplate,
+                SecurityZeroTrustProperties securityZeroTrustProperties) {
+            return new RedisThreatScoreUtil(redisTemplate, securityZeroTrustProperties);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(SecurityContextDataStore.class)
+        public RedisSecurityContextDataStore redisSecurityContextDataStore(
+                RedisTemplate<String, Object> redisTemplate) {
+            return new RedisSecurityContextDataStore(redisTemplate);
         }
     }
 
@@ -236,6 +246,19 @@ public class CoreAutonomousAutoConfiguration {
         @ConditionalOnMissingBean(DistributedLockService.class)
         public InMemoryDistributedLockService inMemoryDistributedLockService() {
             return new InMemoryDistributedLockService();
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(ThreatScoreUtil.class)
+        public InMemoryThreatScoreUtil inMemoryThreatScoreUtil(
+                SecurityZeroTrustProperties securityZeroTrustProperties) {
+            return new InMemoryThreatScoreUtil(securityZeroTrustProperties);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(SecurityContextDataStore.class)
+        public InMemorySecurityContextDataStore inMemorySecurityContextDataStore() {
+            return new InMemorySecurityContextDataStore();
         }
     }
 }

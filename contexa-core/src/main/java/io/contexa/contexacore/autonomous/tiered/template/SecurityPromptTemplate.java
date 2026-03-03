@@ -69,13 +69,13 @@ public class SecurityPromptTemplate {
         StringBuilder userPart = new StringBuilder();
         userPart.append(buildEventSection(event, userId));
         userPart.append(buildCurrentRequestNarrative(event, behaviorAnalysis, patterns));
-        userPart.append(buildUserProfileNarrative(patterns, behaviorAnalysis, baselineStatus));
+        userPart.append(buildUserProfileNarrative(event, patterns, behaviorAnalysis, baselineStatus));
         userPart.append(buildNetworkPromptSection(event));
         appendIfPresent(userPart, buildPayloadSection(event));
         userPart.append(buildSessionTimelineSection(sessionContext, behaviorAnalysis));
         appendIfPresent(userPart, buildSessionDeviceChangeSection(behaviorAnalysis));
         userPart.append(buildSimilarEventsSection(behaviorAnalysis, patterns));
-        appendIfPresent(userPart, buildNewUserBaselineSection(baselineStatus));
+        appendIfPresent(userPart, buildNewUserBaselineSection(baselineStatus, baselineContext));
 
         return new StructuredPrompt(systemText, userPart.toString());
     }
@@ -143,6 +143,11 @@ public class SecurityPromptTemplate {
                 section.append("HttpMethod: ").append(httpMethod).append("\n");
             }
             appendMetadataIfPresent(section, metadataObj, "auth.failure_count", "FailureCount");
+            appendMetadataIfPresent(section, metadataObj, "failedLoginAttempts", "FailedLoginAttempts");
+            appendMetadataIfPresent(section, metadataObj, "isNewDevice", "NewDevice");
+            appendMetadataIfPresent(section, metadataObj, "isNewSession", "NewSession");
+            appendMetadataIfPresent(section, metadataObj, "isNewUser", "NewUser");
+            appendMetadataIfPresent(section, metadataObj, "mfaVerified", "MfaVerified");
         }
 
         String eventPath = extractRequestPath(event);
@@ -196,6 +201,13 @@ public class SecurityPromptTemplate {
         narrative.append(".");
         section.append(narrative).append("\n");
 
+        if (event.getMetadata() != null) {
+            Object sensitiveResource = event.getMetadata().get("isSensitiveResource");
+            if (Boolean.TRUE.equals(sensitiveResource)) {
+                section.append("This is a SENSITIVE resource.\n");
+            }
+        }
+
         if (behaviorAnalysis != null) {
             if (behaviorAnalysis.getPreviousPath() != null) {
                 section.append("Previous request path: ")
@@ -213,10 +225,25 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    private String buildUserProfileNarrative(DetectedPatterns patterns,
+    private String buildUserProfileNarrative(SecurityEvent event, DetectedPatterns patterns,
             BehaviorAnalysis behaviorAnalysis, BaselineStatus baselineStatus) {
         StringBuilder section = new StringBuilder();
         section.append("\n=== USER PROFILE ===\n");
+
+        Map<String, Object> meta = event != null ? event.getMetadata() : null;
+        if (meta != null) {
+            Object userRoles = meta.get("userRoles");
+            if (userRoles != null) {
+                section.append("User roles: ").append(userRoles).append(".\n");
+            }
+            Object baselineConfidence = meta.get("baselineConfidence");
+            if (baselineConfidence instanceof Number) {
+                double confidence = ((Number) baselineConfidence).doubleValue();
+                if (!Double.isNaN(confidence)) {
+                    section.append(String.format("Baseline confidence: %.1f.\n", confidence));
+                }
+            }
+        }
 
         if (baselineStatus == BaselineStatus.NEW_USER) {
             section.append("This is a new user without established behavioral baseline.\n");
@@ -451,7 +478,7 @@ public class SecurityPromptTemplate {
         return section.toString();
     }
 
-    private String buildNewUserBaselineSection(BaselineStatus baselineStatus) {
+    private String buildNewUserBaselineSection(BaselineStatus baselineStatus, String baselineContext) {
         if (baselineStatus != BaselineStatus.NEW_USER) {
             return null;
         }
@@ -460,11 +487,20 @@ public class SecurityPromptTemplate {
         section.append("\n=== BASELINE ===\n");
         section.append("STATUS: ").append(baselineStatus.getStatusLabel()).append("\n");
         section.append("IMPACT: ").append(baselineStatus.getImpactDescription()).append("\n");
+
+        if (baselineContext != null && baselineContext.contains("Organization Baseline")) {
+            section.append("\n");
+            section.append(PromptTemplateUtils.sanitizeUserInput(baselineContext));
+            section.append("\n");
+        }
+
         section.append("\nZERO TRUST WARNING:\n");
         section.append("- This is a new user without established behavioral baseline.\n");
         section.append("- Cannot verify if this is the legitimate user or an attacker.\n");
         section.append("- confidence MUST be <= 0.5 due to insufficient historical data.\n");
         section.append("- riskScore should be >= 0.5 for unverified users.\n");
+        section.append("- If this request targets a SENSITIVE resource: BLOCK is strongly recommended.\n");
+        section.append("- If this request targets a non-sensitive resource: CHALLENGE to verify identity.\n");
 
         return section.toString();
     }
@@ -487,16 +523,46 @@ public class SecurityPromptTemplate {
 
                 RESPOND WITH JSON ONLY:
                 {
-                  "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE"
+                  "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
                   "riskScore":<0.0-1.0>,
-                  "confidence":<0.3-0.95>
+                  "confidence":<0.3-0.95>,
+                  "reasoning":"<1-2 sentence explanation of key factors>"
                 }
 
-                ACTIONS:
-                - ALLOW: Legitimate hypothesis is strongly supported
-                - CHALLENGE: Both hypotheses are plausible, need verification
-                - BLOCK: Suspicious hypothesis is strongly supported
-                - ESCALATE: Insufficient context for confident judgment
+                ACTION DECISION GUIDE:
+
+                BLOCK - Active threat detected, immediate denial required:
+                  - Session hijacking indicators (context binding hash mismatch, mid-session device/OS change)
+                  - Similar past events include [BLOCKED] threat patterns matching current request
+                  - Multiple high-risk signals combined (unknown IP + unknown device + sensitive resource + MfaVerified: false)
+                  - Known attack patterns (credential stuffing: high FailedLoginAttempts + new location + new device)
+                  - No baseline at all (neither personal nor organization) and accessing a SENSITIVE resource
+                  When in doubt between BLOCK and CHALLENGE: if 3+ risk signals are present simultaneously, choose BLOCK.
+
+                CHALLENGE - Suspicious but verifiable, require re-authentication:
+                  - Partial mismatch with baseline (1-2 signals differ, e.g., new IP but same device/OS)
+                  - New device from known IP range
+                  - Unusual time but matching device fingerprint
+                  - SENSITIVE resource access with MfaVerified: false (when baseline otherwise matches)
+                  - Single anomalous signal in otherwise normal session
+                  When in doubt between CHALLENGE and ALLOW: if accessing SENSITIVE resource, choose CHALLENGE.
+
+                ALLOW - Legitimate access confirmed:
+                  - Current request matches established baseline patterns (IP, device, time, path)
+                  - Similar past events show consistent normal behavior
+                  - No anomalous signals detected
+
+                ESCALATE - Insufficient data for any confident judgment:
+                  - Context is too ambiguous or incomplete to form either hypothesis
+                  - Conflicting signals that cannot be resolved with available data
+
+                Risk signal reference (from EVENT and NETWORK sections):
+                  - MfaVerified: false/true (MFA authentication status)
+                  - NewDevice/NewSession/NewUser: true (first-time indicators)
+                  - FailedLoginAttempts: N (brute-force indicator)
+                  - SENSITIVE resource flag (from CURRENT REQUEST section)
+                  - Context binding hash MISMATCH (from SESSION TIMELINE)
+                  - [BLOCKED] prefix in SIMILAR PAST EVENTS (prior threat match)
 
                 """;
     }
@@ -770,6 +836,10 @@ public class SecurityPromptTemplate {
 
         if (behaviorAnalysis == null) {
             return BaselineStatus.ANALYSIS_UNAVAILABLE;
+        }
+
+        if (baselineContext != null && baselineContext.contains("[NO_PERSONAL_BASELINE]")) {
+            return BaselineStatus.NEW_USER;
         }
 
         if (isValidBaseline(baselineContext)) {

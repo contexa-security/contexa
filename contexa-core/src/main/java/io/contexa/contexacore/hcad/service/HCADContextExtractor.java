@@ -1,26 +1,42 @@
 package io.contexa.contexacore.hcad.service;
 
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacommon.hcad.domain.HCADContext;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
 import jakarta.servlet.http.HttpServletRequest;
 import io.contexa.contexacore.properties.HcadProperties;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.util.AntPathMatcher;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
 public class HCADContextExtractor {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final HCADDataStore hcadDataStore;
+    private final SecurityContextDataStore securityContextDataStore;
     private final HcadProperties hcadProperties;
+
+    @Setter
+    private BlockMfaStateStore blockMfaStateStore;
+
+    @Setter
+    private BaselineLearningService baselineLearningService;
+
+    private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public HCADContext extractContext(HttpServletRequest request, Authentication authentication) {
         long startTime = System.nanoTime();
@@ -72,7 +88,7 @@ public class HCADContextExtractor {
             return context;
 
         } catch (Exception e) {
-            log.error("[HCAD] 컨텍스트 추출 실패", e);
+            log.error("[HCAD] Context extraction failed", e);
 
             return HCADContext.builder()
                     .userId(authentication != null ? extractUserId(authentication) : "unknown")
@@ -151,8 +167,7 @@ public class HCADContextExtractor {
                                        String userId, String sessionId) {
         try {
 
-            String sessionKey = ZeroTrustRedisKeys.sessionMetadata(sessionId);
-            Map<Object, Object> sessionInfo = redisTemplate.opsForHash().entries(sessionKey);
+            Map<Object, Object> sessionInfo = hcadDataStore.getSessionMetadata(sessionId);
 
             boolean isNewSession = sessionInfo.isEmpty();
             context.setIsNewSession(isNewSession);
@@ -166,8 +181,7 @@ public class HCADContextExtractor {
                 newSessionInfo.put("userId", userId);
                 newSessionInfo.put("device", currentDevice);
                 newSessionInfo.put("createdAt", Instant.now().toString());
-                redisTemplate.opsForHash().putAll(sessionKey, newSessionInfo);
-                redisTemplate.expire(sessionKey, Duration.ofHours(24));
+                hcadDataStore.saveSessionMetadata(sessionId, newSessionInfo);
             }
 
         } catch (Exception e) {
@@ -182,27 +196,10 @@ public class HCADContextExtractor {
         }
 
         try {
-            String deviceKey = ZeroTrustRedisKeys.userDevices(userId);
-
-            Boolean isMember = redisTemplate.opsForSet().isMember(deviceKey, currentDevice);
-
-            if (Boolean.TRUE.equals(isMember)) {
-
+            if (hcadDataStore.isDeviceRegistered(userId, currentDevice)) {
                 return false;
             } else {
-
-                redisTemplate.opsForSet().add(deviceKey, currentDevice);
-                redisTemplate.expire(deviceKey, Duration.ofDays(30));
-
-                Long size = redisTemplate.opsForSet().size(deviceKey);
-                if (size != null && size > 10) {
-
-                    Object oldDevice = redisTemplate.opsForSet().randomMember(deviceKey);
-                    if (!oldDevice.equals(currentDevice)) {
-                        redisTemplate.opsForSet().remove(deviceKey, oldDevice);
-                    }
-                }
-
+                hcadDataStore.registerDevice(userId, currentDevice);
                 return true;
             }
         } catch (Exception e) {
@@ -214,35 +211,25 @@ public class HCADContextExtractor {
                                           String userId, HttpServletRequest request) {
         try {
 
-            String counterKey = "hcad:request:counter:" + userId;
-
             long currentTime = System.currentTimeMillis();
-            redisTemplate.opsForZSet().add(counterKey, Long.toString(currentTime), currentTime);
+            hcadDataStore.recordRequest(userId, currentTime);
 
             long fiveMinutesAgo = currentTime - (5 * 60 * 1000);
+            int recentCount = hcadDataStore.getRecentRequestCount(userId, fiveMinutesAgo, currentTime);
+            context.setRecentRequestCount(recentCount > 0 ? recentCount : 1);
 
-            redisTemplate.opsForZSet().removeRangeByScore(counterKey, 0, fiveMinutesAgo);
-
-            Long recentCount = redisTemplate.opsForZSet().count(counterKey, fiveMinutesAgo, currentTime);
-            context.setRecentRequestCount(recentCount != null ? recentCount.intValue() : 1);
-
-            String lastRequestKey = "hcad:last:request:" + userId;
-            String lastRequestTime = (String) redisTemplate.opsForValue().get(lastRequestKey);
-            if (lastRequestTime != null) {
-                long interval = currentTime - Long.parseLong(lastRequestTime);
+            Long lastReqTime = securityContextDataStore.getLastRequestTime(userId);
+            if (lastReqTime != null) {
+                long interval = currentTime - lastReqTime;
                 context.setLastRequestInterval(interval);
             } else {
                 context.setLastRequestInterval(0L);
             }
+            securityContextDataStore.setLastRequestTime(userId, currentTime);
 
-            redisTemplate.opsForValue().set(lastRequestKey, Long.toString(currentTime),
-                    Duration.ofMinutes(10));
-
-            String previousPathKey = "hcad:previous:path:" + userId;
-            String previousPath = (String) redisTemplate.opsForValue().get(previousPathKey);
+            String previousPath = securityContextDataStore.getPreviousPath(userId);
             context.setPreviousPath(previousPath);
-            redisTemplate.opsForValue().set(previousPathKey, request.getRequestURI(),
-                    Duration.ofMinutes(10));
+            securityContextDataStore.setPreviousPath(userId, request.getRequestURI());
 
         } catch (Exception e) {
             context.setRecentRequestCount(0);
@@ -254,34 +241,39 @@ public class HCADContextExtractor {
                                         String userId, Authentication authentication) {
         try {
 
-            String registeredKey = ZeroTrustRedisKeys.userRegistered(userId);
-            Boolean isRegistered = redisTemplate.hasKey(registeredKey);
+            boolean isRegistered = hcadDataStore.isUserRegistered(userId);
 
             if (!isRegistered) {
-
-                redisTemplate.opsForValue().set(registeredKey, "true");
+                hcadDataStore.registerUser(userId);
                 context.setNewUser(true);
             } else {
-
                 context.setNewUser(false);
             }
 
             context.setCurrentTrustScore(Double.NaN);
 
-            context.setBaselineConfidence(Double.NaN);
+            context.setBaselineConfidence(calculateBaselineConfidence(userId));
 
-            context.setFailedLoginAttempts(0);
+            context.setFailedLoginAttempts(resolveFailedLoginAttempts(userId));
 
             String authMethod = authentication.getAuthorities().stream()
                     .anyMatch(auth -> auth.getAuthority().contains("MFA")) ? "mfa" : "password";
             context.setAuthenticationMethod(authMethod);
 
-            String mfaKey = "security:mfa:verified:" + userId;
-            Boolean hasMfa = redisTemplate.hasKey(mfaKey);
+            boolean hasMfa = resolveMfaVerified(userId);
             context.setHasValidMFA(hasMfa);
 
-            if (Boolean.TRUE.equals(context.getIsNewUser())) {
+            Set<String> roles = authentication.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .collect(Collectors.toSet());
+
+            Map<String, Object> additionalAttrs = context.getAdditionalAttributes();
+            if (additionalAttrs == null) {
+                additionalAttrs = new HashMap<>();
+                context.setAdditionalAttributes(additionalAttrs);
             }
+            additionalAttrs.put("userRoles", roles);
+            additionalAttrs.put("mfaVerified", hasMfa);
 
         } catch (Exception e) {
 
@@ -290,6 +282,52 @@ public class HCADContextExtractor {
             context.setFailedLoginAttempts(0);
             context.setHasValidMFA(false);
             context.setNewUser(true);
+        }
+    }
+
+    private int resolveFailedLoginAttempts(String userId) {
+        if (blockMfaStateStore == null) {
+            return 0;
+        }
+        try {
+            return blockMfaStateStore.getFailCount(userId);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private boolean resolveMfaVerified(String userId) {
+        if (blockMfaStateStore != null) {
+            try {
+                return blockMfaStateStore.isVerified(userId);
+            } catch (Exception e) {
+                // fall through
+            }
+        }
+        return hcadDataStore.isMfaVerified(userId);
+    }
+
+    private double calculateBaselineConfidence(String userId) {
+        if (baselineLearningService == null) {
+            return Double.NaN;
+        }
+        try {
+            BaselineVector baseline = baselineLearningService.getBaseline(userId);
+            if (baseline == null || baseline.getUpdateCount() == null) {
+                return 0.0;
+            }
+            long updateCount = baseline.getUpdateCount();
+            if (updateCount < 10) {
+                return 0.0;
+            } else if (updateCount < 30) {
+                return 0.3;
+            } else if (updateCount < 100) {
+                return 0.7;
+            } else {
+                return 1.0;
+            }
+        } catch (Exception e) {
+            return Double.NaN;
         }
     }
 
@@ -302,9 +340,12 @@ public class HCADContextExtractor {
             String firstSegment = segments.length > 1 ? segments[1] : "";
             context.setResourceType(firstSegment);
 
-            context.setIsSensitiveResource(null);
+            context.setIsSensitiveResource(matchesSensitiveResource(path));
 
-            Map<String, Object> additionalAttrs = new HashMap<>();
+            Map<String, Object> additionalAttrs = context.getAdditionalAttributes();
+            if (additionalAttrs == null) {
+                additionalAttrs = new HashMap<>();
+            }
             additionalAttrs.put("contentType", request.getContentType());
             additionalAttrs.put("queryString", request.getQueryString());
             additionalAttrs.put("protocol", request.getProtocol());
@@ -316,5 +357,18 @@ public class HCADContextExtractor {
             context.setResourceType(null);
             context.setIsSensitiveResource(null);
         }
+    }
+
+    private Boolean matchesSensitiveResource(String path) {
+        List<String> patterns = hcadProperties.getResource().getSensitivePatterns();
+        if (patterns == null || patterns.isEmpty()) {
+            return null;
+        }
+        for (String pattern : patterns) {
+            if (pathMatcher.match(pattern, path)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

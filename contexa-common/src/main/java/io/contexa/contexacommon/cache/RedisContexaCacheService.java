@@ -4,32 +4,27 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 
 @Slf4j
-@RequiredArgsConstructor
-public class RedisContexaCacheService implements ContexaCacheService {
+public class RedisContexaCacheService extends AbstractContexaCacheService {
 
-    private final ContexaCacheProperties properties;
     private final StringRedisTemplate redisTemplate;
-    private final ObjectMapper objectMapper;
 
-
-    private final ConcurrentHashMap<String, Cache<String, String>> domainCaches = new ConcurrentHashMap<>();
-
-
-    private Cache<String, String> defaultLocalCache;
+    public RedisContexaCacheService(ContexaCacheProperties properties,
+                                     StringRedisTemplate redisTemplate,
+                                     ObjectMapper objectMapper) {
+        super(properties, objectMapper);
+        this.redisTemplate = redisTemplate;
+    }
 
     @PostConstruct
     public void init() {
@@ -222,27 +217,6 @@ public class RedisContexaCacheService implements ContexaCacheService {
     }
 
 
-    private Cache<String, String> getOrCreateDomainCache(String domain) {
-        if (domain == null || domain.isEmpty()) {
-            return defaultLocalCache;
-        }
-
-        return domainCaches.computeIfAbsent(domain, d -> {
-            int ttl = getLocalTtl(d);
-            return buildLocalCache(ttl);
-        });
-    }
-
-
-    private Cache<String, String> buildLocalCache(int ttlSeconds) {
-        return Caffeine.newBuilder()
-                .maximumSize(properties.getLocal().getMaxSize())
-                .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
-                .recordStats()
-                .build();
-    }
-
-
     private void backfillToL1(String key, String json, String domain) {
         try {
             Cache<String, String> localCache = getOrCreateDomainCache(domain);
@@ -250,25 +224,6 @@ public class RedisContexaCacheService implements ContexaCacheService {
         } catch (Exception e) {
             log.error("L1 backfill failed: {}", key, e);
         }
-    }
-
-
-    private int getLocalTtl(String domain) {
-        if (domain == null) {
-            return properties.getLocal().getDefaultTtlSeconds();
-        }
-
-        ContexaCacheProperties.DomainConfig domains = properties.getDomains();
-        return switch (domain.toLowerCase()) {
-            case "users" -> domains.getUsers().getLocalTtlSeconds();
-            case "roles" -> domains.getRoles().getLocalTtlSeconds();
-            case "permissions" -> domains.getPermissions().getLocalTtlSeconds();
-            case "groups" -> domains.getGroups().getLocalTtlSeconds();
-            case "policies" -> domains.getPolicies().getLocalTtlSeconds();
-            case "soar" -> domains.getSoar().getLocalTtlSeconds();
-            case "hcad" -> domains.getHcad().getLocalTtlSeconds();
-            default -> properties.getLocal().getDefaultTtlSeconds();
-        };
     }
 
 

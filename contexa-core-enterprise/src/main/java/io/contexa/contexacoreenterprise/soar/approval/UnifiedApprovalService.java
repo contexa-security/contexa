@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.transaction.annotation.Transactional;
 
 import reactor.core.publisher.Sinks;
@@ -34,7 +33,7 @@ public class UnifiedApprovalService implements ApprovalService {
     private final ToolExecutionContextRepository executionContextRepository;
     private final ApprovalPolicyRepository policyRepository;
     private final ApplicationEventPublisher eventPublisher;
-    private final StringRedisTemplate redisTemplate;
+    private final ApprovalResultNotifier approvalResultNotifier;
 
     private final Map<String, CompletableFuture<Boolean>> pendingApprovals = new ConcurrentHashMap<>();
 
@@ -394,15 +393,7 @@ public class UnifiedApprovalService implements ApprovalService {
     }
 
     private void publishApprovalResult(String approvalId, boolean approved) {
-        if (redisTemplate != null) {
-            try {
-                String channel = "approval:" + approvalId;
-                String message = approved ? "APPROVED" : "REJECTED";
-                redisTemplate.convertAndSend(channel, message);
-                            } catch (Exception e) {
-                log.error("Redis Pub/Sub publish failed: {}", approvalId, e);
-            }
-        }
+        approvalResultNotifier.publishResult(approvalId, approved);
     }
 
     public boolean isPending(String approvalId) {

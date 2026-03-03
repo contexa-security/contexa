@@ -2,7 +2,7 @@ package io.contexa.contexacore.security;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.SessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
@@ -11,7 +11,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
@@ -21,7 +20,6 @@ import org.springframework.security.core.context.DeferredSecurityContext;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 
-import java.time.Duration;
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
@@ -30,7 +28,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
 
     private final ZeroTrustSecurityService zeroTrustSecurityService;
     private final SessionIdResolver sessionIdResolver;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final SecurityContextDataStore securityContextDataStore;
     private final AsyncSecurityContextProvider asyncSecurityContextProvider;
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
@@ -44,13 +42,13 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
             SecurityZeroTrustProperties securityZeroTrustProperties,
             @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
             @Nullable SessionIdResolver sessionIdResolver,
-            @Nullable RedisTemplate<String, Object> redisTemplate,
+            @Nullable SecurityContextDataStore securityContextDataStore,
             @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
         super();
         this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.zeroTrustSecurityService = zeroTrustSecurityService;
         this.sessionIdResolver = sessionIdResolver;
-        this.redisTemplate = redisTemplate;
+        this.securityContextDataStore = securityContextDataStore;
         this.asyncSecurityContextProvider = asyncSecurityContextProvider;
         this.setAllowSessionCreation(true);
         this.setDisableUrlRewriting(true);
@@ -203,16 +201,10 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
     }
 
     private void trackSessionInRedis(String userId, String sessionId) {
-        if (redisTemplate == null) {
+        if (securityContextDataStore == null) {
             return;
         }
-        try {
-            String userSessionsKey = ZeroTrustRedisKeys.userSessions(userId);
-            redisTemplate.opsForSet().add(userSessionsKey, sessionId);
-            redisTemplate.expire(userSessionsKey, Duration.ofDays(7));
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Failed to track session in Redis for user: {}", userId, e);
-        }
+        securityContextDataStore.trackUserSession(userId, sessionId);
     }
 
     private void handleLogout(String userId, String sessionId) {

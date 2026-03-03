@@ -3,7 +3,7 @@ package io.contexa.contexacore.autonomous;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -12,9 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.data.redis.core.RedisTemplate;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -26,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgent {
 
     private final SecurityMonitoringService securityMonitor;
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final SecurityContextDataStore dataStore;
     private final SecurityPlaneAuditLogger auditLogger;
     private final SecurityEventProcessor securityEventProcessor;
     private final SecurityPlaneProperties securityPlaneProperties;
@@ -125,17 +123,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     private boolean tryMarkEventAsProcessed(String eventId) {
-        if (redisTemplate == null) {
-            return true;
-        }
-        try {
-            String processingKey = ZeroTrustRedisKeys.eventProcessed(eventId);
-            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(processingKey, "1", Duration.ofHours(24));
-            return Boolean.TRUE.equals(acquired);
-        } catch (Exception e) {
-            log.error("[SecurityPlaneAgent] Failed to acquire event processing lock: {}", eventId, e);
-            return false;
-        }
+        return dataStore.tryMarkEventAsProcessed(eventId);
     }
 
     @Autowired

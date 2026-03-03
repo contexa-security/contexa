@@ -13,7 +13,10 @@ import io.contexa.contexacoreenterprise.soar.service.SoarToolCallingService;
 import io.contexa.contexacoreenterprise.soar.retriever.SoarContextRetriever;
 import io.contexa.contexacoreenterprise.soar.prompt.SoarPromptTemplate;
 import io.contexa.contexacoreenterprise.soar.notification.SoarApprovalNotifierImpl;
+import io.contexa.contexacoreenterprise.soar.manager.InMemorySoarSessionStore;
+import io.contexa.contexacoreenterprise.soar.manager.RedisSoarSessionStore;
 import io.contexa.contexacoreenterprise.soar.manager.SoarInteractionManager;
+import io.contexa.contexacoreenterprise.soar.manager.SoarSessionStore;
 import io.contexa.contexacoreenterprise.soar.lab.SoarLabImpl;
 import io.contexa.contexacoreenterprise.soar.helper.ToolCallDetectionHelper;
 import io.contexa.contexacoreenterprise.soar.event.ApprovalEventListener;
@@ -21,6 +24,9 @@ import io.contexa.contexacoreenterprise.soar.event.WebSocketApprovalHandler;
 import io.contexa.contexacoreenterprise.soar.handler.SoarAutoResponseHandler;
 import io.contexa.contexacoreenterprise.soar.tool.PipelineSoarToolExecutionStep;
 import io.contexa.contexacoreenterprise.soar.controller.SoarApprovalController;
+import io.contexa.contexacoreenterprise.soar.approval.ApprovalResultNotifier;
+import io.contexa.contexacoreenterprise.soar.approval.LocalApprovalResultNotifier;
+import io.contexa.contexacoreenterprise.soar.approval.RedisApprovalResultNotifier;
 import io.contexa.contexacoreenterprise.soar.approval.UnifiedApprovalService;
 import io.contexa.contexacoreenterprise.soar.approval.AsyncToolExecutionService;
 import io.contexa.contexacoreenterprise.soar.approval.ApprovalRequestValidator;
@@ -51,6 +57,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -237,15 +244,39 @@ public class EnterpriseSoarAutoConfiguration {
                 brokerMessagingTemplate, emailService, mcpNotificationService, targetManager, soarProperties);
     }
 
+    @Configuration
+    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(RedisTemplate.class)
+    static class DistributedSoarSessionConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(SoarSessionStore.class)
+        public RedisSoarSessionStore redisSoarSessionStore(RedisTemplate<String, Object> redisTemplate) {
+            return new RedisSoarSessionStore(redisTemplate);
+        }
+    }
+
+    @Configuration
+    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnMissingBean(RedisTemplate.class)
+    static class StandaloneSoarSessionConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(SoarSessionStore.class)
+        public InMemorySoarSessionStore inMemorySoarSessionStore() {
+            return new InMemorySoarSessionStore();
+        }
+    }
+
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnBean(RedisTemplate.class)
+    @ConditionalOnBean(SoarSessionStore.class)
     public SoarInteractionManager soarInteractionManager(
-            RedisTemplate<String, Object> redisTemplate,
+            SoarSessionStore soarSessionStore,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate,
             ApprovalService approvalService) {
-        return new SoarInteractionManager(redisTemplate, brokerTemplate, approvalService);
+        return new SoarInteractionManager(soarSessionStore, brokerTemplate, approvalService);
     }
 
     @Bean
@@ -258,20 +289,43 @@ public class EnterpriseSoarAutoConfiguration {
         return new AsyncToolExecutionService(contextRepository, objectMapper, chainedToolResolver);
     }
 
+    @Configuration
+    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnBean(StringRedisTemplate.class)
+    static class DistributedApprovalNotifierConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(ApprovalResultNotifier.class)
+        public RedisApprovalResultNotifier redisApprovalResultNotifier(StringRedisTemplate redisTemplate) {
+            return new RedisApprovalResultNotifier(redisTemplate);
+        }
+    }
+
+    @Configuration
+    @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnMissingBean(StringRedisTemplate.class)
+    static class StandaloneApprovalNotifierConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(ApprovalResultNotifier.class)
+        public LocalApprovalResultNotifier localApprovalResultNotifier() {
+            return new LocalApprovalResultNotifier();
+        }
+    }
+
     @Bean
     @ConditionalOnMissingBean(ApprovalService.class)
     @ConditionalOnProperty(prefix = "contexa.soar", name = "enabled", havingValue = "true", matchIfMissing = true)
-    @ConditionalOnBean(StringRedisTemplate.class)
     public UnifiedApprovalService unifiedApprovalService(
             SoarApprovalRequestRepository repository,
             ApprovalRequestFactory approvalRequestFactory,
             ToolExecutionContextRepository executionContextRepository,
             ApprovalPolicyRepository policyRepository,
             ApplicationEventPublisher eventPublisher,
-            StringRedisTemplate redisTemplate) {
+            ApprovalResultNotifier approvalResultNotifier) {
         return new UnifiedApprovalService(
                 repository, approvalRequestFactory, executionContextRepository,
-                policyRepository, eventPublisher, redisTemplate);
+                policyRepository, eventPublisher, approvalResultNotifier);
     }
 
     @Bean

@@ -9,7 +9,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -18,28 +17,22 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 public class SoarInteractionManager {
     
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final SoarSessionStore sessionStore;
     private final SimpMessagingTemplate brokerTemplate;
     private final ApprovalService approvalService;
-    
+
     public SoarInteractionManager(
-            RedisTemplate<String, Object> redisTemplate,
+            SoarSessionStore sessionStore,
             @Qualifier("brokerMessagingTemplate") SimpMessagingTemplate brokerTemplate,
             ApprovalService approvalService) {
-        this.redisTemplate = redisTemplate;
+        this.sessionStore = sessionStore;
         this.brokerTemplate = brokerTemplate;
         this.approvalService = approvalService;
     }
-
-    private final Map<String, InteractionSession> sessionCache = new ConcurrentHashMap<>();
-    
-    private static final String SESSION_KEY_PREFIX = "soar:session:";
-    private static final Duration SESSION_TTL = Duration.ofHours(2);
 
     public String createSession(SoarContext context) {
         String sessionId = UUID.randomUUID().toString();
@@ -66,16 +59,7 @@ public class SoarInteractionManager {
     }
 
     public Optional<InteractionSession> getSession(String sessionId) {
-        
-        String key = SESSION_KEY_PREFIX + sessionId;
-        InteractionSession session = (InteractionSession) redisTemplate.opsForValue().get(key);
-        
-        if (session == null) {
-            
-            session = sessionCache.get(sessionId);
-        }
-        
-        return Optional.ofNullable(session);
+        return sessionStore.getSession(sessionId);
     }
 
     public void updateSession(InteractionSession session) {
@@ -168,16 +152,14 @@ public class SoarInteractionManager {
             session.getMetadata().put("closeReason", reason);
 
             updateSession(session);
-            sessionCache.remove(sessionId);
+            sessionStore.removeSession(sessionId);
 
             notifySessionClosed(sessionId, reason);
         });
     }
 
     private void saveSession(InteractionSession session) {
-        String key = SESSION_KEY_PREFIX + session.getSessionId();
-        redisTemplate.opsForValue().set(key, session, SESSION_TTL);
-        sessionCache.put(session.getSessionId(), session); 
+        sessionStore.saveSession(session);
     }
 
     private void sendApprovalRequest(String requestId, String toolName, String sessionId) {

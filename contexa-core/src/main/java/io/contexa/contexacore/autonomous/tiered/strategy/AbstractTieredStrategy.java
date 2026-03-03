@@ -32,7 +32,6 @@ import java.util.stream.Collectors;
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 
     protected final UnifiedLLMOrchestrator llmOrchestrator;
-    protected final RedisTemplate<String, Object> redisTemplate;
     protected final SecurityEventEnricher eventEnricher;
     protected final SecurityPromptTemplate promptTemplate;
     protected final BehaviorVectorService behaviorVectorService;
@@ -60,7 +59,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     protected AbstractTieredStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
-            RedisTemplate<String, Object> redisTemplate,
             SecurityEventEnricher eventEnricher,
             SecurityPromptTemplate promptTemplate,
             BehaviorVectorService behaviorVectorService,
@@ -68,7 +66,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             BaselineLearningService baselineLearningService,
             TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
-        this.redisTemplate = redisTemplate;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate != null ? promptTemplate
             : new SecurityPromptTemplate(this.eventEnricher, tieredStrategyProperties);
@@ -127,7 +124,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
         response.setRiskScore(validated[0]);
         response.setConfidence(validated[1]);
-        if (response.getAction() == null || response.getAction().isBlank()) {
+        if (response.getAction() != null && !response.getAction().isBlank()) {
+            ZeroTrustAction mapped = ZeroTrustAction.fromString(response.getAction());
+            response.setAction(mapped.name());
+        } else {
             response.setAction(ZeroTrustAction.ESCALATE.name());
         }
         return response;
@@ -182,6 +182,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     int similarityPct = (int) (score * 100);
 
                     StringBuilder summary = new StringBuilder();
+                    Object docType = meta.get("documentType");
+                    if ("threat".equals(String.valueOf(docType))) {
+                        summary.append("[BLOCKED] ");
+                    }
                     summary.append(String.format("Similarity:%d%%", similarityPct));
 
                     appendMetaIfPresent(summary, meta, "sourceIp", "IP");
@@ -239,14 +243,21 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     protected double[] validateResponseBase(Double riskScore, Double confidence) {
-        double validatedRiskScore = (riskScore != null) ? riskScore : Double.NaN;
-        double validatedConfidence = (confidence != null) ? confidence : Double.NaN;
+        double validatedRiskScore;
+        double validatedConfidence;
 
         if (riskScore == null) {
             log.error("[{}] LLM returned no riskScore, using NaN", getLayerName());
+            validatedRiskScore = Double.NaN;
+        } else {
+            validatedRiskScore = Math.max(0.0, Math.min(1.0, riskScore));
         }
+
         if (confidence == null) {
             log.error("[{}] LLM returned no confidence, using NaN", getLayerName());
+            validatedConfidence = Double.NaN;
+        } else {
+            validatedConfidence = Math.max(0.0, Math.min(1.0, confidence));
         }
 
         return new double[]{validatedRiskScore, validatedConfidence};
@@ -326,7 +337,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
             FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
             Filter.Expression filter = filterBuilder.and(
-                filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
+                filterBuilder.or(
+                    filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
+                    filterBuilder.eq("documentType", VectorDocumentType.THREAT.getValue())
+                ),
                 filterBuilder.eq("userId", userId)
             ).build();
 

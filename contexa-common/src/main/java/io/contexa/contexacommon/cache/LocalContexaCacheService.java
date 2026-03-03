@@ -4,25 +4,18 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 
 @Slf4j
-@RequiredArgsConstructor
-public class LocalContexaCacheService implements ContexaCacheService {
+public class LocalContexaCacheService extends AbstractContexaCacheService {
 
-    private final ContexaCacheProperties properties;
-    private final ObjectMapper objectMapper;
-
-    private final ConcurrentHashMap<String, Cache<String, String>> domainCaches = new ConcurrentHashMap<>();
-    private Cache<String, String> defaultLocalCache;
+    public LocalContexaCacheService(ContexaCacheProperties properties, ObjectMapper objectMapper) {
+        super(properties, objectMapper);
+    }
 
     @PostConstruct
     public void init() {
@@ -104,45 +97,5 @@ public class LocalContexaCacheService implements ContexaCacheService {
     @Override
     public ContexaCacheProperties.CacheType getCacheType() {
         return ContexaCacheProperties.CacheType.LOCAL;
-    }
-
-
-    private Cache<String, String> getOrCreateDomainCache(String domain) {
-        if (domain == null || domain.isEmpty()) {
-            return defaultLocalCache;
-        }
-
-        return domainCaches.computeIfAbsent(domain, d -> {
-            int ttl = getLocalTtl(d);
-            return buildLocalCache(ttl);
-        });
-    }
-
-
-    private Cache<String, String> buildLocalCache(int ttlSeconds) {
-        return Caffeine.newBuilder()
-                .maximumSize(properties.getLocal().getMaxSize())
-                .expireAfterWrite(ttlSeconds, TimeUnit.SECONDS)
-                .recordStats()
-                .build();
-    }
-
-
-    private int getLocalTtl(String domain) {
-        if (domain == null) {
-            return properties.getLocal().getDefaultTtlSeconds();
-        }
-
-        ContexaCacheProperties.DomainConfig domains = properties.getDomains();
-        return switch (domain.toLowerCase()) {
-            case "users" -> domains.getUsers().getLocalTtlSeconds();
-            case "roles" -> domains.getRoles().getLocalTtlSeconds();
-            case "permissions" -> domains.getPermissions().getLocalTtlSeconds();
-            case "groups" -> domains.getGroups().getLocalTtlSeconds();
-            case "policies" -> domains.getPolicies().getLocalTtlSeconds();
-            case "soar" -> domains.getSoar().getLocalTtlSeconds();
-            case "hcad" -> domains.getHcad().getLocalTtlSeconds();
-            default -> properties.getLocal().getDefaultTtlSeconds();
-        };
     }
 }

@@ -9,7 +9,7 @@ import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -25,7 +25,6 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
@@ -36,12 +35,13 @@ import java.util.*;
 public class Layer2ExpertStrategy extends AbstractTieredStrategy {
 
     private final ApprovalService approvalService;
+    private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
 
     @Autowired
     public Layer2ExpertStrategy(UnifiedLLMOrchestrator llmOrchestrator,
                                 ApprovalService approvalService,
-                                RedisTemplate<String, Object> redisTemplate,
+                                SecurityContextDataStore dataStore,
                                 SecurityEventEnricher eventEnricher,
                                 SecurityPromptTemplate promptTemplate,
                                 UnifiedVectorService unifiedVectorService,
@@ -49,11 +49,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 BaselineLearningService baselineLearningService,
                                 TieredStrategyProperties tieredStrategyProperties,
                                 SecurityLearningService securityLearningService) {
-        super(llmOrchestrator, redisTemplate, eventEnricher, promptTemplate,
+        super(llmOrchestrator, eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
               tieredStrategyProperties);
 
         this.approvalService = approvalService;
+        this.dataStore = dataStore;
         this.securityLearningService = securityLearningService;
     }
 
@@ -283,13 +284,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             );
             actions.add(notifyAction);
 
-            if (redisTemplate != null) {
-                String soarKey = ZeroTrustRedisKeys.soarExecution(event.getEventId());
-                redisTemplate.opsForValue().set(
-                        soarKey,
-                        actions,
-                        Duration.ofDays(7)
-                );
+            if (dataStore != null) {
+                dataStore.storeSoarExecution(event.getEventId(), actions);
             }
 
         } catch (Exception e) {

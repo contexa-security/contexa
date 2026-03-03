@@ -38,6 +38,11 @@ public final class RequestInfoExtractor {
                 .isNewUser((Boolean) request.getAttribute("hcad.is_new_user"))
                 .isNewDevice((Boolean) request.getAttribute("hcad.is_new_device"))
                 .recentRequestCount((Integer) request.getAttribute("hcad.recent_request_count"))
+                .failedLoginAttempts(castToInteger(request.getAttribute("hcad.failed_login_attempts")))
+                .baselineConfidence(castToDouble(request.getAttribute("hcad.baseline_confidence")))
+                .isSensitiveResource((Boolean) request.getAttribute("hcad.is_sensitive_resource"))
+                .mfaVerified(castToBoolean(request.getAttribute("hcad.mfa_verified")))
+                .userRoles((String) request.getAttribute("hcad.user_roles"))
                 .build();
     }
 
@@ -193,5 +198,27 @@ public final class RequestInfoExtractor {
         private final Boolean isNewUser;
         private final Boolean isNewDevice;
         private final Integer recentRequestCount;
+        private final Integer failedLoginAttempts;
+        private final Double baselineConfidence;
+        private final Boolean isSensitiveResource;
+        private final Boolean mfaVerified;
+        private final String userRoles;
+    }
+
+    private static Integer castToInteger(Object value) {
+        if (value instanceof Integer) return (Integer) value;
+        if (value instanceof Number) return ((Number) value).intValue();
+        return null;
+    }
+
+    private static Double castToDouble(Object value) {
+        if (value instanceof Double) return (Double) value;
+        if (value instanceof Number) return ((Number) value).doubleValue();
+        return null;
+    }
+
+    private static Boolean castToBoolean(Object value) {
+        if (value instanceof Boolean) return (Boolean) value;
+        return null;
     }
 }

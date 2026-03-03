@@ -1,12 +1,16 @@
 package io.contexa.autoconfigure.iam;
 
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.InMemorySessionIdResolver;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
 import io.contexa.contexacore.security.session.SessionIdResolver;
+import io.contexa.contexacore.security.zerotrust.InMemoryZeroTrustSecurityService;
+import io.contexa.contexacore.security.zerotrust.RedisZeroTrustSecurityService;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexacore.properties.SecuritySessionProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
@@ -39,13 +43,13 @@ public class IamSecurityCoreAutoConfiguration {
             SecurityZeroTrustProperties securityZeroTrustProperties,
             @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
             @Nullable SessionIdResolver sessionIdResolver,
-            @Nullable RedisTemplate<String, Object> redisTemplate,
+            @Nullable SecurityContextDataStore securityContextDataStore,
             @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
         return new AIReactiveSecurityContextRepository(
                 securityZeroTrustProperties,
                 zeroTrustSecurityService,
                 sessionIdResolver,
-                redisTemplate,
+                securityContextDataStore,
                 asyncSecurityContextProvider);
     }
 
@@ -56,13 +60,13 @@ public class IamSecurityCoreAutoConfiguration {
     static class DistributedSecurityConfig {
 
         @Bean
-        @ConditionalOnMissingBean
-        public ZeroTrustSecurityService zeroTrustSecurityService(
+        @ConditionalOnMissingBean(ZeroTrustSecurityService.class)
+        public RedisZeroTrustSecurityService zeroTrustSecurityService(
                 RedisTemplate<String, Object> redisTemplate,
                 ThreatScoreUtil threatScoreUtil,
                 SecurityZeroTrustProperties securityZeroTrustProperties,
                 ZeroTrustActionRepository actionRedisRepository) {
-            return new ZeroTrustSecurityService(redisTemplate,
+            return new RedisZeroTrustSecurityService(redisTemplate,
                     threatScoreUtil, securityZeroTrustProperties, actionRedisRepository);
         }
 
@@ -74,7 +78,7 @@ public class IamSecurityCoreAutoConfiguration {
         }
     }
 
-    // --- Standalone mode: In-memory session resolver ---
+    // --- Standalone mode: In-memory session resolver and ZeroTrust ---
 
     @Configuration
     @ConditionalOnMissingBean(RedisTemplate.class)
@@ -84,6 +88,17 @@ public class IamSecurityCoreAutoConfiguration {
         @ConditionalOnMissingBean(SessionIdResolver.class)
         public SessionIdResolver inMemorySessionIdResolver(SecuritySessionProperties securitySessionProperties) {
             return new InMemorySessionIdResolver(securitySessionProperties);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(ZeroTrustSecurityService.class)
+        public InMemoryZeroTrustSecurityService inMemoryZeroTrustSecurityService(
+                ThreatScoreUtil threatScoreUtil,
+                SecurityZeroTrustProperties securityZeroTrustProperties,
+                ZeroTrustActionRepository actionRepository,
+                @Nullable BlockingSignalBroadcaster blockingSignalBroadcaster) {
+            return new InMemoryZeroTrustSecurityService(
+                    threatScoreUtil, securityZeroTrustProperties, actionRepository, blockingSignalBroadcaster);
         }
     }
 }

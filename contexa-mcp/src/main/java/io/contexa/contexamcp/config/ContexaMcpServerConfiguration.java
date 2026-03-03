@@ -6,8 +6,12 @@ import io.contexa.contexamcp.adapter.NoOpFirewallAdapter;
 import io.contexa.contexamcp.adapter.NoOpThreatIntelligenceAdapter;
 import io.contexa.contexamcp.adapter.ThreatIntelligenceAdapter;
 import io.contexa.contexamcp.security.HighRiskToolAuthorizationService;
+import io.contexa.contexamcp.service.InMemoryIpBlockingService;
+import io.contexa.contexamcp.service.InMemoryUserSessionService;
 import io.contexa.contexamcp.service.IpBlockingService;
 import io.contexa.contexamcp.service.McpAuditLogService;
+import io.contexa.contexamcp.service.RedisIpBlockingService;
+import io.contexa.contexamcp.service.RedisUserSessionService;
 import io.contexa.contexamcp.service.UserSessionService;
 import io.contexa.contexamcp.tools.AuditLogQueryTool;
 import io.contexa.contexamcp.tools.IpBlockingTool;
@@ -23,6 +27,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -44,22 +49,42 @@ public class ContexaMcpServerConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(RedisTemplate.class)
-    public UserSessionService userSessionService(RedisTemplate<String, Object> redisTemplate) {
-        return new UserSessionService(redisTemplate);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public McpAuditLogService mcpAuditLogService(JdbcTemplate jdbcTemplate, ObjectMapper objectMapper) {
         return new McpAuditLogService(jdbcTemplate, objectMapper);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
+    @Configuration
     @ConditionalOnBean(RedisTemplate.class)
-    public IpBlockingService ipBlockingService(RedisTemplate<String, Object> redisTemplate) {
-        return new IpBlockingService(redisTemplate);
+    static class DistributedMcpServiceConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(UserSessionService.class)
+        public RedisUserSessionService redisUserSessionService(RedisTemplate<String, Object> redisTemplate) {
+            return new RedisUserSessionService(redisTemplate);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(IpBlockingService.class)
+        public RedisIpBlockingService redisIpBlockingService(RedisTemplate<String, Object> redisTemplate) {
+            return new RedisIpBlockingService(redisTemplate);
+        }
+    }
+
+    @Configuration
+    @ConditionalOnMissingBean(RedisTemplate.class)
+    static class StandaloneMcpServiceConfig {
+
+        @Bean
+        @ConditionalOnMissingBean(UserSessionService.class)
+        public InMemoryUserSessionService inMemoryUserSessionService() {
+            return new InMemoryUserSessionService();
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(IpBlockingService.class)
+        public InMemoryIpBlockingService inMemoryIpBlockingService() {
+            return new InMemoryIpBlockingService();
+        }
     }
 
     // --- Adapter Beans (Override with vendor-specific implementations for production) ---

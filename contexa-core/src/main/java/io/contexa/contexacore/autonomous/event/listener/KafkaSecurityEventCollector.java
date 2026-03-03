@@ -183,7 +183,7 @@ public class KafkaSecurityEventCollector implements SecurityEventCollector {
         if (payload != null) {
             payload.forEach((key, value) -> {
                 if (value != null && !key.equals("eventId") && !key.equals("userName") && !key.equals("description")) {
-                    event.addMetadata(key, String.valueOf(value));
+                    event.addMetadata(key, value);
                 }
             });
         }

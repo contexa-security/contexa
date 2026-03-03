@@ -1,10 +1,9 @@
 package io.contexa.contexaiam.aiam.web;
 
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,7 +20,7 @@ import java.security.Principal;
 @RequiredArgsConstructor
 public class ZeroTrustPageController {
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final BlockMfaStateStore blockMfaStateStore;
     private final BlockedUserJpaRepository blockedUserJpaRepository;
 
     private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
@@ -40,17 +39,8 @@ public class ZeroTrustPageController {
                     .map(bu -> bu.getStatus() == BlockedUserStatus.MFA_FAILED)
                     .orElse(false);
 
-            String verifiedKey = ZeroTrustRedisKeys.blockMfaVerified(userId);
-            mfaVerified = Boolean.parseBoolean(stringRedisTemplate.opsForValue().get(verifiedKey));
-
-            String failCountKey = ZeroTrustRedisKeys.blockMfaFailCount(userId);
-            String failCountStr = stringRedisTemplate.opsForValue().get(failCountKey);
-            if (failCountStr != null) {
-                try {
-                    mfaFailCount = Integer.parseInt(failCountStr);
-                } catch (NumberFormatException ignored) {
-                }
-            }
+            mfaVerified = blockMfaStateStore.isVerified(userId);
+            mfaFailCount = blockMfaStateStore.getFailCount(userId);
         }
         model.addAttribute("mfaVerified", mfaVerified);
         model.addAttribute("mfaFailed", mfaFailed);

@@ -2,6 +2,7 @@ package io.contexa.contexacore.hcad.filter;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.hcad.domain.HCADAnalysisResult;
+import io.contexa.contexacommon.hcad.domain.HCADContext;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -16,6 +17,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Map;
 
 @Slf4j
 public class HCADFilter extends OncePerRequestFilter {
@@ -45,10 +47,19 @@ public class HCADFilter extends OncePerRequestFilter {
             HCADAnalysisResult result = hcadAnalysisService.analyze(request, authentication);
 
             if (result.getContext() != null) {
-                request.setAttribute("hcad.is_new_session", result.getContext().getIsNewSession());
-                request.setAttribute("hcad.is_new_user", result.getContext().getIsNewUser());
-                request.setAttribute("hcad.is_new_device", result.getContext().getIsNewDevice());
-                request.setAttribute("hcad.recent_request_count", result.getContext().getRecentRequestCount());
+                HCADContext ctx = result.getContext();
+                request.setAttribute("hcad.is_new_session", ctx.getIsNewSession());
+                request.setAttribute("hcad.is_new_user", ctx.getIsNewUser());
+                request.setAttribute("hcad.is_new_device", ctx.getIsNewDevice());
+                request.setAttribute("hcad.recent_request_count", ctx.getRecentRequestCount());
+                request.setAttribute("hcad.failed_login_attempts", ctx.getFailedLoginAttempts());
+                request.setAttribute("hcad.baseline_confidence", ctx.getBaselineConfidence());
+                request.setAttribute("hcad.is_sensitive_resource", ctx.getIsSensitiveResource());
+                request.setAttribute("hcad.mfa_verified", ctx.getHasValidMFA());
+                Map<String, Object> attrs = ctx.getAdditionalAttributes();
+                if (attrs != null && attrs.get("userRoles") != null) {
+                    request.setAttribute("hcad.user_roles", attrs.get("userRoles").toString());
+                }
             }
 
             String action = result.getAction();
@@ -61,6 +72,8 @@ public class HCADFilter extends OncePerRequestFilter {
 
         } catch (Exception e) {
             log.error("[HCADFilter] Error during processing", e);
+            request.setAttribute("hcad.analysisStatus", "FAILED");
+            request.setAttribute("hcad.failReason", e.getClass().getSimpleName());
             filterChain.doFilter(request, response);
         }
     }

@@ -2,16 +2,14 @@ package io.contexa.contexacore.autonomous.tiered.service;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
-import org.springframework.data.redis.core.RedisTemplate;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
@@ -20,46 +18,28 @@ import java.util.Map;
 @Slf4j
 public class SecurityDecisionPostProcessor {
 
-    private final RedisTemplate<String, Object> redisTemplate;
+    private final SecurityContextDataStore dataStore;
     private final UnifiedVectorService unifiedVectorService;
 
     public SecurityDecisionPostProcessor(
-            RedisTemplate<String, Object> redisTemplate,
+            SecurityContextDataStore dataStore,
             UnifiedVectorService unifiedVectorService) {
-        this.redisTemplate = redisTemplate;
+        this.dataStore = dataStore;
         this.unifiedVectorService = unifiedVectorService;
     }
 
     public void updateSessionContext(SecurityEvent event, SecurityDecision decision) {
         String sessionId = event.getSessionId();
-        if (sessionId == null || redisTemplate == null) {
+        if (sessionId == null || dataStore == null) {
             return;
         }
 
         try {
+            dataStore.addSessionAction(sessionId, buildBehaviorSentence(event, decision));
 
-            String sessionActionsKey = ZeroTrustRedisKeys.sessionActions(sessionId);
-            redisTemplate.opsForList().rightPush(
-                    sessionActionsKey,
-                    buildBehaviorSentence(event, decision)
-            );
-
-            redisTemplate.expire(sessionActionsKey, Duration.ofHours(24));
-
-            Long size = redisTemplate.opsForList().size(sessionActionsKey);
-            if (size != null && size > 100) {
-                redisTemplate.opsForList().leftPop(sessionActionsKey);
+            if (decision.getAction() == ZeroTrustAction.BLOCK) {
+                dataStore.setSessionRisk(sessionId, decision.getRiskScore());
             }
-
-            ZeroTrustAction sessionAction = decision.getAction();
-            if (sessionAction == ZeroTrustAction.BLOCK) {
-                redisTemplate.opsForValue().set(
-                        ZeroTrustRedisKeys.sessionRisk(sessionId),
-                        decision.getRiskScore(),
-                        Duration.ofHours(1)
-                );
-            }
-
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }

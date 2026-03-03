@@ -1,10 +1,9 @@
 package io.contexa.contexaiam.aiam.web;
 
-import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -25,7 +23,7 @@ public class ZeroTrustUnblockController {
     private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
 
     private final BlockedUserService blockedUserService;
-    private final StringRedisTemplate stringRedisTemplate;
+    private final BlockMfaStateStore blockMfaStateStore;
 
     @PostMapping("/initiate-block-mfa")
     public ResponseEntity<Map<String, Object>> initiateBlockMfa(Principal principal) {
@@ -38,23 +36,14 @@ public class ZeroTrustUnblockController {
         }
 
         try {
-            String failCountKey = ZeroTrustRedisKeys.blockMfaFailCount(userId);
-            String failCountStr = stringRedisTemplate.opsForValue().get(failCountKey);
-            int failCount = 0;
-            if (failCountStr != null) {
-                try {
-                    failCount = Integer.parseInt(failCountStr);
-                } catch (NumberFormatException ignored) {
-                }
-            }
+            int failCount = blockMfaStateStore.getFailCount(userId);
             if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
                 return ResponseEntity.status(403).body(Map.of(
                         "success", false,
                         "message", "MFA attempts exhausted"));
             }
 
-            String pendingKey = ZeroTrustRedisKeys.blockMfaPending(userId);
-            stringRedisTemplate.opsForValue().set(pendingKey, "true", Duration.ofMinutes(10));
+            blockMfaStateStore.setPending(userId);
 
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("success", true);
@@ -80,8 +69,7 @@ public class ZeroTrustUnblockController {
                     "message", "Authentication required"));
         }
 
-        String verifiedKey = ZeroTrustRedisKeys.blockMfaVerified(userId);
-        boolean mfaVerified = Boolean.parseBoolean(stringRedisTemplate.opsForValue().get(verifiedKey));
+        boolean mfaVerified = blockMfaStateStore.isVerified(userId);
 
         if (!mfaVerified) {
             return ResponseEntity.status(403).body(Map.of(
