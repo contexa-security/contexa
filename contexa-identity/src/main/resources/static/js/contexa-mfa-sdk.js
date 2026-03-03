@@ -1111,11 +1111,23 @@
         }
 
         /**
-         * 인증 결과 처리 (토큰 저장)
-         * Legacy: 여러 파일에 분산된 로직 통합
+         * Handle authentication result: store tokens to TokenMemory and persistent storage.
+         *
+         * authMode is derived from server response tokenTransportMethod field,
+         * then persisted to localStorage for subsequent requests (logout, API calls).
+         *
+         * - header: accessToken + refreshToken in TokenMemory (sent via Authorization header)
+         * - header_cookie: accessToken in TokenMemory, refreshToken managed by HttpOnly cookie
+         * - cookie: all tokens managed by cookies, no TokenMemory storage needed
          */
         handleAuthenticationResult(result) {
-            const authMode = localStorage.getItem('authMode') || 'header';
+            const authMode = result.tokenTransportMethod
+                ? result.tokenTransportMethod.toLowerCase()
+                : localStorage.getItem('authMode') || 'header';
+
+            if (result.tokenTransportMethod) {
+                localStorage.setItem('authMode', authMode);
+            }
 
             if (authMode === 'header' || authMode === 'header_cookie') {
                 if (result.accessToken && window.TokenMemory) {
@@ -1127,10 +1139,8 @@
                 }
             }
 
-            // Persist tokens to storage if tokenPersistence option is set
             this.persistTokensToStorage(result);
 
-            // 최종 성공 시 세션 정리
             if (result.status === 'MFA_COMPLETED') {
                 this.stateTracker.reset();
             }
@@ -1141,13 +1151,13 @@
          * Only activates when tokenPersistence option is not 'memory' (default)
          */
         persistTokensToStorage(result) {
-            const persistence = this.options.tokenPersistence;
+            const persistence = (this.options.tokenPersistence || 'memory').toLowerCase();
             if (persistence === 'memory' || !result.accessToken) {
                 return;
             }
 
-            const storage = persistence === 'localStorage' ? localStorage
-                          : persistence === 'sessionStorage' ? sessionStorage
+            const storage = persistence === 'localstorage' ? localStorage
+                          : persistence === 'sessionstorage' ? sessionStorage
                           : null;
 
             if (!storage) {
@@ -1207,13 +1217,13 @@
          * Clear tokens from configured persistent storage
          */
         clearPersistedTokens() {
-            const persistence = this.options.tokenPersistence;
+            const persistence = (this.options.tokenPersistence || 'memory').toLowerCase();
             if (persistence === 'memory') {
                 return;
             }
 
-            const storage = persistence === 'localStorage' ? localStorage
-                          : persistence === 'sessionStorage' ? sessionStorage
+            const storage = persistence === 'localstorage' ? localStorage
+                          : persistence === 'sessionstorage' ? sessionStorage
                           : null;
 
             if (!storage) {
