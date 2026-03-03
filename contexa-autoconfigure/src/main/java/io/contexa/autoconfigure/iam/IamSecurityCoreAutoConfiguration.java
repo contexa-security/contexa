@@ -3,6 +3,7 @@ package io.contexa.autoconfigure.iam;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
+import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.InMemorySessionIdResolver;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
 import io.contexa.contexacore.security.session.SessionIdResolver;
@@ -10,6 +11,7 @@ import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexacore.properties.SecuritySessionProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
+import org.springframework.lang.Nullable;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -33,8 +35,18 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository() {
-        return new AIReactiveSecurityContextRepository();
+    public AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository(
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
+            @Nullable SessionIdResolver sessionIdResolver,
+            @Nullable RedisTemplate<String, Object> redisTemplate,
+            @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
+        return new AIReactiveSecurityContextRepository(
+                securityZeroTrustProperties,
+                zeroTrustSecurityService,
+                sessionIdResolver,
+                redisTemplate,
+                asyncSecurityContextProvider);
     }
 
     // --- Distributed mode: Redis-based ZeroTrust and session ---

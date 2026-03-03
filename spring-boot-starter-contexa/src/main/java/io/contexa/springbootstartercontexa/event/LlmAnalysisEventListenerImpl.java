@@ -2,10 +2,12 @@ package io.contexa.springbootstartercontexa.event;
 
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 @Component
 @RequiredArgsConstructor
+@Qualifier("llmAnalysisEventListener")
 public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
 
     private final LlmAnalysisEventPublisher eventPublisher;

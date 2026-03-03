@@ -6,14 +6,13 @@ import io.contexa.contexacore.autonomous.utils.ZeroTrustRedisKeys;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.SessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
-import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
@@ -29,38 +28,45 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class AIReactiveSecurityContextRepository extends HttpSessionSecurityContextRepository {
 
-    @Autowired(required = false) private ZeroTrustSecurityService zeroTrustSecurityService;
-    @Autowired(required = false) private SessionIdResolver sessionIdResolver;
-    @Autowired(required = false) private RedisTemplate<String, Object> redisTemplate;
-    @Autowired(required = false) private AsyncSecurityContextProvider asyncSecurityContextProvider;
-    @Autowired private SecurityZeroTrustProperties securityZeroTrustProperties;
+    private final ZeroTrustSecurityService zeroTrustSecurityService;
+    private final SessionIdResolver sessionIdResolver;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final AsyncSecurityContextProvider asyncSecurityContextProvider;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
-    private Cache<String, Boolean> invalidatedSessionsCache;
-    private Cache<String, Instant> lastRedisUpdateCache;
-    private Cache<String, String> previousAuthCache;
+    private final Cache<String, Boolean> invalidatedSessionsCache;
+    private final Cache<String, Instant> lastRedisUpdateCache;
+    private final Cache<String, String> previousAuthCache;
 
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
-    public AIReactiveSecurityContextRepository() {
+    public AIReactiveSecurityContextRepository(
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
+            @Nullable SessionIdResolver sessionIdResolver,
+            @Nullable RedisTemplate<String, Object> redisTemplate,
+            @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
         super();
+        this.securityZeroTrustProperties = securityZeroTrustProperties;
+        this.zeroTrustSecurityService = zeroTrustSecurityService;
+        this.sessionIdResolver = sessionIdResolver;
+        this.redisTemplate = redisTemplate;
+        this.asyncSecurityContextProvider = asyncSecurityContextProvider;
         this.setAllowSessionCreation(true);
         this.setDisableUrlRewriting(true);
         this.setSpringSecurityContextKey("SPRING_SECURITY_CONTEXT");
-    }
 
-    @PostConstruct
-    public void initCaches() {
-        invalidatedSessionsCache = Caffeine.newBuilder()
+        this.invalidatedSessionsCache = Caffeine.newBuilder()
                 .maximumSize(10000)
                 .expireAfterWrite(securityZeroTrustProperties.getCache().getInvalidatedTtlMinutes(), TimeUnit.MINUTES)
                 .build();
 
-        lastRedisUpdateCache = Caffeine.newBuilder()
+        this.lastRedisUpdateCache = Caffeine.newBuilder()
                 .maximumSize(10000)
                 .expireAfterWrite(5, TimeUnit.MINUTES)
                 .build();
 
-        previousAuthCache = Caffeine.newBuilder()
+        this.previousAuthCache = Caffeine.newBuilder()
                 .maximumSize(10000)
                 .expireAfterAccess(securityZeroTrustProperties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
                 .build();
