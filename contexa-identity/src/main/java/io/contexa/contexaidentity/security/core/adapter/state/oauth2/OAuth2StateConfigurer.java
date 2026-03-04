@@ -17,6 +17,7 @@ import org.springframework.security.oauth2.server.authorization.client.Registere
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -43,8 +44,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         if (appContext != null) {
             try {
                 AIOAuth2ZeroTrustFilter zeroTrustFilter = appContext.getBean(AIOAuth2ZeroTrustFilter.class);
-                http.addFilterAfter(zeroTrustFilter,
-                        org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
+                http.addFilterAfter(zeroTrustFilter, BearerTokenAuthenticationFilter.class);
             } catch (Exception e) {
                 log.error("OAuth2StateConfigurer: AIOAuth2ZeroTrustFilter not found - Zero Trust will not be applied to OAuth2 requests");
             }
