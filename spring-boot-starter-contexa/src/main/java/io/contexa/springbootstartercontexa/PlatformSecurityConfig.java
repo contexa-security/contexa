@@ -57,7 +57,7 @@ public class PlatformSecurityConfig {
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth.formLogin(form -> form.loginPage("/customLogin").defaultSuccessUrl("/admin")))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
-//                        .passkey(Customizer.withDefaults())
+                        .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
                         .mfaPage(page ->
                                 page

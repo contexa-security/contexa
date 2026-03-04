@@ -651,9 +651,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         </a>
                     </div>
             
-                    <!-- Spring Security WebAuthn JavaScript (base library) -->
-                    <script src="{{contextPath}}/login/webauthn.js"></script>
-            
                     <!-- Contexa MFA SDK (MFA flow management wrapper) -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
