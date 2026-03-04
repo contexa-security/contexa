@@ -176,13 +176,13 @@ public class ToolExecutionContext {
     }
 
     public enum ExecutionStatus {
-        PENDING("대기 중"),
-        APPROVED("승인됨"),
-        EXECUTING("실행 중"),
-        EXECUTED("실행 완료"),
-        FAILED("실행 실패"),
-        CANCELLED("취소됨"),
-        TIMEOUT("타임아웃");
+        PENDING("Pending"),
+        APPROVED("Approved"),
+        EXECUTING("Executing"),
+        EXECUTED("Executed"),
+        FAILED("Failed"),
+        CANCELLED("Cancelled"),
+        TIMEOUT("Timeout");
         
         private final String description;
         

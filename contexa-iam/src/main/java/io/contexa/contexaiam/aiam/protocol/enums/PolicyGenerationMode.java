@@ -2,13 +2,13 @@ package io.contexa.contexaiam.aiam.protocol.enums;
 
 public enum PolicyGenerationMode {
     
-    QUICK("빠른 생성", "기본 템플릿을 활용한 신속한 정책 생성"),
+    QUICK("Quick Generation", "Rapid policy generation using basic templates"),
 
-    AI_ASSISTED("AI 지원 생성", "AI가 적극적으로 지원하는 정책 생성 모드"),
+    AI_ASSISTED("AI-Assisted Generation", "Policy generation mode with active AI assistance"),
 
-    PRECISE("정밀 생성", "완전한 AI 분석을 통한 정밀한 정책 생성"),
+    PRECISE("Precise Generation", "Precise policy generation through full AI analysis"),
 
-    EXPERIMENTAL("실험적 생성", "최신 AI 기법을 적용한 실험적 정책 생성");
+    EXPERIMENTAL("Experimental Generation", "Experimental policy generation applying latest AI techniques");
     
     private final String displayName;
     private final String description;

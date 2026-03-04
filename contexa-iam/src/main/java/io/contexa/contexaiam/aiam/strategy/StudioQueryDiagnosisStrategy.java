@@ -86,7 +86,7 @@ public class StudioQueryDiagnosisStrategy extends AbstractAIStrategy<StudioQuery
 
         return studioQueryLab.processStream(studioQueryRequest)
                 .doOnError(error -> {
-                    log.error("스트리밍 Studio Query 진단 전략 실행 실패 - 요청: {}", request.getRequestId(), error);
+                    log.error("Streaming Studio Query diagnosis strategy execution failed - request: {}", request.getRequestId(), error);
                 });
     }
 }

@@ -15,42 +15,42 @@ public class MetricsDashboardController {
 
     @GetMapping("/executive-overview")
     public String executiveOverview(Model model) {
-        model.addAttribute("pageTitle", "임원진 통합 보안 대시보드");
+        model.addAttribute("pageTitle", "Executive Integrated Security Dashboard");
         model.addAttribute("activePage", "executive-overview");
         return "admin/executive-overview";
     }
 
     @GetMapping("/zerotrust-monitoring")
     public String zerotrustMonitoring(Model model) {
-        model.addAttribute("pageTitle", "제로트러스트 실시간 모니터링");
+        model.addAttribute("pageTitle", "Zero Trust Real-time Monitoring");
         model.addAttribute("activePage", "zerotrust-monitoring");
         return "admin/zerotrust-monitoring";
     }
 
     @GetMapping("/evolution-learning")
     public String evolutionLearning(Model model) {
-        model.addAttribute("pageTitle", "Evolution & Learning 상세 메트릭");
+        model.addAttribute("pageTitle", "Evolution & Learning Detailed Metrics");
         model.addAttribute("activePage", "evolution-learning");
         return "admin/evolution-learning";
     }
 
     @GetMapping("/vectorstore-metrics")
     public String vectorstoreMetrics(Model model) {
-        model.addAttribute("pageTitle", "VectorStore 모니터링");
+        model.addAttribute("pageTitle", "VectorStore Monitoring");
         model.addAttribute("activePage", "vectorstore-metrics");
         return "admin/vectorstore-metrics";
     }
 
     @GetMapping("/tools-monitoring")
     public String toolsMonitoring(Model model) {
-        model.addAttribute("pageTitle", "Tools 모니터링 (MCP + SOAR)");
+        model.addAttribute("pageTitle", "Tools Monitoring (MCP + SOAR)");
         model.addAttribute("activePage", "tools-monitoring");
         return "admin/tools-monitoring";
     }
 
     @GetMapping("/system-overview")
     public String systemOverview(Model model) {
-        model.addAttribute("pageTitle", "시스템 개요");
+        model.addAttribute("pageTitle", "System Overview");
         model.addAttribute("activePage", "system-overview");
         return "admin/system-overview";
     }

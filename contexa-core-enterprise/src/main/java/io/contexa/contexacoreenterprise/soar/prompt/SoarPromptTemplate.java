@@ -13,42 +13,42 @@ import lombok.extern.slf4j.Slf4j;
 public class SoarPromptTemplate implements PromptTemplate {
 
     private static final String TOOL_EXECUTION_ROLE = """
-        당신은 SOAR 보안 도구 실행 시스템입니다.
-        
-        현재 단계: 도구 함수 호출 단계
-        
-        중요 지시사항:
-        1. 제공된 도구 함수(function)를 직접 호출하세요
-        2. 텍스트 응답을 생성하지 마세요
-        3. JSON 문자열을 생성하지 마세요
-        4. 오직 함수 호출(function calling)만 수행하세요
-        
-        사용 가능한 보안 도구들:
-        - ip_blocking: IP 주소 차단
-        - network_isolation: 네트워크 격리
-        - process_kill: 악성 프로세스 종료
-        - session_termination: 세션 종료
-        - file_quarantine: 파일 격리
-        
-        각 도구는 함수로 제공되며, 적절한 파라미터와 함께 호출하세요.
-        도구 설명이나 JSON 텍스트를 생성하는 것이 아니라,
-        실제 함수 호출을 수행해야 합니다.
+        You are a SOAR security tool execution system.
+
+        Current phase: Tool function calling phase
+
+        Important instructions:
+        1. Directly call the provided tool functions
+        2. Do not generate text responses
+        3. Do not generate JSON strings
+        4. Only perform function calling
+
+        Available security tools:
+        - ip_blocking: Block IP addresses
+        - network_isolation: Network isolation
+        - process_kill: Terminate malicious processes
+        - session_termination: Session termination
+        - file_quarantine: File quarantine
+
+        Each tool is provided as a function; call it with appropriate parameters.
+        You must perform actual function calls,
+        not generate tool descriptions or JSON text.
         """;
 
     private static final String RESPONSE_GENERATION_ROLE = """
-        당신은 SOAR 보안 분석 시스템입니다.
+        You are a SOAR security analysis system.
 
-        현재 단계: 최종 분석 및 응답 생성 단계
+        Current phase: Final analysis and response generation phase
 
-        도구 실행이 완료되었습니다. 이제 수집된 데이터를 바탕으로 종합적인 보안 분석을 수행하세요.
+        Tool execution is complete. Now perform a comprehensive security analysis based on the collected data.
 
-        응답 생성 규칙:
-        1. 도구 실행 결과를 종합적으로 분석하세요
-        2. 위협 수준을 평가하세요
-        3. 구체적인 권장 조치를 제시하세요
-        4. 반드시 유효한 JSON 형식의 SoarResponse를 생성하세요
+        Response generation rules:
+        1. Comprehensively analyze tool execution results
+        2. Evaluate threat levels
+        3. Provide specific recommended actions
+        4. Generate a valid JSON-formatted SoarResponse
 
-        중요: 이 단계에서는 추가 도구 호출을 하지 마세요.
+        Important: Do not make additional tool calls in this phase.
         """;
 
     @Override
@@ -91,7 +91,7 @@ public class SoarPromptTemplate implements PromptTemplate {
         }
 
         if (contextInfo != null && !contextInfo.trim().isEmpty()) {
-            prompt.append("\n컨텍스트: ");
+            prompt.append("\nContext: ");
             prompt.append(contextInfo);
             prompt.append("\n");
         }
@@ -108,15 +108,15 @@ public class SoarPromptTemplate implements PromptTemplate {
 
     private void appendSoarContext(StringBuilder prompt, SoarContext context) {
         if (context.getIncidentId() != null) {
-            prompt.append("사건 ID: ").append(context.getIncidentId()).append("\n");
+            prompt.append("Incident ID: ").append(context.getIncidentId()).append("\n");
         }
-        
+
         if (context.getThreatLevel() != null) {
-            prompt.append("위협 수준: ").append(context.getThreatLevel()).append("\n");
+            prompt.append("Threat Level: ").append(context.getThreatLevel()).append("\n");
         }
-        
+
         if (context.getAffectedAssets() != null && !context.getAffectedAssets().isEmpty()) {
-            prompt.append("영향받은 자산: ").append(
+            prompt.append("Affected Assets: ").append(
                 String.join(", ", context.getAffectedAssets())
             ).append("\n");
         }

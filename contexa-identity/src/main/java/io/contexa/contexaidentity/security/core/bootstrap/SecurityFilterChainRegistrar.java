@@ -46,7 +46,7 @@ public class SecurityFilterChainRegistrar {
         Assert.notNull(context, "ApplicationContext cannot be null.");
 
         if (!(context instanceof ConfigurableApplicationContext cac)) {
-            log.warn("ApplicationContext is not a ConfigurableApplicationContext. Cannot register SecurityFilterChain beans dynamically.");
+            log.error("ApplicationContext is not a ConfigurableApplicationContext. Cannot register SecurityFilterChain beans dynamically.");
             return;
         }
         BeanDefinitionRegistry registry = (BeanDefinitionRegistry) cac.getBeanFactory();
@@ -105,7 +105,7 @@ public class SecurityFilterChainRegistrar {
                 if (filterClass == null) {
                     log.error("No filter class configured in stepFilterClasses for step type: '{}' (id: {}) in flow: '{}'",
                             pureFactorType, stepId, flowConfig.getTypeName());
-                    throw new IllegalStateException("필터 클래스 미설정: " + pureFactorType + " (flow: " + flowConfig.getTypeName() + ")");
+                    throw new IllegalStateException("Filter class not configured: " + pureFactorType + " (flow: " + flowConfig.getTypeName() + ")");
                 }
 
                 Optional<Filter> foundFilterOptional = builtChain.getFilters().stream()
@@ -115,7 +115,7 @@ public class SecurityFilterChainRegistrar {
                 if (foundFilterOptional.isEmpty()) {
                     log.error("Filter of type {} not found in the built SecurityFilterChain for step: '{}' in flow: '{}'. Critical configuration error.",
                             filterClass.getName(), stepId, flowConfig.getTypeName());
-                    throw new IllegalStateException("빌드된 체인에서 필터 인스턴스를 찾을 수 없습니다: " + stepId + " (flow: " + flowConfig.getTypeName() + ")");
+                    throw new IllegalStateException("Filter instance not found in built chain: " + stepId + " (flow: " + flowConfig.getTypeName() + ")");
                 }
 
                 Filter actualFilterInstance = foundFilterOptional.get();
@@ -205,7 +205,7 @@ public class SecurityFilterChainRegistrar {
             }
         }
 
-        log.warn("WebAuthnAuthenticationFilter not found in filter chain for flow: {}. " +
+        log.error("WebAuthnAuthenticationFilter not found in filter chain for flow: {}. " +
                         "Passkey authentication may not work properly without custom handlers.",
                 flowConfig.getTypeName());
     }

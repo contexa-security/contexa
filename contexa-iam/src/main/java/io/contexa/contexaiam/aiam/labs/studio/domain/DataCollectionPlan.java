@@ -14,15 +14,10 @@ public class DataCollectionPlan {
     private static final Map<String, String> RESOURCE_KEYWORDS;
     static {
         RESOURCE_KEYWORDS = new HashMap<>();
-        RESOURCE_KEYWORDS.put("문서", "BUSINESS_RESOURCE");
         RESOURCE_KEYWORDS.put("document", "BUSINESS_RESOURCE");
-        RESOURCE_KEYWORDS.put("파일", "BUSINESS_RESOURCE");
         RESOURCE_KEYWORDS.put("file", "BUSINESS_RESOURCE");
-        RESOURCE_KEYWORDS.put("게시물", "BUSINESS_RESOURCE");
         RESOURCE_KEYWORDS.put("post", "BUSINESS_RESOURCE");
-        RESOURCE_KEYWORDS.put("리소스", "BUSINESS_RESOURCE");
         RESOURCE_KEYWORDS.put("resource", "BUSINESS_RESOURCE");
-        RESOURCE_KEYWORDS.put("데이터", "BUSINESS_RESOURCE");
         RESOURCE_KEYWORDS.put("data", "BUSINESS_RESOURCE");
     }
     
@@ -33,7 +28,7 @@ public class DataCollectionPlan {
     public DataCollectionPlan(QueryIntentAnalyzer queryIntentAnalyzer, String originalQuery) {
         this.requiredDataTypes = new HashSet<>();
         this.confidenceScore = 80;
-        this.analysisContext = "AI 분석 기반 데이터 수집";
+        this.analysisContext = "AI analysis based data collection";
 
         QueryIntent queryIntent = queryIntentAnalyzer.analyzeIntent(originalQuery);
         

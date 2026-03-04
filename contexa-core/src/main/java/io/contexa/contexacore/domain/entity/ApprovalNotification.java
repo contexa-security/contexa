@@ -105,12 +105,12 @@ public class ApprovalNotification {
     }
 
     public enum NotificationType {
-        APPROVAL_REQUEST("승인 요청"),
-        APPROVAL_GRANTED("승인됨"),
-        APPROVAL_REJECTED("거부됨"),
-        APPROVAL_TIMEOUT("타임아웃"),
-        TOOL_EXECUTED("도구 실행됨"),
-        TOOL_FAILED("도구 실행 실패");
+        APPROVAL_REQUEST("Approval Request"),
+        APPROVAL_GRANTED("Approved"),
+        APPROVAL_REJECTED("Rejected"),
+        APPROVAL_TIMEOUT("Timeout"),
+        TOOL_EXECUTED("Tool Executed"),
+        TOOL_FAILED("Tool Execution Failed");
         
         private final String description;
         

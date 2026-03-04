@@ -37,7 +37,7 @@ public class SoarSimulationController {
                     .sessionId(result.getSessionId())
                     .conversationId(result.getConversationId())
                     .status("COMPLETED")  
-                    .message("SOAR 분석이 완료되었습니다.")
+                    .message("SOAR analysis completed.")
                     .finalResponse(result.getFinalResponse())  
                     .pipelineStages(List.of(
                         "PREPROCESSING",
@@ -51,11 +51,11 @@ public class SoarSimulationController {
                     .build());
             })
             .onErrorResume(error -> {
-                log.error("SOAR 시뮬레이션 시작 실패", error);
+                log.error("SOAR simulation start failed", error);
                 return Mono.just(ResponseEntity.internalServerError()
                     .body(SimulationStartResponse.builder()
                         .status("ERROR")
-                        .message("시뮬레이션 시작 실패: " + error.getMessage())
+                        .message("Simulation start failed: " + error.getMessage())
                         .timestamp(LocalDateTime.now())
                         .build()));
             });
@@ -114,7 +114,7 @@ public class SoarSimulationController {
         return ResponseEntity.ok(ApprovalResponse.builder()
             .approvalId(request.getApprovalId())
             .status(request.isApproved() ? "APPROVED" : "REJECTED")
-            .message("승인 처리 완료")
+            .message("Approval processing completed")
             .timestamp(LocalDateTime.now())
             .build());
     }

@@ -36,16 +36,16 @@ public class SoarIncident implements Serializable {
     private Map<String, Object> metadata;
 
     public enum IncidentStatus {
-        NEW("신규"),
-        INVESTIGATING("조사 중"),
-        IN_PROGRESS("진행 중"),
-        CONTAINED("격리됨"),
-        MITIGATED("완화됨"),
-        ERADICATED("제거됨"),
-        RECOVERED("복구됨"),
-        RESOLVED("해결됨"),
-        CLOSED("종료"),
-        FALSE_POSITIVE("오탐");
+        NEW("New"),
+        INVESTIGATING("Investigating"),
+        IN_PROGRESS("In Progress"),
+        CONTAINED("Contained"),
+        MITIGATED("Mitigated"),
+        ERADICATED("Eradicated"),
+        RECOVERED("Recovered"),
+        RESOLVED("Resolved"),
+        CLOSED("Closed"),
+        FALSE_POSITIVE("False Positive");
         
         private final String description;
         
@@ -59,11 +59,11 @@ public class SoarIncident implements Serializable {
     }
 
     public enum IncidentSeverity {
-        CRITICAL("치명적"),
-        HIGH("높음"),
-        MEDIUM("중간"),
-        LOW("낮음"),
-        INFO("정보");
+        CRITICAL("Critical"),
+        HIGH("High"),
+        MEDIUM("Medium"),
+        LOW("Low"),
+        INFO("Info");
         
         private final String description;
         
@@ -77,16 +77,16 @@ public class SoarIncident implements Serializable {
     }
 
     public enum IncidentType {
-        MALWARE("악성코드"),
-        RANSOMWARE("랜섬웨어"),
-        PHISHING("피싱"),
-        DATA_BREACH("데이터 유출"),
-        UNAUTHORIZED_ACCESS("무단 접근"),
-        DOS_ATTACK("서비스 거부 공격"),
-        INSIDER_THREAT("내부자 위협"),
-        VULNERABILITY("취약점"),
-        COMPLIANCE_VIOLATION("컴플라이언스 위반"),
-        OTHER("기타");
+        MALWARE("Malware"),
+        RANSOMWARE("Ransomware"),
+        PHISHING("Phishing"),
+        DATA_BREACH("Data Breach"),
+        UNAUTHORIZED_ACCESS("Unauthorized Access"),
+        DOS_ATTACK("Denial of Service Attack"),
+        INSIDER_THREAT("Insider Threat"),
+        VULNERABILITY("Vulnerability"),
+        COMPLIANCE_VIOLATION("Compliance Violation"),
+        OTHER("Other");
         
         private final String description;
         

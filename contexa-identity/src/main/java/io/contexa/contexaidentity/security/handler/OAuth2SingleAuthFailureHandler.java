@@ -33,16 +33,16 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
             throws IOException{
 
         if (response.isCommitted()) {
-            log.warn("Response already committed for authentication failure");
+            log.error("Response already committed for authentication failure");
             return;
         }
 
         String errorCode = "AUTHENTICATION_FAILED";
-        String errorMessage = "인증에 실패했습니다. 사용자명 또는 비밀번호를 확인하세요.";
+        String errorMessage = "Authentication failed. Please check your username or password.";
 
         if (failureType == FailureType.PRIMARY_AUTH_FAILED) {
             errorCode = "PRIMARY_AUTH_FAILED";
-            errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
+            errorMessage = "Invalid username or password.";
         } else if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
 
             errorMessage = exception.getMessage();

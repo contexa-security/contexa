@@ -8,7 +8,6 @@ import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.log.LogMessage;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.DefaultRedirectStrategy;
@@ -41,7 +40,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
                                         @Nullable TokenTransportResult providedResult) throws IOException {
 
         if (response.isCommitted()) {
-            log.warn("Response already committed for user: {}", authentication.getName());
+            log.error("Response already committed for user: {}", authentication.getName());
             return;
         }
 
@@ -53,7 +52,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         if (!isApiRequest(request)) {
             String targetUrl = determineTargetUrl(request, response);
             if (response.isCommitted()) {
-                log.debug("Did not redirect to %s since response already committed.", targetUrl);
+                log.error("Did not redirect to {} since response already committed.", targetUrl);
                 return;
             }
             this.redirectStrategy.sendRedirect(request, response, targetUrl);
@@ -76,7 +75,7 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
 
         responseData.put("authenticated", true);
         responseData.put("redirectUrl", determineTargetUrl(request, response));
-        responseData.put("message", "로그인 성공!");
+        responseData.put("message", "Login successful!");
         responseData.put("username", authentication.getName());
 
         return responseData;

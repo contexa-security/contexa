@@ -39,7 +39,7 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
         prompt.append(domainPrompt.trim());
         prompt.append("\n\n");
         prompt.append("<output_format>\n");
-        prompt.append("응답은 반드시 다음 스키마와 일치하는 유효한 JSON 객체여야 합니다:\n");
+        prompt.append("The response must be a valid JSON object matching the following schema:\n");
         prompt.append(jsonSchema);
         prompt.append("\n</output_format>");
 
@@ -60,16 +60,16 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
      */
     private String generateDomainSystemPrompt() {
         return """
-            당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 IAM 권한 분석 API입니다.
+            You are not a conversational AI, but an IAM permission analysis API that outputs data only in the specified JSON format.
 
-            사용자 권한 질의를 분석하여 다음을 포함한 종합 결과를 제공합니다:
-            - 사용자 및 그룹의 권한 분석
-            - 역할 및 권한 매핑
-            - 그래프 표현을 위한 시각화 데이터
-            - 실행 가능한 권장 사항
+            Analyze user permission queries and provide comprehensive results including:
+            - Permission analysis of users and groups
+            - Role and permission mapping
+            - Visualization data for graph representation
+            - Actionable recommendations
 
-            **[필수] 반드시 준수**
-            엣지의 source/target은 반드시 nodes 배열에 존재하는 노드 ID와 정확히 일치해야 함
+            **[Required] Must comply**
+            Edge source/target must exactly match node IDs that exist in the nodes array
             """;
     }
 
@@ -83,30 +83,30 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
         return """
             {
               "analysisId": "studio-query-001",
-              "query": "그룹과 문서를 조회할 수 있는 사용자를 모두 보여주세요",
-              "naturalLanguageAnswer": "김팀장과 이운영이 그룹 정보 조회와 문서 조회 권한을 보유하고 있습니다.",
+              "query": "Show all users who can view groups and documents",
+              "naturalLanguageAnswer": "TeamLead Kim and Operator Lee have group info view and document view permissions.",
               "confidenceScore": 95.0,
               "visualizationData": {
                 "nodes": [
-                  { "id": "user-김팀장", "type": "USER", "label": "김팀장", "properties": { "name": "김팀장", "description": "개발본부 그룹" } },
-                  { "id": "user-이운영", "type": "USER", "label": "이운영", "properties": { "name": "이운영", "description": "운영팀 그룹" } },
-                  { "id": "group-개발본부", "type": "GROUP", "label": "개발본부", "properties": { "name": "개발본부" } }
+                  { "id": "user-TeamLeadKim", "type": "USER", "label": "TeamLeadKim", "properties": { "name": "TeamLeadKim", "description": "Development Division Group" } },
+                  { "id": "user-OperatorLee", "type": "USER", "label": "OperatorLee", "properties": { "name": "OperatorLee", "description": "Operations Team Group" } },
+                  { "id": "group-DevDivision", "type": "GROUP", "label": "DevDivision", "properties": { "name": "DevDivision" } }
                 ],
                 "edges": [
-                  { "id": "edge-1", "source": "user-김팀장", "target": "group-개발본부", "type": "MEMBER_OF", "properties": { "label": "소속" } },
-                  { "id": "edge-2", "source": "user-이운영", "target": "group-개발본부", "type": "MEMBER_OF", "properties": { "label": "소속" } }
+                  { "id": "edge-1", "source": "user-TeamLeadKim", "target": "group-DevDivision", "type": "MEMBER_OF", "properties": { "label": "belongs to" } },
+                  { "id": "edge-2", "source": "user-OperatorLee", "target": "group-DevDivision", "type": "MEMBER_OF", "properties": { "label": "belongs to" } }
                 ]
               },
               "analysisResults": [
                 {
-                  "user": "김팀장",
-                  "groups": ["개발본부"],
+                  "user": "TeamLeadKim",
+                  "groups": ["DevDivision"],
                   "roles": ["ROLE_DEVELOPER"],
                   "permissions": ["GROUP_INFO_VIEW", "DOCUMENT_VIEW"]
                 },
                 {
-                  "user": "이운영",
-                  "groups": ["운영팀"],
+                  "user": "OperatorLee",
+                  "groups": ["OperationsTeam"],
                   "roles": ["ROLE_OPERATOR"],
                   "permissions": ["GROUP_INFO_VIEW", "DOCUMENT_VIEW"]
                 }
@@ -145,7 +145,7 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
             [Data]
             %s
 
-            완전한 StudioQueryResponse를 JSON 형식으로 생성하세요.
+            Generate a complete StudioQueryResponse in JSON format.
             """, naturalQuery, contextInfo);
     }
 
@@ -162,14 +162,14 @@ public class StudioQueryTemplate extends AbstractBasePromptTemplate {
     private String extractNaturalQueryFromRequest(AIRequest<? extends DomainContext> request) {
         String naturalQuery = extractNaturalQuery(request);
 
-        if (naturalQuery != null && !naturalQuery.equals("자연어 질의가 제공되지 않았습니다")) {
+        if (naturalQuery != null && !naturalQuery.equals("Natural language query was not provided")) {
             return naturalQuery;
         }
 
         if (isContextType(request, StudioQueryContext.class)) {
-            return "권한 스튜디오 질의";
+            return "Permission studio query";
         }
 
-        return "자연어 질의가 제공되지 않았습니다";
+        return "Natural language query was not provided";
     }
 }

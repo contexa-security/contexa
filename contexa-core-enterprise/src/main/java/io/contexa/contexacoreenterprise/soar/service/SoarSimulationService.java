@@ -102,7 +102,7 @@ public class SoarSimulationService {
                         SoarToolCallingService.SoarExecutionResult.builder()
                             .conversationId(conversationId)
                             .success(false)
-                            .finalResponse("분석이 종료되었습니다.")
+                            .finalResponse("Analysis has been terminated.")
                             .executedTools(session.getExecutedTools())
                             .durationMs(System.currentTimeMillis() - session.getStartTime().toEpochSecond(java.time.ZoneOffset.UTC) * 1000)
                             .build();

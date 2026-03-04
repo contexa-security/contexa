@@ -66,14 +66,14 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         String username = authentication.getName();
         String mfaSessionId = sessionRepository.getSessionId(request);
         if (mfaSessionId == null) {
-            handleInvalidContext(response, request, "SESSION_ID_NOT_FOUND", "MFA 세션 ID를 찾을 수 없습니다.", authentication);
+            handleInvalidContext(response, request, "SESSION_ID_NOT_FOUND", "MFA session ID not found.", authentication);
             return;
         }
 
         FactorContext factorContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
         if (factorContext == null || !Objects.equals(factorContext.getUsername(), authentication.getName())) {
             log.error("Invalid FactorContext or username mismatch after primary authentication.");
-            handleInvalidContext(response, request, "INVALID_CONTEXT", "인증 컨텍스트가 유효하지 않거나 사용자 정보가 일치하지 않습니다.", authentication);
+            handleInvalidContext(response, request, "INVALID_CONTEXT", "Authentication context is invalid or user information does not match.", authentication);
             return;
         }
 
@@ -88,7 +88,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
             if (!initialized) {
                 log.error("Failed to initialize MFA for session: {}", mfaSessionId);
-                handleConfigError(response, request, factorContext, "MFA 초기화 실패.");
+                handleConfigError(response, request, factorContext, "MFA initialization failed.");
                 return;
             }
 
@@ -99,7 +99,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
             processErrorEventRecommendation(factorContext, request, mfaSessionId);
 
-            handleConfigError(response, request, factorContext, "MFA 초기화 중 오류 발생.");
+            handleConfigError(response, request, factorContext, "Error occurred during MFA initialization.");
             return;
         }
 
@@ -125,13 +125,13 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         boolean nextEventSent = sendNextMfaEvent(decision, mfaSessionId, request);
         if (!nextEventSent) {
             log.error("Failed to send next MFA event for session: {}", mfaSessionId);
-            handleConfigError(response, request, factorContext, "MFA 이벤트 전송 실패.");
+            handleConfigError(response, request, factorContext, "Failed to send MFA event.");
             return;
         }
 
         FactorContext finalFactorContext = stateMachineIntegrator.loadFactorContext(mfaSessionId);
         if (finalFactorContext == null) {
-            handleInvalidContext(response, request, "CONTEXT_LOST", "MFA 처리 중 컨텍스트 유실.", authentication);
+            handleInvalidContext(response, request, "CONTEXT_LOST", "MFA context lost during processing.", authentication);
             return;
         }
 
@@ -153,14 +153,14 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
             case PRIMARY_AUTHENTICATION_COMPLETED:
                 log.error("State remained PRIMARY_AUTHENTICATION_COMPLETED for user: {}. Next event may have failed.", username);
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, factorContext, request);
-                handleConfigError(response, request, finalFactorContext, "MFA 초기화 후 다음 단계로 전이되지 않았습니다.");
+                handleConfigError(response, request, finalFactorContext, "State did not transition to next step after MFA initialization.");
                 break;
 
             default:
                 log.error("Unexpected FactorContext state ({}) for user {} after policy evaluation",
                         currentState, username);
                 stateMachineIntegrator.sendEvent(MfaEvent.SYSTEM_ERROR, factorContext, request);
-                handleConfigError(response, request, finalFactorContext, "MFA 처리 중 예상치 못한 상태입니다.");
+                handleConfigError(response, request, finalFactorContext, "Unexpected state during MFA processing.");
         }
     }
 
@@ -168,7 +168,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                FactorContext factorContext) throws IOException {
         Map<String, Object> responseBody = createMfaResponseBody(
                 "MFA_REQUIRED_SELECT_FACTOR",
-                "추가 인증이 필요합니다. 인증 수단을 선택해주세요.",
+                "Additional authentication is required. Please select an authentication method.",
                 factorContext,
                 request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
                 2
@@ -188,7 +188,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
         Map<String, Object> responseBody = createMfaResponseBody(
                 "MFA_REQUIRED",
-                "추가 인증이 필요합니다.",
+                "Additional authentication is required.",
                 factorContext,
                 nextUiPageUrl,
                 2
@@ -232,7 +232,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         Map<String, Object> errorResponse = new HashMap<>();
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, errorCode,
-                "MFA 세션 컨텍스트 오류: " + logMessage, request.getRequestURI(), errorResponse);
+                "MFA session context error: " + logMessage, request.getRequestURI(), errorResponse);
     }
 
     private String determineChallengeUrl(FactorContext ctx, HttpServletRequest request) {
@@ -261,7 +261,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("status", "AUTHENTICATION_BLOCKED");
         errorResponse.put("blocked", true);
-        errorResponse.put("message", "인증이 보안 정책에 의해 차단되었습니다. 관리자에게 문의하세요.");
+        errorResponse.put("message", "Authentication has been blocked by security policy. Please contact the administrator.");
         errorResponse.put("supportContact", "security@example.com");
         errorResponse.put("username", ctx.getUsername());
         errorResponse.put("timestamp", System.currentTimeMillis());
@@ -280,7 +280,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 response,
                 HttpServletResponse.SC_FORBIDDEN,
                 "AUTHENTICATION_BLOCKED",
-                "인증이 보안 정책에 의해 차단되었습니다. 관리자에게 문의하세요.",
+                "Authentication has been blocked by security policy. Please contact the administrator.",
                 request.getRequestURI(),
                 errorResponse
         );

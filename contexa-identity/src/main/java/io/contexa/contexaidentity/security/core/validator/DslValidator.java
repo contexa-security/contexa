@@ -25,7 +25,7 @@ public class DslValidator implements Validator<PlatformConfig> {
         ValidationResult finalResult = new ValidationResult();
 
         if (platformConfig == null) {
-            finalResult.addError("PlatformConfig가 null 입니다. DSL 설정을 검증할 수 없습니다.");
+            finalResult.addError("PlatformConfig is null. Unable to validate DSL configuration.");
             return finalResult;
         }
 

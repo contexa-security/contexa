@@ -149,7 +149,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             String nextUrl = determineNextFactorUrl(nextFactor, request);
             int currentStep = (nextFactor == AuthType.MFA_OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
-                    "다음 인증 단계로 진행합니다: " + nextFactor.name(),
+                    "Proceeding to next authentication step: " + nextFactor.name(),
                     factorContext, nextUrl, currentStep);
             responseBody.put("nextFactorType", nextFactor.name());
 
@@ -165,7 +165,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             String nextUrl = determineNextFactorUrl(nextFactor, request);
             int currentStep = (nextFactor == AuthType.MFA_OTT) ? 2 : 3;
             Map<String, Object> responseBody = createMfaContinueResponse(
-                    "챌린지가 준비되었습니다: " + nextFactor.name(),
+                    "Challenge is ready: " + nextFactor.name(),
                     factorContext, nextUrl, currentStep);
             responseBody.put("nextFactorType", nextFactor.name());
             responseBody.put("challengeReady", true);
@@ -177,7 +177,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
         } else if (currentState == MfaState.AWAITING_FACTOR_SELECTION) {
 
             Map<String, Object> responseBody = createMfaContinueResponse(
-                    "인증 수단을 선택해주세요.",
+                    "Please select an authentication method.",
                     factorContext,
                     request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
                     2
@@ -196,7 +196,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             }
         } else {
             log.error("Unexpected state {} after factor verification", currentState);
-            handleGenericError(response, request, factorContext, "예상치 못한 상태: " + currentState);
+            handleGenericError(response, request, factorContext, "Unexpected state: " + currentState);
         }
     }
 
@@ -223,7 +223,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "SESSION_NOT_FOUND", "MFA 세션을 찾을 수 없습니다.", request.getRequestURI(), errorResponse);
+                    "SESSION_NOT_FOUND", "MFA session not found.", request.getRequestURI(), errorResponse);
         } else {
             log.error("Response already committed, cannot write SESSION_NOT_FOUND error for session: {}",
                     factorContext.getMfaSessionId());
@@ -233,7 +233,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private void handleInvalidContext(HttpServletResponse response, HttpServletRequest request,
                                       @Nullable Authentication authentication) throws IOException {
         log.error("MFA Factor Processing Success using {} repository: Invalid FactorContext. Message: {}. User from auth: {}",
-                sessionRepository.getRepositoryType(), "MFA 팩터 처리 성공 후 컨텍스트를 찾을 수 없거나 사용자가 일치하지 않습니다.",
+                sessionRepository.getRepositoryType(), "Context not found or user mismatch after MFA factor processing success.",
                 (authentication != null ? authentication.getName() : "UnknownUser"));
 
         String oldSessionId = sessionRepository.getSessionId(request);
@@ -251,7 +251,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "MFA_FACTOR_SUCCESS_NO_CONTEXT",
-                    "MFA 세션 컨텍스트 오류: " + "MFA 팩터 처리 성공 후 컨텍스트를 찾을 수 없거나 사용자가 일치하지 않습니다.", request.getRequestURI(), errorResponse);
+                    "MFA session context error: Context not found or user mismatch after MFA factor processing success.", request.getRequestURI(), errorResponse);
         } else {
             log.error("Response already committed, cannot write INVALID_CONTEXT error: {}", "MFA_FACTOR_SUCCESS_NO_CONTEXT");
         }
@@ -277,7 +277,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
 
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                    "STATE_TRANSITION_ERROR", "상태 전이 오류가 발생했습니다.",
+                    "STATE_TRANSITION_ERROR", "State transition error occurred.",
                     request.getRequestURI());
         } else {
             log.error("Response already committed, cannot write STATE_TRANSITION_ERROR for session: {}",

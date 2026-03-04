@@ -92,15 +92,15 @@ public class DynamicThreatResponseEvent extends ApplicationEvent implements Lear
 
     public String generateNaturalLanguageDescription() {
         StringBuilder sb = new StringBuilder();
-        sb.append("위협 유형: ").append(threatType).append("\n");
-        sb.append("공격 벡터: ").append(attackVector).append("\n");
-        sb.append("대상 리소스: ").append(targetResource).append("\n");
-        sb.append("공격자: ").append(attackerIdentity).append("\n");
-        sb.append("수행된 대응: ").append(mitigationAction).append("\n");
-        sb.append("결과: ").append(responseSuccessful ? "성공" : "실패").append("\n");
-        
+        sb.append("Threat Type: ").append(threatType).append("\n");
+        sb.append("Attack Vector: ").append(attackVector).append("\n");
+        sb.append("Target Resource: ").append(targetResource).append("\n");
+        sb.append("Attacker: ").append(attackerIdentity).append("\n");
+        sb.append("Mitigation Action: ").append(mitigationAction).append("\n");
+        sb.append("Result: ").append(responseSuccessful ? "Success" : "Failure").append("\n");
+
         if (responseDescription != null) {
-            sb.append("상세 설명: ").append(responseDescription);
+            sb.append("Details: ").append(responseDescription);
         }
         
         return sb.toString();

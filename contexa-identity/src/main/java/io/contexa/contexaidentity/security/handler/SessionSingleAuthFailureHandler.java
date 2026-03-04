@@ -43,11 +43,11 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
         }
 
         String errorCode = "PRIMARY_AUTH_FAILED";
-        String errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
+        String errorMessage = "Invalid username or password.";
 
         if (failureType == FailureType.PRIMARY_AUTH_FAILED) {
             errorCode = "PRIMARY_AUTH_FAILED";
-            errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
+            errorMessage = "Invalid username or password.";
         } else if (exception.getMessage() != null && !exception.getMessage().isBlank()) {
             errorMessage = exception.getMessage();
         }

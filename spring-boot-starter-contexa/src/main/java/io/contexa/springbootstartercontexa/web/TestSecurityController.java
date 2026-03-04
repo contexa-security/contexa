@@ -1,5 +1,6 @@
 package io.contexa.springbootstartercontexa.web;
 
+import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.springbootstartercontexa.service.TestSecurityService;
 import lombok.RequiredArgsConstructor;
@@ -49,6 +50,7 @@ public class TestSecurityController {
      * @return 조회 결과 또는 에러 응답
      */
     @GetMapping("/public/{resourceId}")
+    @Protectable
     public ResponseEntity<Map<String, Object>> testPublicData(
             @PathVariable String resourceId) {
 

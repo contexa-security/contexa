@@ -72,7 +72,7 @@ public class VectorStoreMetricsImpl implements VectorStoreMetrics, DomainMetrics
             recordPerformanceHistory(labName, operationType, documentCount, durationMs);
 
         } catch (Exception e) {
-            log.error("메트릭 기록 실패: Lab={}, 작업={}", labName, operationType, e);
+            log.error("Metrics recording failed: Lab={}, Operation={}", labName, operationType, e);
         }
     }
 
@@ -109,10 +109,10 @@ public class VectorStoreMetricsImpl implements VectorStoreMetrics, DomainMetrics
                 labErrors.remove(0);
             }
             
-            log.error("[{}] 에러 기록: {} - {}", labName, operationType, error.getMessage());
-            
+            log.error("[{}] Error recorded: {} - {}", labName, operationType, error.getMessage());
+
         } catch (Exception e) {
-            log.error("에러 메트릭 기록 실패: Lab={}, 작업={}", labName, operationType, e);
+            log.error("Error metrics recording failed: Lab={}, Operation={}", labName, operationType, e);
         }
     }
 

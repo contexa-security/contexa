@@ -49,7 +49,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
                 });
 
                     } else {
-            log.warn("MeterRegistry가 없어 Prometheus 메트릭 등록을 건너뜁니다");
+            log.error("MeterRegistry not available, skipping Prometheus metrics registration");
         }
     }
 
@@ -83,7 +83,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             metrics.put("policyViolations", policyViolations);
 
         } catch (Exception e) {
-            log.error("시스템 메트릭 수집 실패", e);
+            log.error("System metrics collection failed", e);
             
             metrics.put("activeIncidents", 0L);
             metrics.put("threatLevel", 0.0);
@@ -158,7 +158,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             return totalMinutes / resolvedIncidents.size();
 
         } catch (Exception e) {
-            log.warn("평균 해결 시간 계산 실패: {}", e.getMessage());
+            log.error("Average resolution time calculation failed: {}", e.getMessage());
             return 0.0;
         }
     }
@@ -198,7 +198,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             return eventCount / 10.0;
 
         } catch (Exception e) {
-            log.warn("이벤트 속도 계산 실패: {}", e.getMessage());
+            log.error("Event rate calculation failed: {}", e.getMessage());
             return 0.0;
         }
     }
@@ -212,7 +212,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
                         incident.getCreatedAt().isAfter(oneHourAgo))
                 .count();
         } catch (Exception e) {
-            log.warn("실패한 인증 시도 수 조회 실패: {}", e.getMessage());
+            log.error("Failed authentication attempt count query failed: {}", e.getMessage());
             return 0L;
         }
     }
@@ -226,7 +226,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
                         incident.getCreatedAt().isAfter(oneHourAgo))
                 .count();
         } catch (Exception e) {
-            log.warn("정책 위반 수 조회 실패: {}", e.getMessage());
+            log.error("Policy violation count query failed: {}", e.getMessage());
             return 0L;
         }
     }
@@ -244,7 +244,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             trend.put("threatTrend", threatTrend);
 
         } catch (Exception e) {
-            log.error("메트릭 트렌드 조회 실패", e);
+            log.error("Metrics trend query failed", e);
             trend.put("error", e.getMessage());
         }
 
@@ -300,7 +300,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
             return healthFromThreat * resourceAvailability * successRate;
 
         } catch (Exception e) {
-            log.warn("시스템 건강도 계산 실패: {}", e.getMessage());
+            log.error("System health score calculation failed: {}", e.getMessage());
             return 0.5; 
         }
     }
@@ -335,7 +335,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
                 ((Number) metrics.getOrDefault("policyViolations", 0L)).doubleValue());
 
         } catch (Exception e) {
-            log.warn("핵심 메트릭 추출 실패: {}", e.getMessage());
+            log.error("Key metrics extraction failed: {}", e.getMessage());
         }
 
         return keyMetrics;
@@ -357,7 +357,7 @@ public class SystemMetricsCollector implements DomainMetrics, EventRecorder {
                     (String) metadata.get("resourceType") : "unknown";
                 double usage = metadata.containsKey("usage") ?
                     ((Number) metadata.get("usage")).doubleValue() : 0.0;
-                log.warn("리소스 경고 - {}: {}%", resourceType, usage);
+                log.error("Resource alert - {}: {}%", resourceType, usage);
                 break;
             default:
                         }

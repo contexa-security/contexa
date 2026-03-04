@@ -39,7 +39,7 @@ public class ResourceNamingDiagnosisStrategy extends AbstractAIStrategy<Resource
 
         if (resources == null || resources.isEmpty()) {
             throw new DiagnosisException("RESOURCE_NAMING", "MISSING_RESOURCES",
-                    "resources 파라미터가 필요합니다");
+                    "The 'resources' parameter is required");
         }
     }
 

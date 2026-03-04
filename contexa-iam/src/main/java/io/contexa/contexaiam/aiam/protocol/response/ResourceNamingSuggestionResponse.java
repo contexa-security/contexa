@@ -68,8 +68,8 @@ public class ResourceNamingSuggestionResponse extends AIResponse {
 
                 suggestions.add(ResourceNamingSuggestion.builder()
                         .identifier(identifier)
-                        .friendlyName(friendlyName != null ? friendlyName : identifier + " 기능")
-                        .description(description != null ? description : "AI 추천을 받지 못한 리소스입니다.")
+                        .friendlyName(friendlyName != null ? friendlyName : identifier + " feature")
+                        .description(description != null ? description : "Resource that did not receive AI recommendation.")
                         .confidence(0.8)
                         .build());
             } catch (Exception e) {

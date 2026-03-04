@@ -39,13 +39,13 @@ public class PolicyGenerationDiagnosisStrategy extends AbstractAIStrategy<Policy
     @Override
     protected void validateRequest(AIRequest<PolicyContext> request) throws DiagnosisException {
         if (request == null) {
-            throw new DiagnosisException("POLICY_GENERATION", "NULL_REQUEST", "요청이 null입니다");
+            throw new DiagnosisException("POLICY_GENERATION", "NULL_REQUEST", "Request is null");
         }
 
         String naturalLanguageQuery = request.getNaturalLanguageQuery();
         if (naturalLanguageQuery == null || naturalLanguageQuery.trim().isEmpty()) {
             throw new DiagnosisException("POLICY_GENERATION", "MISSING_NATURAL_LANGUAGE_QUERY",
-                    "naturalLanguageQuery 파라미터가 필요합니다");
+                    "The 'naturalLanguageQuery' parameter is required");
         }
     }
 

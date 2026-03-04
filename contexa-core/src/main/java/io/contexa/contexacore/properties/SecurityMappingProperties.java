@@ -119,7 +119,7 @@ public class SecurityMappingProperties {
             try {
                 return ExecutionContext.AnalysisLevel.valueOf(levelName);
             } catch (IllegalArgumentException e) {
-                log.warn("잘못된 AnalysisLevel: {}. 기본값 사용", levelName);
+                log.error("Invalid AnalysisLevel: {}. Using default", levelName);
                 return ExecutionContext.AnalysisLevel.valueOf(defaults.getDefaultAnalysisLevel());
             }
         }
@@ -130,7 +130,7 @@ public class SecurityMappingProperties {
                 try {
                     return ExecutionContext.AnalysisLevel.valueOf(config.getAnalysisLevel());
                 } catch (IllegalArgumentException e) {
-                    log.warn("잘못된 AnalysisLevel: {}. 기본값 사용", config.getAnalysisLevel());
+                    log.error("Invalid AnalysisLevel: {}. Using default", config.getAnalysisLevel());
                 }
             }
         }

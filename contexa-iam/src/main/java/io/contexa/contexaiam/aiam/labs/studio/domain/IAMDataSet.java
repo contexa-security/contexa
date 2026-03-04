@@ -37,16 +37,16 @@ public class IAMDataSet {
 
     public String getSummary() {
         if (!isSuccess()) {
-            return "데이터 수집 실패: " + error;
+            return "Data collection failed: " + error;
         }
-        
+
         StringBuilder summary = new StringBuilder();
-        summary.append("수집된 데이터: ");
-        
-        if (users != null) summary.append("사용자 ").append(users.size()).append("명, ");
-        if (groups != null) summary.append("그룹 ").append(groups.size()).append("개, ");
-        if (roles != null) summary.append("역할 ").append(roles.size()).append("개, ");
-        if (permissions != null) summary.append("권한 ").append(permissions.size()).append("개, ");
+        summary.append("Collected data: ");
+
+        if (users != null) summary.append("Users: ").append(users.size()).append(", ");
+        if (groups != null) summary.append("Groups: ").append(groups.size()).append(", ");
+        if (roles != null) summary.append("Roles: ").append(roles.size()).append(", ");
+        if (permissions != null) summary.append("Permissions: ").append(permissions.size()).append(", ");
         
         return summary.toString().replaceAll(", $", "");
     }

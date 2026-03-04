@@ -47,11 +47,11 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
     public void init() {
         
         analysisCounter = Counter.builder("zerotrust.hcad.analysis.total")
-            .description("HCAD 전체 분석 수행 횟수")
+            .description("HCAD total analysis count")
             .register(meterRegistry);
 
         analysisTimer = Timer.builder("zerotrust.hcad.analysis.duration")
-            .description("HCAD 분석 소요 시간")
+            .description("HCAD analysis duration")
             .register(meterRegistry);
 
         meterRegistry.gauge("zerotrust.hcad.layer.threat_search.contribution", layer1ThreatSearchSum,
@@ -70,57 +70,57 @@ public class HCADFeedbackLoopMetrics implements HCADFeedbackMetrics, DomainMetri
             .tag("range", "very_high")
             .tag("min", "0.9")
             .tag("max", "1.0")
-            .description("유사도 매우 높음 (0.9-1.0)")
+            .description("Similarity very high (0.9-1.0)")
             .register(meterRegistry);
 
         similarityHigh = Counter.builder("zerotrust.hcad.similarity.score")
             .tag("range", "high")
             .tag("min", "0.7")
             .tag("max", "0.9")
-            .description("유사도 높음 (0.7-0.9) - HOT Path 경계")
+            .description("Similarity high (0.7-0.9) - HOT Path boundary")
             .register(meterRegistry);
 
         similarityMedium = Counter.builder("zerotrust.hcad.similarity.score")
             .tag("range", "medium")
             .tag("min", "0.5")
             .tag("max", "0.7")
-            .description("유사도 중간 (0.5-0.7)")
+            .description("Similarity medium (0.5-0.7)")
             .register(meterRegistry);
 
         similarityLow = Counter.builder("zerotrust.hcad.similarity.score")
             .tag("range", "low")
             .tag("min", "0.3")
             .tag("max", "0.5")
-            .description("유사도 낮음 (0.3-0.5)")
+            .description("Similarity low (0.3-0.5)")
             .register(meterRegistry);
 
         similarityVeryLow = Counter.builder("zerotrust.hcad.similarity.score")
             .tag("range", "very_low")
             .tag("min", "0.0")
             .tag("max", "0.3")
-            .description("유사도 매우 낮음 (0.0-0.3)")
+            .description("Similarity very low (0.0-0.3)")
             .register(meterRegistry);
 
         anomalyDetectedCounter = Counter.builder("zerotrust.hcad.anomaly.detected")
             .tag("type", "total")
-            .description("이상 탐지 총 횟수")
+            .description("Total anomaly detection count")
             .register(meterRegistry);
 
         anomalyFalsePositiveCounter = Counter.builder("zerotrust.hcad.anomaly.detected")
             .tag("type", "false_positive")
-            .description("오탐지 (False Positive) 횟수")
+            .description("False positive count")
             .register(meterRegistry);
 
         baselineUpdatedCounter = Counter.builder("zerotrust.hcad.feedback.baseline.updated")
-            .description("기준선 벡터 업데이트 횟수 (학습)")
+            .description("Baseline vector update count (learning)")
             .register(meterRegistry);
 
         thresholdAdjustedCounter = Counter.builder("zerotrust.hcad.feedback.threshold.adjusted")
-            .description("임계값 동적 조정 횟수 (학습)")
+            .description("Threshold dynamic adjustment count (learning)")
             .register(meterRegistry);
 
         feedbackProcessingTimer = Timer.builder("zerotrust.hcad.feedback.processing.duration")
-            .description("피드백 처리 소요 시간")
+            .description("Feedback processing duration")
             .register(meterRegistry);
 
             }

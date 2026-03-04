@@ -83,7 +83,7 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
             metadata.put("requestId", UUID.randomUUID().toString());
 
             String queryText = String.format(
-                    "자연어 질의: %s",
+                    "Natural language query: %s",
                     request.getNaturalLanguageQuery()
             );
 
@@ -91,8 +91,8 @@ public class StudioQueryVectorService extends AbstractVectorLabService {
             storeDocument(queryDoc);
 
         } catch (Exception e) {
-            log.error("[StudioQueryVectorService] 질의 요청 저장 실패", e);
-            throw new VectorStoreException("질의 요청 저장 실패: " + e.getMessage(), e);
+            log.error("[StudioQueryVectorService] Failed to store query request", e);
+            throw new VectorStoreException("Failed to store query request: " + e.getMessage(), e);
         }
     }
 

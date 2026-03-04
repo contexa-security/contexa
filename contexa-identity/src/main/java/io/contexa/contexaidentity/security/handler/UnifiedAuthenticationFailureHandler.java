@@ -161,12 +161,12 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         }
 
         String errorCode = "PRIMARY_AUTH_FAILED";
-        String errorMessage = "아이디 또는 비밀번호가 잘못되었습니다.";
+        String errorMessage = "Invalid username or password.";
         FailureType failureType = FailureType.PRIMARY_AUTH_FAILED;
 
         if (exception.getMessage() != null && exception.getMessage().contains("MFA")) {
             errorCode = "MFA_GLOBAL_FAILURE";
-            errorMessage = "MFA 처리 중 문제가 발생했습니다: " + exception.getMessage();
+            errorMessage = "An error occurred during MFA processing: " + exception.getMessage();
             failureType = FailureType.MFA_GLOBAL_FAILURE;
         }
 
@@ -210,7 +210,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
         if (!response.isCommitted()) {
             responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
-                    "SESSION_NOT_FOUND", "MFA 세션을 찾을 수 없습니다.",
+                    "SESSION_NOT_FOUND", "MFA session not found.",
                     request.getRequestURI(), errorDetails);
         }
     }

@@ -16,7 +16,7 @@ public class ZeroTrustExceptionHandler {
     public ResponseEntity<ZeroTrustErrorResponse> handleZeroTrustDenied(
             ZeroTrustAccessDeniedException ex) {
 
-        log.warn("Zero Trust 접근 거부 - action: {}, resource: {}, risk: {}, reason: {}",
+        log.error("Zero Trust access denied - action: {}, resource: {}, risk: {}, reason: {}",
             ex.getAction(), ex.getResourceId(), ex.getRiskScore(), ex.getReason());
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
@@ -39,7 +39,7 @@ public class ZeroTrustExceptionHandler {
     public ResponseEntity<ZeroTrustErrorResponse> handleAnomalyDetected(
             AnomalyDetectedException ex) {
 
-        log.warn("이상 탐지 접근 거부 - message: {}", ex.getMessage());
+        log.error("Anomaly detection access denied - message: {}", ex.getMessage());
 
         ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
             .status(403)

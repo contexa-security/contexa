@@ -87,12 +87,12 @@ public class SoarContext extends DomainContext {
     }
 
     public enum ThreatLevel {
-        CRITICAL("치명적", 10),
-        HIGH("높음", 8),
-        MEDIUM("중간", 6),
-        LOW("낮음", 4),
-        INFO("정보", 2),
-        UNKNOWN("알 수 없음", 0);
+        CRITICAL("Critical", 10),
+        HIGH("High", 8),
+        MEDIUM("Medium", 6),
+        LOW("Low", 4),
+        INFO("Info", 2),
+        UNKNOWN("Unknown", 0);
         
         private final String description;
         private final int level;

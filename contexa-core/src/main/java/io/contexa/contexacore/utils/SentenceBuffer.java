@@ -18,19 +18,19 @@ public class SentenceBuffer {
     private static final Pattern CONTROL_CHAR_PATTERN = Pattern.compile("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]");
     private static final Pattern MARKDOWN_HEADER_PATTERN = Pattern.compile("#{1,6}\\s*");
     private static final Pattern PUNCTUATION_ONLY_PATTERN = Pattern.compile("^[.,!?;:]+$");
-    private static final Pattern VALID_CONTENT_PATTERN = Pattern.compile(".*[가-힣a-zA-Z0-9]+.*");
+    private static final Pattern VALID_CONTENT_PATTERN = Pattern.compile(".*[\\uAC00-\\uD7A3a-zA-Z0-9]+.*");
     private static final Pattern NEWLINE_SPLIT_PATTERN = Pattern.compile("\\n");
 
     private static final int MAX_BUFFER_SIZE = 200;
 
     private static final String[] KOREAN_ENDINGS = {
-            "확인했습니다.", "완료했습니다.", "시작했습니다.", "분석했습니다.",
-            "검토했습니다.", "처리했습니다.", "조회했습니다.", "찾았습니다.",
-            "진행했습니다.", "실행했습니다.", "수행했습니다.", "생성했습니다.",
-            "했습니다.", "있습니다.", "됩니다.", "습니다.", "입니다.",
-            "니다.", "했다.", "했어요.", "했요.", "다.", "요.", "!",
+            "\uD655\uC778\uD588\uC2B5\uB2C8\uB2E4.", "\uC644\uB8CC\uD588\uC2B5\uB2C8\uB2E4.", "\uC2DC\uC791\uD588\uC2B5\uB2C8\uB2E4.", "\uBD84\uC11D\uD588\uC2B5\uB2C8\uB2E4.",
+            "\uAC80\uD1A0\uD588\uC2B5\uB2C8\uB2E4.", "\uCC98\uB9AC\uD588\uC2B5\uB2C8\uB2E4.", "\uC870\uD68C\uD588\uC2B5\uB2C8\uB2E4.", "\uCC3E\uC558\uC2B5\uB2C8\uB2E4.",
+            "\uC9C4\uD589\uD588\uC2B5\uB2C8\uB2E4.", "\uC2E4\uD589\uD588\uC2B5\uB2C8\uB2E4.", "\uC218\uD589\uD588\uC2B5\uB2C8\uB2E4.", "\uC0DD\uC131\uD588\uC2B5\uB2C8\uB2E4.",
+            "\uD588\uC2B5\uB2C8\uB2E4.", "\uC788\uC2B5\uB2C8\uB2E4.", "\uB429\uB2C8\uB2E4.", "\uC2B5\uB2C8\uB2E4.", "\uC785\uB2C8\uB2E4.",
+            "\uB2C8\uB2E4.", "\uD588\uB2E4.", "\uD588\uC5B4\uC694.", "\uD588\uC694.", "\uB2E4.", "\uC694.", "!",
 
-            "권한분석]", "위험평가]", "정책생성]"
+            "PermissionAnalysis]", "RiskAssessment]", "PolicyGeneration]"
     };
 
     public Flux<String> processChunk(String chunk) {
@@ -181,8 +181,8 @@ public class SentenceBuffer {
         if (text == null || text.trim().isEmpty()) return false;
 
         String[] labKeywords = {
-                "권한분석", "위험평가", "정책생성", "분석 시작", "분석 완료",
-                "진행 중", "처리 중", "StudioQuery", "RiskAssessment", "PolicyGeneration"
+                "PermissionAnalysis", "RiskAssessment", "PolicyGeneration", "AnalysisStarted", "AnalysisComplete",
+                "InProgress", "Processing", "StudioQuery"
         };
 
         for (String keyword : labKeywords) {

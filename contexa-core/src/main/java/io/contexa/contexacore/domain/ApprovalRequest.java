@@ -75,12 +75,12 @@ public class ApprovalRequest implements Serializable {
     }
 
     public enum ApprovalType {
-        AUTO("자동 승인"),
-        MANUAL("수동 승인 필요"),
-        SINGLE("단일 승인"),
-        MULTI("다중 승인 필요"),
-        UNANIMOUS("만장일치"),
-        EMERGENCY("긴급 승인");
+        AUTO("Auto Approval"),
+        MANUAL("Manual Approval Required"),
+        SINGLE("Single Approval"),
+        MULTI("Multi Approval Required"),
+        UNANIMOUS("Unanimous"),
+        EMERGENCY("Emergency Approval");
         
         private final String description;
         
@@ -94,11 +94,11 @@ public class ApprovalRequest implements Serializable {
     }
 
     public enum ApprovalStatus {
-        PENDING("대기 중"),
-        APPROVED("승인됨"),
-        REJECTED("거부됨"),
-        EXPIRED("만료됨"),
-        CANCELLED("취소됨");
+        PENDING("Pending"),
+        APPROVED("Approved"),
+        REJECTED("Rejected"),
+        EXPIRED("Expired"),
+        CANCELLED("Cancelled");
         
         private final String description;
         

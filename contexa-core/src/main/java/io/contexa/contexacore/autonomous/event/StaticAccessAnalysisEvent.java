@@ -97,7 +97,7 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
         this.overPrivilegedCount = overPrivilegedCount;
         this.recommendations = recommendations != null ? recommendations : new HashMap<>();
         this.responseSuccessful = true;  
-        this.responseDescription = "권한 분석 완료";
+        this.responseDescription = "Permission analysis complete";
 
         this.context = buildContext(additionalContext);
     }
@@ -130,21 +130,21 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
 
     public String generateNaturalLanguageDescription() {
         StringBuilder sb = new StringBuilder();
-        sb.append("분석 유형: ").append(getAnalysisTypeDescription()).append("\n");
-        sb.append("대상 리소스: ").append(analyzedResource != null ? analyzedResource : "전체 시스템").append("\n");
-        sb.append("대상 사용자: ").append(analyzedUser != null ? analyzedUser : "전체 사용자").append("\n");
-        sb.append("발견 사항: ").append(findings != null ? findings.size() : 0).append("건\n");
-        
+        sb.append("Analysis Type: ").append(getAnalysisTypeDescription()).append("\n");
+        sb.append("Target Resource: ").append(analyzedResource != null ? analyzedResource : "Entire System").append("\n");
+        sb.append("Target User: ").append(analyzedUser != null ? analyzedUser : "All Users").append("\n");
+        sb.append("Findings: ").append(findings != null ? findings.size() : 0).append(" item(s)\n");
+
         if (unusedPermissions != null && unusedPermissions > 0) {
-            sb.append("미사용 권한: ").append(unusedPermissions).append("개\n");
+            sb.append("Unused Permissions: ").append(unusedPermissions).append("\n");
         }
-        
+
         if (overPrivilegedCount != null && overPrivilegedCount > 0) {
-            sb.append("과도한 권한: ").append(overPrivilegedCount).append("개\n");
+            sb.append("Over-Privileged: ").append(overPrivilegedCount).append("\n");
         }
-        
+
         if (!recommendations.isEmpty()) {
-            sb.append("권장 사항: ").append(recommendations.size()).append("건");
+            sb.append("Recommendations: ").append(recommendations.size()).append(" item(s)");
         }
         
         return sb.toString();
@@ -165,19 +165,19 @@ public class StaticAccessAnalysisEvent extends ApplicationEvent implements Learn
     private String getAnalysisTypeDescription() {
         switch (analysisType) {
             case UNUSED_PERMISSIONS:
-                return "미사용 권한 분석";
+                return "Unused Permissions Analysis";
             case OVER_PRIVILEGED:
-                return "과도한 권한 분석";
+                return "Over-Privileged Analysis";
             case SEPARATION_OF_DUTIES:
-                return "직무 분리 검증";
+                return "Separation of Duties Verification";
             case LEAST_PRIVILEGE:
-                return "최소 권한 원칙 검증";
+                return "Least Privilege Principle Verification";
             case ACCESS_REVIEW:
-                return "접근 권한 검토";
+                return "Access Review";
             case COMPLIANCE_CHECK:
-                return "규정 준수 확인";
+                return "Compliance Check";
             default:
-                return "일반 권한 분석";
+                return "General Permission Analysis";
         }
     }
     

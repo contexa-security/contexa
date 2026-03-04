@@ -320,7 +320,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         responseData.put("authenticated", true);
         responseData.put("status", "MFA_COMPLETED");
-        responseData.put("message", "인증이 완료되었습니다.");
+        responseData.put("message", "Authentication completed.");
         responseData.put("redirectUrl", determineTargetUrl(request, response));
         responseData.put("stateType", stateType.name());
 
@@ -394,19 +394,19 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         switch (factorType.toUpperCase()) {
             case "MFA_OTT":
-                detail.put("displayName", "이메일 인증 코드");
+                detail.put("displayName", "Email Verification Code");
                 detail.put("icon", "email");
                 break;
             case "MFA_PASSKEY":
-                detail.put("displayName", "Passkey 생체 인증");
+                detail.put("displayName", "Passkey Biometric Authentication");
                 detail.put("icon", "fingerprint");
                 break;
             case "MFA_TOTP":
-                detail.put("displayName", "인증 앱 (TOTP)");
+                detail.put("displayName", "Authenticator App (TOTP)");
                 detail.put("icon", "app");
                 break;
             case "MFA_SMS":
-                detail.put("displayName", "SMS 인증");
+                detail.put("displayName", "SMS Verification");
                 detail.put("icon", "phone");
                 break;
             default:

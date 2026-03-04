@@ -33,7 +33,7 @@ public class PlatformBootstrap implements InitializingBean {
             dslValidatorService.validate(config, "PlatformSecurityConfig.java (DSL)");
 
         } catch (DslConfigurationException e) {
-            log.error("DSL 유효성 검사 실패로 서버 기동을 중단합니다.", e);
+            log.error("Server startup aborted due to DSL validation failure.", e);
             throw e;
         }
     }

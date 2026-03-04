@@ -96,7 +96,7 @@ public enum EventTier {
 
     @Override
     public String toString() {
-        return String.format("%s(Risk: %.2f~%.2f, 샘플링: %.0f%%)",
+        return String.format("%s(Risk: %.2f~%.2f, Sampling: %.0f%%)",
                 name(), minRisk, maxRisk, baseSamplingRate * 100);
     }
 }

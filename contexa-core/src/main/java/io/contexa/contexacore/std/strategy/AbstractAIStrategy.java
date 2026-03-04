@@ -30,11 +30,11 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
             return processLabExecution(lab, labRequest, request);
 
         } catch (DiagnosisException e) {
-            log.error("{} 전략 실행 실패 (DiagnosisException): {}",
+            log.error("{} strategy execution failed (DiagnosisException): {}",
                     this.getClass().getSimpleName(), e.getMessage());
             throw e;
         } catch (Exception e) {
-            log.error("{} 전략 실행 실패 (Exception)",
+            log.error("{} strategy execution failed (Exception)",
                     this.getClass().getSimpleName(), e);
             throw new DiagnosisException(
                     getSupportedType().name(),
@@ -56,7 +56,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
                             .doOnSuccess(response -> {
                             })
                             .doOnError(error -> {
-                                log.error("비동기 {} 전략 실행 실패", getSupportedType(), error);
+                                log.error("Async {} strategy execution failed", getSupportedType(), error);
                             });
                 })
                 .onErrorMap(DiagnosisException.class, e -> e)
@@ -74,7 +74,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
             return Flux.error(new DiagnosisException(
                     getSupportedType().name(),
                     "STREAMING_NOT_SUPPORTED",
-                    this.getClass().getSimpleName() + "는 스트리밍을 지원하지 않습니다"
+                    this.getClass().getSimpleName() + " does not support streaming"
             ));
         }
 
@@ -89,15 +89,15 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
                     .doOnComplete(() -> {
                     })
                     .doOnError(error -> {
-                        log.error("스트리밍 {} 전략 실행 실패", getSupportedType(), error);
+                        log.error("Streaming {} strategy execution failed", getSupportedType(), error);
                     });
 
         } catch (DiagnosisException e) {
-            log.error("스트리밍 {} 전략 실행 실패 (DiagnosisException): {}",
+            log.error("Streaming {} strategy execution failed (DiagnosisException): {}",
                     this.getClass().getSimpleName(), e.getMessage());
             return Flux.error(e);
         } catch (Exception e) {
-            log.error("스트리밍 {} 전략 실행 실패 (Exception)",
+            log.error("Streaming {} strategy execution failed (Exception)",
                     this.getClass().getSimpleName(), e);
             return Flux.error(new DiagnosisException(
                     getSupportedType().name(),
@@ -115,7 +115,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
             throw new DiagnosisException(
                     getSupportedType().name(),
                     "INVALID_LAB_TYPE",
-                    labType.getSimpleName() + "은 AILab 인터페이스를 구현하지 않습니다"
+                    labType.getSimpleName() + " does not implement the AILab interface"
             );
         }
 
@@ -126,7 +126,7 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
             throw new DiagnosisException(
                     getSupportedType().name(),
                     "LAB_NOT_FOUND",
-                    labType.getSimpleName() + "을 찾을 수 없습니다"
+                    labType.getSimpleName() + " not found"
             );
         }
 
@@ -144,18 +144,18 @@ public abstract class AbstractAIStrategy<T extends DomainContext, R extends AIRe
     protected abstract Mono<R> processLabExecutionAsync(Object lab, Object labRequest, AIRequest<T> originRequest);
 
     protected Flux<String> processLabExecutionStream(Object lab, Object labRequest, AIRequest<T> request) {
-        return Flux.error(new UnsupportedOperationException("스트리밍이 지원되지 않습니다"));
+        return Flux.error(new UnsupportedOperationException("Streaming is not supported"));
     }
 
     protected String getExecutionErrorMessage() {
-        return getSupportedType().name() + " 진단 실행 중 오류 발생: ";
+        return getSupportedType().name() + " diagnosis execution error: ";
     }
 
     protected String getAsyncExecutionErrorMessage() {
-        return "비동기 " + getSupportedType().name() + " 진단 실행 중 오류 발생: ";
+        return "Async " + getSupportedType().name() + " diagnosis execution error: ";
     }
 
     protected String getStreamExecutionErrorMessage() {
-        return "스트리밍 " + getSupportedType().name() + " 진단 실행 중 오류 발생: ";
+        return "Streaming " + getSupportedType().name() + " diagnosis execution error: ";
     }
 }

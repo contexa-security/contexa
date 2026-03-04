@@ -155,20 +155,20 @@ public abstract class AbstractStreamingPromptTemplate extends AbstractBasePrompt
     private String buildProtocolPrompt() {
         return String.format("""
 
-            **통합 모드 - 스트리밍 분석 과정 + 최종 JSON 결과**
+            **Unified Mode - Streaming Analysis Process + Final JSON Result**
 
-            **[절대 언어 규칙]**
-            - 모든 자연어 텍스트는 반드시 한국어(한글)로만 작성하세요.
-            - 한자(漢字), 중국어(中文), 일본어를 절대 사용하지 마세요.
-            - 영어는 기술 용어(예: API, JSON, URL)에만 허용됩니다.
+            **[Absolute Language Rules]**
+            - All natural language text must be written in Korean (Hangul) only.
+            - Never use Chinese characters, Chinese, or Japanese.
+            - English is allowed only for technical terms (e.g., API, JSON, URL).
 
-            **[1단계] 자연어 분석 과정 실시간 스트리밍:**
-            - 사용자의 요청을 분석하는 과정을 단계별로 **한국어(한글)**로 설명합니다.
-            - 이 단계에서는 절대 JSON 형식이나 코드 블록을 출력해서는 안 됩니다.
+            **[Phase 1] Real-time Streaming of Natural Language Analysis:**
+            - Explain the analysis process step by step in **Korean (Hangul)**.
+            - In this phase, never output JSON format or code blocks.
 
-            **[2단계] 최종 JSON 데이터 출력:**
-            - 모든 분석이 완료되면, "%s" 마커와 "%s" 마커 사이에 순수한 JSON 객체를 출력해야 합니다.
-            - JSON 객체는 반드시 `{`로 시작하여 `}`로 끝나야 합니다.
+            **[Phase 2] Final JSON Data Output:**
+            - Once all analysis is complete, output a pure JSON object between the "%s" marker and the "%s" marker.
+            - The JSON object must start with `{` and end with `}`.
             """,
             StreamingProtocol.JSON_START_MARKER,
             StreamingProtocol.JSON_END_MARKER);
@@ -186,20 +186,20 @@ public abstract class AbstractStreamingPromptTemplate extends AbstractBasePrompt
     private String buildJsonOutputRules() {
         return """
 
-            **JSON 출력에 대한 절대 규칙 (반드시 준수할 것):**
-            1.  **주석 절대 금지:** JSON 내부에 `//` 또는 `/* */` 형태의 주석을 절대로 포함하지 마세요.
-            2.  **마크다운 금지:** JSON 데이터를 `json`과 같은 마크다운 코드 블록으로 감싸지 마세요.
-            3.  **후처리 텍스트 금지:** JSON 객체의 마지막 `}` 문자 이후에는 어떠한 줄바꿈, 설명, 요약 등 추가 텍스트도 절대 출력하지 마세요.
-            4.  **완벽한 구조:** 아래에 명시된 JSON 구조를 단 하나의 필드도 빠뜨리거나 추가하지 말고 완벽하게 따르세요.
-            5.  **배열 형식 준수:** 배열 필드는 반드시 배열(`[]`) 형식이어야 합니다. 내용이 없더라도 빈 배열로 출력하세요.
-            6.  **따옴표 주의:** 모든 키와 문자열 값은 큰따옴표(`"`)로 감싸야 합니다. 숫자 및 boolean 값은 예외입니다.
-            7.  **쉼표 규칙 필수:**
-                - 배열 내 객체들 사이에 반드시 쉼표(`,`)를 넣으세요.
-                - 객체 내 필드들 사이에 반드시 쉼표(`,`)를 넣으세요.
-                - 배열을 닫는 `]` 뒤에 다음 필드가 있으면 반드시 쉼표를 넣으세요. 예: `"nodes": [...],` `"edges": [...]`
-                - 마지막 요소 뒤에는 쉼표를 넣지 마세요.
-            8.  **배열 닫기 필수:** 모든 배열은 반드시 `]`로 닫아야 합니다. `"nodes": [...]`처럼 열고 닫는 괄호가 일치해야 합니다.
-            9.  **JSON 검증:** 출력 전 JSON 구문이 유효한지 반드시 확인하세요. `JSON.parse()`로 파싱 가능해야 합니다.
+            **Absolute Rules for JSON Output (must be strictly followed):**
+            1.  **No comments allowed:** Never include `//` or `/* */` style comments inside JSON.
+            2.  **No markdown:** Do not wrap JSON data in markdown code blocks like `json`.
+            3.  **No post-processing text:** After the last `}` character of the JSON object, never output any additional text such as line breaks, explanations, or summaries.
+            4.  **Perfect structure:** Follow the JSON structure specified below exactly without omitting or adding a single field.
+            5.  **Array format compliance:** Array fields must always be in array (`[]`) format. Output an empty array even if there is no content.
+            6.  **Quotation marks:** All keys and string values must be wrapped in double quotes (`"`). Numbers and boolean values are exceptions.
+            7.  **Comma rules are mandatory:**
+                - Always put a comma (`,`) between objects in an array.
+                - Always put a comma (`,`) between fields in an object.
+                - If there is a next field after closing `]` of an array, always put a comma. Example: `"nodes": [...],` `"edges": [...]`
+                - Do not put a comma after the last element.
+            8.  **Array closing required:** All arrays must be closed with `]`. Opening and closing brackets must match like `"nodes": [...]`.
+            9.  **JSON validation:** Always verify that the JSON syntax is valid before output. It must be parseable by `JSON.parse()`.
             """;
     }
 
@@ -220,7 +220,7 @@ public abstract class AbstractStreamingPromptTemplate extends AbstractBasePrompt
 
         return String.format("""
 
-            **아래는 당신이 출력해야 할 완벽한 JSON 구조입니다. 이 구조를 반드시 따르세요.**
+            **Below is the complete JSON structure you must output. You must follow this structure exactly.**
 
             %s
             %s
@@ -247,7 +247,7 @@ public abstract class AbstractStreamingPromptTemplate extends AbstractBasePrompt
         }
         return String.format("""
 
-            **컨텍스트 정보:**
+            **Context Information:**
             %s
             """, systemMetadata);
     }
@@ -293,13 +293,13 @@ public abstract class AbstractStreamingPromptTemplate extends AbstractBasePrompt
     protected String buildUserPromptExecutionInstructions() {
         return String.format("""
 
-            **중요 실행 지시 (반드시 준수):**
-            1.  먼저, 분석 과정을 **한국어(한글)**로 단계별로 설명합니다. (JSON 형식 절대 사용 금지, 한자/중국어 절대 금지)
-            2.  모든 분석이 끝나면, 반드시 %s 마커로 시작하여 JSON 데이터를 출력하고 %s 마커로 종료합니다.
+            **Important Execution Instructions (must be strictly followed):**
+            1.  First, explain the analysis process step by step in **Korean (Hangul)**. (Absolutely no JSON format, no Chinese characters/Chinese)
+            2.  Once all analysis is complete, start with the %s marker, output JSON data, and end with the %s marker.
 
-            **[중요] JSON 출력은 필수입니다. JSON 출력 없이 응답을 종료하면 실패로 간주됩니다.**
+            **[Important] JSON output is mandatory. Ending a response without JSON output is considered a failure.**
 
-            **지금부터 한국어(한글)로 자연어 분석을 시작하고, 분석이 끝나면 반드시 JSON 결과를 출력하세요:**
+            **Begin natural language analysis in Korean (Hangul) now, and output JSON results when analysis is complete:**
             """,
             StreamingProtocol.JSON_START_MARKER,
             StreamingProtocol.JSON_END_MARKER);

@@ -36,38 +36,38 @@ public class DefaultRoutingDecisionMetrics extends AbstractMicrometerMetrics imp
     @Override
     protected void initializeCounters() {
         
-        hotPathCounter = counterBuilder("routing.decision", "Hot Path 라우팅 횟수")
+        hotPathCounter = counterBuilder("routing.decision", "Hot Path routing count")
                 .tag("path", "hot")
                 .register(meterRegistry);
 
-        coldPathCounter = counterBuilder("routing.decision", "Cold Path 라우팅 횟수")
+        coldPathCounter = counterBuilder("routing.decision", "Cold Path routing count")
                 .tag("path", "cold")
                 .register(meterRegistry);
 
-        passThroughCounter = counterBuilder("routing.mode", "PASS_THROUGH 모드")
+        passThroughCounter = counterBuilder("routing.mode", "PASS_THROUGH mode")
                 .tag("mode", "pass_through")
                 .register(meterRegistry);
 
-        aiAnalysisCounter = counterBuilder("routing.mode", "AI_ANALYSIS 모드")
+        aiAnalysisCounter = counterBuilder("routing.mode", "AI_ANALYSIS mode")
                 .tag("mode", "ai_analysis")
                 .register(meterRegistry);
 
-        realtimeBlockCounter = counterBuilder("routing.mode", "REALTIME_BLOCK 모드")
+        realtimeBlockCounter = counterBuilder("routing.mode", "REALTIME_BLOCK mode")
                 .tag("mode", "realtime_block")
                 .register(meterRegistry);
 
-        soarOrchestrationCounter = counterBuilder("routing.mode", "SOAR_ORCHESTRATION 모드")
+        soarOrchestrationCounter = counterBuilder("routing.mode", "SOAR_ORCHESTRATION mode")
                 .tag("mode", "soar_orchestration")
                 .register(meterRegistry);
 
-        awaitApprovalCounter = counterBuilder("routing.mode", "AWAIT_APPROVAL 모드")
+        awaitApprovalCounter = counterBuilder("routing.mode", "AWAIT_APPROVAL mode")
                 .tag("mode", "await_approval")
                 .register(meterRegistry);
     }
 
     @Override
     protected void initializeTimers() {
-        routingDecisionTimer = timerBuilder("routing.decision.duration", "라우팅 결정 소요 시간")
+        routingDecisionTimer = timerBuilder("routing.decision.duration", "Routing decision duration")
                 .register(meterRegistry);
     }
 

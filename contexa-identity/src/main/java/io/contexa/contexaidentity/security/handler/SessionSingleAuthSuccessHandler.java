@@ -33,7 +33,7 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
                                         @Nullable TokenTransportResult providedResult) throws IOException {
 
         if (response.isCommitted()) {
-            log.warn("Response already committed for user: {}", authentication.getName());
+            log.error("Response already committed for user: {}", authentication.getName());
             return;
         }
 
@@ -44,7 +44,7 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
             Map<String, Object> responseData = new HashMap<>();
             responseData.put("authenticated", true);
             responseData.put("redirectUrl", targetUrl);
-            responseData.put("message", "로그인 성공!");
+            responseData.put("message", "Login successful!");
             responseData.put("username", authentication.getName());
             responseData.put("stateType", "SESSION");
 

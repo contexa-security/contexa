@@ -228,30 +228,30 @@ public class ThreatIndicators implements Serializable {
         List<String> recommendations = new ArrayList<>();
         
         if (iocPresent) {
-            recommendations.add("IOC 기반 차단 규칙 적용");
-            recommendations.add("관련 시스템 격리 검토");
+            recommendations.add("Apply IOC-based blocking rules");
+            recommendations.add("Review isolation of related systems");
         }
-        
+
         if (mitreMapping) {
-            recommendations.add("MITRE 기반 대응 방안 적용");
+            recommendations.add("Apply MITRE-based response measures");
             if (mitreTactics != null && mitreTactics.contains("Persistence")) {
-                recommendations.add("시스템 지속성 메커니즘 제거");
+                recommendations.add("Remove system persistence mechanisms");
             }
         }
-        
+
         if (networkIndicators != null && networkIndicators.suspiciousTraffic) {
-            recommendations.add("네트워크 트래픽 모니터링 강화");
-            recommendations.add("의심스러운 IP 차단");
+            recommendations.add("Enhance network traffic monitoring");
+            recommendations.add("Block suspicious IPs");
         }
-        
+
         if (behaviorIndicators != null && behaviorIndicators.unusualActivity) {
-            recommendations.add("사용자 계정 권한 검토");
-            recommendations.add("추가 인증 요구");
+            recommendations.add("Review user account permissions");
+            recommendations.add("Require additional authentication");
         }
-        
+
         if (systemIndicators != null && systemIndicators.processAnomaly) {
-            recommendations.add("의심스러운 프로세스 종료");
-            recommendations.add("시스템 전체 스캔 실행");
+            recommendations.add("Terminate suspicious processes");
+            recommendations.add("Execute full system scan");
         }
         
         return recommendations;

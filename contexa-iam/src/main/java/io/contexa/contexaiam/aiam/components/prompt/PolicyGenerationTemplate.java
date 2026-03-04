@@ -40,7 +40,7 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
         prompt.append(domainPrompt.trim());
         prompt.append("\n\n");
         prompt.append("<output_format>\n");
-        prompt.append("응답은 반드시 다음 스키마와 일치하는 유효한 JSON 객체여야 합니다:\n");
+        prompt.append("The response must be a valid JSON object matching the following schema:\n");
         prompt.append(jsonSchema);
         prompt.append("\n</output_format>");
 
@@ -62,21 +62,21 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
      */
     private String generateDomainSystemPrompt() {
         return """
-            당신은 대화형 AI가 아니라, 오직 지정된 JSON 형식으로만 데이터를 출력하는 IAM 정책 생성 API입니다.
+            You are not a conversational AI, but an IAM policy generation API that outputs data only in the specified JSON format.
 
-            자연어 요구사항을 기반으로 다음을 포함한 보안 정책을 생성합니다:
-            - 역할 할당 및 권한 매핑
-            - 조건 구성
-            - AI 기반 액션 평가 설정 (allowedActions: ALLOW, CHALLENGE, ESCALATE, BLOCK)
-            - 컴플라이언스 검증
+            Generate security policies based on natural language requirements including:
+            - Role assignment and permission mapping
+            - Condition configuration
+            - AI-based action evaluation settings (allowedActions: ALLOW, CHALLENGE, ESCALATE, BLOCK)
+            - Compliance verification
 
-            **필수 규칙:**
-            - '사용 가능한 항목' 섹션에 제공된 ID만 사용하세요
-            - 최소 권한 원칙을 따르는 정책을 생성하세요
-            - 적절한 보안 및 컴플라이언스 요구사항을 충족하세요
-            - "conditions" 필드는 반드시 조건 목록의 숫자 조건 템플릿 ID를 키로, 문자열 배열을 값으로 하는 맵이어야 합니다
-            - "time.hour"와 같은 설명적 문자열을 조건 키로 절대 사용하지 마세요. 조건 목록에 제공된 숫자 ID만 사용하세요
-            - 조건 목록에서 적용 가능한 조건이 없으면 "conditions"를 빈 객체 {}로 설정하세요
+            **Required rules:**
+            - Use only the IDs provided in the 'Available Items' section
+            - Generate policies following the principle of least privilege
+            - Meet appropriate security and compliance requirements
+            - The "conditions" field must be a map with numeric condition template IDs from the condition list as keys and string arrays as values
+            - Never use descriptive strings like "time.hour" as condition keys. Use only numeric IDs provided in the condition list
+            - If no applicable conditions exist in the condition list, set "conditions" to an empty object {}
             """;
     }
 
@@ -144,16 +144,16 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
                                    PolicyGenerationItem.AvailableItems availableItems,
                                    String contextInfo) {
         return String.format("""
-            [자연어 요구사항]
+            [Natural Language Requirements]
             %s
 
-            [사용 가능한 항목]
+            [Available Items]
             %s
 
             [Data]
             %s
 
-            완전한 PolicyResponse를 JSON 형식으로 생성하세요.
+            Generate a complete PolicyResponse in JSON format.
             """, naturalQuery, formatAvailableItems(availableItems), contextInfo);
     }
 
@@ -174,7 +174,7 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
             return naturalQuery;
         }
 
-        return "자연어 요구사항이 제공되지 않았습니다";
+        return "Natural language requirements were not provided";
     }
 
     /**

@@ -118,7 +118,7 @@ public class SoarContextRetriever extends ContextRetriever {
 
                     if (doc.getMetadata() != null && !doc.getMetadata().isEmpty()) {
                         String source = doc.getMetadata().getOrDefault("source", "unknown").toString();
-                        return String.format("[출처: %s]\n%s", source, content);
+                        return String.format("[Source: %s]\n%s", source, content);
                     }
                     return content;
                 })
@@ -129,42 +129,42 @@ public class SoarContextRetriever extends ContextRetriever {
         String ragContext = extractRagContext(documents);
         StringBuilder contextBuilder = new StringBuilder();
 
-        contextBuilder.append("## SOAR 분석 컨텍스트\n\n");
+        contextBuilder.append("## SOAR Analysis Context\n\n");
 
-        contextBuilder.append("### 인시던트 정보\n");
-        contextBuilder.append(String.format("- 인시던트 ID: %s\n", context.getIncidentId()));
-        contextBuilder.append(String.format("- 위협 유형: %s\n", context.getThreatType()));
-        contextBuilder.append(String.format("- 설명: %s\n", context.getDescription()));
-        contextBuilder.append(String.format("- 영향받는 자산: %s\n",
+        contextBuilder.append("### Incident Information\n");
+        contextBuilder.append(String.format("- Incident ID: %s\n", context.getIncidentId()));
+        contextBuilder.append(String.format("- Threat Type: %s\n", context.getThreatType()));
+        contextBuilder.append(String.format("- Description: %s\n", context.getDescription()));
+        contextBuilder.append(String.format("- Affected Assets: %s\n",
             context.getAffectedAssets() != null ? String.join(", ", context.getAffectedAssets()) : "N/A"));
-        contextBuilder.append(String.format("- 현재 상태: %s\n", context.getCurrentStatus()));
-        contextBuilder.append(String.format("- 탐지 소스: %s\n", context.getDetectedSource()));
-        contextBuilder.append(String.format("- 심각도: %s\n", context.getSeverity()));
-        contextBuilder.append(String.format("- 권장 조치: %s\n", context.getRecommendedActions()));
-        contextBuilder.append(String.format("- 분석 시각: %s\n\n", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
+        contextBuilder.append(String.format("- Current Status: %s\n", context.getCurrentStatus()));
+        contextBuilder.append(String.format("- Detection Source: %s\n", context.getDetectedSource()));
+        contextBuilder.append(String.format("- Severity: %s\n", context.getSeverity()));
+        contextBuilder.append(String.format("- Recommended Actions: %s\n", context.getRecommendedActions()));
+        contextBuilder.append(String.format("- Analysis Time: %s\n\n", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)));
 
         if (ragContext != null && !ragContext.trim().isEmpty()) {
-            contextBuilder.append("### 관련 보안 지식 (RAG)\n");
+            contextBuilder.append("### Related Security Knowledge (RAG)\n");
             contextBuilder.append(ragContext);
             contextBuilder.append("\n\n");
         }
 
-        contextBuilder.append("### AI 분석 가이드\n");
-        contextBuilder.append("위의 정보를 종합하여 다음을 평가하고 자동화된 조치를 제안해주세요:\n");
-        contextBuilder.append("1. 인시던트의 심각도 재평가\n");
-        contextBuilder.append("2. 실행할 플레이북 또는 자동화된 조치 목록\n");
-        contextBuilder.append("3. 각 조치의 예상 결과\n");
-        contextBuilder.append("4. 최종 요약 및 다음 단계\n");
+        contextBuilder.append("### AI Analysis Guide\n");
+        contextBuilder.append("Based on the information above, evaluate the following and suggest automated actions:\n");
+        contextBuilder.append("1. Re-evaluate incident severity\n");
+        contextBuilder.append("2. List of playbooks or automated actions to execute\n");
+        contextBuilder.append("3. Expected results of each action\n");
+        contextBuilder.append("4. Final summary and next steps\n");
 
         return contextBuilder.toString();
     }
 
     private String getDefaultContext() {
         return """
-                ## 기본 SOAR 컨텍스트
-                
-                SOAR 분석을 위한 충분한 데이터가 없습니다.
-                기본적인 인시던트 대응 절차를 따릅니다.
+                ## Default SOAR Context
+
+                Insufficient data for SOAR analysis.
+                Following basic incident response procedures.
                 """;
     }
 }

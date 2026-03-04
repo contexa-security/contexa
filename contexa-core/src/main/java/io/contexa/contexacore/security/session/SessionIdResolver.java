@@ -11,11 +11,11 @@ public interface SessionIdResolver {
     SessionSource getSource(HttpServletRequest request);
 
     enum SessionSource {
-        COOKIE("Cookie에서 추출"),
-        HEADER("HTTP Header에서 추출"),
-        ATTRIBUTE("Request Attribute에서 추출"),
-        BEARER("Bearer Token에서 추출"),
-        NONE("세션 ID 없음");
+        COOKIE("Extracted from Cookie"),
+        HEADER("Extracted from HTTP Header"),
+        ATTRIBUTE("Extracted from Request Attribute"),
+        BEARER("Extracted from Bearer Token"),
+        NONE("No Session ID");
 
         private final String description;
 

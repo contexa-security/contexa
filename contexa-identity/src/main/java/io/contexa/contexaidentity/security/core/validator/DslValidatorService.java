@@ -15,7 +15,7 @@ public class DslValidatorService {
         if (platformConfig == null) {
             
             ValidationResult nullConfigResult = new ValidationResult();
-            nullConfigResult.addError("PlatformConfig가 null입니다. DSL 설정을 로드할 수 없습니다.");
+            nullConfigResult.addError("PlatformConfig is null. Unable to load DSL configuration.");
             ValidationReportReporter.reportAndPotentiallyExit(nullConfigResult, dslSourceName);
             return; 
         }
