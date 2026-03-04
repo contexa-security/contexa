@@ -30,7 +30,7 @@ public interface SecurityContextDataStore {
 
     void storeSoarExecution(String eventId, Object data);
 
-    // --- User session tracking (AIReactiveSecurityContextRepository) ---
+    // --- User session tracking (AISessionSecurityContextRepository) ---
 
     void trackUserSession(String userId, String sessionId);
 }

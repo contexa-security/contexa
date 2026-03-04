@@ -1,6 +1,6 @@
 package io.contexa.autoconfigure.ai;
 
-import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -33,7 +33,7 @@ public class AiSecurityConfiguration {
      * problem: {@code IdentitySecurityCoreAutoConfiguration} creates the registry bean but
      * requires {@code PlatformConfig} to activate ({@code @ConditionalOnBean}).
      * <p>
-     * The global customizer registers {@link AIReactiveSecurityContextRepository}
+     * The global customizer registers {@link AISessionSecurityContextRepository}
      * which is required for Zero Trust to function.
      * <p>
      * Once this bean exists, the existing configurer mechanism handles everything:
@@ -44,11 +44,11 @@ public class AiSecurityConfiguration {
     @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(
             ApplicationContext applicationContext,
-            AIReactiveSecurityContextRepository aiSecurityContextRepository) throws Exception {
+            AISessionSecurityContextRepository aiSessionSecurityContextRepository) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
         return registry
                 .global(http -> http
-                        .securityContext(sc -> sc.securityContextRepository(aiSecurityContextRepository)))
+                        .securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository)))
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth
                                 .formLogin(form -> form.defaultSuccessUrl("/")))

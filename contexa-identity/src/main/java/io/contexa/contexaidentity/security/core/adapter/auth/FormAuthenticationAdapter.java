@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.dsl.common.SafeHttpFormLoginCustomizer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -87,7 +87,7 @@ public final class FormAuthenticationAdapter extends BaseFormAuthenticationAdapt
     @Override
     protected void configureSecurityContext(FormLoginConfigurer<HttpSecurity> configurer,
                                             FormOptions opts, HttpSecurity http) {
-        if(http.getSharedObject(SecurityContextRepository.class) instanceof AIReactiveSecurityContextRepository) {
+        if(http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
             configurer.securityContextRepository(http.getSharedObject(SecurityContextRepository.class));
         }else if (opts.getSecurityContextRepository() != null) {
             configurer.securityContextRepository(opts.getSecurityContextRepository());

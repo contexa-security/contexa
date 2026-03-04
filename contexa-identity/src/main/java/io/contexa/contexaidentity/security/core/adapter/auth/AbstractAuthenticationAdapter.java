@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
@@ -88,17 +88,14 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
                 stateType, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, options
         );
 
-        if(http.getSharedObject(SecurityContextRepository.class) instanceof AIReactiveSecurityContextRepository) {
-            http.setSharedObject(SecurityContextRepository.class, http.getSharedObject(SecurityContextRepository.class));
-
-        }else if(!(securityContextRepository instanceof NullSecurityContextRepository)) {
+        if (stateType == StateType.SESSION
+                && http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
+            // Session mode: keep AISessionSecurityContextRepository from global registration
+        } else if (stateType != StateType.SESSION) {
+            // OAuth2/Stateless: force NullSecurityContextRepository, Zero Trust handled by AIOAuth2ZeroTrustFilter
+            http.setSharedObject(SecurityContextRepository.class, new NullSecurityContextRepository());
+        } else if (!(securityContextRepository instanceof NullSecurityContextRepository)) {
             http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
-        }
-
-        if (stateType != StateType.SESSION) {
-            http.sessionManagement(session -> session
-                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            );
         }
 
         PlatformAuthenticationSuccessHandler successHandler = resolveSuccessHandler(options, currentFlow, myRelevantStepConfig, allStepsInCurrentFlow, resolvedStateConfig, appContext);

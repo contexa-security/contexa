@@ -1,6 +1,6 @@
 package io.contexa.springbootstartercontexaenterprise;
 
-import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
@@ -22,7 +22,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 public class PlatformSecurityConfig {
 
     private final CustomDynamicAuthorizationManager customDynamicAuthorizationManager;
-    private final AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository;
+    private final AISessionSecurityContextRepository aiSessionSecurityContextRepository;
 
 //    @Bean
     public PlatformConfig platformDslConfig(IdentityDslRegistry<HttpSecurity> registry) throws Exception {
@@ -34,7 +34,7 @@ public class PlatformSecurityConfig {
                             .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
-                    .securityContext(sc -> sc.securityContextRepository(aiReactiveSecurityContextRepository))
+                    .securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository))
             ;
         };
         return registry

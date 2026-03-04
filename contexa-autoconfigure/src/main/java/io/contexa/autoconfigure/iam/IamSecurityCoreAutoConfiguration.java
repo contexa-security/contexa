@@ -4,7 +4,10 @@ import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
+import io.contexa.contexacore.security.AISecurityContextSupport;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import io.contexa.contexacore.security.AIOAuth2SecurityContextRepository;
+import io.contexa.contexacore.security.AIOAuth2ZeroTrustFilter;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.InMemorySessionIdResolver;
 import io.contexa.contexacore.security.session.RedisSessionIdResolver;
@@ -40,18 +43,38 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AIReactiveSecurityContextRepository aiReactiveSecurityContextRepository(
+    public AISecurityContextSupport aiSecurityContextSupport(
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
+            @Nullable ZeroTrustSecurityService zeroTrustSecurityService) {
+        return new AISecurityContextSupport(securityZeroTrustProperties, zeroTrustSecurityService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
+            AISecurityContextSupport aiSecurityContextSupport,
             @Nullable SessionIdResolver sessionIdResolver,
             @Nullable SecurityContextDataStore securityContextDataStore,
             @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
-        return new AIReactiveSecurityContextRepository(
-                securityZeroTrustProperties,
-                zeroTrustSecurityService,
+        return new AISessionSecurityContextRepository(
+                aiSecurityContextSupport,
                 sessionIdResolver,
                 securityContextDataStore,
                 asyncSecurityContextProvider);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AIOAuth2SecurityContextRepository aiOAuth2SecurityContextRepository(
+            AISecurityContextSupport aiSecurityContextSupport) {
+        return new AIOAuth2SecurityContextRepository(aiSecurityContextSupport);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AIOAuth2ZeroTrustFilter aiOAuth2ZeroTrustFilter(
+            AIOAuth2SecurityContextRepository aiOAuth2SecurityContextRepository) {
+        return new AIOAuth2ZeroTrustFilter(aiOAuth2SecurityContextRepository);
     }
 
     // --- Distributed mode: Redis-based ZeroTrust and session ---

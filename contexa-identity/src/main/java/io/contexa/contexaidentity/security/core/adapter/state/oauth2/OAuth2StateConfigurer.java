@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.security.AIOAuth2ZeroTrustFilter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationConverter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationProvider;
 import lombok.extern.slf4j.Slf4j;
@@ -10,6 +11,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.configurers.CsrfConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
@@ -35,8 +37,18 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
                 })
                 .authenticationEntryPoint(new OAuth2AuthenticationEntryPoint())
                 .accessDeniedHandler(new OAuth2AccessDeniedHandler())
-        );
+        ).sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
+        ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
+        if (appContext != null) {
+            try {
+                AIOAuth2ZeroTrustFilter zeroTrustFilter = appContext.getBean(AIOAuth2ZeroTrustFilter.class);
+                http.addFilterAfter(zeroTrustFilter,
+                        org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter.class);
+            } catch (Exception e) {
+                log.error("OAuth2StateConfigurer: AIOAuth2ZeroTrustFilter not found - Zero Trust will not be applied to OAuth2 requests");
+            }
+        }
     }
 
     private void configureAuthorizationServer(HttpSecurity http) throws Exception {
@@ -85,7 +97,6 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
             }
 
             authzServer.tokenEndpoint(tokenEndpoint -> {
-
 
                 if (appContext != null) {
                     try {

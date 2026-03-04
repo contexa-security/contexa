@@ -3,18 +3,14 @@ package io.contexa.contexacore.security;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
 import io.contexa.contexacore.security.session.SessionIdResolver;
-import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
-import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.authentication.AuthenticationTrustResolver;
-import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.DeferredSecurityContext;
 import org.springframework.security.core.context.SecurityContext;
@@ -23,30 +19,34 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Session-based SecurityContextRepository with Zero Trust integration.
+ * Applies Zero Trust verification during DeferredSecurityContext loading
+ * for session-managed authentication flows (Form Login, MFA, etc.).
+ *
+ * @see AISecurityContextSupport
+ * @see AIOAuth2SecurityContextRepository
+ */
 @Slf4j
-public class AIReactiveSecurityContextRepository extends HttpSessionSecurityContextRepository {
+public class AISessionSecurityContextRepository extends HttpSessionSecurityContextRepository
+        implements AISecurityContextRepository {
 
-    private final ZeroTrustSecurityService zeroTrustSecurityService;
+    private final AISecurityContextSupport support;
     private final SessionIdResolver sessionIdResolver;
     private final SecurityContextDataStore securityContextDataStore;
     private final AsyncSecurityContextProvider asyncSecurityContextProvider;
-    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     private final Cache<String, Boolean> invalidatedSessionsCache;
     private final Cache<String, Instant> lastRedisUpdateCache;
     private final Cache<String, String> previousAuthCache;
 
-    private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
-
-    public AIReactiveSecurityContextRepository(
-            SecurityZeroTrustProperties securityZeroTrustProperties,
-            @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
+    public AISessionSecurityContextRepository(
+            AISecurityContextSupport support,
             @Nullable SessionIdResolver sessionIdResolver,
             @Nullable SecurityContextDataStore securityContextDataStore,
             @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
         super();
-        this.securityZeroTrustProperties = securityZeroTrustProperties;
-        this.zeroTrustSecurityService = zeroTrustSecurityService;
+        this.support = support;
         this.sessionIdResolver = sessionIdResolver;
         this.securityContextDataStore = securityContextDataStore;
         this.asyncSecurityContextProvider = asyncSecurityContextProvider;
@@ -54,9 +54,10 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         this.setDisableUrlRewriting(true);
         this.setSpringSecurityContextKey("SPRING_SECURITY_CONTEXT");
 
+        SecurityZeroTrustProperties properties = support.getProperties();
         this.invalidatedSessionsCache = Caffeine.newBuilder()
                 .maximumSize(10000)
-                .expireAfterWrite(securityZeroTrustProperties.getCache().getInvalidatedTtlMinutes(), TimeUnit.MINUTES)
+                .expireAfterWrite(properties.getCache().getInvalidatedTtlMinutes(), TimeUnit.MINUTES)
                 .build();
 
         this.lastRedisUpdateCache = Caffeine.newBuilder()
@@ -66,65 +67,29 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
 
         this.previousAuthCache = Caffeine.newBuilder()
                 .maximumSize(10000)
-                .expireAfterAccess(securityZeroTrustProperties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
+                .expireAfterAccess(properties.getCache().getSessionTtlMinutes(), TimeUnit.MINUTES)
                 .build();
     }
 
     @Override
     public DeferredSecurityContext loadDeferredContext(HttpServletRequest request) {
         DeferredSecurityContext parentContext = super.loadDeferredContext(request);
-        if (!securityZeroTrustProperties.isEnabled()) {
+        if (!support.isEnabled()) {
             return parentContext;
         }
         return new ZeroTrustDeferredSecurityContext(parentContext, request);
     }
 
-    private class ZeroTrustDeferredSecurityContext implements DeferredSecurityContext {
-        private final DeferredSecurityContext parentContext;
-        private final HttpServletRequest request;
-        private SecurityContext cachedContext;
-        private boolean loaded = false;
-
-        public ZeroTrustDeferredSecurityContext(DeferredSecurityContext parentContext, HttpServletRequest request) {
-            this.parentContext = parentContext;
-            this.request = request;
-        }
-
-        @Override
-        public SecurityContext get() {
-            if (!loaded) {
-                SecurityContext context = parentContext.get();
-                Authentication auth = context.getAuthentication();
-                String sessionId = extractSessionId(request);
-
-                if (auth != null && trustResolver.isAuthenticated(auth) && zeroTrustSecurityService != null) {
-                    String userId = auth.getName();
-                    zeroTrustSecurityService.applyZeroTrustToContext(context, userId, sessionId, request);
-                }
-
-                cachedContext = context;
-                loaded = true;
-            }
-            return cachedContext;
-        }
-
-        @Override
-        public boolean isGenerated() {
-            return parentContext.isGenerated();
-        }
-    }
-
     @Override
     public void saveContext(SecurityContext context, HttpServletRequest request, HttpServletResponse response) {
         String sessionId = extractSessionId(request);
-        if (securityZeroTrustProperties.isEnabled() && sessionId != null) {
+        if (support.isEnabled() && sessionId != null) {
             Boolean isInvalidated = invalidatedSessionsCache.getIfPresent(sessionId);
             if (isInvalidated != null && isInvalidated) {
                 return;
             }
 
-            if (isInvalidated == null && zeroTrustSecurityService != null
-                    && zeroTrustSecurityService.isSessionInvalidated(sessionId)) {
+            if (isInvalidated == null && support.isSessionInvalidated(sessionId)) {
                 invalidatedSessionsCache.put(sessionId, true);
                 return;
             }
@@ -132,16 +97,16 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
 
         super.saveContext(context, request, response);
 
-        if (securityZeroTrustProperties.isEnabled() && sessionId != null) {
+        if (support.isEnabled() && sessionId != null) {
             Authentication auth = context.getAuthentication();
 
             try {
-                if (isActuallyAuthenticated(auth)) {
+                if (support.isActuallyAuthenticated(auth)) {
                     String userId = auth.getName();
                     previousAuthCache.put(sessionId, userId);
                     saveAsyncAuthenticationContext(auth, sessionId);
 
-                    if (securityZeroTrustProperties.getSession().isTrackingEnabled() && shouldUpdateRedis(sessionId)) {
+                    if (support.getProperties().getSession().isTrackingEnabled() && shouldUpdateRedis(sessionId)) {
                         trackSessionInRedis(userId, sessionId);
                         lastRedisUpdateCache.put(sessionId, Instant.now());
                     }
@@ -161,14 +126,9 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         }
     }
 
-    private boolean isActuallyAuthenticated(Authentication auth) {
-        if (auth == null) {
-            return false;
-        }
-        if (auth instanceof AnonymousAuthenticationToken) {
-            return false;
-        }
-        return auth.isAuthenticated() && trustResolver.isAuthenticated(auth);
+    @Override
+    public void invalidateAllUserSessions(String userId, String reason) {
+        support.invalidateAllUserSessions(userId, reason);
     }
 
     private boolean isLogoutDetected(Authentication auth, String sessionId) {
@@ -176,7 +136,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         if (previousUserId == null) {
             return false;
         }
-        return auth == null || auth instanceof AnonymousAuthenticationToken || !auth.isAuthenticated();
+        return !support.isActuallyAuthenticated(auth);
     }
 
     private boolean shouldUpdateRedis(String sessionId) {
@@ -184,7 +144,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         if (lastUpdate == null) {
             return true;
         }
-        return Instant.now().isAfter(lastUpdate.plusSeconds(securityZeroTrustProperties.getRedis().getUpdateIntervalSeconds()));
+        return Instant.now().isAfter(lastUpdate.plusSeconds(support.getProperties().getRedis().getUpdateIntervalSeconds()));
     }
 
     private String extractSessionId(HttpServletRequest request) {
@@ -212,9 +172,7 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
             invalidatedSessionsCache.put(sessionId, true);
             lastRedisUpdateCache.invalidate(sessionId);
             removeAsyncAuthenticationContext(userId, sessionId);
-            if (zeroTrustSecurityService != null) {
-                zeroTrustSecurityService.invalidateSession(sessionId, userId, "User logout");
-            }
+            support.invalidateSession(sessionId, userId, "User logout");
         } catch (Exception e) {
             log.error("[ZeroTrust] Error handling logout for user: {}", userId, e);
         }
@@ -240,16 +198,38 @@ public class AIReactiveSecurityContextRepository extends HttpSessionSecurityCont
         }
     }
 
-    public void invalidateAllUserSessions(String userId, String reason) {
-        if (!securityZeroTrustProperties.isEnabled() || zeroTrustSecurityService == null) {
-            return;
+    private class ZeroTrustDeferredSecurityContext implements DeferredSecurityContext {
+        private final DeferredSecurityContext parentContext;
+        private final HttpServletRequest request;
+        private SecurityContext cachedContext;
+        private boolean loaded = false;
+
+        public ZeroTrustDeferredSecurityContext(DeferredSecurityContext parentContext, HttpServletRequest request) {
+            this.parentContext = parentContext;
+            this.request = request;
         }
 
-        try {
-            log.error("[ZeroTrust] Invalidating all sessions for user: {} - Reason: {}", userId, reason);
-            zeroTrustSecurityService.invalidateAllUserSessions(userId, reason);
-        } catch (Exception e) {
-            log.error("[ZeroTrust] Error invalidating all sessions for user: {}", userId, e);
+        @Override
+        public SecurityContext get() {
+            if (!loaded) {
+                SecurityContext context = parentContext.get();
+                Authentication auth = context.getAuthentication();
+                String sessionId = extractSessionId(request);
+
+                if (auth != null && support.getTrustResolver().isAuthenticated(auth)) {
+                    String userId = auth.getName();
+                    support.applyZeroTrust(context, userId, sessionId, request);
+                }
+
+                cachedContext = context;
+                loaded = true;
+            }
+            return cachedContext;
+        }
+
+        @Override
+        public boolean isGenerated() {
+            return parentContext.isGenerated();
         }
     }
 }

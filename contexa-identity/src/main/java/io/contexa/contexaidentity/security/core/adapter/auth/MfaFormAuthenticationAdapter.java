@@ -1,6 +1,6 @@
 package io.contexa.contexaidentity.security.core.adapter.auth;
 
-import io.contexa.contexacore.security.AIReactiveSecurityContextRepository;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.MfaFormAuthenticationConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -45,7 +45,7 @@ public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAd
     protected void configureSecurityContext(MfaFormAuthenticationConfigurer<HttpSecurity> configurer,
                                             FormOptions opts, HttpSecurity http) {
 
-        if(http.getSharedObject(SecurityContextRepository.class) instanceof AIReactiveSecurityContextRepository) {
+        if(http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
             configurer.securityContextRepository(http.getSharedObject(SecurityContextRepository.class));
         }else if (opts.getSecurityContextRepository() != null) {
                 configurer.securityContextRepository(opts.getSecurityContextRepository());
