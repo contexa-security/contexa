@@ -55,17 +55,14 @@ public class PlatformSecurityConfig {
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
                 .mfa(mfa -> mfa
-                        .primaryAuthentication(auth -> auth.formLogin(form ->
-                                form.defaultSuccessUrl("/admin")
-//                                    .securityContextRepository(new HttpSessionSecurityContextRepository())
-                        ))
+                        .primaryAuthentication(auth -> auth.formLogin(form -> form.loginPage("/customLogin").defaultSuccessUrl("/admin")))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
 //                        .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-                        /*.mfaPage(page ->
+                        .mfaPage(page ->
                                 page
-                                        .ottPages("/custom/challenge/ott", "/custom/challenge/passkey")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
+                                        .ottPages("/custom/mfa/ott/request-code-ui", "/custom/mfa/challenge/ott")
+                                        .passkeyChallengePages("/custom/challenge/passkey"))
                         .order(60)
                 ).oauth2(Customizer.withDefaults())
                 .build();

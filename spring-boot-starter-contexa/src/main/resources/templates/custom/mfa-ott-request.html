@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${csrfToken}">
+    <meta name="_csrf_header" th:content="${csrfHeaderName}">
+    <meta name="_csrf_parameter" th:content="${csrfParameterName}">
+    <title>Request OTP Code</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,.15), transparent),
+                radial-gradient(ellipse 500px 350px at 80% 70%, rgba(139,92,246,.12), transparent);
+            pointer-events: none;
+        }
+        .card {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            background: rgba(30,41,59,.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(148,163,184,.12);
+            border-radius: 20px;
+            padding: 40px 32px 36px;
+            box-shadow: 0 24px 64px rgba(0,0,0,.35);
+        }
+        .icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon svg { width: 26px; height: 26px; fill: #fff; }
+        h1 {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -.3px;
+            color: #f1f5f9;
+            margin-bottom: 4px;
+        }
+        .sub {
+            text-align: center;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 28px;
+        }
+        .toast {
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 18px;
+        }
+        .toast.error { background: rgba(239,68,68,.12); color: #fca5a5; border: 1px solid rgba(239,68,68,.2); }
+        .field { margin-bottom: 16px; }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 6px;
+        }
+        input {
+            width: 100%;
+            background: rgba(15,23,42,.6);
+            border: 1px solid rgba(148,163,184,.18);
+            border-radius: 10px;
+            padding: 12px 14px;
+            font-size: 14px;
+            color: #f1f5f9;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        input::placeholder { color: #475569; }
+        input:focus {
+            outline: none;
+            border-color: #f59e0b;
+            box-shadow: 0 0 0 3px rgba(245,158,11,.2);
+        }
+        input[readonly] {
+            background: rgba(15,23,42,.35);
+            color: #94a3b8;
+        }
+        .btn {
+            display: block;
+            width: 100%;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            cursor: pointer;
+            transition: opacity .2s, transform .1s;
+            margin-top: 6px;
+        }
+        .btn:hover { opacity: .9; }
+        .btn:active { transform: scale(.98); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/></svg>
+    </div>
+    <h1>Request OTP Code</h1>
+    <p class="sub">A one-time token will be sent to your registered channel.</p>
+
+    <div th:if="${errorCode == 'user_not_found'}" class="toast error">
+        User not found. Please verify your username.
+    </div>
+
+    <form id="ottRequestForm" method="post" th:action="@{${ottRequestUrl}}">
+        <div th:if="${username != null and !#strings.isEmpty(username)}" class="field">
+            <label for="username">Username</label>
+            <input id="username" type="text" name="username" th:value="${username}" readonly>
+        </div>
+        <div th:if="${username == null or #strings.isEmpty(username)}" class="field">
+            <label for="username">Username</label>
+            <input id="username" type="text" name="username" placeholder="Enter your username" autocomplete="username" required autofocus>
+        </div>
+
+        <div th:utext="${hiddenInputsHtml}"></div>
+
+        <button id="sendCodeButton" class="btn" type="submit">Send Code</button>
+    </form>
+
+    <div id="contexa-page-config"
+         th:attr="data-token-persistence=${tokenPersistence},
+                  data-mfa-session-id=${mfaSessionId},
+                  data-ott-request-url=${ottRequestUrl},
+                  data-mfa-sdk-required=${mfaSdkRequired}">
+    </div>
+</div>
+
+<script th:src="@{/js/contexa-mfa-sdk.js}"></script>
+<script>
+    (function () {
+        var sendButton = document.getElementById('sendCodeButton');
+
+        if (typeof ContexaMFA !== 'undefined') {
+            var configEl = document.getElementById('contexa-page-config');
+            var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
+            var mfa = new ContexaMFA.Client({
+                autoRedirect: false,
+                tokenPersistence: tokenPersistence
+            });
+            mfa.init().catch(function () {});
+        }
+
+        document.getElementById('ottRequestForm').addEventListener('submit', function () {
+            sendButton.disabled = true;
+            sendButton.textContent = 'Sending...';
+        });
+    })();
+</script>
+</body>
+</html>

@@ -49,22 +49,38 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         if (isPrimaryAuthPage(requestUri)) {
             if ("GET".equalsIgnoreCase(request.getMethod())) {
+                if (hasCustomPrimaryLoginPage()) {
+                    chain.doFilter(request, response);
+                    return;
+                }
                 handlePrimaryAuthPage(request, response);
                 return;
             }
         }
 
         if (isSelectFactorPage(requestUri)) {
+            if (hasCustomSelectFactorPage()) {
+                chain.doFilter(request, response);
+                return;
+            }
             handleSelectFactorPage(request, response);
             return;
         }
 
         if (isOttRequestPage(requestUri)) {
+            if (hasCustomOttRequestPage()) {
+                chain.doFilter(request, response);
+                return;
+            }
             handleOttRequestPage(request, response);
             return;
         }
 
         if (isOttChallengePage(requestUri)) {
+            if (hasCustomOttVerifyPage()) {
+                chain.doFilter(request, response);
+                return;
+            }
             handleOttChallengePage(request, response);
             return;
         }
@@ -72,17 +88,29 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         if (isPasskeyChallengePage(requestUri)) {
 
             if ("GET".equalsIgnoreCase(request.getMethod())) {
+                if (hasCustomPasskeyPage()) {
+                    chain.doFilter(request, response);
+                    return;
+                }
                 handlePasskeyChallengePage(request, response);
                 return;
             }
         }
 
         if (isConfigurePage(requestUri)) {
+            if (hasCustomConfigurePage()) {
+                chain.doFilter(request, response);
+                return;
+            }
             handleConfigurePage(request, response);
             return;
         }
 
         if (isFailurePage(requestUri)) {
+            if (hasCustomFailurePage()) {
+                chain.doFilter(request, response);
+                return;
+            }
             handleFailurePage(request, response);
             return;
         }
@@ -1004,6 +1032,54 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String defaultLoginPage = authUrlProvider.getPrimaryLoginPage();
         return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
+    }
+
+    private boolean hasCustomPrimaryLoginPage() {
+        PrimaryAuthenticationOptions primaryOpts = mfaFlowConfig.getPrimaryAuthenticationOptions();
+        if (primaryOpts == null) {
+            return false;
+        }
+
+        if (primaryOpts.isFormLogin()) {
+            FormOptions formOpts = primaryOpts.getFormOptions();
+            return formOpts != null && isCustomLoginPage(formOpts.getLoginPage());
+        }
+
+        if (primaryOpts.isRestLogin()) {
+            return isCustomLoginPage(primaryOpts.getLoginPage());
+        }
+
+        return false;
+    }
+
+    private boolean hasCustomSelectFactorPage() {
+        MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
+        return pageConfig != null && pageConfig.hasCustomSelectFactorPage();
+    }
+
+    private boolean hasCustomOttRequestPage() {
+        MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
+        return pageConfig != null && pageConfig.hasCustomOttRequestPage();
+    }
+
+    private boolean hasCustomOttVerifyPage() {
+        MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
+        return pageConfig != null && pageConfig.hasCustomOttVerifyPage();
+    }
+
+    private boolean hasCustomPasskeyPage() {
+        MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
+        return pageConfig != null && pageConfig.hasCustomPasskeyPage();
+    }
+
+    private boolean hasCustomConfigurePage() {
+        MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
+        return pageConfig != null && pageConfig.hasCustomConfigurePage();
+    }
+
+    private boolean hasCustomFailurePage() {
+        MfaPageConfig pageConfig = mfaFlowConfig.getMfaPageConfig();
+        return pageConfig != null && pageConfig.hasCustomFailurePage();
     }
 
     private boolean isSelectFactorPage(String requestUri) {

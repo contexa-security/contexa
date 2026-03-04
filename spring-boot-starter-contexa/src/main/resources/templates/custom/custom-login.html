@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${csrfToken}">
+    <meta name="_csrf_header" th:content="${csrfHeaderName}">
+    <meta name="_csrf_parameter" th:content="${csrfParameterName}">
+    <title>Sign In - Contexa Platform</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            min-height: 100vh;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+            background: #0a0a0f;
+            color: #c9cdd4;
+        }
+
+        /* Left: Branding panel */
+        .brand-panel {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 60px;
+            background: linear-gradient(160deg, #0e1428 0%, #1a1040 50%, #0e1428 100%);
+            overflow: hidden;
+        }
+        .brand-panel::before {
+            content: '';
+            position: absolute;
+            width: 500px;
+            height: 500px;
+            top: -80px;
+            right: -120px;
+            background: radial-gradient(circle, rgba(99,102,241,.2), transparent 65%);
+            pointer-events: none;
+        }
+        .brand-panel::after {
+            content: '';
+            position: absolute;
+            width: 400px;
+            height: 400px;
+            bottom: -60px;
+            left: -80px;
+            background: radial-gradient(circle, rgba(139,92,246,.15), transparent 65%);
+            pointer-events: none;
+        }
+        .brand-logo {
+            width: 56px;
+            height: 56px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 32px;
+        }
+        .brand-logo svg { width: 30px; height: 30px; fill: #fff; }
+        .brand-title {
+            font-size: 36px;
+            font-weight: 800;
+            letter-spacing: -.5px;
+            color: #f0f0f5;
+            line-height: 1.2;
+            margin-bottom: 14px;
+        }
+        .brand-title span { color: #818cf8; }
+        .brand-desc {
+            font-size: 15px;
+            color: #6b7288;
+            line-height: 1.6;
+            max-width: 380px;
+        }
+        .brand-features {
+            list-style: none;
+            margin-top: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .brand-features li {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 13px;
+            color: #8890a4;
+        }
+        .brand-features li .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .dot-indigo { background: #6366f1; }
+        .dot-violet { background: #8b5cf6; }
+        .dot-cyan   { background: #22d3ee; }
+
+        /* Right: Login form panel */
+        .form-panel {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            background: #101018;
+        }
+        .form-card {
+            width: 100%;
+            max-width: 380px;
+        }
+        .form-card h2 {
+            font-size: 24px;
+            font-weight: 700;
+            color: #eaedf2;
+            margin-bottom: 6px;
+        }
+        .form-card .sub {
+            font-size: 13px;
+            color: #6b7288;
+            margin-bottom: 32px;
+        }
+
+        /* Toast messages */
+        .toast {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+        .toast.error {
+            background: rgba(239,68,68,.1);
+            color: #f87171;
+            border: 1px solid rgba(239,68,68,.2);
+        }
+        .toast.success {
+            background: rgba(34,197,94,.08);
+            color: #4ade80;
+            border: 1px solid rgba(34,197,94,.15);
+        }
+
+        /* Form fields */
+        .field { margin-bottom: 20px; }
+        .field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #6b7288;
+            text-transform: uppercase;
+            letter-spacing: .6px;
+            margin-bottom: 8px;
+        }
+        .field input {
+            width: 100%;
+            padding: 13px 16px;
+            background: #17171f;
+            border: 1px solid #2a2a38;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #e8ebf0;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        .field input::placeholder { color: #3a3a4a; }
+        .field input:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,.15);
+        }
+
+        /* Sign in button */
+        .btn-signin {
+            display: block;
+            width: 100%;
+            padding: 13px;
+            border: none;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            background: #6366f1;
+            cursor: pointer;
+            transition: background .2s, transform .1s;
+            margin-top: 4px;
+        }
+        .btn-signin:hover { background: #5558e6; }
+        .btn-signin:active { transform: scale(.98); }
+        .btn-signin:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+
+        .hint {
+            margin-top: 24px;
+            font-size: 12px;
+            color: #454a5a;
+            text-align: center;
+        }
+
+        /* Responsive: stack on small screens */
+        @media (max-width: 860px) {
+            body { grid-template-columns: 1fr; }
+            .brand-panel { display: none; }
+            .form-panel { min-height: 100vh; background: #0a0a0f; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Left panel: Branding -->
+<div class="brand-panel">
+    <div class="brand-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 2.18l7 3.12v5.7c0 4.83-3.4 9.36-7 10.58V3.18z"/></svg>
+    </div>
+    <div class="brand-title">Secure Access<br>with <span>Contexa</span></div>
+    <p class="brand-desc">Enterprise-grade multi-factor authentication platform protecting your applications and users.</p>
+    <ul class="brand-features">
+        <li><span class="dot dot-indigo"></span>Adaptive risk-based authentication</li>
+        <li><span class="dot dot-violet"></span>Passkey &amp; FIDO2 support</li>
+        <li><span class="dot dot-cyan"></span>One-time token verification</li>
+    </ul>
+</div>
+
+<!-- Right panel: Login form -->
+<div class="form-panel">
+    <div class="form-card">
+        <h2>Sign in</h2>
+        <p class="sub">Enter your credentials to continue</p>
+
+        <div id="message-area">
+            <div th:if="${error != null}" class="toast error">Login failed. Please check your credentials.</div>
+            <div th:if="${logout != null}" class="toast success">You have been logged out.</div>
+        </div>
+
+        <div class="field">
+            <label for="username">Username</label>
+            <input id="username" type="text" placeholder="Enter your username" autocomplete="username" autofocus>
+        </div>
+        <div class="field">
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="Enter your password" autocomplete="current-password">
+        </div>
+        <button id="loginButton" class="btn-signin" type="button">Sign In</button>
+        <p class="hint">MFA may be required after primary authentication.</p>
+
+        <div id="contexa-page-config"
+             th:attr="data-token-persistence=${tokenPersistence},
+                      data-select-factor-url=${selectFactorUrl},
+                      data-primary-login-processing=${primaryFormLoginProcessingUrl},
+                      data-mfa-sdk-required=${mfaSdkRequired}">
+        </div>
+    </div>
+</div>
+
+<script th:src="@{/js/contexa-mfa-sdk.js}"></script>
+<script>
+    (function () {
+        var configEl = document.getElementById('contexa-page-config');
+        var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
+        var fallbackSelectFactorUrl = configEl.dataset.selectFactorUrl || '/mfa/select-factor';
+
+        var messageArea = document.getElementById('message-area');
+        var loginButton = document.getElementById('loginButton');
+        var usernameInput = document.getElementById('username');
+        var passwordInput = document.getElementById('password');
+
+        if (typeof ContexaMFA === 'undefined') {
+            messageArea.innerHTML = '<div class="toast error">Contexa MFA SDK is required.</div>';
+            loginButton.disabled = true;
+            return;
+        }
+
+        var mfa = new ContexaMFA.Client({
+            autoRedirect: true,
+            tokenPersistence: tokenPersistence
+        });
+
+        async function doLogin() {
+            var username = usernameInput.value.trim();
+            var password = passwordInput.value;
+
+            if (!username || !password) {
+                messageArea.innerHTML = '<div class="toast error">Username and password are required.</div>';
+                return;
+            }
+
+            loginButton.disabled = true;
+            loginButton.textContent = 'Signing in...';
+            messageArea.innerHTML = '';
+
+            try {
+                var result = await mfa.apiClient.loginForm(username, password);
+
+                if (result.status === 'MFA_COMPLETED') {
+                    window.location.href = result.redirectUrl || '/';
+                    return;
+                }
+
+                if (result.status === 'MFA_REQUIRED' || result.status === 'MFA_REQUIRED_SELECT_FACTOR') {
+                    window.location.href = result.nextStepUrl || fallbackSelectFactorUrl;
+                    return;
+                }
+
+                if (result.nextStepUrl) {
+                    window.location.href = result.nextStepUrl;
+                    return;
+                }
+
+                if (result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                    return;
+                }
+
+                messageArea.innerHTML = '<div class="toast success">' + (result.message || 'Login succeeded.') + '</div>';
+                loginButton.disabled = false;
+                loginButton.textContent = 'Sign In';
+            } catch (error) {
+                messageArea.innerHTML = '<div class="toast error">' + (error.message || 'Login failed.') + '</div>';
+                loginButton.disabled = false;
+                loginButton.textContent = 'Sign In';
+            }
+        }
+
+        loginButton.addEventListener('click', doLogin);
+        passwordInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                doLogin();
+            }
+        });
+    })();
+</script>
+</body>
+</html>

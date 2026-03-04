@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="_csrf" th:content="${csrfToken}">
+    <meta name="_csrf_header" th:content="${csrfHeaderName}">
+    <meta name="_csrf_parameter" th:content="${csrfParameterName}">
+    <title>Verify OTP Code</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 600px 400px at 20% 30%, rgba(99,102,241,.15), transparent),
+                radial-gradient(ellipse 500px 350px at 80% 70%, rgba(139,92,246,.12), transparent);
+            pointer-events: none;
+        }
+        .card {
+            position: relative;
+            width: 100%;
+            max-width: 420px;
+            background: rgba(30,41,59,.65);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(148,163,184,.12);
+            border-radius: 20px;
+            padding: 40px 32px 36px;
+            box-shadow: 0 24px 64px rgba(0,0,0,.35);
+        }
+        .icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 20px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon svg { width: 26px; height: 26px; fill: #fff; }
+        h1 {
+            text-align: center;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -.3px;
+            color: #f1f5f9;
+            margin-bottom: 4px;
+        }
+        .sub {
+            text-align: center;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            background: rgba(15,23,42,.5);
+            border: 1px solid rgba(148,163,184,.1);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+        .user-badge strong { color: #e2e8f0; font-weight: 600; }
+        .toast {
+            display: none;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+        .toast.error { background: rgba(239,68,68,.12); color: #fca5a5; border: 1px solid rgba(239,68,68,.2); }
+        .toast.warn { background: rgba(245,158,11,.1); color: #fcd34d; border: 1px solid rgba(245,158,11,.18); }
+        .field { margin-bottom: 16px; }
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 6px;
+        }
+        input[type="text"] {
+            width: 100%;
+            background: rgba(15,23,42,.6);
+            border: 1px solid rgba(148,163,184,.18);
+            border-radius: 10px;
+            padding: 14px;
+            font-size: 24px;
+            letter-spacing: .4em;
+            text-align: center;
+            color: #f1f5f9;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        input[type="text"]::placeholder { color: #475569; font-size: 14px; letter-spacing: normal; }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59,130,246,.2);
+        }
+        .actions { display: grid; gap: 10px; margin-top: 8px; }
+        .btn {
+            display: block;
+            width: 100%;
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #fff;
+            cursor: pointer;
+            transition: opacity .2s, transform .1s;
+        }
+        .btn:hover { opacity: .9; }
+        .btn:active { transform: scale(.98); }
+        .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+        .btn.primary { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .btn.secondary { background: rgba(71,85,105,.6); border: 1px solid rgba(148,163,184,.15); }
+    </style>
+</head>
+<body>
+<div class="card">
+    <div class="icon">
+        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM9 8V6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9z"/></svg>
+    </div>
+    <h1>Verify OTP Code</h1>
+    <p class="sub">Enter the verification code to complete MFA.</p>
+
+    <div class="user-badge">User: <strong th:text="${username}"></strong></div>
+
+    <div id="errorMessage" class="toast error"></div>
+
+    <form id="verifyForm" method="post" th:action="@{${ottVerifyUrl}}">
+        <div class="field">
+            <label for="token">Verification Code</label>
+            <input id="token" type="text" name="token" required autofocus autocomplete="one-time-code" placeholder="------">
+        </div>
+        <div th:utext="${hiddenInputsHtml}"></div>
+        <div class="actions">
+            <button id="verifyButton" class="btn primary" type="submit">Verify</button>
+        </div>
+    </form>
+
+    <form id="resendForm" method="post" th:action="@{${ottResendUrl}}">
+        <div th:utext="${resendHiddenInputsHtml}"></div>
+        <div class="actions">
+            <button id="resendButton" class="btn secondary" type="submit">Resend Code</button>
+        </div>
+    </form>
+
+    <div id="contexa-page-config"
+         th:attr="data-token-persistence=${tokenPersistence},
+                  data-attempts-made=${attemptsMade},
+                  data-max-attempts=${maxAttempts},
+                  data-failure-url=${mfaFailureUrl},
+                  data-mfa-session-id=${mfaSessionId},
+                  data-mfa-sdk-required=${mfaSdkRequired}">
+    </div>
+</div>
+
+<script th:src="@{/js/contexa-mfa-sdk.js}"></script>
+<script>
+    (function () {
+        var configEl = document.getElementById('contexa-page-config');
+        var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
+        var maxAttempts = parseInt(configEl.dataset.maxAttempts || '5', 10);
+        var attemptsMade = parseInt(configEl.dataset.attemptsMade || '0', 10);
+        var fallbackFailureUrl = configEl.dataset.failureUrl || '/mfa/failure';
+
+        var verifyForm = document.getElementById('verifyForm');
+        var resendForm = document.getElementById('resendForm');
+        var tokenInput = document.getElementById('token');
+        var verifyButton = document.getElementById('verifyButton');
+        var resendButton = document.getElementById('resendButton');
+        var errorMessage = document.getElementById('errorMessage');
+
+        if (typeof ContexaMFA === 'undefined') {
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = 'Contexa MFA SDK is required.';
+            verifyButton.disabled = true;
+            resendButton.disabled = true;
+            return;
+        }
+
+        var mfa = new ContexaMFA.Client({
+            autoRedirect: false,
+            tokenPersistence: tokenPersistence
+        });
+        mfa.init().catch(function () {});
+
+        function disableAll(reason) {
+            tokenInput.disabled = true;
+            verifyButton.disabled = true;
+            resendButton.disabled = true;
+            errorMessage.style.display = 'block';
+            errorMessage.textContent = reason;
+        }
+
+        function renderAttemptsMessage() {
+            if (attemptsMade <= 0) {
+                return;
+            }
+            var remaining = maxAttempts - attemptsMade;
+            errorMessage.style.display = 'block';
+            if (remaining <= 0) {
+                disableAll('Maximum verification attempts exceeded.');
+            } else {
+                errorMessage.textContent = remaining + ' attempt(s) remaining out of ' + maxAttempts + '.';
+            }
+        }
+
+        renderAttemptsMessage();
+
+        verifyForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            var code = tokenInput.value.trim();
+            if (!code) {
+                errorMessage.style.display = 'block';
+                errorMessage.textContent = 'Code is required.';
+                return;
+            }
+
+            verifyButton.disabled = true;
+            verifyButton.textContent = 'Verifying...';
+            errorMessage.style.display = 'none';
+
+            try {
+                var result = await mfa.verifyOtt(code);
+
+                if (result.status === 'MFA_COMPLETED' && result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                    return;
+                }
+                if (result.status === 'MFA_CONTINUE' && result.nextStepUrl) {
+                    window.location.href = result.nextStepUrl;
+                    return;
+                }
+                if (result.nextStepUrl) {
+                    window.location.href = result.nextStepUrl;
+                    return;
+                }
+                if (result.redirectUrl) {
+                    window.location.href = result.redirectUrl;
+                    return;
+                }
+
+                verifyButton.disabled = false;
+                verifyButton.textContent = 'Verify';
+            } catch (error) {
+                if (error.response && error.response.blockMfaFailed && error.response.redirectUrl) {
+                    window.location.href = error.response.redirectUrl;
+                    return;
+                }
+
+                if (error.response && error.response.attemptsMade != null) {
+                    attemptsMade = parseInt(error.response.attemptsMade, 10);
+                } else {
+                    attemptsMade += 1;
+                }
+
+                var remaining = maxAttempts - attemptsMade;
+                if (remaining <= 0) {
+                    disableAll('Maximum verification attempts exceeded.');
+                    if (fallbackFailureUrl) {
+                        setTimeout(function () {
+                            window.location.href = fallbackFailureUrl;
+                        }, 700);
+                    }
+                } else {
+                    errorMessage.style.display = 'block';
+                    errorMessage.textContent = 'Verification failed. ' + remaining + ' attempt(s) remaining out of ' + maxAttempts + '.';
+                    verifyButton.disabled = false;
+                    verifyButton.textContent = 'Verify';
+                    tokenInput.value = '';
+                    tokenInput.focus();
+                }
+            }
+        });
+
+        resendForm.addEventListener('submit', function () {
+            resendButton.disabled = true;
+            resendButton.textContent = 'Sending...';
+        });
+    })();
+</script>
+</body>
+</html>

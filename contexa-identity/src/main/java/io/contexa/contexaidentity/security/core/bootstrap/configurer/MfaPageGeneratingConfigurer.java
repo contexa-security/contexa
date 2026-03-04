@@ -56,6 +56,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     applicationContext.getBean(MfaStateMachineIntegrator.class);
             AuthUrlProvider authUrlProvider =
                     applicationContext.getBean(AuthUrlProvider.class);
+            authUrlProvider.setMfaPageConfig(flowConfig.getMfaPageConfig());
             AuthContextProperties authContextProperties =
                     applicationContext.getBean(AuthContextProperties.class);
 
