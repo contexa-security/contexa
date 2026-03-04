@@ -225,16 +225,16 @@ public class AuthUrlProvider {
     }
 
     public String getOttChallengeUi() {
+        if (mfaPageConfig != null && mfaPageConfig.hasCustomOttVerifyPage()) {
+            return mfaPageConfig.getOttVerifyPageUrl();
+        }
+
         AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
             String customUrl = ottOptions.getDefaultSubmitPageUrl();
             if (StringUtils.hasText(customUrl)) {
                 return customUrl;
             }
-        }
-
-        if (mfaPageConfig != null && mfaPageConfig.hasCustomOttVerifyPage()) {
-            return mfaPageConfig.getOttVerifyPageUrl();
         }
 
         return properties.getUrls().getFactors().getOtt().getChallengeUi();
