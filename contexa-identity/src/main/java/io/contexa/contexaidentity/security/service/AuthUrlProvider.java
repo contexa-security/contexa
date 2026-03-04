@@ -76,6 +76,10 @@ public class AuthUrlProvider {
         return properties.getUrls().getPrimary().getFormLoginPage();
     }
 
+    public String getDefaultPrimaryLoginPage() {
+        return properties.getUrls().getPrimary().getFormLoginPage();
+    }
+
     public String getPrimaryLoginFailure() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getFailureUrl())) {
             return primaryAuthOptions.getFailureUrl();

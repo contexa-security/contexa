@@ -99,6 +99,10 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
 
                 authUrlProvider.updateFactorOptions(currentFlow.getRegisteredFactorOptions());
 
+                if (currentFlow.getMfaPageConfig() != null) {
+                    authUrlProvider.setMfaPageConfig(currentFlow.getMfaPageConfig());
+                }
+
                 mfaContinuationFilter.initializeUrlMatchers();
                             } catch (Exception e) {
                 

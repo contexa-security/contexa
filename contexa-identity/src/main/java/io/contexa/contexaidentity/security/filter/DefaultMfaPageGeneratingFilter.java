@@ -1030,7 +1030,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private boolean isCustomLoginPage(String loginPage) {
 
-        String defaultLoginPage = authUrlProvider.getPrimaryLoginPage();
+        String defaultLoginPage = authUrlProvider.getDefaultPrimaryLoginPage();
         return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
     }
 
