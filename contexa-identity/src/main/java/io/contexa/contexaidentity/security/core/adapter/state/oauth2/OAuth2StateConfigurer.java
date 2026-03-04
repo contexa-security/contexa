@@ -31,7 +31,7 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
     private void configureResourceServer(HttpSecurity http) throws Exception {
         http.oauth2ResourceServer(oauth2 -> oauth2
                 .jwt(jwt -> {
-                    jwt.jwtAuthenticationConverter(new OAuth2JwtAuthenticationConverter());
+                    jwt.jwtAuthenticationConverter(new OAuth2JwtAuthenticationConverter(http));
                 })
                 .authenticationEntryPoint(new OAuth2AuthenticationEntryPoint())
                 .accessDeniedHandler(new OAuth2AccessDeniedHandler())
