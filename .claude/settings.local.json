@@ -141,7 +141,9 @@
       "WebFetch(domain:techcrunch.com)",
       "WebFetch(domain:www.techbuddies.io)",
       "WebFetch(domain:www.felicis.com)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/spring-projects/spring-security/6.5.2/config/src/main/java/org/springframework/security/config/annotation/web/configurers/SecurityContextConfigurer.java\")"
     ],
     "deny": [],
     "ask": []
