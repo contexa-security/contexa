@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.event.listener;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -93,14 +94,8 @@ public class ZeroTrustEventListener {
         }
 
         try {
-            ZeroTrustActionRepository.ZeroTrustAnalysisData data = actionRepository.getAnalysisData(userId);
-            if (data == null || data.action() == null) {
-                return false;
-            }
-
-            // Analysis data exists and is valid - skip redundant publishing
-            return true;
-
+            ZeroTrustAction currentAction = actionRepository.getCurrentAction(userId, contextBindingHash);
+            return currentAction != ZeroTrustAction.PENDING_ANALYSIS;
         } catch (Exception e) {
             log.error("[ZeroTrustEventListener] Failed to check skip condition: userId={}", userId, e);
             return false;
