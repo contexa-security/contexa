@@ -143,9 +143,9 @@
 
   .hero-title {
     font-family: var(--serif);
-    font-size: clamp(48px, 7vw, 96px);
-    line-height: 1.05;
-    max-width: 820px;
+    font-size: clamp(40px, 5.5vw, 80px);
+    line-height: 1.08;
+    max-width: 1080px;
     margin-bottom: 32px;
     opacity: 0;
     animation: fadeUp 0.9s ease forwards 0.4s;
@@ -331,37 +331,36 @@
 
   .breach-year {
     font-family: var(--mono);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--muted);
   }
 
   .breach-company {
-    font-size: 15px;
-    color: var(--text);
-    font-weight: 500;
+    font-size: 22px;
+    color: var(--white);
+    font-weight: 700;
   }
 
   .breach-desc {
-    font-size: 13px;
+    font-size: 15px;
     color: var(--muted);
-    margin-top: 4px;
-    line-height: 1.5;
+    margin-top: 6px;
+    line-height: 1.6;
   }
 
   .breach-reason {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--red);
-    margin-top: 8px;
+    margin-top: 10px;
     line-height: 1.5;
-    opacity: 0.9;
   }
 
   .breach-tag {
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 11px;
     letter-spacing: 0.1em;
-    padding: 4px 10px;
+    padding: 6px 14px;
     background: rgba(230,57,70,0.1);
     color: var(--red);
     border: 1px solid rgba(230,57,70,0.3);
@@ -371,9 +370,10 @@
 
   .breach-damage {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 20px;
+    font-weight: 700;
     color: var(--gold);
-    margin-top: 4px;
+    margin-top: 8px;
   }
 
   .problem-insight {
@@ -432,8 +432,9 @@
 
   .crisis-label {
     font-family: var(--mono);
-    font-size: 11px;
-    letter-spacing: 0.15em;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
     color: var(--muted);
     margin-bottom: 20px;
     text-transform: uppercase;
@@ -503,9 +504,10 @@
 
   .vs-label {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 0.15em;
     margin-bottom: 24px;
+    font-weight: 600;
   }
 
   .vs-card.old .vs-label { color: var(--muted); }
@@ -521,22 +523,23 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
-    font-size: 14px;
+    font-size: 18px;
+    font-weight: 600;
     line-height: 1.5;
   }
 
   .vs-item .icon {
-    font-size: 14px;
-    margin-top: 1px;
+    font-size: 20px;
+    margin-top: 0;
     flex-shrink: 0;
   }
 
   .vs-conclusion {
-    margin-top: 20px;
-    padding-top: 16px;
+    margin-top: 24px;
+    padding-top: 20px;
     border-top: 1px solid var(--border);
-    font-family: var(--mono);
-    font-size: 12px;
+    font-size: 16px;
+    font-weight: 600;
     line-height: 1.6;
   }
 
@@ -891,9 +894,10 @@
   }
 
   .proof-desc {
-    font-size: 13px;
+    font-size: 16px;
+    font-weight: 500;
     line-height: 1.6;
-    color: var(--muted);
+    color: var(--text);
   }
 
   /* ── CTA ── */
@@ -1045,7 +1049,7 @@
     <li><a href="#problem">Why Now</a></li>
     <li><a href="#agent-crisis">AI Agent</a></li>
     <li><a href="#solution">Solution</a></li>
-    <li><a href="#business">Business</a></li>
+    <li><a href="#business">Global Scale</a></li>
     <li><a href="#proof">Evidence</a></li>
   </ul>
   <a href="#cta" class="nav-cta">INVESTOR BRIEF</a>
@@ -1056,18 +1060,17 @@
   <div class="hero-bg-circle"></div>
   <div class="hero-bg-circle"></div>
 
-  <p class="hero-eyebrow">The End of Rule-Based Security</p>
+  <p class="hero-eyebrow">AI-Native Zero Trust Security</p>
 
   <h1 class="hero-title">
-    <span class="strike">비밀번호가 맞으면 통과.</span><br>
-    30년간 보안의 원리는<br>같았습니다. <em>그래서 뚫립니다.</em>
+    $213B<span style="font-size:0.35em; font-weight:400; opacity:0.5; vertical-align:super;">(Gartner 2025)</span> 보안 시장의 전제가<br>
+    <em>위협받고 있습니다.</em>
   </h1>
 
   <p class="hero-sub">
-    Okta, Snowflake, 쿠팡 &mdash; <strong>모두 정상 자격증명으로 뚫렸습니다.</strong><br>
-    규칙을 더 추가해도 정상 자격증명 앞에서는 무력합니다.<br>
-    Contexa는 규칙이 아니라 <strong>AI가 행동의 진정성을 판단</strong>합니다.<br>
-    기존 보안을 교체하지 않고, 안에서 작동합니다.
+    로그인에 성공하는 순간, 기업 자산과 고객 데이터가 무방비로 노출됩니다.<br>
+    보안의 기준은 <strong>'로그인 성공 여부'가 아니라 '정상적인 행동인가'</strong>로 바뀌어야 합니다.<br>
+    이것은 사람처럼 맥락을 추론하고 판단하는 AI로만 해결할 수 있는 영역입니다.
   </p>
 
   <div class="hero-actions">
@@ -1087,66 +1090,47 @@
     <div class="stat-label">정상 자격증명 탈취가 원인 (Verizon DBIR)</div>
   </div>
   <div class="stat-item">
-    <div class="stat-num">0</div>
-    <div class="stat-label">이 문제를 근본적으로 해결하는 제품 수</div>
+    <div class="stat-num">204일</div>
+    <div class="stat-label">침해 후 발견까지 평균 소요 시간 (IBM 2024)</div>
   </div>
 </div>
 
 <!-- PROBLEM -->
 <section class="problem" id="problem">
   <div class="section-tag reveal">// WHY NOW</div>
-  <h2 class="section-title reveal">기존 보안이 뚫린 것이 아닙니다.<br>공격자가 정문으로 들어왔습니다.</h2>
+  <h2 class="section-title reveal">기존 보안 체계는<br>사실과 진실을 구별하지 못합니다.</h2>
   <p class="section-sub reveal">
-    최근 대형 침해 사고의 공통점은 하나입니다. 공격자는 보안을 우회하지 않았습니다.
-    <strong>정상 자격증명으로 정문을 통과</strong>했습니다. 기존 보안은 구조적으로 이것을 막을 수 없습니다.
+    공격자는 이미 "정상 자격증명"으로 통과하고 있습니다.
   </p>
 
-  <div class="breach-timeline reveal">
-    <div class="breach-item">
-      <div class="breach-year">2023</div>
-      <div>
-        <div class="breach-company">Okta</div>
-        <div class="breach-desc">정상 지원 토큰을 사용해 고객사 시스템에 연쇄 접근</div>
-        <div class="breach-reason">기존 보안: 토큰 유효 -> 통과. 차단 불가.</div>
-      </div>
-      <div class="breach-tag">정상 토큰 악용</div>
+  <div class="proof-grid reveal" style="margin-bottom:48px;">
+    <div class="proof-item">
+      <div class="proof-num red">정상 토큰</div>
+      <div class="proof-label">OKTA &middot; 2023</div>
+      <div class="proof-desc">고객사 시스템 연쇄 침해</div>
     </div>
-    <div class="breach-item">
-      <div class="breach-year">2024</div>
-      <div>
-        <div class="breach-company">Snowflake</div>
-        <div class="breach-desc">유효 계정으로 접속. 160개 기업 고객 데이터 동시 탈취</div>
-        <div class="breach-reason">기존 보안: 계정 유효 -> 통과. 160개 기업 동시 침해.</div>
-      </div>
-      <div class="breach-tag">유효 계정 악용</div>
+    <div class="proof-item">
+      <div class="proof-num red">유효 계정</div>
+      <div class="proof-label">SNOWFLAKE &middot; 2024</div>
+      <div class="proof-desc">160개 기업 동시 침해</div>
     </div>
-    <div class="breach-item">
-      <div class="breach-year">2024</div>
-      <div>
-        <div class="breach-company">Change Healthcare</div>
-        <div class="breach-desc">원격접속 계정 악용 후 랜섬웨어 확산, 의료 서비스 마비</div>
-        <div class="breach-reason">기존 보안: 계정 유효 -> 통과. $22B 피해.</div>
-        <div class="breach-damage">$22B 피해</div>
-      </div>
-      <div class="breach-tag">원격접속 악용</div>
+    <div class="proof-item">
+      <div class="proof-num red">원격접속 계정</div>
+      <div class="proof-label">CHANGE HEALTHCARE &middot; 2024</div>
+      <div class="proof-desc">$22B 피해, 의료 서비스 마비</div>
     </div>
-    <div class="breach-item">
-      <div class="breach-year">2025</div>
-      <div>
-        <div class="breach-company">쿠팡</div>
-        <div class="breach-desc">퇴직자 API 키 5개월 방치. 대규모 개인정보 유출</div>
-        <div class="breach-reason">기존 보안: 키 유효 -> 통과. 3,370만 명 유출.</div>
-        <div class="breach-damage">3,370만 명 개인정보 유출</div>
-      </div>
-      <div class="breach-tag">API 키 방치</div>
+    <div class="proof-item">
+      <div class="proof-num red">API 키</div>
+      <div class="proof-label">쿠팡 &middot; 2025</div>
+      <div class="proof-desc">3,370만 명 개인정보 유출</div>
     </div>
   </div>
 
   <div class="problem-insight reveal">
     <p>
-      4건의 사건에서 공격자는 단 한 번도 보안을 '뚫지' 않았습니다.<br>
-      정상 자격증명으로 정문을 통과했습니다.<br>
-      <span>기존 보안의 한계는 기능 부족이 아닙니다. 접근 방식의 한계입니다.</span>
+      토큰 서명 검증만으로는 내부자/탈취 계정 구분이 불가합니다.<br>
+      공격자는 규칙을 우회하는 것이 아니라 정상 행동을 위장합니다.<br>
+      <span>정상 자격증명이 악의적 수단이 된 순간, 기존 보안은 무방비에 노출됩니다.</span>
     </p>
   </div>
 </section>
@@ -1154,46 +1138,45 @@
 <!-- AI AGENT CRISIS -->
 <section class="agent-crisis" id="agent-crisis">
   <div class="section-tag reveal">// THE COMING CRISIS</div>
-  <h2 class="section-title reveal">AI Agent가 업무를 대신하는 시대,<br>보안 규칙은 무의미해집니다</h2>
+  <h2 class="section-title reveal">이제 곧 더 강력한 AI Agent를 상대해야 합니다.</h2>
   <p class="section-sub reveal">
-    지금은 사람이 키보드로 접속합니다. 곧 AI Agent가 사람 대신 수백 건의 업무를 자동으로 처리합니다.
-    <strong>이 Agent가 탈취되면?</strong> 전통적 규칙으로는 '정상 Agent'와 '탈취된 Agent'를 구별할 수 없습니다.
+    지금까지는 사람이 정상 자격증명으로 들어온 것입니다.<br>
+    AI Agent가 사람 대신 업무를 처리하는 시대가 오고 있습니다.
+    <strong>Agent가 탈취되면, 사람의 속도가 아니라 기계의 속도로 침투합니다.</strong>
   </p>
 
   <div class="crisis-grid reveal">
     <div class="crisis-card">
-      <div class="crisis-label">현재</div>
-      <div class="crisis-title">사람이 직접 접속</div>
+      <div class="crisis-label">현재 &mdash; 사람</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--white);">예측 가능</div>
       <div class="crisis-desc">
-        키보드로 로그인하고 업무를 처리합니다.<br>
-        하루 수십 건의 요청.<br>
-        <strong>행동 패턴이 단순하고 예측 가능합니다.</strong>
+        속도와 패턴에 한계가 있습니다.<br>
+        규칙으로 감시할 수 있습니다.
       </div>
     </div>
     <div class="crisis-card">
-      <div class="crisis-label">가까운 미래</div>
-      <div class="crisis-title">AI Agent가 자동 처리</div>
+      <div class="crisis-label">AI Agent 시대</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--gold);">예측 불가</div>
       <div class="crisis-desc">
-        Agent가 데이터를 조회하고, API를 호출하고, 보고서를 생성합니다.<br>
-        하루 수천 건의 자동화된 요청.<br>
-        <strong>행동 패턴이 복잡하고 빠릅니다.</strong>
+        사람의 권한으로 24시간 작동.<br>
+        전방위 접근, 밀리초 단위 실행.<br>
+        경로와 패턴을 예측할 수 없습니다.
       </div>
     </div>
     <div class="crisis-card danger">
-      <div class="crisis-label">위기</div>
-      <div class="crisis-title">탈취된 Agent</div>
+      <div class="crisis-label">탈취 시</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--red);">구별 불가</div>
       <div class="crisis-desc">
-        사람보다 빠르게, 사람보다 많은 데이터에 접근합니다.<br>
-        수초 만에 전체 데이터베이스를 스캔합니다.<br>
-        <strong>규칙으로 정상과 탈취를 구별할 수 없습니다.</strong>
+        같은 자격증명, 같은 권한, 같은 속도.<br>
+        <strong>정상 Agent와 탈취된 Agent를<br>규칙으로 구별할 수 없습니다.</strong>
       </div>
     </div>
   </div>
 
   <div class="crisis-insight reveal">
     <p>
-      규칙 기반 보안은 사람의 행동을 전제로 설계되었습니다.<br>
-      AI Agent 시대에는 <span>행동 자체를 AI가 판단하는 보안</span>이 필요합니다.<br>
+      사람의 권한을 위임받은 AI Agent 활동은 보안의 취약점에 쉽게 노출되어 있습니다.<br>
+      AI Agent 보안은 <span>기존 보안 규칙으로는 더 이상 대응하기 어렵거나 불가능합니다.</span><br>
       이것이 Contexa가 존재하는 이유입니다.
     </p>
   </div>
@@ -1202,65 +1185,54 @@
 <!-- VS -->
 <section class="versus" id="solution">
   <div class="section-tag reveal">// PARADIGM SHIFT</div>
-  <h2 class="section-title reveal">규칙을 더 추가하는 것이 아니라<br>판단 엔진 자체를 교체합니다</h2>
+  <h2 class="section-title reveal">오직 맥락으로 지속적인 제로트러스트를 실현합니다.</h2>
   <p class="section-sub reveal">
-    기존 보안의 문제는 기능 부족이 아닙니다.
-    <strong>"비밀번호가 맞으면 통과"라는 접근 방식 자체가 한계</strong>입니다.
-    점진적 개선이 아닙니다. 탐지 도구에서 실행형 런타임으로의 범주 전환입니다.
+    통과하면 끝이 아닙니다. 지속적인 제로트러스트를 실현합니다.
   </p>
 
-  <div class="vs-grid reveal">
-    <div class="vs-card old">
-      <div class="vs-label">규칙 기반 &mdash; 30년간의 접근 방식</div>
-      <div class="vs-items">
-        <div class="vs-item">
-          <span class="icon">x</span>
-          <span>비밀번호/토큰이 맞으면 통과</span>
-        </div>
-        <div class="vs-item">
-          <span class="icon">x</span>
-          <span>사전 정의된 규칙에 매칭</span>
-        </div>
-        <div class="vs-item">
-          <span class="icon">x</span>
-          <span>공격자가 규칙을 학습하면 우회 가능</span>
-        </div>
-        <div class="vs-item">
-          <span class="icon">x</span>
-          <span>새 공격마다 새 규칙을 수동 추가</span>
-        </div>
+  <div class="vs-flow reveal" style="display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:0; max-width:1100px; align-items:stretch;">
+    <div class="crisis-card">
+      <div class="crisis-label">규칙 기반</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--red);">조건 통과 = 끝</div>
+      <div class="crisis-desc">
+        비밀번호, 시간, IP, 권한.<br>
+        조건이 맞으면 통과시킵니다.<br>
+        <strong>인증 이후 추가 검증은 없습니다.</strong>
       </div>
-      <div class="vs-conclusion">
-        -> 정상 자격증명 앞에서 구조적으로 무력
+      <div style="margin-top:28px; text-align:center; padding:20px; background:rgba(230,57,70,0.08); border:1px solid rgba(230,57,70,0.3);">
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="32" cy="32" r="30" stroke="var(--red)" stroke-width="3" fill="rgba(230,57,70,0.15)"/>
+          <path d="M32 18V36" stroke="var(--red)" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="32" cy="44" r="3" fill="var(--red)"/>
+        </svg>
+        <div style="font-family:var(--mono); font-size:14px; font-weight:700; color:var(--red); margin-top:12px; letter-spacing:0.12em;">DATA EXPOSED</div>
       </div>
     </div>
-
-    <div class="vs-divider">
-      <div class="vs-circle">VS</div>
-    </div>
-
-    <div class="vs-card new">
-      <div class="vs-label">AI Native &mdash; 판단 엔진을 교체</div>
-      <div class="vs-items">
-        <div class="vs-item">
-          <span class="icon" style="color:var(--cyan)">+</span>
-          <span>비밀번호가 맞아도, 행동이 다르면 차단</span>
-        </div>
-        <div class="vs-item">
-          <span class="icon" style="color:var(--cyan)">+</span>
-          <span>규칙 없이 AI가 맥락을 판단</span>
-        </div>
-        <div class="vs-item">
-          <span class="icon" style="color:var(--cyan)">+</span>
-          <span>쓸수록 학습하여 정확도 상승</span>
-        </div>
-        <div class="vs-item">
-          <span class="icon" style="color:var(--cyan)">+</span>
-          <span>새 공격도 규칙 업데이트 없이 탐지</span>
-        </div>
+    <div style="display:flex; align-items:center; padding:0 20px; font-size:32px; color:var(--cyan);">&rarr;</div>
+    <div class="crisis-card" style="background:rgba(0,194,224,0.04); border-color:rgba(0,194,224,0.3);">
+      <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 접속 시점</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">맥락 판별</div>
+      <div class="crisis-desc">
+        계정을 탈취해서 접속하더라도<br>
+        업무환경, 접속환경, 접근 자료를<br>
+        AI가 맥락으로 분석하고 추론합니다.<br>
+        <strong>평소의 이 사람과 다르면 통과를 보류합니다.</strong>
       </div>
-      <div class="vs-conclusion">
-        -> 정상 자격증명이어도 행동 이상 시 즉시 대응
+    </div>
+    <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 16px; gap:8px;">
+      <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="28" cy="28" r="26" stroke="var(--green)" stroke-width="3" fill="rgba(6,214,160,0.15)"/>
+        <path d="M16 28L24 36L40 18" stroke="var(--green)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--green); letter-spacing:0.1em;">SECURED</div>
+    </div>
+    <div class="crisis-card" style="background:rgba(0,194,224,0.04); border-color:rgba(0,194,224,0.3);">
+      <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 접속 이후</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">지속 방어</div>
+      <div class="crisis-desc">
+        설령 초기 접속을 통과하더라도<br>
+        모든 행동을 지속적으로 감시합니다.<br>
+        <strong>비정상 패턴이 감지되는 즉시<br>세션 제한, 권한 축소, 관리자 알림.</strong>
       </div>
     </div>
   </div>
@@ -1269,49 +1241,37 @@
 <!-- HOW IT WORKS -->
 <section class="how" id="engine">
   <div class="section-tag reveal">// HOW IT WORKS</div>
-  <h2 class="section-title reveal">작동 원리:<br>감시 -> 판단 -> 대응</h2>
+  <h2 class="section-title reveal">작동 원리:<br>감시 → AI 판단 → 대응</h2>
   <p class="section-sub reveal">
     복잡한 설정이 아닙니다. 세 단계로 작동합니다.
     모든 접근을 감시하고, AI가 판단하고, 즉시 대응합니다.
   </p>
 
-  <div class="layers reveal">
-    <div class="layer">
-      <div class="layer-num"><div class="layer-num-inner">01</div></div>
-      <div class="layer-content">
-        <div class="layer-name">감시 &mdash; 맥락 수집</div>
-        <div class="layer-desc">
-          모든 접근의 맥락을 수집합니다.
-          <strong>누가, 어디서, 언제, 어떤 기기로, 무엇에 접근하는가.</strong>
-          위치, 시간, 디바이스, 접근 대상, 요청 흐름 등 모든 맥락을 실시간으로 수집합니다.
-        </div>
-        <div class="layer-speed">핵심: 단순 로그가 아닌, 행동의 맥락을 다차원으로 포착</div>
+  <div class="vs-flow reveal" style="display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:0; max-width:1100px; align-items:stretch;">
+    <div class="crisis-card">
+      <div class="crisis-label">01</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">정보 수집 및 감시</div>
+      <div class="crisis-desc">
+        누가, 어디서, 언제, 어떤 기기로, 무엇에 접근하는가.<br>
+        <strong>단순 로그가 아닌, 행동의 맥락을 포착합니다.</strong>
       </div>
     </div>
-
-    <div class="layer">
-      <div class="layer-num"><div class="layer-num-inner">02</div></div>
-      <div class="layer-content">
-        <div class="layer-name">AI 판단 &mdash; 행동 진정성 검증</div>
-        <div class="layer-desc">
-          AI가 묻습니다: <strong>"이 행동이 이 사람의 평소 행동과 같은가?"</strong>
-          같으면 통과. 다르면 추가 인증을 요구하거나 즉시 차단합니다.
-          규칙이 아닙니다. 의미를 판단합니다.
-        </div>
-        <div class="layer-speed">핵심: 규칙 매칭이 아닌, AI가 행동의 의미를 판단</div>
+    <div style="display:flex; align-items:center; padding:0 20px; font-size:32px; color:var(--cyan);">&rarr;</div>
+    <div class="crisis-card">
+      <div class="crisis-label">02</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--gold);">AI 분석 및 판단</div>
+      <div class="crisis-desc">
+        "이 행동이 이 사람의 평소 행동과 같은가?"<br>
+        <strong>같으면 통과. 다르면 차단. AI가 판단합니다.</strong>
       </div>
     </div>
-
-    <div class="layer">
-      <div class="layer-num"><div class="layer-num-inner">03</div></div>
-      <div class="layer-content">
-        <div class="layer-name">학습과 대응 &mdash; 자동 방어</div>
-        <div class="layer-desc">
-          정상 행동만 학습합니다. <strong>쓸수록 정확해집니다.</strong>
-          차단 시 자동으로 세션 종료, IP 차단, 관리자 알림까지 실행합니다.
-          탐지에서 대응까지 시간 지연이 없습니다.
-        </div>
-        <div class="layer-speed">핵심: 탐지 -> 판단 -> 대응이 하나의 파이프라인으로 즉시 실행</div>
+    <div style="display:flex; align-items:center; padding:0 20px; font-size:32px; color:var(--cyan);">&rarr;</div>
+    <div class="crisis-card">
+      <div class="crisis-label">03</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--green);">자동 대응 및 방어</div>
+      <div class="crisis-desc">
+        세션 종료, IP 차단, 관리자 알림까지 자동 실행.<br>
+        <strong>탐지에서 대응까지 하나의 파이프라인으로 즉시 처리합니다.</strong>
       </div>
     </div>
   </div>
@@ -1329,53 +1289,88 @@
   <div class="moat-grid reveal">
     <div class="moat-item">
       <div class="moat-icon">01</div>
-      <div class="moat-title">바깥이 아니라 안에서 작동</div>
-      <div class="moat-desc">기존 보안 제품은 네트워크 바깥에서 모니터링합니다. Contexa는 인증과 인가가 일어나는 그 순간, 안에서 판단합니다. 탐지와 차단 사이에 시간 지연이 없습니다.</div>
+      <div class="moat-title">안에서 작동</div>
+      <div class="moat-desc">바깥에서 모니터링하지 않습니다. 인증이 일어나는 그 순간, 안에서 판단합니다.</div>
     </div>
     <div class="moat-item">
       <div class="moat-icon">02</div>
-      <div class="moat-title">규칙 추가가 아니라 판단 엔진 교체</div>
-      <div class="moat-desc">방화벽 규칙 1만 개를 추가해도 정상 자격증명은 통과합니다. Contexa는 규칙 자체를 없앴습니다. AI가 행동의 의미를 판단합니다.</div>
+      <div class="moat-title">판단 엔진 교체</div>
+      <div class="moat-desc">규칙을 추가하는 것이 아닙니다. 규칙 자체를 AI 판단으로 교체합니다.</div>
     </div>
     <div class="moat-item">
       <div class="moat-icon">03</div>
-      <div class="moat-title">교체가 아니라 삽입</div>
-      <div class="moat-desc">기존 보안 시스템을 버리지 않습니다. 현재 시스템 위에 4~8주 만에 도입됩니다. 교체가 아니라 증설이므로 조직 저항이 최소화됩니다.</div>
+      <div class="moat-title">교체 없이 삽입</div>
+      <div class="moat-desc">기존 시스템 위에 4~8주 만에 도입됩니다. 전면 교체가 필요 없으므로 도입 저항이 낮습니다.</div>
     </div>
     <div class="moat-item">
       <div class="moat-icon">04</div>
-      <div class="moat-title">쓸수록 강해지는 네트워크 효과</div>
-      <div class="moat-desc">정상 행동 데이터가 쌓일수록 판단이 정확해집니다. 고객이 늘수록 행동 패턴 학습량이 증가합니다. 후발주자가 따라잡을 수 없습니다.</div>
+      <div class="moat-title">쓸수록 강해지는 구조</div>
+      <div class="moat-desc">행동 데이터가 쌓일수록 AI 판단이 정확해집니다. 이 격차는 시간이 갈수록 벌어집니다.</div>
     </div>
     <div class="moat-item">
       <div class="moat-icon">05</div>
-      <div class="moat-title">AI Agent 시대에 유일한 대안</div>
-      <div class="moat-desc">사람의 행동은 규칙으로 예측 가능했습니다. AI Agent의 행동은 규칙으로 예측할 수 없습니다. Agent의 행동을 판단할 수 있는 것은 AI뿐입니다.</div>
+      <div class="moat-title">AI Agent 시대 대응</div>
+      <div class="moat-desc">빠르고 복잡한 Agent 행동은 규칙으로 포착하기 어렵습니다. AI 판단이 필요합니다.</div>
     </div>
     <div class="moat-item">
       <div class="moat-icon">06</div>
-      <div class="moat-title">1,200+ 소스 파일의 실행 가능한 코드</div>
-      <div class="moat-desc">아이디어가 아닙니다. 이미 작동하는 코드입니다. 8개 모듈, 1,200개 이상의 소스 파일. 처음부터 다시 만드는 데 수년이 걸립니다.</div>
+      <div class="moat-title">실행 가능한 코드</div>
+      <div class="moat-desc">아이디어가 아닌 1,200+ 소스 파일, 8개 모듈. 처음부터 다시 만드는 데 수년입니다.</div>
     </div>
   </div>
 </section>
 
-<!-- BUSINESS MODEL -->
+<!-- WHY GLOBAL SCALE -->
 <section class="business" id="business">
-  <div class="section-tag reveal">// BUSINESS MODEL</div>
-  <h2 class="section-title reveal">오픈소스로 확산하고,<br>엔터프라이즈로 수익을 만듭니다</h2>
+  <div class="section-tag reveal">// WHY GLOBAL SCALE</div>
+  <h2 class="section-title reveal">이 위협은 국경이 없고,<br>시장도 국경이 없습니다</h2>
   <p class="section-sub reveal">
-    개발자에게 무료 핵심 엔진을 제공하여 시장을 확보하고,
-    대기업에 <strong>자동 대응, 관제, 컴플라이언스</strong> 유료 기능을 판매합니다.
+    정상 자격증명 탈취는 한국만의 문제가 아닙니다.
+    Okta(미국), Snowflake(미국), Change Healthcare(미국), 쿠팡(한국) &mdash;
+    <strong>같은 공격이 전 세계에서 동시에 발생하고 있고, 인증 이후 행동을 판단하는 접근은 아직 초기 단계입니다.</strong>
+  </p>
+
+  <div class="proof-grid reveal" style="margin-bottom:64px;">
+    <div class="proof-item">
+      <div class="proof-num">80%</div>
+      <div class="proof-label">CREDENTIAL-BASED (VERIZON DBIR)</div>
+      <div class="proof-desc">미국, 유럽, 아시아 &mdash;<br>같은 유형의 공격이 전 세계에서 동시에 발생</div>
+    </div>
+    <div class="proof-item">
+      <div class="proof-num gold">3</div>
+      <div class="proof-label">REGIONS MANDATING ZERO TRUST</div>
+      <div class="proof-desc">미국 NIST, EU NIS2, 한국 KISA<br>주요 시장이 동시에 의무화</div>
+    </div>
+    <div class="proof-item">
+      <div class="proof-num green">$0</div>
+      <div class="proof-label">DISTRIBUTION COST</div>
+      <div class="proof-desc">오픈소스는 영업 없이 확산됩니다<br>개발자가 직접 채택하고, 조직이 따라갑니다</div>
+    </div>
+  </div>
+
+  <div class="problem-insight reveal" style="margin-bottom:80px; border-left-color:var(--cyan); background:rgba(0,194,224,0.04);">
+    <p style="font-size:20px;">
+      같은 위협, 같은 규제, 영업 비용 없는 확산 구조.<br>
+      <span style="color:var(--cyan);">이 조건에서 먼저 해법을 확보한 플랫폼이 글로벌 시장에 도달하는 것은 자연스러운 경로입니다.</span>
+    </p>
+  </div>
+
+  <div class="section-tag reveal">// REVENUE MODEL</div>
+  <h3 class="section-title reveal" style="font-size:clamp(28px,3vw,40px); margin-bottom:16px;">수익 모델</h3>
+  <p class="section-sub reveal" style="margin-bottom:48px;">
+    오픈소스는 무료 배포가 아닙니다. <strong>생태계를 만드는 전략</strong>입니다.<br>
+    개발자가 Core를 채택하고, 프로젝트에 의존하고, 조직이 도입하면 &mdash;
+    그 위에 올라가는 상용 서비스가 수익이 됩니다.
+    제품을 파는 것이 아니라, 생태계가 선택하게 만드는 구조입니다.
   </p>
 
   <div class="biz-grid reveal">
     <div class="biz-card free">
-      <div class="biz-label">Community (무료)</div>
+      <div class="biz-label">Community (오픈소스)</div>
       <div class="biz-items">
         <div class="biz-item">
           <span class="icon">-</span>
-          <span>AI 행동 분석 엔진</span>
+          <span>AI 행동 분석 엔진 &mdash; 핵심 런타임 전체 공개</span>
         </div>
         <div class="biz-item">
           <span class="icon">-</span>
@@ -1383,24 +1378,24 @@
         </div>
         <div class="biz-item">
           <span class="icon">-</span>
-          <span>기존 시스템 위에 삽입</span>
+          <span>기존 시스템 위에 삽입 (교체 불필요)</span>
         </div>
         <div class="biz-item">
-          <span class="icon">-</span>
-          <span>개발자 커뮤니티 확산</span>
+          <span class="icon">&rarr;</span>
+          <span><strong>전 세계 개발자가 직접 채택하고, 프로젝트의 의존성이 됩니다</strong></span>
         </div>
       </div>
     </div>
     <div class="biz-card paid">
-      <div class="biz-label">Enterprise (유료)</div>
+      <div class="biz-label">Enterprise (상용)</div>
       <div class="biz-items">
         <div class="biz-item">
           <span class="icon">+</span>
-          <span>자동 대응 (세션 종료, IP 차단, 알림)</span>
+          <span>자동 대응 (세션 종료, IP 차단, 실시간 알림)</span>
         </div>
         <div class="biz-item">
           <span class="icon">+</span>
-          <span>실시간 관제 대시보드</span>
+          <span>보안 관제 대시보드</span>
         </div>
         <div class="biz-item">
           <span class="icon">+</span>
@@ -1408,11 +1403,11 @@
         </div>
         <div class="biz-item">
           <span class="icon">+</span>
-          <span>컴플라이언스 리포팅</span>
+          <span>컴플라이언스 리포팅 (NIST, NIS2, KISA)</span>
         </div>
         <div class="biz-item">
-          <span class="icon">+</span>
-          <span>SLA 기술 지원</span>
+          <span class="icon">&rarr;</span>
+          <span><strong>Core를 쓰는 조직이 운영 단계에서 자연스럽게 전환합니다</strong></span>
         </div>
       </div>
     </div>
@@ -1420,23 +1415,29 @@
 
   <div class="biz-flow reveal">
     <div class="biz-flow-step">
-      <div class="biz-flow-num">REVENUE 01</div>
-      <div class="biz-flow-title">연간 구독</div>
-      <div class="biz-flow-desc">Core 런타임 기본 매출. 개발자 채택에서 조직 도입으로 전환</div>
+      <div class="biz-flow-num">STEP 01</div>
+      <div class="biz-flow-title">채택</div>
+      <div class="biz-flow-desc">개발자가 Core를 프로젝트에 도입. 오픈소스이므로 의사결정 비용이 없습니다</div>
     </div>
     <div class="biz-flow-step">
-      <div class="biz-flow-num">REVENUE 02</div>
-      <div class="biz-flow-title">확장 모듈</div>
-      <div class="biz-flow-desc">자동 대응, 관제, 컴플라이언스 등 엔터프라이즈 기능으로 객단가 확대</div>
+      <div class="biz-flow-num">STEP 02</div>
+      <div class="biz-flow-title">의존</div>
+      <div class="biz-flow-desc">프로덕션 환경에 배포되면 인프라의 일부가 됩니다. 교체 비용이 발생합니다</div>
     </div>
     <div class="biz-flow-step">
-      <div class="biz-flow-num">REVENUE 03</div>
-      <div class="biz-flow-title">구축 서비스</div>
-      <div class="biz-flow-desc">도입 컨설팅, 전환 지원, 고도화 서비스. 교체형이 아니라 증설형이므로 확장이 쉽습니다</div>
+      <div class="biz-flow-num">STEP 03</div>
+      <div class="biz-flow-title">전환</div>
+      <div class="biz-flow-desc">운영 규모가 커지면 관제, 자동 대응, 컴플라이언스가 필요해집니다. Enterprise로 전환됩니다</div>
     </div>
   </div>
 
-  <p class="section-sub reveal" style="margin-top:48px; margin-bottom:0; max-width:900px;">
+  <p class="section-sub reveal" style="margin-top:56px; margin-bottom:0; max-width:900px;">
+    보안 인프라에서 오픈소스가 사실상 표준이 되면,
+    그 위에 올라가는 상용 서비스의 시장은 Core 자체보다 훨씬 큽니다.<br>
+    <strong>Contexa의 목표는 AI Native 보안의 사실상 표준(de facto standard)이 되는 것</strong>이고,
+    수익은 그 위에서 만들어집니다.
+  </p>
+  <p class="section-sub reveal" style="margin-top:24px; margin-bottom:0; max-width:900px;">
     <strong>1차 타겟:</strong> 금융, 커머스, 헬스케어 &mdash; 민감 데이터를 다루고, 정상 자격증명 탈취 피해가 가장 큰 산업
   </p>
 </section>
@@ -1497,8 +1498,9 @@
     규칙 기반 보안의 시대는<br><em>끝나가고 있습니다</em>
   </h2>
   <p class="cta-sub">
-    인증 이후 보안 표준이 형성되는 지금, 선점하지 않으면 후발 추격 비용이 수배로 커집니다.
-    정상 자격증명 탈취에 대한 근본적 해법은 아직 시장에 없습니다.
+    인증 이후 보안 표준이 형성되는 지금이 선점의 시점입니다.<br>
+    정상 자격증명 탈취에 대한 근본적 해법은 아직 시장에 없습니다.<br>
+    <strong>표준이 굳어진 뒤에 진입하면, 후발 추격 비용은 수배로 커집니다.</strong>
   </p>
   <div class="cta-actions">
     <a href="mailto:invest@contexa.io" class="btn-primary">투자 제안서 요청</a>
@@ -1513,7 +1515,7 @@
     <li><a href="#problem">Why Now</a></li>
     <li><a href="#agent-crisis">AI Agent Crisis</a></li>
     <li><a href="#solution">Solution</a></li>
-    <li><a href="#business">Business Model</a></li>
+    <li><a href="#business">Global Scale</a></li>
     <li><a href="#proof">Evidence</a></li>
   </ul>
   <div class="footer-copy">&copy; 2026 Contexa. AI-Native Zero Trust Platform.</div>
