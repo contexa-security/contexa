@@ -42,10 +42,7 @@ public class ContexaProperties {
         
         private boolean enabled = true;
 
-        
-        private boolean enableSimulatedUserAgent = false;
 
-        
         private Similarity similarity = new Similarity();
 
         

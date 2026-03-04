@@ -62,15 +62,7 @@ public class HCADContextExtractor {
             context.setHttpMethod(request.getMethod());
             context.setRemoteIp(clientIp);
 
-            String userAgent;
-            if (hcadProperties.isEnableSimulatedUserAgent()) {
-                userAgent = request.getHeader("X-Simulated-User-Agent");
-                if (userAgent == null || userAgent.isEmpty()) {
-                    userAgent = request.getHeader("User-Agent");
-                }
-            } else {
-                userAgent = request.getHeader("User-Agent");
-            }
+            String userAgent = request.getHeader("User-Agent");
             context.setUserAgent(userAgent != null ? userAgent : "unknown");
             context.setReferer(request.getHeader("Referer"));
             context.setTimestamp(Instant.now());

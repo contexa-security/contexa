@@ -41,20 +41,17 @@
     };
 
     /**
-     * 시나리오별 HTTP 헤더 (X-Simulated-User-Agent, X-Forwarded-For)
+     * Scenario-specific HTTP headers (X-Forwarded-For for IP simulation)
      */
     const SCENARIO_HEADERS = {
         'NORMAL_USER': {
-            'X-Forwarded-For': '192.168.1.100',
-            'X-Simulated-User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'X-Forwarded-For': '192.168.1.100'
         },
         'ACCOUNT_TAKEOVER': {
-            'X-Forwarded-For': '203.0.113.50',
-            'X-Simulated-User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G960U) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+            'X-Forwarded-For': '203.0.113.50'
         },
         'PRIVILEGE_ESCALATION': {
-            'X-Forwarded-For': '10.0.0.99',
-            'X-Simulated-User-Agent': 'python-requests/2.28.0'
+            'X-Forwarded-For': '10.0.0.99'
         }
     };
 

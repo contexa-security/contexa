@@ -13,8 +13,6 @@ public class HcadProperties {
 
     private boolean enabled = true;
 
-    private boolean enableSimulatedUserAgent = false;
-
     @NestedConfigurationProperty
     private ResourceSettings resource = new ResourceSettings();
 

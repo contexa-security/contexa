@@ -84,12 +84,7 @@ public final class RequestInfoExtractor {
     }
 
     public static String extractUserAgent(HttpServletRequest request) {
-        
-        String userAgent = request.getHeader("X-Simulated-User-Agent");
-        if (userAgent != null && !userAgent.isEmpty()) {
-            return userAgent;
-        }
-        userAgent = request.getHeader("User-Agent");
+        String userAgent = request.getHeader("User-Agent");
         return userAgent != null ? userAgent : "unknown";
     }
 
@@ -100,15 +95,7 @@ public final class RequestInfoExtractor {
     }
 
     private static String extractClientIpLegacy(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-            return xForwardedFor.split(",")[0].trim();
-        }
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isEmpty()) {
-            return xRealIp;
-        }
-        return request.getRemoteAddr();
+        return SessionFingerprintUtil.extractClientIp(request);
     }
 
     private static boolean isTrustedProxy(String ip, List<String> trustedProxies) {

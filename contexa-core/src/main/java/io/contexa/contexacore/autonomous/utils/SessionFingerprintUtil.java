@@ -144,7 +144,7 @@ public class SessionFingerprintUtil {
         }
     }
 
-    private static String extractClientIp(HttpServletRequest request) {
+    public static String extractClientIp(HttpServletRequest request) {
         String[] headers = {
                 "X-Forwarded-For", "X-Real-IP", "Proxy-Client-IP",
                 "WL-Proxy-Client-IP", "HTTP_CLIENT_IP", "HTTP_X_FORWARDED_FOR"

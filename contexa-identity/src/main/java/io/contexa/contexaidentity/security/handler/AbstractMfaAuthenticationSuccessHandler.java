@@ -371,12 +371,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     }
 
     private String extractUserAgent(HttpServletRequest request) {
-        if (hcadProperties != null && hcadProperties.isEnableSimulatedUserAgent()) {
-            String simulated = request.getHeader("X-Simulated-User-Agent");
-            if (simulated != null && !simulated.isEmpty()) {
-                return simulated;
-            }
-        }
         return request.getHeader("User-Agent");
     }
 
