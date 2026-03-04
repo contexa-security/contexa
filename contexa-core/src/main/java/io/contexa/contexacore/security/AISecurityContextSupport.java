@@ -102,7 +102,7 @@ public class AISecurityContextSupport {
         if (session != null) {
             return session.getId();
         }
-        return auth != null ? auth.getName() : null;
+        return null;
     }
 
     public AuthenticationTrustResolver getTrustResolver() {

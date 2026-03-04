@@ -69,15 +69,6 @@ public class IamSecurityCoreAutoConfiguration {
         return new AIOAuth2SecurityContextRepository(aiSecurityContextSupport);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public AIOAuth2ZeroTrustFilter aiOAuth2ZeroTrustFilter(
-            AIOAuth2SecurityContextRepository aiOAuth2SecurityContextRepository) {
-        return new AIOAuth2ZeroTrustFilter(aiOAuth2SecurityContextRepository);
-    }
-
-    // --- Distributed mode: Redis-based ZeroTrust and session ---
-
     @Configuration
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     @ConditionalOnBean(RedisTemplate.class)

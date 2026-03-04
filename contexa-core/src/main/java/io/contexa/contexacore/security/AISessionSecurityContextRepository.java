@@ -92,6 +92,10 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
 
         super.saveContext(context, request, response);
 
+        if (sessionId == null) {
+            sessionId = support.resolveIdentifier(request, context.getAuthentication());
+        }
+
         if (support.isEnabled() && sessionId != null) {
             Authentication auth = context.getAuthentication();
 
