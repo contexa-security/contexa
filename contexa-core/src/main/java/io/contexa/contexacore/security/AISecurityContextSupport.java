@@ -91,11 +91,6 @@ public class AISecurityContextSupport {
             }
         }
 
-        HttpSession session = request.getSession(false);
-        if (session != null) {
-            return session.getId();
-        }
-
         if (auth instanceof JwtAuthenticationToken jwtAuth) {
             String jti = jwtAuth.getToken().getId();
             if (jti != null) {
@@ -103,6 +98,10 @@ public class AISecurityContextSupport {
             }
         }
 
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            return session.getId();
+        }
         return auth != null ? auth.getName() : null;
     }
 
