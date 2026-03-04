@@ -71,7 +71,7 @@ public class MethodResourceScanner implements ResourceScanner {
                             parameterTypesJson = objectMapper.writeValueAsString(paramTypeNames);
                         }
                     } catch (JsonProcessingException e) {
-                        log.error("메서드 파라미터 타입을 JSON으로 변환하는 데 실패했습니다.", e);
+                        log.error("Failed to convert method parameter types to JSON.", e);
                     }
 
                     String params = Arrays.stream(method.getParameterTypes()).map(Class::getSimpleName).collect(Collectors.joining(","));
@@ -89,7 +89,7 @@ public class MethodResourceScanner implements ResourceScanner {
                             .build());
                 }
             } catch (Exception e) {
-                log.warn("빈 '{}'의 메서드를 스캔하는 중 오류 발생: {}", beanName, e.getMessage());
+                log.warn("Error occurred while scanning methods of bean '{}': {}", beanName, e.getMessage());
             }
         }
         return resources;

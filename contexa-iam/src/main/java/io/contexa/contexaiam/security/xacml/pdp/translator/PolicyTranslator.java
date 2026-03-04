@@ -35,22 +35,22 @@ public class PolicyTranslator {
 
     public String translatePolicyToString(Policy policy) {
         if (policy == null || policy.getRules() == null || policy.getRules().isEmpty()) {
-            return "정의된 규칙이 없는 정책입니다.";
+            return "Policy with no defined rules.";
         }
 
         return policy.getRules().stream()
                 .map(this::translateRuleToString)
-                .collect(Collectors.joining(" 또는 "));
+                .collect(Collectors.joining(" or "));
     }
 
     private String translateRuleToString(PolicyRule rule) {
         if (rule.getConditions() == null || rule.getConditions().isEmpty()) {
-            return "(정의된 조건 없음)";
+            return "(No defined conditions)";
         }
 
         String conditionsDescription = rule.getConditions().stream()
                 .map(this::translateConditionToString)
-                .collect(Collectors.joining(" 그리고 "));
+                .collect(Collectors.joining(" and "));
 
         return "(" + conditionsDescription + ")";
     }
@@ -61,7 +61,7 @@ public class PolicyTranslator {
             SpelNode ast = ((SpelExpression) expression).getAST();
             return walkAndDescribe(ast);
         } catch (Exception e) {
-            log.warn("SpEL 번역 중 오류 발생: {}. 원본 표현식을 그대로 반환합니다.", condition.getExpression(), e);
+            log.warn("Error occurred during SpEL translation: {}. Returning original expression as-is.", condition.getExpression(), e);
             return condition.getExpression(); 
         }
     }
@@ -69,21 +69,21 @@ public class PolicyTranslator {
     private String walkAndDescribe(SpelNode node) {
         
         if (node instanceof OpAnd) {
-            return String.format("(%s 그리고 %s)", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+            return String.format("(%s and %s)", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
         }
         if (node instanceof OpOr) {
-            return String.format("(%s 또는 %s)", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+            return String.format("(%s or %s)", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
         }
         if (node instanceof OperatorNot) {
             return String.format("NOT (%s)", walkAndDescribe(node.getChild(0)));
         }
 
-        if (node instanceof OpEQ) return String.format("%s가 %s와(과) 같음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
-        if (node instanceof OpNE) return String.format("%s가 %s와(과) 다름", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
-        if (node instanceof OpGT) return String.format("%s가 %s보다 큼", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
-        if (node instanceof OpGE) return String.format("%s가 %s보다 크거나 같음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
-        if (node instanceof OpLT) return String.format("%s가 %s보다 작음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
-        if (node instanceof OpLE) return String.format("%s가 %s보다 작거나 같음", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+        if (node instanceof OpEQ) return String.format("%s equals %s", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+        if (node instanceof OpNE) return String.format("%s not equals %s", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+        if (node instanceof OpGT) return String.format("%s greater than %s", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+        if (node instanceof OpGE) return String.format("%s greater than or equal to %s", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+        if (node instanceof OpLT) return String.format("%s less than %s", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
+        if (node instanceof OpLE) return String.format("%s less than or equal to %s", walkAndDescribe(node.getChild(0)), walkAndDescribe(node.getChild(1)));
 
         if (node instanceof MethodReference methodRef) {
             String methodName = methodRef.getName();
@@ -97,8 +97,8 @@ public class PolicyTranslator {
 
         if (node instanceof Identifier) {
             String identifier = ((Identifier) node).toString();
-            if ("permitAll".equalsIgnoreCase(identifier)) return "모든 접근";
-            if ("denyAll".equalsIgnoreCase(identifier)) return "모든 접근 거부";
+            if ("permitAll".equalsIgnoreCase(identifier)) return "All access permitted";
+            if ("denyAll".equalsIgnoreCase(identifier)) return "All access denied";
         }
 
         return node.toStringAST();
@@ -138,14 +138,14 @@ public class PolicyTranslator {
                 
                 String friendlyName = roleRepository.findByRoleName(roleName).map(r -> r.getRoleDesc()).orElse(roleName);
                 subjectDescs.add(friendlyName);
-                subjectType = "역할";
+                subjectType = "Role";
             } else if (auth.startsWith("GROUP_")) {
                 
                 Long groupId = Long.parseLong(auth.substring(6));
                 
                 String friendlyName = groupRepository.findById(groupId).map(g -> g.getName()).orElse("ID: " + groupId);
                 subjectDescs.add(friendlyName);
-                subjectType = "그룹";
+                subjectType = "Group";
             } else {
                 
                 String friendlyName = permissionRepository.findByName(auth).map(p -> p.getDescription()).orElse(auth);
@@ -154,8 +154,8 @@ public class PolicyTranslator {
         }
 
         if (rootNode.requiresAuthentication() && subjectDescs.isEmpty()) {
-            subjectDescs.add("인증된 사용자");
-            subjectType = "인증 상태";
+            subjectDescs.add("Authenticated user");
+            subjectType = "Authentication status";
         }
 
         conditionDescs.add(rootNode.getConditionDescription());
@@ -176,7 +176,7 @@ public class PolicyTranslator {
 
     public ExpressionNode parsePolicy(Policy policy) {
         if (policy == null || policy.getRules() == null || policy.getRules().isEmpty()) {
-            return new TerminalNode("정의된 규칙 없음");
+            return new TerminalNode("No defined rules");
         }
 
         List<ExpressionNode> ruleNodes = policy.getRules().stream()
@@ -188,7 +188,7 @@ public class PolicyTranslator {
 
     private ExpressionNode parseRule(PolicyRule rule) {
         if (rule.getConditions() == null || rule.getConditions().isEmpty()) {
-            return new TerminalNode("정의된 조건 없음");
+            return new TerminalNode("No defined conditions");
         }
         List<ExpressionNode> conditionNodes = rule.getConditions().stream()
                 .map(this::parseCondition)
@@ -215,8 +215,8 @@ public class PolicyTranslator {
 
         if (node instanceof Identifier) {
             String identifier = ((Identifier) node).toString();
-            if ("permitAll".equalsIgnoreCase(identifier)) return new TerminalNode("모든 사용자 허용", false);
-            if ("denyAll".equalsIgnoreCase(identifier)) return new TerminalNode("모든 사용자 거부", false);
+            if ("permitAll".equalsIgnoreCase(identifier)) return new TerminalNode("Permit all users", false);
+            if ("denyAll".equalsIgnoreCase(identifier)) return new TerminalNode("Deny all users", false);
         }
 
         return new TerminalNode(node.toStringAST());

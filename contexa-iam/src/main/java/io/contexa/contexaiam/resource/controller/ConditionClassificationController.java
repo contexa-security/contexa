@@ -127,8 +127,8 @@ public class ConditionClassificationController {
             if (resourceCount == 0) {
                 Map<String, Object> errorResponse = new HashMap<>();
                 errorResponse.put("success", false);
-                errorResponse.put("error", "ManagedResource 데이터가 없습니다");
-                errorResponse.put("message", "먼저 리소스 스캔을 실행해주세요");
+                errorResponse.put("error", "No ManagedResource data found");
+                errorResponse.put("message", "Please run resource scan first");
                 errorResponse.put("resourceCount", 0);
                 return ResponseEntity.badRequest().body(errorResponse);
             }
@@ -141,7 +141,7 @@ public class ConditionClassificationController {
             response.put("success", true);
             response.put("deletedOldTemplates", true);
             response.put("generatedCount", generatedTemplates.size());
-            response.put("message", "잘못된 조건들을 정리하고 올바른 조건 템플릿을 재생성했습니다");
+            response.put("message", "Cleaned up invalid conditions and regenerated correct condition templates");
             response.put("templates", generatedTemplates.stream()
                 .map(template -> Map.of(
                     "id", template.getId(),
@@ -155,12 +155,12 @@ public class ConditionClassificationController {
                         return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("조건 템플릿 재생성 실패", e);
-            
+            log.error("Failed to regenerate condition templates", e);
+
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("error", e.getMessage());
-            errorResponse.put("message", "조건 템플릿 재생성 중 오류가 발생했습니다");
+            errorResponse.put("message", "An error occurred while regenerating condition templates");
             
             return ResponseEntity.internalServerError().body(errorResponse);
         }
@@ -175,7 +175,7 @@ public class ConditionClassificationController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("generatedCount", generatedTemplates.size());
-            response.put("message", "ManagedResource 기반 조건 템플릿이 성공적으로 생성되었습니다");
+            response.put("message", "ManagedResource-based condition templates have been successfully generated");
             response.put("templates", generatedTemplates.stream()
                 .map(template -> Map.of(
                     "id", template.getId(),
@@ -189,12 +189,12 @@ public class ConditionClassificationController {
                         return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("ManagedResource 기반 조건 템플릿 생성 실패", e);
-            
+            log.error("Failed to generate ManagedResource-based condition templates", e);
+
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("error", e.getMessage());
-            errorResponse.put("message", "조건 템플릿 생성 중 오류가 발생했습니다");
+            errorResponse.put("message", "An error occurred while generating condition templates");
             
             return ResponseEntity.internalServerError().body(errorResponse);
         }
@@ -209,7 +209,7 @@ public class ConditionClassificationController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("generatedCount", generatedTemplates.size());
-            response.put("message", "Permission 기반 조건 템플릿이 성공적으로 생성되었습니다");
+            response.put("message", "Permission-based condition templates have been successfully generated");
             response.put("templates", generatedTemplates.stream()
                 .map(template -> Map.of(
                     "id", template.getId(),
@@ -223,12 +223,12 @@ public class ConditionClassificationController {
                         return ResponseEntity.ok(response);
             
         } catch (Exception e) {
-            log.error("Permission 기반 조건 템플릿 생성 실패", e);
-            
+            log.error("Failed to generate Permission-based condition templates", e);
+
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
             errorResponse.put("error", e.getMessage());
-            errorResponse.put("message", "조건 템플릿 생성 중 오류가 발생했습니다");
+            errorResponse.put("message", "An error occurred while generating condition templates");
             
             return ResponseEntity.internalServerError().body(errorResponse);
         }

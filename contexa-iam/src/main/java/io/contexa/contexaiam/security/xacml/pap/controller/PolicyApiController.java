@@ -33,7 +33,7 @@ public class PolicyApiController {
             return ResponseEntity.ok(responseDto);
 
         } catch (Exception e) {
-            log.error("정책 생성 API 처리 중 오류 발생", e);
+            log.error("Error occurred while processing policy creation API", e);
             
             return ResponseEntity.badRequest().build();
         }

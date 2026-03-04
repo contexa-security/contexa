@@ -46,7 +46,7 @@ public class PermissionController {
     public String createPermission(@ModelAttribute("permission") PermissionDto permissionDto, RedirectAttributes ra) {
         Permission permission = modelMapper.map(permissionDto, Permission.class);
         permissionService.createPermission(permission);
-        ra.addFlashAttribute("message", "권한 '" + permission.getName() + "'이 성공적으로 생성되었습니다.");
+        ra.addFlashAttribute("message", "Permission '" + permission.getName() + "' has been successfully created.");
         return "redirect:/admin/permissions";
     }
 
@@ -65,7 +65,7 @@ public class PermissionController {
     public String updatePermission(@PathVariable Long id, @ModelAttribute("permission") PermissionDto permissionDto,
                                    RedirectAttributes ra) {
         Permission permission = permissionService.updatePermission(id, permissionDto);
-        ra.addFlashAttribute("message", "권한 '" + permission.getName() + "'이 성공적으로 업데이트되었습니다.");
+        ra.addFlashAttribute("message", "Permission '" + permission.getName() + "' has been successfully updated.");
         return "redirect:/admin/permissions";
     }
 
@@ -78,9 +78,9 @@ public class PermissionController {
     public String deletePermission(@PathVariable Long id, RedirectAttributes ra) {
         try {
             permissionService.deletePermission(id);
-            ra.addFlashAttribute("message", "권한 (ID: " + id + ")이 성공적으로 삭제되었습니다.");
+            ra.addFlashAttribute("message", "Permission (ID: " + id + ") has been successfully deleted.");
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "권한 삭제 중 오류 발생: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Error occurred while deleting permission: " + e.getMessage());
         }
         return "redirect:/admin/permissions";
     }

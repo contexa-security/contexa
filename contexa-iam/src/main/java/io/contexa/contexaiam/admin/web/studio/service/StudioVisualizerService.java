@@ -2,7 +2,7 @@ package io.contexa.contexaiam.admin.web.studio.service;
 
 import io.contexa.contexaiam.admin.web.studio.dto.AccessPathDto;
 import io.contexa.contexaiam.admin.web.studio.dto.EffectivePermissionDto;
-import io.contexa.contexaiam.admin.support.visualization.dto.GraphDataDto; 
+import io.contexa.contexaiam.admin.support.context.dto.GraphDataDto;
 
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.VirtualSubject;
 

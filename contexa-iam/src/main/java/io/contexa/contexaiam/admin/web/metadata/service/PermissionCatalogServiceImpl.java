@@ -25,7 +25,7 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
     @Transactional
     public Permission synchronizePermissionFor(ManagedResource resource) {
         if (resource.getStatus() == ManagedResource.Status.NEEDS_DEFINITION) {
-            throw new IllegalStateException("정의가 필요한 리소스로부터 권한을 생성할 수 없습니다. 리소스 ID: " + resource.getId());
+            throw new IllegalStateException("Cannot create permission from a resource that needs definition. Resource ID: " + resource.getId());
         }
 
         String permissionName = generatePermissionName(resource);

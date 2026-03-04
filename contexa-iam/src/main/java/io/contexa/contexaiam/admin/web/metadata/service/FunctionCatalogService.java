@@ -31,8 +31,8 @@ public class FunctionCatalogService {
 
     public List<FunctionGroup> getAllFunctionGroups() {
         if (functionGroupRepository.count() == 0) {
-            functionGroupRepository.save(FunctionGroup.builder().name("일반").build());
-            functionGroupRepository.save(FunctionGroup.builder().name("사용자 관리").build());
+            functionGroupRepository.save(FunctionGroup.builder().name("General").build());
+            functionGroupRepository.save(FunctionGroup.builder().name("User Management").build());
         }
         return functionGroupRepository.findAll();
     }
@@ -40,14 +40,14 @@ public class FunctionCatalogService {
     @Transactional
     public void confirmFunction(Long catalogId, Long groupId) {
         FunctionCatalog catalog = functionCatalogRepository.findById(catalogId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기능 카탈로그 ID: " + catalogId));
+                .orElseThrow(() -> new IllegalArgumentException("Function catalog not found with ID: " + catalogId));
         FunctionGroup group = functionGroupRepository.findById(groupId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기능 그룹 ID: " + groupId));
+                .orElseThrow(() -> new IllegalArgumentException("Function group not found with ID: " + groupId));
 
         catalog.setStatus(FunctionCatalog.CatalogStatus.ACTIVE);
         catalog.setFunctionGroup(group);
         functionCatalogRepository.save(catalog);
-            }
+        }
 
     public List<FunctionCatalogDto> getManageableCatalogs() {
         return functionCatalogRepository.findAllByStatusNotWithDetails(FunctionCatalog.CatalogStatus.UNCONFIRMED).stream()
@@ -58,9 +58,9 @@ public class FunctionCatalogService {
     @Transactional
     public void updateCatalog(Long id, FunctionCatalogUpdateDto dto) {
         FunctionCatalog catalog = functionCatalogRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기능 카탈로그 ID: " + id));
+                .orElseThrow(() -> new IllegalArgumentException("Function catalog not found with ID: " + id));
         FunctionGroup group = functionGroupRepository.findById(dto.getGroupId())
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기능 그룹 ID: " + dto.getGroupId()));
+                .orElseThrow(() -> new IllegalArgumentException("Function group not found with ID: " + dto.getGroupId()));
 
         catalog.setFriendlyName(dto.getFriendlyName());
         catalog.setDescription(dto.getDescription());
@@ -72,7 +72,7 @@ public class FunctionCatalogService {
     @Transactional
     public void updateSingleStatus(Long catalogId, String status) {
         FunctionCatalog catalog = functionCatalogRepository.findById(catalogId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 기능 카탈로그 ID: " + catalogId));
+                .orElseThrow(() -> new IllegalArgumentException("Function catalog not found with ID: " + catalogId));
         FunctionCatalog.CatalogStatus newStatus = FunctionCatalog.CatalogStatus.valueOf(status.toUpperCase());
         catalog.setStatus(newStatus);
         functionCatalogRepository.save(catalog);
@@ -133,7 +133,7 @@ public class FunctionCatalogService {
         if (catalog.getFunctionGroup() != null) {
             dto.setFunctionGroupName(catalog.getFunctionGroup().getName());
         } else {
-            dto.setFunctionGroupName("미지정");
+            dto.setFunctionGroupName("Unassigned");
         }
 
         return dto;

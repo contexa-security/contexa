@@ -196,24 +196,24 @@ public class PolicyGenerationTemplate extends AbstractBasePromptTemplate {
      */
     private String formatAvailableItems(PolicyGenerationItem.AvailableItems availableItems) {
         if (availableItems == null) {
-            return "사용 가능한 항목 정보가 제공되지 않았습니다.";
+            return "No available item information was provided.";
         }
         StringBuilder info = new StringBuilder();
         if (availableItems.roles() != null && !availableItems.roles().isEmpty()) {
-            info.append("**역할 목록:**\n");
+            info.append("**Role List:**\n");
             availableItems.roles().forEach(role ->
                     info.append(String.format("- %s (ID: %d)\n", role.name(), role.id())));
         }
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
-            info.append("\n**권한 목록:**\n");
+            info.append("\n**Permission List:**\n");
             availableItems.permissions().forEach(permission ->
                     info.append(String.format("- %s (ID: %d)\n", permission.name(), permission.id())));
         }
         if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
-            info.append("\n**조건 목록 (\"conditions\" 필드의 키로 반드시 이 숫자 ID만 사용하세요):**\n");
+            info.append("\n**Condition List (You must use only these numeric IDs as keys for the \"conditions\" field):**\n");
             availableItems.conditions().forEach(condition ->
                     info.append(String.format("- ID: %d, Name: %s\n", condition.id(), condition.name())));
         }
-        return !info.isEmpty() ? info.toString() : "사용 가능한 항목이 없습니다.";
+        return !info.isEmpty() ? info.toString() : "No available items found.";
     }
 }

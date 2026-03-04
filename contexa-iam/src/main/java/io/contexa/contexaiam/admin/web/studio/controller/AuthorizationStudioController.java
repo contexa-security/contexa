@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.admin.web.studio.controller;
 
-import io.contexa.contexaiam.admin.support.visualization.dto.GraphDataDto;
+import io.contexa.contexaiam.admin.support.context.dto.GraphDataDto;
 import io.contexa.contexaiam.admin.web.studio.dto.ExplorerItemDto;
 import io.contexa.contexaiam.admin.web.studio.dto.InitiateGrantRequestDto;
 import io.contexa.contexaiam.admin.web.studio.dto.SimulationRequestDto;

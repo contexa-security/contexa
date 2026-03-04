@@ -15,7 +15,7 @@ public class IpAddressFunctionTranslator implements SpelFunctionTranslator {
     @Override
     public ExpressionNode translate(String functionName, MethodReference node) {
         List<String> args = extractArguments(node);
-        String ip = args.isEmpty() ? "알 수 없는 IP" : args.get(0);
-        return new TerminalNode("IP(" + ip + ")에서 접근", false);
+        String ip = args.isEmpty() ? "Unknown IP" : args.get(0);
+        return new TerminalNode("Access from IP(" + ip + ")", false);
     }
 }

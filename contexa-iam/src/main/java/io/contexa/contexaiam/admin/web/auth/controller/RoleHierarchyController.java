@@ -54,7 +54,7 @@ public class RoleHierarchyController {
         try {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.createRoleHierarchy(entity);
-            ra.addFlashAttribute("message", "역할 계층이 성공적으로 생성되었습니다!");
+            ra.addFlashAttribute("message", "Role hierarchy has been successfully created!");
                     } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/register";
@@ -101,7 +101,7 @@ public class RoleHierarchyController {
 
         } catch (Exception e) {
             log.error("Error loading role hierarchy details for ID: {}", id, e);
-            model.addAttribute("error", "역할 계층 정보를 불러오는 중 오류가 발생했습니다.");
+            model.addAttribute("error", "An error occurred while loading role hierarchy information.");
             return "redirect:/admin/role-hierarchies";
         }
 
@@ -114,7 +114,7 @@ public class RoleHierarchyController {
             hierarchyDto.setId(id);
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.updateRoleHierarchy(entity);
-            ra.addFlashAttribute("message", "역할 계층이 성공적으로 업데이트되었습니다!");
+            ra.addFlashAttribute("message", "Role hierarchy has been successfully updated!");
                     } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/" + id;
@@ -125,14 +125,14 @@ public class RoleHierarchyController {
     @PostMapping("/delete/{id}")
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         roleHierarchyService.deleteRoleHierarchy(id);
-        ra.addFlashAttribute("message", "역할 계층 (ID: " + id + ")이 성공적으로 삭제되었습니다!");
+        ra.addFlashAttribute("message", "Role hierarchy (ID: " + id + ") has been successfully deleted!");
                 return "redirect:/admin/role-hierarchies";
     }
 
     @PostMapping("/{id}/activate")
     public String activateRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         roleHierarchyService.activateRoleHierarchy(id);
-        ra.addFlashAttribute("message", "역할 계층 (ID: " + id + ")이 활성화되었습니다!");
+        ra.addFlashAttribute("message", "Role hierarchy (ID: " + id + ") has been activated!");
                 return "redirect:/admin/role-hierarchies";
     }
 

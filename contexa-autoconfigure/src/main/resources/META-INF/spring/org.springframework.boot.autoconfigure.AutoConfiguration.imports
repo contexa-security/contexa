@@ -101,7 +101,6 @@ io.contexa.autoconfigure.iam.admin.IamAdminMetadataAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminMonitoringAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminStudioAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminWorkflowAutoConfiguration
-io.contexa.autoconfigure.iam.admin.IamAdminSupportAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminBlacklistAutoConfiguration
 
 # IAM Enterprise Admin

@@ -141,8 +141,8 @@ public class DashboardServiceImpl implements DashboardService {
         if (mfaDisabledAdmins > 0) {
             risks.add(new RiskIndicatorDto(
                     "CRITICAL",
-                    "MFA 미사용 관리자 계정 발견",
-                    mfaDisabledAdmins + "명의 관리자 계정에 2단계 인증(MFA)이 설정되지 않아 탈취 위험이 높습니다.",
+                    "Admin accounts without MFA detected",
+                    mfaDisabledAdmins + " admin accounts do not have MFA enabled, posing a high risk of account compromise.",
                     "/admin/users"
             ));
         }
@@ -155,8 +155,8 @@ public class DashboardServiceImpl implements DashboardService {
         if (pendingPolicies > 0) {
             risks.add(new RiskIndicatorDto(
                     "WARNING",
-                    "승인 대기 중인 AI 정책",
-                    pendingPolicies + "개의 AI 생성 정책이 승인을 기다리고 있습니다. 검토 후 승인 또는 거부해주세요.",
+                    "AI policies pending approval",
+                    pendingPolicies + " AI-generated policies are awaiting approval. Please review and approve or reject.",
                     "/admin/policies"
             ));
         }
@@ -166,8 +166,8 @@ public class DashboardServiceImpl implements DashboardService {
         if (deniedAttempts >= 10) {
             risks.add(new RiskIndicatorDto(
                     "WARNING",
-                    "최근 24시간 접근 거부 다발",
-                    "최근 24시간 동안 " + deniedAttempts + "건의 접근이 거부되었습니다. 비정상적인 접근 시도일 수 있습니다.",
+                    "High number of access denials in last 24 hours",
+                    deniedAttempts + " access attempts were denied in the last 24 hours. This may indicate abnormal access attempts.",
                     "/admin/studio"
             ));
         }
@@ -176,8 +176,8 @@ public class DashboardServiceImpl implements DashboardService {
         if (!hasRoleHierarchy) {
             risks.add(new RiskIndicatorDto(
                     "WARNING",
-                    "역할 계층 미정의",
-                    "역할 계층이 정의되지 않았습니다. 역할 간 상속 관계를 설정하여 권한 관리를 효율화하세요.",
+                    "Role hierarchy not defined",
+                    "No role hierarchy has been defined. Set up inheritance relationships between roles to streamline permission management.",
                     "/admin/role-hierarchies"
             ));
         }

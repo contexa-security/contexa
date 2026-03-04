@@ -49,9 +49,9 @@ public class ResourceAdminController {
     public String refreshResources(RedirectAttributes ra) {
         try {
             resourceRegistryService.refreshAndSynchronizeResources();
-            ra.addFlashAttribute("message", "시스템 리소스를 성공적으로 새로고침했습니다.");
+            ra.addFlashAttribute("message", "System resources have been successfully refreshed.");
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "리소스 새로고침 중 오류 발생: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Error occurred while refreshing resources: " + e.getMessage());
         }
         return "redirect:/admin/workbench/resources";
     }
@@ -64,7 +64,7 @@ public class ResourceAdminController {
             Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, metadataDto);
 
             Map<String, Object> response = Map.of(
-                    "message", "리소스가 성공적으로 권한으로 정의되었습니다.",
+                    "message", "Resource has been successfully defined as a permission.",
                     "permissionId", newPermission.getId(),
                     "permissionName", newPermission.getFriendlyName()
             );
@@ -114,9 +114,9 @@ public class ResourceAdminController {
     public String updateManagementStatus(@PathVariable Long id, @ModelAttribute ResourceManagementDto managementDto, RedirectAttributes ra) {
         try {
             resourceRegistryService.updateResourceManagementStatus(id, managementDto);
-            ra.addFlashAttribute("message", "리소스 (ID: " + id + ")의 관리 상태가 변경되었습니다.");
+            ra.addFlashAttribute("message", "Management status of resource (ID: " + id + ") has been changed.");
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "관리 상태 변경 중 오류 발생: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Error occurred while changing management status: " + e.getMessage());
         }
         return "redirect:/admin/workbench/resources";
     }

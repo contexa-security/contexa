@@ -50,7 +50,7 @@ public class RoleController {
 	public String createRole(@ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.createRole(role, roleDto.getPermissionIds());
-		ra.addFlashAttribute("message", "역할이 성공적으로 생성되었습니다!");
+		ra.addFlashAttribute("message", "Role has been successfully created!");
 		return "redirect:/admin/roles";
 	}
 
@@ -75,14 +75,14 @@ public class RoleController {
 		roleDto.setId(id); 
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.updateRole(role, roleDto.getPermissionIds());
-		ra.addFlashAttribute("message", "역할이 성공적으로 업데이트되었습니다!");
+		ra.addFlashAttribute("message", "Role has been successfully updated!");
 		return "redirect:/admin/roles";
 	}
 
 	@PostMapping("/delete/{id}")
 	public String deleteRole(@PathVariable Long id, RedirectAttributes ra) {
 		roleService.deleteRole(id);
-		ra.addFlashAttribute("message", "역할이 성공적으로 삭제되었습니다!");
+		ra.addFlashAttribute("message", "Role has been successfully deleted!");
 		return "redirect:/admin/roles";
 	}
 }

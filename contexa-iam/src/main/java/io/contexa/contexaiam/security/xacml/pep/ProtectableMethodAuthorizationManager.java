@@ -30,7 +30,7 @@ public class ProtectableMethodAuthorizationManager {
                 throw new AuthorizationDeniedException("Access is denied");
             }
         } else {
-            log.warn("[ZeroTrust] preAuthorize - preAuthorizeRule 변수가 없거나 Expression 타입이 아님: {}",
+            log.warn("[ZeroTrust] preAuthorize - preAuthorizeRule variable is missing or not of Expression type: {}",
                     protectableRuleObj != null ? protectableRuleObj.getClass().getSimpleName() : "null");
             throw new AuthorizationDeniedException("Access is denied - preAuthorizeRule not found");
         }

@@ -18,6 +18,6 @@ public class RoleFunctionTranslator implements SpelFunctionTranslator {
         List<String> roles = extractArguments(node);
         String roleNames = String.join(", ", roles);
         String authorities = roles.stream().map(r -> "ROLE_" + r).collect(Collectors.joining(","));
-        return new TerminalNode("역할(" + roleNames + ") 보유", authorities, true);
+        return new TerminalNode("Has role(" + roleNames + ")", authorities, true);
     }
 }

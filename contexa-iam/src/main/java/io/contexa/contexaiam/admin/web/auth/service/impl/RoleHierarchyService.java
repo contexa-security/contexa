@@ -50,7 +50,7 @@ public class RoleHierarchyService {
         try {
 
             if (roleHierarchyRepository.findByHierarchyString(roleHierarchyEntity.getHierarchyString()).isPresent()) {
-                throw new IllegalArgumentException("동일한 역할 계층 설정이 이미 존재합니다.");
+                throw new IllegalArgumentException("An identical role hierarchy configuration already exists.");
             }
 
             validateHierarchyString(roleHierarchyEntity.getHierarchyString());
@@ -159,7 +159,7 @@ public class RoleHierarchyService {
 
         for (String roleName : referencedRoleNames) {
             if (!existingRoleNames.contains(roleName.toUpperCase())) {
-                throw new IllegalArgumentException("계층 문자열에 존재하지 않는 역할이 포함되어 있습니다: " + roleName);
+                throw new IllegalArgumentException("Hierarchy string contains a non-existent role: " + roleName);
             }
         }
     }
@@ -194,27 +194,27 @@ public class RoleHierarchyService {
         for (String[] relation : relations) {
             String relationKey = relation[0] + ">" + relation[1];
             if (!seenRelations.add(relationKey)) {
-                throw new IllegalArgumentException("중복된 관계가 발견되었습니다: " + relationKey);
+                throw new IllegalArgumentException("Duplicate relationship found: " + relationKey);
             }
         }
 
         for (String[] relation : relations) {
             String reverseKey = relation[1] + ">" + relation[0];
             if (seenRelations.contains(reverseKey)) {
-                throw new IllegalArgumentException("역방향 관계가 발견되었습니다: " + relation[0] + " <-> " + relation[1]);
+                throw new IllegalArgumentException("Reverse relationship found: " + relation[0] + " <-> " + relation[1]);
             }
         }
 
         for (String[] relation : relations) {
             if (isTransitivelyConnected(graph, relation[0], relation[1])) {
-                throw new IllegalArgumentException("불필요한 관계입니다: " + relation[0] + " > " + relation[1] +
-                        " (이미 다른 경로로 연결되어 있습니다)");
+                throw new IllegalArgumentException("Redundant relationship: " + relation[0] + " > " + relation[1] +
+                        " (already connected via another path)");
             }
         }
 
         for (String role : allRoles) {
             if (hasCycle(graph, role, new HashSet<>(), new HashSet<>())) {
-                throw new IllegalArgumentException("순환 참조가 발견되었습니다. 역할: " + role);
+                throw new IllegalArgumentException("Circular reference detected. Role: " + role);
             }
         }
     }

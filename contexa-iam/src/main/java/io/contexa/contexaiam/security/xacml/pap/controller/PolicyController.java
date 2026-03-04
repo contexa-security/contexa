@@ -48,7 +48,7 @@ public class PolicyController {
     @PostMapping
     public String createPolicy(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         policyService.createPolicy(policyDto);
-        ra.addFlashAttribute("message", "정책이 성공적으로 생성되었습니다.");
+        ra.addFlashAttribute("message", "Policy has been successfully created.");
         return "redirect:/admin/policies";
     }
 
@@ -67,7 +67,7 @@ public class PolicyController {
     public String updatePolicy(@PathVariable Long id, @ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         policyDto.setId(id);
         policyService.updatePolicy(policyDto);
-        ra.addFlashAttribute("message", "정책이 성공적으로 수정되었습니다.");
+        ra.addFlashAttribute("message", "Policy has been successfully updated.");
         return "redirect:/admin/policies";
     }
 
@@ -102,9 +102,9 @@ public class PolicyController {
     public String deletePolicy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             policyService.deletePolicy(id);
-            ra.addFlashAttribute("message", "정책이 성공적으로 삭제되었습니다.");
+            ra.addFlashAttribute("message", "Policy has been successfully deleted.");
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "정책 삭제 실패: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Failed to delete policy: " + e.getMessage());
             log.error("Error deleting policy", e);
         }
         return "redirect:/admin/policies";

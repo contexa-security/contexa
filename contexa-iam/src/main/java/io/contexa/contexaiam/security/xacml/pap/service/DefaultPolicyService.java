@@ -112,7 +112,7 @@ public class DefaultPolicyService implements PolicyService {
 
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
-                .description(String.format("'%s' 권한에 대한 자동 생성 정책", permission.getFriendlyName()))
+                .description(String.format("Auto-generated policy for permission '%s'", permission.getFriendlyName()))
                 .effect(Policy.Effect.ALLOW)
                 .priority(500) 
                 .targets(List.of(new TargetDto(

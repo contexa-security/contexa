@@ -35,7 +35,7 @@ public class PolicySynchronizationService {
     public void handleRolePermissionsChange(RolePermissionsChangedEvent event) {
 
         Role role = roleRepository.findByIdWithPermissionsAndResources(event.getRoleId())
-                .orElseThrow(() -> new IllegalArgumentException("동기화할 역할을 찾을 수 없습니다: " + event.getRoleId()));
+                .orElseThrow(() -> new IllegalArgumentException("Role not found for synchronization: " + event.getRoleId()));
 
         synchronizePolicyForRole(role);
     }
@@ -72,7 +72,7 @@ public class PolicySynchronizationService {
 
         PolicyDto policyDto = PolicyDto.builder()
                 .name(policyName)
-                .description(String.format("'%s' 역할을 위한 자동 동기화 정책", role.getRoleDesc()))
+                .description(String.format("Auto-synchronized policy for role '%s'", role.getRoleDesc()))
                 .effect(Policy.Effect.ALLOW)
                 .priority(500) 
                 .targets(targetDtos)

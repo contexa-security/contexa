@@ -143,7 +143,11 @@
       "WebFetch(domain:www.felicis.com)",
       "Bash(git rm:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(curl -s \"https://raw.githubusercontent.com/spring-projects/spring-security/6.5.2/config/src/main/java/org/springframework/security/config/annotation/web/configurers/SecurityContextConfigurer.java\")"
+      "Bash(curl -s \"https://raw.githubusercontent.com/spring-projects/spring-security/6.5.2/config/src/main/java/org/springframework/security/config/annotation/web/configurers/SecurityContextConfigurer.java\")",
+      "Bash(while read f)",
+      "Bash(do if grep -q '[가-힣]' \"$f\")",
+      "Bash(then echo \"$f\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []

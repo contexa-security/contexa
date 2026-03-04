@@ -75,10 +75,10 @@ public class UserManagementController {
 			userDto.setId(id);
 			userDto.setSelectedGroupIds(selectedGroupIds);
 			userManagementService.modifyUser(userDto);
-			ra.addFlashAttribute("message", "사용자 '" + userDto.getUsername() + "' 정보가 성공적으로 수정되었습니다!");
+			ra.addFlashAttribute("message", "User '" + userDto.getUsername() + "' information has been successfully updated!");
 					} catch (Exception e) {
 			log.error("Error modifying user: ", e);
-			ra.addFlashAttribute("errorMessage", "사용자 수정 중 오류가 발생했습니다: " + e.getMessage());
+			ra.addFlashAttribute("errorMessage", "An error occurred while updating user: " + e.getMessage());
 			return "redirect:/admin/users/" + id;
 		}
 		return "redirect:/admin/users";
@@ -96,10 +96,10 @@ public class UserManagementController {
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			userManagementService.deleteUser(id);
-			ra.addFlashAttribute("message", "사용자 (ID: " + id + ")가 성공적으로 삭제되었습니다!");
+			ra.addFlashAttribute("message", "User (ID: " + id + ") has been successfully deleted!");
 					} catch (Exception e) {
 			log.error("Error deleting user: ", e);
-			ra.addFlashAttribute("errorMessage", "사용자 삭제 중 오류가 발생했습니다: " + e.getMessage());
+			ra.addFlashAttribute("errorMessage", "An error occurred while deleting user: " + e.getMessage());
 		}
 		return "redirect:/admin/users";
 	}

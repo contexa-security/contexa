@@ -23,7 +23,7 @@ public class StudioExplorerServiceImpl implements StudioExplorerService {
         List<ExplorerItemDto> users = userRepository.findAll().stream()
                 .map(user -> new ExplorerItemDto(
                         user.getId(),
-                        Optional.ofNullable(user.getName()).orElse("이름 없음"),
+                        Optional.ofNullable(user.getName()).orElse("No Name"),
                         "USER",
                         user.getUsername()
                 ))
@@ -32,9 +32,9 @@ public class StudioExplorerServiceImpl implements StudioExplorerService {
         List<ExplorerItemDto> groups = groupRepository.findAll().stream()
                 .map(group -> new ExplorerItemDto(
                         group.getId(),
-                        Optional.ofNullable(group.getName()).orElse("이름 없음"),
+                        Optional.ofNullable(group.getName()).orElse("No Name"),
                         "GROUP",
-                        Optional.ofNullable(group.getDescription()).orElse("설명 없음")
+                        Optional.ofNullable(group.getDescription()).orElse("No Description")
                 ))
                 .toList();
 

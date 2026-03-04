@@ -57,12 +57,12 @@ public class GroupController {
             Group group = modelMapper.map(groupDto, Group.class);
             groupService.createGroup(group, selectedRoleIds); 
 
-            ra.addFlashAttribute("message", "그룹 '" + group.getName() + "'이 성공적으로 생성되었습니다.");
+            ra.addFlashAttribute("message", "Group '" + group.getName() + "' has been successfully created.");
                     } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to create group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "그룹 생성 중 알 수 없는 오류 발생: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Unknown error occurred while creating group: " + e.getMessage());
             log.error("Error creating group", e);
         }
         return "redirect:/admin/groups";
@@ -97,12 +97,12 @@ public class GroupController {
             Group group = modelMapper.map(groupDto, Group.class);
             groupService.updateGroup(group, selectedRoleIds); 
 
-            ra.addFlashAttribute("message", "그룹 '" + group.getName() + "'이 성공적으로 업데이트되었습니다!");
+            ra.addFlashAttribute("message", "Group '" + group.getName() + "' has been successfully updated!");
                     } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to update group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "그룹 업데이트 중 알 수 없는 오류 발생: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Unknown error occurred while updating group: " + e.getMessage());
             log.error("Error updating group", e);
         }
         return "redirect:/admin/groups";
@@ -112,9 +112,9 @@ public class GroupController {
     public String deleteGroup(@PathVariable Long id, RedirectAttributes ra) {
         try {
             groupService.deleteGroup(id);
-            ra.addFlashAttribute("message", "그룹 (ID: " + id + ")이 성공적으로 삭제되었습니다!");
+            ra.addFlashAttribute("message", "Group (ID: " + id + ") has been successfully deleted!");
                     } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "그룹 삭제 중 오류 발생: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Error occurred while deleting group: " + e.getMessage());
             log.error("Error deleting group ID: {}", id, e);
         }
         return "redirect:/admin/groups";

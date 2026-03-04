@@ -16,10 +16,10 @@ public class AuthenticationFunctionTranslator implements SpelFunctionTranslator 
     @Override
     public ExpressionNode translate(String functionName, MethodReference node) {
         return switch (functionName.toLowerCase()) {
-            case "isauthenticated" -> new TerminalNode("인증된 사용자", true);
-            case "isfullyauthenticated" -> new TerminalNode("완전 인증 사용자(Remember-Me 아님)", true);
-            case "isanonymous" -> new TerminalNode("익명 사용자", false);
-            case "isrememberme" -> new TerminalNode("Remember-Me 인증 사용자", true);
+            case "isauthenticated" -> new TerminalNode("Authenticated user", true);
+            case "isfullyauthenticated" -> new TerminalNode("Fully authenticated user (not Remember-Me)", true);
+            case "isanonymous" -> new TerminalNode("Anonymous user", false);
+            case "isrememberme" -> new TerminalNode("Remember-Me authenticated user", true);
             default -> new TerminalNode(node.toStringAST());
         };
     }

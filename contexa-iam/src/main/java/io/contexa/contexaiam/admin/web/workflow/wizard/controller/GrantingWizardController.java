@@ -66,11 +66,11 @@ public class GrantingWizardController {
                 assignmentType = "ROLE";
                 allAssignments = roleService.getRoles();
             } else {
-                throw new IllegalArgumentException("지원되지 않는 주체 타입입니다: " + subject.type());
+                throw new IllegalArgumentException("Unsupported subject type: " + subject.type());
             }
 
             model.addAttribute("contextId", context.contextId());
-            model.addAttribute("subjectName", context.sessionTitle().replace("'님의 멤버십 관리", ""));
+            model.addAttribute("subjectName", context.sessionTitle().replace("'s Membership Management", ""));
             model.addAttribute("subjectType", subject.type());
             model.addAttribute("assignmentType", assignmentType);
             model.addAttribute("allAssignments", allAssignments);
@@ -80,7 +80,7 @@ public class GrantingWizardController {
 
         } catch (Exception e) {
             log.error("Error loading wizard page for context {}", contextId, e);
-            ra.addFlashAttribute("errorMessage", "마법사 페이지 로딩 중 오류 발생: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Error occurred while loading wizard page: " + e.getMessage());
             return "redirect:/admin/studio";
         }
     }
@@ -101,7 +101,7 @@ public class GrantingWizardController {
             @RequestBody AssignmentChangeDto finalAssignments,
             RedirectAttributes ra) {
         grantingWizardService.commitAssignments(contextId, finalAssignments);
-        ra.addFlashAttribute("message", "성공적으로 저장되었습니다.");
+        ra.addFlashAttribute("message", "Successfully saved.");
         return ResponseEntity.ok(Map.of("redirectUrl", "/admin/studio"));
     }
 }

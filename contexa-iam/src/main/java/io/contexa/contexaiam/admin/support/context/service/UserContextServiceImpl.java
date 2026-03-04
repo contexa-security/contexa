@@ -33,7 +33,7 @@ public class UserContextServiceImpl implements UserContextService {
             wizardSessionRepository.save(session);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize WizardContext for session: {}", userSessionId, e);
-            throw new RuntimeException("마법사 진행 상태 저장에 실패했습니다.", e);
+            throw new RuntimeException("Failed to save wizard progress state.", e);
         }
     }
 
@@ -47,7 +47,7 @@ public class UserContextServiceImpl implements UserContextService {
             return objectMapper.readValue(session.getContextData(), WizardContext.class);
         } catch (IOException e) {
             log.error("Failed to deserialize WizardContext for session: {}", userSessionId, e);
-            throw new RuntimeException("마법사 진행 상태를 불러오는 데 실패했습니다.", e);
+            throw new RuntimeException("Failed to load wizard progress state.", e);
         }
     }
 

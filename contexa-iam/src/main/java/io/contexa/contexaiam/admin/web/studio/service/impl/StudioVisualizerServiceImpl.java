@@ -6,7 +6,7 @@ import io.contexa.contexaiam.admin.web.studio.dto.AccessPathDto;
 import io.contexa.contexaiam.admin.web.studio.dto.AccessPathNode;
 import io.contexa.contexaiam.admin.web.studio.dto.EffectivePermissionDto;
 import io.contexa.contexaiam.admin.web.studio.service.StudioVisualizerService;
-import io.contexa.contexaiam.admin.support.visualization.dto.GraphDataDto;
+import io.contexa.contexaiam.admin.support.context.dto.GraphDataDto;
 import io.contexa.contexaiam.admin.web.workflow.wizard.dto.VirtualSubject;
 import io.contexa.contexaiam.domain.dto.GroupDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
@@ -69,17 +69,17 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
             Group group = userGroup.getGroup();
             String groupNodeId = "group_" + group.getId();
             nodes.add(new GraphDataDto.Node(groupNodeId, group.getName(), "GROUP", Map.of("description", group.getDescription())));
-            edges.add(new GraphDataDto.Edge(userNodeId, groupNodeId, "소속"));
+            edges.add(new GraphDataDto.Edge(userNodeId, groupNodeId, "Belongs To"));
 
             for (GroupRole groupRole : group.getGroupRoles()) {
                 Role role = groupRole.getRole();
                 String roleNodeId = "role_" + role.getId();
                 nodes.add(new GraphDataDto.Node(roleNodeId, role.getRoleName(), "ROLE", Map.of("description", role.getRoleDesc())));
-                edges.add(new GraphDataDto.Edge(groupNodeId, roleNodeId, "역할 보유"));
+                edges.add(new GraphDataDto.Edge(groupNodeId, roleNodeId, "Has Role"));
 
                 if (role.getRolePermissions().stream().anyMatch(rp -> rp.getPermission().equals(targetPermission))) {
                     accessGranted = true;
-                    edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "권한 포함 (허용)"));
+                    edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "Includes Permission (Allowed)"));
                 }
             }
         }
@@ -90,7 +90,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
             user.getUserGroups().stream()
                     .flatMap(ug -> ug.getGroup().getGroupRoles().stream())
                     .map(gr -> "role_" + gr.getRole().getId())
-                    .forEach(roleNodeId -> edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "권한 없음 (거부)")));
+                    .forEach(roleNodeId -> edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "No Permission (Denied)")));
         }
 
         return new GraphDataDto(
@@ -117,11 +117,11 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
             Role role = groupRole.getRole();
             String roleNodeId = "role_" + role.getId();
             nodes.add(new GraphDataDto.Node(roleNodeId, role.getRoleName(), "ROLE", Map.of("description", role.getRoleDesc())));
-            edges.add(new GraphDataDto.Edge(groupNodeId, roleNodeId, "역할 보유"));
+            edges.add(new GraphDataDto.Edge(groupNodeId, roleNodeId, "Has Role"));
 
             if (role.getRolePermissions().stream().anyMatch(rp -> rp.getPermission().equals(targetPermission))) {
                 accessGranted = true;
-                edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "권한 포함 (허용)"));
+                edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "Includes Permission (Allowed)"));
             }
         }
 
@@ -130,7 +130,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         if (!accessGranted) {
             group.getGroupRoles().stream()
                     .map(gr -> "role_" + gr.getRole().getId())
-                    .forEach(roleNodeId -> edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "권한 없음 (거부)")));
+                    .forEach(roleNodeId -> edges.add(new GraphDataDto.Edge(roleNodeId, permNodeId, "No Permission (Denied)")));
         }
 
         return new GraphDataDto(
@@ -181,7 +181,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
             return analyzeGroupAccessPath(subjectId, targetPermission);
         } else {
             log.warn("Access path analysis for type '{}' is not supported.", subjectType);
-            return new AccessPathDto(Collections.emptyList(), false, "지원하지 않는 주체 타입입니다.");
+            return new AccessPathDto(Collections.emptyList(), false, "Unsupported subject type.");
         }
     }
 
@@ -190,7 +190,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
 
         List<AccessPathNode> path = new ArrayList<>();
-        path.add(new AccessPathNode("사용자", user.getName(), user.getUsername()));
+        path.add(new AccessPathNode("User", user.getName(), user.getUsername()));
 
         for (UserGroup userGroup : user.getUserGroups()) {
             Group group = userGroup.getGroup();
@@ -198,17 +198,17 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 Role role = groupRole.getRole();
                 for (RolePermission rolePermission : role.getRolePermissions()) {
                     if (rolePermission.getPermission().equals(targetPermission)) {
-                                                path.add(new AccessPathNode("그룹", group.getName(), group.getDescription()));
-                        path.add(new AccessPathNode("역할", role.getRoleName(), role.getRoleDesc()));
-                        path.add(new AccessPathNode("권한", targetPermission.getDescription(), targetPermission.getName()));
-                        return new AccessPathDto(path, true, "접근 허용: 역할 '" + role.getRoleName() + "'을 통해 권한이 부여되었습니다.");
+                                                path.add(new AccessPathNode("Group", group.getName(), group.getDescription()));
+                        path.add(new AccessPathNode("Role", role.getRoleName(), role.getRoleDesc()));
+                        path.add(new AccessPathNode("Permission", targetPermission.getDescription(), targetPermission.getName()));
+                        return new AccessPathDto(path, true, "Access allowed: Permission granted through role '" + role.getRoleName() + "'.");
                     }
                 }
             }
         }
 
-                path.add(new AccessPathNode("권한", targetPermission.getDescription(), targetPermission.getName()));
-        return new AccessPathDto(path, false, "해당 권한을 부여하는 경로를 찾을 수 없습니다.");
+                path.add(new AccessPathNode("Permission", targetPermission.getDescription(), targetPermission.getName()));
+        return new AccessPathDto(path, false, "No path found that grants this permission.");
     }
 
     private AccessPathDto analyzeGroupAccessPath(Long groupId, Permission targetPermission) {
@@ -216,20 +216,20 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + groupId));
 
         List<AccessPathNode> path = new ArrayList<>();
-        path.add(new AccessPathNode("그룹", group.getName(), group.getDescription()));
+        path.add(new AccessPathNode("Group", group.getName(), group.getDescription()));
 
         for (GroupRole groupRole : group.getGroupRoles()) {
             Role role = groupRole.getRole();
             for (RolePermission rolePermission : role.getRolePermissions()) {
                 if (rolePermission.getPermission().equals(targetPermission)) {
-                    path.add(new AccessPathNode("역할", role.getRoleName(), role.getRoleDesc()));
-                    path.add(new AccessPathNode("권한", targetPermission.getDescription(), targetPermission.getName()));
-                    return new AccessPathDto(path, true, "접근 허용: 역할 '" + role.getRoleName() + "'을 통해 권한이 부여됩니다.");
+                    path.add(new AccessPathNode("Role", role.getRoleName(), role.getRoleDesc()));
+                    path.add(new AccessPathNode("Permission", targetPermission.getDescription(), targetPermission.getName()));
+                    return new AccessPathDto(path, true, "Access allowed: Permission granted through role '" + role.getRoleName() + "'.");
                 }
             }
         }
-        path.add(new AccessPathNode("권한", targetPermission.getDescription(), targetPermission.getName()));
-        return new AccessPathDto(path, false, "해당 권한을 부여하는 경로를 찾을 수 없습니다.");
+        path.add(new AccessPathNode("Permission", targetPermission.getDescription(), targetPermission.getName()));
+        return new AccessPathDto(path, false, "No path found that grants this permission.");
     }
 
     @Override
@@ -242,7 +242,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                 Group group = ug.getGroup();
                 group.getGroupRoles().forEach(gr -> {
                     Role role = gr.getRole();
-                    String origin = "그룹: " + group.getName() + " / 역할: " + role.getRoleName();
+                    String origin = "Group: " + group.getName() + " / Role: " + role.getRoleName();
                     role.getRolePermissions().forEach(rp -> permissionOrigins.putIfAbsent(rp.getPermission().getName(), origin));
                 });
             });
@@ -251,7 +251,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
                     .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + subjectId));
             group.getGroupRoles().forEach(gr -> {
                 Role role = gr.getRole();
-                String origin = "역할: " + role.getRoleName();
+                String origin = "Role: " + role.getRoleName();
                 role.getRolePermissions().forEach(rp -> permissionOrigins.putIfAbsent(rp.getPermission().getName(), origin));
             });
         }
@@ -269,7 +269,7 @@ public class StudioVisualizerServiceImpl implements StudioVisualizerService {
         subject.getVirtualGroups().forEach(group -> {
             group.getGroupRoles().forEach(gr -> { 
                 Role role = gr.getRole();
-                String origin = "그룹: " + group.getName() + " / 역할: " + role.getRoleName();
+                String origin = "Group: " + group.getName() + " / Role: " + role.getRoleName();
                 role.getRolePermissions().forEach(rp ->
                         permissionOrigins.putIfAbsent(rp.getPermission().getName(), origin)
                 );

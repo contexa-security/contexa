@@ -177,12 +177,12 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
 
         if (assessment != null) {
             try {
-                reason = "AI 평가 결과: " + objectMapper.writeValueAsString(assessment);
+                reason = "AI assessment result: " + objectMapper.writeValueAsString(assessment);
             } catch (JsonProcessingException e) {
-                reason = "AI 평가 결과 직렬화 실패. 점수: " + assessment.score();
+                reason = "AI assessment result serialization failed. Score: " + assessment.score();
             }
         } else {
-            reason = "정적 규칙 매칭";
+            reason = "Static rule matching";
         }
 
         auditLogService.logDecision(principal, resource, action, result, reason, clientIp);

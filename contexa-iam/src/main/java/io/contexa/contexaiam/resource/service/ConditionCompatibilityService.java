@@ -18,7 +18,7 @@ public class ConditionCompatibilityService {
 
     public List<ConditionTemplate> getCompatibleConditions(ManagedResource resource, List<ConditionTemplate> allConditions) {
         if (resource == null) {
-            log.warn("리소스가 null입니다. 범용 조건만 반환합니다.");
+            log.warn("Resource is null. Returning only universal conditions.");
             return getUniversalConditions(allConditions);
         }
 
@@ -41,12 +41,12 @@ public class ConditionCompatibilityService {
                     universalApproved++;
                 }
             } else {
-                log.warn("호환 불가 조건 제외: {} - {}", condition.getName(), result.getReason());
-                if (result.getReason().contains("도메인 컨텍스트가 호환되지 않음")) {
+                log.warn("Incompatible condition excluded: {} - {}", condition.getName(), result.getReason());
+                if (result.getReason().contains("Domain context is not compatible")) {
                     domainFiltered++;
-                } else if (result.getReason().contains("ABAC 적용 불가능")) {
+                } else if (result.getReason().contains("ABAC not applicable")) {
                     abacFiltered++;
-                } else if (result.getReason().contains("변수가 누락")) {
+                } else if (result.getReason().contains("variables are missing")) {
                     variableFiltered++;
                 }
             }
@@ -66,7 +66,7 @@ public class ConditionCompatibilityService {
         if (ConditionTemplate.ConditionClassification.UNIVERSAL.equals(condition.getClassification())) {
             return new CompatibilityResult(
                 true, 
-                "범용 조건 - 즉시 승인", 
+                "Universal condition - immediately approved",
                 Collections.emptySet(), 
                 availableVariables,
                 ConditionTemplate.ConditionClassification.UNIVERSAL,
@@ -77,7 +77,7 @@ public class ConditionCompatibilityService {
         if (!isAbacApplicableMethod(resource)) {
             return new CompatibilityResult(
                 false, 
-                "ABAC 적용 불가능한 메서드", 
+                "ABAC not applicable to this method",
                 Collections.emptySet(), 
                 availableVariables,
                 condition.getClassification(),
@@ -88,7 +88,7 @@ public class ConditionCompatibilityService {
         if (!isDomainCompatible(condition, resource)) {
             return new CompatibilityResult(
                 false, 
-                "도메인 컨텍스트가 호환되지 않음", 
+                "Domain context is not compatible",
                 Collections.emptySet(), 
                 availableVariables,
                 condition.getClassification(),
@@ -105,7 +105,7 @@ public class ConditionCompatibilityService {
         if (isCompatible) {
             return new CompatibilityResult(
                 true, 
-                "모든 필요 변수 사용 가능", 
+                "All required variables are available",
                 Collections.emptySet(), 
                 availableVariables,
                 condition.getClassification(),
@@ -114,7 +114,7 @@ public class ConditionCompatibilityService {
         } else {
             return new CompatibilityResult(
                 false, 
-                "필요한 변수가 누락되었습니다: " + String.join(", ", missingVariables), 
+                "Required variables are missing: " + String.join(", ", missingVariables),
                 missingVariables, 
                 availableVariables,
                 condition.getClassification(),
@@ -200,7 +200,7 @@ public class ConditionCompatibilityService {
                             }
 
         } catch (Exception e) {
-            log.warn("파라미터 변수 추출 실패: {}", resource.getResourceIdentifier(), e);
+            log.warn("Failed to extract parameter variables: {}", resource.getResourceIdentifier(), e);
         }
         
         return variables;
@@ -230,7 +230,7 @@ public class ConditionCompatibilityService {
             }
             
         } catch (Exception e) {
-            log.warn("JSON 배열 파라미터 파싱 실패: {}", paramTypes, e);
+            log.warn("Failed to parse JSON array parameter: {}", paramTypes, e);
         }
         
                 return variables;
@@ -354,19 +354,19 @@ public class ConditionCompatibilityService {
         if (isObjectBasedCondition && hasObjectIdParameter(resource)) {
             
             if (isGroupResource && !isGroupCondition && (isUserCondition || isRoleCondition || isPermissionCondition)) {
-                log.warn("🚫 그룹 리소스에서 다른 도메인의 객체 기반 조건 차단: {}", conditionName);
+                log.warn("Blocked object-based condition from another domain on group resource: {}", conditionName);
                 return false;
             }
             if (isUserResource && !isUserCondition && (isGroupCondition || isRoleCondition || isPermissionCondition)) {
-                log.warn("🚫 사용자 리소스에서 다른 도메인의 객체 기반 조건 차단: {}", conditionName);
+                log.warn("Blocked object-based condition from another domain on user resource: {}", conditionName);
                 return false;
             }
             if (isRoleResource && !isRoleCondition && (isGroupCondition || isUserCondition || isPermissionCondition)) {
-                log.warn("🚫 역할 리소스에서 다른 도메인의 객체 기반 조건 차단: {}", conditionName);
+                log.warn("Blocked object-based condition from another domain on role resource: {}", conditionName);
                 return false;
             }
             if (isPermissionResource && !isPermissionCondition && (isGroupCondition || isUserCondition || isRoleCondition)) {
-                log.warn("🚫 권한 리소스에서 다른 도메인의 객체 기반 조건 차단: {}", conditionName);
+                log.warn("Blocked object-based condition from another domain on permission resource: {}", conditionName);
                 return false;
             }
             
@@ -375,7 +375,7 @@ public class ConditionCompatibilityService {
 
         if (isGroupResource) {
             if (isUserCondition || isRoleCondition || isPermissionCondition) {
-                log.warn("🚫 그룹 리소스에 다른 도메인 조건 차단: 사용자={}, 역할={}, 권한={}", 
+                log.warn("Blocked cross-domain condition on group resource: user={}, role={}, permission={}",
                     isUserCondition, isRoleCondition, isPermissionCondition);
                 return false;
             }
@@ -383,7 +383,7 @@ public class ConditionCompatibilityService {
         
         if (isUserResource) {
             if (isGroupCondition || isRoleCondition || isPermissionCondition) {
-                log.warn("🚫 사용자 리소스에 다른 도메인 조건 차단: 그룹={}, 역할={}, 권한={}", 
+                log.warn("Blocked cross-domain condition on user resource: group={}, role={}, permission={}",
                     isGroupCondition, isRoleCondition, isPermissionCondition);
                 return false;
             }
@@ -391,7 +391,7 @@ public class ConditionCompatibilityService {
         
         if (isRoleResource) {
             if (isGroupCondition || isUserCondition || isPermissionCondition) {
-                log.warn("🚫 역할 리소스에 다른 도메인 조건 차단: 그룹={}, 사용자={}, 권한={}", 
+                log.warn("Blocked cross-domain condition on role resource: group={}, user={}, permission={}",
                     isGroupCondition, isUserCondition, isPermissionCondition);
                 return false;
             }
@@ -399,7 +399,7 @@ public class ConditionCompatibilityService {
         
         if (isPermissionResource) {
             if (isGroupCondition || isUserCondition || isRoleCondition) {
-                log.warn("🚫 권한 리소스에 다른 도메인 조건 차단: 그룹={}, 사용자={}, 역할={}", 
+                log.warn("Blocked cross-domain condition on permission resource: group={}, user={}, role={}",
                     isGroupCondition, isUserCondition, isRoleCondition);
                 return false;
             }
@@ -407,21 +407,21 @@ public class ConditionCompatibilityService {
 
         if (condition.getSourceMethod() != null) {
             String sourceMethod = condition.getSourceMethod().toLowerCase();
-            if (isGroupResource && (sourceMethod.contains("group") || sourceMethod.contains("그룹"))) {
+            if (isGroupResource && (sourceMethod.contains("group"))) {
                                 return true;
             }
-            if (isUserResource && (sourceMethod.contains("user") || sourceMethod.contains("사용자"))) {
+            if (isUserResource && (sourceMethod.contains("user"))) {
                                 return true;
             }
-            if (isRoleResource && (sourceMethod.contains("role") || sourceMethod.contains("역할"))) {
+            if (isRoleResource && (sourceMethod.contains("role"))) {
                                 return true;
             }
-            if (isPermissionResource && (sourceMethod.contains("permission") || sourceMethod.contains("권한"))) {
+            if (isPermissionResource && (sourceMethod.contains("permission"))) {
                                 return true;
             }
         }
         
-        log.warn("도메인 호환성 불일치: 리소스[그룹={}, 사용자={}, 역할={}, 권한={}], 조건[그룹={}, 사용자={}, 역할={}, 권한={}, 객체기반={}], 소스메서드=[{}]",
+        log.warn("Domain compatibility mismatch: resource[group={}, user={}, role={}, permission={}], condition[group={}, user={}, role={}, permission={}, objectBased={}], sourceMethod=[{}]",
             isGroupResource, isUserResource, isRoleResource, isPermissionResource,
             isGroupCondition, isUserCondition, isRoleCondition, isPermissionCondition, isObjectBasedCondition,
             condition.getSourceMethod());
@@ -430,25 +430,25 @@ public class ConditionCompatibilityService {
     }
     
     private boolean isGroupRelatedResource(String resourceIdentifier) {
-        return resourceIdentifier.contains("group") || resourceIdentifier.contains("그룹");
+        return resourceIdentifier.contains("group");
     }
     
     private boolean isUserRelatedResource(String resourceIdentifier) {
-        return resourceIdentifier.contains("user") || resourceIdentifier.contains("사용자") || 
-               resourceIdentifier.contains("member") || resourceIdentifier.contains("멤버");
+        return resourceIdentifier.contains("user") ||
+               resourceIdentifier.contains("member");
     }
     
     private boolean isRoleRelatedResource(String resourceIdentifier) {
-        return resourceIdentifier.contains("role") || resourceIdentifier.contains("역할");
+        return resourceIdentifier.contains("role");
     }
     
     private boolean isPermissionRelatedResource(String resourceIdentifier) {
-        return resourceIdentifier.contains("permission") || resourceIdentifier.contains("권한");
+        return resourceIdentifier.contains("permission");
     }
     
     private boolean isGroupRelatedCondition(String conditionName, String conditionSpel) {
-        boolean nameMatch = conditionName.contains("그룹") || conditionName.contains("group") ||
-                           conditionName.contains("팀") || conditionName.contains("team");
+        boolean nameMatch = conditionName.contains("group") ||
+                           conditionName.contains("team");
         boolean spelMatch = conditionSpel.contains("#group") || conditionSpel.contains("group") ||
                            conditionSpel.contains("'group'") || conditionSpel.contains("\"group\"");
         
@@ -457,9 +457,9 @@ public class ConditionCompatibilityService {
     }
     
     private boolean isUserRelatedCondition(String conditionName, String conditionSpel) {
-        boolean nameMatch = conditionName.contains("사용자") || conditionName.contains("user") ||
-                           conditionName.contains("소유자") || conditionName.contains("owner") ||
-                           conditionName.contains("멤버") || conditionName.contains("member");
+        boolean nameMatch = conditionName.contains("user") ||
+                           conditionName.contains("owner") ||
+                           conditionName.contains("member");
         boolean spelMatch = conditionSpel.contains("#user") || conditionSpel.contains("user") ||
                            conditionSpel.contains("#owner") || conditionSpel.contains("owner") ||
                            conditionSpel.contains("'user'") || conditionSpel.contains("\"user\"");
@@ -469,8 +469,8 @@ public class ConditionCompatibilityService {
     }
     
     private boolean isRoleRelatedCondition(String conditionName, String conditionSpel) {
-        boolean nameMatch = conditionName.contains("역할") || conditionName.contains("role") ||
-                           conditionName.contains("직책") || conditionName.contains("position");
+        boolean nameMatch = conditionName.contains("role") ||
+                           conditionName.contains("position");
         boolean spelMatch = conditionSpel.contains("#role") || conditionSpel.contains("role") ||
                            conditionSpel.contains("'role'") || conditionSpel.contains("\"role\"");
         
@@ -479,8 +479,8 @@ public class ConditionCompatibilityService {
     }
     
     private boolean isPermissionRelatedCondition(String conditionName, String conditionSpel) {
-        boolean nameMatch = conditionName.contains("권한") || conditionName.contains("permission") ||
-                           conditionName.contains("허가") || conditionName.contains("authority");
+        boolean nameMatch = conditionName.contains("permission") ||
+                           conditionName.contains("authority");
         boolean spelMatch = conditionSpel.contains("#permission") || conditionSpel.contains("permission") ||
                            conditionSpel.contains("'permission'") || conditionSpel.contains("\"permission\"") ||
                            conditionSpel.contains("hasauthority") || conditionSpel.contains("hasrole");
@@ -490,8 +490,8 @@ public class ConditionCompatibilityService {
     }
     
     private boolean isObjectBasedCondition(String conditionName, String conditionSpel) {
-        return conditionName.contains("소유자") || conditionName.contains("owner") ||
-               conditionName.contains("접근") || conditionName.contains("access") ||
+        return conditionName.contains("owner") ||
+               conditionName.contains("access") ||
                conditionSpel.contains("#id") || conditionSpel.contains("#returnobject");
     }
     
@@ -552,7 +552,7 @@ public class ConditionCompatibilityService {
 
     public CompatibilityResult checkCompatibility(ConditionTemplate condition, ManagedResource resource) {
         if (condition == null || resource == null) {
-            return new CompatibilityResult(false, "조건 또는 리소스가 null입니다.", 
+            return new CompatibilityResult(false, "Condition or resource is null.",
                 Collections.emptySet(), Collections.emptySet(), 
                 ConditionTemplate.ConditionClassification.CUSTOM_COMPLEX, false);
         }

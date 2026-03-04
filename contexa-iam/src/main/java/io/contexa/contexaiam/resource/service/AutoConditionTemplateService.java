@@ -251,9 +251,9 @@ public class AutoConditionTemplateService {
         List<ConditionTemplate> templates = new ArrayList<>();
 
         templates.add(ConditionTemplate.builder()
-                .name("객체 읽기 권한")
-                .description("메서드가 반환하는 객체에 대한 읽기 권한 확인")
-                .category("권한 기반")
+                .name("Object Read Permission")
+                .description("Verify read permission on the object returned by the method")
+                .category("Permission Based")
                 .classification(ConditionTemplate.ConditionClassification.CONTEXT_DEPENDENT)
                 .spelTemplate("hasPermission(#returnObject, 'READ')")
                 .sourceMethod("fallback")
@@ -263,9 +263,9 @@ public class AutoConditionTemplateService {
                 .build());
 
         templates.add(ConditionTemplate.builder()
-                .name("인증 확인")
-                .description("사용자가 인증되었는지 확인")
-                .category("인증 기반")
+                .name("Authentication Check")
+                .description("Verify that the user is authenticated")
+                .category("Authentication Based")
                 .classification(ConditionTemplate.ConditionClassification.UNIVERSAL)
                 .spelTemplate("isAuthenticated()")
                 .sourceMethod("fallback")

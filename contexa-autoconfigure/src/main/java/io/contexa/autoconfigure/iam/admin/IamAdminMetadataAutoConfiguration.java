@@ -1,8 +1,6 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
-import io.contexa.contexaiam.admin.web.metadata.controller.FunctionCatalogApiController;
-import io.contexa.contexaiam.admin.web.metadata.controller.FunctionCatalogController;
 import io.contexa.contexaiam.admin.web.metadata.controller.ResourceAdminController;
 import io.contexa.contexaiam.admin.web.metadata.controller.WorkbenchMetadataController;
 import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataService;
@@ -10,13 +8,11 @@ import io.contexa.contexaiam.admin.web.metadata.service.BusinessMetadataServiceI
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogServiceImpl;
-import io.contexa.contexaiam.admin.web.workflow.wizard.service.PermissionWizardService;
 import io.contexa.contexaiam.repository.BusinessActionRepository;
 import io.contexa.contexaiam.repository.BusinessResourceRepository;
 import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
 import io.contexa.contexaiam.repository.FunctionGroupRepository;
-import io.contexa.contexaiam.resource.ResourceEnhancementService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexacommon.repository.GroupRepository;
@@ -26,28 +22,9 @@ import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Lazy;
 
 @AutoConfiguration
 public class IamAdminMetadataAutoConfiguration {
-
-    
-    @Bean
-    @ConditionalOnMissingBean
-    public FunctionCatalogController functionCatalogController(
-            @Lazy ResourceRegistryService resourceRegistryService,
-            ResourceEnhancementService resourceEnhancementService,
-            FunctionCatalogService functionCatalogService) {
-        return new FunctionCatalogController(
-                resourceRegistryService, resourceEnhancementService, functionCatalogService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public FunctionCatalogApiController functionCatalogApiController(
-            FunctionCatalogService functionCatalogService) {
-        return new FunctionCatalogApiController(functionCatalogService);
-    }
 
     @Bean
     @ConditionalOnMissingBean

@@ -53,7 +53,7 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
         WizardContext.Subject targetSubject = new WizardContext.Subject(request.getSubjectId(), request.getSubjectType());
         Set<Long> initialAssignmentIds = getInitialAssignmentIds(targetSubject);
         String subjectName = getSubjectName(targetSubject);
-        String sessionTitle = String.format("'%s' 멤버십 관리", subjectName);
+        String sessionTitle = String.format("Membership management for '%s'", subjectName);
 
         WizardContext initialContext = WizardContext.builder()
                 .contextId(contextId)
@@ -118,7 +118,7 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
             subjectName = originalGroup.getName();
             Set<Long> afterRoleIds = changes.getAdded().stream().filter(a -> "ROLE".equalsIgnoreCase(a.getTargetType())).map(AssignmentChangeDto.Assignment::getTargetId).collect(Collectors.toSet());
             afterPermissions = roleRepository.findAllByIdWithPermissions(afterRoleIds).stream()
-                    .flatMap(role -> role.getRolePermissions().stream().map(rp -> new EffectivePermissionDto(rp.getPermission().getName(), rp.getPermission().getDescription(), "역할: " + role.getRoleName())))
+                    .flatMap(role -> role.getRolePermissions().stream().map(rp -> new EffectivePermissionDto(rp.getPermission().getName(), rp.getPermission().getDescription(), "Role: " + role.getRoleName())))
                     .distinct().collect(Collectors.toList());
         } else {
             throw new IllegalArgumentException("Unsupported subject type for simulation: " + subject.type());
@@ -147,13 +147,13 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
                         perm.permissionName(), 
                         perm.permissionDescription(), 
                         SimulationResultDto.ImpactType.PERMISSION_LOST,
-                        "멤버십 변경으로 인한 권한 회수"
+                        "Permission revoked due to membership change"
                 ));
             }
         });
         long gainedCount = impacts.stream().filter(i -> i.impactType() == SimulationResultDto.ImpactType.PERMISSION_GAINED).count();
         long lostCount = impacts.stream().filter(i -> i.impactType() == SimulationResultDto.ImpactType.PERMISSION_LOST).count();
-        return new SimulationResultDto(String.format("권한 %d개 획득, %d개 상실 예상", gainedCount, lostCount), impacts);
+        return new SimulationResultDto(String.format("Expected: %d permissions gained, %d permissions lost", gainedCount, lostCount), impacts);
     }
     @Override
     @Transactional(readOnly = true)
@@ -176,9 +176,9 @@ public class GrantingWizardServiceImpl implements GrantingWizardService {
         if ("USER".equalsIgnoreCase(subject.type())) {
             return userManagementService.getUser(subject.id()).getName();
         } else if ("GROUP".equalsIgnoreCase(subject.type())) {
-            return groupService.getGroup(subject.id()).map(Group::getName).orElse("알 수 없는 그룹");
+            return groupService.getGroup(subject.id()).map(Group::getName).orElse("Unknown Group");
         }
-        return "알 수 없는 주체";
+        return "Unknown Subject";
     }
 
     private String getCurrentAdminId() {

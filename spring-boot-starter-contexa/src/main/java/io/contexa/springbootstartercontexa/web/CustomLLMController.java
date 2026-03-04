@@ -1,4 +1,4 @@
-package io.contexa.contexaiam.admin.web.customllm.controller;
+package io.contexa.springbootstartercontexa.web;
 
 import io.contexa.contexacommon.domain.DiagnosisType;
 import io.contexa.contexacommon.domain.TemplateType;

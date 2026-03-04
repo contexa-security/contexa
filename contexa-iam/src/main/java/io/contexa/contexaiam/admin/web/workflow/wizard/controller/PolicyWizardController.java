@@ -45,8 +45,8 @@ public class PolicyWizardController {
 
     @PostMapping("/start")
     public String startWizard(@ModelAttribute InitiateGrantRequestDto request, RedirectAttributes ra) {
-        String policyName = "신규 권한 할당 정책 - " + System.currentTimeMillis();
-        String policyDescription = "마법사를 통해 생성된 신규 권한 할당 정책입니다.";
+        String policyName = "New Permission Assignment Policy - " + System.currentTimeMillis();
+        String policyDescription = "A new permission assignment policy created through the wizard.";
 
         WizardContext createdContext = wizardService.beginCreation(request, policyName, policyDescription);
 
@@ -74,7 +74,7 @@ public class PolicyWizardController {
         }
 
         if (context == null) {
-            throw new IllegalStateException("유효하지 않거나 만료된 마법사 세션입니다.");
+            throw new IllegalStateException("Invalid or expired wizard session.");
         }
 
         if (model.containsAttribute("fromWorkbench") && !CollectionUtils.isEmpty(context.permissionIds())) {
@@ -84,7 +84,7 @@ public class PolicyWizardController {
                         PermissionDto permissionDto = modelMapper.map(permission, PermissionDto.class);
                         model.addAttribute("preselectedPermission", permissionDto);
                         String friendlyName = permission.getFriendlyName() != null ? permission.getFriendlyName() : permission.getName();
-                        model.addAttribute("message", "권한 '" + friendlyName + "'이(가) 생성되었습니다. 이제 이 권한을 부여할 주체(역할/그룹)를 선택하세요.");
+                        model.addAttribute("message", "Permission '" + friendlyName + "' has been created. Now select the subjects (roles/groups) to grant this permission to.");
                     });
         }
 
@@ -141,7 +141,7 @@ public class PolicyWizardController {
         wizardService.updatePolicyDetails(contextId, request.getPolicyName(), request.getPolicyDescription());
         wizardService.commitPolicy(contextId, request.getSelectedRoleIds(), request.getPermissionIds());
 
-        Map<String, Object> response = Map.of("success", true, "message", "권한이 역할에 성공적으로 할당되었습니다.");
+        Map<String, Object> response = Map.of("success", true, "message", "Permissions have been successfully assigned to the role.");
         return ResponseEntity.ok(response);
     }
 }

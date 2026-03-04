@@ -108,7 +108,7 @@ public class PermissionWizardServiceImpl implements PermissionWizardService {
     public void commitPolicy(String contextId, List<Long> selectedRoleIds, Set<Long> permissionIds) {
         
         if (CollectionUtils.isEmpty(selectedRoleIds) || CollectionUtils.isEmpty(permissionIds)) {
-            throw new IllegalStateException("역할과 권한이 반드시 선택되어야 합니다.");
+            throw new IllegalStateException("Both roles and permissions must be selected.");
         }
         Long permissionIdToAdd = permissionIds.iterator().next();
         for (Long roleId : selectedRoleIds) {

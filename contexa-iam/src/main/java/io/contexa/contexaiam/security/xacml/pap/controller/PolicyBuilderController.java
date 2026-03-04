@@ -84,8 +84,8 @@ public class PolicyBuilderController {
         Map<String, Object> context = new HashMap<>();
         context.put("resourceIdentifier", "GENERAL_POLICY");
         context.put("resourceType", "GENERAL");
-        context.put("friendlyName", "일반 정책");
-        context.put("description", "특정 리소스에 종속되지 않는 일반적인 정책");
+        context.put("friendlyName", "General Policy");
+        context.put("description", "A general policy not dependent on a specific resource");
         context.put("parameterTypes", "");
         context.put("returnType", "void");
         context.put("isDirectAccess", true);
@@ -147,18 +147,18 @@ public class PolicyBuilderController {
 
         if (cond.getClassification() != null) {
             switch (cond.getClassification()) {
-                case UNIVERSAL -> desc.append(" [READY] (즉시 사용 가능)");
-                case CONTEXT_DEPENDENT -> desc.append(" [REVIEW] (AI 검증 필요)");
-                case CUSTOM_COMPLEX -> desc.append(" [EXPERT] (전문가 검토)");
+                case UNIVERSAL -> desc.append(" [READY] (Available for immediate use)");
+                case CONTEXT_DEPENDENT -> desc.append(" [REVIEW] (AI verification required)");
+                case CUSTOM_COMPLEX -> desc.append(" [EXPERT] (Expert review required)");
             }
         }
 
         if (cond.getComplexityScore() != null) {
-            desc.append(" [복잡도: ").append(cond.getComplexityScore()).append("/10]");
+            desc.append(" [Complexity: ").append(cond.getComplexityScore()).append("/10]");
         }
 
         if (Boolean.TRUE.equals(cond.getApprovalRequired())) {
-            desc.append(" 승인필요");
+            desc.append(" Approval required");
         }
 
         return desc.toString();

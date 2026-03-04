@@ -105,7 +105,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     @Transactional(readOnly = true)
     public SimulationResultDto simulatePolicy(Policy policyToSimulate, SimulationContext context) {
         if (context == null || CollectionUtils.isEmpty(context.userIds())) {
-            return new SimulationResultDto("시뮬레이션 대상 사용자가 지정되지 않았습니다.", Collections.emptyList());
+            return new SimulationResultDto("No target users specified for simulation.", Collections.emptyList());
         }
 
         List<SimulationResultDto.ImpactDetail> allImpacts = new ArrayList<>();
@@ -154,7 +154,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
             });
         }
 
-        String summary = String.format("총 %d명의 사용자에 대해 %d개의 권한 변경이 예상됩니다.", targetUsers.size(), allImpacts.size());
+        String summary = String.format("A total of %d permission changes are expected for %d users.", allImpacts.size(), targetUsers.size());
         return new SimulationResultDto(summary, allImpacts);
     }
 
@@ -175,7 +175,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
                     conflicts.add(new PolicyConflictDto(
                             newPolicy.getId(), newPolicy.getName(),
                             existingPolicy.getId(), existingPolicy.getName(),
-                            "동일한 대상에 대해 허용(ALLOW)과 거부(DENY) 정책이 충돌합니다."
+                            "ALLOW and DENY policies conflict for the same target."
                     ));
                 }
             }

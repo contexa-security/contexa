@@ -1,4 +1,4 @@
-package io.contexa.contexaiam.admin.support.visualization.dto;
+package io.contexa.contexaiam.admin.support.context.dto;
 
 import java.util.List;
 import java.util.Map;

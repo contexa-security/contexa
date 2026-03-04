@@ -16,6 +16,6 @@ public class AuthorityFunctionTranslator implements SpelFunctionTranslator {
     public ExpressionNode translate(String functionName, MethodReference node) {
         List<String> authorities = extractArguments(node);
         String authorityNames = String.join(", ", authorities);
-        return new TerminalNode("권한(" + authorityNames + ") 보유", authorityNames, true);
+        return new TerminalNode("Has authority(" + authorityNames + ")", authorityNames, true);
     }
 }

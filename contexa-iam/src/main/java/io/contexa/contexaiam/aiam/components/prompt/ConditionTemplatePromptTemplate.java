@@ -38,7 +38,7 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
         prompt.append(domainPrompt.trim());
         prompt.append("\n\n");
         prompt.append("<output_format>\n");
-        prompt.append("응답은 반드시 다음 스키마와 일치하는 유효한 JSON 객체여야 합니다:\n");
+        prompt.append("The response must be a valid JSON object matching the following schema:\n");
         prompt.append(jsonSchema);
         prompt.append("\n</output_format>");
 
@@ -81,28 +81,28 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
 
     private String generateUniversalDomainSystemPrompt() {
         return """
-            당신은 재사용 가능한 접근 제어 조건을 생성하는 ABAC 범용 조건 생성 전문 AI입니다.
+            You are a specialized AI for generating ABAC universal conditions that creates reusable access control conditions.
 
-            중요: 응답은 반드시 순수 JSON 형식이어야 합니다.
-            언어: 모든 이름과 설명은 반드시 한국어로 작성하세요.
+            Important: The response must be in pure JSON format only.
+            Language: All names and descriptions must be written in English.
 
-            **생성할 범용 조건 (정확히 3개만):**
-            1. isAuthenticated() - 사용자 인증 상태 확인
-            2. hasRole('ROLE_ADMIN') - 관리자 역할 확인
-            3. 업무시간 접근 제한 (9시-18시)
+            **Universal conditions to generate (exactly 3 only):**
+            1. isAuthenticated() - User authentication status check
+            2. hasRole('ROLE_ADMIN') - Administrator role check
+            3. Business hours access restriction (9AM-6PM)
 
-            **주의사항:**
-            - "~권한" 용어 사용 금지. "~상태 확인", "~역할 확인", "~접근 제한" 용어 사용
-            - 정확히 3개만 생성
-            - hasPermission() 사용 금지 (범용 조건에서는 금지)
+            **Notes:**
+            - Do not use the term "~permission". Use terms like "~status check", "~role check", "~access restriction"
+            - Generate exactly 3 only
+            - Do not use hasPermission() (prohibited in universal conditions)
 
-            **출력 형식:**
-            JSON 객체를 반환하세요. 키는 조건의 식별자(영문), 값은 조건 정보 객체입니다.
-            각 조건 정보에 포함되어야 하는 항목:
-            - name: "권한" 단어를 사용하지 않는 한국어 이름
-            - description: 명확한 한국어 설명
-            - spelTemplate: 파라미터 없는 SpEL 표현식
-            - category: 한국어 카테고리
+            **Output format:**
+            Return a JSON object. Keys are condition identifiers (in English), values are condition information objects.
+            Each condition information must include:
+            - name: English name without using the word "permission"
+            - description: Clear English description
+            - spelTemplate: SpEL expression without parameters
+            - category: English category
             - classification: "UNIVERSAL"
             """;
     }
@@ -111,24 +111,24 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
         return """
             {
               "isAuthenticated": {
-                "name": "사용자 인증 상태 확인",
-                "description": "사용자 인증 상태를 확인하는 조건",
+                "name": "User Authentication Status Check",
+                "description": "Condition that checks the user authentication status",
                 "spelTemplate": "isAuthenticated()",
-                "category": "인증 상태",
+                "category": "Authentication Status",
                 "classification": "UNIVERSAL"
               },
               "hasRole_ADMIN": {
-                "name": "관리자 역할 확인",
-                "description": "관리자 역할을 가진 사용자인지 확인하는 조건",
+                "name": "Administrator Role Check",
+                "description": "Condition that checks whether the user has the administrator role",
                 "spelTemplate": "hasRole('ROLE_ADMIN')",
-                "category": "역할 상태",
+                "category": "Role Status",
                 "classification": "UNIVERSAL"
               },
               "workingHours": {
-                "name": "업무시간 접근 제한",
-                "description": "업무시간(9시~18시) 내에만 접근을 허용하는 조건",
+                "name": "Business Hours Access Restriction",
+                "description": "Condition that allows access only during business hours (9AM-6PM)",
                 "spelTemplate": "T(java.time.LocalTime).now().hour >= 9 && T(java.time.LocalTime).now().hour <= 18",
-                "category": "시간 제한",
+                "category": "Time Restriction",
                 "classification": "UNIVERSAL"
               }
             }
@@ -137,26 +137,26 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
 
     private String buildUniversalUserPrompt() {
         return """
-            정확히 3개의 범용 조건만 생성하세요:
+            Generate exactly 3 universal conditions only:
 
-            1. 사용자 인증 상태 확인 - isAuthenticated()
-            2. 관리자 역할 확인 - hasRole('ROLE_ADMIN')
-            3. 업무시간 접근 제한 - T(java.time.LocalTime).now().hour >= 9 && T(java.time.LocalTime).now().hour <= 18
+            1. User Authentication Status Check - isAuthenticated()
+            2. Administrator Role Check - hasRole('ROLE_ADMIN')
+            3. Business Hours Access Restriction - T(java.time.LocalTime).now().hour >= 9 && T(java.time.LocalTime).now().hour <= 18
 
-            절대 금지:
-            - 4개 이상 생성
-            - hasPermission() 사용 (범용 조건에서는 금지)
-            - 존재하지 않는 파라미터 사용
-            - 설명 텍스트 출력
-            - ```json 코드블록
-            - "물론입니다", "아래는" 같은 서두
+            Strictly prohibited:
+            - Generating 4 or more
+            - Using hasPermission() (prohibited in universal conditions)
+            - Using non-existent parameters
+            - Outputting descriptive text
+            - ```json code blocks
+            - Preambles like "Sure", "Here is"
 
-            출력 시 포함 사항:
-            - 정확히 3개의 범용 조건 (키: 조건 식별자, 값: 조건 정보 객체)
-            - 모든 텍스트는 한국어로
-            - "권한" 단어 절대 사용 금지
+            Output requirements:
+            - Exactly 3 universal conditions (key: condition identifier, value: condition information object)
+            - All text in English
+            - Never use the word "permission"
 
-            JSON 형식으로 생성하세요.
+            Generate in JSON format.
             """;
     }
 
@@ -166,69 +166,69 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
 
     private String generateSpecificDomainSystemPrompt() {
         return """
-            당신은 Java 메서드 시그니처를 분석하여 ABAC(속성 기반 접근 제어)용 SpEL 기반 hasPermission 조건을 생성하는 전문 AI입니다.
+            You are a specialized AI that analyzes Java method signatures to generate SpEL-based hasPermission conditions for ABAC (Attribute-Based Access Control).
 
-            중요: 응답은 반드시 순수 JSON 형식이어야 합니다.
-            필수: 입력된 모든 메서드에 대해 예외 없이 응답해야 합니다.
-            언어: 이름과 설명은 반드시 한국어로 작성하세요.
+            Important: The response must be in pure JSON format only.
+            Required: You must respond for all input methods without exception.
+            Language: Names and descriptions must be written in English.
 
                     <rules>
-                    1.  **입력 패턴에 따른 `hasPermission` 함수 생성 규칙:**
-                        * **ID 파라미터 (예: `Long id`, `Long userId`):** `hasPermission(#파라미터명, '리소스종류', '액션')` 형식으로 3개의 인자를 사용합니다.
-                        * **객체 파라미터 (예: `Group group`, `UserDto userDto`):** `hasPermission(#파라미터명, '리소스종류_액션')` 형식으로 2개의 인자를 사용합니다.
-                    2.  `name` 필드는 "리소스종류 ~ 대상 검증/접근 확인" 형식으로 작성합니다. "권한" 단어는 절대 사용하지 마세요.
-                    3.  입력이 "파라미터가 없는 메서드"인 경우, 해당 키의 값에 빈 조건을 반환합니다.
-                    4.  #p0, #p1 등 positional index 참조는 절대 사용하지 마세요. 반드시 메서드 시그니처에서 파라미터명을 추출하여 사용하세요.
-                        올바른 예: hasPermission(#id, 'GROUP', 'READ'), hasPermission(#role, 'ROLE_CREATE')
-                        잘못된 예: hasPermission(#p0, 'GROUP', 'READ')
+                    1.  **`hasPermission` function generation rules based on input patterns:**
+                        * **ID parameter (e.g., `Long id`, `Long userId`):** Use 3 arguments in the format `hasPermission(#parameterName, 'RESOURCE_TYPE', 'ACTION')`.
+                        * **Object parameter (e.g., `Group group`, `UserDto userDto`):** Use 2 arguments in the format `hasPermission(#parameterName, 'RESOURCE_TYPE_ACTION')`.
+                    2.  The `name` field should be written in the format "ResourceType ~ Target Verification/Access Check". Never use the word "permission".
+                    3.  If the input is a "method without parameters", return an empty condition for that key's value.
+                    4.  Never use positional index references such as #p0, #p1. You must extract and use the parameter name from the method signature.
+                        Correct example: hasPermission(#id, 'GROUP', 'READ'), hasPermission(#role, 'ROLE_CREATE')
+                        Incorrect example: hasPermission(#p0, 'GROUP', 'READ')
                     </rules>
 
                     <examples>
-                    <!-- ID 파라미터 예시 -->
+                    <!-- ID parameter example -->
                     <example>
                       <input>getGroup(Long id)</input>
                       <output_key>"getGroup(Long id)"</output_key>
                       <output_value>
                       {
-                        "name": "그룹 조회 접근 확인",
-                        "description": "특정 ID의 그룹에 대한 READ 접근을 확인하는 조건",
+                        "name": "Group Retrieval Access Check",
+                        "description": "Condition that checks READ access for a group with a specific ID",
                         "spelTemplate": "hasPermission(#id, 'GROUP', 'READ')",
-                        "category": "접근 확인",
+                        "category": "Access Check",
                         "classification": "CONTEXT_DEPENDENT"
                       }
                       </output_value>
                     </example>
 
-                    <!-- 객체 파라미터 예시 -->
+                    <!-- Object parameter example -->
                     <example>
                       <input>createGroup(Group group)</input>
                       <output_key>"createGroup(Group group)"</output_key>
                       <output_value>
                       {
-                        "name": "그룹 생성 대상 검증",
-                        "description": "생성하려는 그룹에 대한 GROUP_CREATE 접근을 검증하는 조건",
+                        "name": "Group Creation Target Verification",
+                        "description": "Condition that verifies GROUP_CREATE access for the group being created",
                         "spelTemplate": "hasPermission(#group, 'GROUP_CREATE')",
-                        "category": "대상 검증",
+                        "category": "Target Verification",
                         "classification": "CONTEXT_DEPENDENT"
                       }
                       </output_value>
                     </example>
                     </examples>
 
-            **출력 형식:**
-            JSON 객체를 반환하세요. 키는 메서드 시그니처(원문 그대로), 값은 조건 정보 객체입니다.
+            **Output format:**
+            Return a JSON object. Keys are method signatures (as-is from the original), values are condition information objects.
 
-            절대 규칙 (위반 시 시스템 오류):
-            1. 입력 메서드의 100%를 처리하세요 - 예외 없음
-            2. 입력 항목 수와 출력 항목 수가 정확히 일치해야 합니다
-            3. 각 항목에 반드시 name, description, spelTemplate, category, classification을 모두 포함해야 합니다
-            4. 출력에서 입력 순서를 유지하세요
+            Absolute rules (system error on violation):
+            1. Process 100% of input methods - no exceptions
+            2. The number of input items and output items must match exactly
+            3. Each item must include all of: name, description, spelTemplate, category, classification
+            4. Maintain the input order in the output
 
-            각 조건 정보에 포함되어야 하는 항목:
-            - name: "권한" 단어를 사용하지 않는 한국어 이름
-            - description: 명확한 한국어 설명
-            - spelTemplate: hasPermission을 사용하는 SpEL 표현식
-            - category: 한국어 카테고리 ("접근 확인" 또는 "대상 검증")
+            Each condition information must include:
+            - name: English name without using the word "permission"
+            - description: Clear English description
+            - spelTemplate: SpEL expression using hasPermission
+            - category: English category ("Access Check" or "Target Verification")
             - classification: "CONTEXT_DEPENDENT"
             """;
     }
@@ -237,17 +237,17 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
         return """
             {
               "getGroup(Long id)": {
-                "name": "그룹 조회 접근 확인",
-                "description": "특정 ID의 그룹에 대한 READ 접근을 확인하는 조건",
+                "name": "Group Retrieval Access Check",
+                "description": "Condition that checks READ access for a group with a specific ID",
                 "spelTemplate": "hasPermission(#id, 'GROUP', 'READ')",
-                "category": "접근 확인",
+                "category": "Access Check",
                 "classification": "CONTEXT_DEPENDENT"
               },
               "createGroup(Group group)": {
-                "name": "그룹 생성 대상 검증",
-                "description": "생성하려는 그룹에 대한 GROUP_CREATE 접근을 검증하는 조건",
+                "name": "Group Creation Target Verification",
+                "description": "Condition that verifies GROUP_CREATE access for the group being created",
                 "spelTemplate": "hasPermission(#group, 'GROUP_CREATE')",
-                "category": "대상 검증",
+                "category": "Target Verification",
                 "classification": "CONTEXT_DEPENDENT"
               }
             }
@@ -258,19 +258,19 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
         StringBuilder prompt = new StringBuilder();
 
         if (contextInfo != null && !contextInfo.trim().isEmpty()) {
-            prompt.append("**참고 컨텍스트:**\n")
+            prompt.append("**Reference Context:**\n")
                      .append(contextInfo)
                      .append("\n\n");
         }
 
-        prompt.append("**필수 요구사항:** 다음 **정확히 ")
+        prompt.append("**Required:** Generate hasPermission conditions for **all** of the following **exactly ")
               .append(methodSignatures.size())
-              .append("개** 메서드 시그니처에 대해 **모두 예외 없이** hasPermission 조건을 생성하세요!\n\n");
-        prompt.append("**중요:** ")
+              .append("** method signatures **without any exceptions**!\n\n");
+        prompt.append("**Important:** ")
               .append(methodSignatures.size())
-              .append("개 입력 -> ")
+              .append(" inputs -> ")
               .append(methodSignatures.size())
-              .append("개 출력이 되어야 합니다. 누락 시 시스템 오류!\n\n");
+              .append(" outputs are required. Missing items will cause a system error!\n\n");
 
         IntStream.range(0, methodSignatures.size())
                 .forEach(i -> prompt.append(i + 1)
@@ -278,42 +278,42 @@ public class ConditionTemplatePromptTemplate extends AbstractBasePromptTemplate 
                         .append(methodSignatures.get(i))
                         .append("\n"));
 
-        prompt.append("\n생성 규칙:\n");
-        prompt.append("- ID 파라미터: hasPermission(#파라미터명, '리소스종류', '액션')\n");
-        prompt.append("- 객체 파라미터: hasPermission(#파라미터명, '리소스종류_액션')\n");
-        prompt.append("- 파라미터 없음: spelTemplate을 빈 문자열로 설정\n");
-        prompt.append("- #p0, #p1 등 positional index 절대 금지. 반드시 실제 파라미터명(#id, #group 등)을 사용하세요\n\n");
+        prompt.append("\nGeneration rules:\n");
+        prompt.append("- ID parameter: hasPermission(#parameterName, 'RESOURCE_TYPE', 'ACTION')\n");
+        prompt.append("- Object parameter: hasPermission(#parameterName, 'RESOURCE_TYPE_ACTION')\n");
+        prompt.append("- No parameters: Set spelTemplate to an empty string\n");
+        prompt.append("- Positional indices like #p0, #p1 are strictly prohibited. You must use actual parameter names (#id, #group, etc.)\n\n");
 
-        prompt.append("중요 사항:\n");
-        prompt.append("- 이름과 설명은 한국어로 작성하세요\n");
-        prompt.append("- 이름에 \"권한\" 단어를 절대 사용하지 마세요\n\n");
+        prompt.append("Important notes:\n");
+        prompt.append("- Write names and descriptions in English\n");
+        prompt.append("- Never use the word \"permission\" in names\n\n");
 
-        prompt.append("**다시 한번 확인:** 위의 **모든 ")
+        prompt.append("**Confirm once more:** Provide name, description, spelTemplate, category, classification for **all ")
               .append(methodSignatures.size())
-              .append("개 항목**에 대해 name, description, spelTemplate, category, classification을 제공하세요!");
+              .append(" items** listed above!");
 
         return prompt.toString();
     }
 
     private String buildSingleSpecificUserPrompt(String methodSignature) {
         return String.format("""
-            다음 Java 메서드 시그니처를 분석하고 특정 조건 템플릿을 생성하세요:
+            Analyze the following Java method signature and generate a specific condition template:
 
-            메서드 시그니처:
+            Method signature:
             %s
 
-            생성 규칙:
-            - ID 파라미터: hasPermission(#파라미터명, '리소스종류', '액션')
-            - 객체 파라미터: hasPermission(#파라미터명, '리소스종류_액션')
-            - 파라미터 없음: spelTemplate을 빈 문자열로 설정
-            - #p0, #p1 등 positional index 절대 금지. 반드시 실제 파라미터명(#id, #group 등)을 사용하세요
+            Generation rules:
+            - ID parameter: hasPermission(#parameterName, 'RESOURCE_TYPE', 'ACTION')
+            - Object parameter: hasPermission(#parameterName, 'RESOURCE_TYPE_ACTION')
+            - No parameters: Set spelTemplate to an empty string
+            - Positional indices like #p0, #p1 are strictly prohibited. You must use actual parameter names (#id, #group, etc.)
 
-            중요 사항:
-            - 이름과 설명은 한국어로 작성하세요
-            - 이름에 "권한" 단어를 절대 사용하지 마세요
-            - 키는 반드시 메서드 시그니처 원문 그대로 사용하세요
+            Important notes:
+            - Write names and descriptions in English
+            - Never use the word "permission" in names
+            - Keys must use the method signature exactly as-is from the original
 
-            JSON 형식으로 생성하세요.
+            Generate in JSON format.
             """, methodSignature);
     }
 }
