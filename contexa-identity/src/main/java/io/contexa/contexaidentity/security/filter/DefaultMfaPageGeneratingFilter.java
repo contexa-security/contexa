@@ -208,13 +208,23 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         opacity: 0.6;
                         cursor: not-allowed;
                     }
+                    .error-message {
+                        background: #fff0f0;
+                        color: #d32f2f;
+                        padding: 12px 16px;
+                        border-radius: 8px;
+                        border: 1px solid #ffcdd2;
+                        font-size: 14px;
+                        margin-bottom: 20px;
+                        text-align: center;
+                    }
                 </style>
             </head>
             <body>
                 <div class="container">
                     <h1>Request Authentication Code</h1>
                     <p class="description">An authentication code will be sent to your registered email address.</p>
-
+                    {{errorMessage}}
                     <form id="ott-request-form" method="post" action="{{ottRequestUrl}}">
                         {{usernameInput}}
                         {{hiddenInputs}}
@@ -1546,6 +1556,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         String ottRequestUrl = extractOttCodeGenerationUrl();
         String fullOttRequestUrl = contextPath + ottRequestUrl;
 
+        String errorParam = request.getParameter("error");
+        String errorMessage = "";
+        if ("user_not_found".equals(errorParam)) {
+            errorMessage = "<div class=\"error-message\">User not found. Please enter a valid username.</div>";
+        }
+
         String html = MfaHtmlTemplates.fromTemplate(OTT_REQUEST_TEMPLATE)
                 .withValue("contextPath", contextPath)
                 .withValue("ottRequestUrl", fullOttRequestUrl)
@@ -1554,6 +1570,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfParameterName", getCsrfParameterName(request))
                 .withRawHtml("usernameInput", usernameInput)
                 .withRawHtml("hiddenInputs", hiddenInputs)
+                .withRawHtml("errorMessage", errorMessage)
                 .render();
 
         PrintWriter writer = response.getWriter();

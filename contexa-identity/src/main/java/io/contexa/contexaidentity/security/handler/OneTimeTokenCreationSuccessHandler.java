@@ -90,14 +90,17 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             return;
         }
 
-        log.warn("OneTimeTokenCreationSuccessHandler: Unhandled scenario or context mismatch using {} repository. " +
-                        "FactorContext flow: {}, FactorContext user: {}, Token user: {}. Redirecting to loginForm.",
+        log.error("OTT context mismatch: repository={}, flow={}, contextUser={}, tokenUser={}",
                 sessionRepository.getRepositoryType(),
                 factorContext.getFlowTypeName(),
                 factorContext.getUsername(),
                 usernameFromToken);
-        response.sendRedirect(request.getContextPath() + "/login?message=ott_setup_issue&repository=" +
-                sessionRepository.getRepositoryType());
+
+        String ottRequestUrl = authUrlProvider.getOttRequestCodeUi();
+        if (!StringUtils.hasText(ottRequestUrl)) {
+            ottRequestUrl = "/mfa/ott/request-code-ui";
+        }
+        response.sendRedirect(request.getContextPath() + ottRequestUrl + "?error=user_not_found");
     }
 
     private void handleSessionNotFound(HttpServletRequest request, HttpServletResponse response,
