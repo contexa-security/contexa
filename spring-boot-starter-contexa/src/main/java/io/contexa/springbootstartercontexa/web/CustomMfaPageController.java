@@ -44,7 +44,9 @@ public class CustomMfaPageController {
     public String customOttRequestPage(HttpServletRequest request, Model model) {
         addCommonModelAttributes(request, model);
 
-        String username = resolveUsername();
+        FactorContext factorContext = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
+        String username = factorContext != null && StringUtils.hasText(factorContext.getUsername())
+                ? factorContext.getUsername() : resolveUsername();
         model.addAttribute("username", username);
         model.addAttribute("ottRequestUrl", authUrlProvider.getOttCodeGeneration());
         model.addAttribute("hiddenInputsHtml", buildHiddenInputs(request, false, null));
@@ -60,7 +62,8 @@ public class CustomMfaPageController {
         FactorContext factorContext = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
         int attemptsMade = factorContext != null ? factorContext.getRetryCount() : 0;
         int maxAttempts = authContextProperties.getMfa().getMaxRetryAttempts();
-        String username = resolveUsername();
+        String username = factorContext != null && StringUtils.hasText(factorContext.getUsername())
+                ? factorContext.getUsername() : resolveUsername();
 
         model.addAttribute("username", username);
         model.addAttribute("ottVerifyUrl", authUrlProvider.getOttLoginProcessing());
@@ -78,7 +81,10 @@ public class CustomMfaPageController {
     public String customPasskeyChallengePage(HttpServletRequest request, Model model) {
         addCommonModelAttributes(request, model);
 
-        model.addAttribute("username", resolveUsername());
+        FactorContext factorContext = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
+        String username = factorContext != null && StringUtils.hasText(factorContext.getUsername())
+                ? factorContext.getUsername() : resolveUsername();
+        model.addAttribute("username", username);
         model.addAttribute("mfaFailureUrl", authUrlProvider.getMfaFailure());
         model.addAttribute("passkeyRegistrationUrl", "/webauthn/register");
 
