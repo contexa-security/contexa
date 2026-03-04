@@ -5,10 +5,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.security.async.AsyncSecurityContextProvider;
-import io.contexa.contexacore.security.session.SessionIdResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
@@ -32,7 +30,6 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
         implements AISecurityContextRepository {
 
     private final AISecurityContextSupport support;
-    private final SessionIdResolver sessionIdResolver;
     private final SecurityContextDataStore securityContextDataStore;
     private final AsyncSecurityContextProvider asyncSecurityContextProvider;
 
@@ -42,12 +39,10 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
 
     public AISessionSecurityContextRepository(
             AISecurityContextSupport support,
-            @Nullable SessionIdResolver sessionIdResolver,
             @Nullable SecurityContextDataStore securityContextDataStore,
             @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
         super();
         this.support = support;
-        this.sessionIdResolver = sessionIdResolver;
         this.securityContextDataStore = securityContextDataStore;
         this.asyncSecurityContextProvider = asyncSecurityContextProvider;
         this.setAllowSessionCreation(true);
@@ -82,7 +77,7 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
 
     @Override
     public void saveContext(SecurityContext context, HttpServletRequest request, HttpServletResponse response) {
-        String sessionId = extractSessionId(request);
+        String sessionId = support.resolveIdentifier(request, context.getAuthentication());
         if (support.isEnabled() && sessionId != null) {
             Boolean isInvalidated = invalidatedSessionsCache.getIfPresent(sessionId);
             if (isInvalidated != null && isInvalidated) {
@@ -147,19 +142,6 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
         return Instant.now().isAfter(lastUpdate.plusSeconds(support.getProperties().getRedis().getUpdateIntervalSeconds()));
     }
 
-    private String extractSessionId(HttpServletRequest request) {
-        String sessionId = sessionIdResolver != null ? sessionIdResolver.resolve(request) : null;
-
-        if (sessionId == null) {
-            HttpSession session = request.getSession(false);
-            if (session != null) {
-                sessionId = session.getId();
-            }
-        }
-
-        return sessionId;
-    }
-
     private void trackSessionInRedis(String userId, String sessionId) {
         if (securityContextDataStore == null) {
             return;
@@ -214,11 +196,11 @@ public class AISessionSecurityContextRepository extends HttpSessionSecurityConte
             if (!loaded) {
                 SecurityContext context = parentContext.get();
                 Authentication auth = context.getAuthentication();
-                String sessionId = extractSessionId(request);
+                String identifier = support.resolveIdentifier(request, auth);
 
                 if (auth != null && support.getTrustResolver().isAuthenticated(auth)) {
                     String userId = auth.getName();
-                    support.applyZeroTrust(context, userId, sessionId, request);
+                    support.applyZeroTrust(context, userId, identifier, request);
                 }
 
                 cachedContext = context;

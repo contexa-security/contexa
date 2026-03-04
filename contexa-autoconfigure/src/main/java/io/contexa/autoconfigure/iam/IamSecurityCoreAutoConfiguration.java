@@ -45,20 +45,19 @@ public class IamSecurityCoreAutoConfiguration {
     @ConditionalOnMissingBean
     public AISecurityContextSupport aiSecurityContextSupport(
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            @Nullable ZeroTrustSecurityService zeroTrustSecurityService) {
-        return new AISecurityContextSupport(securityZeroTrustProperties, zeroTrustSecurityService);
+            @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
+            @Nullable SessionIdResolver sessionIdResolver) {
+        return new AISecurityContextSupport(securityZeroTrustProperties, zeroTrustSecurityService, sessionIdResolver);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public AISessionSecurityContextRepository aiSessionSecurityContextRepository(
             AISecurityContextSupport aiSecurityContextSupport,
-            @Nullable SessionIdResolver sessionIdResolver,
             @Nullable SecurityContextDataStore securityContextDataStore,
             @Nullable AsyncSecurityContextProvider asyncSecurityContextProvider) {
         return new AISessionSecurityContextRepository(
                 aiSecurityContextSupport,
-                sessionIdResolver,
                 securityContextDataStore,
                 asyncSecurityContextProvider);
     }

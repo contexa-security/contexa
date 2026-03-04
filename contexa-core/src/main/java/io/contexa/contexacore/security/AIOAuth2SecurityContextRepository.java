@@ -42,9 +42,10 @@ public class AIOAuth2SecurityContextRepository implements AISecurityContextRepos
         }
 
         String userId = auth.getName();
+        String identifier = support.resolveIdentifier(request, auth);
 
         try {
-            support.applyZeroTrust(context, userId, userId, request);
+            support.applyZeroTrust(context, userId, identifier, request);
         } catch (Exception e) {
             log.error("[ZeroTrust] Failed to apply Zero Trust for OAuth2 user: {}", userId, e);
         }

@@ -1,8 +1,10 @@
 package io.contexa.contexacore.security;
 
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.security.session.SessionIdResolver;
 import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -10,6 +12,7 @@ import org.springframework.security.authentication.AuthenticationTrustResolver;
 import org.springframework.security.authentication.AuthenticationTrustResolverImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 
 /**
  * Shared Zero Trust logic delegated from AISessionSecurityContextRepository
@@ -22,13 +25,16 @@ public class AISecurityContextSupport {
 
     private final SecurityZeroTrustProperties securityZeroTrustProperties;
     private final ZeroTrustSecurityService zeroTrustSecurityService;
+    private final SessionIdResolver sessionIdResolver;
     private final AuthenticationTrustResolver trustResolver = new AuthenticationTrustResolverImpl();
 
     public AISecurityContextSupport(
             SecurityZeroTrustProperties securityZeroTrustProperties,
-            @Nullable ZeroTrustSecurityService zeroTrustSecurityService) {
+            @Nullable ZeroTrustSecurityService zeroTrustSecurityService,
+            @Nullable SessionIdResolver sessionIdResolver) {
         this.securityZeroTrustProperties = securityZeroTrustProperties;
         this.zeroTrustSecurityService = zeroTrustSecurityService;
+        this.sessionIdResolver = sessionIdResolver;
     }
 
     public boolean isEnabled() {
@@ -71,6 +77,33 @@ public class AISecurityContextSupport {
         } catch (Exception e) {
             log.error("[ZeroTrust] Error invalidating all sessions for user: {}", userId, e);
         }
+    }
+
+    /**
+     * Resolve identifier from request and authentication context.
+     * Priority: SessionIdResolver -> HttpSession -> JWT jti -> userId fallback.
+     */
+    public String resolveIdentifier(HttpServletRequest request, @Nullable Authentication auth) {
+        if (sessionIdResolver != null) {
+            String resolved = sessionIdResolver.resolve(request);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            return session.getId();
+        }
+
+        if (auth instanceof JwtAuthenticationToken jwtAuth) {
+            String jti = jwtAuth.getToken().getId();
+            if (jti != null) {
+                return jti;
+            }
+        }
+
+        return auth != null ? auth.getName() : null;
     }
 
     public AuthenticationTrustResolver getTrustResolver() {
