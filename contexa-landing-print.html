@@ -1350,60 +1350,62 @@
     로그인은 성공했고, 보안은 정상으로 판단했습니다. 피해는 그 이후에 시작됐습니다.
   </p>
 
-  <div class="reveal" style="max-width:1100px; margin-bottom:8px;">
-    <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:14px 0; text-align:center; font-family:var(--mono); font-size:22px; font-weight:600; letter-spacing:0.15em; color:var(--muted);">
-      인증 결과: 성공
+  <div class="reveal" style="max-width:1100px; margin-bottom:48px;">
+    <div style="display:grid; grid-template-columns:1fr 2fr; margin-bottom:0;">
+      <div style="font-family:var(--mono); font-size:24px; color:var(--cyan); letter-spacing:0.1em; padding-bottom:14px; font-weight:700; text-align:center;">인증 성공</div>
+      <div style="font-family:var(--mono); font-size:24px; color:var(--red); letter-spacing:0.1em; padding-bottom:14px; font-weight:700; text-align:center;">인증 이후</div>
     </div>
-  </div>
-  <div class="proof-grid reveal" style="margin-bottom:24px;">
-    <div class="proof-item">
-      <div class="proof-num red">정상 토큰</div>
-      <div class="proof-desc">인증 이후 지원 시스템 접근, 고객 데이터 노출</div>
-      <div class="proof-label">OKTA &middot; 2023</div>
+    <div style="display:grid; grid-template-columns:1fr 2fr; overflow:hidden;">
+    <!-- 좌: 통과 -->
+    <div style="padding:48px 36px; background:rgba(0,194,224,0.04); border:1px solid rgba(0,194,224,0.15); border-right:3px solid var(--red); display:flex; flex-direction:column; justify-content:center;">
+      <div style="font-size:56px; font-weight:800; color:var(--cyan); line-height:1; margin-bottom:28px;">통과</div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:28px;">
+        <div style="font-size:15px; color:var(--text);">OKTA &mdash; 정상 토큰</div>
+        <div style="font-size:15px; color:var(--text);">SNOWFLAKE &mdash; 유효 계정</div>
+        <div style="font-size:15px; color:var(--text);">CHANGE HC &mdash; 원격접속 계정</div>
+        <div style="font-size:15px; color:var(--text);">쿠팡 &mdash; API 키</div>
+      </div>
+      <div style="font-family:var(--mono); font-size:13px; color:var(--muted); line-height:1.6;">보안 시스템 판단:<br><span style="color:var(--cyan);">이상 없음</span></div>
     </div>
-    <div class="proof-item">
-      <div class="proof-num red">유효 계정</div>
-      <div class="proof-desc">인증 이후 160개 기업 데이터 동시 유출</div>
-      <div class="proof-label">SNOWFLAKE &middot; 2024</div>
+    <!-- 우: 침해 -->
+    <div style="padding:48px 40px; background:rgba(230,57,70,0.08); border:1px solid rgba(230,57,70,0.2); border-left:none;">
+      <div style="font-size:56px; font-weight:800; color:var(--red); line-height:1; margin-bottom:36px;">침해</div>
+      <div style="display:flex; flex-direction:column; gap:20px;">
+        <div style="padding-bottom:20px; border-bottom:1px solid rgba(230,57,70,0.15);">
+          <div style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:6px;">OKTA &middot; 2023</div>
+          <div style="font-size:18px; font-weight:600; color:var(--text); line-height:1.5;">외부 해커가 지원 시스템 접근, 고객 데이터 노출</div>
+        </div>
+        <div style="padding-bottom:20px; border-bottom:1px solid rgba(230,57,70,0.15);">
+          <div style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:6px;">SNOWFLAKE &middot; 2024</div>
+          <div style="font-size:18px; font-weight:600; color:var(--text); line-height:1.5;">외부 해커가 160개 기업 데이터 동시 유출</div>
+        </div>
+        <div style="padding-bottom:20px; border-bottom:1px solid rgba(230,57,70,0.15);">
+          <div style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:6px;">CHANGE HC &middot; 2024</div>
+          <div style="font-size:18px; font-weight:600; color:var(--text); line-height:1.5;">랜섬웨어 그룹이 내부 시스템 장악, 의료 서비스 마비</div>
+        </div>
+        <div>
+          <div style="font-family:var(--mono); font-size:12px; color:var(--muted); margin-bottom:6px;">쿠팡 &middot; 2025</div>
+          <div style="font-size:18px; font-weight:600; color:var(--text); line-height:1.5;">퇴사자가 3,370만 명 개인정보 유출</div>
+        </div>
+      </div>
     </div>
-    <div class="proof-item">
-      <div class="proof-num red">원격접속 계정</div>
-      <div class="proof-desc">인증 이후 내부 침투, 의료 서비스 마비</div>
-      <div class="proof-label">CHANGE HC &middot; 2024</div>
     </div>
-    <div class="proof-item">
-      <div class="proof-num red">API 키</div>
-      <div class="proof-desc">인증 이후 3,370만 명 개인정보 유출</div>
-      <div class="proof-label">쿠팡 &middot; 2025</div>
-    </div>
-  </div>
-  <div class="reveal" style="max-width:1100px; margin-bottom:8px;">
-    <div style="background:rgba(230,57,70,0.08); border:1px solid rgba(230,57,70,0.3); padding:14px 0; text-align:center; font-family:var(--mono); font-size:22px; font-weight:600; letter-spacing:0.15em; color:var(--red);">
-      인증 이후의 진실
-    </div>
-  </div>
-  <div class="proof-grid reveal" style="margin-bottom:48px;">
-    <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
-      <div class="proof-num red" style="font-size:28px;">외부 해커</div>
-      <div class="proof-desc">인증 통과 후<br>정상 사용자로 내부 활동</div>
-    </div>
-    <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
-      <div class="proof-num red" style="font-size:28px;">외부 해커</div>
-      <div class="proof-desc">인증 통과 후<br>정상 세션으로 데이터 접근</div>
-    </div>
-    <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
-      <div class="proof-num red" style="font-size:28px;">랜섬웨어 그룹</div>
-      <div class="proof-desc">인증 통과 후<br>내부 시스템 전체 장악</div>
-    </div>
-    <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
-      <div class="proof-num red" style="font-size:28px;">퇴사자</div>
-      <div class="proof-desc">인증 통과 후<br>퇴사 이후에도 지속 접근</div>
+    <!-- 기존 보안 커버리지 시각화 -->
+    <div style="display:grid; grid-template-columns:1fr 2fr; margin-top:16px;">
+      <div style="padding:12px 0; text-align:center; position:relative;">
+        <div style="height:4px; background:var(--text); border-radius:2px; margin-bottom:10px;"></div>
+        <div style="font-family:var(--mono); font-size:24px; color:var(--text); font-weight:700; letter-spacing:0.05em;">기존 보안 &mdash; 방어 가능</div>
+      </div>
+      <div style="padding:12px 0; text-align:center; position:relative;">
+        <div style="height:4px; background:rgba(255,255,255,0.08); border-radius:2px; margin-bottom:10px; border:1px dashed rgba(255,255,255,0.2);"></div>
+        <div style="font-family:var(--mono); font-size:24px; color:var(--muted); font-weight:700; letter-spacing:0.05em;">기존 보안 &mdash; 방어 한계</div>
+      </div>
     </div>
   </div>
   <div class="problem-insight reveal">
     <p>
-      모든 사례에서 인증은 정상이었습니다. 보안이 실패한 시점은 인증 이후입니다.<br>
-      공격자는 규칙을 우회하지 않습니다. 인증을 통과한 뒤, 정상 행동을 위장합니다.<br>
+      인증은 강력했습니다. 모든 사례에서 자격증명은 정상이었고, 보안 규칙은 통과했습니다.<br>
+      그러나 피해는 인증 이후에 발생했습니다. 기존 보안 규칙은 인증까지만 방어합니다.<br>
       <span>인증 이후를 감시하지 않는 보안 체계는 구조적 한계를 갖습니다.</span>
     </p>
   </div>
