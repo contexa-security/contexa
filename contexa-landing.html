@@ -10,7 +10,6 @@
   :root {
     --bg: #080E17;
     --bg2: #0D1B2A;
-    --surface: #111E2E;
     --border: #1B2F45;
     --red: #E63946;
     --cyan: #00C2E0;
@@ -191,40 +190,6 @@
     animation: fadeUp 0.9s ease forwards 0.8s;
   }
 
-  .btn-primary {
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: 0.08em;
-    color: var(--bg);
-    background: var(--cyan);
-    padding: 14px 32px;
-    text-decoration: none;
-    transition: all 0.2s;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .btn-primary:hover {
-    background: #00d4f5;
-    transform: translateY(-1px);
-  }
-
-  .btn-ghost {
-    font-family: var(--mono);
-    font-size: 13px;
-    letter-spacing: 0.08em;
-    color: var(--muted);
-    border: 1px solid var(--border);
-    padding: 14px 32px;
-    text-decoration: none;
-    transition: all 0.2s;
-  }
-
-  .btn-ghost:hover {
-    color: var(--text);
-    border-color: var(--cyan);
-  }
 
   /* ── STATS BAR ── */
   .stats-bar {
@@ -855,10 +820,6 @@
 
   .kisa-text p strong { color: var(--green); font-weight: 500; }
 
-  /* ── EVIDENCE SECTION ── */
-  .evidence {
-    background: var(--bg2);
-  }
 
   .proof-grid {
     display: grid;
@@ -918,14 +879,6 @@
     pointer-events: none;
   }
 
-  .cta-eyebrow {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--cyan);
-    letter-spacing: 0.25em;
-    text-transform: uppercase;
-    margin-bottom: 24px;
-  }
 
   .cta-title {
     font-family: var(--serif);
@@ -1064,19 +1017,75 @@
   <div class="hero-bg-circle"></div>
   <div class="hero-bg-circle"></div>
 
-  <p class="hero-eyebrow">AI 시대 사이버 보안의 패러다임을 선도하는</p>
-
   <h1 class="hero-title">
-    AI-Native Zero Trust 보안 플랫폼
-    <span style="font-style:italic;"> - CONTE<span style="color:var(--cyan);">X</span>A</span>
+    보안은 인증에서 끝나지 않습니다.<br>인증 이후부터 시작됩니다.
   </h1>
 
   <p class="hero-sub">
-    경계 기반 보안은 정상 자격증명으로 통과한 공격자 앞에서 무력합니다.<br>
-    인증 이후의 행동까지 <strong>'AI 가 판단하는 제로트러스트'</strong> 만이 이를 해결할 수 있습니다. <br>
-    Contexa는 이 기술을 애플리케이션 레벨에서 구현한 AI-Native 보안 플랫폼입니다.
+    공격자는 정상 자격증명으로 통과하고, 기존 보안은 이를 정상으로 처리합니다.<br>
+    Contexa는 인증 이후의 요청·세션·행동 맥락을 AI로 판별해 위장 접근을 실시간으로 식별하고 대응합니다.
   </p>
 
+  <p style="font-family:var(--mono); font-size:clamp(20px, 2.5vw, 28px); letter-spacing:0.12em; color:var(--muted); margin-top:36px;">AI-Native Zero Trust Platform &mdash; <span style="font-weight:600; color:var(--text);">CONTE<span style="color:var(--cyan);">X</span>A</span></p>
+
+</section>
+
+<!-- TABLE OF CONTENTS -->
+<section class="business" id="toc" style="padding:80px 6vw;">
+  <div class="section-tag reveal">// TABLE OF CONTENTS</div>
+  <h2 class="section-title reveal" style="margin-bottom:48px;">목차</h2>
+  <div class="reveal" style="max-width:800px;">
+    <ol style="list-style:none; counter-reset:toc; padding:0; margin:0;">
+      <li style="counter-increment:toc; display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">01</span>
+        <a href="#problem" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">문제 정의 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Problem</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">02</span>
+        <a href="#solution" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">솔루션 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Solution</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">03</span>
+        <a href="#engine" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">기술 아키텍처 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Engine</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">04</span>
+        <a href="#built" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">제품 현황 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Built &amp; Ready</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">05</span>
+        <a href="#business" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">글로벌 전략 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Global Scale</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">06</span>
+        <a href="#market" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">시장 분석 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Market</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">07</span>
+        <a href="#revenue" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">비즈니스 모델 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Revenue Model</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">08</span>
+        <a href="#competition" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">경쟁 분석 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Competition</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">09</span>
+        <a href="#team" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">팀 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Team</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">10</span>
+        <a href="#roadmap" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">로드맵 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Roadmap</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">11</span>
+        <a href="#kisa" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">KISA 제로트러스트 정책 실현 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Policy Alignment</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0;">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">12</span>
+        <a href="#cta" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">맺음말 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Closing</span></a>
+      </li>
+    </ol>
+  </div>
 </section>
 
 <!-- PROBLEM -->
@@ -1096,7 +1105,7 @@
     <div class="proof-item">
       <div class="proof-num red">정상 토큰</div>
       <div class="proof-label">OKTA &middot; 2023</div>
-      <div class="proof-desc">고객사 시스템 연쇄 침해</div>
+      <div class="proof-desc">지원 시스템 침해, 고객 데이터 노출</div>
     </div>
     <div class="proof-item">
       <div class="proof-num red">유효 계정</div>
@@ -1106,7 +1115,7 @@
     <div class="proof-item">
       <div class="proof-num red">원격접속 계정</div>
       <div class="proof-label">CHANGE HEALTHCARE &middot; 2024</div>
-      <div class="proof-desc">$22B 피해, 의료 서비스 마비</div>
+      <div class="proof-desc">의료 서비스 대규모 마비</div>
     </div>
     <div class="proof-item">
       <div class="proof-num red">API 키</div>
@@ -1288,7 +1297,7 @@
       <div class="crisis-desc">
         이상이 감지되면 사람의 판단을 기다리지 않습니다.<br>
         세션 제한, 권한 축소, 접근 차단.<br>
-        <strong>AI가 자율적으로 즉시 대응합니다.</strong>
+        <strong>AI가 자율적으로 대응하는 구조입니다.</strong>
       </div>
     </div>
   </div>
@@ -1454,7 +1463,7 @@
         <div style="font-size:14px; color:#B0C4D8; line-height:1.7;">
           Spring Boot는 <strong style="color:var(--text);">월 1억+ 다운로드</strong>의 글로벌 표준 프레임워크.<br>
           Contexa는 Spring 네이티브로 동작합니다.<br>
-          <span style="color:var(--cyan);">별도 글로벌 전략 없이, 자동으로 글로벌에 도달합니다.</span>
+          <span style="color:var(--cyan);">글로벌 진출의 기술적 장벽이 낮습니다.</span>
         </div>
       </div>
       <!-- 근거 2: 오픈소스 배포 -->
@@ -1463,7 +1472,7 @@
         <div style="font-size:19px; font-weight:700; color:var(--text); margin-bottom:10px;">국경 없는<br>기술 확산</div>
         <div style="font-size:14px; color:#B0C4D8; line-height:1.7;">
           GitHub에 공개하면 <strong style="color:var(--text);">전 세계 개발자가 즉시 사용</strong>.<br>
-          현지화, 해외 영업, 지사 설립이 불필요합니다.<br>
+          현지화, 해외 영업의 초기 비용을 최소화할 수 있습니다.<br>
           <span style="color:var(--cyan);">Red Hat, MongoDB, GitLab이 증명한 경로입니다.</span>
         </div>
       </div>
@@ -1473,8 +1482,8 @@
         <div style="font-size:19px; font-weight:700; color:var(--text); margin-bottom:10px;">글로벌 규제가<br>수요를 만듭니다</div>
         <div style="font-size:14px; color:#B0C4D8; line-height:1.7;">
           <strong style="color:var(--text);">GDPR(EU), SOC2(US), FISC(JP)</strong> &mdash;<br>
-          각국 보안 규제가 Enterprise 구매를 자동 생성합니다.<br>
-          <span style="color:var(--gold);">로컬 영업이 아니라, 규제가 시장을 열어줍니다.</span>
+          각국 보안 규제 강화가 Enterprise 수요를 촉진합니다.<br>
+          <span style="color:var(--gold);">규제 준수 요구가 도입 검토의 출발점이 됩니다.</span>
         </div>
       </div>
     </div>
@@ -1728,7 +1737,7 @@
   <div class="section-tag reveal">// COMPETITION</div>
   <h2 class="section-title reveal">경쟁 분석</h2>
   <p class="section-sub reveal">
-    글로벌 보안 기업들은 거대하지만, AI-Native Zero Trust를 애플리케이션 코드 레벨에서 구현한 플랫폼은 없습니다.
+    글로벌 보안 기업들은 거대하지만, AI-Native Zero Trust를 애플리케이션 코드 레벨에서 구현한 플랫폼은 당사 조사 기준, 아직 확인되지 않았습니다.
   </p>
 
   <!-- 비교 테이블 -->
@@ -1791,7 +1800,7 @@
           <td style="text-align:center; padding:14px 12px; color:#B0C4D8;">$80K+/yr</td>
           <td style="text-align:center; padding:14px 12px; color:#B0C4D8;">$50K+/yr</td>
           <td style="text-align:center; padding:14px 12px; color:#B0C4D8;">$30K+/yr</td>
-          <td style="text-align:center; padding:14px 12px; color:var(--gold); font-weight:700;">Community 무료<br><span style="font-size:12px; color:#B0C4D8; font-weight:400;">Enterprise $50K~/yr</span></td>
+          <td style="text-align:center; padding:14px 12px; color:var(--gold); font-weight:700;">Community 무료<br><span style="font-size:12px; color:#B0C4D8; font-weight:400;">Enterprise $50K&ndash;$500K/yr</span></td>
         </tr>
       </tbody>
     </table>
@@ -1947,7 +1956,7 @@
 </section>
 
 <!-- KISA -->
-<div class="kisa reveal" style="flex-direction:column; align-items:stretch; gap:0; padding:0; max-width:1200px;">
+<div class="kisa reveal" id="kisa" style="flex-direction:column; align-items:stretch; gap:0; padding:0; max-width:1200px;">
   <!-- 상단: 배지 + 제목 -->
   <div style="padding:48px 48px 28px; display:flex; align-items:center; gap:32px;">
     <div class="kisa-badge">
@@ -2008,8 +2017,8 @@
     <div style="padding:20px 24px; background:rgba(6,214,160,0.04); border-left:3px solid var(--green); border-radius:2px;">
       <p style="font-size:16px; color:var(--text); line-height:1.7; margin:0;">
         정부가 제시한 최종 목표는 <strong style="color:var(--cyan);">'최적(Optimal)'</strong> 단계입니다.<br>
-        Contexa는 그 다음인 <strong style="color:var(--green);">'자율(Autonomous)'</strong> 단계를 이미 PoC로 구현했습니다.
-        <span style="color:var(--muted); font-size:14px;">&mdash; 정책의 미래가 아니라, 이미 작동하는 현재입니다.</span>
+        Contexa는 그 다음인 <strong style="color:var(--green);">'자율(Autonomous)'</strong> 단계를 RC(Release Candidate) 수준으로 구현 중입니다.
+        <span style="color:var(--muted); font-size:14px;">&mdash; 핵심 엔진은 동작하며, 실환경 검증을 준비하고 있습니다.</span>
       </p>
     </div>
   </div>
@@ -2020,10 +2029,21 @@
   <h2 class="cta-title" style="font-size:36px; margin-bottom:16px; margin-left:0; margin-right:auto;">
     AI 보안의 다음 표준, <em>Contexa가 만듭니다</em>
   </h2>
-  <p class="cta-sub" style="margin-bottom:36px; font-size:16px; color:var(--muted); margin-left:0; margin-right:auto;">
-    지금이 선점의 시점입니다.
-  </p>
-  <div style="margin-top:8px;">
+  <div style="display:flex; gap:48px; align-items:start; margin-bottom:36px; margin-top:8px;">
+    <div>
+      <div style="font-family:var(--mono); font-size:12px; color:var(--cyan); letter-spacing:0.1em; margin-bottom:8px;">ROUND</div>
+      <div style="font-size:16px; color:var(--text); font-weight:500;">Pre-Seed</div>
+    </div>
+    <div>
+      <div style="font-family:var(--mono); font-size:12px; color:var(--cyan); letter-spacing:0.1em; margin-bottom:8px;">USE OF FUNDS</div>
+      <div style="font-size:16px; color:var(--text); font-weight:500;">Beta 출시, 첫 Enterprise PoC</div>
+    </div>
+    <div>
+      <div style="font-family:var(--mono); font-size:12px; color:var(--cyan); letter-spacing:0.1em; margin-bottom:8px;">TIMELINE</div>
+      <div style="font-size:16px; color:var(--text); font-weight:500;">2025 H2</div>
+    </div>
+  </div>
+  <div>
     <a href="mailto:leaven73@gmail.com" style="font-family:var(--mono); font-size:18px; color:var(--cyan); text-decoration:none; border-bottom:1px solid rgba(0,194,224,0.3);">leaven73@gmail.com</a>
   </div>
 </section>
