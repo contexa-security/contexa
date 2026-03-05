@@ -1473,7 +1473,7 @@
     </div>
   </div>
 
-  <div class="problem-insight reveal" style="border-left-color:var(--gold); background:rgba(232,181,58,0.04);">
+  <div class="problem-insight reveal" style="max-width:1200px; border-left-color:var(--gold); background:rgba(232,181,58,0.04);">
     <p style="font-size:20px;">
       솔루션을 판매하는 것이 아닙니다. 생태계를 만드는 것입니다.<br>
       <span style="color:var(--gold);">커뮤니티 확장에 성공하면, 솔루션 판매나 구독 서비스와는 비교할 수 없는 규모의 플랫폼이 됩니다.</span>
@@ -1484,63 +1484,109 @@
 <!-- REVENUE MODEL -->
 <section class="business">
   <div class="section-tag reveal">// REVENUE MODEL</div>
-  <h2 class="section-title reveal">수익 모델</h2>
-  <p class="section-sub reveal" style="margin-bottom:48px;">
-    오픈소스는 무료 배포가 아닙니다. <strong>생태계를 만드는 전략</strong>입니다.<br>
-    개발자가 Core를 채택하고, 프로젝트에 의존하고, 조직이 도입하면 &mdash;
-    그 위에 올라가는 상용 서비스가 수익이 됩니다.
+  <h2 class="section-title reveal">오픈소스 커뮤니티 + 엔터프라이즈<br>+ 글로벌 생태계 확장</h2>
+  <p class="section-sub reveal">
+    무료로 시작해서, 이렇게 수익을 만듭니다.<br>
+    수백만 Spring 생태계에 무료로 진입하고, 프로덕션에서 Enterprise로 전환되고,<br>
+    <strong>커뮤니티가 글로벌로 확장됩니다.</strong>
   </p>
 
-  <div class="biz-grid reveal">
-    <div class="biz-card free">
-      <div class="biz-label">Community (오픈소스)</div>
-      <div class="biz-items">
-        <div class="biz-item">
-          <span class="icon">-</span>
-          <span>AI 행동 분석 엔진 &mdash; 핵심 런타임 전체 공개</span>
-        </div>
-        <div class="biz-item">
-          <span class="icon">-</span>
-          <span>실시간 행동 진정성 판단</span>
-        </div>
-        <div class="biz-item">
-          <span class="icon">-</span>
-          <span>기존 시스템 위에 삽입 (교체 불필요)</span>
-        </div>
-        <div class="biz-item">
-          <span class="icon">&rarr;</span>
-          <span><strong>전 세계 개발자가 직접 채택하고, 프로젝트의 의존성이 됩니다</strong></span>
+  <!-- 수익 전환 퍼널 -->
+  <div class="reveal" style="max-width:1200px; margin-bottom:56px; display:flex; flex-direction:column; align-items:center; gap:0;">
+
+    <!-- STEP 01: 가장 넓음 -->
+    <div style="width:100%; padding:28px 40px; background:rgba(0,194,224,0.06); border:1px solid rgba(0,194,224,0.15); display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:20px;">
+        <div style="font-family:var(--mono); font-size:32px; font-weight:700; color:var(--cyan); opacity:0.3;">01</div>
+        <div>
+          <div style="font-size:20px; font-weight:700; color:var(--text);">Spring 생태계 진입</div>
+          <div style="font-size:15px; color:#B0C4D8; margin-top:4px;">어노테이션 하나로 기존 프로젝트에 즉시 적용 &middot; 새로운 기술 학습 불필요</div>
         </div>
       </div>
+      <div style="text-align:right;">
+        <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--cyan);">수백만</div>
+        <div style="font-size:12px; color:var(--muted);">Spring 프로젝트</div>
+      </div>
     </div>
-    <div class="biz-card paid">
-      <div class="biz-label">Enterprise (상용)</div>
-      <div class="biz-items">
-        <div class="biz-item">
-          <span class="icon">+</span>
-          <span>자동 대응 (세션 종료, IP 차단, 실시간 알림)</span>
+
+    <div style="font-size:20px; color:var(--cyan); padding:8px 0;">&darr;</div>
+
+    <!-- STEP 02 -->
+    <div style="width:82%; padding:28px 40px; background:rgba(0,194,224,0.06); border:1px solid rgba(0,194,224,0.15); display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:20px;">
+        <div style="font-family:var(--mono); font-size:32px; font-weight:700; color:var(--cyan); opacity:0.3;">02</div>
+        <div>
+          <div style="font-size:20px; font-weight:700; color:var(--text);">무료 채택 &rarr; 의존성 형성</div>
+          <div style="font-size:15px; color:#B0C4D8; margin-top:4px;">개발자 &rarr; 팀 &rarr; 조직으로 확산 &middot; 프로젝트의 필수 보안 의존성이 됨</div>
         </div>
-        <div class="biz-item">
-          <span class="icon">+</span>
-          <span>보안 관제 대시보드</span>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--cyan);">0원</div>
+        <div style="font-size:12px; color:var(--muted);">도입 비용</div>
+      </div>
+    </div>
+
+    <div style="font-size:20px; color:var(--cyan); padding:8px 0;">&darr;</div>
+
+    <!-- STEP 03 -->
+    <div style="width:64%; padding:28px 40px; background:rgba(0,194,224,0.06); border:1px solid rgba(0,194,224,0.2); display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:20px;">
+        <div style="font-family:var(--mono); font-size:32px; font-weight:700; color:var(--cyan); opacity:0.3;">03</div>
+        <div>
+          <div style="font-size:20px; font-weight:700; color:var(--text);">프로덕션 배포</div>
+          <div style="font-size:15px; color:#B0C4D8; margin-top:4px;">운영 환경에서 자동 대응, 관제, 컴플라이언스가 필요해짐</div>
         </div>
-        <div class="biz-item">
-          <span class="icon">+</span>
-          <span>위협 인텔리전스 연동</span>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:var(--mono); font-size:13px; font-weight:600; color:var(--red);">Community는</div>
+        <div style="font-size:12px; color:var(--muted);">탐지까지만</div>
+      </div>
+    </div>
+
+    <div style="padding:8px 0; display:flex; flex-direction:column; align-items:center;">
+      <div style="font-size:20px; color:var(--gold);">&darr;</div>
+      <div style="font-family:var(--mono); font-size:11px; color:var(--gold); letter-spacing:0.1em;">CONVERSION POINT</div>
+    </div>
+
+    <!-- STEP 04: Gold 강조 -->
+    <div style="width:48%; padding:28px 40px; background:rgba(232,181,58,0.08); border:2px solid rgba(232,181,58,0.4); display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:20px;">
+        <div style="font-family:var(--mono); font-size:32px; font-weight:700; color:var(--gold); opacity:0.5;">04</div>
+        <div>
+          <div style="font-size:20px; font-weight:700; color:var(--gold);">Enterprise 구독 전환</div>
+          <div style="font-size:15px; color:#B0C4D8; margin-top:4px;">커뮤니티가 클수록 전환 모수가 커짐</div>
         </div>
-        <div class="biz-item">
-          <span class="icon">+</span>
-          <span>컴플라이언스 리포팅 (NIST, NIS2, KISA)</span>
-        </div>
-        <div class="biz-item">
-          <span class="icon">&rarr;</span>
-          <span><strong>Core를 쓰는 조직이 운영 단계에서 자연스럽게 전환합니다</strong></span>
-        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--gold);">ARR</div>
+        <div style="font-size:12px; color:var(--muted);">반복 수익</div>
       </div>
     </div>
   </div>
 
-  <p class="section-sub reveal" style="margin-top:56px; margin-bottom:0; max-width:900px;">
+  <!-- 수익원 -->
+  <div class="reveal" style="max-width:1200px; margin-bottom:48px;">
+    <div style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.1em; margin-bottom:24px;">REVENUE STREAMS</div>
+    <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:2px;">
+      <div style="padding:32px; background:rgba(232,181,58,0.04); border:1px solid rgba(232,181,58,0.2);">
+        <div style="font-family:var(--mono); font-size:12px; color:var(--gold); letter-spacing:0.1em; margin-bottom:16px;">ENTERPRISE LICENSE</div>
+        <div style="font-size:17px; font-weight:600; color:var(--text); margin-bottom:8px;">연간 구독</div>
+        <div style="font-size:14px; color:#B0C4D8; line-height:1.7;">자동 대응 &middot; 관제 대시보드<br>컴플라이언스 리포팅<br>위협 인텔리전스 연동</div>
+      </div>
+      <div style="padding:32px; background:rgba(232,181,58,0.04); border:1px solid rgba(232,181,58,0.2);">
+        <div style="font-family:var(--mono); font-size:12px; color:var(--gold); letter-spacing:0.1em; margin-bottom:16px;">MANAGED CLOUD</div>
+        <div style="font-size:17px; font-weight:600; color:var(--text); margin-bottom:8px;">SaaS 종량 과금</div>
+        <div style="font-size:14px; color:#B0C4D8; line-height:1.7;">설치/운영 부담 제거<br>즉시 사용 가능<br>자동 스케일링</div>
+      </div>
+      <div style="padding:32px; background:rgba(232,181,58,0.04); border:1px solid rgba(232,181,58,0.2);">
+        <div style="font-family:var(--mono); font-size:12px; color:var(--gold); letter-spacing:0.1em; margin-bottom:16px;">PROFESSIONAL SERVICE</div>
+        <div style="font-size:17px; font-weight:600; color:var(--text); margin-bottom:8px;">컨설팅 &middot; 교육</div>
+        <div style="font-size:14px; color:#B0C4D8; line-height:1.7;">도입 컨설팅<br>보안 인증 지원 (KISA, NIST)<br>맞춤 교육 프로그램</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="section-sub reveal" style="margin-top:16px; margin-bottom:0; max-width:1200px;">
     <strong>1차 타겟:</strong> 금융, 커머스, 헬스케어 &mdash; 민감 데이터를 다루고, 정상 자격증명 탈취 피해가 가장 큰 산업
   </p>
 </section>
