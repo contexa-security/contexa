@@ -1491,10 +1491,10 @@
   </p>
 
   <!-- 좌우 대비: 상용화 수익 vs 생태계 가치 -->
-  <div class="reveal" style="max-width:1200px; margin-bottom:64px; display:grid; grid-template-columns:1fr 1fr; gap:80px;">
+  <div class="reveal" style="max-width:1200px; margin-bottom:48px; display:grid; grid-template-columns:1fr 1px 1fr; gap:40px;">
 
-    <!-- 왼쪽: 상용화 수익 -->
-    <div>
+    <!-- 좌: 상용화 수익 -->
+    <div style="padding:32px 0 32px 0;">
       <div style="font-family:var(--mono); font-size:13px; color:var(--cyan); letter-spacing:0.1em; margin-bottom:12px;">REVENUE &mdash; 시장을 증명하는 매출</div>
       <div style="font-size:20px; font-weight:700; color:var(--text); margin-bottom:20px; line-height:1.5;">
         엔터프라이즈 상용화 수익
@@ -1503,7 +1503,7 @@
         <div>
           <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
             <span style="font-size:16px; color:var(--text); font-weight:600;">Enterprise 구독</span>
-            <span style="font-family:var(--mono); font-size:14px; color:var(--cyan);">연간 라이선스</span>
+            <span style="font-family:var(--mono); font-size:14px; color:var(--cyan);">$50K&ndash;$500K / yr</span>
           </div>
           <div style="height:10px; background:rgba(0,194,224,0.1); border-radius:4px;"><div style="width:100%; height:100%; background:linear-gradient(90deg, var(--cyan), rgba(0,194,224,0.3)); border-radius:4px;"></div></div>
           <div style="font-size:15px; color:#B0C4D8; margin-top:6px;">자동 대응 &middot; 관제 대시보드 &middot; 컴플라이언스</div>
@@ -1511,7 +1511,7 @@
         <div>
           <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
             <span style="font-size:16px; color:var(--text); font-weight:600;">매니지드 클라우드</span>
-            <span style="font-family:var(--mono); font-size:14px; color:var(--cyan);">SaaS</span>
+            <span style="font-family:var(--mono); font-size:14px; color:var(--cyan);">$2K&ndash;$20K / mo</span>
           </div>
           <div style="height:10px; background:rgba(0,194,224,0.1); border-radius:4px;"><div style="width:70%; height:100%; background:linear-gradient(90deg, var(--cyan), rgba(0,194,224,0.3)); border-radius:4px;"></div></div>
           <div style="font-size:15px; color:#B0C4D8; margin-top:6px;">설치/운영 없이 즉시 사용 &middot; 종량 과금</div>
@@ -1519,7 +1519,7 @@
         <div>
           <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
             <span style="font-size:16px; color:var(--text); font-weight:600;">전문 서비스</span>
-            <span style="font-family:var(--mono); font-size:14px; color:var(--cyan);">컨설팅</span>
+            <span style="font-family:var(--mono); font-size:14px; color:var(--cyan);">$30K&ndash;$150K / project</span>
           </div>
           <div style="height:10px; background:rgba(0,194,224,0.1); border-radius:4px;"><div style="width:45%; height:100%; background:linear-gradient(90deg, var(--cyan), rgba(0,194,224,0.3)); border-radius:4px;"></div></div>
           <div style="font-size:15px; color:#B0C4D8; margin-top:6px;">도입 컨설팅 &middot; 보안 인증 &middot; 교육</div>
@@ -1527,128 +1527,97 @@
       </div>
     </div>
 
-    <!-- 오른쪽: 생태계 가치 -->
-    <div>
-      <div style="font-family:var(--mono); font-size:13px; color:var(--gold); letter-spacing:0.1em; margin-bottom:12px;">PLATFORM VALUE &mdash; 기업 가치를 만드는 동인</div>
-      <div style="font-size:20px; font-weight:700; color:var(--gold); margin-bottom:20px; line-height:1.5;">
-        오픈소스 커뮤니티 생태계 가치
+    <!-- 중앙 구분선 -->
+    <div style="background:rgba(255,255,255,0.06);"></div>
+
+    <!-- 우: 오픈소스 커뮤니티 생태계 -->
+    <div style="padding:32px 0 32px 0;">
+      <div style="font-family:var(--mono); font-size:13px; color:var(--gold); letter-spacing:0.1em; margin-bottom:12px;">COMMUNITY</div>
+      <div style="font-size:20px; font-weight:700; color:var(--gold); margin-bottom:24px; line-height:1.5;">
+        오픈소스 커뮤니티 생태계
       </div>
-      <div style="padding:36px; background:rgba(232,181,58,0.02); border:1px solid rgba(232,181,58,0.12); border-radius:4px; display:flex; flex-direction:column; gap:10px;">
-        <div style="width:100%; height:56px; background:rgba(232,181,58,0.1); border-left:3px solid var(--gold); display:flex; align-items:center; padding:0 20px; justify-content:space-between;">
-          <span style="font-size:17px; font-weight:700; color:var(--gold);">글로벌 보안 플랫폼</span>
-          <span style="font-size:15px; color:#B0C4D8;">기업이 의존하는 보안 인프라</span>
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="width:6px; height:6px; background:var(--gold); border-radius:50%; margin-top:8px; flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:16px; font-weight:600; color:var(--text);">GitHub Stars &amp; Contributors</div>
+            <div style="font-size:14px; color:#B0C4D8; margin-top:2px;">오픈소스 신뢰도 &middot; 기여자 커뮤니티 성장 지표</div>
+          </div>
         </div>
-        <div style="width:75%; height:56px; background:rgba(232,181,58,0.07); border-left:3px solid rgba(232,181,58,0.5); display:flex; align-items:center; padding:0 20px; justify-content:space-between;">
-          <span style="font-size:17px; font-weight:600; color:var(--text);">커뮤니티 확장</span>
-          <span style="font-size:15px; color:#B0C4D8;">수백만 Spring 프로젝트 채택</span>
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="width:6px; height:6px; background:var(--gold); border-radius:50%; margin-top:8px; flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:16px; font-weight:600; color:var(--text);">온라인 교육 1만+ 수강생</div>
+            <div style="font-size:14px; color:#B0C4D8; margin-top:2px;">인프런 Spring Security 강의 기반 개발자 풀 보유</div>
+          </div>
         </div>
-        <div style="width:50%; height:56px; background:rgba(232,181,58,0.04); border-left:3px solid rgba(232,181,58,0.3); display:flex; align-items:center; padding:0 20px;">
-          <span style="font-size:17px; font-weight:600; color:var(--text);">GitHub 오픈소스 공개</span>
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="width:6px; height:6px; background:var(--gold); border-radius:50%; margin-top:8px; flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:16px; font-weight:600; color:var(--text);">글로벌 컨퍼런스 발표</div>
+            <div style="font-size:14px; color:#B0C4D8; margin-top:2px;">SpringOne, KubeCon 등 주요 기술 행사</div>
+          </div>
         </div>
-      </div>
-      <div style="font-size:16px; color:#B0C4D8; margin-top:16px;">
-        GitHub에서 시작해, 수백만 Spring 프로젝트로 확산되면<br>글로벌 보안 플랫폼이 됩니다
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="width:6px; height:6px; background:var(--gold); border-radius:50%; margin-top:8px; flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:16px; font-weight:600; color:var(--text);">기술 매체 기고</div>
+            <div style="font-size:14px; color:#B0C4D8; margin-top:2px;">Medium, Dev.to, DZone 글로벌 채널</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="width:6px; height:6px; background:var(--gold); border-radius:50%; margin-top:8px; flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:16px; font-weight:600; color:var(--text);">개발자 커뮤니티</div>
+            <div style="font-size:14px; color:#B0C4D8; margin-top:2px;">Reddit, Discord, Stack Overflow 운영</div>
+          </div>
+        </div>
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <div style="width:6px; height:6px; background:var(--gold); border-radius:50%; margin-top:8px; flex-shrink:0;"></div>
+          <div>
+            <div style="font-size:16px; font-weight:600; color:var(--text);">Spring 생태계 통합</div>
+            <div style="font-size:14px; color:#B0C4D8; margin-top:2px;">수백만 프로젝트에 의존성 한 줄로 채택</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- 왼쪽: 원형 플라이휠 / 오른쪽: 사례 막대 그래프 -->
-  <div class="reveal" style="max-width:1200px; margin-bottom:64px; display:grid; grid-template-columns:1fr 1fr; gap:64px; align-items:start;">
+  <!-- 가로 구분선 -->
+  <div class="reveal" style="max-width:1200px; height:1px; background:rgba(255,255,255,0.06); margin-bottom:48px;"></div>
 
-    <!-- 왼쪽: 원형 플라이휠 -->
-    <div>
-      <div style="font-family:var(--mono); font-size:14px; color:var(--gold); letter-spacing:0.1em; margin-bottom:28px;">AI DATA FLYWHEEL</div>
-      <div style="position:relative; width:400px; height:400px; margin:0 auto;">
-        <!-- 원형 점선 -->
-        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:220px; height:220px; border:2px dashed rgba(232,181,58,0.25); border-radius:50%;"></div>
-        <!-- 중앙 -->
-        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center;">
-          <div style="font-family:var(--mono); font-size:12px; color:var(--gold); font-weight:700; letter-spacing:0.15em; opacity:0.6;">CYCLE</div>
-        </div>
-        <!-- 상: 채택 증가 -->
-        <div style="position:absolute; top:8px; left:50%; transform:translateX(-50%); text-align:center;">
-          <div style="font-size:19px; font-weight:700; color:var(--text);">채택 증가</div>
-          <div style="font-size:14px; color:#B0C4D8; margin-top:4px;">더 많은 개발자 도입</div>
-        </div>
-        <!-- 우: 데이터 축적 -->
-        <div style="position:absolute; top:50%; right:0; transform:translateY(-50%); text-align:center; width:120px;">
-          <div style="font-size:19px; font-weight:700; color:var(--text);">데이터 축적</div>
-          <div style="font-size:14px; color:#B0C4D8; margin-top:4px;">행동 데이터 수집</div>
-        </div>
-        <!-- 하: AI 정확도 -->
-        <div style="position:absolute; bottom:8px; left:50%; transform:translateX(-50%); text-align:center;">
-          <div style="font-size:19px; font-weight:700; color:var(--text);">AI 정확도 향상</div>
-          <div style="font-size:14px; color:#B0C4D8; margin-top:4px;">탐지 성능 자동 개선</div>
-        </div>
-        <!-- 좌: 가치 상승 -->
-        <div style="position:absolute; top:50%; left:0; transform:translateY(-50%); text-align:center; width:120px;">
-          <div style="font-size:19px; font-weight:700; color:var(--gold);">가치 상승</div>
-          <div style="font-size:14px; color:#B0C4D8; margin-top:4px;">제품이 더 강해짐</div>
-        </div>
-        <!-- 시계방향 화살표 -->
-        <div style="position:absolute; top:22%; right:22%; font-size:22px; color:var(--gold); opacity:0.7;">&#10230;</div>
-        <div style="position:absolute; bottom:22%; right:22%; font-size:22px; color:var(--gold); opacity:0.7; transform:rotate(90deg);">&#10230;</div>
-        <div style="position:absolute; bottom:22%; left:22%; font-size:22px; color:var(--gold); opacity:0.7; transform:rotate(180deg);">&#10230;</div>
-        <div style="position:absolute; top:22%; left:22%; font-size:22px; color:var(--gold); opacity:0.7; transform:rotate(270deg);">&#10230;</div>
+  <!-- AI DATA FLYWHEEL (두 박스 중앙 배치) -->
+  <div class="reveal" style="max-width:1200px; margin-bottom:48px; text-align:center;">
+    <div style="font-family:var(--mono); font-size:14px; color:var(--gold); letter-spacing:0.1em; margin-bottom:24px;">AI DATA FLYWHEEL</div>
+    <div style="position:relative; width:360px; height:360px; margin:0 auto;">
+      <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:200px; height:200px; border:2px dashed rgba(232,181,58,0.25); border-radius:50%;"></div>
+      <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-family:var(--mono); font-size:12px; color:var(--gold); font-weight:700; letter-spacing:0.15em; opacity:0.6;">CYCLE</div>
+      <div style="position:absolute; top:4px; left:50%; transform:translateX(-50%); text-align:center;">
+        <div style="font-size:17px; font-weight:700; color:var(--text);">채택 증가</div>
+        <div style="font-size:13px; color:#B0C4D8; margin-top:2px;">더 많은 개발자 도입</div>
       </div>
-      <div style="text-align:center; margin-top:16px; font-size:17px; color:var(--gold); font-weight:600;">
-        사용자가 많을수록 제품이 강해지는<br>구조적 선순환
+      <div style="position:absolute; top:50%; right:0; transform:translateY(-50%); text-align:center; width:100px;">
+        <div style="font-size:17px; font-weight:700; color:var(--text);">데이터 축적</div>
+        <div style="font-size:13px; color:#B0C4D8; margin-top:2px;">행동 데이터 수집</div>
       </div>
+      <div style="position:absolute; bottom:4px; left:50%; transform:translateX(-50%); text-align:center;">
+        <div style="font-size:17px; font-weight:700; color:var(--text);">AI 정확도 향상</div>
+        <div style="font-size:13px; color:#B0C4D8; margin-top:2px;">탐지 성능 자동 개선</div>
+      </div>
+      <div style="position:absolute; top:50%; left:0; transform:translateY(-50%); text-align:center; width:100px;">
+        <div style="font-size:17px; font-weight:700; color:var(--gold);">가치 상승</div>
+        <div style="font-size:13px; color:#B0C4D8; margin-top:2px;">제품이 더 강해짐</div>
+      </div>
+      <div style="position:absolute; top:20%; right:20%; font-size:20px; color:var(--gold); opacity:0.7;">&#10230;</div>
+      <div style="position:absolute; bottom:20%; right:20%; font-size:20px; color:var(--gold); opacity:0.7; transform:rotate(90deg);">&#10230;</div>
+      <div style="position:absolute; bottom:20%; left:20%; font-size:20px; color:var(--gold); opacity:0.7; transform:rotate(180deg);">&#10230;</div>
+      <div style="position:absolute; top:20%; left:20%; font-size:20px; color:var(--gold); opacity:0.7; transform:rotate(270deg);">&#10230;</div>
     </div>
-
-    <!-- 오른쪽: 사례 막대 그래프 -->
-    <div>
-      <div style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.1em; margin-bottom:28px;">ECOSYSTEM VALUE &mdash; 생태계가 만든 기업 가치</div>
-      <div style="display:flex; flex-direction:column; gap:24px; margin-bottom:32px;">
-        <!-- Red Hat -->
-        <div>
-          <div style="font-family:var(--mono); font-size:15px; color:var(--muted); margin-bottom:8px;">Red Hat</div>
-          <div style="display:flex; height:40px; border-radius:3px; overflow:hidden; margin-bottom:6px;">
-            <div style="width:10%; background:var(--cyan); display:flex; align-items:center; justify-content:center;">
-              <span style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--bg);">$3.4B</span>
-            </div>
-            <div style="flex:1; background:rgba(0,194,224,0.12); display:flex; align-items:center; padding-left:16px;">
-              <span style="font-size:15px; color:#B0C4D8;">기업가치 <strong style="color:var(--text); font-size:17px;">$34B</strong></span>
-            </div>
-          </div>
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:14px; color:var(--muted);">Linux &rarr; IBM 인수</span>
-            <span style="font-family:var(--mono); font-size:24px; font-weight:700; color:var(--cyan);">10x</span>
-          </div>
-        </div>
-        <!-- MongoDB -->
-        <div>
-          <div style="font-family:var(--mono); font-size:15px; color:var(--muted); margin-bottom:8px;">MongoDB</div>
-          <div style="display:flex; height:40px; border-radius:3px; overflow:hidden; margin-bottom:6px;">
-            <div style="width:5.5%; min-width:50px; background:var(--cyan); display:flex; align-items:center; justify-content:center;">
-              <span style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--bg);">$1.7B</span>
-            </div>
-            <div style="flex:1; background:rgba(0,194,224,0.12); display:flex; align-items:center; padding-left:16px;">
-              <span style="font-size:15px; color:#B0C4D8;">기업가치 <strong style="color:var(--text); font-size:17px;">$31B</strong></span>
-            </div>
-          </div>
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:14px; color:var(--muted);">Database &rarr; NASDAQ</span>
-            <span style="font-family:var(--mono); font-size:24px; font-weight:700; color:var(--cyan);">18x</span>
-          </div>
-        </div>
-      </div>
-      <!-- 범례 -->
-      <div style="display:flex; align-items:center; gap:12px; margin-bottom:24px;">
-        <div style="height:3px; width:32px; background:var(--cyan);"></div>
-        <span style="font-size:13px; color:var(--muted);">매출</span>
-        <div style="height:3px; width:32px; background:rgba(0,194,224,0.12);"></div>
-        <span style="font-size:13px; color:var(--muted);">생태계가 만든 가치</span>
-      </div>
-      <div style="font-size:16px; color:var(--gold); font-weight:600; line-height:1.6;">
-        기업 가치의 대부분은 매출이 아니라<br>생태계가 만든 것입니다.
-      </div>
+    <div style="margin-top:20px; font-size:17px; color:var(--gold); font-weight:600;">
+      사용자가 많을수록 제품이 강해지는 구조적 선순환
     </div>
   </div>
 
-  <p class="section-sub reveal" style="margin-top:16px; margin-bottom:0; max-width:1200px;">
-    <strong>1차 타겟:</strong> 금융, 커머스, 헬스케어 &mdash; 민감 데이터를 다루고, 정상 자격증명 탈취 피해가 가장 큰 산업
-  </p>
 </section>
 
 <!-- KISA -->
