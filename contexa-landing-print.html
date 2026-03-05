@@ -377,7 +377,7 @@
     grid-template-columns: repeat(3, 1fr);
     gap: 2px;
     max-width: 1100px;
-    margin-bottom: 64px;
+    margin-bottom: 0;
   }
 
   .crisis-card {
@@ -1450,6 +1450,26 @@
     </div>
   </div>
 
+  <!-- 기존 보안 방어 범위 대비 시각화 -->
+  <div class="reveal" style="max-width:1100px; margin:10px 0 32px; padding:32px 40px; background:rgba(230,57,70,0.04); border:1px solid rgba(230,57,70,0.15);">
+    <!-- 사람의 위협 -->
+    <div style="margin-bottom:24px;">
+      <div style="font-size:16px; font-weight:700; color:var(--text); margin-bottom:10px;">사람의 위협</div>
+      <div style="position:relative; width:100%; height:8px; background:rgba(255,255,255,0.06); border-radius:4px;">
+        <div style="position:absolute; left:0; top:0; width:60%; height:8px; background:var(--text); border-radius:4px;"></div>
+      </div>
+      <div style="font-size:14px; color:var(--muted); margin-top:8px;">기존 보안으로 탐지 시도 가능</div>
+    </div>
+    <!-- AI Agent 위협 -->
+    <div>
+      <div style="font-size:16px; font-weight:700; color:var(--red); margin-bottom:10px;">AI Agent 위협</div>
+      <div style="position:relative; width:100%; height:8px; background:rgba(255,255,255,0.06); border-radius:4px;">
+        <div style="position:absolute; left:0; top:0; width:8%; height:8px; background:var(--red); border-radius:4px;"></div>
+      </div>
+      <div style="font-size:14px; color:var(--red); margin-top:8px;">기존 보안 체계를 넘어섭니다</div>
+    </div>
+  </div>
+
   <div class="crisis-insight reveal">
     <p>
       인증 이후의 행동은 불규칙하고, 24시간 멈추지 않으며, 진위 구별도 되지 않습니다.<br>
@@ -1461,16 +1481,16 @@
 <!-- VS -->
 <section class="versus" id="solution">
   <div class="section-tag reveal">// PARADIGM SHIFT</div>
-  <h2 class="section-title reveal">인증을 통과해도 맥락이 다르면 차단합니다.</h2>
+  <h2 class="section-title reveal">인증을 통과해도,<br> Contexa 가 맥락으로 탐지하고 판별하고 대응합니다.</h2>
   <p class="section-sub reveal">
-    침해 사고도, AI Agent 위협도, 근본 원인은 같습니다.<br>
-    인증 이후의 행동을 검증하지 않는 것.<br>
-    <strong>Contexa는 인증 이후의 요청, 세션, 행동 맥락을 AI로 분석해 진위를 판별합니다.</strong>
+    사람이 인증을 통과한 뒤 침해가 발생했고, AI Agent는 그 한계를 넘어섭니다.<br>
+    근본 원인은 같습니다. 인증 이후를 감시하지 않는 것.<br>
+    <strong>Contexa는 인증 이후의 모든 행동 맥락을 AI로 분석해, 사람과 AI Agent 위협 모두에 대응합니다.</strong>
   </p>
 
   <div class="vs-flow reveal" style="display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:0; max-width:1200px; align-items:stretch;">
     <div class="crisis-card">
-      <div class="crisis-label">기존 보안</div>
+      <div class="crisis-label">기존 보안의 한계</div>
       <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--red);">진위 판별 불가</div>
       <div class="crisis-desc">
         비밀번호, 토큰, API 키.<br>
@@ -1488,13 +1508,13 @@
     </div>
     <div style="display:flex; align-items:center; padding:0 20px; font-size:32px; color:var(--cyan);">&rarr;</div>
     <div class="crisis-card" style="background:rgba(0,194,224,0.04); border-color:rgba(0,194,224,0.3);">
-      <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 진위 판별</div>
+      <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 인증 이후 감시</div>
       <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">맥락으로 판별</div>
       <div class="crisis-desc">
-        인증 이후의 모든 행동 맥락을 봅니다.<br>
-        업무환경, 접속환경, 접근 대상을<br>
+        인증 이후의 모든 요청, 세션, 행동 맥락을 봅니다.<br>
+        사람의 이상 행동도, AI Agent의 위협도<br>
         AI가 실시간으로 분석합니다.<br>
-        <strong>평소와 다르면 즉시 차단합니다.</strong>
+        <strong>평소와 다르면 즉시 자동으로 대응합니다.</strong>
       </div>
     </div>
     <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0 16px; gap:8px;">
@@ -1505,12 +1525,12 @@
       <div style="font-family:var(--mono); font-size:11px; font-weight:700; color:var(--green); letter-spacing:0.1em;">SECURED</div>
     </div>
     <div class="crisis-card" style="background:rgba(0,194,224,0.04); border-color:rgba(0,194,224,0.3);">
-      <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 24시간 감시</div>
-      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">지속 방어</div>
+      <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 24시간 자동 대응</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">지속적 감시</div>
       <div class="crisis-desc">
-        인증 이후의 모든 행동을 지속 감시합니다.<br>
-        패턴이 불규칙해도, 24시간 공격에도<br>
-        AI가 쉬지 않고 대응합니다.<br>
+        패턴이 불규칙해도, 24시간 공격에도,<br>
+        진위가 구별되지 않아도<br>
+        AI가 쉬지 않고 탐지하고 대응합니다.<br>
         <strong>비정상 감지 즉시 세션 제한, 권한 축소.</strong>
       </div>
     </div>
@@ -1527,33 +1547,100 @@
     <strong>규칙에 없어도, 평소와 다르면 찾아냅니다.</strong>
   </p>
 
-  <div class="crisis-grid reveal">
-    <div class="crisis-card" style="background:rgba(0,194,224,0.04); border-color:rgba(0,194,224,0.3);">
-      <div class="crisis-label" style="color:var(--cyan);">01 &mdash; 학습</div>
-      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">정상을 정의한다</div>
-      <div class="crisis-desc">
-        각 사용자의 접근 시간, 접근 대상,<br>
-        업무 환경, 행동 흐름을 AI가 학습합니다.<br>
-        <strong>미리 정의된 규칙이 아닌<br>개인별 행동 프로파일입니다.</strong>
-      </div>
+  <!-- 정상 사용자 vs 계정 탈취자 시뮬레이션 -->
+  <div class="reveal" style="max-width:1100px;">
+    <!-- 헤더 라벨 -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; margin-bottom:0;">
+      <div style="font-size:22px; font-weight:700; color:var(--cyan); text-align:center; padding-bottom:14px;">정상 사용자<br><span style="font-family:var(--mono); font-size:13px; color:var(--muted); font-weight:400;">kim@company.com</span></div>
+      <div style="font-size:22px; font-weight:700; color:var(--red); text-align:center; padding-bottom:14px;">계정 탈취자<br><span style="font-family:var(--mono); font-size:13px; color:var(--muted); font-weight:400;">kim@company.com (동일 계정 탈취)</span></div>
     </div>
-    <div class="crisis-card" style="background:rgba(0,194,224,0.04); border-color:rgba(0,194,224,0.3);">
-      <div class="crisis-label" style="color:var(--cyan);">02 &mdash; 비교</div>
-      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--gold);">평소와 다른가</div>
-      <div class="crisis-desc">
-        매 순간 현재 행동을 프로파일과 비교합니다.<br>
-        평소 9시에 출근하는 사람이 새벽 3시에 접속.<br>
-        <strong>한 번도 열지 않던 핵심 DB에 접근.<br>규칙에 없어도 AI가 감지합니다.</strong>
+    <!-- 시뮬레이션 본체 -->
+    <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid rgba(255,255,255,0.1); overflow:hidden;">
+
+      <!-- 01 접속 -->
+      <div style="grid-column:1/-1; padding:12px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--muted); letter-spacing:0.1em;">01 접속</span>
+        <span style="font-family:var(--mono); font-size:13px; color:var(--muted); margin-left:12px;">동일 계정, 둘 다 인증 통과</span>
       </div>
-    </div>
-    <div class="crisis-card" style="background:rgba(0,194,224,0.04); border-color:rgba(0,194,224,0.3);">
-      <div class="crisis-label" style="color:var(--cyan);">03 &mdash; 대응</div>
-      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--green);">AI가 스스로 대응</div>
-      <div class="crisis-desc">
-        이상이 감지되면 사람의 판단을 기다리지 않습니다.<br>
-        세션 제한, 권한 축소, 접근 차단.<br>
-        <strong>AI가 자율적으로 대응하는 구조입니다.</strong>
+      <div style="padding:24px 32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:15px; color:var(--text);">재택근무 IP</div>
+          <div style="font-size:15px; color:var(--text);">오전 10시</div>
+          <div style="font-size:15px; color:var(--text);">Windows, Chrome</div>
+        </div>
+        <div style="font-family:var(--mono); font-size:13px; color:var(--muted); margin-top:12px;">인증 통과</div>
       </div>
+      <div style="padding:24px 32px; background:rgba(230,57,70,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          <div style="font-size:15px; color:var(--text);">재택근무 IP (유사 대역)</div>
+          <div style="font-size:15px; color:var(--text);">오후 2시</div>
+          <div style="font-size:15px; color:var(--text);">Windows, Chrome</div>
+        </div>
+        <div style="font-family:var(--mono); font-size:13px; color:var(--muted); margin-top:12px;">인증 통과</div>
+      </div>
+
+      <!-- 02 수집 -->
+      <div style="grid-column:1/-1; padding:12px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">02 Contexa 맥락 수집</span>
+        <span style="font-family:var(--mono); font-size:13px; color:var(--muted); margin-left:12px;">규칙으로는 둘 다 정상</span>
+      </div>
+      <div style="padding:24px 32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-size:15px; color:var(--text);">행동 흐름 <span style="color:var(--cyan); font-weight:700;">메일 &rarr; ERP &rarr; 보고서</span></div>
+          <div style="font-size:15px; color:var(--text);">접근 순서 <span style="color:var(--cyan); font-weight:700;">평소 패턴 일치</span></div>
+          <div style="font-size:15px; color:var(--text);">요청 빈도 <span style="color:var(--cyan); font-weight:700;">평소 수준</span></div>
+          <div style="font-size:15px; color:var(--text);">세션 흐름 <span style="color:var(--cyan); font-weight:700;">업무 맥락에 자연스러움</span></div>
+        </div>
+      </div>
+      <div style="padding:24px 32px; background:rgba(230,57,70,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div style="font-size:15px; color:var(--text);">행동 흐름 <span style="color:var(--red); font-weight:700;">로그인 직후 인사DB 직행</span></div>
+          <div style="font-size:15px; color:var(--text);">접근 순서 <span style="color:var(--red); font-weight:700;">평소 접근한 적 없는 경로</span></div>
+          <div style="font-size:15px; color:var(--text);">요청 빈도 <span style="color:var(--red); font-weight:700;">대량 조회 시도</span></div>
+          <div style="font-size:15px; color:var(--text);">세션 흐름 <span style="color:var(--red); font-weight:700;">목적 지향적 직행</span></div>
+        </div>
+      </div>
+
+      <!-- 03 판별 -->
+      <div style="grid-column:1/-1; padding:10px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">03 AI 판별</span>
+      </div>
+      <div style="padding:24px 32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:16px; font-weight:600; color:var(--cyan); margin-bottom:12px;">맥락 추론 결과: 정상</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:4px; position:relative;">
+            <div style="position:absolute; left:0; top:0; width:97%; height:8px; background:var(--cyan); border-radius:4px;"></div>
+          </div>
+          <div style="font-family:var(--mono); font-size:18px; font-weight:800; color:var(--cyan);">97%</div>
+        </div>
+      </div>
+      <div style="padding:24px 32px; background:rgba(230,57,70,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:16px; font-weight:600; color:var(--red); margin-bottom:12px;">맥락 추론 결과: 이상</div>
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div style="flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:4px; position:relative;">
+            <div style="position:absolute; left:0; top:0; width:12%; height:8px; background:var(--red); border-radius:4px;"></div>
+          </div>
+          <div style="font-family:var(--mono); font-size:18px; font-weight:800; color:var(--red);">12%</div>
+        </div>
+      </div>
+
+      <!-- 04 대응 -->
+      <div style="grid-column:1/-1; padding:10px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">04 자동 대응</span>
+      </div>
+      <div style="padding:32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div style="font-size:15px; color:var(--text); margin-bottom:16px;">정상 접근 허용</div>
+        <div style="font-family:var(--mono); font-size:28px; font-weight:800; color:var(--green); letter-spacing:0.1em;">ALLOWED</div>
+      </div>
+      <div style="padding:32px; background:rgba(230,57,70,0.04); display:flex; flex-direction:column; align-items:center; justify-content:center;">
+        <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:16px; text-align:center;">
+          <div style="font-size:15px; color:var(--text);">세션 제한</div>
+          <div style="font-size:15px; color:var(--text);">권한 축소</div>
+          <div style="font-size:15px; color:var(--text);">접근 차단</div>
+        </div>
+        <div style="font-family:var(--mono); font-size:28px; font-weight:800; color:var(--red); letter-spacing:0.1em;">BLOCKED</div>
+      </div>
+
     </div>
   </div>
 </section>
