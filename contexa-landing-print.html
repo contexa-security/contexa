@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Contexa — AI-Native Zero Trust Platform</title>
+<title>Contexa — AI-Native Zero Trust Platform (Print)</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=IBM+Plex+Mono:wght@400;500&family=Pretendard:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -833,6 +833,8 @@
     border: 1px solid var(--border);
     background: rgba(255,255,255,0.01);
     text-align: center;
+    display: flex;
+    flex-direction: column;
   }
 
   .proof-num {
@@ -848,10 +850,12 @@
 
   .proof-label {
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 13px;
+    font-weight: 600;
     letter-spacing: 0.12em;
-    color: var(--muted);
-    margin-bottom: 10px;
+    color: var(--cyan);
+    margin-top: auto;
+    padding-top: 14px;
   }
 
   .proof-desc {
@@ -972,6 +976,243 @@
   ::-webkit-scrollbar-track { background: var(--bg); }
   ::-webkit-scrollbar-thumb { background: var(--border); }
 
+  /* ── PDF / PRINT LAYOUT ── */
+  @media print {
+    @page {
+      size: 262.5mm 297mm;
+      margin: 0;
+    }
+
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
+    body {
+      background: var(--bg) !important;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* hide nav, footer, TOC nav links, bg circles */
+    nav, footer, .hero-bg-circle { display: none !important; }
+
+    /* force all reveal elements visible */
+    .reveal, .reveal.visible {
+      opacity: 1 !important;
+      transform: none !important;
+      transition: none !important;
+    }
+
+    /* base section styling for print */
+    section, .kisa, .cta-section {
+      padding: 48px 20px !important;
+      break-inside: avoid;
+    }
+
+    /* unlock max-width constraints for print */
+    [style*="max-width"] { max-width: 100% !important; }
+
+    /* PAGE BREAKS — each major section starts on new page */
+    /* Page 1: Hero */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 80px 20px !important;
+      break-after: page;
+    }
+
+    /* Page 2: TOC */
+    #toc {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      break-after: page;
+    }
+
+    /* Page 3: Problem (bg2 — fill page) */
+    #problem {
+      min-height: 100vh;
+      break-after: page;
+    }
+
+    /* Page 4: Agent Crisis (continues from Problem story) */
+    #agent-crisis {
+      break-after: page;
+    }
+
+    /* Page 5: Solution (bg2 — fill page) */
+    #solution {
+      min-height: 100vh;
+      break-after: page;
+    }
+
+    /* Page 6: Engine */
+    #engine {
+      break-after: page;
+    }
+
+    /* Page 7: Built & Ready (bg2 — fill page) */
+    #built {
+      min-height: 100vh;
+      break-after: page;
+    }
+
+    /* Page 8: Global Scale */
+    #business {
+      break-after: page;
+    }
+
+    /* Page 9: Market */
+    #market {
+      break-after: page;
+    }
+
+    /* Page 10: Revenue */
+    #revenue {
+      break-after: page;
+    }
+
+    /* Page 11: Competition */
+    #competition {
+      break-after: page;
+    }
+
+    /* Page 12: Team */
+    #team {
+      break-after: page;
+    }
+
+    /* Page 13: Roadmap */
+    #roadmap {
+      break-after: page;
+    }
+
+    /* Page 14: KISA */
+    .kisa {
+      break-after: page;
+    }
+
+    /* Page 15: CTA (last page) */
+    .cta-section {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* prevent breaking inside key elements */
+    .proof-grid, .crisis-grid, .vs-grid, .moat-grid, .biz-grid,
+    table, .problem-insight, .biz-flow {
+      break-inside: avoid;
+    }
+
+    /* reduce spacing for print density */
+    .section-title { font-size: 28px !important; margin-bottom: 16px !important; }
+    .section-sub { font-size: 14px !important; margin-bottom: 24px !important; }
+    .section-tag { margin-bottom: 8px !important; }
+
+    /* ── SECTION-SPECIFIC PRINT COMPRESSION ── */
+
+    /* WHY NOW (Problem): compress fact/truth grids */
+    #problem { padding: 32px 20px !important; }
+    #problem [style*="font-size:22px"] { font-size: 16px !important; }
+    #problem [style*="padding:14px 0"] { padding: 8px 0 !important; }
+    #problem .proof-grid { gap: 8px !important; margin-bottom: 12px !important; }
+    #problem .proof-item { padding: 12px 16px !important; }
+    #problem .proof-num { font-size: 16px !important; }
+    #problem .proof-num[style*="font-size:28px"] { font-size: 18px !important; }
+    #problem .proof-label { font-size: 12px !important; }
+    #problem .proof-desc { font-size: 12px !important; line-height: 1.4 !important; }
+    #problem [style*="margin-bottom:24px"] { margin-bottom: 10px !important; }
+    #problem [style*="margin-bottom:48px"] { margin-bottom: 14px !important; }
+    #problem [style*="margin-bottom:8px"] { margin-bottom: 4px !important; }
+    #problem .problem-insight { padding: 12px 16px !important; }
+    #problem .problem-insight p { font-size: 13px !important; line-height: 1.5 !important; }
+
+    /* THE COMING CRISIS: compress crisis cards */
+    #agent-crisis { padding: 32px 20px !important; }
+    #agent-crisis .crisis-grid { gap: 12px !important; }
+    #agent-crisis .crisis-card { padding: 18px !important; }
+    #agent-crisis .crisis-label { font-size: 11px !important; margin-bottom: 4px !important; }
+    #agent-crisis [style*="font-size:clamp(28px"] { font-size: 22px !important; }
+    #agent-crisis .crisis-desc { font-size: 13px !important; line-height: 1.5 !important; }
+    #agent-crisis .crisis-insight { padding: 12px 16px !important; }
+    #agent-crisis .crisis-insight p { font-size: 13px !important; line-height: 1.5 !important; }
+
+    /* BUILT & READY: compress bar chart + code box */
+    #built { padding: 28px 20px !important; }
+    #built [style*="margin-bottom:48px"] { margin-bottom: 16px !important; }
+    #built [style*="margin-bottom:36px"] { margin-bottom: 12px !important; }
+    #built [style*="margin-bottom:32px"] { margin-bottom: 12px !important; }
+    #built [style*="font-size:28px"] { font-size: 20px !important; }
+    #built [style*="height:28px"] { height: 18px !important; }
+    #built [style*="gap:6px"] { gap: 3px !important; }
+    #built [style*="gap:16px"] { gap: 8px !important; }
+    #built [style*="padding:24px 48px"] { padding: 14px 24px !important; }
+    #built [style*="font-size:22px"] { font-size: 16px !important; }
+    #built [style*="font-size:20px"] { font-size: 14px !important; }
+    #built [style*="font-size:18px"] { font-size: 14px !important; }
+    #built [style*="font-size:clamp(20px"] { font-size: 18px !important; }
+
+    /* WHY GLOBAL SCALE: compress cards + bar chart */
+    #business { padding: 36px 20px !important; }
+    #business [style*="gap:20px"] { gap: 12px !important; }
+    #business [style*="padding:28px 24px"] { padding: 16px 18px !important; }
+    #business [style*="font-size:19px"] { font-size: 15px !important; }
+    #business [style*="font-size:14px"] { font-size: 12px !important; line-height: 1.5 !important; }
+    #business .problem-insight { padding: 16px 20px !important; }
+    #business .problem-insight p { font-size: 15px !important; }
+
+    /* MARKET SIZE: compress bar chart + sidebar */
+    #market { padding: 36px 20px !important; }
+    #market [style*="gap:60px"] { gap: 32px !important; }
+    #market [style*="gap:28px"] { gap: 16px !important; }
+    #market [style*="font-size:28px"] { font-size: 22px !important; }
+    #market [style*="gap:20px"] { gap: 12px !important; }
+    #market .problem-insight { padding: 16px 20px !important; }
+
+    /* REVENUE MODEL (largest section): aggressive compression */
+    #revenue { padding: 32px 20px !important; }
+    #revenue .section-title { font-size: 26px !important; }
+    #revenue [style*="gap:32px"] { gap: 16px !important; }
+    #revenue [style*="gap:24px"] { gap: 12px !important; }
+    #revenue [style*="padding:32px"] { padding: 18px !important; }
+    #revenue [style*="padding:24px"] { padding: 14px !important; }
+    #revenue [style*="font-size:19px"] { font-size: 15px !important; }
+    #revenue [style*="font-size:16px"] { font-size: 13px !important; }
+    #revenue [style*="font-size:14px"] { font-size: 11px !important; }
+    #revenue [style*="font-size:13px"] { font-size: 11px !important; }
+    /* FLYWHEEL bar chart: proportional scaling (ratio 150/280) */
+    #revenue [style*="height:80px"] { height: 43px !important; }
+    #revenue [style*="height:120px"] { height: 64px !important; }
+    #revenue [style*="height:170px"] { height: 91px !important; }
+    #revenue [style*="height:220px"] { height: 118px !important; }
+    #revenue [style*="height:280px"] { height: 150px !important; }
+    #revenue [style*="margin-bottom:48px"] { margin-bottom: 20px !important; }
+    #revenue [style*="margin-bottom:32px"] { margin-bottom: 14px !important; }
+
+    /* COMPETITION: compress table */
+    #competition { padding: 36px 20px !important; }
+    #competition table { font-size: 12px !important; }
+    #competition th, #competition td { padding: 8px 8px !important; }
+    #competition .problem-insight { padding: 16px 20px !important; }
+    #competition .problem-insight strong { font-size: 14px !important; }
+
+    /* ROADMAP: compress phase cards + budget */
+    #roadmap { padding: 32px 20px !important; }
+    #roadmap [style*="gap:16px"] { gap: 10px !important; }
+    #roadmap [style*="padding:24px"] { padding: 14px !important; }
+    #roadmap [style*="font-size:15px"] { font-size: 12px !important; }
+    #roadmap [style*="font-size:14px"] { font-size: 11px !important; }
+    #roadmap [style*="margin-bottom:48px"] { margin-bottom: 20px !important; }
+    #roadmap [style*="margin-bottom:32px"] { margin-bottom: 14px !important; }
+    #roadmap .problem-insight { padding: 14px 18px !important; font-size: 13px !important; }
+
+    /* hide scroll-dependent elements */
+    .hero-bg-circle { display: none !important; }
+  }
+
   @media (max-width: 768px) {
     nav { padding: 16px 24px; }
     .nav-links { display: none; }
@@ -1038,50 +1279,54 @@
     <ol style="list-style:none; counter-reset:toc; padding:0; margin:0;">
       <li style="counter-increment:toc; display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">01</span>
-        <a href="#problem" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">문제 정의 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Problem</span></a>
+        <a href="#problem" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">문제 정의 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Why Now</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">02</span>
-        <a href="#solution" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">솔루션 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Solution</span></a>
+        <a href="#agent-crisis" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">AI Agent 위협 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">The Coming Crisis</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">03</span>
-        <a href="#engine" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">기술 아키텍처 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Engine</span></a>
+        <a href="#solution" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">솔루션 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Paradigm Shift</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">04</span>
-        <a href="#built" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">제품 현황 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Built &amp; Ready</span></a>
+        <a href="#engine" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">기술 아키텍처 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">How Contexa Works</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">05</span>
-        <a href="#business" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">글로벌 전략 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Global Scale</span></a>
+        <a href="#built" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">제품 현황 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Built &amp; Ready</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">06</span>
-        <a href="#market" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">시장 분석 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Market</span></a>
+        <a href="#business" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">글로벌 전략 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Why Global Scale</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">07</span>
-        <a href="#revenue" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">비즈니스 모델 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Revenue Model</span></a>
+        <a href="#market" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">시장 규모 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Market Size</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">08</span>
-        <a href="#competition" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">경쟁 분석 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Competition</span></a>
+        <a href="#revenue" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">비즈니스 모델 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Revenue Model</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">09</span>
-        <a href="#team" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">팀 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Team</span></a>
+        <a href="#competition" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">경쟁 분석 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Competition</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">10</span>
-        <a href="#roadmap" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">로드맵 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Roadmap</span></a>
+        <a href="#team" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">팀 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Team</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">11</span>
-        <a href="#kisa" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">KISA 제로트러스트 정책 실현 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Policy Alignment</span></a>
+        <a href="#roadmap" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">로드맵 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Roadmap</span></a>
+      </li>
+      <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">12</span>
+        <a href="#kisa" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">KISA 제로트러스트 정책 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Policy Alignment</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0;">
-        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">12</span>
+        <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">13</span>
         <a href="#cta" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">맺음말 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Closing</span></a>
       </li>
     </ol>
@@ -1091,66 +1336,66 @@
 <!-- PROBLEM -->
 <section class="problem" id="problem">
   <div class="section-tag reveal">// WHY NOW</div>
-  <h2 class="section-title reveal">기존 보안 체계는<br>사실과 진실을 구별하지 못합니다.</h2>
+  <h2 class="section-title reveal">국내외 대형 침해,<br>모두 인증 이후에 발생했습니다.</h2>
   <p class="section-sub reveal">
-    공격자는 이미 "정상 자격증명"으로 통과하고 있습니다.
+    로그인은 성공했고, 보안은 정상으로 판단했습니다. 피해는 그 이후에 시작됐습니다.
   </p>
 
   <div class="reveal" style="max-width:1100px; margin-bottom:8px;">
     <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); padding:14px 0; text-align:center; font-family:var(--mono); font-size:22px; font-weight:600; letter-spacing:0.15em; color:var(--muted);">
-      사실
+      인증 결과: 성공
     </div>
   </div>
   <div class="proof-grid reveal" style="margin-bottom:24px;">
     <div class="proof-item">
       <div class="proof-num red">정상 토큰</div>
+      <div class="proof-desc">인증 이후 지원 시스템 접근, 고객 데이터 노출</div>
       <div class="proof-label">OKTA &middot; 2023</div>
-      <div class="proof-desc">지원 시스템 침해, 고객 데이터 노출</div>
     </div>
     <div class="proof-item">
       <div class="proof-num red">유효 계정</div>
+      <div class="proof-desc">인증 이후 160개 기업 데이터 동시 유출</div>
       <div class="proof-label">SNOWFLAKE &middot; 2024</div>
-      <div class="proof-desc">160개 기업 동시 침해</div>
     </div>
     <div class="proof-item">
       <div class="proof-num red">원격접속 계정</div>
-      <div class="proof-label">CHANGE HEALTHCARE &middot; 2024</div>
-      <div class="proof-desc">의료 서비스 대규모 마비</div>
+      <div class="proof-desc">인증 이후 내부 침투, 의료 서비스 마비</div>
+      <div class="proof-label">CHANGE HC &middot; 2024</div>
     </div>
     <div class="proof-item">
       <div class="proof-num red">API 키</div>
+      <div class="proof-desc">인증 이후 3,370만 명 개인정보 유출</div>
       <div class="proof-label">쿠팡 &middot; 2025</div>
-      <div class="proof-desc">3,370만 명 개인정보 유출</div>
     </div>
   </div>
   <div class="reveal" style="max-width:1100px; margin-bottom:8px;">
     <div style="background:rgba(230,57,70,0.08); border:1px solid rgba(230,57,70,0.3); padding:14px 0; text-align:center; font-family:var(--mono); font-size:22px; font-weight:600; letter-spacing:0.15em; color:var(--red);">
-      진실
+      인증 이후의 진실
     </div>
   </div>
   <div class="proof-grid reveal" style="margin-bottom:48px;">
     <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
       <div class="proof-num red" style="font-size:28px;">외부 해커</div>
-      <div class="proof-desc">탈취한 토큰으로<br>정상 사용자로 위장</div>
+      <div class="proof-desc">인증 통과 후<br>정상 사용자로 내부 활동</div>
     </div>
     <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
       <div class="proof-num red" style="font-size:28px;">외부 해커</div>
-      <div class="proof-desc">인포스틸러로 수집한<br>자격증명으로 접속</div>
+      <div class="proof-desc">인증 통과 후<br>정상 세션으로 데이터 접근</div>
     </div>
     <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
       <div class="proof-num red" style="font-size:28px;">랜섬웨어 그룹</div>
-      <div class="proof-desc">탈취한 원격접속 계정으로<br>내부 침투</div>
+      <div class="proof-desc">인증 통과 후<br>내부 시스템 전체 장악</div>
     </div>
     <div class="proof-item" style="background:rgba(230,57,70,0.06); border-color:rgba(230,57,70,0.3);">
       <div class="proof-num red" style="font-size:28px;">퇴사자</div>
-      <div class="proof-desc">폐기되지 않은 API 키로<br>퇴사 후에도 접근</div>
+      <div class="proof-desc">인증 통과 후<br>퇴사 이후에도 지속 접근</div>
     </div>
   </div>
   <div class="problem-insight reveal">
     <p>
-      토큰 서명 검증만으로는 내부자/탈취 계정 구분이 불가합니다.<br>
-      공격자는 규칙을 우회하는 것이 아니라 정상 행동을 위장합니다.<br>
-      <span>정상 자격증명이 악의적 수단이 되는 순간, 기존 보안은 무방비에 노출됩니다.</span>
+      모든 사례에서 인증은 정상이었습니다. 보안이 실패한 시점은 인증 이후입니다.<br>
+      공격자는 규칙을 우회하지 않습니다. 인증을 통과한 뒤, 정상 행동을 위장합니다.<br>
+      <span>인증 이후를 감시하지 않는 보안 체계는 구조적 한계를 갖습니다.</span>
     </p>
   </div>
 </section>
@@ -1158,11 +1403,10 @@
 <!-- AI AGENT CRISIS -->
 <section class="agent-crisis" id="agent-crisis">
   <div class="section-tag reveal">// THE COMING CRISIS</div>
-  <h2 class="section-title reveal">AI Agent 보안 공격은 차원이 다릅니다.</h2>
+  <h2 class="section-title reveal">AI Agent는 인증을 통과한 뒤,<br>차원이 다른 위협이 됩니다.</h2>
   <p class="section-sub reveal">
-    Okta, Snowflake, Change Healthcare, 쿠팡 &mdash;
-    모두 사람이 침투한 것입니다.<br>
-    <strong>AI Agent는 사람과 근본적으로 다릅니다.</strong>
+    앞선 4건은 사람이 인증을 통과한 뒤 침투한 것입니다.<br>
+    <strong>AI Agent가 인증을 통과하면, 피해의 규모와 속도가 근본적으로 달라집니다.</strong>
   </p>
 
   <div class="crisis-grid reveal">
@@ -1170,35 +1414,35 @@
       <div class="crisis-label">첫 번째 차이</div>
       <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--text);">패턴 불규칙</div>
       <div class="crisis-desc">
-        사람은 습관이 있습니다.<br>
+        사람은 인증 이후에도 습관이 있습니다.<br>
         같은 시간, 같은 경로, 같은 방식.<br>
-        <strong>AI Agent의 행동은 불규칙하고 복잡합니다.<br>패턴 기반 탐지가 무력화됩니다.</strong>
+        <strong>AI Agent는 인증 이후 매번 다른 패턴으로 행동합니다.<br>기존 탐지 체계로는 식별이 어렵습니다.</strong>
       </div>
     </div>
     <div class="crisis-card">
       <div class="crisis-label">두 번째 차이</div>
       <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--gold);">24시간 공격</div>
       <div class="crisis-desc">
-        사람은 피로합니다. 쉬어야 하고, 실수합니다.<br>
-        AI Agent는 쉬지 않습니다.<br>
-        <strong>잠든 새벽에도, 휴일에도 멈추지 않습니다.</strong>
+        사람은 인증 이후에도 쉬어야 합니다.<br>
+        AI Agent는 인증 한 번으로 24시간 내부에서 활동합니다.<br>
+        <strong>새벽에도, 휴일에도 멈추지 않습니다.</strong>
       </div>
     </div>
     <div class="crisis-card danger">
       <div class="crisis-label">세 번째 차이</div>
       <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--red);">진위 불가</div>
       <div class="crisis-desc">
-        정상 Agent와 동일한 자격증명.<br>
+        인증을 통과한 정상 Agent와 동일한 자격증명.<br>
         동일한 권한, 동일한 행동 패턴.<br>
-        <strong>누가 정상이고 누가 공격인지<br>규칙으로는 알 수 없습니다.</strong>
+        <strong>인증 이후의 행동만으로는<br>정상과 공격을 규칙으로 구분할 수 없습니다.</strong>
       </div>
     </div>
   </div>
 
   <div class="crisis-insight reveal">
     <p>
-      패턴은 불규칙하고, 24시간 쉬지 않으며, 진위 구별도 안 됩니다.<br>
-      <span>기존 규칙 기반 방식으로는 대응하기 어렵습니다.</span>
+      인증 이후의 행동은 불규칙하고, 24시간 멈추지 않으며, 진위 구별도 되지 않습니다.<br>
+      <span>인증 이후를 방어하지 못하는 보안 체계는 AI Agent 시대에 구조적 한계를 드러냅니다.</span>
     </p>
   </div>
 </section>
@@ -1206,11 +1450,11 @@
 <!-- VS -->
 <section class="versus" id="solution">
   <div class="section-tag reveal">// PARADIGM SHIFT</div>
-  <h2 class="section-title reveal">자격증명이 정상이어도, 맥락이 다르면 차단합니다.</h2>
+  <h2 class="section-title reveal">인증을 통과해도 맥락이 다르면 차단합니다.</h2>
   <p class="section-sub reveal">
-    4건의 침해도, AI Agent의 위협도, 근본 원인은 같습니다.<br>
-    정상 자격증명의 진위를 파악하지 못하는 것.<br>
-    <strong>Contexa는 자격증명이 아닌 행동의 맥락으로 진위를 판별합니다.</strong>
+    침해 사고도, AI Agent 위협도, 근본 원인은 같습니다.<br>
+    인증 이후의 행동을 검증하지 않는 것.<br>
+    <strong>Contexa는 인증 이후의 요청, 세션, 행동 맥락을 AI로 분석해 진위를 판별합니다.</strong>
   </p>
 
   <div class="vs-flow reveal" style="display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:0; max-width:1200px; align-items:stretch;">
@@ -1220,7 +1464,7 @@
       <div class="crisis-desc">
         비밀번호, 토큰, API 키.<br>
         조건이 맞으면 통과시킵니다.<br>
-        <strong>4건의 침해도, AI Agent도<br>이렇게 뚫립니다.</strong>
+        <strong>인증까지는 방어합니다.<br>인증 이후는 방어하지 않습니다.</strong>
       </div>
       <div style="margin-top:28px; text-align:center; padding:20px; background:rgba(230,57,70,0.08); border:1px solid rgba(230,57,70,0.3);">
         <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -1236,7 +1480,7 @@
       <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 진위 판별</div>
       <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">맥락으로 판별</div>
       <div class="crisis-desc">
-        자격증명이 아닌 행동의 맥락을 봅니다.<br>
+        인증 이후의 모든 행동 맥락을 봅니다.<br>
         업무환경, 접속환경, 접근 대상을<br>
         AI가 실시간으로 분석합니다.<br>
         <strong>평소와 다르면 즉시 차단합니다.</strong>
@@ -1253,7 +1497,7 @@
       <div class="crisis-label" style="color:var(--cyan);">Contexa &mdash; 24시간 감시</div>
       <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--cyan);">지속 방어</div>
       <div class="crisis-desc">
-        접속 이후에도 모든 행동을 감시합니다.<br>
+        인증 이후의 모든 행동을 지속 감시합니다.<br>
         패턴이 불규칙해도, 24시간 공격에도<br>
         AI가 쉬지 않고 대응합니다.<br>
         <strong>비정상 감지 즉시 세션 제한, 권한 축소.</strong>
@@ -1957,6 +2201,7 @@
 
 <!-- KISA -->
 <div class="kisa reveal" id="kisa" style="flex-direction:column; align-items:stretch; gap:0; padding:0; max-width:1200px;">
+  <div class="section-tag" style="padding:48px 48px 0;">// POLICY ALIGNMENT</div>
   <!-- 상단: 배지 + 제목 -->
   <div style="padding:48px 48px 28px; display:flex; align-items:center; gap:32px;">
     <div class="kisa-badge">
@@ -2026,6 +2271,7 @@
 
 <!-- CTA -->
 <section class="cta-section" id="cta" style="text-align:left;">
+  <div class="section-tag reveal">// CLOSING</div>
   <h2 class="cta-title" style="font-size:36px; margin-bottom:16px; margin-left:0; margin-right:auto;">
     AI 보안의 다음 표준, <em>Contexa가 만듭니다</em>
   </h2>
@@ -2071,25 +2317,10 @@
 </footer>
 
 <script>
-  // Scroll reveal
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach((entry) => {
-      if (entry.isIntersecting) {
-        setTimeout(() => {
-          entry.target.classList.add('visible');
-        }, 80);
-        observer.unobserve(entry.target);
-      }
-    });
-  }, { threshold: 0.1 });
-
-  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
-
-  // Stagger children in groups
-  document.querySelectorAll('.breach-timeline .breach-item, .crisis-grid .crisis-card, .layers .layer, .moat-grid .moat-item, .biz-grid .biz-card, .biz-flow .biz-flow-step, .proof-grid .proof-item').forEach((el, i) => {
-    el.style.transitionDelay = `${i * 80}ms`;
-    el.classList.add('reveal');
-    observer.observe(el);
+  // Print version: make all elements visible immediately
+  document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+  document.querySelectorAll('.breach-timeline .breach-item, .crisis-grid .crisis-card, .layers .layer, .moat-grid .moat-item, .biz-grid .biz-card, .biz-flow .biz-flow-step, .proof-grid .proof-item').forEach(el => {
+    el.classList.add('reveal', 'visible');
   });
 </script>
 
