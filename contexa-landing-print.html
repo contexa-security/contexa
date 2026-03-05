@@ -1010,6 +1010,15 @@
     /* unlock max-width constraints for print */
     [style*="max-width"] { max-width: 100% !important; }
 
+    /* restore grid layouts overridden by mobile media query */
+    .crisis-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    .proof-grid { grid-template-columns: repeat(4, 1fr) !important; }
+    .vs-grid { grid-template-columns: 1fr auto 1fr !important; }
+    .moat-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    .biz-grid { grid-template-columns: repeat(3, 1fr) !important; }
+    .biz-flow { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+    .stats-bar { grid-template-columns: repeat(4, 1fr) !important; }
+
     /* PAGE BREAKS — each major section starts on new page */
     /* Page 1: Hero */
     .hero {
