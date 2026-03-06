@@ -6,7 +6,7 @@ import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +26,7 @@ public class BlockedUserTimeoutScheduler {
     private static final int TIMEOUT_HOURS = 24;
 
     private final BlockedUserJpaRepository blockedUserJpaRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final SecurityActionEventPublisher securityActionEventPublisher;
 
     @Scheduled(fixedDelay = 3600000)
     public void checkBlockedUserTimeout() {
@@ -47,7 +47,7 @@ public class BlockedUserTimeoutScheduler {
                     .triggeredBy("BlockedUserTimeoutScheduler")
                     .build();
 
-            eventPublisher.publishEvent(event);
+            securityActionEventPublisher.publish(event);
 
             user.setStatus(BlockedUserStatus.TIMEOUT_RESPONDED);
             blockedUserJpaRepository.save(user);

@@ -23,6 +23,7 @@ public class SecurityKafkaProperties {
         private String audit = "security-audit-events";
         private String general = "security-events";
         private String dlq = "security-events-dlq";
+        private String soarAction = "soar-action-events";
     }
 
     @Data

@@ -11,7 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.context.ApplicationEventPublisher;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -37,7 +37,7 @@ public class SessionTerminationTool {
 
     private final UserSessionService userSessionService;
     private final HighRiskToolAuthorizationService authorizationService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final SecurityActionEventPublisher securityActionEventPublisher;
 
     @Tool(
             name = "session_termination",
@@ -193,7 +193,7 @@ public class SessionTerminationTool {
                     .triggeredBy("SOAR-System")
                     .metadata(Map.of("terminatedSessionIds", sessionIds))
                     .build();
-            eventPublisher.publishEvent(event);
+            securityActionEventPublisher.publish(event);
         } catch (Exception e) {
             log.error("Failed to publish session termination event for user: {}", userId, e);
         }

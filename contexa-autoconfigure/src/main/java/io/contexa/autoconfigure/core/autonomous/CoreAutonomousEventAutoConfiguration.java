@@ -25,6 +25,8 @@ import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollec
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
+import io.contexa.contexacore.soar.event.NoOpSecurityActionEventPublisher;
 import io.contexa.contexacore.autonomous.handler.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
@@ -104,9 +106,16 @@ public class CoreAutonomousEventAutoConfiguration {
         public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster() {
             return new InMemoryBlockingSignalBroadcaster();
         }
+
     }
 
     // === Common beans (mode-independent) ===
+
+    @Bean
+    @ConditionalOnMissingBean(SecurityActionEventPublisher.class)
+    public NoOpSecurityActionEventPublisher noOpSecurityActionEventPublisher() {
+        return new NoOpSecurityActionEventPublisher();
+    }
 
     @Bean
     @ConditionalOnMissingBean

@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-import org.springframework.context.ApplicationEventPublisher;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -37,7 +37,7 @@ public class IpBlockingTool {
     private final IpBlockingService ipBlockingService;
     private final HighRiskToolAuthorizationService authorizationService;
     private final ExternalFirewallAdapter firewallAdapter;
-    private final ApplicationEventPublisher eventPublisher;
+    private final SecurityActionEventPublisher securityActionEventPublisher;
 
     @Tool(
             name = "ip_blocking",
@@ -195,7 +195,7 @@ public class IpBlockingTool {
                             "ticketId", ticketId != null ? ticketId : ""
                     ))
                     .build();
-            eventPublisher.publishEvent(event);
+            securityActionEventPublisher.publish(event);
         } catch (Exception e) {
             log.error("Failed to publish IP block event for: {}", ipAddress, e);
         }

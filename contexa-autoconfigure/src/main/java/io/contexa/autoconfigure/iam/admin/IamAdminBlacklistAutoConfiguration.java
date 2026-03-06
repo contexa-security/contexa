@@ -7,9 +7,9 @@ import io.contexa.contexaiam.admin.web.auth.controller.BlacklistApiController;
 import io.contexa.contexaiam.admin.web.auth.controller.BlacklistController;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
@@ -21,9 +21,9 @@ public class IamAdminBlacklistAutoConfiguration {
             BlockedUserJpaRepository blockedUserJpaRepository,
             AdminOverrideService adminOverrideService,
             ZeroTrustActionRepository actionRedisRepository,
-            ApplicationEventPublisher eventPublisher) {
+            SecurityActionEventPublisher securityActionEventPublisher) {
         return new BlockedUserService(
-                blockedUserJpaRepository, adminOverrideService, actionRedisRepository, eventPublisher);
+                blockedUserJpaRepository, adminOverrideService, actionRedisRepository, securityActionEventPublisher);
     }
 
     @Bean

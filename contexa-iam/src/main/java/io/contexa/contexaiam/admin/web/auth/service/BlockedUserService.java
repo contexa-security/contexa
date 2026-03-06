@@ -14,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -29,7 +29,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final AdminOverrideService adminOverrideService;
     private final ZeroTrustActionRepository actionRedisRepository;
-    private final ApplicationEventPublisher eventPublisher;
+    private final SecurityActionEventPublisher securityActionEventPublisher;
 
     @Setter
     @Autowired(required = false)
@@ -197,7 +197,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
                             .triggeredBy("BlockedUserService")
                             .build();
 
-                    eventPublisher.publishEvent(event);
+                    securityActionEventPublisher.publish(event);
                 });
     }
 

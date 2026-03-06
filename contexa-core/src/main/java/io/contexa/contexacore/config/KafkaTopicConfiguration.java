@@ -25,7 +25,9 @@ public class KafkaTopicConfiguration {
             threatIndicatorsTopic().build(),
             networkEventsTopic().build(),
 
-            deadLetterQueueTopic().build()
+            deadLetterQueueTopic().build(),
+
+            soarActionEventsTopic().build()
         );
     }
 
@@ -92,6 +94,13 @@ public class KafkaTopicConfiguration {
             .partitions(5)  
             .replicas(1)
             .config(TopicConfig.RETENTION_MS_CONFIG, "259200000");  
+    }
+
+    private TopicBuilder soarActionEventsTopic() {
+        return TopicBuilder.name("soar-action-events")
+            .partitions(3)
+            .replicas(1)
+            .config(TopicConfig.RETENTION_MS_CONFIG, "604800000");
     }
 
     private TopicBuilder deadLetterQueueTopic() {

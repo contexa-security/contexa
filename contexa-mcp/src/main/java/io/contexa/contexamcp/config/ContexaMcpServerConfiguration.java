@@ -25,7 +25,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.context.ApplicationEventPublisher;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
@@ -129,9 +129,9 @@ public class ContexaMcpServerConfiguration {
             IpBlockingService ipBlockingService,
             HighRiskToolAuthorizationService authorizationService,
             ExternalFirewallAdapter externalFirewallAdapter,
-            ApplicationEventPublisher eventPublisher) {
+            SecurityActionEventPublisher securityActionEventPublisher) {
         return new IpBlockingTool(ipBlockingService, authorizationService,
-                externalFirewallAdapter, eventPublisher);
+                externalFirewallAdapter, securityActionEventPublisher);
     }
 
     @Bean
@@ -140,8 +140,8 @@ public class ContexaMcpServerConfiguration {
     public SessionTerminationTool sessionTerminationTool(
             UserSessionService userSessionService,
             HighRiskToolAuthorizationService authorizationService,
-            ApplicationEventPublisher eventPublisher) {
-        return new SessionTerminationTool(userSessionService, authorizationService, eventPublisher);
+            SecurityActionEventPublisher securityActionEventPublisher) {
+        return new SessionTerminationTool(userSessionService, authorizationService, securityActionEventPublisher);
     }
 
     @Bean
