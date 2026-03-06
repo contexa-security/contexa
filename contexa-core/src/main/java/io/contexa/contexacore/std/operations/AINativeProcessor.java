@@ -127,6 +127,7 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
         log.error("Strategic operation failed: {} - {}", strategyId, error.getMessage(), error);
     }
 
+
     private String generateStrategyId(AIRequest<T> request, Class<?> responseType) {
         return String.format("strategy-%s-%s-%s",
                 request.getClass().getSimpleName(),
