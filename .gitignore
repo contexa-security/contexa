@@ -62,6 +62,7 @@ nul
 
 # Sensitive/internal files
 *.png
+!logo.png
 *.pdf
 *.pptx
 contexa-landing-print.html
