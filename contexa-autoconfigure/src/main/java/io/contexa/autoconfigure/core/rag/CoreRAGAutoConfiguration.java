@@ -3,21 +3,19 @@ package io.contexa.autoconfigure.core.rag;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
-import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.operations.AINativeProcessor;
-import io.contexa.contexacore.std.operations.DistributedSessionManager;
 import io.contexa.contexacore.std.operations.DistributedStrategyExecutor;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.rag.Query;
@@ -68,14 +66,6 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DistributedSessionManager distributedSessionManager(
-            AuditLogger auditLogger,
-            ApplicationEventPublisher eventPublisher) {
-        return new DistributedSessionManager(auditLogger, eventPublisher);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
@@ -110,11 +100,11 @@ public class CoreRAGAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AICoreOperations aiNativeProcessor(
-            DistributedSessionManager sessionManager,
+            AuditLogger auditLogger,
             DistributedLockService distributedLockService,
             DistributedStrategyExecutor distributedStrategyExecutor) {
         return new AINativeProcessor(
-                sessionManager, distributedLockService, distributedStrategyExecutor);
+                auditLogger, distributedLockService, distributedStrategyExecutor);
     }
 
     @Bean

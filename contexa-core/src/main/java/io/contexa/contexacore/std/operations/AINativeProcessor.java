@@ -1,6 +1,7 @@
 package io.contexa.contexacore.std.operations;
 
 import io.contexa.contexacore.exception.AIOperationException;
+import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacommon.domain.request.AIRequest;
 import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
@@ -16,23 +17,20 @@ import java.util.UUID;
 @Slf4j
 final public class AINativeProcessor<T extends DomainContext> implements AICoreOperations<T> {
 
-    private final DistributedSessionManager<T> sessionManager;
+    private final AuditLogger auditLogger;
     private final DistributedLockService distributedLockService;
     private final DistributedStrategyExecutor<T> distributedStrategyExecutor;
     private static final Duration STRATEGIC_LOCK_TIMEOUT = Duration.ofMinutes(30);
     private static final String STRATEGIC_LOCK_PREFIX = "ai:strategy:master:";
     private final String nodeId;
 
-
-    @Autowired
-    public AINativeProcessor(DistributedSessionManager<T> sessionManager,
+    public AINativeProcessor(AuditLogger auditLogger,
                              DistributedLockService distributedLockService,
                              DistributedStrategyExecutor<T> distributedStrategyExecutor) {
-        this.sessionManager = sessionManager;
+        this.auditLogger = auditLogger;
         this.distributedLockService = distributedLockService;
         this.distributedStrategyExecutor = distributedStrategyExecutor;
         this.nodeId = System.getProperty("node.id", "master-" + UUID.randomUUID().toString().substring(0, 8));
-
     }
 
     @Override
@@ -52,11 +50,11 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                 })
                 .flatMap(id -> {
                     try {
-                        String sessionId = sessionManager.createDistributedStrategySession(request, id);
-                        String auditId = sessionManager.startAudit(request);
+                        String sessionId = UUID.randomUUID().toString();
+                        String auditId = auditLogger.startAudit(request);
                         return distributedStrategyExecutor.executeDistributedStrategyAsync(request, responseType, sessionId)
                                 .doOnSuccess(result -> {
-                                    sessionManager.completeDistributedExecution(sessionId, auditId, request, result, true);
+                                    auditLogger.completeAudit(auditId, request, result);
                                 })
                                 .doOnError(error -> {
                                     handleStrategicFailure(id, request, error);
@@ -87,8 +85,8 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     if (lockFailed) {
                         return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
                     }
-                    String sessionId = sessionManager.createDistributedStrategySession(request, strategyId);
-                    String auditId = sessionManager.startAudit(request);
+                    String sessionId = UUID.randomUUID().toString();
+                    String auditId = auditLogger.startAudit(request);
 
                     return distributedStrategyExecutor.executeDistributedStrategyStream(
                             request, (Class<R>) AIResponse.class, sessionId, auditId
