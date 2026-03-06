@@ -139,7 +139,6 @@ spring:
 | `contexa-core` | HCAD engine, 2-tier LLM orchestration, vector analysis, Zero Trust filters |
 | `contexa-identity` | Identity DSL, MFA flows (form, REST, OTT, passkey), authentication handlers |
 | `contexa-iam` | XACML policy engine (PEP/PDP/PIP/PRP), AI-driven dynamic authorization |
-| `contexa-mcp` | Spring AI MCP server integration |
 | `contexa-autoconfigure` | Spring Boot auto-configuration |
 | `spring-boot-starter-contexa` | Starter dependency |
 
@@ -154,6 +153,7 @@ spring:
 | AI Labs (core) | Yes | Yes |
 | Identity DSL (MFA) | Yes | Yes |
 | SOAR Integration | - | Yes |
+| MCP Server (AI Tool Calling) | - | Yes |
 | Monitoring (Grafana/Prometheus) | - | Yes |
 | Enterprise Dashboard | - | Yes |
 | Priority Support | - | Yes |
