@@ -1,12 +1,10 @@
-﻿<p align="center">
-  <img src="logo.png" alt="Contexa Logo" width="100" />
+﻿<p>
+  <img src="logo.png" alt="Contexa Logo" width="80" align="left" style="margin-right: 16px;" />
+  <strong style="font-size: 2em;">CONTEXA</strong><br/>
+  <em>AI-Native Zero Trust Security Platform for Spring</em>
 </p>
 
-<h1 align="center">CONTEXA</h1>
-
-<p align="center">
-  <strong>AI-Native Zero Trust Security Platform for Spring</strong>
-</p>
+<br clear="left"/>
 
 Contexa is a Spring-first security platform that connects identity, authorization, AI-assisted risk evaluation, and response orchestration into one flow.
 It is designed for teams that need to keep verifying requests after authentication, not just at login time.
