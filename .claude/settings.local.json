@@ -148,7 +148,8 @@
       "Bash(do if grep -q '[가-힣]' \"$f\")",
       "Bash(then echo \"$f\")",
       "Bash(fi)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(gh auth status)"
     ],
     "deny": [],
     "ask": []
