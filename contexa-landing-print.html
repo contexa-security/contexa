@@ -1282,7 +1282,7 @@
 
 <!-- TABLE OF CONTENTS -->
 <section class="business" id="toc" style="padding:80px 6vw;">
-  <div class="section-tag reveal">// TABLE OF CONTENTS</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">목차</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// TABLE OF CONTENTS</span></div>
   <h2 class="section-title reveal" style="margin-bottom:48px;">목차</h2>
   <div class="reveal" style="max-width:800px;">
     <ol style="list-style:none; counter-reset:toc; padding:0; margin:0;">
@@ -1344,7 +1344,7 @@
 
 <!-- PROBLEM -->
 <section class="problem" id="problem">
-  <div class="section-tag reveal">// WHY NOW</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">01 문제 정의</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// WHY NOW</span></div>
   <h2 class="section-title reveal">국내외 대형 침해,<br>모두 인증 이후에 발생했습니다.</h2>
   <p class="section-sub reveal">
     로그인은 성공했고, 보안은 정상으로 판단했습니다. 피해는 그 이후에 시작됐습니다.
@@ -1413,7 +1413,7 @@
 
 <!-- AI AGENT CRISIS -->
 <section class="agent-crisis" id="agent-crisis">
-  <div class="section-tag reveal">// THE COMING CRISIS</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">02 AI Agent 위협</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// THE COMING CRISIS</span></div>
   <h2 class="section-title reveal">AI Agent는 인증을 통과한 뒤,<br>차원이 다른 위협이 됩니다.</h2>
   <p class="section-sub reveal">
     국내외 대형 침해는 사람이 인증을 통과한 뒤 발생한 것입니다.<br>
@@ -1441,7 +1441,7 @@
     </div>
     <div class="crisis-card danger">
       <div class="crisis-label">세 번째 차이</div>
-      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--red);">진위 불가</div>
+      <div class="crisis-title" style="font-size:clamp(28px,3.5vw,40px); font-weight:800; color:var(--red);">진위 구별 불가</div>
       <div class="crisis-desc">
         인증을 통과한 정상 Agent와 동일한 자격증명.<br>
         동일한 권한, 동일한 행동 패턴.<br>
@@ -1480,7 +1480,7 @@
 
 <!-- VS -->
 <section class="versus" id="solution">
-  <div class="section-tag reveal">// PARADIGM SHIFT</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">03 솔루션</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// PARADIGM SHIFT</span></div>
   <h2 class="section-title reveal">인증을 통과해도,<br> Contexa 가 맥락으로 탐지하고 판별하고 대응합니다.</h2>
   <p class="section-sub reveal">
     사람이 인증을 통과한 뒤 침해가 발생했고, AI Agent는 그 한계를 넘어섭니다.<br>
@@ -1539,7 +1539,7 @@
 
 <!-- WHY AI-NATIVE ZERO TRUST -->
 <section class="how" id="engine">
-  <div class="section-tag reveal">// HOW CONTEXA WORKS</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">04 기술 아키텍처</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// HOW CONTEXA WORKS</span></div>
   <h2 class="section-title reveal">인증 이후, Contexa는 이렇게 판별합니다.</h2>
   <p class="section-sub reveal">
     규칙은 "이 행동이 규칙에 위반하는가"를 봅니다. 규칙에 없으면 통과입니다.<br>
@@ -1557,10 +1557,14 @@
     <!-- 시뮬레이션 본체 -->
     <div style="display:grid; grid-template-columns:1fr 1fr; border:1px solid rgba(255,255,255,0.1); overflow:hidden;">
 
-      <!-- 01 접속 -->
-      <div style="grid-column:1/-1; padding:12px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
-        <span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--muted); letter-spacing:0.1em;">01 접속</span>
-        <span style="font-family:var(--mono); font-size:13px; color:var(--muted); margin-left:12px;">동일 계정, 둘 다 인증 통과</span>
+      <!-- ── STEP 01: 접속 ── -->
+      <div style="grid-column:1/-1; padding:14px 20px; background:rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:14px;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; border:2px solid var(--muted); background:rgba(255,255,255,0.04); flex-shrink:0;">
+          <span style="font-family:var(--mono); font-size:14px; font-weight:700; color:var(--muted);">01</span>
+        </div>
+        <span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--muted); letter-spacing:0.1em;">접속</span>
+        <div style="flex:1; height:1px; background:linear-gradient(90deg, rgba(255,255,255,0.12), transparent);"></div>
+        <span style="font-family:var(--mono); font-size:16px; font-weight:600; color:var(--text);">동일 계정, 둘 다 인증 통과</span>
       </div>
       <div style="padding:24px 32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex; flex-direction:column; gap:6px;">
@@ -1579,10 +1583,22 @@
         <div style="font-family:var(--mono); font-size:13px; color:var(--muted); margin-top:12px;">인증 통과</div>
       </div>
 
-      <!-- 02 수집 -->
-      <div style="grid-column:1/-1; padding:12px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
-        <span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">02 Contexa 맥락 수집</span>
-        <span style="font-family:var(--mono); font-size:13px; color:var(--muted); margin-left:12px;">규칙으로는 둘 다 정상</span>
+      <!-- ── FLOW ARROW 01 → 02 ── -->
+      <div style="grid-column:1/-1; display:flex; align-items:center; justify-content:center; padding:6px 0; background:rgba(0,194,224,0.02);">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 6V20" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" opacity="0.5"/>
+          <path d="M8 16L14 22L20 16" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+        </svg>
+      </div>
+
+      <!-- ── STEP 02: Contexa 맥락 수집 ── -->
+      <div style="grid-column:1/-1; padding:14px 20px; background:rgba(0,194,224,0.04); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:14px;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; border:2px solid var(--cyan); background:rgba(0,194,224,0.08); flex-shrink:0;">
+          <span style="font-family:var(--mono); font-size:14px; font-weight:700; color:var(--cyan);">02</span>
+        </div>
+        <span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">Contexa 맥락 수집</span>
+        <div style="flex:1; height:1px; background:linear-gradient(90deg, rgba(0,194,224,0.25), transparent);"></div>
+        <span style="font-family:var(--mono); font-size:16px; font-weight:600; color:var(--text);">규칙으로는 둘 다 정상</span>
       </div>
       <div style="padding:24px 32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex; flex-direction:column; gap:8px;">
@@ -1590,6 +1606,9 @@
           <div style="font-size:15px; color:var(--text);">접근 순서 <span style="color:var(--cyan); font-weight:700;">평소 패턴 일치</span></div>
           <div style="font-size:15px; color:var(--text);">요청 빈도 <span style="color:var(--cyan); font-weight:700;">평소 수준</span></div>
           <div style="font-size:15px; color:var(--text);">세션 흐름 <span style="color:var(--cyan); font-weight:700;">업무 맥락에 자연스러움</span></div>
+        </div>
+        <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+          <span style="font-family:var(--mono); font-size:12px; font-weight:700; color:var(--cyan); letter-spacing:0.08em; padding:5px 14px; border:1px solid rgba(0,194,224,0.4); background:rgba(0,194,224,0.1); border-radius:3px;">정상 패턴</span>
         </div>
       </div>
       <div style="padding:24px 32px; background:rgba(230,57,70,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
@@ -1599,11 +1618,26 @@
           <div style="font-size:15px; color:var(--text);">요청 빈도 <span style="color:var(--red); font-weight:700;">대량 조회 시도</span></div>
           <div style="font-size:15px; color:var(--text);">세션 흐름 <span style="color:var(--red); font-weight:700;">목적 지향적 직행</span></div>
         </div>
+        <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+          <span style="font-family:var(--mono); font-size:12px; font-weight:700; color:var(--red); letter-spacing:0.08em; padding:5px 14px; border:1px solid rgba(230,57,70,0.4); background:rgba(230,57,70,0.1); border-radius:3px;">이상 패턴 감지</span>
+        </div>
       </div>
 
-      <!-- 03 판별 -->
-      <div style="grid-column:1/-1; padding:10px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
-        <span style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">03 AI 판별</span>
+      <!-- ── FLOW ARROW 02 → 03 ── -->
+      <div style="grid-column:1/-1; display:flex; align-items:center; justify-content:center; padding:6px 0; background:rgba(0,194,224,0.03);">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 6V20" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+          <path d="M8 16L14 22L20 16" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>
+        </svg>
+      </div>
+
+      <!-- ── STEP 03: AI 판별 ── -->
+      <div style="grid-column:1/-1; padding:14px 20px; background:rgba(0,194,224,0.06); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:14px;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; border:2px solid var(--cyan); background:rgba(0,194,224,0.15); flex-shrink:0;">
+          <span style="font-family:var(--mono); font-size:14px; font-weight:700; color:var(--cyan);">03</span>
+        </div>
+        <span style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">AI 판별</span>
+        <div style="flex:1; height:1px; background:linear-gradient(90deg, rgba(0,194,224,0.35), transparent);"></div>
       </div>
       <div style="padding:24px 32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="font-size:16px; font-weight:600; color:var(--cyan); margin-bottom:12px;">맥락 추론 결과: 정상</div>
@@ -1624,9 +1658,21 @@
         </div>
       </div>
 
-      <!-- 04 대응 -->
-      <div style="grid-column:1/-1; padding:10px 20px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06);">
-        <span style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--cyan); letter-spacing:0.1em;">04 자동 대응</span>
+      <!-- ── FLOW ARROW 03 → 04 ── -->
+      <div style="grid-column:1/-1; display:flex; align-items:center; justify-content:center; padding:6px 0; background:rgba(0,194,224,0.04);">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 6V20" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" opacity="0.7"/>
+          <path d="M8 16L14 22L20 16" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/>
+        </svg>
+      </div>
+
+      <!-- ── STEP 04: 자동 대응 ── -->
+      <div style="grid-column:1/-1; padding:14px 20px; background:rgba(6,214,160,0.06); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:14px;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:50%; border:2px solid var(--green); background:rgba(6,214,160,0.15); flex-shrink:0;">
+          <span style="font-family:var(--mono); font-size:14px; font-weight:700; color:var(--green);">04</span>
+        </div>
+        <span style="font-family:var(--mono); font-size:22px; font-weight:700; color:var(--green); letter-spacing:0.1em;">자동 대응</span>
+        <div style="flex:1; height:1px; background:linear-gradient(90deg, rgba(6,214,160,0.35), transparent);"></div>
       </div>
       <div style="padding:32px; background:rgba(0,194,224,0.03); border-right:3px solid rgba(255,255,255,0.1); display:flex; flex-direction:column; align-items:center; justify-content:center;">
         <div style="font-size:15px; color:var(--text); margin-bottom:16px;">정상 접근 허용</div>
@@ -1647,10 +1693,10 @@
 
 <!-- BUILT & READY -->
 <section class="moat" id="built">
-  <div class="section-tag reveal">// BUILT &amp; READY</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">05 제품 현황</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// BUILT &amp; READY</span></div>
   <h2 class="section-title reveal">아이디어가 아닙니다.<br>이미 작동합니다.</h2>
   <p class="section-sub reveal">
-    2,500개 파일, 8개 모듈. RC(Release Candidate) 단계의 플랫폼이 작동하고 있습니다.<br>
+    2,500개 파일, 8개 모듈. RC(Release Candidate) 초기 단계의 플랫폼이 작동하고 있습니다.<br>
     <strong>지금 바로 데모 시연이 가능합니다.</strong>
   </p>
 
@@ -1736,7 +1782,7 @@
         <div style="margin-top:12px; padding-top:20px; border-top:1px solid rgba(232,181,58,0.3);">
           <div style="display:flex; align-items:center; gap:10px;">
             <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><circle cx="11" cy="11" r="9.5" stroke="var(--gold)" stroke-width="1.5" fill="rgba(232,181,58,0.1)"/><path d="M7.5 11l2.5 2.5 5-5" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            <span style="font-size:18px; font-weight:700; color:var(--gold);">라이브 데모 가능</span>
+            <span style="font-size:18px; font-weight:700; color:var(--gold);">데모 시연 가능</span>
           </div>
           <div style="font-size:14px; color:#B0C4D8; margin-top:6px; padding-left:34px;">테스트 환경 시연 &middot; 데모 영상 준비</div>
         </div>
@@ -1747,7 +1793,7 @@
 
 <!-- WHY GLOBAL SCALE -->
 <section class="business" id="business">
-  <div class="section-tag reveal">// WHY GLOBAL SCALE</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">06 글로벌 전략</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// WHY GLOBAL SCALE</span></div>
   <h2 class="section-title reveal">보안 솔루션이 아닙니다.<br>글로벌 플랫폼입니다.</h2>
   <p class="section-sub reveal">
     오픈소스로 시작해 글로벌 플랫폼이 된 기업들이 있습니다.<br>
@@ -1757,8 +1803,8 @@
   <!-- 오픈소스 → 글로벌 플랫폼 기업 바 차트 -->
   <div class="reveal" style="max-width:1200px; margin-bottom:56px;">
     <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:24px;">
-      <div style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.1em;">OPEN SOURCE → GLOBAL PLATFORM</div>
-      <div style="font-family:var(--mono); font-size:14px; color:var(--muted);">Enterprise Value</div>
+      <div style="font-family:var(--mono); font-size:17px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">1. 오픈소스에서 글로벌 플랫폼으로</div>
+      <div style="font-family:var(--mono); font-size:14px; color:var(--text); font-weight:600;">기업 가치</div>
     </div>
     <div style="display:flex; flex-direction:column; gap:8px;">
       <div style="display:flex; align-items:center; gap:16px;">
@@ -1786,17 +1832,17 @@
         <div style="flex:1; background:rgba(0,194,224,0.08); border-radius:2px; overflow:hidden;"><div style="width:19%; height:36px; background:linear-gradient(90deg, rgba(0,194,224,0.5), rgba(0,194,224,0.2)); border-radius:2px; display:flex; align-items:center; padding-left:16px;"><span style="font-family:var(--mono); font-size:14px; font-weight:700; color:var(--text);">$6.4B</span></div></div>
         <div style="width:200px; font-size:13px; color:#B0C4D8;">Infra &rarr; IBM 인수</div>
       </div>
-      <div style="display:flex; align-items:center; gap:16px; margin-top:8px; padding-top:12px; border-top:1px dashed rgba(232,181,58,0.3);">
-        <div style="width:140px; font-family:var(--mono); font-size:14px; color:var(--gold); text-align:right; font-weight:700;">Contexa</div>
-        <div style="flex:1; background:rgba(232,181,58,0.08); border-radius:2px; overflow:hidden;"><div style="width:6%; min-width:80px; height:36px; background:linear-gradient(90deg, rgba(232,181,58,0.6), rgba(232,181,58,0.3)); border-radius:2px; display:flex; align-items:center; padding-left:16px;"><span style="font-family:var(--mono); font-size:13px; font-weight:700; color:var(--gold);">RC</span></div></div>
-        <div style="width:200px; font-size:13px; color:var(--gold); font-weight:600;">AI Zero Trust &rarr; 커뮤니티 확장 중</div>
+      <div style="display:flex; align-items:center; gap:16px; margin-top:12px; padding-top:16px; border-top:2px dashed rgba(232,181,58,0.4); background:rgba(232,181,58,0.04); padding:16px 12px; border-radius:4px;">
+        <div style="width:140px; font-family:var(--mono); font-size:18px; color:var(--gold); text-align:right; font-weight:800;">Contexa</div>
+        <div style="flex:1; background:rgba(232,181,58,0.1); border-radius:2px; overflow:hidden; border:1px solid rgba(232,181,58,0.25);"><div style="width:6%; min-width:80px; height:40px; background:linear-gradient(90deg, rgba(232,181,58,0.7), rgba(232,181,58,0.4)); border-radius:2px; display:flex; align-items:center; padding-left:16px;"><span style="font-family:var(--mono); font-size:15px; font-weight:800; color:var(--bg);">RC</span></div></div>
+        <div style="width:230px; font-size:15px; color:var(--gold); font-weight:700;">AI Zero Trust &rarr; 커뮤니티 확장 중</div>
       </div>
     </div>
   </div>
 
   <!-- Contexa가 왜 글로벌인가 — 3대 구조적 근거 -->
   <div class="reveal" style="max-width:1200px; margin-bottom:56px;">
-    <div style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.1em; margin-bottom:24px;">WHY GLOBAL BY DEFAULT</div>
+    <div style="font-family:var(--mono); font-size:17px; font-weight:700; color:var(--cyan); letter-spacing:0.08em; margin-bottom:24px;">2. Contexa가 글로벌일 수밖에 없는 이유</div>
     <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:20px;">
       <!-- 근거 1: Spring 생태계 -->
       <div style="padding:28px 24px; background:rgba(0,194,224,0.04); border:1px solid rgba(0,194,224,0.15); border-radius:2px;">
@@ -1841,7 +1887,7 @@
 
 <!-- MARKET SIZE -->
 <section class="business" id="market">
-  <div class="section-tag reveal">// MARKET SIZE</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">07 시장 규모</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// MARKET SIZE</span></div>
   <h2 class="section-title reveal">시장 규모</h2>
   <p class="section-sub reveal">
     기업이 해킹을 막기 위해 쓰는 돈은 매년 빠르게 커지고 있습니다.<br>
@@ -1910,7 +1956,7 @@
       </div>
       <div style="text-align:center;">
         <div style="font-family:var(--mono); font-size:14px; font-weight:600; color:var(--gold); margin-bottom:6px;">Contexa</div>
-        <div style="font-size:15px; color:#B0C4D8; line-height:1.6;"><strong style="color:var(--gold);">AI-Native 추론</strong></div>
+        <div style="font-size:15px; color:#B0C4D8; line-height:1.6;"><strong style="color:var(--gold);">AI-Native 맥락/추론</strong></div>
       </div>
     </div>
 
@@ -1927,7 +1973,7 @@
 
 <!-- REVENUE MODEL -->
 <section class="business" id="revenue">
-  <div class="section-tag reveal">// REVENUE MODEL</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">08 비즈니스 모델</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// REVENUE MODEL</span></div>
   <h2 class="section-title reveal">검증된 오픈 코어 수익 모델</h2>
   <p class="section-sub reveal">
     오픈소스로 표준이 되고, Enterprise로 수익을 만듭니다.<br>
@@ -1936,11 +1982,11 @@
 
   <!-- Free vs Enterprise 대비 -->
   <div class="reveal" style="max-width:1200px; margin-bottom:16px;">
-    <div style="font-family:var(--mono); font-size:13px; color:var(--gold); letter-spacing:0.1em; margin-bottom:20px;">CONTEXA OPEN CORE &mdash; Buyer-Based 오픈 코어</div>
+    <div style="font-family:var(--mono); font-size:17px; color:var(--cyan); font-weight:700; letter-spacing:0.08em; margin-bottom:10px;">1. Contexa 오픈 코어 모델 &mdash; 사용자는 개발자, 구매자는 기업</div>
     <div style="display:grid; grid-template-columns:1fr 1px 1fr; gap:40px;">
 
       <!-- 좌: Community Edition -->
-      <div style="padding:32px 0;">
+      <div style="padding:20px 0;">
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:20px;">
           <div style="font-size:20px; font-weight:700; color:var(--gold);">Community Edition</div>
           <div style="font-family:var(--mono); font-size:13px; color:var(--gold); padding:3px 10px; border:1px solid rgba(232,181,58,0.3); border-radius:3px;">FREE</div>
@@ -2008,8 +2054,8 @@
 
   <!-- 3단: 성장 선순환 그래프 -->
   <div class="reveal" style="max-width:1200px; margin-bottom:48px;">
-    <div style="font-family:var(--mono); font-size:13px; color:var(--cyan); letter-spacing:0.1em; margin-bottom:8px;">GROWTH FLYWHEEL</div>
-    <div style="font-size:15px; color:#B0C4D8; margin-bottom:32px;">무료 채택이 AI를 강화하고, AI가 강해질수록 Enterprise 전환이 가속됩니다.</div>
+    <div style="font-family:var(--mono); font-size:17px; font-weight:700; color:var(--cyan); letter-spacing:0.08em; margin-bottom:10px;">2. 성장 선순환 구조</div>
+    <div style="font-size:17px; font-weight:600; color:var(--text); margin-bottom:32px;">무료 채택이 AI를 강화하고, AI가 강해질수록 엔터프라이즈 전환이 가속됩니다.</div>
 
     <!-- 상승형 바 차트 (텍스트 바 내부) -->
     <div style="display:flex; align-items:flex-end; gap:12px; height:280px; margin-bottom:4px;">
@@ -2054,7 +2100,7 @@
 
 <!-- COMPETITION -->
 <section class="business" id="competition">
-  <div class="section-tag reveal">// COMPETITION</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">09 경쟁 분석</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// COMPETITION</span></div>
   <h2 class="section-title reveal">경쟁 분석</h2>
   <p class="section-sub reveal">
     글로벌 보안 기업들은 거대하지만, AI-Native Zero Trust를 애플리케이션 코드 레벨에서 구현한 플랫폼은 당사 조사 기준(Gartner, CB Insights, 주요 경쟁사 제품 문서 대상) 아직 확인되지 않았습니다.
@@ -2137,7 +2183,7 @@
 
 <!-- TEAM -->
 <section class="business" id="team">
-  <div class="section-tag reveal">// TEAM</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">10 팀 구성</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// TEAM</span></div>
   <h2 class="section-title reveal">팀 구성</h2>
   <p class="section-sub reveal">
     검증된 리더를 중심으로 한 '핵심 정예' 팀 구성 계획
@@ -2177,7 +2223,7 @@
 
 <!-- ROADMAP -->
 <section class="business" id="roadmap">
-  <div class="section-tag reveal">// ROADMAP</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">11 로드맵</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// ROADMAP</span></div>
   <h2 class="section-title reveal">로드맵</h2>
   <p class="section-sub reveal">
     투자금 10억원, 24개월. 제품 완성에서 시리즈 A까지의 실행 계획입니다.
@@ -2277,7 +2323,7 @@
 
 <!-- KISA -->
 <div class="kisa reveal" id="kisa" style="flex-direction:column; align-items:stretch; gap:0; padding:0; max-width:1200px;">
-  <div class="section-tag" style="padding:48px 48px 0;">// POLICY ALIGNMENT</div>
+  <div class="section-tag" style="padding:48px 48px 0; display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">12 KISA 제로트러스트 정책</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// POLICY ALIGNMENT</span></div>
   <!-- 상단: 배지 + 제목 -->
   <div style="padding:48px 48px 28px; display:flex; align-items:center; gap:32px;">
     <div class="kisa-badge">
@@ -2347,7 +2393,7 @@
 
 <!-- CTA -->
 <section class="cta-section" id="cta">
-  <div class="section-tag reveal">// CLOSING</div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--mono); font-size:18px; font-weight:700; color:var(--cyan); letter-spacing:0.08em;">13 맺음말</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// CLOSING</span></div>
   <h2 class="cta-title" style="font-size:36px; margin-bottom:16px;">
     AI 보안의 다음 표준, <em>Contexa가 만듭니다</em>
   </h2>
