@@ -1,6 +1,6 @@
-﻿<table><tr>
-<td><img src="logo.png" alt="Contexa Logo" width="80" /></td>
-<td>
+﻿<table border="0" cellspacing="0" cellpadding="0"><tr>
+<td valign="middle"><img src="logo.png" alt="Contexa Logo" width="80" /></td>
+<td valign="middle">
 <h1>CONTEXA</h1>
 <em>AI-Native Zero Trust Security Platform for Spring</em>
 </td>
