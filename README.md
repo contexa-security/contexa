@@ -21,31 +21,82 @@ Rule-based security (`@PreAuthorize`, RBAC) cannot detect threats that look like
 
 ## What Contexa Does
 
-Contexa analyzes **the context of every action after authentication** using AI, and autonomously detects and responds to anomalies in real time.
-
-- **384-dimensional context vectors** per request
-- **Behavioral pattern learning** per user
-- **Real-time threat detection** at 8ms average latency
-- **Zero-downtime migration** via Shadow Mode
+Contexa adds **AI-powered continuous verification** to your Spring application with two annotations. No code rewrites. No infrastructure changes.
 
 ```java
 @SpringBootApplication
-@EnableAIZeroTrust
+@EnableAISecurity   // activate AI Zero Trust
 public class MyApp { }
 ```
 
-One annotation. AI security is active.
+```java
+@Protectable   // this resource is now AI-protected
+@DeleteMapping("/api/users/{id}")
+public void deleteUser(@PathVariable Long id) {
+    userService.delete(id);
+}
+```
+
+Every request is analyzed through **384-dimensional context vectors**, behavioral pattern matching, and a **2-tier LLM architecture** that delivers real-time autonomous threat detection.
 
 ---
 
 ## Core Architecture
 
-### HCAD (Hierarchical Context-Aware Detection)
+### 2-Tier Detection (HCAD)
 
-| Path | Traffic | Latency | Description |
+Hierarchical Context-Aware Detection with a dual-layer LLM strategy:
+
+| Tier | Traffic | Latency | Description |
 |------|---------|---------|-------------|
-| Hot Path | 98% | 5-30ms | Fast vector-based decision |
-| Cold Path | 2% | 50ms-1s | Deep AI analysis with LLM reasoning |
+| **Layer 1** | ~95% | 5-30ms | Lightweight local LLM (context + behavior + RAG) |
+| **Layer 2** | ~5% | 50ms-1s | Expert LLM analysis with SOAR orchestration |
+
+### Zero Trust Decision Flow
+
+```
+Request
+  -> HCADFilter (384-dim context vector extraction)
+  -> Layer1 ContextualStrategy (fast LLM decision)
+  -> Layer2 ExpertStrategy (deep analysis, if escalated)
+  -> ZeroTrustAccessControlFilter (action enforcement)
+  -> CustomDynamicAuthorizationManager (XACML policy evaluation)
+```
+
+**5 autonomous actions**: `ALLOW` | `BLOCK` | `CHALLENGE` (MFA) | `ESCALATE` (human review) | `PENDING_ANALYSIS`
+
+### Identity DSL
+
+Fluent security configuration with built-in MFA, XACML, and AI session management:
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Bean
+    public PlatformConfig platformDslConfig(
+            IdentityDslRegistry<HttpSecurity> registry,
+            CustomDynamicAuthorizationManager authManager,
+            AISessionSecurityContextRepository sessionRepo) {
+
+        return registry
+            .global(http -> http
+                .authorizeHttpRequests(auth -> auth
+                    .anyRequest().access(authManager))
+                .securityContext(sc -> sc
+                    .securityContextRepository(sessionRepo)))
+            .mfa(mfa -> mfa
+                .primaryAuthentication(auth -> auth
+                    .formLogin(form -> form.defaultSuccessUrl("/dashboard")))
+                .passkey(Customizer.withDefaults()))
+            .session(Customizer.withDefaults())
+            .build();
+    }
+}
+```
+
+Supported authentication methods: `form()` | `rest()` | `ott()` | `passkey()` | `mfa()` (multi-factor)
 
 ### Shadow Mode (4-Stage Migration)
 
@@ -58,9 +109,9 @@ One annotation. AI security is active.
 
 Deploy in production on Day 1 with zero risk. Graduate to full autonomy over months.
 
-### 15 AI Labs
+### 16 AI Labs
 
-Specialized AI engines for policy, risk, behavior, anomaly, threat, context, and more. Each lab operates independently at 5-50ms response time.
+Specialized AI engines covering policy generation, risk assessment, behavior analysis, security intelligence, access control optimization, audit compliance, and more. Each lab operates independently with sub-50ms response time.
 
 ---
 
@@ -73,19 +124,20 @@ implementation 'io.contexa:spring-boot-starter-contexa:0.1.0'
 ```yaml
 # application.yml
 contexa:
-  ai:
-    mode: SHADOW
-    labs: [policy, risk]
-  vector:
-    dimensions: 384
-```
+  infrastructure:
+    mode: standalone
 
-```java
-@AISecured(risk = RiskLevel.HIGH)
-@DeleteMapping("/api/users/{id}")
-public void deleteUser(@PathVariable Long id) {
-    userService.delete(id);
-}
+spring:
+  ai:
+    ollama:
+      base-url: http://127.0.0.1:11434
+      chat:
+        options:
+          model: qwen2.5:7b
+    vectorstore:
+      pgvector:
+        dimensions: 1536
+        distance-type: COSINE_DISTANCE
 ```
 
 ---
@@ -94,11 +146,11 @@ public void deleteUser(@PathVariable Long id) {
 
 | Module | Description |
 |--------|-------------|
-| `contexa-common` | Shared annotations, DTOs, enums |
-| `contexa-core` | Core engine: HCAD, vector analysis, orchestration |
-| `contexa-identity` | Authentication: MFA, DSL-based filter chain |
-| `contexa-iam` | Access control: XACML, ABAC, dynamic policy |
-| `contexa-mcp` | AI integration via MCP (Model Context Protocol) |
+| `contexa-common` | Shared annotations (`@EnableAISecurity`, `@Protectable`), DTOs, enums |
+| `contexa-core` | HCAD engine, 2-tier LLM orchestration, vector analysis, Zero Trust filters |
+| `contexa-identity` | Identity DSL, MFA flows (form, REST, OTT, passkey), authentication handlers |
+| `contexa-iam` | XACML policy engine (PEP/PDP/PIP/PRP), AI-driven dynamic authorization |
+| `contexa-mcp` | Spring AI MCP server integration |
 | `contexa-autoconfigure` | Spring Boot auto-configuration |
 | `spring-boot-starter-contexa` | Starter dependency |
 
@@ -111,21 +163,11 @@ public void deleteUser(@PathVariable Long id) {
 | Shadow Mode | Yes | Yes |
 | HCAD Detection | Yes | Yes |
 | AI Labs (core) | Yes | Yes |
+| Identity DSL (MFA) | Yes | Yes |
 | SOAR Integration | - | Yes |
 | Monitoring (Grafana/Prometheus) | - | Yes |
 | Enterprise Dashboard | - | Yes |
 | Priority Support | - | Yes |
-
----
-
-## Roadmap
-
-| Version | Milestone |
-|---------|-----------|
-| **v0.1.0** (current) | Shadow Mode + 2 AI Labs |
-| v0.2.0 | 5 AI Labs + Advisory Mode |
-| v0.3.0 | 10 AI Labs + Hybrid Mode |
-| v1.0.0 | 15 AI Labs + Autonomous Mode (production-ready) |
 
 ---
 

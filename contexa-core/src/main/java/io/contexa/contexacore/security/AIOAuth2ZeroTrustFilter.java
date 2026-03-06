@@ -22,7 +22,6 @@ import java.io.IOException;
  * </pre>
  *
  * @see AIOAuth2SecurityContextRepository
- * @see io.contexa.contexaidentity.security.core.adapter.state.oauth2.OAuth2StateConfigurer
  */
 public class AIOAuth2ZeroTrustFilter extends OncePerRequestFilter {
 
