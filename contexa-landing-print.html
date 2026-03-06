@@ -107,6 +107,8 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: center;
+    text-align: center;
     padding: 120px 48px 80px;
     position: relative;
     overflow: hidden;
@@ -1027,6 +1029,8 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
+      align-items: center;
+      text-align: center;
       padding: 80px 20px !important;
       break-after: page;
     }
@@ -1060,7 +1064,15 @@
     /* Page 6: Engine */
     #engine {
       break-after: page;
+      padding: 20px 18px !important;
     }
+    #engine .section-sub { margin-bottom: 8px !important; }
+    #engine [style*="padding:24px 32px"] { padding: 12px 20px !important; }
+    #engine [style*="padding:32px"] { padding: 14px 20px !important; }
+    #engine [style*="padding:10px 0"] { padding: 3px 0 !important; }
+    #engine [style*="padding:14px 20px"] { padding: 6px 14px !important; }
+    #engine [style*="padding:16px 20px"] { padding: 6px 14px !important; }
+    #engine [style*="padding-bottom:14px"] { padding-bottom: 8px !important; }
 
     /* Page 7: Built & Ready (bg2 — fill page) */
     #built {
@@ -1108,7 +1120,9 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
-      justify-content: center;
+      justify-content: flex-start;
+      align-items: center;
+      padding-top: 120px !important;
     }
 
     /* prevent breaking inside key elements */
@@ -1140,15 +1154,20 @@
     #problem .problem-insight { padding: 12px 16px !important; }
     #problem .problem-insight p { font-size: 13px !important; line-height: 1.5 !important; }
 
-    /* THE COMING CRISIS: compress crisis cards */
-    #agent-crisis { padding: 32px 20px !important; }
-    #agent-crisis .crisis-grid { gap: 12px !important; }
-    #agent-crisis .crisis-card { padding: 18px !important; }
-    #agent-crisis .crisis-label { font-size: 11px !important; margin-bottom: 4px !important; }
-    #agent-crisis [style*="font-size:clamp(28px"] { font-size: 22px !important; }
-    #agent-crisis .crisis-desc { font-size: 13px !important; line-height: 1.5 !important; }
-    #agent-crisis .crisis-insight { padding: 12px 16px !important; }
-    #agent-crisis .crisis-insight p { font-size: 13px !important; line-height: 1.5 !important; }
+    /* THE COMING CRISIS: compress to fit 1 page */
+    #agent-crisis { padding: 24px 20px !important; }
+    #agent-crisis .section-title { font-size: 24px !important; margin-bottom: 8px !important; }
+    #agent-crisis .section-sub { font-size: 13px !important; margin-bottom: 12px !important; }
+    #agent-crisis [style*="margin-bottom:0"] { margin-bottom: 0 !important; }
+    #agent-crisis [style*="padding:32px 40px"] { padding: 16px 24px !important; }
+    #agent-crisis [style*="padding:28px 0"] { padding: 12px 0 !important; }
+    #agent-crisis [style*="font-size:24px"][style*="font-weight:800"] { font-size: 18px !important; }
+    #agent-crisis [style*="padding:36px 28px"] { padding: 18px 16px !important; }
+    #agent-crisis [style*="font-size:42px"] { font-size: 28px !important; }
+    #agent-crisis [style*="margin-bottom:32px"] { margin-bottom: 12px !important; }
+    #agent-crisis [style*="padding:36px 48px"] { padding: 18px 24px !important; }
+    #agent-crisis [style*="margin-bottom:48px"] { margin-bottom: 16px !important; }
+    #agent-crisis svg { max-height: 80px !important; }
 
     /* BUILT & READY: compress bar chart + code box */
     #built { padding: 28px 20px !important; }
@@ -1261,7 +1280,7 @@
     <li><a href="#competition">09 경쟁</a></li>
     <li><a href="#team">10 팀</a></li>
     <li><a href="#roadmap">11 로드맵</a></li>
-    <li><a href="#kisa">12 정책</a></li>
+    <li><a href="#kisa">12 제로트러스트</a></li>
     <li><a href="#cta">13 맺음말</a></li>
   </ul>
 </nav>
@@ -1282,10 +1301,10 @@
 
   <p style="font-family:var(--mono); font-size:clamp(20px, 2.5vw, 28px); letter-spacing:0.12em; color:var(--muted); margin-top:36px;">AI-Native Zero Trust Platform &mdash; <span style="font-weight:600; color:var(--text);">CONTE<span style="color:var(--cyan);">X</span>A</span></p>
 
-  <div style="margin-top:64px; font-family:var(--mono); font-size:13px; color:var(--muted); letter-spacing:0.08em; display:flex; gap:24px;">
-    <span>정수원</span>
+  <div style="margin-top:64px; font-size:15px; color:var(--muted); letter-spacing:0.08em; display:flex; gap:24px;">
+    <span style="font-weight:700;">정수원</span>
     <span style="opacity:0.4;">|</span>
-    <span>2026.03</span>
+    <span style="font-family:var(--mono);">2026.03</span>
   </div>
 
 </section>
@@ -1342,7 +1361,7 @@
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0; border-bottom:1px solid rgba(255,255,255,0.06);">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">12</span>
-        <a href="#kisa" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">정부 정책 정합성 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Policy Alignment</span></a>
+        <a href="#kisa" style="color:var(--text); text-decoration:none; font-size:17px; font-weight:500; flex:1;">제로트러스트 정책 대응 <span style="color:var(--muted); font-weight:300; font-size:14px; margin-left:8px;">Policy Alignment</span></a>
       </li>
       <li style="display:flex; align-items:baseline; padding:14px 0;">
         <span style="font-family:var(--mono); font-size:14px; color:var(--cyan); min-width:32px;">13</span>
@@ -1926,8 +1945,8 @@
     </div>
     <div style="height:1px; background:linear-gradient(90deg, var(--gold), transparent 60%); margin-bottom:24px;"></div>
 
-    <div style="text-align:center; font-size:clamp(20px,2.2vw,28px); font-weight:800; color:var(--text); line-height:1.5; margin-bottom:32px;">
-      신규 및 레거시 시스템에 <span style="color:var(--gold); border-bottom:2px solid var(--gold);">어노테이션 두 개</span>만 추가하면 Contexa 가 즉시 동작합니다.
+    <div style="text-align:center; font-size:clamp(20px,2.2vw,28px); font-weight:400; color:var(--text); line-height:1.5; margin-bottom:32px;">
+      신규 및 레거시 시스템에 <span style="font-weight:800; color:var(--gold); border-bottom:2px solid var(--gold);">단어 두 개</span>만 추가하면 Contexa 가 즉시 동작합니다.
     </div>
 
     <div style="background:rgba(10,15,30,0.8); border:1px solid rgba(255,209,102,0.3); border-radius:6px; padding:24px 48px; display:flex; justify-content:space-between; align-items:center; margin-bottom:36px;">
@@ -2278,7 +2297,7 @@
 <!-- COMPETITION -->
 <section class="business" id="competition">
   <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">09</span> <span style="font-family:'Noto Serif KR',serif; font-size:18px; font-weight:700; color:var(--cyan);">경쟁 분석</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// COMPETITION</span></div>
-  <h2 class="section-title reveal">경쟁이 아닙니다. 이들이 커버하지 않는 레이어를 채웁니다.</h2>
+  <h2 class="section-title reveal">경쟁이 아닙니다. </br> 이들이 다루지 않는 영역을 만들고 있습니다.</h2>
   <p class="section-sub reveal">
     기존 보안 솔루션은 네트워크, 엔드포인트, ID 레벨에서 강력한 방어를 제공합니다.<br>
     Contexa는 이들과 경쟁하지 않습니다. <strong style="color:var(--text);">인증 이후, 애플리케이션 코드 내부</strong>라는 이들이 다루지 않는 레이어에서 동작합니다.
@@ -2552,11 +2571,11 @@
 
 <!-- KISA -->
 <div class="kisa reveal" id="kisa" style="flex-direction:column; align-items:stretch; gap:0; padding:0; max-width:1200px;">
-  <div class="section-tag" style="padding:48px 48px 0; display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">12</span> <span style="font-family:'Noto Serif KR',serif; font-size:18px; font-weight:700; color:var(--cyan);">정부 정책 정합성</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// POLICY ALIGNMENT</span></div>
+  <div class="section-tag" style="padding:48px 48px 0; display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">12</span> <span style="font-family:'Noto Serif KR',serif; font-size:18px; font-weight:700; color:var(--cyan);">제로트러스트 정책 대응</span><span style="font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:0.15em;">// POLICY ALIGNMENT</span></div>
 
   <!-- 상단: 제목 -->
   <div style="padding:48px 48px 32px;">
-    <h3 style="font-family:var(--serif); font-size:26px; margin-bottom:12px;">정부가 시장을 열고 있습니다</h3>
+    <h3 style="font-family:var(--serif); font-size:26px; margin-bottom:12px;">정부의 제로트러스트 가이드라인, Contexa가 이미 하고 있습니다</h3>
     <p style="font-size:15px; color:var(--muted); line-height:1.7; max-width:none;">
       대한민국 정부는 제로트러스트를 국가 사이버 보안의 핵심 전략으로 채택했습니다.<br>
       <strong style="color:var(--text);">정책이 수요를 만들고, Contexa는 그 수요에 가장 빠르게 대응할 수 있는 제품을 이미 만들고 있습니다.</strong>
