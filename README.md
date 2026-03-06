@@ -1,5 +1,5 @@
 ﻿<p align="center">
-  <img src="logo.png" alt="Contexa Logo" width="200" />
+  <img src="logo.png" alt="Contexa Logo" />
 </p>
 
 <h1 align="center">CONTEXA</h1>
