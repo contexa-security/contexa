@@ -18,9 +18,6 @@ io.contexa.autoconfigure.core.llm.CoreLLMAutoConfiguration
 # Core Advisor
 io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration
 
-# Enterprise Tool
-io.contexa.autoconfigure.enterprise.tool.EnterpriseToolAutoConfiguration
-
 # Core RAG
 io.contexa.autoconfigure.core.rag.CoreRAGAutoConfiguration
 
@@ -37,15 +34,6 @@ io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousEventAutoConfiguration
 io.contexa.autoconfigure.core.autonomous.CoreAutonomousStrategyAutoConfiguration
-
-# Enterprise JPA (Repository & Entity)
-io.contexa.autoconfigure.enterprise.EnterpriseJpaAutoConfiguration
-
-# Enterprise Dashboard
-io.contexa.autoconfigure.enterprise.dashboard.EnterpriseDashboardAutoConfiguration
-
-# Enterprise SOAR
-io.contexa.autoconfigure.enterprise.soar.EnterpriseSoarAutoConfiguration
 
 # Identity StateMachine
 io.contexa.autoconfigure.identity.IdentityStateMachineAutoConfiguration
@@ -102,9 +90,6 @@ io.contexa.autoconfigure.iam.admin.IamAdminMonitoringAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminStudioAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminWorkflowAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminBlacklistAutoConfiguration
-
-# IAM Enterprise Admin
-io.contexa.autoconfigure.iam.admin.IamEnterpriseAutoConfiguration
 
 # IAM Security Core
 io.contexa.autoconfigure.iam.IamSecurityCoreAutoConfiguration
