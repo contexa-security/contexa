@@ -9,8 +9,8 @@ import java.util.Map;
 
 /**
  * Inter-module security action event DTO.
- * Published from contexa-mcp tools via Spring ApplicationEventPublisher.
- * Consumed by contexa-core-enterprise listeners for orchestration.
+ * Published via SecurityActionEventPublisher (NoOp in community, Kafka in enterprise).
+ * Consumed by enterprise KafkaSecurityActionEventConsumer for SOAR orchestration.
  */
 @Data
 @Builder

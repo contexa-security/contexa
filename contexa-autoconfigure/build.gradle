@@ -38,10 +38,8 @@ dependencies {
     compileOnly 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     compileOnly("org.redisson:redisson-spring-boot-starter:3.48.0")
 
-    // Spring AI MCP (contexa-core, contexa-mcp 사용)
+    // Spring AI MCP Client (contexa-core ToolResolver 사용)
     compileOnly 'org.springframework.ai:spring-ai-starter-mcp-client'
-    compileOnly 'org.springframework.ai:spring-ai-starter-mcp-server'
-    compileOnly 'org.springframework.ai:spring-ai-starter-mcp-server-webmvc'
 }
 
 // 라이브러리 모듈이므로 bootJar 비활성화
