@@ -141,13 +141,13 @@ public class Application {
 <dependency>
     <groupId>io.contexa</groupId>
     <artifactId>contexa-spring-boot-starter</artifactId>
-    <version>0.1.0-ALPHA</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
 ```gradle
 // build.gradle
-implementation 'io.contexa:contexa-spring-boot-starter:0.1.0-ALPHA'
+implementation 'io.contexa:contexa-spring-boot-starter:0.1.0'
 ```
 
 ### 2. 설정 추가
@@ -455,7 +455,7 @@ Contexa AI Security:
 
 ## ⚠️ 중요 고지사항
 
-### 🚧 알파 버전 (v0.1.0-ALPHA)
+### 🚧 알파 버전 (v0.1.0)
 
 **현재 상태**:
 - ✅ 핵심 아키텍처 완성
@@ -472,7 +472,7 @@ Contexa AI Security:
 ### 🎯 로드맵
 
 ```
-✅ v0.1.0-ALPHA (현재)
+✅ v0.1.0 (현재)
    └─ Shadow Mode + 2 AI Labs
 
 🔄 v0.2.0-ALPHA (3개월)

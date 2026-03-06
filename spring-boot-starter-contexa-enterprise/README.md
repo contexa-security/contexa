@@ -21,7 +21,7 @@ Contexa Enterprise Edition은 Community Edition의 모든 기능에 더하여 �
 Gradle:
 ```gradle
 dependencies {
-    implementation 'io.contexa:spring-boot-starter-contexa-enterprise:0.1.0-ALPHA'
+    implementation 'io.contexa:spring-boot-starter-contexa-enterprise:0.1.0'
 }
 ```
 
@@ -30,7 +30,7 @@ Maven:
 <dependency>
     <groupId>io.contexa</groupId>
     <artifactId>spring-boot-starter-contexa-enterprise</artifactId>
-    <version>0.1.0-ALPHA</version>
+    <version>0.1.0</version>
 </dependency>
 ```
 
@@ -121,10 +121,10 @@ Enterprise Edition은 다음 인프라를 필수로 요구합니다:
 1. 의존성 변경:
 ```gradle
 // Before
-implementation 'io.contexa:spring-boot-starter-contexa:0.1.0-ALPHA'
+implementation 'io.contexa:spring-boot-starter-contexa:0.1.0'
 
 // After
-implementation 'io.contexa:spring-boot-starter-contexa-enterprise:0.1.0-ALPHA'
+implementation 'io.contexa:spring-boot-starter-contexa-enterprise:0.1.0'
 ```
 
 2. Enterprise 기능 활성화:
