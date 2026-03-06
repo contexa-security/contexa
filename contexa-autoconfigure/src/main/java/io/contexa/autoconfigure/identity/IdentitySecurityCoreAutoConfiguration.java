@@ -280,13 +280,13 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             AuthResponseWriter authResponseWriter,
             MfaSessionRepository mfaSessionRepository,
-            UserIdentificationService userIdentificationService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRepository actionRedisRepository,
-            AuthContextProperties authContextProperties) {
+            AuthContextProperties authContextProperties,
+            IBlockedUserRecorder blockedUserRecorder) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
-                mfaSessionRepository, userIdentificationService, zeroTrustEventPublisher, actionRedisRepository,
-                authContextProperties.getMfa());
+                mfaSessionRepository, zeroTrustEventPublisher, actionRedisRepository,
+                authContextProperties.getMfa(),blockedUserRecorder);
     }
 
     @Bean

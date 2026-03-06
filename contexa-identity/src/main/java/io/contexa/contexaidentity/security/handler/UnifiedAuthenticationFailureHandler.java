@@ -37,29 +37,25 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
-    private final UserIdentificationService userIdentificationService;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRepository actionRedisRepository;
     private final MfaSettings mfaSettings;
-
-    @Setter
-    @Autowired(required = false)
-    private IBlockedUserRecorder blockedUserRecorder;
+    private final IBlockedUserRecorder blockedUserRecorder;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
                                                MfaSessionRepository sessionRepository,
-                                               UserIdentificationService userIdentificationService,
                                                ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                ZeroTrustActionRepository actionRedisRepository,
-                                               MfaSettings mfaSettings) {
+                                               MfaSettings mfaSettings,
+                                               IBlockedUserRecorder blockedUserRecorder) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
-        this.userIdentificationService = userIdentificationService;
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
         this.actionRedisRepository = actionRedisRepository;
         this.mfaSettings = mfaSettings;
+        this.blockedUserRecorder = blockedUserRecorder;
     }
 
     @Override

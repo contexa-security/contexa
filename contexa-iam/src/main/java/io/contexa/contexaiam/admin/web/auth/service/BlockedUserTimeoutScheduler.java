@@ -31,10 +31,10 @@ public class BlockedUserTimeoutScheduler {
     @Scheduled(fixedDelay = 3600000)
     public void checkBlockedUserTimeout() {
         LocalDateTime threshold = LocalDateTime.now().minusHours(TIMEOUT_HOURS);
-        List<BlockedUser> timedOut = blockedUserJpaRepository
+        List<BlockedUser> blockedUsers = blockedUserJpaRepository
                 .findByStatusAndBlockedAtBefore(BlockedUserStatus.BLOCKED, threshold);
 
-        for (BlockedUser user : timedOut) {
+        for (BlockedUser user : blockedUsers) {
             log.error("Blocked user timeout - auto response triggered. userId={}, blockedAt={}",
                     user.getUserId(), user.getBlockedAt());
 
