@@ -1,6 +1,6 @@
 ﻿<p>
   <img src="logo.png" alt="Contexa Logo" width="80" align="left" style="margin-right: 16px;" />
-  <strong style="font-size: 2em;">CONTEXA</strong><br/>
+  <h1 style="display:inline; margin:0;">CONTEXA</h1><br/>
   <em>AI-Native Zero Trust Security Platform for Spring</em>
 </p>
 
