@@ -166,26 +166,20 @@ public class RedisDistributedLockService implements DistributedLockService {
                     owner
             );
 
-            if (result == null) {
-                log.warn("Lock release failed for resource: {} (key: {}) - Redis script returned null",
-                        resourceKey, sanitizedKey);
-                return false;
-            }
-
             if (result > 0) {
                                 return true;
             } else if (result == -1) {
-                log.warn("Lock release failed for resource: {} (key: {}) - Lock doesn't exist (expired or already deleted)",
+                log.error("Lock release failed for resource: {} (key: {}) - Lock doesn't exist (expired or already deleted)",
                         resourceKey, sanitizedKey);
                 logLockStatus(lockKey, resourceKey, sanitizedKey);
                 return false;
             } else if (result == -2) {
-                log.warn("Lock release failed for resource: {} (key: {}) - Owner mismatch (expected: {})",
+                log.error("Lock release failed for resource: {} (key: {}) - Owner mismatch (expected: {})",
                         resourceKey, sanitizedKey, owner);
                 logLockStatus(lockKey, resourceKey, sanitizedKey);
                 return false;
             } else {
-                log.warn("Lock release failed for resource: {} (key: {}) - Unknown error (result: {})",
+                log.error("Lock release failed for resource: {} (key: {}) - Unknown error (result: {})",
                         resourceKey, sanitizedKey, result);
                 logLockStatus(lockKey, resourceKey, sanitizedKey);
                 return false;
@@ -243,8 +237,6 @@ public class RedisDistributedLockService implements DistributedLockService {
             
             Boolean exists = redisTemplate.hasKey(lockKey);
             if (exists == null || !exists) {
-                log.warn("Lock status for resource: {} (key: {}) - DOES NOT EXIST",
-                        resourceKey, sanitizedKey);
                 return;
             }
 
@@ -252,14 +244,9 @@ public class RedisDistributedLockService implements DistributedLockService {
             String count = (String) redisTemplate.opsForHash().get(lockKey, "count");
             Long ttl = redisTemplate.getExpire(lockKey, TimeUnit.SECONDS);
             
-            log.warn("Lock status for resource: {} (key: {}) - Owner: {}, Count: {}, TTL: {}s",
-                    resourceKey, sanitizedKey, 
-                    currentOwner != null ? currentOwner : "unknown",
-                    count != null ? count : "0",
-                    ttl != null ? ttl : -1);
-                    
+
         } catch (Exception e) {
-            log.warn("Failed to get lock status for resource: {} (key: {}) - {}",
+            log.error("Failed to get lock status for resource: {} (key: {}) - {}",
                     resourceKey, sanitizedKey, e.getMessage());
         }
     }
@@ -275,7 +262,7 @@ public class RedisDistributedLockService implements DistributedLockService {
             }
 
             Object countObj = redisTemplate.opsForHash().get(lockKey, "count");
-            Integer count = countObj != null ? Integer.valueOf(countObj.toString()) : 0;
+            int count = countObj != null ? Integer.valueOf(countObj.toString()) : 0;
 
             Long ttl = redisTemplate.getExpire(lockKey, TimeUnit.SECONDS);
 
@@ -299,7 +286,6 @@ public class RedisDistributedLockService implements DistributedLockService {
         try {
             Boolean deleted = redisTemplate.delete(lockKey);
             if (Boolean.TRUE.equals(deleted)) {
-                log.warn("Force unlocked resource: {} (key: {})", resourceKey, sanitizedKey);
                 return true;
             }
             return false;
@@ -314,7 +300,6 @@ public class RedisDistributedLockService implements DistributedLockService {
             Set<String> keys = redisTemplate.keys(LOCK_PREFIX + "*");
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);
-                log.warn("Cleared {} locks", keys.size());
             }
         } catch (Exception e) {
             log.error("Failed to clear all locks", e);
@@ -326,7 +311,7 @@ public class RedisDistributedLockService implements DistributedLockService {
         String lockKey = LOCK_PREFIX + sanitizedKey;
 
         try {
-            return Boolean.TRUE.equals(redisTemplate.hasKey(lockKey));
+            return redisTemplate.hasKey(lockKey);
         } catch (Exception e) {
             log.error("Failed to check lock existence for resource: {}", resourceKey, e);
             return false;

@@ -14,7 +14,7 @@ import java.util.UUID;
 public final class RequestInfoExtractor {
 
     private RequestInfoExtractor() {
-        
+
     }
 
     public static RequestInfo extract(HttpServletRequest request, TieredStrategyProperties.Security security) {
@@ -56,27 +56,20 @@ public final class RequestInfoExtractor {
         List<String> trustedProxies = security.getTrustedProxies();
 
         if (trustedProxies == null || trustedProxies.isEmpty()) {
-                        return remoteAddr;
+            return remoteAddr;
         }
 
         if (isTrustedProxy(remoteAddr, trustedProxies)) {
-            
+
             String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
                 String clientIp = xForwardedFor.split(",")[0].trim();
-                                return clientIp;
+                return clientIp;
             }
 
             String xRealIp = request.getHeader("X-Real-IP");
             if (xRealIp != null && !xRealIp.isEmpty()) {
-                                return xRealIp;
-            }
-        } else {
-
-            String xForwardedFor = request.getHeader("X-Forwarded-For");
-            if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
-                log.warn("[RequestInfoExtractor] Untrusted source {} sent X-Forwarded-For header (ignored): {}",
-                        remoteAddr, xForwardedFor);
+                return xRealIp;
             }
         }
 
@@ -119,7 +112,7 @@ public final class RequestInfoExtractor {
                     }
                 }
             } catch (Exception e) {
-                log.warn("[RequestInfoExtractor] Invalid trusted proxy format: {}", trusted, e);
+                log.error("[RequestInfoExtractor] Invalid trusted proxy format: {}", trusted, e);
             }
         }
 
@@ -162,7 +155,7 @@ public final class RequestInfoExtractor {
 
             return true;
         } catch (Exception e) {
-                        return false;
+            return false;
         }
     }
 

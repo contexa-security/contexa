@@ -37,6 +37,7 @@ public class ContexaRagProperties {
         private int batchSize = 100;
         private int chunkSize = 500;
         private int chunkOverlap = 50;
+        private String vectorTableName = "vector_store";
 
         @NestedConfigurationProperty
         private Behavior behavior = new Behavior();

@@ -142,8 +142,6 @@ public class DefaultStandardStreamingService implements StandardStreamingService
             return Flux.empty();
         }
         return streamingContext.getSentenceBuffer().flush()
-                .doOnNext(data -> log.debug("[SSE-FLUSH] Flushing data: {}",
-                    data.length() > 100 ? data.substring(0, 100) + "..." : data))
                 .map(this::createDataEvent);
     }
 

@@ -229,9 +229,8 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public PipelineOrchestrator pipelineOrchestrator(
-            List<PipelineExecutor> executors,
-            List<AIStrategy<?, ?>> strategies) {
-        return new PipelineOrchestrator(executors, strategies);
+            List<PipelineExecutor> executors) {
+        return new PipelineOrchestrator(executors);
     }
 
     @Bean

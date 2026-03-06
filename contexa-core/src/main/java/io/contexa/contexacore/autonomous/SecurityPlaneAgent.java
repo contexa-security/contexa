@@ -15,6 +15,7 @@ import org.springframework.boot.CommandLineRunner;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,13 +30,11 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final SecurityEventProcessor securityEventProcessor;
     private final SecurityPlaneProperties securityPlaneProperties;
 
-    private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
 
     @PostConstruct
     public void initialize() {
-        currentState = AgentState.INITIALIZING;
         securityMonitor.setBatchProcessor(this::processBatch);
     }
 
@@ -77,7 +76,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     public void start() {
         String agentName = securityPlaneProperties.getAgent().getName();
         if (running.compareAndSet(false, true)) {
-            currentState = AgentState.RUNNING;
         } else {
             log.error("Agent {} is already running", agentName);
         }
@@ -86,7 +84,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Override
     public void stop() {
         if (running.compareAndSet(true, false)) {
-            currentState = AgentState.STOPPING;
         }
     }
 

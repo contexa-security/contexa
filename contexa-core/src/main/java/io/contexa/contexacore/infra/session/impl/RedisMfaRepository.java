@@ -103,7 +103,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 request.setAttribute(TEMP_SESSION_ATTR, sessionId);
                 return sessionId;
             }
-            log.warn("Generated session ID {} was not unique or secure enough for Redis (attempt: {}). Retrying.",
+            log.error("Generated session ID {} was not unique or secure enough for Redis (attempt: {}). Retrying.",
                     sessionId, attempt + 1);
 
             try {
@@ -131,7 +131,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
         }
 
         if (!isValidSessionIdFormat(sessionIdFromCookie)) {
-            log.warn("Invalid session ID format found in cookie: {}. Discarding.", sessionIdFromCookie);
+            log.error("Invalid session ID format found in cookie: {}. Discarding.", sessionIdFromCookie);
 
             return null;
         }
@@ -192,9 +192,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
         if (!StringUtils.hasText(sessionId)) return;
         String redisKey = SESSION_PREFIX + sessionId;
         Boolean refreshed = redisTemplate.expire(redisKey, sessionTimeout);
-        if (Boolean.TRUE.equals(refreshed)) {
-        } else {
-            log.warn("Attempted to refresh TTL for non-existent or already expired session in Redis: {}", sessionId);
+        if (!Boolean.TRUE.equals(refreshed)) {
         }
     }
 
@@ -212,7 +210,7 @@ public class RedisMfaRepository implements MfaSessionRepository {
         if (timeout != null && !timeout.isNegative() && !timeout.isZero()) {
             this.sessionTimeout = timeout;
         } else {
-            log.warn("Invalid session timeout value provided: {}. Retaining current: {}", timeout, this.sessionTimeout);
+            log.error("Invalid session timeout value provided: {}. Retaining current: {}", timeout, this.sessionTimeout);
         }
     }
 
@@ -287,10 +285,10 @@ public class RedisMfaRepository implements MfaSessionRepository {
                 redisTemplate.opsForHash().put(SESSION_STATS_KEY, "lastUpdate", String.valueOf(Instant.now().toEpochMilli()));
                 redisTemplate.expire(SESSION_STATS_KEY, 7, TimeUnit.DAYS);
             } catch (Exception e) {
-                log.warn("Failed to update session stats in Redis asynchronously", e);
+                log.error("Failed to update session stats in Redis asynchronously", e);
             }
         }).exceptionally(e -> {
-            log.warn("Async session stat update failed: {}", e.getMessage());
+            log.error("Async session stat update failed: {}", e.getMessage());
             return null;
         });
     }

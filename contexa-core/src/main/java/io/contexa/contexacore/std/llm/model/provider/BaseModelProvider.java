@@ -67,7 +67,7 @@ public abstract class BaseModelProvider implements ModelProvider {
     public void initialize(Map<String, Object> config) {
         try {
             if (!isProviderEnabled()) {
-                log.warn("{} is disabled or not configured", getProviderName());
+                log.error("{} is disabled or not configured", getProviderName());
                 ready = false;
                 return;
             }

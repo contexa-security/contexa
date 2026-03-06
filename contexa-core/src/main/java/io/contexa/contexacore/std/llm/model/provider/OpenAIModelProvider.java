@@ -58,7 +58,7 @@ public class OpenAIModelProvider extends BaseModelProvider {
     @Override
     protected void doInitialize(Map<String, Object> config) {
         if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("OpenAI API key is not set, but continuing");
+            log.error("OpenAI API key is not set, but continuing");
         }
     }
 

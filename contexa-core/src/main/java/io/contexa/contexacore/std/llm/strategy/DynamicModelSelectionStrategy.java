@@ -25,8 +25,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         this.modelRegistry = modelRegistry;
         this.tieredLLMProperties = tieredLLMProperties;
         this.primaryChatModel = primaryChatModel;
-        log.info("DynamicModelSelectionStrategy initialized with primaryChatModel: {}",
-                primaryChatModel != null ? primaryChatModel.getClass().getSimpleName() : "null");
     }
 
     @Override
@@ -38,7 +36,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                 if (modelName != null) {
                     ChatModel model = tryGetModel(modelName);
                     if (model != null) {
-                        log.debug("Tier {} using configured model: {}", context.getTier(), modelName);
                         return model;
                     }
 
@@ -47,7 +44,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
                     if (backupModel != null) {
                         model = tryGetModel(backupModel);
                         if (model != null) {
-                            log.debug("Tier {} using backup model: {}", context.getTier(), backupModel);
                             return model;
                         }
                     }
@@ -58,19 +54,17 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
             if (context.getPreferredModel() != null && !context.getPreferredModel().isEmpty()) {
                 ChatModel model = tryGetModel(context.getPreferredModel());
                 if (model != null) {
-                    log.debug("Using preferred model: {}", context.getPreferredModel());
                     return model;
                 }
-                log.warn("Preferred model {} not available, falling back", context.getPreferredModel());
+                log.error("Preferred model {} not available, falling back", context.getPreferredModel());
             }
 
             // 3. primaryChatModel fallback (auto-inheritance)
             if (primaryChatModel != null) {
-                log.debug("Using primaryChatModel fallback: {}", primaryChatModel.getClass().getSimpleName());
                 return primaryChatModel;
             }
 
-            log.warn("No model available - RequestId: {}. LLM features disabled.", context.getRequestId());
+            log.error("No model available - RequestId: {}. LLM features disabled.", context.getRequestId());
             return null;
 
         } catch (Exception e) {
@@ -83,7 +77,6 @@ public class DynamicModelSelectionStrategy implements ModelSelectionStrategy {
         try {
             return modelRegistry.getModel(modelId);
         } catch (Exception e) {
-            log.debug("Model {} not available: {}", modelId, e.getMessage());
             return null;
         }
     }

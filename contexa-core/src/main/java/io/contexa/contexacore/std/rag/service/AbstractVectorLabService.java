@@ -267,7 +267,7 @@ public abstract class AbstractVectorLabService implements VectorOperations {
         }
     }
 
-    private Filter.Expression buildFilterExpression(Map<String, Object> filters) {
+    protected Filter.Expression buildFilterExpression(Map<String, Object> filters) {
         if (filters == null || filters.isEmpty()) {
             return null;
         }

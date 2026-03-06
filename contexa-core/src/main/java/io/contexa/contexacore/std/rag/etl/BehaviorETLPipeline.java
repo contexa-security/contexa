@@ -299,7 +299,7 @@ public class BehaviorETLPipeline {
 
         try {
             List<String> oldDocumentIds = jdbcTemplate.queryForList(
-                "SELECT id FROM vector_store WHERE metadata->>'timestamp' < ?",
+                "SELECT id FROM " + ragProperties.getEtl().getVectorTableName() + " WHERE metadata->>'timestamp' < ?",
                 String.class,
                 cutoffDateStr
             );

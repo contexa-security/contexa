@@ -39,13 +39,8 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                                              AtomicBoolean jsonEnded,
                                              AtomicReference<StringBuilder> jsonBuffer) {
 
-        log.debug("content={}", chunk.length() > 100 ? chunk.substring(0, 100) + "..." : chunk);
-
         textBuffer.get().append(chunk);
         String buffer = textBuffer.get().toString();
-
-//        log.debug("[STATE] jsonStarted={}, jsonEnded={}, bufferLen={}, jsonBufferLen={}",
-//            jsonStarted.get(), jsonEnded.get(), buffer.length(), jsonBuffer.get().length());
 
         if (!jsonStarted.get() && buffer.contains(StreamingProtocol.JSON_START_MARKER)) {
             jsonStarted.set(true);
@@ -57,9 +52,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
             textBuffer.set(new StringBuilder(afterMarker));
             jsonBuffer.set(new StringBuilder());
 
-//            log.debug("[JSON_START] detected at index={}, beforeJson length={}, afterMarker length={}",
-//                startIndex, beforeJson.length(), afterMarker.length());
-
             List<String> results = new ArrayList<>();
             if (!beforeJson.trim().isEmpty()) {
                 results.add(StreamingProtocol.STREAMING_MARKER + beforeJson);
@@ -70,9 +62,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
 
         if (jsonStarted.get() && !jsonEnded.get()) {
             String currentText = textBuffer.get().toString();
-
-//            log.debug("[JSON_ACCUMULATING] currentText length={}, contains END_MARKER={}",
-//                currentText.length(), currentText.contains(StreamingProtocol.JSON_END_MARKER));
 
             if (currentText.contains(StreamingProtocol.JSON_END_MARKER)) {
                 jsonEnded.set(true);
@@ -107,13 +96,10 @@ public class JsonStreamingProcessor implements ChunkProcessor {
                 }
                 textBuffer.set(new StringBuilder(toKeep));
 
-//                log.debug("[JSON_BUFFER] partial accumulate, jsonBufferLen={}, keeping={}",
-//                    jsonBuffer.get().length(), toKeep);
             } else {
                 jsonBuffer.get().append(currentText);
                 textBuffer.set(new StringBuilder());
 
-//                log.debug("[JSON_BUFFER] full accumulate, total jsonBuffer length={}", jsonBuffer.get().length());
             }
 
             return Flux.empty();
@@ -166,14 +152,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
         return Flux.empty();
     }
 
-    /**
-     * Find index where an incomplete marker might start at the end of the buffer.
-     * Returns -1 if no incomplete marker prefix is found.
-     *
-     * Checks if any suffix of the buffer could be the start of:
-     * - ===JSON_START===
-     * - ===JSON_END===
-     */
     private int findIncompleteMarkerIndex(String text) {
         if (text == null || text.isEmpty()) {
             return -1;
@@ -194,10 +172,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
         return -1;
     }
 
-    /**
-     * Handle stream completion when JSON_END marker was never received.
-     * Emits accumulated JSON buffer as FINAL_RESPONSE with repair attempt.
-     */
     private Mono<String> handleStreamCompletion(AtomicBoolean jsonStarted,
                                                 AtomicBoolean jsonEnded,
                                                 AtomicReference<StringBuilder> jsonBuffer,
@@ -243,69 +217,32 @@ public class JsonStreamingProcessor implements ChunkProcessor {
         return chunk.replaceAll("[\\x00-\\x08\\x0B\\x0C\\x0E-\\x1F\\x7F]", "");
     }
 
-    /**
-     * Repair common JSON syntax errors from LLM output.
-     * Fixes missing commas between array elements and object properties.
-     */
     private String repairJson(String json) {
         if (json == null || json.isEmpty()) {
             return json;
         }
 
-        log.debug("[REPAIR_JSON] Input JSON (first 500 chars): {}",
-            json.length() > 500 ? json.substring(0, 500) + "..." : json);
-        log.debug("[REPAIR_JSON] Input JSON (last 500 chars): {}",
-            json.length() > 500 ? "..." + json.substring(json.length() - 500) : json);
-
         String repaired = json.trim();
 
         // Fix missing comma after closing bracket before next key: ]" -> ],"
-        String before1 = repaired;
         repaired = repaired.replaceAll("\\]\\s*\"", "],\"");
-        if (!before1.equals(repaired)) {
-            log.debug("[REPAIR_JSON] Applied pattern 1: ]\" -> ],\"");
-        }
 
         // Fix missing comma after closing brace before next key: }" -> },"
         // But not for the last brace in the JSON
-        String before2 = repaired;
         repaired = repaired.replaceAll("\\}\\s*\"(?!\\s*$)", "},\"");
-        if (!before2.equals(repaired)) {
-            log.debug("[REPAIR_JSON] Applied pattern 2: }\" -> },\"");
-        }
 
         // Fix missing comma between array elements: }{ -> },{
-        String before3 = repaired;
         repaired = repaired.replaceAll("\\}\\s*\\{", "},{");
-        if (!before3.equals(repaired)) {
-            log.debug("[REPAIR_JSON] Applied pattern 3: }{ -> },{");
-        }
 
         // Fix missing comma between arrays: ][ -> ],[
-        String before4 = repaired;
         repaired = repaired.replaceAll("\\]\\s*\\[", "],[");
-        if (!before4.equals(repaired)) {
-            log.debug("[REPAIR_JSON] Applied pattern 4: ][ -> ],[");
-        }
 
         // Fix missing array close and comma before next key: } }" -> }],"
         // This happens when LLM forgets to close array before next object key
-        String before5 = repaired;
         repaired = repaired.replaceAll("\\}\\s*\\}\\s*\"", "}],\"");
-        if (!before5.equals(repaired)) {
-            log.debug("[REPAIR_JSON] Applied pattern 5: } }\" -> }],\"");
-        }
 
         // Validate and try to fix bracket balance
-        String before6 = repaired;
         repaired = fixBracketBalance(repaired);
-        if (!before6.equals(repaired)) {
-            log.debug("[REPAIR_JSON] Applied bracket balance fix");
-        }
-
-        log.debug("[REPAIR_JSON] Output JSON (first 500 chars): {}",
-            repaired.length() > 500 ? repaired.substring(0, 500) + "..." : repaired);
-
         if (!repaired.equals(json.trim())) {
             log.error("JSON repaired: original length={}, repaired length={}", json.length(), repaired.length());
         }
@@ -313,9 +250,6 @@ public class JsonStreamingProcessor implements ChunkProcessor {
         return repaired;
     }
 
-    /**
-     * Fix unbalanced brackets in JSON.
-     */
     private String fixBracketBalance(String json) {
         int braceCount = 0;
         int bracketCount = 0;

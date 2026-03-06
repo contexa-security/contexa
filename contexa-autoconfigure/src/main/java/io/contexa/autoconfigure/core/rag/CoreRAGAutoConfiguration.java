@@ -17,6 +17,7 @@ import io.contexa.contexacore.std.rag.properties.PgVectorStoreProperties;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.rag.Query;
@@ -68,8 +69,9 @@ public class CoreRAGAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public DistributedSessionManager distributedSessionManager(
-            AuditLogger auditLogger) {
-        return new DistributedSessionManager(auditLogger);
+            AuditLogger auditLogger,
+            ApplicationEventPublisher eventPublisher) {
+        return new DistributedSessionManager(auditLogger, eventPublisher);
     }
 
     @Bean

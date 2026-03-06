@@ -72,10 +72,12 @@ public class CoreHCADAutoConfiguration {
 
     @Bean
     @ConditionalOnBean(HCADFilter.class)
-    public FilterRegistrationBean hcadFilterRegistrationBean(HCADFilter hcadFilter) {
-        FilterRegistrationBean filterRegistrationBean = new FilterRegistrationBean();
+    public FilterRegistrationBean<HCADFilter> hcadFilterRegistrationBean(HCADFilter hcadFilter, HcadProperties hcadProperties) {
+        FilterRegistrationBean<HCADFilter> filterRegistrationBean = new FilterRegistrationBean<>();
         filterRegistrationBean.setFilter(hcadFilter);
-        filterRegistrationBean.setEnabled(false);
+        filterRegistrationBean.setEnabled(hcadProperties.isEnabled());
+        filterRegistrationBean.setOrder(hcadProperties.getFilterOrder());
+        filterRegistrationBean.addUrlPatterns("/*");
         return filterRegistrationBean;
     }
 

@@ -33,21 +33,8 @@ public class StreamingContext extends BaseStreamingContext {
 
     private final SentenceBuffer sentenceBuffer;
 
-    /**
-     * Creates a new streaming context with the specified properties.
-     *
-     * @param properties the streaming configuration properties
-     */
     public StreamingContext(StreamingProperties properties) {
         super(properties);
-        this.sentenceBuffer = new SentenceBuffer();
-    }
-
-    /**
-     * Creates a new streaming context with default properties.
-     */
-    public StreamingContext() {
-        super();
         this.sentenceBuffer = new SentenceBuffer();
     }
 

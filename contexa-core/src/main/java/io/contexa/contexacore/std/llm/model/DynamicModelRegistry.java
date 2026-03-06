@@ -33,29 +33,26 @@ public class DynamicModelRegistry {
         try {
             discoverAndRegisterProviders();
         } catch (Exception e) {
-            log.warn("Failed to discover ModelProviders. LLM functionality may be limited: {}", e.getMessage());
+            log.error("Failed to discover ModelProviders. LLM functionality may be limited: {}", e.getMessage());
         }
 
         try {
             discoverSpringAiModels();
         } catch (Exception e) {
-            log.warn("Failed to discover Spring AI models. LLM functionality may be limited: {}", e.getMessage());
+            log.error("Failed to discover Spring AI models. LLM functionality may be limited: {}", e.getMessage());
         }
 
         try {
             loadModelsFromConfiguration();
         } catch (Exception e) {
-            log.warn("Failed to load models from configuration: {}", e.getMessage());
+            log.error("Failed to load models from configuration: {}", e.getMessage());
         }
 
         try {
             performHealthCheck();
         } catch (Exception e) {
-            log.warn("Failed to perform model health check: {}", e.getMessage());
+            log.error("Failed to perform model health check: {}", e.getMessage());
         }
-
-        log.info("DynamicModelRegistry initialization complete. Registered models: {}, Providers: {}",
-                modelDescriptors.size(), providers.size());
     }
 
     private void discoverSpringAiModels() {
@@ -125,8 +122,6 @@ public class DynamicModelRegistry {
         if (className.contains("huggingface") || className.contains("hf"))
             return "huggingface";
 
-        // Unknown provider
-        log.warn("Unknown ChatModel type: {}. Registering as 'unknown' provider.", className);
         return "unknown-" + className;
     }
 
@@ -173,8 +168,6 @@ public class DynamicModelRegistry {
             ModelDescriptor existing = modelDescriptors.get(modelName);
             // Configuration tier always takes precedence over provider-defined tier
             if (existing.getTier() == null || !existing.getTier().equals(tier)) {
-                log.debug("Updating model {} tier from {} to {} (configuration takes precedence)",
-                        modelName, existing.getTier(), tier);
                 existing.setTier(tier);
             }
             return;
@@ -224,7 +217,6 @@ public class DynamicModelRegistry {
             ModelProvider provider = entry.getValue();
 
             if (!provider.isReady()) {
-                log.warn("ModelProvider {} is not ready", providerName);
                 continue;
             }
 
@@ -232,7 +224,7 @@ public class DynamicModelRegistry {
                 try {
                     ModelProvider.HealthStatus health = provider.checkHealth(model.getModelId());
                     if (!health.isHealthy()) {
-                        log.warn("Model {} unhealthy: {}", model.getModelId(), health.getMessage());
+                        log.error("Model {} unhealthy: {}", model.getModelId(), health.getMessage());
                         model.setStatus(ModelDescriptor.ModelStatus.UNAVAILABLE);
                     }
                 } catch (Exception e) {
@@ -251,7 +243,6 @@ public class DynamicModelRegistry {
         if (existing != null) {
             // Merge new descriptor with existing one, preserving important fields
             mergeDescriptors(existing, descriptor);
-            log.debug("Merged model descriptor: {}", descriptor.getModelId());
         } else {
             modelDescriptors.put(descriptor.getModelId(), descriptor);
         }
@@ -312,7 +303,6 @@ public class DynamicModelRegistry {
             provider = findProviderForModel(modelId);
             if (provider != null) {
                 descriptor.setProvider(provider.getProviderName());
-                log.debug("Dynamically resolved provider for model {}: {}", modelId, provider.getProviderName());
             }
         }
 
@@ -351,8 +341,6 @@ public class DynamicModelRegistry {
                     return provider;
                 }
             } catch (Exception e) {
-                log.debug("Provider {} cannot create model {}: {}",
-                        provider.getProviderName(), modelId, e.getMessage());
             }
         }
         return null;

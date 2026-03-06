@@ -7,6 +7,7 @@ import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Map;
 import java.util.UUID;
@@ -15,10 +16,13 @@ import java.util.UUID;
 public class DistributedSessionManager<T extends DomainContext> {
 
     private final AuditLogger auditLogger;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Autowired
-    public DistributedSessionManager(AuditLogger auditLogger) {
+    public DistributedSessionManager(AuditLogger auditLogger,
+                                     ApplicationEventPublisher eventPublisher) {
         this.auditLogger = auditLogger;
+        this.eventPublisher = eventPublisher;
     }
 
     public String startAudit(AIRequest<T> request) {
@@ -69,6 +73,13 @@ public class DistributedSessionManager<T extends DomainContext> {
     }
 
     private void publishSessionCreationEvent(String sessionId, String strategyId, AIRequest<T> request) {
+        Map<String, Object> eventPayload = Map.of(
+                "sessionId", sessionId,
+                "strategyId", strategyId,
+                "requestId", request.getRequestId() != null ? request.getRequestId() : "unknown",
+                "creationTime", System.currentTimeMillis()
+        );
+        eventPublisher.publishEvent(eventPayload);
     }
 
 }

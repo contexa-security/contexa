@@ -1,25 +1,24 @@
 package io.contexa.contexacore.std.labs.behavior;
 
+import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
+import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.properties.ContexaRagProperties;
-import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.rag.service.AbstractVectorLabService;
-import org.springframework.ai.vectorstore.VectorStore;
-import io.contexa.contexacommon.domain.context.BehavioralAnalysisContext;
-import io.contexa.contexacommon.domain.response.BehavioralAnalysisResponse;
-import io.contexa.contexacommon.entity.AuditLog;
-import io.contexa.contexacommon.repository.AuditLogRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @Slf4j
 public class BehaviorVectorService extends AbstractVectorLabService {
@@ -259,7 +258,7 @@ public class BehaviorVectorService extends AbstractVectorLabService {
         try {
             Map<String, Object> filters = new HashMap<>();
             filters.put("userId", userId);
-            filters.put("topK", topK);
+            filters.putAll(getLabSpecificFilters());
 
             StringBuilder query = new StringBuilder();
             if (userId != null) {
@@ -274,7 +273,16 @@ public class BehaviorVectorService extends AbstractVectorLabService {
                 query.append("Path: ").append(path);
             }
 
-            return searchSimilar(query.toString(), filters);
+            Filter.Expression filterExpression = buildFilterExpression(filters);
+
+            SearchRequest searchRequest = SearchRequest.builder()
+                    .query(query.toString())
+                    .topK(topK)
+                    .similarityThreshold(ragProperties.getLab().getSimilarityThreshold())
+                    .filterExpression(filterExpression)
+                    .build();
+
+            return searchSimilar(searchRequest);
         } catch (Exception e) {
             log.error("[BehaviorVectorService] Similar behavior pattern search failed", e);
             return List.of();

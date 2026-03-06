@@ -175,7 +175,7 @@ public class ZeroTrustEventPublisher {
                 return RequestInfoExtractor.extract(request, getSecurity());
             }
         } catch (Exception e) {
-            log.warn("Failed to extract request info from context", e);
+            // Silently ignore - request context may not be available
         }
         return null;
     }

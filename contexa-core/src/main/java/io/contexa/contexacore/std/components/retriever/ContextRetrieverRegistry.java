@@ -2,8 +2,6 @@ package io.contexa.contexacore.std.components.retriever;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,11 +40,4 @@ public class ContextRetrieverRegistry {
         return getRetriever((Class<? extends DomainContext>) context.getClass());
     }
 
-    public void printRegisteredRetrievers() {
-        retrieverMap.forEach((contextType, retriever) ->
-                log.info("  {}: {}",
-                        contextType.getSimpleName(),
-                        retriever.getClass().getSimpleName())
-        );
-    }
 }

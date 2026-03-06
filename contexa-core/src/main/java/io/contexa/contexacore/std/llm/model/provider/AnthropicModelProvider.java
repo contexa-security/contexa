@@ -59,7 +59,7 @@ public class AnthropicModelProvider extends BaseModelProvider {
     @Override
     protected void doInitialize(Map<String, Object> config) {
         if (apiKey == null || apiKey.isEmpty()) {
-            log.warn("Anthropic API key is not set, but continuing");
+            log.error("Anthropic API key is not set, but continuing");
         }
     }
 

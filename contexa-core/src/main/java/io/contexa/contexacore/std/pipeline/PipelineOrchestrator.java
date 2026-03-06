@@ -6,34 +6,24 @@ import io.contexa.contexacommon.domain.request.AIResponse;
 import io.contexa.contexacore.domain.SessionState;
 import io.contexa.contexacore.domain.SoarResponse;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
-import io.contexa.contexacore.std.strategy.AIStrategy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 public class PipelineOrchestrator {
 
     private final List<PipelineExecutor> executors;
-    private final Map<String, AIStrategy<?, ?>> strategyMap;
 
     @Autowired
-    public PipelineOrchestrator(List<PipelineExecutor> executors,
-                                List<AIStrategy<?, ?>> strategies) {
+    public PipelineOrchestrator(List<PipelineExecutor> executors) {
         this.executors = executors.stream()
                 .sorted((a, b) -> Integer.compare(a.getPriority(), b.getPriority()))
                 .toList();
-
-        this.strategyMap = new ConcurrentHashMap<>();
-        for (AIStrategy<?, ?> strategy : strategies) {
-            strategyMap.put(strategy.getSupportedType().name(), strategy);
-        }
     }
 
     public <T extends DomainContext, R extends AIResponse> Mono<R> execute(
