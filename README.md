@@ -43,22 +43,11 @@ Every request is analyzed through **384-dimensional context vectors**, behaviora
 
 ## Core Architecture
 
-### 2-Tier Detection (HCAD)
-
-Hierarchical Context-Aware Detection with a dual-layer LLM strategy:
-
-| Tier | Traffic | Latency | Description |
-|------|---------|---------|-------------|
-| **Layer 1** | ~95% | 5-30ms | Lightweight local LLM (context + behavior + RAG) |
-| **Layer 2** | ~5% | 50ms-1s | Expert LLM analysis with SOAR orchestration |
-
 ### Zero Trust Decision Flow
 
 ```
 Request
   -> HCADFilter (384-dim context vector extraction)
-  -> Layer1 ContextualStrategy (fast LLM decision)
-  -> Layer2 ExpertStrategy (deep analysis, if escalated)
   -> ZeroTrustAccessControlFilter (action enforcement)
   -> CustomDynamicAuthorizationManager (XACML policy evaluation)
 ```
