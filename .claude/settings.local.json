@@ -147,7 +147,8 @@
       "Bash(while read f)",
       "Bash(do if grep -q '[가-힣]' \"$f\")",
       "Bash(then echo \"$f\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
