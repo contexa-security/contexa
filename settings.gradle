@@ -1,4 +1,3 @@
 rootProject.name = 'contexa'
-include('contexa-core','contexa-identity','contexa-iam','contexa-iam-enterprise','contexa-mcp','contexa-common',
-        'contexa-core-enterprise','contexa-autoconfigure','spring-boot-starter-contexa',
-        'spring-boot-starter-contexa-enterprise')
+include('contexa-core','contexa-identity','contexa-iam','contexa-mcp','contexa-common',
+        'contexa-autoconfigure','spring-boot-starter-contexa')

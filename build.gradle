@@ -130,7 +130,7 @@ subprojects {
                 pom {
                     name = project.name
                     description = 'Contexa - AI-Native IAM & Autonomous Security Platform'
-                    url = 'https://github.com/contexa/contexa'
+                    url = 'https://github.com/contexa-security/contexa'
 
                     licenses {
                         license {
