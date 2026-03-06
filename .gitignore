@@ -59,3 +59,9 @@ nul
 **/temp/
 **/tmp/
 *.draft.*
+
+# Sensitive/internal files
+*.png
+*.pdf
+*.pptx
+contexa-landing-print.html
