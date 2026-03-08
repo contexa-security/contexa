@@ -149,7 +149,8 @@
       "Bash(then echo \"$f\")",
       "Bash(fi)",
       "WebSearch",
-      "Bash(gh auth status)"
+      "Bash(gh auth status)",
+      "WebFetch(domain:trust.openclaw.ai)"
     ],
     "deny": [],
     "ask": []
