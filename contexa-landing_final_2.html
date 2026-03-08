@@ -979,7 +979,7 @@
     font-size: 16px;
     color: var(--muted);
     margin-bottom: 48px;
-    max-width: 480px;
+    max-width: 800px;
     margin-left: auto;
     margin-right: auto;
     line-height: 1.7;
@@ -1174,7 +1174,7 @@
       padding: 16px 14px !important;
     }
     #legacy svg {
-      max-height: 180px !important;
+      max-height: none !important;
     }
     #legacy [style*="grid-template-columns"] {
       gap: 0 !important;
@@ -1202,7 +1202,17 @@
 
     #revenue {
       break-after: page;
+      padding: 16px 14px !important;
     }
+    #revenue .section-title { font-size: 22px !important; margin-bottom: 4px !important; }
+    #revenue [style*="margin-top:28px"] { margin-top: 12px !important; }
+    #revenue [style*="margin-top:60px"] { margin-top: 20px !important; }
+    #revenue [style*="margin-top:36px"] { margin-top: 14px !important; }
+    #revenue [style*="margin-top:20px"] { margin-top: 8px !important; }
+    #revenue [style*="padding:16px 12px"] { padding: 6px 8px !important; }
+    #revenue [style*="font-size:20px"][style*="font-weight:700"] { font-size: 16px !important; }
+    #revenue .problem-insight { margin-top: 16px !important; padding: 12px 18px !important; }
+    #revenue .problem-insight p { font-size: 15px !important; }
 
     #business {
       break-after: page;
@@ -1329,18 +1339,18 @@
   <ul class="nav-links">
     <li><a href="#problem">문제</a></li>
     <li><a href="#agent-crisis">AI 위협</a></li>
-    <li><a href="#solution">한계</a></li>
+    <li><a href="#solution">솔루션</a></li>
     <li><a href="#engine">기술</a></li>
     <li><a href="#built">제품</a></li>
     <li><a href="#kisa">정책</a></li>
     <li><a href="#legacy">왜 지금인가?</a></li>
     <li><a href="#market">시장</a></li>
-    <li><a href="#revenue">수익</a></li>
+    <li><a href="#revenue">비즈니스 모델</a></li>
 
     <li><a href="#team">팀</a></li>
     <li><a href="#roadmap">로드맵</a></li>
   </ul>
-  <a href="#cta" class="nav-cta">미팅 요청</a>
+  <a href="#cta" class="nav-cta">Contact</a>
 </nav>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -2047,18 +2057,11 @@
   </div>
 
   <div class="reveal" style="max-width:1200px; margin-bottom:48px;">
-    <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
-      <div style="font-size:22px; color:var(--text); font-weight:700;">핵심 기능</div>
-      <div style="font-family:var(--mono); font-size:13px; color:var(--muted); letter-spacing:0.15em;">// 즉시 도입 가능</div>
+    <div style="margin-bottom:8px;">
+      <div style="font-size:22px; color:var(--text); font-weight:700;">Contexa 가 즉시 동작하는데 코드 두 개면 충분 합니다.</div>
     </div>
     <div style="height:1px; background:linear-gradient(90deg, var(--gold), transparent 60%); margin-bottom:24px;"></div>
 
-    <div style="display:flex; align-items:center; justify-content:center; gap:20px; margin-bottom:14px; color:var(--gold); font-family:var(--mono); font-size:15px; font-weight:700; letter-spacing:0.05em; flex-wrap:wrap;">
-      <span style="display:flex; align-items:center; gap:6px; color:var(--green);"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--green)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>데모 시연 가능</span>
-      <span style="display:flex; align-items:center; gap:6px;"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--gold)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>기존 코드 수정 최소화</span>
-      <span style="display:flex; align-items:center; gap:6px;"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--gold)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>기존 인프라 변경 없음</span>
-      <span style="display:flex; align-items:center; gap:6px;"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--gold)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>마이그레이션 수개월을 수주로 단축</span>
-    </div>
     <div style="background:rgba(10,15,30,0.8); border:1px solid rgba(255,209,102,0.3); border-radius:6px; padding:36px 48px; font-family:var(--mono); font-size:24px; line-height:1.5;">
       <div style="display:flex; align-items:stretch; gap:0;">
         <!-- Left: @EnableAISecurity -->
@@ -2085,10 +2088,12 @@
         </div>
       </div>
     </div>
-    <div style="text-align:center; margin-top:16px; font-size:clamp(18px,2vw,24px); font-weight:400; color:var(--text); line-height:1.5;">
-      Contexa 가 즉시 동작하는데 <span style="font-weight:800; color:var(--gold); border-bottom:2px solid var(--gold);">코드 두 개</span> 로 충분 합니다.
+    <div style="display:flex; align-items:center; justify-content:center; gap:20px; margin-top:20px; color:var(--gold); font-family:var(--mono); font-size:15px; font-weight:700; letter-spacing:0.05em; flex-wrap:wrap;">
+      <span style="display:flex; align-items:center; gap:6px; color:var(--green);"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--green)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--green)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>데모 시연 가능</span>
+      <span style="display:flex; align-items:center; gap:6px;"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--gold)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>기존 코드 수정 최소화</span>
+      <span style="display:flex; align-items:center; gap:6px;"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--gold)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>기존 인프라 변경 없음</span>
+      <span style="display:flex; align-items:center; gap:6px;"><svg width="20" height="20" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="8" stroke="var(--gold)" stroke-width="1.5"/><path d="M5.5 9.5l2 2 5-5" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>마이그레이션 수개월을 수주로 단축</span>
     </div>
-
   </div>
 </section>
 
@@ -2598,22 +2603,14 @@
     <!-- Hiring plan -->
     <div style="margin-top:28px; padding:20px 28px; border:1px dashed rgba(0,194,224,0.2); border-radius:4px; background:rgba(0,194,224,0.015);">
       <div style="font-size:13px; color:var(--cyan); font-weight:600; letter-spacing:0.08em; margin-bottom:10px;">투자 후 채용 계획</div>
-      <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; font-size:14px;">
+      <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:16px; font-size:14px;">
         <div style="text-align:center;">
           <div style="color:var(--text); font-weight:600;">Phase 1</div>
-          <div style="color:var(--muted); font-size:13px;">백엔드 1 &middot; AI 1</div>
+          <div style="color:var(--muted); font-size:13px;">백엔드 2 &middot; AI 1</div>
         </div>
         <div style="text-align:center;">
           <div style="color:var(--text); font-weight:600;">Phase 2</div>
-          <div style="color:var(--muted); font-size:13px;">DevOps 1</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="color:var(--text); font-weight:600;">Phase 3</div>
-          <div style="color:var(--muted); font-size:13px;">SE 1 &middot; 마케팅 1</div>
-        </div>
-        <div style="text-align:center;">
-          <div style="color:var(--text); font-weight:600;">Phase 4</div>
-          <div style="color:var(--muted); font-size:13px;">해외 사업 1</div>
+          <div style="color:var(--muted); font-size:13px;">마케팅 1</div>
         </div>
       </div>
     </div>
@@ -2695,7 +2692,7 @@
       </div>
     </div>
     <div style="display:flex; gap:24px; font-size:13px; color:var(--muted); flex-wrap:wrap;">
-      <span>인건비 6억 (대표 포함 6명)</span>
+      <span>인건비 6억 (대표 포함 4-5명)</span>
       <span>인프라 1.5억 (클라우드/GPU)</span>
       <span>마케팅 1억 (컨퍼런스/콘텐츠)</span>
       <span>법무 0.5억 (특허/인증)</span>
