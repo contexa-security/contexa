@@ -1,7 +1,6 @@
 package io.contexa.contexaidentity.security.core.validator;
 
 import io.contexa.contexacommon.enums.AuthType;
-import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
@@ -12,8 +11,7 @@ import java.util.Set;
 @Slf4j
 public class MfaContextValidator {
 
-    public static ValidationResult validateMfaContext(FactorContext ctx,
-                                                      MfaSessionRepository sessionRepository) {
+    public static ValidationResult validateMfaContext(FactorContext ctx) {
         ValidationResult result = new ValidationResult();
 
         if (ctx == null) {
@@ -38,9 +36,8 @@ public class MfaContextValidator {
         return result;
     }
 
-    public static ValidationResult validateFactorProcessingContext(FactorContext ctx,
-                                                                   MfaSessionRepository sessionRepository) {
-        ValidationResult result = validateMfaContext(ctx, sessionRepository);
+    public static ValidationResult validateFactorProcessingContext(FactorContext ctx) {
+        ValidationResult result = validateMfaContext(ctx);
 
         if (result.hasErrors()) {
             return result; 
@@ -62,9 +59,8 @@ public class MfaContextValidator {
         return result;
     }
 
-    public static ValidationResult validateFactorSelectionContext(FactorContext ctx,
-                                                                  MfaSessionRepository sessionRepository) {
-        ValidationResult result = validateMfaContext(ctx, sessionRepository);
+    public static ValidationResult validateFactorSelectionContext(FactorContext ctx) {
+        ValidationResult result = validateMfaContext(ctx);
 
         if (result.hasErrors()) {
             return result;

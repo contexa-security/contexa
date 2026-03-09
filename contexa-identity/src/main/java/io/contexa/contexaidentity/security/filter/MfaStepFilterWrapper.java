@@ -67,7 +67,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
         } else {
         }
 
-        ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx, sessionRepository);
+        ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx);
         if (validation.hasErrors()) {
             log.error("Invalid context for MFA factor processing using {} repository. URI: {}, Errors: {}",
                     sessionRepository.getRepositoryType(), request.getRequestURI(), validation.getErrors());

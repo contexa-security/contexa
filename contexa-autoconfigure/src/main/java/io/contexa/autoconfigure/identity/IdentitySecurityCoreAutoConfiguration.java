@@ -94,12 +94,6 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public DslValidatorService dslValidatorService(DslValidator dslValidator) {
-        return new DslValidatorService(dslValidator);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public DslValidator dslValidator(
             ObjectProvider<List<Validator<PlatformConfig>>> platformConfigValidatorsProvider,
             ObjectProvider<List<Validator<List<AuthenticationFlowConfig>>>> flowListValidatorsProvider,
@@ -136,8 +130,8 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public RequiredPlatformOptionsValidator requiredPlatformOptionsValidator() {
-        return new RequiredPlatformOptionsValidator();
+    public PasskeyOptionsValidator passkeyOptionsValidator() {
+        return new PasskeyOptionsValidator();
     }
 
     @Bean
@@ -240,8 +234,8 @@ public class IdentitySecurityCoreAutoConfiguration {
     public PlatformBootstrap platformBootstrap(SecurityPlatform securityPlatform,
             PlatformConfig platformConfig,
             AdapterRegistry registry,
-            DslValidatorService dslValidatorService) {
-        return new PlatformBootstrap(securityPlatform, platformConfig, registry, dslValidatorService);
+            DslValidator dslValidator) {
+        return new PlatformBootstrap(securityPlatform, platformConfig, registry, dslValidator);
     }
 
     @Bean

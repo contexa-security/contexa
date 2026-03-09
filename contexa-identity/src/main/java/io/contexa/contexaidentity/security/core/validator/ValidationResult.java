@@ -29,10 +29,6 @@ public class ValidationResult {
         return !warnings.isEmpty();
     }
 
-    public boolean isValid() { 
-        return errors.isEmpty();
-    }
-
     public List<String> getErrors() {
         return Collections.unmodifiableList(errors);
     }
@@ -43,8 +39,8 @@ public class ValidationResult {
 
     public void merge(ValidationResult other) {
         if (other != null) {
-            other.getErrors().forEach(this::addError);
-            other.getWarnings().forEach(this::addWarning);
+            this.errors.addAll(other.errors);
+            this.warnings.addAll(other.warnings);
         }
     }
 }

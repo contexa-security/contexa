@@ -3,7 +3,6 @@ package io.contexa.contexaidentity.security.core.validator;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
-import io.contexa.contexaidentity.security.core.context.FlowContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.util.CollectionUtils;
 
@@ -28,8 +27,6 @@ public class DslValidator implements Validator<PlatformConfig> {
             finalResult.addError("PlatformConfig is null. Unable to validate DSL configuration.");
             return finalResult;
         }
-
-        List<FlowContext> flowContexts = platformConfig.getPlatformContext().flowContexts();
 
         if (!CollectionUtils.isEmpty(platformConfigValidators)) {
             for (Validator<PlatformConfig> pv : platformConfigValidators) {
