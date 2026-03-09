@@ -2,11 +2,13 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -48,9 +50,12 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                ZeroTrustActionRepository actionRedisRepository,
                                                SecurityLearningService securityLearningService,
-                                               HcadProperties hcadProperties) {
+                                               IBlockedUserRecorder blockedUserRecorder,
+                                               BlockMfaStateStore blockMfaStateStore,
+                                               CentralAuditFacade centralAuditFacade) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,
-                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties, applicationContext, authUrlProvider);
+                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext, authUrlProvider,
+                blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = stateMachineIntegrator;

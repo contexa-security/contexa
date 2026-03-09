@@ -43,13 +43,31 @@ public class AuditLog {
     @Column(length = 1024)
     private String resourceUri;
 
-    private String clientIp; 
-    private String sessionId; 
-    private String status; 
-    private String parameters; 
+    private String clientIp;
+    private String sessionId;
 
     @Column(columnDefinition = "TEXT")
-    private String details; 
+    private String details;
+
+    @Column(length = 50)
+    private String eventCategory;
+
+    @Column(length = 512)
+    private String userAgent;
+
+    @Column(length = 10)
+    private String httpMethod;
+
+    @Column(length = 2048)
+    private String requestUri;
+
+    private Double riskScore;
+
+    @Column(length = 50)
+    private String eventSource;
+
+    @Column(length = 64)
+    private String correlationId; 
 
     @PrePersist
     protected void onCreate() {

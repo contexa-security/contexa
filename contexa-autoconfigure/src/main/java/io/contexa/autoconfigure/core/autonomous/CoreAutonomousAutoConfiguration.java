@@ -4,7 +4,10 @@ import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
-import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -47,6 +50,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -105,14 +109,30 @@ public class CoreAutonomousAutoConfiguration {
     public AdminOverrideService adminOverrideService(
             SecurityLearningService securityLearningService,
             ZeroTrustActionRepository actionRedisRepository,
-            @Autowired(required = false) DistributedLockService lockService) {
-        return new AdminOverrideService(securityLearningService, actionRedisRepository, lockService);
+            DistributedLockService lockService,
+            CentralAuditFacade centralAuditFacade) {
+        return new AdminOverrideService(securityLearningService, actionRedisRepository, lockService, centralAuditFacade);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public AuditingHandler auditingHandler() {
-        return new AuditingHandler();
+    public CentralAuditFacade centralAuditFacade(
+            AuditLogRepository auditLogRepository,
+            ApplicationEventPublisher eventPublisher,
+            ObjectMapper objectMapper) {
+        return new CentralAuditFacade(auditLogRepository, eventPublisher, objectMapper);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AuditPersistenceListener auditPersistenceListener(CentralAuditFacade centralAuditFacade) {
+        return new AuditPersistenceListener(centralAuditFacade);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public AuditingHandler auditingHandler(CentralAuditFacade centralAuditFacade) {
+        return new AuditingHandler(centralAuditFacade);
     }
 
     @Bean
@@ -195,14 +215,14 @@ public class CoreAutonomousAutoConfiguration {
     public SecurityPlaneAgent securityPlaneAgent(
             SecurityMonitoringService securityMonitor,
             SecurityContextDataStore dataStore,
-            SecurityPlaneAuditLogger auditLogger,
+            CentralAuditFacade centralAuditFacade,
             SecurityEventProcessor processingOrchestrator,
             SecurityPlaneProperties securityPlaneProperties,
             @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor
             ) {
         return new SecurityPlaneAgent(
-                securityMonitor, dataStore, auditLogger,
-                processingOrchestrator, securityPlaneProperties,llmAnalysisExecutor);
+                securityMonitor, dataStore, centralAuditFacade,
+                processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);
     }
 
     @Bean

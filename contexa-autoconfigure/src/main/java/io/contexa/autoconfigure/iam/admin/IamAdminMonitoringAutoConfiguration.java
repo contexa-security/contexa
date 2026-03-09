@@ -1,23 +1,13 @@
 package io.contexa.autoconfigure.iam.admin;
 
+import io.contexa.contexacommon.repository.*;
 import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
-import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
-import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
-import io.contexa.contexaiam.admin.web.monitoring.service.DashboardService;
-import io.contexa.contexaiam.admin.web.monitoring.service.DashboardServiceImpl;
-import io.contexa.contexaiam.admin.web.monitoring.service.PermissionMatrixService;
-import io.contexa.contexaiam.admin.web.monitoring.service.PermissionMatrixServiceImpl;
-import io.contexa.contexaiam.admin.web.monitoring.service.SecurityScoreCalculator;
-import io.contexa.contexaiam.admin.web.monitoring.service.SecurityScoreCalculatorImpl;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
+import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
+import io.contexa.contexaiam.admin.web.monitoring.service.*;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.GroupRepository;
-import io.contexa.contexacommon.repository.PermissionRepository;
-import io.contexa.contexacommon.repository.RoleRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -78,12 +68,6 @@ public class IamAdminMonitoringAutoConfiguration {
             GroupRepository groupRepository,
             PermissionCatalogService permissionCatalogService) {
         return new PermissionMatrixServiceImpl(groupRepository, permissionCatalogService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public AuditLogService auditLogService(AuditLogRepository auditLogRepository) {
-        return new AuditLogService(auditLogRepository);
     }
 
     @Bean

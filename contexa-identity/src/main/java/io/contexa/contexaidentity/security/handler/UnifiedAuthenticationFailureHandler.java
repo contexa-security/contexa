@@ -1,8 +1,11 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.MfaSettings;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -38,6 +41,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final ZeroTrustActionRepository actionRedisRepository;
     private final MfaSettings mfaSettings;
     private final IBlockedUserRecorder blockedUserRecorder;
+    private final CentralAuditFacade centralAuditFacade;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
@@ -45,7 +49,8 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                ZeroTrustActionRepository actionRedisRepository,
                                                MfaSettings mfaSettings,
-                                               IBlockedUserRecorder blockedUserRecorder) {
+                                               IBlockedUserRecorder blockedUserRecorder,
+                                               CentralAuditFacade centralAuditFacade) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
@@ -53,6 +58,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         this.actionRedisRepository = actionRedisRepository;
         this.mfaSettings = mfaSettings;
         this.blockedUserRecorder = blockedUserRecorder;
+        this.centralAuditFacade = centralAuditFacade;
     }
 
     @Override
@@ -83,7 +89,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
         long failureDuration = System.currentTimeMillis() - failureStartTime;
         logSecurityAudit(usernameForLog, sessionIdForLog, currentProcessingFactor,
-                exception, failureDuration, getClientInfo(request));
+                exception, failureDuration, getClientInfo(request), request);
     }
 
     private void handleMfaFactorFailure(HttpServletRequest request, HttpServletResponse response,
@@ -326,7 +332,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
     private void logSecurityAudit(String username, String sessionId, AuthType factorType,
                                   AuthenticationException exception, long duration,
-                                  Map<String, String> clientInfo) {
+                                  Map<String, String> clientInfo, HttpServletRequest request) {
 
         String factorTypeStr = (factorType != null) ? factorType.name() : "PRIMARY_AUTH";
 
@@ -339,6 +345,35 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                 clientInfo.get("remoteAddr"),
                 clientInfo.get("userAgent"),
                 clientInfo.get("xForwardedFor"));
+
+        if (centralAuditFacade != null) {
+            try {
+                Map<String, Object> details = new HashMap<>();
+                details.put("factorType", factorTypeStr);
+                details.put("exceptionClass", exception.getClass().getSimpleName());
+                details.put("durationMs", duration);
+                details.put("xForwardedFor", clientInfo.get("xForwardedFor"));
+
+                centralAuditFacade.recordAsync(AuditRecord.builder()
+                        .eventCategory(AuditEventCategory.AUTHENTICATION_FAILURE)
+                        .principalName(username != null ? username : "UNKNOWN")
+                        .eventSource("IDENTITY")
+                        .clientIp(clientInfo.get("remoteAddr"))
+                        .sessionId(sessionId)
+                        .userAgent(clientInfo.get("userAgent"))
+                        .resourceIdentifier(username != null ? username : "UNKNOWN")
+                        .requestUri(request.getRequestURI())
+                        .httpMethod(request.getMethod())
+                        .action("AUTHENTICATION")
+                        .decision("DENY")
+                        .outcome("FAILED")
+                        .reason(exception.getMessage())
+                        .details(details)
+                        .build());
+            } catch (Exception e) {
+                log.error("Failed to audit authentication failure", e);
+            }
+        }
     }
 
     private void publishAuthenticationFailureEvent(HttpServletRequest request,

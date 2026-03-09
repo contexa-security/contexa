@@ -3,14 +3,15 @@ package io.contexa.autoconfigure.identity;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
 import io.contexa.contexaidentity.security.core.bootstrap.configurer.*;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -38,6 +39,7 @@ import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilte
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -262,10 +264,13 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
-            HcadProperties hcadProperties) {
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockMfaStateStore blockMfaStateStore,
+            CentralAuditFacade centralAuditFacade) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
-                authUrlProvider, zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties);
+                authUrlProvider, zeroTrustEventPublisher, actionRedisRepository, securityLearningService,
+                blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
     }
 
     @Bean
@@ -277,10 +282,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRepository actionRedisRepository,
             AuthContextProperties authContextProperties,
-            IBlockedUserRecorder blockedUserRecorder) {
+            IBlockedUserRecorder blockedUserRecorder,
+            @Autowired(required = false) CentralAuditFacade centralAuditFacade) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
                 mfaSessionRepository, zeroTrustEventPublisher, actionRedisRepository,
-                authContextProperties.getMfa(),blockedUserRecorder);
+                authContextProperties.getMfa(), blockedUserRecorder, centralAuditFacade);
     }
 
     @Bean
@@ -295,10 +301,14 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustActionRepository actionRedisRepository,
             SecurityLearningService securityLearningService,
-            HcadProperties hcadProperties, ApplicationContext applicationContext) {
+            ApplicationContext applicationContext,
+            IBlockedUserRecorder blockedUserRecorder,
+            BlockMfaStateStore blockMfaStateStore,
+            CentralAuditFacade centralAuditFacade) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider,
-                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, hcadProperties, applicationContext, authUrlProvider);
+                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext,
+                blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
     }
 
     @Bean

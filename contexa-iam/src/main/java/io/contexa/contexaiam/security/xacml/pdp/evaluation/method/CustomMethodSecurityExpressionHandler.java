@@ -4,7 +4,6 @@ import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.security.xacml.pip.context.AuthorizationContext;
 import io.contexa.contexaiam.security.xacml.pip.context.ContextHandler;
@@ -32,7 +31,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
     private final PolicyRetrievalPoint policyRetrievalPoint;
     private final ContextHandler contextHandler;
-    private final AuditLogService auditLogService;
     private final AuditLogRepository auditLogRepository;
     private final ZeroTrustActionRepository actionRedisRepository;
 
@@ -42,7 +40,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             RoleHierarchy roleHierarchy,
             PolicyRetrievalPoint policyRetrievalPoint,
             ContextHandler contextHandler,
-            AuditLogService auditLogService,
             AuditLogRepository auditLogRepository,
             ZeroTrustActionRepository actionRedisRepository) {
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
@@ -50,7 +47,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
 
         this.policyRetrievalPoint = policyRetrievalPoint;
         this.contextHandler = contextHandler;
-        this.auditLogService = auditLogService;
         this.auditLogRepository = auditLogRepository;
         this.actionRedisRepository = actionRedisRepository;
         super.setPermissionEvaluator(compositePermissionEvaluator);
@@ -92,9 +88,6 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
         String protectableExpression = buildExpressionFromPoliciesWithDefault(protectablePolicies);
         Expression protectableRule = getExpressionParser().parseExpression(protectableExpression);
         ctx.setVariable("protectableRule", protectableRule);
-
-        auditLogService.logDecision(auth.getName(), methodIdentifier, "METHOD_INVOCATION", "EVALUATING",
-                "Evaluating with protectableRule: " + protectableExpression, null);
 
         return ctx;
     }

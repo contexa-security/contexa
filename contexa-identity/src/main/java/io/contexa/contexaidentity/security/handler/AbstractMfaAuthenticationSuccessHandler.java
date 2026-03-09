@@ -1,17 +1,21 @@
 package io.contexa.contexaidentity.security.handler;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
+import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
-import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
@@ -24,13 +28,9 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
-import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
@@ -53,17 +53,11 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
-    private final HcadProperties hcadProperties;
     private final ApplicationContext applicationContext;
     private final AuthUrlProvider authUrlProvider;
-
-    @Setter
-    @Autowired(required = false)
-    private IBlockedUserRecorder blockedUserRecorder;
-
-    @Setter
-    @Autowired(required = false)
-    private BlockMfaStateStore blockMfaStateStore;
+    private final IBlockedUserRecorder blockedUserRecorder;
+    private final BlockMfaStateStore blockMfaStateStore;
+    private final CentralAuditFacade centralAuditFacade;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
@@ -73,18 +67,22 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                       ZeroTrustActionRepository actionRedisRepository,
                                                       SecurityLearningService securityLearningService,
-                                                      HcadProperties hcadProperties,
                                                       ApplicationContext applicationContext,
-                                                      AuthUrlProvider authUrlProvider) {
+                                                      AuthUrlProvider authUrlProvider,
+                                                      IBlockedUserRecorder blockedUserRecorder,
+                                                      BlockMfaStateStore blockMfaStateStore,
+                                                      CentralAuditFacade centralAuditFacade) {
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
         this.actionRedisRepository = actionRedisRepository;
         this.securityLearningService = securityLearningService;
-        this.hcadProperties = hcadProperties;
         this.applicationContext = applicationContext;
         this.authUrlProvider = authUrlProvider;
+        this.blockedUserRecorder = blockedUserRecorder;
+        this.blockMfaStateStore = blockMfaStateStore;
+        this.centralAuditFacade = centralAuditFacade;
     }
 
     protected final void handleFinalAuthenticationSuccess(HttpServletRequest request,
@@ -148,7 +146,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         }
 
         if (factorContext != null && factorContext.isCompleted()) {
-//            publishAuthenticationSuccessEvent(request, finalAuthentication, factorContext, finalResult);
+            auditAuthenticationSuccess(request, finalAuthentication, factorContext);
         }
     }
 
@@ -367,6 +365,43 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         } catch (Exception e) {
             log.error("Failed to publish authentication success event", e);
+        }
+    }
+
+    private void auditAuthenticationSuccess(HttpServletRequest request,
+                                               Authentication authentication,
+                                               @Nullable FactorContext factorContext) {
+        if (centralAuditFacade == null) {
+            return;
+        }
+        try {
+            String authType = (factorContext != null && factorContext.isCompleted()) ? "MFA" : "PRIMARY";
+
+            Map<String, Object> details = new HashMap<>();
+            details.put("authenticationType", authType);
+            if (factorContext != null && factorContext.getCurrentProcessingFactor() != null) {
+                details.put("mfaMethod", factorContext.getCurrentProcessingFactor().toString());
+            }
+
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.AUTHENTICATION_SUCCESS)
+                    .principalName(authentication.getName())
+                    .resourceIdentifier(authentication.getName())
+                    .eventSource("IDENTITY")
+                    .clientIp(extractClientIp(request))
+                    .sessionId(request.getSession(false) != null ? request.getSession(false).getId() : null)
+                    .userAgent(request.getHeader("User-Agent"))
+                    .resourceUri(request.getRequestURI())
+                    .requestUri(request.getRequestURI())
+                    .httpMethod(request.getMethod())
+                    .action("AUTHENTICATION")
+                    .decision("ALLOW")
+                    .outcome("SUCCESS")
+                    .reason("Authentication completed: " + authType)
+                    .details(details)
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit authentication success", e);
         }
     }
 

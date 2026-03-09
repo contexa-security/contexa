@@ -3,7 +3,6 @@ package io.contexa.autoconfigure.core.autonomous;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
@@ -177,14 +176,6 @@ public class CoreAutonomousEventAutoConfiguration {
             SecurityLearningService securityLearningService) {
         return new SecurityDecisionEnforcementHandler(
                 actionRepository, securityLearningService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityPlaneAuditLogger securityPlaneAuditLogger(
-            AuditLogRepository auditLogRepository,
-            ObjectMapper objectMapper) {
-        return new SecurityPlaneAuditLogger(auditLogRepository, objectMapper);
     }
 
     @Bean

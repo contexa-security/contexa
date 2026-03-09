@@ -161,8 +161,23 @@ CREATE TABLE AUDIT_LOG (
                            session_id VARCHAR(255),
                            status VARCHAR(255),
                            parameters TEXT,
-                           details TEXT
+                           details TEXT,
+                           event_category VARCHAR(50),
+                           user_agent VARCHAR(512),
+                           http_method VARCHAR(10),
+                           request_uri VARCHAR(2048),
+                           risk_score DOUBLE PRECISION,
+                           event_source VARCHAR(50),
+                           correlation_id VARCHAR(64)
 );
+
+CREATE INDEX idx_audit_log_principal_ts ON AUDIT_LOG (principal_name, timestamp DESC);
+CREATE INDEX idx_audit_log_category_ts ON AUDIT_LOG (event_category, timestamp DESC);
+CREATE INDEX idx_audit_log_timestamp ON AUDIT_LOG (timestamp DESC);
+CREATE INDEX idx_audit_log_client_ip ON AUDIT_LOG (client_ip);
+CREATE INDEX idx_audit_log_session_id ON AUDIT_LOG (session_id);
+CREATE INDEX idx_audit_log_correlation_id ON AUDIT_LOG (correlation_id);
+CREATE INDEX idx_audit_log_decision_ts ON AUDIT_LOG (decision, timestamp DESC);
 
 -- 비즈니스 정책 생성용 메타데이터 테이블들
 CREATE TABLE BUSINESS_RESOURCE (

@@ -2,9 +2,11 @@ package io.contexa.contexaiam.security.xacml.pep;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
-import io.contexa.contexaiam.admin.web.monitoring.service.AuditLogService;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
@@ -15,7 +17,9 @@ import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
 import io.contexa.contexacommon.domain.TrustAssessment;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpMethod;
 import org.springframework.context.event.ContextRefreshedEvent;
 import org.springframework.context.event.EventListener;
@@ -42,11 +46,14 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private List<RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>>> mappings;
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("^[A-Z_]+$");
     private static final Pattern HAS_PERMISSION_PATTERN = Pattern.compile("\\s*(?:and\\s+)?hasPermission\\([^)]*\\)(?:\\s*and)?\\s*");
-    private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
     private final ContextHandler contextHandler;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final AuthorizationMetrics metricsCollector;
+
+    @Setter
+    @Autowired(required = false)
+    private CentralAuditFacade centralAuditFacade;
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -101,7 +108,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         }
         log.error("No matching URL policy found for request: {} {}", request.getMethod(), request.getRequestURI());
         AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
-        logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision);
+        logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision, request);
 
         /*if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
             long startTime = System.nanoTime();
@@ -164,15 +171,17 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         return cleaned.isEmpty() ? "denyAll" : cleaned;
     }
 
-    private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context, AuthorizationDecision decision) {
-
-        String principal = (authentication != null && authentication.getPrincipal() instanceof UserDto userDto) ? userDto.getName() : "anonymousUser";
+    private void logAuthorizationAttempt(Authentication authentication, AuthorizationContext context,
+                                         AuthorizationDecision decision, HttpServletRequest request) {
+        String principal = (authentication != null && authentication.getPrincipal() instanceof UserDto userDto)
+                ? userDto.getName() : "anonymousUser";
         String resource = context.resource().identifier();
         String action = context.action();
         String result = decision.isGranted() ? "ALLOW" : "DENY";
         String clientIp = context.environment().remoteIp();
 
         String reason;
+        Double riskScore = null;
         TrustAssessment assessment = (TrustAssessment) context.attributes().get("ai_assessment");
 
         if (assessment != null) {
@@ -181,11 +190,38 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
             } catch (JsonProcessingException e) {
                 reason = "AI assessment result serialization failed. Score: " + assessment.score();
             }
+            riskScore = 1.0 - assessment.score();
         } else {
             reason = "Static rule matching";
         }
 
-        auditLogService.logDecision(principal, resource, action, result, reason, clientIp);
+        if (centralAuditFacade != null) {
+            try {
+                AuditEventCategory category = decision.isGranted()
+                        ? AuditEventCategory.AUTHORIZATION_GRANTED
+                        : AuditEventCategory.AUTHORIZATION_DENIED;
+
+                centralAuditFacade.recordAsync(AuditRecord.builder()
+                        .eventCategory(category)
+                        .principalName(principal)
+                        .eventSource("IAM")
+                        .clientIp(clientIp)
+                        .sessionId(request.getSession(false) != null ? request.getSession(false).getId() : null)
+                        .userAgent(request.getHeader("User-Agent"))
+                        .resourceIdentifier(resource)
+                        .resourceUri(request.getRequestURI())
+                        .requestUri(request.getRequestURI())
+                        .httpMethod(request.getMethod())
+                        .action(action)
+                        .decision(result)
+                        .reason(reason)
+                        .outcome(decision.isGranted() ? "GRANTED" : "DENIED")
+                        .riskScore(riskScore)
+                        .build());
+            } catch (Exception e) {
+                log.error("Failed to audit authorization attempt", e);
+            }
+        }
     }
 
     public synchronized void reload() {
