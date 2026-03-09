@@ -4,7 +4,7 @@ import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
-import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

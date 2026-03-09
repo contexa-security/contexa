@@ -1,6 +1,8 @@
 package io.contexa.contexacore.autonomous.exception;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import lombok.Builder;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -57,8 +59,31 @@ public class ZeroTrustExceptionHandler {
             .body(response);
     }
 
-    @lombok.Builder
-    @lombok.Getter
+
+    @ExceptionHandler(RapidProtectableReentryDeniedException.class)
+    public ResponseEntity<ZeroTrustErrorResponse> handleRapidProtectableReentryDenied(
+            RapidProtectableReentryDeniedException ex) {
+
+        log.error("Rapid protectable re-entry denied - resource: {}, windowSeconds: {}",
+            ex.getResourceId(), ex.getWindowSeconds());
+
+        ZeroTrustErrorResponse response = ZeroTrustErrorResponse.builder()
+            .status(ex.getHttpStatus())
+            .code(ex.getErrorCode())
+            .message(ex.getMessage())
+            .action(ZeroTrustAction.CHALLENGE.name())
+            .resourceId(ex.getResourceId())
+            .riskScore(1.0)
+            .analysisTimeout(false)
+            .timestamp(Instant.now())
+            .build();
+
+        return ResponseEntity
+            .status(response.getStatus())
+            .body(response);
+    }
+    @Builder
+    @Getter
     public static class ZeroTrustErrorResponse {
 
         private final int status;
@@ -78,3 +103,4 @@ public class ZeroTrustExceptionHandler {
         private final Instant timestamp;
     }
 }
+

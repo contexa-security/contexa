@@ -50,9 +50,8 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                 })
                 .flatMap(id -> {
                     try {
-                        String sessionId = UUID.randomUUID().toString();
                         String auditId = auditLogger.startAudit(request);
-                        return distributedStrategyExecutor.executeDistributedStrategyAsync(request, responseType, sessionId)
+                        return distributedStrategyExecutor.executeDistributedStrategyAsync(request, responseType)
                                 .doOnSuccess(result -> {
                                     auditLogger.completeAudit(auditId, request, result);
                                 })
@@ -85,11 +84,10 @@ final public class AINativeProcessor<T extends DomainContext> implements AICoreO
                     if (lockFailed) {
                         return Flux.error(new AIOperationException("Strategic streaming operation conflict: " + strategyId));
                     }
-                    String sessionId = UUID.randomUUID().toString();
                     String auditId = auditLogger.startAudit(request);
 
                     return distributedStrategyExecutor.executeDistributedStrategyStream(
-                            request, (Class<R>) AIResponse.class, sessionId, auditId
+                            request, (Class<R>) AIResponse.class, auditId
                     ).doOnError(error -> {
                         handleStrategicFailure(strategyId, request, error);
                     }).doFinally(signalType -> {

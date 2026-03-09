@@ -61,16 +61,33 @@ public class ZeroTrustEventListener {
         }
     }
 
+    public boolean shouldPublishAuthorizationEvent(ZeroTrustSpringEvent event) {
+        if (event == null) {
+            return false;
+        }
+        if (event.getCategory() != null && event.getCategory().name().equals("AUTHORIZATION")) {
+            return !shouldSkipPublishing(event.getUserId(), generateAuthorizationContextBindingHash(event));
+        }
+        return true;
+    }
+
+    public String generateAuthorizationContextBindingHash(ZeroTrustSpringEvent event) {
+        if (event == null) {
+            return null;
+        }
+        return SessionFingerprintUtil.generateContextBindingHash(
+                event.getSessionId(),
+                event.getClientIp(),
+                event.getUserAgent()
+        );
+    }
+
     private void processAuthenticationEvent(ZeroTrustSpringEvent event) {
         securityEventPublisher.publishGenericSecurityEvent(event);
     }
 
     private void processAuthorizationEvent(ZeroTrustSpringEvent event) {
-        String userId = event.getUserId();
-
-        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
-                event.getSessionId(), event.getClientIp(), event.getUserAgent());
-        if (shouldSkipPublishing(userId, contextBindingHash)) {
+        if (!shouldPublishAuthorizationEvent(event)) {
             return;
         }
         securityEventPublisher.publishGenericSecurityEvent(event);

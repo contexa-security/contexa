@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous;
 
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
@@ -15,7 +16,6 @@ import org.springframework.boot.CommandLineRunner;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,12 +29,16 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private final SecurityPlaneAuditLogger auditLogger;
     private final SecurityEventProcessor securityEventProcessor;
     private final SecurityPlaneProperties securityPlaneProperties;
+    private final Executor llmAnalysisExecutor;
 
+    private AgentState currentState;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private final AtomicLong processedEvents = new AtomicLong(0);
 
+
     @PostConstruct
     public void initialize() {
+        currentState = AgentState.INITIALIZING;
         securityMonitor.setBatchProcessor(this::processBatch);
     }
 
@@ -65,8 +69,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     }
 
     @Override
-    public void run(String... args) throws Exception {
-
+    public void run(String... args) {
         if (securityPlaneProperties.getAgent().isAutoStart()) {
             start();
         }
@@ -76,6 +79,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     public void start() {
         String agentName = securityPlaneProperties.getAgent().getName();
         if (running.compareAndSet(false, true)) {
+            currentState = AgentState.RUNNING;
         } else {
             log.error("Agent {} is already running", agentName);
         }
@@ -84,6 +88,7 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     @Override
     public void stop() {
         if (running.compareAndSet(true, false)) {
+            currentState = AgentState.STOPPING;
         }
     }
 
@@ -92,16 +97,20 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
         stop();
     }
 
-    public void processSecurityEvent(SecurityEvent event) {
+    public SecurityEventContext processSecurityEvent(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
 
         try {
             if (!tryMarkEventAsProcessed(event.getEventId())) {
-                log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate",
-                        event.getEventId());
-                return;
+                log.error("[SecurityPlaneAgent] Event {} already processed, skipping duplicate", event.getEventId());
+                SecurityEventContext skippedContext = SecurityEventContext.builder()
+                        .securityEvent(event)
+                        .processingStatus(SecurityEventContext.ProcessingStatus.SKIPPED)
+                        .build();
+                skippedContext.addMetadata("skipReason", "duplicate_event");
+                return skippedContext;
             }
-            securityEventProcessor.process(event);
+            return securityEventProcessor.process(event);
 
         } catch (Exception e) {
             log.error("[SecurityPlaneAgent] Error processing event: {}", event.getEventId(), e);
@@ -122,10 +131,6 @@ public class SecurityPlaneAgent implements CommandLineRunner, ISecurityPlaneAgen
     private boolean tryMarkEventAsProcessed(String eventId) {
         return dataStore.tryMarkEventAsProcessed(eventId);
     }
-
-    @Autowired
-    @Qualifier("llmAnalysisExecutor")
-    private Executor llmAnalysisExecutor;
 
     private enum AgentState {
         INITIALIZING,

@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.security.processor;
+package io.contexa.contexacore.autonomous.processor;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.security.processor;
+package io.contexa.contexacore.autonomous.processor;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;

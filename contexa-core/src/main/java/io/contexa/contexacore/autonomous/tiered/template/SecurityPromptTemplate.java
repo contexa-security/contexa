@@ -1,18 +1,13 @@
 package io.contexa.contexacore.autonomous.tiered.template;
 
-import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Builds security analysis prompts for Zero Trust AI evaluation.
@@ -517,9 +512,10 @@ public class SecurityPromptTemplate {
                 Consider the overall narrative: Does this session's activity
                 pattern tell a story of legitimate use or suspicious behavior?
 
-                You MUST provide both a legitimate and suspicious hypothesis
-                before making your final decision. Extract specific evidence
-                from the timeline and profile to support each hypothesis.
+                Use the strongest signals from the request, timeline,
+                and baseline to make a concise decision.
+                Keep reasoning short and focused.
+                Do not generate extra hypotheses or evidence lists unless explicitly requested.
 
                 RESPOND WITH JSON ONLY:
                 {

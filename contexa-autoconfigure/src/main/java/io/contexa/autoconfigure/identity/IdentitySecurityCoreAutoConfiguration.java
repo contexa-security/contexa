@@ -2,20 +2,17 @@ package io.contexa.autoconfigure.identity;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
-import io.contexa.contexacore.autonomous.security.identification.UserIdentificationService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexacore.properties.HcadProperties;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
-import io.contexa.contexaidentity.security.core.bootstrap.configurer.FlowConfigurer;
-import io.contexa.contexaidentity.security.core.bootstrap.configurer.GlobalConfigurer;
-import io.contexa.contexaidentity.security.core.bootstrap.configurer.SecurityConfigurer;
-import io.contexa.contexaidentity.security.core.bootstrap.configurer.ZeroTrustAccessControlConfigurer;
-import io.contexa.contexaidentity.security.core.bootstrap.configurer.ZeroTrustChallengeConfigurer;
+import io.contexa.contexaidentity.security.core.bootstrap.configurer.*;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -32,7 +29,6 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.handler.MfaFactorProcessingSuccessHandler;
 import io.contexa.contexaidentity.security.handler.PrimaryAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.handler.UnifiedAuthenticationFailureHandler;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
@@ -43,7 +39,6 @@ import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -275,7 +270,6 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(UserIdentificationService.class)
     public UnifiedAuthenticationFailureHandler unifiedAuthenticationFailureHandler(
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             AuthResponseWriter authResponseWriter,
@@ -364,9 +358,10 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthResponseWriter responseWriter,
             IBlockedUserRecorder blockedUserRecorder,
             ChallengeMfaInitializer challengeMfaInitializer,
-            AuthUrlProvider authUrlProvider) {
+            AuthUrlProvider authUrlProvider,
+            BlockingSignalBroadcaster blockingDecisionRegistry) {
         return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
-                blockedUserRecorder, challengeMfaInitializer, authUrlProvider);
+                blockedUserRecorder, challengeMfaInitializer, authUrlProvider, blockingDecisionRegistry);
     }
 
     @Bean

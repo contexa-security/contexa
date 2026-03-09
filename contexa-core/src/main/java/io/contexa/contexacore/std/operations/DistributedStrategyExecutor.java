@@ -20,43 +20,39 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         this.strategyRegistry = strategyRegistry;
     }
 
-    public <R extends AIResponse> Mono<R> executeDistributedStrategyAsync(AIRequest<T> request, Class<R> responseType, String sessionId) {
+    public <R extends AIResponse> Mono<R> executeDistributedStrategyAsync(AIRequest<T> request, Class<R> responseType) {
 
-        return executeStrategyThroughRegistryAsync(request, responseType, sessionId)
-                .doOnSuccess(result -> {
-                    validateResult(result, sessionId);
-                })
+        return executeStrategyThroughRegistryAsync(request, responseType)
+                .doOnSuccess(this::validateResult)
                 .onErrorResume(error -> {
-                    log.error("ASYNC strategy execution failed for session: {}", sessionId, error);
-                    return Mono.error(new AIOperationException("Pipeline returned unexpected response type for session: " + sessionId));
+                    log.error("ASYNC strategy execution failed", error);
+                    return Mono.error(new AIOperationException("Pipeline returned unexpected response type"));
                 });
     }
 
     public <R extends AIResponse> Flux<String> executeDistributedStrategyStream(AIRequest<T> request,
                                                                                 Class<R> responseType,
-                                                                                String sessionId,
                                                                                 String auditId) {
         try {
-            return executeStrategyThroughRegistryStream(request, responseType, sessionId)
+            return executeStrategyThroughRegistryStream(request, responseType)
                     .doOnError(error -> {
-                        log.error("Streaming strategy execution failed for session: {} - {}", sessionId, error.getMessage());
+                        log.error("Streaming strategy execution failed - {}", error.getMessage());
                     });
 
         } catch (Exception e) {
-            log.error("Distributed streaming strategy execution failed for session: {}", sessionId, e);
+            log.error("Distributed streaming strategy execution failed", e);
             return Flux.error(new AIOperationException("Streaming strategy execution failed", e));
         }
     }
 
     private <R extends AIResponse> Flux<String> executeStrategyThroughRegistryStream(AIRequest<T> request,
-                                                                                     Class<R> responseType,
-                                                                                     String sessionId) {
+                                                                                     Class<R> responseType) {
         try {
             return strategyRegistry.executeStrategyStream(request, responseType)
-                    .doOnError(error -> log.error("Real-time streaming strategy execution failed for session: {}", sessionId, error));
+                    .doOnError(error -> log.error("Real-time streaming strategy execution failed", error));
 
         } catch (DiagnosisException e) {
-            log.error("Unexpected error in streaming strategy execution for session: {}", sessionId, e);
+            log.error("Unexpected error in streaming strategy execution", e);
             return Flux.error(new DiagnosisException(
                     request.getDiagnosisType() != null ? request.getDiagnosisType().name() : "UNKNOWN",
                     "STREAMING_STRATEGY_EXECUTION_ERROR",
@@ -65,22 +61,22 @@ public class DistributedStrategyExecutor<T extends DomainContext> {
         }
     }
 
-    private <R extends AIResponse> Mono<R> executeStrategyThroughRegistryAsync(AIRequest<T> request, Class<R> responseType, String sessionId) {
+    private <R extends AIResponse> Mono<R> executeStrategyThroughRegistryAsync(AIRequest<T> request, Class<R> responseType) {
         try {
             return strategyRegistry.executeStrategyAsync(request, responseType)
                     .doOnError(error -> {
-                        log.error("Async strategy execution failed for session: {} - {}", sessionId, error.getMessage());
+                        log.error("Async strategy execution failed - {}", error.getMessage());
                     });
 
         } catch (DiagnosisException e) {
-            log.error("Async strategy execution failed for session: {} - {}", sessionId, e.getMessage());
+            log.error("Async strategy execution failed - {}", e.getMessage());
             return Mono.error(new AIOperationException("Async strategy execution failed", e));
         }
     }
 
-    private void validateResult(AIResponse result, String sessionId) {
+    private void validateResult(AIResponse result) {
         if (result == null) {
-            throw new AIOperationException("Strategy execution returned null result for session: " + sessionId);
+            throw new AIOperationException("Strategy execution returned null result");
         }
     }
 }

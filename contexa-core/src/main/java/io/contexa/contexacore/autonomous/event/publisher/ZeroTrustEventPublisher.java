@@ -81,6 +81,20 @@ public class ZeroTrustEventPublisher {
             Authentication authentication,
             boolean granted,
             String denialReason) {
+        ZeroTrustSpringEvent event = buildMethodAuthorizationEvent(
+                methodInvocation,
+                authentication,
+                granted,
+                denialReason
+        );
+        eventPublisher.publishEvent(event);
+    }
+
+    public ZeroTrustSpringEvent buildMethodAuthorizationEvent(
+            MethodInvocation methodInvocation,
+            Authentication authentication,
+            boolean granted,
+            String denialReason) {
 
         RequestInfo requestInfo = extractRequestInfoFromContext();
         String resource = methodInvocation.getMethod().getDeclaringClass().getSimpleName()
@@ -106,7 +120,6 @@ public class ZeroTrustEventPublisher {
             payload.put("userRoles", requestInfo.getUserRoles());
         }
 
-        // Lookup current action for action-based severity determination
         if (actionRedisRepository != null && authentication != null) {
             ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(authentication.getName());
             if (currentAction != null) {
@@ -114,7 +127,7 @@ public class ZeroTrustEventPublisher {
             }
         }
 
-        publish(
+        return build(
                 ZeroTrustEventCategory.AUTHORIZATION,
                 ZeroTrustSpringEvent.TYPE_AUTHORIZATION_METHOD,
                 authentication != null ? authentication.getName() : null,
@@ -124,7 +137,6 @@ public class ZeroTrustEventPublisher {
                 resource,
                 payload
         );
-
     }
 
     public void publish(
@@ -145,9 +157,30 @@ public class ZeroTrustEventPublisher {
             String userAgent,
             String resource,
             Map<String, Object> payload) {
+        ZeroTrustSpringEvent event = build(
+                category,
+                eventType,
+                userId,
+                sessionId,
+                clientIp,
+                userAgent,
+                resource,
+                payload
+        );
+        eventPublisher.publishEvent(event);
+    }
 
-        ZeroTrustSpringEvent event = ZeroTrustSpringEvent.
-                builder(this)
+    private ZeroTrustSpringEvent build(
+            ZeroTrustEventCategory category,
+            String eventType,
+            String userId,
+            String sessionId,
+            String clientIp,
+            String userAgent,
+            String resource,
+            Map<String, Object> payload) {
+
+        return ZeroTrustSpringEvent.builder(this)
                 .category(category)
                 .eventType(eventType)
                 .userId(userId)
@@ -158,9 +191,6 @@ public class ZeroTrustEventPublisher {
                 .eventTimestamp(Instant.now())
                 .payload(payload != null ? payload : Map.of())
                 .build();
-
-        eventPublisher.publishEvent(event);
-
     }
 
     private TieredStrategyProperties.Security getSecurity() {
@@ -175,7 +205,7 @@ public class ZeroTrustEventPublisher {
                 return RequestInfoExtractor.extract(request, getSecurity());
             }
         } catch (Exception e) {
-            // Silently ignore - request context may not be available
+            log.error("Failed to extract request info from context", e);
         }
         return null;
     }

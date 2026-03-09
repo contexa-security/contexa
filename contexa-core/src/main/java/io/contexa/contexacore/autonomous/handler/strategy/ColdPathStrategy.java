@@ -1,8 +1,8 @@
 package io.contexa.contexacore.autonomous.handler.strategy;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
-import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
-import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

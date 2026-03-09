@@ -48,22 +48,20 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private final IBlockedUserRecorder blockedUserRecorder;
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthUrlProvider authUrlProvider;
-
-    @Setter
-    @Autowired(required = false)
-    private BlockingSignalBroadcaster blockingDecisionRegistry;
+    private final BlockingSignalBroadcaster blockingDecisionRegistry;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
             AuthResponseWriter responseWriter,
             IBlockedUserRecorder blockedUserRecorder,
             ChallengeMfaInitializer challengeMfaInitializer,
-            AuthUrlProvider authUrlProvider) {
+            AuthUrlProvider authUrlProvider, BlockingSignalBroadcaster blockingDecisionRegistry) {
         this.actionRedisRepository = actionRedisRepository;
         this.responseWriter = responseWriter;
         this.blockedUserRecorder = blockedUserRecorder;
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.authUrlProvider = authUrlProvider;
+        this.blockingDecisionRegistry = blockingDecisionRegistry;
     }
 
     @Override
@@ -93,18 +91,25 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
-        boolean isBlocked = hasAuthority(auth, ZeroTrustAction.BLOCK.getGrantedAuthority());
+        /*boolean isBlocked = hasAuthority(auth, ZeroTrustAction.BLOCK.getGrantedAuthority());
         boolean isEscalated = hasAuthority(auth, ZeroTrustAction.ESCALATE.getGrantedAuthority());
         boolean isPendingAnalysis = hasAuthority(auth, ZeroTrustAction.PENDING_ANALYSIS.getGrantedAuthority());
 
         if (!isBlocked && !isEscalated && !isPendingAnalysis) {
             filterChain.doFilter(request, response);
             return;
-        }
+        }*/
 
         String userId = extractUserId(auth);
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
         ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId, contextBindingHash);
+
+        if (currentAction != ZeroTrustAction.BLOCK
+                && currentAction != ZeroTrustAction.ESCALATE
+                && currentAction != ZeroTrustAction.PENDING_ANALYSIS) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         String requestUri = resolveRequestUri(request);
 

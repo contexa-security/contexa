@@ -31,7 +31,7 @@ import io.contexa.contexacore.autonomous.handler.handler.ProcessingExecutionHand
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
-import io.contexa.contexacore.autonomous.security.processor.ColdPathEventProcessor;
+import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;

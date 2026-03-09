@@ -2,34 +2,36 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import io.contexa.autoconfigure.core.hcad.CoreHCADAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.autonomous.SecurityEventProcessor;
 import io.contexa.contexacore.autonomous.SecurityPlaneAgent;
 import io.contexa.contexacore.autonomous.audit.SecurityPlaneAuditLogger;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
+import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.exception.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
-import io.contexa.contexacore.autonomous.SecurityEventProcessor;
-import io.contexa.contexacore.autonomous.repository.InMemoryZeroTrustActionRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRedisRepository;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
+import io.contexa.contexacore.autonomous.repository.*;
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
+import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
 import io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.RedisSecurityContextDataStore;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
-import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
-import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
-import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
-import io.contexa.contexacore.autonomous.service.AdminOverrideService;
-import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
-import io.contexa.contexacore.infra.lock.DistributedLockService;
-import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
-import io.contexa.contexacore.autonomous.service.impl.SoarContextProviderImpl;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
-import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
+import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
+import io.contexa.contexacore.autonomous.utils.ThreatScoreUtil;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.infra.lock.DistributedLockService;
+import io.contexa.contexacore.infra.lock.InMemoryDistributedLockService;
 import io.contexa.contexacore.properties.*;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
@@ -38,6 +40,7 @@ import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -50,6 +53,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.util.List;
+import java.util.concurrent.Executor;
 
 @AutoConfiguration
 @AutoConfigureAfter(CoreHCADAutoConfiguration.class)
@@ -193,10 +197,31 @@ public class CoreAutonomousAutoConfiguration {
             SecurityContextDataStore dataStore,
             SecurityPlaneAuditLogger auditLogger,
             SecurityEventProcessor processingOrchestrator,
-            SecurityPlaneProperties securityPlaneProperties) {
+            SecurityPlaneProperties securityPlaneProperties,
+            @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor
+            ) {
         return new SecurityPlaneAgent(
                 securityMonitor, dataStore, auditLogger,
-                processingOrchestrator, securityPlaneProperties);
+                processingOrchestrator, securityPlaneProperties,llmAnalysisExecutor);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SynchronousProtectableDecisionService synchronousProtectableDecisionService(
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            ZeroTrustEventListener zeroTrustEventListener,
+            SecurityPlaneAgent securityPlaneAgent,
+            ZeroTrustActionRepository actionRepository) {
+        return new SynchronousProtectableDecisionService(
+                zeroTrustEventPublisher,
+                zeroTrustEventListener,
+                securityPlaneAgent,
+                actionRepository);
+    }
+    @Bean
+    @ConditionalOnMissingBean
+    public ZeroTrustExceptionHandler zeroTrustExceptionHandler() {
+        return new ZeroTrustExceptionHandler();
     }
 
     // === Distributed mode: Redis-only repository ===
@@ -212,6 +237,13 @@ public class CoreAutonomousAutoConfiguration {
                 RedisTemplate<String, Object> redisTemplate,
                 StringRedisTemplate stringRedisTemplate) {
             return new ZeroTrustActionRedisRepository(redisTemplate, stringRedisTemplate);
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
+        public RedisProtectableRapidReentryRepository redisProtectableRapidReentryRepository(
+                StringRedisTemplate stringRedisTemplate) {
+            return new RedisProtectableRapidReentryRepository(stringRedisTemplate);
         }
 
         @Bean
@@ -243,6 +275,12 @@ public class CoreAutonomousAutoConfiguration {
         }
 
         @Bean
+        @ConditionalOnMissingBean(ProtectableRapidReentryRepository.class)
+        public InMemoryProtectableRapidReentryRepository inMemoryProtectableRapidReentryRepository() {
+            return new InMemoryProtectableRapidReentryRepository();
+        }
+
+        @Bean
         @ConditionalOnMissingBean(DistributedLockService.class)
         public InMemoryDistributedLockService inMemoryDistributedLockService() {
             return new InMemoryDistributedLockService();
@@ -262,3 +300,8 @@ public class CoreAutonomousAutoConfiguration {
         }
     }
 }
+
+
+
+
+

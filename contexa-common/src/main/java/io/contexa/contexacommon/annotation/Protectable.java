@@ -10,4 +10,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Protectable {
     String ownerField() default "";
+    boolean sync() default false;
 }

@@ -2,18 +2,18 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
-import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
+import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
@@ -27,7 +27,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
@@ -82,16 +85,31 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .build();
     }
 
-    public SecurityDecision analyzeWithContext(SecurityEvent event) {
+        public SecurityDecision analyzeWithContext(SecurityEvent event) {
         long startTime = System.currentTimeMillis();
+        long sessionContextMs = 0L;
+        long ragSearchMs = 0L;
+        long behaviorAnalysisMs = 0L;
+        long promptBuildMs = 0L;
+        long llmExecutionMs = 0L;
+        long responseParseMs = 0L;
+        long postProcessMs = 0L;
 
         try {
-
+            long sessionContextStart = System.currentTimeMillis();
             SessionContext sessionContext = buildSessionContext(event);
+            sessionContextMs = System.currentTimeMillis() - sessionContextStart;
+
+            long ragSearchStart = System.currentTimeMillis();
             List<Document> relatedDocuments = searchRelatedContext(event);
             List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
-            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
+            ragSearchMs = System.currentTimeMillis() - ragSearchStart;
 
+            long behaviorAnalysisStart = System.currentTimeMillis();
+            BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
+            behaviorAnalysisMs = System.currentTimeMillis() - behaviorAnalysisStart;
+
+            long promptBuildStart = System.currentTimeMillis();
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
 
@@ -99,6 +117,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             SecurityPromptTemplate.StructuredPrompt structured =
                     promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
+            promptBuildMs = System.currentTimeMillis() - promptBuildStart;
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
@@ -117,6 +136,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         .topP(1.0)
                         .build();
 
+                long llmExecutionStart = System.currentTimeMillis();
                 String jsonResponse = llmOrchestrator.execute(context)
                         .timeout(Duration.ofMillis(llmTimeoutMs))
                         .onErrorResume(Exception.class, e -> {
@@ -124,22 +144,37 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                             return Mono.just("{\"riskScore\":0.7,\"confidence\":0.3,\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\",\"threatCategory\":\"UNKNOWN\"}");
                         })
                         .block();
+                llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
+                long responseParseStart = System.currentTimeMillis();
                 response = parseJsonResponse(jsonResponse);
+                responseParseMs = System.currentTimeMillis() - responseParseStart;
             } else {
                 log.error("[Layer1] UnifiedLLMOrchestrator not available");
                 response = createDefaultResponse();
             }
 
             SecurityDecision decision = convertToSecurityDecision(response, event);
-
-            enrichDecisionWithContext(decision, sessionContext, behaviorAnalysis);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
             if (securityLearningService != null) {
+                long postProcessStart = System.currentTimeMillis();
                 securityLearningService.postProcessDecision(event, decision);
+                postProcessMs = System.currentTimeMillis() - postProcessStart;
             }
+
+            enrichDecisionWithContext(
+                    decision,
+                    sessionContext,
+                    behaviorAnalysis,
+                    sessionContextMs,
+                    ragSearchMs,
+                    behaviorAnalysisMs,
+                    promptBuildMs,
+                    llmExecutionMs,
+                    responseParseMs,
+                    postProcessMs);
 
             return decision;
 
@@ -148,7 +183,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             return createFallbackDecision(startTime);
         }
     }
-
     public Mono<SecurityDecision> analyzeWithContextAsync(SecurityEvent event) {
         long totalTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getTotalMs();
         return Mono.fromCallable(() -> analyzeWithContext(event))
@@ -223,9 +257,9 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setRecentActions(sessionContext.getRecentActions());
 
         if (sessionContext.getStartTime() != null) {
-            long minutes = java.time.Duration.between(
+            long minutes = Duration.between(
                     sessionContext.getStartTime(),
-                    java.time.LocalDateTime.now()
+                    LocalDateTime.now()
             ).toMinutes();
             ctx.setSessionAgeMinutes((int) Math.max(0, minutes));
         }
@@ -348,13 +382,28 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private void enrichDecisionWithContext(SecurityDecision decision,
                                            SessionContext sessionContext,
-                                           BaseBehaviorAnalysis behaviorAnalysis) {
+                                           BaseBehaviorAnalysis behaviorAnalysis,
+                                           long sessionContextMs,
+                                           long ragSearchMs,
+                                           long behaviorAnalysisMs,
+                                           long promptBuildMs,
+                                           long llmExecutionMs,
+                                           long responseParseMs,
+                                           long postProcessMs) {
 
         Map<String, Object> sessionData = new HashMap<>();
         sessionData.put("sessionId", sessionContext.getSessionId());
         sessionData.put("userId", sessionContext.getUserId());
         sessionData.put("sessionDuration", sessionContext.getSessionDuration());
         sessionData.put("accessFrequency", sessionContext.getAccessFrequency());
+        sessionData.put("sessionContextBuildMs", sessionContextMs);
+        sessionData.put("ragSearchMs", ragSearchMs);
+        sessionData.put("behaviorAnalysisMs", behaviorAnalysisMs);
+        sessionData.put("promptBuildMs", promptBuildMs);
+        sessionData.put("llmExecutionMs", llmExecutionMs);
+        sessionData.put("responseParseMs", responseParseMs);
+        sessionData.put("postProcessMs", postProcessMs);
+        sessionData.put("preLlmPreparationMs", sessionContextMs + ragSearchMs + behaviorAnalysisMs + promptBuildMs);
 
         decision.setSessionContext(sessionData);
         if (decision.getBehaviorPatterns() == null) {

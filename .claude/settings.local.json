@@ -150,7 +150,8 @@
       "Bash(fi)",
       "WebSearch",
       "Bash(gh auth status)",
-      "WebFetch(domain:trust.openclaw.ai)"
+      "WebFetch(domain:trust.openclaw.ai)",
+      "Bash(pip install pymupdf)"
     ],
     "deny": [],
     "ask": []

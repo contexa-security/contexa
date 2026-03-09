@@ -36,7 +36,6 @@ import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
 import io.contexa.contexacore.std.pipeline.step.*;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
-import io.contexa.contexacore.std.rag.etl.BehaviorETLPipeline;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import org.springframework.ai.chat.model.ChatModel;
@@ -231,15 +230,6 @@ public class CoreStdComponentsAutoConfiguration {
     public PipelineOrchestrator pipelineOrchestrator(
             List<PipelineExecutor> executors) {
         return new PipelineOrchestrator(executors);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public BehaviorETLPipeline behaviorETLPipeline(
-            VectorStore vectorStore,
-            JdbcTemplate jdbcTemplate,
-            ContexaRagProperties ragProperties) {
-        return new BehaviorETLPipeline(vectorStore, jdbcTemplate, ragProperties);
     }
 
     @Bean

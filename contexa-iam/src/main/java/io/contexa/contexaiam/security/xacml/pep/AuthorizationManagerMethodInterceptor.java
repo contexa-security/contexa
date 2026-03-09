@@ -1,11 +1,21 @@
 package io.contexa.contexaiam.security.xacml.pep;
 
+import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.exception.RapidProtectableReentryDeniedException;
+import io.contexa.contexacore.autonomous.exception.ZeroTrustAccessDeniedException;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
+import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import lombok.extern.slf4j.Slf4j;
 import org.aopalliance.aop.Advice;
 import org.aopalliance.intercept.MethodInterceptor;
 import org.aopalliance.intercept.MethodInvocation;
 import org.springframework.aop.Pointcut;
-import org.springframework.security.access.AccessDeniedException;
+import org.springframework.aop.framework.AopProxyUtils;
+import org.springframework.aop.support.AopUtils;
+import org.springframework.core.annotation.AnnotationUtils;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.authorization.method.AuthorizationAdvisor;
@@ -15,9 +25,8 @@ import org.springframework.security.authorization.method.ThrowingMethodAuthoriza
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.context.SecurityContextHolderStrategy;
-import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.metrics.AuthorizationMetrics;
 
+import java.lang.reflect.Method;
 import java.util.function.Supplier;
 
 @Slf4j
@@ -25,32 +34,54 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
 
     private final Pointcut pointcut;
     private final ProtectableMethodAuthorizationManager authorizationManager;
+    private final ProtectableRapidReentryGuard rapidReentryGuard;
     private final MethodAuthorizationDeniedHandler defaultHandler = new ThrowingMethodAuthorizationDeniedHandler();
-    private final int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1; 
+    private final int order = AuthorizationInterceptorsOrder.FIRST.getOrder() + 1;
     private final Supplier<SecurityContextHolderStrategy> securityContextHolderStrategy = SecurityContextHolder::getContextHolderStrategy;
     private ZeroTrustEventPublisher zeroTrustEventPublisher;
     private AuthorizationMetrics metricsCollector;
+    private SynchronousProtectableDecisionService synchronousProtectableDecisionService;
 
-    public AuthorizationManagerMethodInterceptor(Pointcut pointcut, ProtectableMethodAuthorizationManager authorizationManager) {
+    public AuthorizationManagerMethodInterceptor(
+            Pointcut pointcut,
+            ProtectableMethodAuthorizationManager authorizationManager,
+            ProtectableRapidReentryGuard rapidReentryGuard) {
         this.pointcut = pointcut;
         this.authorizationManager = authorizationManager;
+        this.rapidReentryGuard = rapidReentryGuard;
     }
 
     @Override
     public Object invoke(MethodInvocation mi) throws Throwable {
         Authentication authentication = getAuthentication();
         boolean granted = false;
+        boolean publishEvent = true;
         String denialReason = null;
 
         try {
-            
+            rapidReentryGuard.check(authentication, mi);
             authorizationManager.protectable(() -> authentication, mi);
+
+            Protectable protectable = resolveProtectable(mi);
+            if (isSyncProtectable(protectable)) {
+                SynchronousProtectableDecisionService.SyncDecisionResult syncDecision = evaluateSynchronousProtectable(mi, authentication);
+                if (syncDecision.action() != ZeroTrustAction.ALLOW) {
+                    publishEvent = false;
+                    throw toZeroTrustAccessDeniedException(syncDecision, buildResourceId(mi));
+                }
+                publishEvent = false;
+            }
+
             granted = true;
             return proceed(mi);
 
         } catch (AuthorizationDeniedException denied) {
             granted = false;
             denialReason = denied.getMessage();
+            if (denied instanceof RapidProtectableReentryDeniedException || denied instanceof ZeroTrustAccessDeniedException) {
+                publishEvent = false;
+                throw denied;
+            }
             return handle(mi, denied);
 
         } catch (Exception e) {
@@ -59,8 +90,9 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             throw e;
 
         } finally {
-            
-            publishAuthorizationEvent(mi, authentication, granted, denialReason);
+            if (publishEvent) {
+                publishAuthorizationEvent(mi, authentication, granted, denialReason);
+            }
         }
     }
 
@@ -90,6 +122,68 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         return authentication;
     }
 
+    private Protectable resolveProtectable(MethodInvocation mi) {
+        Protectable protectable = AnnotationUtils.findAnnotation(mi.getMethod(), Protectable.class);
+        if (protectable != null) {
+            return protectable;
+        }
+
+        Object target = mi.getThis();
+        if (target != null) {
+            Class<?> targetClass = AopProxyUtils.ultimateTargetClass(target);
+            Method specificMethod = AopUtils.getMostSpecificMethod(mi.getMethod(), targetClass);
+            protectable = AnnotationUtils.findAnnotation(specificMethod, Protectable.class);
+            if (protectable != null) {
+                return protectable;
+            }
+            protectable = AnnotationUtils.findAnnotation(targetClass, Protectable.class);
+            if (protectable != null) {
+                return protectable;
+            }
+        }
+
+        return AnnotationUtils.findAnnotation(mi.getMethod().getDeclaringClass(), Protectable.class);
+    }
+
+    private boolean isSyncProtectable(Protectable protectable) {
+        return protectable != null && protectable.sync();
+    }
+
+    private SynchronousProtectableDecisionService.SyncDecisionResult evaluateSynchronousProtectable(
+            MethodInvocation mi,
+            Authentication authentication) {
+        if (synchronousProtectableDecisionService == null) {
+            throw ZeroTrustAccessDeniedException.analysisRequired(buildResourceId(mi));
+        }
+        return synchronousProtectableDecisionService.analyze(mi, authentication);
+    }
+
+    private ZeroTrustAccessDeniedException toZeroTrustAccessDeniedException(
+            SynchronousProtectableDecisionService.SyncDecisionResult decision,
+            String resourceId) {
+        ZeroTrustAction action = decision.action() != null ? decision.action() : ZeroTrustAction.PENDING_ANALYSIS;
+        double riskScore = extractRiskScore(decision.analysisData());
+
+        return switch (action) {
+            case BLOCK -> ZeroTrustAccessDeniedException.blocked(resourceId, riskScore);
+            case CHALLENGE -> ZeroTrustAccessDeniedException.challengeRequired(resourceId, riskScore);
+            case ESCALATE -> ZeroTrustAccessDeniedException.pendingReview(resourceId, riskScore);
+            case PENDING_ANALYSIS -> ZeroTrustAccessDeniedException.analysisRequired(resourceId);
+            case ALLOW -> ZeroTrustAccessDeniedException.analysisRequired(resourceId);
+        };
+    }
+
+    private double extractRiskScore(ZeroTrustActionRepository.ZeroTrustAnalysisData analysisData) {
+        if (analysisData == null || analysisData.riskScore() == null) {
+            return 0.5d;
+        }
+        return analysisData.riskScore();
+    }
+
+    private String buildResourceId(MethodInvocation mi) {
+        return mi.getMethod().getDeclaringClass().getSimpleName() + "." + mi.getMethod().getName();
+    }
+
     @Override
     public Pointcut getPointcut() { return this.pointcut; }
     @Override
@@ -98,7 +192,7 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
     public boolean isPerInstance() { return true; }
     @Override
     public int getOrder() { return this.order; }
-    
+
     public void setZeroTrustEventPublisher(ZeroTrustEventPublisher zeroTrustEventPublisher) {
         this.zeroTrustEventPublisher = zeroTrustEventPublisher;
     }
@@ -107,14 +201,18 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
         this.metricsCollector = metricsCollector;
     }
 
+    public void setSynchronousProtectableDecisionService(
+            SynchronousProtectableDecisionService synchronousProtectableDecisionService) {
+        this.synchronousProtectableDecisionService = synchronousProtectableDecisionService;
+    }
+
     private void publishAuthorizationEvent(MethodInvocation mi, Authentication authentication,
-                                          boolean granted, String denialReason) {
+                                           boolean granted, String denialReason) {
         if (zeroTrustEventPublisher == null) {
             return;
         }
 
         try {
-            
             long startTime = System.nanoTime();
 
             zeroTrustEventPublisher.publishMethodAuthorization(

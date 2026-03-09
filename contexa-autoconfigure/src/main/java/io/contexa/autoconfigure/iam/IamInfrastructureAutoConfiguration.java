@@ -3,14 +3,18 @@ package io.contexa.autoconfigure.iam;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
+import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableMethodAuthorizationManager;
+import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.aop.Pointcut;
 import org.springframework.aop.support.ComposablePointcut;
 import org.springframework.aop.support.Pointcuts;
 import org.springframework.aop.support.annotation.AnnotationMatchingPointcut;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
@@ -51,14 +55,29 @@ public class IamInfrastructureAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public ProtectableRapidReentryGuard protectableRapidReentryGuard(
+            ProtectableRapidReentryRepository protectableRapidReentryRepository) {
+        return new ProtectableRapidReentryGuard(protectableRapidReentryRepository);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public AuthorizationManagerMethodInterceptor protectableAuthorizationAdvisor(
             ProtectableMethodAuthorizationManager protectableMethodAuthorizationManager,
-            ZeroTrustEventPublisher zeroTrustEventPublisher) {
+            ProtectableRapidReentryGuard protectableRapidReentryGuard,
+            ZeroTrustEventPublisher zeroTrustEventPublisher,
+            ObjectProvider<SynchronousProtectableDecisionService> synchronousProtectableDecisionServiceProvider) {
 
         Pointcut pointcut = new ComposablePointcut(classOrMethod());
-        AuthorizationManagerMethodInterceptor interceptor = new AuthorizationManagerMethodInterceptor(pointcut,
-                protectableMethodAuthorizationManager);
+        AuthorizationManagerMethodInterceptor interceptor = new AuthorizationManagerMethodInterceptor(
+                pointcut,
+                protectableMethodAuthorizationManager,
+                protectableRapidReentryGuard);
         interceptor.setZeroTrustEventPublisher(zeroTrustEventPublisher);
+        SynchronousProtectableDecisionService synchronousProtectableDecisionService = synchronousProtectableDecisionServiceProvider.getIfAvailable();
+        if (synchronousProtectableDecisionService != null) {
+            interceptor.setSynchronousProtectableDecisionService(synchronousProtectableDecisionService);
+        }
         return interceptor;
     }
 
@@ -86,3 +105,4 @@ public class IamInfrastructureAutoConfiguration {
         return builder -> builder.clientConnector(new ReactorClientHttpConnector(httpClient));
     }
 }
+

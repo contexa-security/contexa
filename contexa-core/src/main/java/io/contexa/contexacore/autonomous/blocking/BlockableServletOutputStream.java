@@ -8,7 +8,7 @@ import java.io.IOException;
 
 /**
  * ServletOutputStream wrapper that checks BlockingSignalBroadcaster on every
- * bulk write() and flush(). When a BLOCK decision is detected mid-stream,
+ * write() and flush(). When a BLOCK decision is detected mid-stream,
  * the stream is aborted with an IOException.
  */
 public class BlockableServletOutputStream extends ServletOutputStream {
@@ -31,7 +31,7 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public void write(int b) throws IOException {
-        // Single-byte write is typically buffered; skip the check for performance.
+        checkBlocked();
         delegate.write(b);
     }
 
@@ -55,6 +55,7 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public void close() throws IOException {
+        checkBlocked();
         delegate.close();
     }
 

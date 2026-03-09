@@ -52,12 +52,40 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     }
 
     @Override
+    public void sendError(int sc) throws IOException {
+        ensureNotBlocked();
+        super.sendError(sc);
+    }
+
+    @Override
+    public void sendError(int sc, String msg) throws IOException {
+        ensureNotBlocked();
+        super.sendError(sc, msg);
+    }
+
+    @Override
+    public void sendRedirect(String location) throws IOException {
+        ensureNotBlocked();
+        super.sendRedirect(location);
+    }
+
+    @Override
     public void flushBuffer() throws IOException {
+        ensureNotBlocked();
         if (writer != null) {
             writer.flush();
         } else if (blockableStream != null) {
             blockableStream.flush();
         }
         super.flushBuffer();
+    }
+
+    private void ensureNotBlocked() throws IOException {
+        if (registry.isBlocked(userId)) {
+            if (!isCommitted()) {
+                setStatus(HttpServletResponse.SC_FORBIDDEN);
+            }
+            throw new IOException("Response aborted: user " + userId + " blocked by security decision");
+        }
     }
 }

@@ -3,8 +3,8 @@ package io.contexa.contexacore.std.llm.client;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
-import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import io.contexa.contexacore.std.llm.handler.StreamingHandler;
+import io.contexa.contexacore.std.llm.strategy.ModelSelectionStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -71,29 +71,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                         });
                     }
 
-                    if (context.getChatOptions() != null) {
-                        promptSpec = promptSpec.options(context.getChatOptions());
-                    } else if (context.getTemperature() != null || context.getMaxTokens() != null ||
-                            context.getPreferredModel() != null || context.getTier() != null ||
-                            context.getAnalysisLevel() != null) {
-
-                        if (selectedModel instanceof OllamaChatModel) {
-                            String modelName = determineOllamaModelName(context);
-                            if (modelName != null) {
-                                OllamaOptions ollamaOptions = OllamaOptions.builder()
-                                        .model(modelName)
-                                        .temperature(context.getTemperature() != null ? context.getTemperature() : 0.7d)
-                                        .build();
-                                promptSpec = promptSpec.options(ollamaOptions);
-                            }
-                        } else {
-                            ChatOptions options = ChatOptions.builder()
-                                    .temperature(context.getTemperature())
-                                    .maxTokens(context.getMaxTokens())
-                                    .build();
-                            promptSpec = promptSpec.options(options);
-                        }
-                    }
+                    promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
 
                     if (context.getToolExecutionEnabled() != null && context.getToolExecutionEnabled()) {
 
@@ -138,7 +116,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
 
                 ChatClient chatClient = buildChatClientWithAdvisors(selectedModel);
 
-                return streamingHandler.handleStreaming(chatClient, context);
+                return streamingHandler.handleStreaming(chatClient, context, selectedModel);
             } catch (Exception e) {
                 log.error("LLM Streaming failed - RequestId: {}", context.getRequestId(), e);
                 return Flux.error(e);
@@ -183,9 +161,7 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
                         });
                     }
 
-                    if (context.getChatOptions() != null) {
-                        promptSpec = promptSpec.options(context.getChatOptions());
-                    }
+                    promptSpec = applyExecutionOptions(promptSpec, context, selectedModel);
 
                     return (T) promptSpec.call().entity(targetType);
                 })
@@ -218,6 +194,73 @@ public class UnifiedLLMOrchestrator implements LLMOperations, ToolCapableLLMClie
         return defaultModel;
     }
 
+    private ChatClient.ChatClientRequestSpec applyExecutionOptions(ChatClient.ChatClientRequestSpec promptSpec,
+                                                                   ExecutionContext context,
+                                                                   ChatModel selectedModel) {
+
+        if (context.getChatOptions() != null) {
+            return promptSpec.options(context.getChatOptions());
+        }
+
+        if (!hasRuntimeOptions(context)) {
+            return promptSpec;
+        }
+
+        if (selectedModel instanceof OllamaChatModel ollamaChatModel) {
+            return promptSpec.options(buildOllamaOptions(context, ollamaChatModel));
+        }
+
+        return promptSpec.options(buildGenericChatOptions(context));
+    }
+
+    private boolean hasRuntimeOptions(ExecutionContext context) {
+        return context.getTemperature() != null
+                || context.getTopP() != null
+                || context.getMaxTokens() != null
+                || context.getPreferredModel() != null
+                || context.getTier() != null
+                || context.getAnalysisLevel() != null
+                || context.getSecurityTaskType() != null;
+    }
+
+    private OllamaOptions buildOllamaOptions(ExecutionContext context, OllamaChatModel selectedModel) {
+        String modelName = determineOllamaModelName(context);
+        ChatOptions defaultOptions = selectedModel.getDefaultOptions();
+        OllamaOptions options = defaultOptions instanceof OllamaOptions ollamaDefaults
+                ? OllamaOptions.fromOptions(ollamaDefaults)
+                : OllamaOptions.builder().build();
+
+        if (modelName != null && !modelName.isBlank()) {
+            options.setModel(modelName);
+        }
+        if (context.getTemperature() != null) {
+            options.setTemperature(context.getTemperature());
+        }
+        if (context.getTopP() != null) {
+            options.setTopP(context.getTopP());
+        }
+        if (context.getMaxTokens() != null) {
+            options.setNumPredict(context.getMaxTokens());
+        }
+
+        return options;
+    }
+
+    private ChatOptions buildGenericChatOptions(ExecutionContext context) {
+        ChatOptions.Builder optionsBuilder = ChatOptions.builder();
+
+        if (context.getTemperature() != null) {
+            optionsBuilder.temperature(context.getTemperature());
+        }
+        if (context.getTopP() != null) {
+            optionsBuilder.topP(context.getTopP());
+        }
+        if (context.getMaxTokens() != null) {
+            optionsBuilder.maxTokens(context.getMaxTokens());
+        }
+
+        return optionsBuilder.build();
+    }
     @Override
     public Mono<String> call(Prompt prompt) {
 

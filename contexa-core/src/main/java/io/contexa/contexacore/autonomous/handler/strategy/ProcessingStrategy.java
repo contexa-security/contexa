@@ -1,7 +1,7 @@
 package io.contexa.contexacore.autonomous.handler.strategy;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
-import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.tiered.routing.ProcessingMode;
 
 public interface ProcessingStrategy {
