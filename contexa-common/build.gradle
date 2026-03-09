@@ -5,29 +5,17 @@ tasks.named('resolveMainClassName') {
     enabled = false
 }
 
-// 라이브러리 JAR에서 application.yml 제외
 jar {
     exclude '**/application.yml'
 }
 
 dependencies {
-    // Spring AI model types (ToolCallback used in ToolResolver)
     api 'org.springframework.ai:spring-ai-model'
-
-    // Spring Security (UserDto, Authority, UnifiedCustomUserDetails용)
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
-
-    // Redis (공통 Redis 설정 제공)
     api 'org.springframework.boot:spring-boot-starter-data-redis'
-
-    // Caffeine, Jackson provided by root subprojects
-
-    // QueryDSL (Q-class generation for JPA entities)
     implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     implementation 'com.querydsl:querydsl-core:5.1.0'
     annotationProcessor "com.querydsl:querydsl-apt:5.1.0:jakarta"
-
-    // ND4J for SIMD-optimized vector operations (VectorSimilarityUtil)
     implementation 'org.nd4j:nd4j-native-platform:1.0.0-M2.1'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'io.projectreactor:reactor-test'

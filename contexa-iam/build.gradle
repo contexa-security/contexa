@@ -8,13 +8,9 @@ tasks.named('resolveMainClassName') {
 dependencies {
     implementation project(':contexa-core')
     implementation project(':contexa-common')
-    // contexa-autoconfigure는 Starter에서 포함 (순환 의존성 방지)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.thymeleaf.extras:thymeleaf-extras-springsecurity6'
-    // WebFlux는 AutoConfiguration에서 처리
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
-
-    // OpenTelemetry API provided by root subprojects
 
     // Module-specific dependencies (moved from root subprojects)
     implementation 'org.springframework.boot:spring-boot-starter-validation'
@@ -30,10 +26,8 @@ dependencies {
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
-// QueryDSL Q 클래스 생성 디렉토리
 def querydslGenerated = layout.buildDirectory.dir("generated/querydsl")
 
-// 소스셋 설정
 sourceSets {
     main {
         java {
@@ -42,12 +36,10 @@ sourceSets {
     }
 }
 
-// JavaCompile 태스크 설정
 tasks.withType(JavaCompile).configureEach {
     options.getGeneratedSourceOutputDirectory().set(querydslGenerated)
 }
 
-// Clean 시 생성된 Q 클래스 제거
 clean {
     doLast {
         delete querydslGenerated
@@ -58,7 +50,6 @@ tasks.named('test') {
     useJUnitPlatform()
 }
 
-// sourcesJar가 compileJava 이후에 실행되도록 의존성 추가
 tasks.named('sourcesJar') {
     dependsOn 'compileJava'
 }

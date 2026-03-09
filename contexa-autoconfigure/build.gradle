@@ -2,47 +2,35 @@
 // plugins, java, configurations는 이미 적용됨
 
 dependencies {
-    // ========== Contexa Community 모듈 (compileOnly) ==========
-    // Spring Boot 표준: AutoConfiguration은 모든 기능 모듈을 compileOnly로 선언
     compileOnly project(':contexa-common')
     compileOnly project(':contexa-core')
     compileOnly project(':contexa-identity')
     compileOnly project(':contexa-iam')
 
-    // Spring Boot AutoConfiguration (subprojects 공통 의존성 외 추가)
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
-    // spring-boot-configuration-processor는 subprojects에서 이미 추가됨
 
-    // Spring StateMachine (contexa-identity 사용)
     compileOnly 'org.springframework.statemachine:spring-statemachine-starter'
     compileOnly 'org.springframework.statemachine:spring-statemachine-data-redis:4.0.0'
 
-    // Spring Security (contexa-iam XACML PEP 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
 
-    // OAuth2 (contexa-identity OAuth2 및 ASEP 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-client'
     compileOnly 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
 
-    // WebFlux (contexa-iam 사용)
     compileOnly 'org.springframework.boot:spring-boot-starter-webflux'
 
-    // Spring AI AutoConfiguration types (CoreLLMTieredAutoConfiguration uses ChatClientAutoConfiguration)
     compileOnly 'org.springframework.ai:spring-ai-autoconfigure-model-chat-client'
 
-    // Module-specific compileOnly (moved from root subprojects)
     compileOnly 'org.springframework.boot:spring-boot-starter-mail'
     compileOnly("org.springframework.kafka:spring-kafka")
     compileOnly 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     compileOnly("org.redisson:redisson-spring-boot-starter:3.48.0")
 
-    // Spring AI MCP Client (contexa-core ToolResolver 사용)
     compileOnly 'org.springframework.ai:spring-ai-starter-mcp-client'
 }
 
-// 라이브러리 모듈이므로 bootJar 비활성화
 bootJar.enabled = false
 jar.enabled = true
 

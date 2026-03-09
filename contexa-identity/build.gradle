@@ -21,9 +21,7 @@ dependencies {
 
     implementation 'com.webauthn4j:webauthn4j-core:0.29.7.RELEASE'
 //    implementation 'org.springframework.security:spring-security-webauthn'
-    // JWT provided by root subprojects (0.12.6)
 
-    // Module-specific dependencies (moved from root subprojects)
     implementation("org.redisson:redisson-spring-boot-starter:3.48.0")
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-mail'

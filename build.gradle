@@ -24,16 +24,13 @@ java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
     }
-    // Maven Central 배포 요구사항: 소스 JAR, Javadoc JAR 생성 (Maven Central requirement: Generate source and Javadoc JARs)
     withSourcesJar()
     withJavadocJar()
 }
 
-// Javadoc 생성 설정 (Javadoc generation configuration)
 tasks.withType(Javadoc) {
     options.encoding = 'UTF-8'
     options.charSet = 'UTF-8'
-    // 한국어 주석 에러 무시 (Ignore Korean comment errors)
     options.addStringOption('Xdoclint:none', '-quiet')
 }
 
@@ -70,19 +67,16 @@ subprojects {
         options.encoding = 'UTF-8'
     }
 
-    // bootRun 콘솔 한글 인코딩 설정
     tasks.withType(org.springframework.boot.gradle.tasks.run.BootRun).configureEach {
         jvmArgs = ['-Dfile.encoding=UTF-8', '-Dconsole.encoding=UTF-8', '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8']
     }
 
-    // Javadoc 오류 무시 설정
     tasks.withType(Javadoc) {
         options.encoding = 'UTF-8'
         options.addStringOption('Xdoclint:none', '-quiet')
         failOnError = false
     }
 
-    // Common dependencies shared by all subprojects
     dependencies {
         implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
         implementation 'org.springframework.boot:spring-boot-starter-web'
@@ -97,14 +91,12 @@ subprojects {
 
         implementation platform("org.springframework.ai:spring-ai-bom:1.0.0")
 
-        // JWT
         implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
         runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
         runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
         implementation("com.github.ben-manes.caffeine:caffeine:3.2.2")
 
-        // Observability
         implementation 'io.opentelemetry:opentelemetry-api:1.32.0'
 
         implementation 'org.apache.commons:commons-pool2:2.12.1'
@@ -122,7 +114,7 @@ subprojects {
         }
     }
 
-    // Maven 저장소 배포 설정 (Maven repository publishing configuration)
+    // Maven repository publishing configuration
     publishing {
         publications {
             mavenJava(MavenPublication) {
