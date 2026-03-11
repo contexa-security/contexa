@@ -45,8 +45,8 @@
 }
 
 .logo-icon {
-  width: 52px;
-  height: 52px;
+  width: 64px;
+  height: 64px;
   object-fit: contain;
   border-radius: var(--radius-md);
 }
@@ -159,14 +159,14 @@
 }
 
 .dropdown-section-title {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: var(--weight-bold);
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--brand-primary);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   margin-bottom: var(--space-3);
   padding-bottom: var(--space-2);
-  border-bottom: none;
+  border-bottom: 1px solid var(--border-light);
 }
 
 .dropdown-link {
@@ -367,6 +367,11 @@
 
 .footer-brand .logo {
   margin-bottom: var(--space-4);
+}
+
+.footer-brand .logo-icon {
+  width: 48px;
+  height: 48px;
 }
 
 .footer-brand-desc {

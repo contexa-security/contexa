@@ -6,7 +6,11 @@
 (function () {
   'use strict';
 
+  var initialized = false;
+
   function init() {
+    if (initialized) return;
+    initialized = true;
     var content = document.querySelector('.docs-content-inner');
     if (!content) return;
 

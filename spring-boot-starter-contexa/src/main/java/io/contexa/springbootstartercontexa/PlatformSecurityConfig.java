@@ -13,6 +13,7 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 
 @Slf4j
 @Configuration
@@ -38,13 +39,12 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-/*
                 .form(form -> form.order(20)
                         .loginPage("/admin/login")
                         .defaultSuccessUrl("/admin")
+                        .rawHttp(http-> http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)))
                 )
                 .oauth2(Customizer.withDefaults())
-*/
 //                .rest(rest -> rest.order(10)
 //                        .defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())

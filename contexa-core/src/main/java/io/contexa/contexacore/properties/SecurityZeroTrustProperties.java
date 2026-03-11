@@ -10,7 +10,20 @@ public class SecurityZeroTrustProperties {
 
     private boolean enabled = true;
 
-    private String mode = "TRUST";
+    private SecurityMode mode = SecurityMode.ENFORCE;
+
+    public enum SecurityMode {
+        SHADOW,
+        ENFORCE;
+
+        public boolean isEnforcementEnabled() {
+            return this == ENFORCE;
+        }
+    }
+
+    public boolean isEnforcementEnabled() {
+        return mode.isEnforcementEnabled();
+    }
 
     @NestedConfigurationProperty
     private SamplingSettings sampling = new SamplingSettings();

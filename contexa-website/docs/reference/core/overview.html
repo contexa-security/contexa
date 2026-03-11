@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Engine Overview | Contexa Docs</title>
+  <meta name="description" content="Contexa AI Engine overview. Architecture, AI diagnosis process, standard and streaming analysis, customization points, and platform integration with Identity and IAM.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <div data-include="/includes/header.html"></div>
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/overview.html" class="sidebar-link active" style="display:block;text-align:center">Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">AI Engine Overview</span>
+          </nav>
+
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-primary">contexa-core</span>
+            </div>
+            <h1>AI Engine Overview</h1>
+            <p class="lead">Contexa AI Engine overview &mdash; architecture, AI diagnosis process, standard and streaming analysis, customization points, and platform integration with Identity and IAM.</p>
+          </div>
+
+          <!-- AI Diagnosis Process -->
+          <section class="docs-section">
+            <h2 id="diagnosis-flow">AI Diagnosis Process</h2>
+            <p>The AI Engine supports two execution modes. Choose based on your use case:</p>
+
+            <div class="diagram-container">
+              <div class="diagram-grid diagram-grid-2">
+                <div class="diagram-box diagram-highlight">
+                  <strong>Standard Analysis</strong><br><br>
+                  Returns <code>Mono&lt;AIResponse&gt;</code><br>
+                  Full 6-step pipeline execution<br>
+                  Structured JSON response<br><br>
+                  <em>Best for: dashboards, reports, batch processing</em>
+                </div>
+                <div class="diagram-box diagram-accent">
+                  <strong>Streaming Analysis</strong><br><br>
+                  Returns <code>Flux&lt;ServerSentEvent&gt;</code><br>
+                  4-step pipeline (pre-process + streaming LLM)<br>
+                  Real-time text stream via SSE<br><br>
+                  <em>Best for: chat interfaces, live analysis, interactive UIs</em>
+                </div>
+              </div>
+            </div>
+
+            <h3>Standard Analysis</h3>
+            <p>Executes the full 6-step pipeline and returns a structured JSON response. Use this when you need complete, parsed analysis results.</p>
+
+<pre><code class="language-java">@RestController
+@RequestMapping("/api/my-analysis")
+@RequiredArgsConstructor
+public class MyAnalysisController {
+
+    private final AICoreOperations&lt;MyContext&gt; aiProcessor;
+    private final StandardStreamingService streamingService;
+
+    @PostMapping("/analyze")
+    public Mono&lt;ResponseEntity&lt;MyAnalysisResponse&gt;&gt; analyze(
+            @RequestBody MyAnalysisItem request) {
+
+        MyAnalysisRequest aiRequest = createRequest(request);
+
+        return streamingService.process(
+                aiRequest, aiProcessor, MyAnalysisResponse.class
+        ).map(ResponseEntity::ok);
+    }
+}</code></pre>
+
+            <h3>Streaming Analysis</h3>
+            <p>Runs context retrieval, preprocessing, and prompt generation, then streams the LLM response in real-time via Server-Sent Events. Use this for chat-like interfaces or when users need immediate feedback.</p>
+
+<pre><code class="language-java">@PostMapping(value = "/analyze/stream",
+             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+public Flux&lt;ServerSentEvent&lt;String&gt;&gt; analyzeStream(
+        @RequestBody MyAnalysisItem request) {
+
+    MyAnalysisRequest aiRequest = createRequest(request);
+
+    return streamingService.stream(aiRequest, aiProcessor);
+}</code></pre>
+
+            <div class="callout callout-info">
+              <strong>Choosing Between Modes</strong><br>
+              Use <strong>Standard Analysis</strong> when you need structured JSON responses that can be programmatically processed (dashboards, reports, automated workflows). Use <strong>Streaming Analysis</strong> when users need to see results as they are generated (chat UIs, live monitoring, interactive analysis).
+            </div>
+          </section>
+
+          <!-- Customization Points -->
+          <section class="docs-section">
+            <h2 id="customization-points">Customization Points</h2>
+            <p>To build a custom AI feature, you implement these extension points. Each one plugs into the AI Engine at a specific layer:</p>
+
+            <div class="diagram-container">
+              <div class="diagram-grid diagram-grid-3">
+                <div class="diagram-box diagram-highlight">
+                  <strong>AIRequest / AIResponse</strong><br><br>
+                  Define your request and response types. Extend <code>AIResponse</code> with domain-specific fields.
+                </div>
+                <div class="diagram-box diagram-highlight">
+                  <strong>Strategy</strong><br><br>
+                  Route requests by <code>DiagnosisType</code>. Validate input and select the Lab to execute.
+                </div>
+                <div class="diagram-box diagram-highlight">
+                  <strong>Lab</strong><br><br>
+                  Collect domain data, enrich the request, and delegate to the Pipeline.
+                </div>
+                <div class="diagram-box diagram-accent">
+                  <strong>PromptTemplate</strong><br><br>
+                  Generate system and user prompts for the LLM from your domain data.
+                </div>
+                <div class="diagram-box diagram-accent">
+                  <strong>ContextRetriever</strong><br><br>
+                  Customize RAG vector search to retrieve relevant context for your domain.
+                </div>
+                <div class="diagram-box diagram-muted">
+                  <strong>Configuration</strong><br><br>
+                  Tune LLM models, tiers, RAG parameters, and streaming settings via <code>application.yml</code>.
+                </div>
+              </div>
+            </div>
+
+            <div class="callout callout-success">
+              <strong>Getting Started</strong><br>
+              See <a href="strategy.html">Building Custom AI</a> for a step-by-step guide to implementing each extension point with working code examples.
+            </div>
+          </section>
+
+          <!-- Platform Integration -->
+          <section class="docs-section">
+            <h2 id="platform-integration">Platform Integration</h2>
+            <p>The AI Engine integrates with Contexa's Identity and IAM modules to deliver AI Native Security. Each module contributes a distinct capability:</p>
+
+            <div class="diagram-container">
+              <div class="diagram-flow">
+                <div class="diagram-box diagram-highlight">
+                  <strong>Identity</strong><br><br>
+                  Authentication<br>
+                  Session / Token<br>
+                  MFA
+                </div>
+                <div class="diagram-arrow"></div>
+                <div class="diagram-box diagram-accent">
+                  <strong>IAM</strong><br><br>
+                  Authorization<br>
+                  Policy / XACML<br>
+                  Resource Protection
+                </div>
+                <div class="diagram-arrow"></div>
+                <div class="diagram-box diagram-success">
+                  <strong>AI Engine</strong><br><br>
+                  AI Diagnosis<br>
+                  Risk Analysis<br>
+                  Policy Generation
+                </div>
+              </div>
+            </div>
+
+            <p>When integrated together, the platform enables:</p>
+            <ul>
+              <li><strong>Zero Trust security analysis</strong> &mdash; AI-powered continuous risk assessment for every access decision</li>
+              <li><strong>Automated policy generation</strong> &mdash; AI generates and refines XACML policies based on access patterns</li>
+              <li><strong>Resource naming recommendations</strong> &mdash; AI suggests standardized resource names for policy consistency</li>
+              <li><strong>Interactive security studio</strong> &mdash; Natural language queries against your IAM data with AI analysis</li>
+            </ul>
+
+            <div class="callout callout-info">
+              <strong>Standalone Usage</strong><br>
+              The AI Engine can also be used independently for any AI analysis task in your Spring application. The Identity and IAM integration is optional and adds security-specific AI capabilities.
+            </div>
+          </section>
+
+          <!-- Configuration Overview -->
+          <section class="docs-section">
+            <h2 id="configuration">Configuration Overview</h2>
+            <p>AI Engine behavior is controlled through <code>application.yml</code> properties. Key configuration areas:</p>
+
+            <div class="diagram-container">
+              <div class="diagram-grid diagram-grid-2">
+                <div class="diagram-box">
+                  <strong>LLM &amp; Models</strong><br><br>
+                  Tiered model hierarchy (Layer 1 / Layer 2)<br>
+                  Model provider selection (OpenAI, Anthropic, Ollama)<br>
+                  Temperature, max tokens per task type
+                </div>
+                <div class="diagram-box">
+                  <strong>Pipeline &amp; RAG</strong><br><br>
+                  Vector search parameters (topK, similarity threshold)<br>
+                  Lab-specific RAG configuration<br>
+                  Pipeline timeout and streaming settings
+                </div>
+              </div>
+            </div>
+
+            <div class="callout callout-info">
+              <strong>Configuration Reference</strong><br>
+              For complete property reference with examples, see <a href="../../../docs/install/configuration/ai.html">Configuration &gt; AI</a> &mdash; covers LLM tiers, strategy settings, RAG parameters, streaming, and vector store configuration.
+            </div>
+          </section>
+
+          <!-- Related -->
+          <section class="docs-section">
+            <h2 id="related">Related</h2>
+            <div class="related-links-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1rem;">
+              <a href="strategy.html" class="related-link-card">
+                <h3>Building Custom AI</h3>
+                <p>Step-by-step guide to implementing Strategy, Lab, and PromptTemplate.</p>
+              </a>
+              <a href="pipeline.html" class="related-link-card">
+                <h3>Pipeline &amp; RAG</h3>
+                <p>6-step pipeline architecture and RAG context retrieval.</p>
+              </a>
+              <a href="streaming.html" class="related-link-card">
+                <h3>Streaming</h3>
+                <p>Real-time SSE streaming and client integration.</p>
+              </a>
+              <a href="llm-orchestrator.html" class="related-link-card">
+                <h3>LLM &amp; Models</h3>
+                <p>Tiered model hierarchy, providers, and advisor system.</p>
+              </a>
+            </div>
+          </section>
+
+          <div class="docs-nav-footer">
+            <a href="../../../docs/reference/iam/end-to-end-workflow.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">IAM End-to-End Workflow</span>
+            </a>
+            <a href="strategy.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">Building Custom AI</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div data-include="/includes/footer.html"></div>
+
+
+  <script src="../../../assets/js/include.js?v=1773190937296" data-root="../../.."></script>
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

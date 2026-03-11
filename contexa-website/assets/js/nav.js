@@ -5,7 +5,11 @@
 (function () {
   'use strict';
 
+  var initialized = false;
+
   function init() {
+    if (initialized) return;
+    initialized = true;
     initScrollShadow();
     initMobileMenu();
     initDropdowns();

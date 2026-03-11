@@ -11,6 +11,7 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     @Setter
     @Autowired(required = false)
@@ -37,6 +39,20 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     @Setter
     @Autowired(required = false)
     private BlockingSignalBroadcaster blockingDecisionRegistry;
+
+    @Override
+    public boolean canHandle(SecurityEventContext context) {
+        if (!SecurityEventHandler.super.canHandle(context)) {
+            return false;
+        }
+        if (!securityZeroTrustProperties.isEnforcementEnabled()) {
+            SecurityZeroTrustProperties.SecurityMode currentMode = securityZeroTrustProperties.getMode();
+            log.error("[SecurityDecisionEnforcementHandler] Enforcement skipped in {} mode: userId={}",
+                    currentMode, context.getSecurityEvent().getUserId());
+            return false;
+        }
+        return true;
+    }
 
     @Override
     public boolean handle(SecurityEventContext context) {

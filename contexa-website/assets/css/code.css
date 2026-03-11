@@ -98,7 +98,7 @@
 
 .code-block code {
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
+  font-size: 1rem;
   line-height: var(--leading-relaxed);
   color: var(--text-code);
   background: none;
@@ -114,6 +114,18 @@ pre[class*="language-"] {
   color: var(--text-code) !important;
   background: none !important;
   text-shadow: none !important;
+}
+
+/* ── Prism.js Token Reset (prevent default theme leaking) ── */
+.code-block .token {
+  background: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-size: inherit !important;
+  display: inline !important;
 }
 
 /* ── Prism.js Theme Override (Contexa Refined Dark) ── */

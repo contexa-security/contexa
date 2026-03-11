@@ -199,7 +199,10 @@
       "Bash(mv dsl.tmp dsl.html)",
       "Bash(do awk:*)",
       "Bash(\"$f.tmp\")",
-      "Bash(mv \"$f.tmp\" \"$f\")"
+      "Bash(mv \"$f.tmp\" \"$f\")",
+      "Bash(printf '\\\\n  <script src=\"\"./assets/js/nav.js?v=1773190937296\"\"></script>\\\\n  <script src=\"\"./assets/js/code-highlight.js?v=1773190937296\"\"></script>\\\\n</body>\\\\n</html>\\\\n')",
+      "Bash(mv get-started.tmp get-started.html)",
+      "Bash(node -e \":*)"
     ],
     "deny": [],
     "ask": []

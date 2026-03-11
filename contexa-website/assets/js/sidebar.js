@@ -7,8 +7,11 @@
   'use strict';
 
   var isNavigating = false;
+  var initialized = false;
 
   function init() {
+    if (initialized) return;
+    initialized = true;
     initActiveState();
     initSectionHeights();
     initSectionToggle();
@@ -136,16 +139,29 @@
   }
 
   /**
+   * Resolves a sidebar link's absolute URL for comparison.
+   * Uses the DOM .href property which the browser resolves automatically.
+   */
+  function normalizeUrl(url) {
+    return url.split('#')[0].split('?')[0].replace(/\.html$/, '');
+  }
+
+  function resolveUrl(link) {
+    return normalizeUrl(link.href);
+  }
+
+  function currentUrl() {
+    return normalizeUrl(window.location.href);
+  }
+
+  /**
    * Update sidebar active link based on current URL (after SPA navigation)
    */
   function updateSidebarActive() {
     var sidebar = document.querySelector('.docs-sidebar');
     if (!sidebar) return;
 
-    var currentPath = window.location.pathname;
-    var currentFile = currentPath.split('/').pop() || 'index.html';
-    var pathParts = currentPath.replace(/\\/g, '/').split('/').filter(Boolean);
-    var partialPath = pathParts.slice(-3).join('/');
+    var pageUrl = currentUrl();
 
     // Clear all active states
     sidebar.querySelectorAll('.sidebar-link.active').forEach(function (el) {
@@ -161,36 +177,7 @@
     links.forEach(function (link) {
       if (matched) return;
 
-      var href = link.getAttribute('href');
-      if (!href) return;
-
-      var hrefNorm = href.replace(/\\/g, '/').replace(/^\.\//, '');
-      var hrefParts = hrefNorm.split('/').filter(Boolean);
-      var hrefFile = hrefParts[hrefParts.length - 1] || '';
-      var hrefPartial = hrefParts.slice(-3).join('/');
-
-      var isMatch = false;
-
-      try {
-        var linkPath = new URL(href, window.location.origin).pathname;
-        if (currentPath === linkPath) isMatch = true;
-      } catch (e) { /* ignore */ }
-
-      if (!isMatch && partialPath && hrefPartial && partialPath.endsWith(hrefPartial)) {
-        isMatch = true;
-      }
-
-      if (!isMatch && hrefParts.length >= 2 && pathParts.length >= 2) {
-        var hrefTail = hrefParts.slice(-2).join('/');
-        var pathTail = pathParts.slice(-2).join('/');
-        if (pathTail === hrefTail) isMatch = true;
-      }
-
-      if (!isMatch && currentFile === hrefFile && currentFile !== 'index.html') {
-        isMatch = true;
-      }
-
-      if (isMatch) {
+      if (resolveUrl(link) === pageUrl) {
         link.classList.add('active');
         matched = true;
 
@@ -241,45 +228,14 @@
     var sidebar = document.querySelector('.docs-sidebar');
     if (!sidebar) return;
 
-    var currentPath = window.location.pathname;
-    var currentFile = currentPath.split('/').pop() || 'index.html';
-    var pathParts = currentPath.replace(/\\/g, '/').split('/').filter(Boolean);
-    var partialPath = pathParts.slice(-3).join('/');
-
+    var pageUrl = currentUrl();
     var links = sidebar.querySelectorAll('.sidebar-link');
     var matched = false;
 
     links.forEach(function (link) {
-      var href = link.getAttribute('href');
-      if (!href) return;
+      if (matched) return;
 
-      var hrefNorm = href.replace(/\\/g, '/').replace(/^\.\//, '');
-      var hrefParts = hrefNorm.split('/').filter(Boolean);
-      var hrefFile = hrefParts[hrefParts.length - 1] || '';
-      var hrefPartial = hrefParts.slice(-3).join('/');
-
-      var isMatch = false;
-
-      try {
-        var linkPath = new URL(href, window.location.origin).pathname;
-        if (currentPath === linkPath) isMatch = true;
-      } catch (e) { /* ignore */ }
-
-      if (!isMatch && partialPath && hrefPartial && partialPath.endsWith(hrefPartial)) {
-        isMatch = true;
-      }
-
-      if (!isMatch && hrefParts.length >= 2 && pathParts.length >= 2) {
-        var hrefTail = hrefParts.slice(-2).join('/');
-        var pathTail = pathParts.slice(-2).join('/');
-        if (pathTail === hrefTail) isMatch = true;
-      }
-
-      if (!isMatch && currentFile === hrefFile && currentFile !== 'index.html') {
-        isMatch = true;
-      }
-
-      if (isMatch && !matched) {
+      if (resolveUrl(link) === pageUrl) {
         link.classList.add('active');
         matched = true;
 

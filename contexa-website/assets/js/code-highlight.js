@@ -5,7 +5,11 @@
 (function () {
   'use strict';
 
+  var initialized = false;
+
   function init() {
+    if (initialized) return;
+    initialized = true;
     loadPrism(function () {
       enhanceCodeBlocks();
     });
@@ -25,7 +29,7 @@
       javaScript.src = 'https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-java.min.js';
       javaScript.onload = function () {
         // Load additional languages
-        var langs = ['yaml', 'bash', 'json', 'xml-doc', 'properties'];
+        var langs = ['yaml', 'bash', 'json', 'markup', 'properties'];
         var loaded = 0;
         langs.forEach(function (lang) {
           var s = document.createElement('script');

@@ -6,7 +6,11 @@
 (function () {
   'use strict';
 
+  var initialized = false;
+
   function init() {
+    if (initialized) return;
+    initialized = true;
     var sidebar = document.querySelector('.docs-sidebar');
     if (!sidebar) return;
 

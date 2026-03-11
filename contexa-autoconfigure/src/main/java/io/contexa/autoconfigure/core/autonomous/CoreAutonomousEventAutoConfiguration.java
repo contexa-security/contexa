@@ -173,9 +173,10 @@ public class CoreAutonomousEventAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRepository,
-            SecurityLearningService securityLearningService) {
+            SecurityLearningService securityLearningService,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new SecurityDecisionEnforcementHandler(
-                actionRepository, securityLearningService);
+                actionRepository, securityLearningService, securityZeroTrustProperties);
     }
 
     @Bean
