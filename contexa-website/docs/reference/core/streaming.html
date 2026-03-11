@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Streaming | Contexa Docs</title>
+  <meta name="description" content="API reference for Contexa Streaming. Covers StandardStreamingService, DefaultStandardStreamingService, StreamingContext, ChunkProcessor, JsonStreamingProcessor, and StreamingProtocol.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">Streaming</span>
+          </nav>
+
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-primary">contexa-core</span>
+            </div>
+            <h1>Streaming</h1>
+            <p class="lead">The streaming subsystem provides Server-Sent Events (SSE) streaming for AI responses. <code>StandardStreamingService</code> handles the full lifecycle from chunk processing through sentence buffering to JSON extraction, delivering a smooth real-time experience to clients through two execution paths: the Strategy/Lab path via <code>AICoreOperations</code> and the direct Pipeline path via <code>PipelineOrchestrator</code>.</p>
+          </div>
+
+          <!-- Overview -->
+          <section class="docs-section">
+            <h2 id="overview">Overview</h2>
+            <p>Streaming in Contexa uses a marker-based protocol within the LLM output to separate narrative text from structured JSON responses. The <code>DefaultStandardStreamingService</code> processes raw LLM chunks, buffers them into complete sentences, detects protocol markers, extracts JSON payloads, and wraps everything in SSE events for delivery to the client.</p>
+          </section>
+
+          <!-- StandardStreamingService -->
+          <section class="docs-section">
+            <h2 id="standard-streaming-service">StandardStreamingService</h2>
+            <p>The primary interface for all streaming operations. Supports two execution paths and both streaming and non-streaming modes.</p>
+
+            <div class="api-signature">
+              <code>public interface StandardStreamingService</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">stream(AIRequest&lt;C&gt; request, AICoreOperations&lt;C&gt; aiProcessor)</span>
+                <span class="api-method-return">Flux&lt;ServerSentEvent&lt;String&gt;&gt;</span>
+              </div>
+              <div class="api-method-desc">Streams the response using the Strategy/Lab path. Enables <code>DiagnosisType</code>-based routing and domain-specific processing.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">stream(AIRequest&lt;C&gt; request, PipelineOrchestrator pipelineOrchestrator)</span>
+                <span class="api-method-return">Flux&lt;ServerSentEvent&lt;String&gt;&gt;</span>
+              </div>
+              <div class="api-method-desc">Streams the response directly via the pipeline, bypassing the Strategy/Lab layer. Use this for simple LLM calls or custom prompt execution.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">process(AIRequest&lt;C&gt; request, AICoreOperations&lt;C&gt; aiProcessor, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Mono&lt;R&gt;</span>
+              </div>
+              <div class="api-method-desc">Non-streaming single response via the Strategy/Lab path.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">process(AIRequest&lt;C&gt; request, PipelineOrchestrator orchestrator, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Mono&lt;R&gt;</span>
+              </div>
+              <div class="api-method-desc">Non-streaming single response via the pipeline path.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">errorStream(String errorCode, String message)</span>
+                <span class="api-method-return">Flux&lt;ServerSentEvent&lt;String&gt;&gt;</span>
+              </div>
+              <div class="api-method-desc">Creates an SSE error stream with a JSON-formatted error payload.</div>
+            </div>
+          </section>
+
+          <!-- StreamingProtocol -->
+          <section class="docs-section">
+            <h2 id="streaming-protocol">StreamingProtocol</h2>
+            <p>Defines the marker constants used in the streaming pipeline to separate text, JSON, and control signals.</p>
+
+            <div class="api-signature">
+              <code>public final class StreamingProtocol</code>
+            </div>
+
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Constant</th><th>Value</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>FINAL_RESPONSE_MARKER</code></td><td><code>###FINAL_RESPONSE###</code></td><td>Prefixes the final complete JSON response.</td></tr>
+                <tr><td><code>STREAMING_MARKER</code></td><td><code>###STREAMING###</code></td><td>Prefixes narrative text chunks for client display.</td></tr>
+                <tr><td><code>JSON_START_MARKER</code></td><td><code>===JSON_START===</code></td><td>Signals the beginning of a JSON payload in the stream.</td></tr>
+                <tr><td><code>JSON_END_MARKER</code></td><td><code>===JSON_END===</code></td><td>Signals the end of a JSON payload in the stream.</td></tr>
+                <tr><td><code>GENERATING_RESULT_MARKER</code></td><td><code>###GENERATING_RESULT###</code></td><td>Sent when JSON_START is detected, notifying clients that analysis text is complete and result data is being generated.</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <!-- StreamingContext -->
+          <section class="docs-section">
+            <h2 id="streaming-context">StreamingContext</h2>
+            <p>Stateful context object that tracks the streaming session. Accumulates chunks, detects markers, and manages a <code>SentenceBuffer</code> for converting raw LLM chunks into complete sentences.</p>
+
+            <div class="api-signature">
+              <code>public class StreamingContext extends BaseStreamingContext</code>
+            </div>
+
+            <p>Key features:</p>
+            <ul>
+              <li><strong>Chunk accumulation</strong> via <code>appendChunk()</code> for marker detection.</li>
+              <li><strong>Sentence buffering</strong> via <code>getSentenceBuffer()</code> that groups chunks into complete sentences before sending.</li>
+              <li><strong>JSON extraction</strong> via <code>extractJsonPart()</code> that detects and extracts JSON payloads from the accumulated stream.</li>
+              <li><strong>State tracking</strong> via <code>isFinalResponseStarted()</code> and <code>isJsonSent()</code> to prevent duplicate emissions.</li>
+            </ul>
+          </section>
+
+          <!-- ChunkProcessor -->
+          <section class="docs-section">
+            <h2 id="chunk-processor">ChunkProcessor</h2>
+            <p>Interface for custom chunk processing logic that can be plugged into the streaming pipeline.</p>
+
+            <div class="api-signature">
+              <code>public interface ChunkProcessor</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">process(Flux&lt;String&gt; upstream)</span>
+                <span class="api-method-return">Flux&lt;String&gt;</span>
+              </div>
+              <div class="api-method-desc">Processes the upstream flux of raw chunks and returns the transformed output.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getProcessorType()</span>
+                <span class="api-method-return">String</span>
+              </div>
+              <div class="api-method-desc">Returns a string identifier for this processor type.</div>
+            </div>
+          </section>
+
+          <!-- JsonStreamingProcessor -->
+          <section class="docs-section">
+            <h2 id="json-streaming-processor">JsonStreamingProcessor</h2>
+            <p>A <code>ChunkProcessor</code> implementation that detects <code>JSON_START</code> and <code>JSON_END</code> markers in the stream, accumulates the JSON payload between them, and emits the complete JSON as a <code>FINAL_RESPONSE</code>. Includes JSON repair logic for handling incomplete LLM output (bracket balancing, missing comma insertion).</p>
+
+            <div class="api-signature">
+              <code>public class JsonStreamingProcessor implements ChunkProcessor</code>
+            </div>
+
+            <h3>Processing Flow</h3>
+            <ol>
+              <li>Text before <code>JSON_START</code> is emitted with <code>STREAMING_MARKER</code>.</li>
+              <li>When <code>JSON_START</code> is detected, a <code>GENERATING_RESULT_MARKER</code> is emitted.</li>
+              <li>Content between markers is accumulated in a JSON buffer.</li>
+              <li>When <code>JSON_END</code> is detected, the JSON is emitted with <code>FINAL_RESPONSE_MARKER</code>.</li>
+              <li>If the stream completes without <code>JSON_END</code>, the JSON is repaired and emitted.</li>
+            </ol>
+          </section>
+
+          <!-- Code Examples -->
+          <section class="docs-section">
+            <h2 id="examples">Code Examples</h2>
+
+            <h3>Using StandardStreamingService in a Controller</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@GetMapping(value = "/analyze/stream",
+        produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+public Flux&lt;ServerSentEvent&lt;String&gt;&gt; analyzeStream(
+        @RequestParam String query) {
+
+    AIRequest&lt;SecurityContext&gt; request = buildRequest(query);
+
+    return streamingService.stream(request, aiNativeProcessor);
+}
+
+@PostMapping("/analyze")
+public Mono&lt;AnalysisResponse&gt; analyze(
+        @RequestBody AnalysisRequest body) {
+
+    AIRequest&lt;SecurityContext&gt; request = buildRequest(body);
+
+    return streamingService.process(
+            request, aiNativeProcessor, AnalysisResponse.class);
+}</code></pre>
+            </div>
+
+            <h3>Direct Pipeline Streaming</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@GetMapping(value = "/chat/stream",
+        produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+public Flux&lt;ServerSentEvent&lt;String&gt;&gt; chatStream(
+        @RequestParam String message) {
+
+    AIRequest&lt;ChatContext&gt; request = buildChatRequest(message);
+
+    return streamingService.stream(request, pipelineOrchestrator);
+}</code></pre>
+            </div>
+          </section>
+
+          <!-- Related -->
+          <section class="docs-section">
+            <h2 id="related">Related</h2>
+            <div class="related-links">
+              <div class="related-links-grid">
+                <a href="../../../docs/reference/core/pipeline.html" class="related-link-card">
+                  <h3>AI Pipeline</h3>
+                  <p>Pipeline orchestrator used as one of the two streaming execution paths.</p>
+                </a>
+                <a href="../../../docs/reference/core/strategy.html" class="related-link-card">
+                  <h3>AI Strategy</h3>
+                  <p>Strategy/Lab path used via AICoreOperations for the other streaming path.</p>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- Configuration Reference -->
+          <section>
+            <div class="callout callout-info">
+              <strong>Configuration Reference</strong><br>
+              For streaming <code>application.yml</code> properties (buffer sizes, timeouts, backpressure), see <a href="../../../docs/install/configuration/ai.html">AI Configuration</a> &mdash; covers <code>StreamingProperties</code>.
+            </div>
+          </section>
+
+          <div class="docs-nav-footer">
+            <a href="../../../docs/reference/core/rag.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">RAG &amp; Vectors</span>
+            </a>
+            <a href="../../../docs/reference/core/advisor.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">Advisor System</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

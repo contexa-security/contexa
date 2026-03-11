@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Strategy | Contexa Docs</title>
+  <meta name="description" content="API reference for the Contexa AI Strategy system. Covers AIStrategy, AbstractAIStrategy, AIStrategyRegistry, AICoreOperations, AINativeProcessor, DistributedStrategyExecutor, and LabExecutionStrategy.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">AI Strategy</span>
+          </nav>
+
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-primary">contexa-core</span>
+            </div>
+            <h1>AI Strategy</h1>
+            <p class="lead">The AI Strategy system routes AI requests to the appropriate processing lab based on <code>DiagnosisType</code>. The <code>AIStrategyRegistry</code> discovers all strategy implementations, and the <code>AINativeProcessor</code> provides a high-level <code>AICoreOperations</code> interface with distributed locking and audit logging.</p>
+          </div>
+
+          <!-- Overview -->
+          <section class="docs-section">
+            <h2 id="overview">Overview</h2>
+            <p>The strategy layer sits between the API/streaming layer and the AI Labs. Each <code>AIStrategy</code> implementation handles one <code>DiagnosisType</code> and delegates processing to its associated lab. The complete execution flow is:</p>
+
+            <div class="arch-flow">
+              <div class="arch-flow-step">AICoreOperations</div>
+              <div class="arch-flow-arrow"></div>
+              <div class="arch-flow-step">AINativeProcessor</div>
+              <div class="arch-flow-arrow"></div>
+              <div class="arch-flow-step">DistributedStrategyExecutor</div>
+              <div class="arch-flow-arrow"></div>
+              <div class="arch-flow-step">AIStrategyRegistry</div>
+              <div class="arch-flow-arrow"></div>
+              <div class="arch-flow-step highlight">AIStrategy &rarr; AILab</div>
+            </div>
+          </section>
+
+          <!-- AIStrategy -->
+          <section class="docs-section">
+            <h2 id="ai-strategy">AIStrategy&lt;T, R&gt;</h2>
+            <p>The core interface for domain-specific AI processing strategies. Each implementation handles one <code>DiagnosisType</code>.</p>
+
+            <div class="api-signature">
+              <code>public interface AIStrategy&lt;T extends DomainContext, R extends AIResponse&gt;</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getSupportedType()</span>
+                <span class="api-method-return">DiagnosisType</span>
+              </div>
+              <div class="api-method-desc">Returns the <code>DiagnosisType</code> this strategy handles. Used by the registry for routing.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getPriority()</span>
+                <span class="api-method-return">int</span>
+              </div>
+              <div class="api-method-desc">Returns the priority of this strategy. When multiple strategies handle the same type, the lowest priority wins.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">execute(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">R</span>
+              </div>
+              <div class="api-method-desc">Synchronous execution. Throws <code>DiagnosisException</code> on failure.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">executeAsync(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Mono&lt;R&gt;</span>
+              </div>
+              <div class="api-method-desc">Asynchronous execution returning a reactive <code>Mono</code>.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">executeStream(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Flux&lt;String&gt;</span>
+              </div>
+              <div class="api-method-desc">Streaming execution. Only available when <code>supportsStreaming()</code> returns <code>true</code>.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">supportsStreaming()</span>
+                <span class="api-method-return">boolean</span>
+              </div>
+              <div class="api-method-desc">Returns whether this strategy supports streaming. Default: <code>false</code>.</div>
+            </div>
+          </section>
+
+          <!-- AbstractAIStrategy -->
+          <section class="docs-section">
+            <h2 id="abstract-ai-strategy">AbstractAIStrategy&lt;T, R&gt;</h2>
+            <p>Base class that implements the strategy-to-lab delegation pattern. Uses <code>AILabFactory</code> to resolve the lab at runtime.</p>
+
+            <div class="api-signature">
+              <code>public abstract class AbstractAIStrategy&lt;T extends DomainContext, R extends AIResponse&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;implements AIStrategy&lt;T, R&gt;</code>
+            </div>
+
+            <h3>Template Method Flow</h3>
+            <ol>
+              <li><code>validateRequest(request)</code> &mdash; Validate the incoming request.</li>
+              <li><code>getRequiredLab()</code> &mdash; Resolve the lab via <code>AILabFactory</code> using <code>getLabType()</code>.</li>
+              <li><code>convertLabRequest(request)</code> &mdash; Convert the <code>AIRequest</code> to the lab's request format.</li>
+              <li><code>processLabExecution(lab, labRequest, request)</code> &mdash; Execute the lab and return the response.</li>
+            </ol>
+
+            <h3>Abstract Methods (Must Implement)</h3>
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getLabType()</span>
+                <span class="api-method-return">Class&lt;?&gt;</span>
+              </div>
+              <div class="api-method-desc">Returns the <code>AILab</code> class type that this strategy delegates to.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">validateRequest(AIRequest&lt;T&gt; request)</span>
+                <span class="api-method-return">void</span>
+              </div>
+              <div class="api-method-desc">Validates the request. Throw <code>DiagnosisException</code> for invalid requests.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">convertLabRequest(AIRequest&lt;T&gt; request)</span>
+                <span class="api-method-return">Object</span>
+              </div>
+              <div class="api-method-desc">Converts the generic <code>AIRequest</code> into the lab's specific request type.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">processLabExecution(Object lab, Object labRequest, AIRequest&lt;T&gt; request)</span>
+                <span class="api-method-return">R</span>
+              </div>
+              <div class="api-method-desc">Executes the lab with the converted request and returns the typed response.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">processLabExecutionAsync(Object lab, Object labRequest, AIRequest&lt;T&gt; request)</span>
+                <span class="api-method-return">Mono&lt;R&gt;</span>
+              </div>
+              <div class="api-method-desc">Async lab execution. Override for reactive lab implementations.</div>
+            </div>
+          </section>
+
+          <!-- AIStrategyRegistry -->
+          <section class="docs-section">
+            <h2 id="ai-strategy-registry">AIStrategyRegistry</h2>
+            <p>Auto-discovers all <code>AIStrategy</code> beans and routes requests by <code>DiagnosisType</code>. When multiple strategies handle the same type, the one with the lowest priority wins.</p>
+
+            <div class="api-signature">
+              <code>public class AIStrategyRegistry</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getStrategy(DiagnosisType diagnosisType)</span>
+                <span class="api-method-return">AIStrategy&lt;T, R&gt;</span>
+              </div>
+              <div class="api-method-desc">Returns the strategy for the given diagnosis type. Throws <code>DiagnosisException</code> if no strategy is registered.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">executeStrategyAsync(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Mono&lt;R&gt;</span>
+              </div>
+              <div class="api-method-desc">Looks up the strategy by <code>request.getDiagnosisType()</code> and executes it asynchronously.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">executeStrategyStream(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Flux&lt;String&gt;</span>
+              </div>
+              <div class="api-method-desc">Looks up the strategy and executes it in streaming mode.</div>
+            </div>
+          </section>
+
+          <!-- AICoreOperations -->
+          <section class="docs-section">
+            <h2 id="ai-core-operations">AICoreOperations&lt;T&gt;</h2>
+            <p>The high-level interface for AI processing. Used by <code>StandardStreamingService</code> and controllers.</p>
+
+            <div class="api-signature">
+              <code>public interface AICoreOperations&lt;T extends DomainContext&gt;</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">process(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Mono&lt;R&gt;</span>
+              </div>
+              <div class="api-method-desc">Processes a request and returns the typed response.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">processStream(AIRequest&lt;T&gt; request)</span>
+                <span class="api-method-return">Flux&lt;String&gt;</span>
+              </div>
+              <div class="api-method-desc">Processes a request in streaming mode.</div>
+            </div>
+          </section>
+
+          <!-- AINativeProcessor -->
+          <section class="docs-section">
+            <h2 id="ai-native-processor">AINativeProcessor&lt;T&gt;</h2>
+            <p>The primary <code>AICoreOperations</code> implementation. Adds distributed locking and audit logging around strategy execution.</p>
+
+            <div class="api-signature">
+              <code>public final class AINativeProcessor&lt;T extends DomainContext&gt;<br>&nbsp;&nbsp;&nbsp;&nbsp;implements AICoreOperations&lt;T&gt;</code>
+            </div>
+
+            <h3>Key Behaviors</h3>
+            <ul>
+              <li><strong>Distributed Locking</strong> &mdash; Acquires a distributed lock (via Redis) before strategy execution. Prevents concurrent execution of the same strategic operation across cluster nodes. Lock timeout: 30 minutes.</li>
+              <li><strong>Audit Logging</strong> &mdash; Creates an audit trail entry before execution and completes it with the result or error after.</li>
+              <li><strong>Node Identification</strong> &mdash; Each node generates a unique ID for lock ownership.</li>
+            </ul>
+          </section>
+
+          <!-- DistributedStrategyExecutor -->
+          <section class="docs-section">
+            <h2 id="distributed-strategy-executor">DistributedStrategyExecutor&lt;T&gt;</h2>
+            <p>Bridges <code>AINativeProcessor</code> and the <code>AIStrategyRegistry</code>. Handles error wrapping and result validation.</p>
+
+            <div class="api-signature">
+              <code>public class DistributedStrategyExecutor&lt;T extends DomainContext&gt;</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">executeDistributedStrategyAsync(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType)</span>
+                <span class="api-method-return">Mono&lt;R&gt;</span>
+              </div>
+              <div class="api-method-desc">Delegates to <code>AIStrategyRegistry.executeStrategyAsync()</code> with result validation.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">executeDistributedStrategyStream(AIRequest&lt;T&gt; request, Class&lt;R&gt; responseType, String auditId)</span>
+                <span class="api-method-return">Flux&lt;String&gt;</span>
+              </div>
+              <div class="api-method-desc">Delegates to <code>AIStrategyRegistry.executeStrategyStream()</code> with error handling.</div>
+            </div>
+          </section>
+
+          <!-- LabExecutionStrategy -->
+          <section class="docs-section">
+            <h2 id="lab-execution-strategy">LabExecutionStrategy</h2>
+            <p>A configuration object that defines how a lab should be executed, including multi-step workflows, fallback behavior, and quality gates.</p>
+
+            <div class="api-signature">
+              <code>public class LabExecutionStrategy</code>
+            </div>
+
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>strategyId</code></td><td><code>String</code></td><td>Unique strategy identifier.</td></tr>
+                <tr><td><code>operationType</code></td><td><code>String</code></td><td>The type of operation being executed.</td></tr>
+                <tr><td><code>executionSteps</code></td><td><code>List&lt;LabExecutionStep&gt;</code></td><td>Ordered list of lab execution steps with dependencies and timeouts.</td></tr>
+                <tr><td><code>fallbackStrategy</code></td><td><code>FallbackStrategy</code></td><td>Defines fallback behavior (IMMEDIATE, GRADUAL, FULL_RECOVERY, EMERGENCY).</td></tr>
+                <tr><td><code>qualityGate</code></td><td><code>QualityGate</code></td><td>Quality thresholds for accuracy, response time, and confidence.</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>QualityGate</h3>
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">passesQualityGate(double accuracy, double responseTime, double confidence)</span>
+                <span class="api-method-return">boolean</span>
+              </div>
+              <div class="api-method-desc">Returns <code>true</code> if all three metrics meet their respective thresholds.</div>
+            </div>
+
+            <h3>FallbackStrategy.FallbackType Enum</h3>
+            <table class="enum-table">
+              <thead>
+                <tr><th>Value</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>IMMEDIATE</code></td><td>Immediately switch to fallback lab.</td></tr>
+                <tr><td><code>GRADUAL</code></td><td>Gradually degrade to simpler processing.</td></tr>
+                <tr><td><code>FULL_RECOVERY</code></td><td>Attempt full recovery before fallback.</td></tr>
+                <tr><td><code>EMERGENCY</code></td><td>Emergency fallback with minimal processing.</td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- Code Examples -->
+          <section class="docs-section">
+            <h2 id="examples">Code Examples</h2>
+
+            <h3>Implementing a Custom Strategy</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@Component
+public class ThreatEvaluationStrategy
+        extends AbstractAIStrategy&lt;SecurityContext,
+                                    ThreatResponse&gt; {
+
+    public ThreatEvaluationStrategy(AILabFactory labFactory) {
+        super(labFactory);
+    }
+
+    @Override
+    public DiagnosisType getSupportedType() {
+        return DiagnosisType.THREAT_EVALUATION;
+    }
+
+    @Override
+    public int getPriority() {
+        return 10;
+    }
+
+    @Override
+    protected Class&lt;?&gt; getLabType() {
+        return ThreatAnalysisLab.class;
+    }
+
+    @Override
+    protected void validateRequest(
+            AIRequest&lt;SecurityContext&gt; request) {
+        if (request.getDomainContext() == null) {
+            throw new DiagnosisException(
+                    getSupportedType().name(),
+                    "INVALID_REQUEST",
+                    "SecurityContext is required");
+        }
+    }
+
+    @Override
+    protected Object convertLabRequest(
+            AIRequest&lt;SecurityContext&gt; request) {
+        return ThreatRequest.from(request.getDomainContext());
+    }
+
+    @Override
+    protected ThreatResponse processLabExecution(
+            Object lab, Object labRequest,
+            AIRequest&lt;SecurityContext&gt; request) throws Exception {
+        ThreatAnalysisLab threatLab = (ThreatAnalysisLab) lab;
+        return threatLab.process((ThreatRequest) labRequest);
+    }
+}</code></pre>
+            </div>
+
+            <h3>Using AICoreOperations</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@RestController
+public class SecurityController {
+
+    private final AICoreOperations&lt;SecurityContext&gt; aiProcessor;
+
+    @PostMapping("/api/threat/evaluate")
+    public Mono&lt;ThreatResponse&gt; evaluate(
+            @RequestBody ThreatEvalRequest body) {
+
+        AIRequest&lt;SecurityContext&gt; request = AIRequest.builder()
+                .requestId(UUID.randomUUID().toString())
+                .domainContext(body.toSecurityContext())
+                .diagnosisType(DiagnosisType.THREAT_EVALUATION)
+                .build();
+
+        return aiProcessor.process(
+                request, ThreatResponse.class);
+    }
+}</code></pre>
+            </div>
+          </section>
+
+          <!-- Related -->
+          <section class="docs-section">
+            <h2 id="related">Related</h2>
+            <div class="related-links">
+              <div class="related-links-grid">
+                <a href="../../../docs/reference/core/ai-lab.html" class="related-link-card">
+                  <h3>AI Lab</h3>
+                  <p>Labs that strategies delegate to for actual AI processing.</p>
+                </a>
+                <a href="../../../docs/reference/core/streaming.html" class="related-link-card">
+                  <h3>Streaming</h3>
+                  <p>StandardStreamingService uses AICoreOperations for the Strategy/Lab streaming path.</p>
+                </a>
+                <a href="../../../docs/reference/core/pipeline.html" class="related-link-card">
+                  <h3>AI Pipeline</h3>
+                  <p>Alternative execution path that bypasses the strategy layer.</p>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- Configuration Reference -->
+          <section>
+            <div class="callout callout-info">
+              <strong>Configuration Reference</strong><br>
+              For AI strategy <code>application.yml</code> properties (tier definitions, model assignments, fallback chains, timeout/retry), see <a href="../../../docs/install/configuration/ai.html">AI Configuration</a> &mdash; covers <code>TieredStrategyProperties</code> with 30+ configurable fields.
+            </div>
+          </section>
+
+          <div class="docs-nav-footer">
+            <a href="../../../docs/reference/core/advisor.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">Advisor System</span>
+            </a>
+            <a href="../../../docs/reference/security/zero-trust.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">Zero Trust</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

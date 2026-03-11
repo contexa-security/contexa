@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Approval Workflows | Contexa Docs</title>
+  <meta name="description" content="Human-in-the-loop approval workflows for SOAR tool execution, including ApprovalService, ApprovalRequest lifecycle, ApprovalRequestDetails, and notification integration.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">Approval Workflows</span>
+          </nav>
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-primary">contexa-core</span>
+              <span class="badge badge-danger">Enterprise</span>
+            </div>
+            <h1>Approval Workflows</h1>
+            <p class="lead">Human-in-the-loop approval system for SOAR tool execution. Manages the full approval lifecycle from request creation through resolution, with support for auto-approval, single-approver, multi-approver, unanimous, and emergency approval types.</p>
+          </div>
+
+          <!-- Overview -->
+          <section>
+            <h2>Overview</h2>
+            <p>When a <code>@SoarTool</code>-annotated method requires approval before execution, the SOAR pipeline delegates to the <code>ApprovalService</code>. The service creates an <code>ApprovalRequest</code>, notifies designated approvers via <code>SoarApprovalNotifier</code>, and tracks the request through its lifecycle until it is approved, rejected, expired, or cancelled.</p>
+            <p>The approval system integrates with the <code>SoarContext</code> session state, transitioning the session to <code>WAITING_APPROVAL</code> while approval is pending. Once resolved, the pipeline either proceeds with tool execution or aborts the action based on the approval outcome.</p>
+
+            <div class="arch-flow">
+              <div class="arch-flow-node">@SoarTool (approval = REQUIRED)</div>
+              <div class="arch-flow-node">ApprovalRequestDetails</div>
+              <div class="arch-flow-node">ApprovalService.requestApproval()</div>
+              <div class="arch-flow-node">ApprovalRequest (PENDING)</div>
+              <div class="arch-flow-node">SoarApprovalNotifier</div>
+              <div class="arch-flow-node">Human Review</div>
+              <div class="arch-flow-node">APPROVED / REJECTED</div>
+            </div>
+          </section>
+
+          <!-- ApprovalService -->
+          <section>
+            <h2>ApprovalService</h2>
+            <p>The core service interface for managing approval workflows. Provides both abstract methods that implementations must define and convenience default methods for common operations.</p>
+
+            <div class="api-signature">
+              <code>public interface ApprovalService</code>
+              <span style="margin-left: 1rem;"><code>io.contexa.contexacore.soar.approval</code></span>
+            </div>
+
+            <h3>Abstract Methods</h3>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">requestApproval</span>
+                <span class="api-method-return">String</span>
+              </div>
+              <p class="api-method-desc">Creates a new approval request for a SOAR tool execution. Returns the generated approval ID that can be used to track and resolve the request.</p>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">soarContext</span>
+                  <span class="api-param-type">SoarContext</span>
+                  <span class="api-param-desc">The current SOAR session context containing incident details and session state.</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">requestDetails</span>
+                  <span class="api-param-type">ApprovalRequestDetails</span>
+                  <span class="api-param-desc">Details of the action requiring approval, including action name, type, risk level, and parameters.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getApprovalStatus</span>
+                <span class="api-method-return">ApprovalStatus</span>
+              </div>
+              <p class="api-method-desc">Retrieves the current status of an approval request by its ID.</p>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">approvalId</span>
+                  <span class="api-param-type">String</span>
+                  <span class="api-param-desc">The approval request identifier returned by <code>requestApproval()</code>.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">handleApprovalResponse</span>
+                <span class="api-method-return">void</span>
+              </div>
+              <p class="api-method-desc">Processes an approval or rejection response from a human reviewer.</p>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">approvalId</span>
+                  <span class="api-param-type">String</span>
+                  <span class="api-param-desc">The approval request identifier.</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">isApproved</span>
+                  <span class="api-param-type">boolean</span>
+                  <span class="api-param-desc">Whether the request is approved (<code>true</code>) or rejected (<code>false</code>).</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">comment</span>
+                  <span class="api-param-type">String</span>
+                  <span class="api-param-desc">Reviewer comment or rejection reason.</span>
+                </div>
+                <div class="api-param">
+                  <span class="api-param-name">reviewer</span>
+                  <span class="api-param-type">String</span>
+                  <span class="api-param-desc">Identifier of the reviewing user.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getPendingApprovalIds</span>
+                <span class="api-method-return">Set&lt;String&gt;</span>
+              </div>
+              <p class="api-method-desc">Returns the set of all currently pending approval request IDs.</p>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getPendingCount</span>
+                <span class="api-method-return">int</span>
+              </div>
+              <p class="api-method-desc">Returns the number of currently pending approval requests.</p>
+            </div>
+
+            <h3>Default Convenience Methods</h3>
+
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Method</th><th>Return</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>requestApproval(ApprovalRequest)</code></td>
+                  <td>CompletableFuture&lt;Boolean&gt;</td>
+                  <td>Asynchronous approval request using an <code>ApprovalRequest</code> object directly.</td>
+                </tr>
+                <tr>
+                  <td><code>processApprovalResponse(requestId, approved, reviewer, comment)</code></td>
+                  <td>void</td>
+                  <td>Delegates to <code>handleApprovalResponse()</code> with reordered parameters for convenience.</td>
+                </tr>
+                <tr>
+                  <td><code>waitForApprovalSync(ApprovalRequest)</code></td>
+                  <td>boolean</td>
+                  <td>Blocking wait for approval resolution. Used in <code>SYNC</code> execution mode.</td>
+                </tr>
+                <tr>
+                  <td><code>saveApprovalRequest(ApprovalRequest)</code></td>
+                  <td>ApprovalRequest</td>
+                  <td>Persists an approval request to the backing store.</td>
+                </tr>
+                <tr>
+                  <td><code>sendApprovalNotification(ApprovalRequest)</code></td>
+                  <td>void</td>
+                  <td>Sends a notification to designated approvers about a pending request.</td>
+                </tr>
+                <tr>
+                  <td><code>processApproval(approvalId, approved, reason)</code></td>
+                  <td>void</td>
+                  <td>Simplified approval processing with <code>"system"</code> as the default reviewer.</td>
+                </tr>
+                <tr>
+                  <td><code>getPendingApprovals()</code></td>
+                  <td>List&lt;ApprovalRequest&gt;</td>
+                  <td>Returns all pending approval requests as full objects.</td>
+                </tr>
+                <tr>
+                  <td><code>submitApprovalRequest(ApprovalRequest)</code></td>
+                  <td>void</td>
+                  <td>Composite operation: saves the request then sends a notification.</td>
+                </tr>
+                <tr>
+                  <td><code>approve(approvalId)</code></td>
+                  <td>void</td>
+                  <td>Quick approval with default comment <code>"Approved"</code> and reviewer <code>"system"</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>reject(approvalId)</code></td>
+                  <td>void</td>
+                  <td>Quick rejection with default comment <code>"Rejected"</code> and reviewer <code>"system"</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>getApprovalRequest(approvalId)</code></td>
+                  <td>ApprovalRequest</td>
+                  <td>Retrieves the full approval request object by ID. Returns <code>null</code> by default.</td>
+                </tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <!-- ApprovalRequest -->
+          <section>
+            <h2>ApprovalRequest</h2>
+            <p>The domain object representing a single approval request. Tracks the full lifecycle from creation through resolution, including the requesting tool, approval type, reviewer information, and timeout configuration. Supports both builder-pattern construction and a convenience factory method.</p>
+
+            <div class="api-signature">
+              <code>public class ApprovalRequest implements Serializable</code>
+              <span style="margin-left: 1rem;"><code>io.contexa.contexacore.domain</code></span>
+            </div>
+
+            <h3>Key Fields</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>requestId</code></td><td>String</td><td>Unique identifier (e.g., <code>APR-1709942400000</code>).</td></tr>
+                <tr><td><code>sessionId</code></td><td>String</td><td>The SOAR session that initiated the request.</td></tr>
+                <tr><td><code>incidentId</code></td><td>String</td><td>Associated security incident identifier.</td></tr>
+                <tr><td><code>toolName</code></td><td>String</td><td>Name of the <code>@SoarTool</code> requiring approval.</td></tr>
+                <tr><td><code>actionType</code></td><td>String</td><td>Classification of the action (e.g., "BLOCK_IP", "ISOLATE_HOST").</td></tr>
+                <tr><td><code>parameters</code></td><td>Map&lt;String, Object&gt;</td><td>Tool invocation parameters for reviewer inspection.</td></tr>
+                <tr><td><code>reason</code></td><td>String</td><td>Justification for the action.</td></tr>
+                <tr><td><code>approvalType</code></td><td>ApprovalType</td><td>The type of approval workflow to follow.</td></tr>
+                <tr><td><code>status</code></td><td>ApprovalStatus</td><td>Current lifecycle status.</td></tr>
+                <tr><td><code>requestedAt</code></td><td>LocalDateTime</td><td>Timestamp of request creation.</td></tr>
+                <tr><td><code>requestedBy</code></td><td>String</td><td>The user or system that initiated the request.</td></tr>
+                <tr><td><code>approvedBy</code></td><td>String</td><td>The reviewer who resolved the request.</td></tr>
+                <tr><td><code>approvedAt</code></td><td>LocalDateTime</td><td>Timestamp of approval or rejection.</td></tr>
+                <tr><td><code>rejectionReason</code></td><td>String</td><td>Reason provided when request is rejected.</td></tr>
+                <tr><td><code>requiredRoles</code></td><td>Set&lt;String&gt;</td><td>Roles required to approve this request.</td></tr>
+                <tr><td><code>requiredApprovers</code></td><td>Integer</td><td>Number of approvers needed for <code>MULTI</code> or <code>UNANIMOUS</code> types.</td></tr>
+                <tr><td><code>approvalTimeout</code></td><td>Integer</td><td>Timeout in minutes before the request expires.</td></tr>
+                <tr><td><code>potentialImpact</code></td><td>String</td><td>Description of the potential impact of the action.</td></tr>
+                <tr><td><code>organizationId</code></td><td>String</td><td>Organization context for multi-tenant deployments.</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Lifecycle Methods</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Method</th><th>Description</th><th>Status Transition</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>approve(approver)</code></td><td>Marks the request as approved, records the approver and timestamp.</td><td>* &rarr; APPROVED</td></tr>
+                <tr><td><code>reject(approver, reason)</code></td><td>Marks the request as rejected with a reason.</td><td>* &rarr; REJECTED</td></tr>
+                <tr><td><code>expire()</code></td><td>Marks the request as expired (timeout reached).</td><td>PENDING &rarr; EXPIRED</td></tr>
+                <tr><td><code>cancel()</code></td><td>Cancels the request (e.g., incident resolved before approval).</td><td>PENDING &rarr; CANCELLED</td></tr>
+                <tr><td><code>addApproval(approver, name, role, comments)</code></td><td>Records an individual approval for multi-approver workflows.</td><td>* &rarr; APPROVED</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Factory Method</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">// Quick creation with auto-generated APR- prefixed ID
+ApprovalRequest request = ApprovalRequest.create(
+    "session-abc-123",       // sessionId
+    "block_ip_address",      // toolName
+    Map.of("ip", "10.0.0.1", "duration", 24),  // parameters
+    "Suspicious traffic detected from this IP"   // reason
+);
+// request.status = PENDING, request.requestedAt = now()</code></pre>
+            </div>
+
+            <h3>Builder Pattern</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">ApprovalRequest request = ApprovalRequest.builder()
+    .requestId("APR-custom-001")
+    .sessionId("session-abc-123")
+    .incidentId("INC-2024-001")
+    .toolName("isolate_host")
+    .actionDescription("Isolate compromised host from network")
+    .toolParameters(Map.of("hostname", "web-server-03", "incidentId", "INC-2024-001"))
+    .approvalType(ApprovalType.MULTI)
+    .requestedBy("soar-pipeline")
+    .requestReason("Host shows signs of lateral movement")
+    .potentialImpact("Service disruption for web-server-03")
+    .riskAssessment("HIGH - production server with active traffic")
+    .timeoutMinutes(30)
+    .organizationId("org-456")
+    .build();</code></pre>
+            </div>
+          </section>
+
+          <!-- ApprovalType Enum -->
+          <section id="approval-type">
+            <h2>ApprovalType</h2>
+            <p>Defines the approval workflow variant for a request. Determines how many approvers are needed and how the approval process is managed.</p>
+
+            <div class="api-signature">
+              <code>public enum ApprovalType</code>
+              <span style="margin-left: 1rem;">(nested in <code>ApprovalRequest</code>)</span>
+            </div>
+
+            <table class="enum-table">
+              <thead>
+                <tr><th>Value</th><th>Description</th><th>Use Case</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>AUTO</code></td>
+                  <td>Auto Approval. Request is automatically approved based on policy.</td>
+                  <td>Low-risk tools where the <code>ToolApprovalPolicyManager</code> determines no human review is needed.</td>
+                </tr>
+                <tr>
+                  <td><code>MANUAL</code></td>
+                  <td>Manual Approval Required. A human must review and decide.</td>
+                  <td>Standard approval for moderate-risk actions that need human oversight.</td>
+                </tr>
+                <tr>
+                  <td><code>SINGLE</code></td>
+                  <td>Single Approval. One designated approver must approve.</td>
+                  <td>Actions requiring a specific role holder's authorization (e.g., SOC analyst for IP blocks).</td>
+                </tr>
+                <tr>
+                  <td><code>MULTI</code></td>
+                  <td>Multi Approval Required. A configurable number of approvers must independently approve.</td>
+                  <td>High-risk actions requiring consensus (e.g., host isolation, firewall changes).</td>
+                </tr>
+                <tr>
+                  <td><code>UNANIMOUS</code></td>
+                  <td>Unanimous. All designated approvers must approve.</td>
+                  <td>Critical infrastructure changes where any single objection should block execution.</td>
+                </tr>
+                <tr>
+                  <td><code>EMERGENCY</code></td>
+                  <td>Emergency Approval. Expedited approval with reduced requirements.</td>
+                  <td>Time-critical incidents where standard approval timelines are too slow.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- ApprovalStatus Enum -->
+          <section id="approval-status">
+            <h2>ApprovalStatus</h2>
+            <p>Represents the current state of an approval request in its lifecycle.</p>
+
+            <div class="api-signature">
+              <code>public enum ApprovalStatus</code>
+              <span style="margin-left: 1rem;">(nested in <code>ApprovalRequest</code>)</span>
+            </div>
+
+            <table class="enum-table">
+              <thead>
+                <tr><th>Value</th><th>Description</th><th>Terminal</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>PENDING</code></td>
+                  <td>Request created, awaiting reviewer action.</td>
+                  <td>No</td>
+                </tr>
+                <tr>
+                  <td><code>APPROVED</code></td>
+                  <td>Request approved. Tool execution may proceed.</td>
+                  <td>Yes</td>
+                </tr>
+                <tr>
+                  <td><code>REJECTED</code></td>
+                  <td>Request rejected. Tool execution is blocked.</td>
+                  <td>Yes</td>
+                </tr>
+                <tr>
+                  <td><code>EXPIRED</code></td>
+                  <td>Request timed out before receiving a response.</td>
+                  <td>Yes</td>
+                </tr>
+                <tr>
+                  <td><code>CANCELLED</code></td>
+                  <td>Request cancelled (e.g., incident resolved, session terminated).</td>
+                  <td>Yes</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- ApprovalRequestDetails -->
+          <section>
+            <h2>ApprovalRequestDetails</h2>
+            <p>An immutable record that captures the details of the action requiring approval. Passed to <code>ApprovalService.requestApproval()</code> alongside the <code>SoarContext</code> to create a new approval request.</p>
+
+            <div class="api-signature">
+              <code>public record ApprovalRequestDetails implements Serializable</code>
+              <span style="margin-left: 1rem;"><code>io.contexa.contexacore.soar.approval</code></span>
+            </div>
+
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>actionName</code></td>
+                  <td>String</td>
+                  <td>The <code>@SoarTool</code> name that requires approval (e.g., <code>"block_ip_address"</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>actionType</code></td>
+                  <td>String</td>
+                  <td>Classification of the action (e.g., <code>"CONTAINMENT"</code>, <code>"ERADICATION"</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>riskLevel</code></td>
+                  <td>String</td>
+                  <td>Assessed risk level of the action (e.g., <code>"HIGH"</code>, <code>"CRITICAL"</code>).</td>
+                </tr>
+                <tr>
+                  <td><code>description</code></td>
+                  <td>String</td>
+                  <td>Human-readable description of what the action will do.</td>
+                </tr>
+                <tr>
+                  <td><code>arguments</code></td>
+                  <td>String</td>
+                  <td>Serialized arguments the tool will be invoked with.</td>
+                </tr>
+                <tr>
+                  <td><code>parameters</code></td>
+                  <td>Map&lt;String, Object&gt;</td>
+                  <td>Structured parameters for the tool invocation.</td>
+                </tr>
+              </tbody>
+            </table></div>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">ApprovalRequestDetails details = new ApprovalRequestDetails(
+    "block_ip_address",                          // actionName
+    "CONTAINMENT",                               // actionType
+    "HIGH",                                      // riskLevel
+    "Block IP 10.0.0.1 at the firewall level",   // description
+    "{ip: 10.0.0.1, duration: 24}",              // arguments
+    Map.of("ip", "10.0.0.1", "durationHours", 24) // parameters
+);
+
+String approvalId = approvalService.requestApproval(soarContext, details);</code></pre>
+            </div>
+          </section>
+
+          <!-- SoarApprovalNotifier -->
+          <section>
+            <h2>SoarApprovalNotifier</h2>
+            <p>Notification interface for the approval system. Implementations deliver approval notifications to human reviewers through configured channels (e.g., Slack, email, PagerDuty) and send reminders for stale pending requests.</p>
+
+            <div class="api-signature">
+              <code>public interface SoarApprovalNotifier</code>
+              <span style="margin-left: 1rem;"><code>io.contexa.contexacore.autonomous.notification</code></span>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">receiveApprovalNotification</span>
+                <span class="api-method-return">void</span>
+              </div>
+              <p class="api-method-desc">Receives and processes an incoming approval notification message. Called when a new approval request is created or when an external system sends an approval decision.</p>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">message</span>
+                  <span class="api-param-type">String</span>
+                  <span class="api-param-desc">The notification message content.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">sendApprovalReminder</span>
+                <span class="api-method-return">void</span>
+              </div>
+              <p class="api-method-desc">Sends a reminder notification for a pending approval request that has not been resolved within the expected timeframe.</p>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">approvalId</span>
+                  <span class="api-param-type">String</span>
+                  <span class="api-param-desc">The approval request ID to send a reminder for.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Workflow Example -->
+          <section>
+            <h2>End-to-End Workflow Example</h2>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">// 1. SOAR pipeline determines a tool requires approval
+ApprovalRequestDetails details = new ApprovalRequestDetails(
+    "isolate_host", "CONTAINMENT", "CRITICAL",
+    "Isolate web-server-03 due to lateral movement detection",
+    "{hostname: web-server-03}", Map.of("hostname", "web-server-03")
+);
+
+// 2. Request approval through the service
+String approvalId = approvalService.requestApproval(soarContext, details);
+// SoarContext transitions to WAITING_APPROVAL
+
+// 3. Check status (polling or event-driven)
+ApprovalStatus status = approvalService.getApprovalStatus(approvalId);
+
+// 4a. Human approves via dashboard or notification channel
+approvalService.handleApprovalResponse(
+    approvalId, true, "Confirmed lateral movement in logs", "analyst-jane"
+);
+
+// 4b. Or use convenience methods
+approvalService.approve(approvalId);   // Quick system approval
+approvalService.reject(approvalId);    // Quick system rejection
+
+// 5. Pipeline checks status and proceeds with tool execution
+if (approvalService.getApprovalStatus(approvalId) == ApprovalStatus.APPROVED) {
+    // Execute the @SoarTool method
+}</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">// Using the builder for full control over the approval request
+ApprovalRequest request = ApprovalRequest.builder()
+    .sessionId(soarContext.getSessionId())
+    .incidentId(soarContext.getIncidentId())
+    .toolName("isolate_host")
+    .approvalType(ApprovalType.MULTI)
+    .requestedBy("soar-pipeline")
+    .requestReason("Lateral movement detected from web-server-03")
+    .potentialImpact("Web traffic disruption for 200+ active sessions")
+    .riskAssessment("CRITICAL - production server under active attack")
+    .timeoutMinutes(15)
+    .organizationId(soarContext.getOrganizationId())
+    .build();
+
+// Submit: saves and notifies in one call
+approvalService.submitApprovalRequest(request);
+
+// Or use async API
+CompletableFuture&lt;Boolean&gt; future = approvalService.requestApproval(request);
+future.thenAccept(approved -&gt; {
+    if (approved) {
+        // Proceed with tool execution
+    }
+});</code></pre>
+            </div>
+          </section>
+
+          <!-- Related Links -->
+          <section>
+            <h2>Related</h2>
+            <div class="related-links-grid">
+              <a href="soar-tool.html" class="related-link-card">
+                <h3>@SoarTool Annotation</h3>
+                <p>Configure approval requirements, rate limits, and permissions on individual SOAR tools.</p>
+              </a>
+              <a href="index.html" class="related-link-card">
+                <h3>SOAR Overview</h3>
+                <p>Architecture and execution flow of the SOAR pipeline that triggers approval workflows.</p>
+              </a>
+              <a href="../../../docs/reference/security/shadow-mode.html" class="related-link-card">
+                <h3>Shadow Mode</h3>
+                <p>Operational modes that control whether approval workflows are enforced or simulated.</p>
+              </a>
+            </div>
+          </section>
+
+          <!-- Navigation Footer -->
+          <div class="docs-nav-footer">
+            <a href="soar-tool.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">@SoarTool Annotation</span>
+            </a>
+            <a href="../../../docs/reference/identity/dsl.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">Identity DSL</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

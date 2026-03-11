@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Platform Architecture | Contexa Docs</title>
+  <meta name="description" content="Architecture overview of the Contexa AI Native Zero Trust Platform showing module relationships, request processing flow, and AI integration points.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+  <style>
+    /* ── Architecture page styles ── */
+    .arch-flow {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      margin: var(--space-6) 0;
+    }
+    .arch-flow-node {
+      padding: var(--space-3) var(--space-5);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      font-size: var(--text-sm);
+      text-align: center;
+      max-width: 420px;
+      width: 100%;
+      line-height: var(--leading-snug);
+    }
+    .arch-flow-node--primary {
+      background: var(--brand-primary);
+      color: white;
+    }
+    .arch-flow-node--secondary {
+      background: var(--brand-secondary);
+      color: white;
+    }
+    .arch-flow-node--allow {
+      background: var(--zt-allow);
+      color: white;
+    }
+    .arch-flow-node--block {
+      background: var(--zt-block);
+      color: white;
+    }
+    .arch-flow-node--challenge {
+      background: var(--zt-challenge);
+      color: white;
+    }
+    .arch-flow-node--escalate {
+      background: var(--zt-escalate);
+      color: white;
+    }
+    .arch-flow-node--pending {
+      background: var(--zt-pending);
+      color: white;
+    }
+    .arch-flow-node--filter {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      border: 1px solid #999;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.06);
+    }
+    .arch-flow-node--agent {
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: white;
+    }
+    .arch-flow-node--decision {
+      background: var(--color-warning-bg);
+      color: var(--text-primary);
+      border: 2px solid var(--color-warning);
+    }
+    .arch-flow-connector {
+      width: 2px;
+      height: 14px;
+      margin: 10px 0;
+      position: relative;
+      background: linear-gradient(180deg, var(--brand-primary), var(--brand-secondary));
+      opacity: 0.5;
+    }
+    .arch-flow-connector::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 6px solid var(--brand-secondary);
+    }
+    .arch-flow-detail {
+      font-size: var(--text-xs);
+      font-weight: 400;
+      opacity: 0.9;
+      margin-top: 6px;
+      display: block;
+      line-height: 2.0;
+    }
+    .arch-flow-branch {
+      display: flex;
+      gap: var(--space-2);
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: var(--space-2) 0;
+    }
+    .arch-flow-branch-item {
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-sm);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: white;
+    }
+
+    /* Module cards */
+    .module-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-4);
+      margin: var(--space-6) 0;
+    }
+    @media (max-width: 640px) {
+      .module-grid { grid-template-columns: 1fr; }
+    }
+    .module-card {
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      background: white;
+      transition: box-shadow var(--transition-normal);
+    }
+    .module-card:hover {
+      box-shadow: var(--shadow-md);
+    }
+    .module-card-header {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      margin-bottom: var(--space-3);
+    }
+    .module-card-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--text-lg);
+      font-weight: 700;
+      color: white;
+      flex-shrink: 0;
+    }
+    .module-card-icon--core { background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary)); }
+    .module-card-icon--identity { background: var(--zt-allow); }
+    .module-card-icon--iam { background: var(--zt-challenge); }
+    .module-card-icon--common { background: var(--color-info); }
+    .module-card h3 {
+      font-size: var(--text-lg);
+      font-weight: 700;
+      margin: 0;
+      color: var(--text-primary);
+    }
+    .module-card h3 span {
+      display: block;
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--text-tertiary);
+      margin-top: 2px;
+    }
+    .module-card p {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: var(--leading-relaxed);
+      margin: 0;
+    }
+    .module-card ul {
+      margin: var(--space-2) 0 0;
+      padding-left: var(--space-5);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: var(--leading-loose);
+    }
+
+    /* Dependency diagram */
+    .dep-diagram {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      margin: var(--space-6) 0;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      line-height: var(--leading-loose);
+      overflow-x: auto;
+      white-space: pre;
+      color: var(--text-primary);
+    }
+
+    /* Infrastructure modes */
+    .mode-cards {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-4);
+      margin: var(--space-6) 0;
+    }
+    @media (max-width: 640px) {
+      .mode-cards { grid-template-columns: 1fr; }
+    }
+    .mode-card {
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius-lg);
+      padding: var(--space-5);
+      background: white;
+    }
+    .mode-card h3 {
+      font-size: var(--text-base);
+      font-weight: 700;
+      margin: 0 0 var(--space-2);
+    }
+    .mode-card p {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      margin: 0 0 var(--space-3);
+    }
+    .mode-card code {
+      display: inline-block;
+      background: var(--bg-code-inline);
+      padding: 1px var(--space-2);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+    }
+
+    /* Node with side branch (node stays centered, branch floats right) */
+    .arch-flow-row {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+    }
+    .arch-flow-side-branch {
+      position: absolute;
+      left: calc(100% + var(--space-3));
+      top: 50%;
+      transform: translateY(-50%);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-1);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .arch-flow-side-item {
+      padding: var(--space-1) var(--space-3);
+      border-radius: var(--radius-sm);
+      color: white;
+      text-align: center;
+    }
+    @media (max-width: 768px) {
+      .arch-flow-side-branch {
+        position: static;
+        transform: none;
+        flex-direction: row;
+        justify-content: center;
+        margin-top: var(--space-2);
+      }
+    }
+
+    /* Event badge inside node */
+    .arch-flow-badge {
+      display: inline-block;
+      margin-top: var(--space-3);
+      padding: var(--space-1) var(--space-4);
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: white;
+      border-radius: var(--radius-full);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0.02em;
+    }
+
+    /* Event bridge (sync → async connection) */
+    .arch-flow-event-bridge {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      margin: var(--space-1) 0;
+      font-size: var(--text-xs);
+      color: var(--brand-primary);
+    }
+    .arch-flow-event-arrow {
+      font-weight: 700;
+      font-size: var(--text-sm);
+      opacity: 0.8;
+    }
+    .arch-flow-event-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .arch-flow-bridge-note {
+      background: linear-gradient(135deg, rgba(99,102,241,0.06), rgba(168,85,247,0.06));
+      border: 1px dashed var(--brand-primary);
+      border-radius: var(--radius-md);
+      padding: var(--space-3) var(--space-4);
+      margin: var(--space-4) 0 var(--space-6);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      text-align: center;
+      line-height: var(--leading-relaxed);
+    }
+    .arch-flow-bridge-note strong {
+      color: var(--brand-primary);
+    }
+    .arch-flow-event-hub {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-3);
+      margin: var(--space-6) 0 var(--space-2);
+      padding: var(--space-3) var(--space-5);
+      background: linear-gradient(135deg, var(--brand-primary), var(--brand-secondary));
+      color: white;
+      border-radius: var(--radius-lg);
+      font-weight: 700;
+      font-size: var(--text-sm);
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+      position: relative;
+    }
+    .arch-flow-event-hub::before {
+      content: "SYNC PUBLISH";
+      position: absolute;
+      left: -90px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--brand-primary);
+      letter-spacing: 0.05em;
+    }
+    .arch-flow-event-hub::after {
+      content: "ASYNC LISTEN";
+      position: absolute;
+      right: -90px;
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--brand-secondary);
+      letter-spacing: 0.05em;
+    }
+    .arch-flow-event-hub-detail {
+      font-weight: 400;
+      font-size: var(--text-xs);
+      opacity: 0.9;
+      display: block;
+      margin-top: 2px;
+    }
+    @media (max-width: 640px) {
+      .arch-flow-event-hub::before,
+      .arch-flow-event-hub::after { display: none; }
+    }
+
+    /* AI integration list */
+    .ai-list {
+      list-style: none;
+      padding: 0;
+      margin: var(--space-6) 0;
+    }
+    .ai-list li {
+      display: flex;
+      gap: var(--space-4);
+      padding: var(--space-4) 0;
+      border-bottom: 1px solid var(--border-light);
+      align-items: flex-start;
+    }
+    .ai-list li:last-child { border-bottom: none; }
+    .ai-list-num {
+      flex-shrink: 0;
+      width: 28px;
+      height: 28px;
+      border-radius: var(--radius-full);
+      background: var(--brand-gradient);
+      color: white;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ai-list-content strong {
+      display: block;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 2px;
+    }
+    .ai-list-content span {
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: var(--leading-relaxed);
+    }
+  </style>
+</head>
+<body>
+  <!-- Site Header -->
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <!-- Sidebar -->
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <!-- Main Content -->
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <!-- Breadcrumb -->
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">Architecture</span>
+          </nav>
+
+          <!-- Page Header -->
+          <div class="docs-page-header">
+            <h1>Platform Architecture</h1>
+            <p class="lead">Understand how Contexa's modules work together to provide AI-driven zero trust security for Spring Boot applications &mdash; from HTTP request entry through AI threat analysis to final access decisions.</p>
+          </div>
+
+
+          <!-- Section 1: Platform Overview -->
+          <section>
+            <h2 id="overview">Platform Overview</h2>
+            <p>Contexa is an <strong>AI Native Zero Trust</strong> security platform for Spring Boot. Rather than relying solely on perimeter-based security, Contexa provides <strong>continuous verification after authentication</strong> through AI-driven security decisions. Every request is evaluated in real time by an AI engine that considers session context, behavioral patterns, and threat intelligence.</p>
+            <p>The platform is composed of four core modules, each handling a distinct security concern, plus auto-configuration and starter support for seamless Spring Boot integration.</p>
+
+            <div class="module-grid">
+              <!-- contexa-core -->
+              <div class="module-card">
+                <div class="module-card-header">
+                  <div class="module-card-icon module-card-icon--core">AI</div>
+                  <h3>contexa-core <span>AI Engine</span></h3>
+                </div>
+                <p>The AI-powered security brain of the platform. Communicates with LLMs to make autonomous security decisions.</p>
+                <ul>
+                  <li>LLM communication and orchestration</li>
+                  <li>Risk analysis and threat evaluation</li>
+                  <li>HCAD anomaly detection</li>
+                  <li>SecurityPlaneAgent with tiered analysis</li>
+                  <li>Autonomous event pipeline with handler chain</li>
+                  <li>RAG-based context retrieval</li>
+                  <li>Behavioral embeddings</li>
+                </ul>
+              </div>
+
+              <!-- contexa-identity -->
+              <div class="module-card">
+                <div class="module-card-header">
+                  <div class="module-card-icon module-card-icon--identity">ID</div>
+                  <h3>contexa-identity <span>Authentication</span></h3>
+                </div>
+                <p>Manages all authentication flows with a custom DSL built on top of Spring Security.</p>
+                <ul>
+                  <li>Form login and REST API authentication</li>
+                  <li>Adaptive MFA, passkey/WebAuthn, OTT</li>
+                  <li>OAuth2 integration</li>
+                  <li>Zero-trust challenge filters</li>
+                  <li>Custom security DSL configuration</li>
+                </ul>
+              </div>
+
+              <!-- contexa-iam -->
+              <div class="module-card">
+                <div class="module-card-header">
+                  <div class="module-card-icon module-card-icon--iam">AC</div>
+                  <h3>contexa-iam <span>Authorization</span></h3>
+                </div>
+                <p>Dynamic policy-based access control using XACML with AI-driven method-level security.</p>
+                <ul>
+                  <li>XACML engine (PAP/PDP/PEP/PIP/PRP)</li>
+                  <li><code>@Protectable</code> annotation for AI-driven method security</li>
+                  <li>Admin console for policy management</li>
+                  <li>SpEL-based dynamic URL authorization</li>
+                  <li>Resource scanning and discovery</li>
+                </ul>
+              </div>
+
+              <!-- contexa-common -->
+              <div class="module-card">
+                <div class="module-card-header">
+                  <div class="module-card-icon module-card-icon--common">CM</div>
+                  <h3>contexa-common <span>Shared</span></h3>
+                </div>
+                <p>Common entities, services, and domain models shared across all modules.</p>
+                <ul>
+                  <li>Shared entity models</li>
+                  <li>Cache service abstraction</li>
+                  <li>Central audit facade</li>
+                  <li>Common annotations</li>
+                  <li>Domain value objects</li>
+                </ul>
+              </div>
+            </div>
+
+            <p>Additionally, <strong>contexa-autoconfigure</strong> provides 38 auto-configuration classes that wire everything together for Spring Boot, and <strong>spring-boot-starter-contexa</strong> is the single starter dependency that includes all modules plus a demo application.</p>
+          </section>
+
+
+          <!-- Section 2: Request Processing Flow -->
+          <section>
+            <h2 id="request-flow">Request Processing Flow</h2>
+            <p>Contexa processes every HTTP request through two distinct pipelines: a <strong>synchronous filter chain</strong> that runs on every request, and an <strong>asynchronous AI pipeline</strong> that analyzes events in the background. AI decisions are stored in Redis and enforced on the <em>next</em> request &mdash; this non-blocking design ensures zero latency impact on normal traffic.</p>
+
+            <h3>Synchronous Filter Chain</h3>
+            <p>The Spring Security filter chain processes every HTTP request in order. Filters inspect, gate, or enrich the request but never call the LLM directly.</p>
+
+            <div class="arch-flow">
+              <div class="arch-flow-node arch-flow-node--primary">
+                HTTP Request
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--filter">
+                HCADFilter
+                <span class="arch-flow-detail">Host &amp; Context Anomaly Detection &mdash; extracts session, device, behavioral signals and sets request attributes. Never blocks.</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--filter">
+                ZeroTrustAccessControlFilter
+                <span class="arch-flow-detail">Reads ZeroTrustAction from Redis for this user &mdash; enforces decisions made by the async AI pipeline on a <em>previous</em> request.</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-branch">
+                <span class="arch-flow-branch-item" style="background:var(--zt-allow)">ALLOW &rarr; continue</span>
+                <span class="arch-flow-branch-item" style="background:var(--zt-block)">BLOCK &rarr; 403</span>
+                <span class="arch-flow-branch-item" style="background:var(--zt-escalate)">ESCALATE &rarr; 423</span>
+                <span class="arch-flow-branch-item" style="background:var(--zt-pending)">PENDING &rarr; wrap response</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--filter">
+                ZeroTrustChallengeFilter
+                <span class="arch-flow-detail">If CHALLENGE authority detected &rarr; initiate MFA challenge</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--filter">
+                CustomDynamicAuthorizationManager
+                <span class="arch-flow-detail">URL-level authorization &mdash; evaluates policies from DB as SpEL expressions</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-row">
+                <div class="arch-flow-node arch-flow-node--secondary">
+                  AuthorizationManagerMethodInterceptor
+                  <span class="arch-flow-detail">AOP interceptor &mdash; intercepts <code>@Protectable</code> method calls <em>before</em> execution. Evaluates access decision.</span>
+                </div>
+                <div class="arch-flow-side-branch">
+                  <span class="arch-flow-side-item" style="background:var(--zt-allow)">GRANTED</span>
+                  <span class="arch-flow-side-item" style="background:var(--zt-block)">DENIED</span>
+                </div>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--filter" style="border-color:var(--brand-primary)">
+                ZeroTrustEventPublisher
+                <span class="arch-flow-detail">Called via <code>publishMethodAuthorization()</code> &mdash; publishes via Spring <code>ApplicationEventPublisher</code></span>
+                <span class="arch-flow-badge">ZeroTrustSpringEvent</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--filter" style="border-color:var(--brand-secondary)">
+                @Protectable Method Execution
+                <span class="arch-flow-detail">The actual annotated method executes only if authorization was granted by the interceptor above.</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--allow">
+                Application Logic
+              </div>
+            </div>
+
+            <h3>Asynchronous AI Pipeline</h3>
+            <p><code>ZeroTrustEventListener</code> receives the <code>ZeroTrustSpringEvent</code> synchronously via <code>@EventListener</code>, acting as the bridge into the asynchronous processing pipeline. The AI evaluates threats in the background and stores its decision in Redis, which is enforced by <code>ZeroTrustAccessControlFilter</code> on the user's <em>next</em> request.</p>
+
+            <div class="arch-flow">
+              <div class="arch-flow-node arch-flow-node--filter" style="border:2px dashed var(--brand-primary);background:var(--bg-secondary)">
+                ZeroTrustEventListener <span style="opacity:0.7">(@EventListener)</span>
+                <span class="arch-flow-badge">ZeroTrustSpringEvent</span>
+                <span class="arch-flow-detail">Receives event synchronously &mdash; bridges sync and async. Routes to SecurityEventPublisher (Kafka or in-memory).</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--agent">
+                SecurityPlaneAgent
+                <span class="arch-flow-detail">Orchestrates batch processing via SecurityEventProcessor</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--agent">
+                ColdPathEventProcessor
+                <span class="arch-flow-detail">AI analysis entry point &mdash; orchestrates Layer1/Layer2 tiered analysis with context collection</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--primary" style="padding:var(--space-4) var(--space-5)">
+                <div style="display:flex;gap:var(--space-4);justify-content:center;flex-wrap:wrap">
+                  <div style="text-align:center">
+                    <div style="font-weight:700">Layer1ContextualStrategy</div>
+                    <div style="font-size:var(--text-xs);opacity:0.85;margin-top:2px">Session context + RAG + behavior analysis</div>
+                  </div>
+                  <div style="font-size:var(--text-lg);opacity:0.5;align-self:center">/</div>
+                  <div style="text-align:center">
+                    <div style="font-weight:700">Layer2ExpertStrategy</div>
+                    <div style="font-size:var(--text-xs);opacity:0.85;margin-top:2px">Extended forensics + SOAR integration</div>
+                  </div>
+                </div>
+                <span class="arch-flow-badge">SecurityPromptTemplate</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--agent">
+                UnifiedLLMOrchestrator
+                <span class="arch-flow-detail">Spring AI ChatClient &mdash; model selection, advisor chain, retry logic</span>
+                <span class="arch-flow-badge">ExecutionContext</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-branch">
+                <span class="arch-flow-branch-item" style="background:var(--zt-allow)">ALLOW</span>
+                <span class="arch-flow-branch-item" style="background:var(--zt-block)">BLOCK</span>
+                <span class="arch-flow-branch-item" style="background:var(--zt-challenge)">CHALLENGE</span>
+                <span class="arch-flow-branch-item" style="background:var(--zt-escalate)">ESCALATE</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <div class="arch-flow-node arch-flow-node--decision">
+                SecurityDecisionEnforcementHandler <span style="opacity:0.7">(order=55)</span>
+                <span class="arch-flow-detail">Saves ZeroTrustAction to Redis. On BLOCK: broadcasts via Redisson RTopic. Skipped in SHADOW mode.</span>
+              </div>
+              <div style="margin-top:var(--space-3);padding:var(--space-2) var(--space-4);background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:var(--radius-md);text-align:center;font-size:var(--text-xs);color:var(--text-secondary);font-weight:500">
+                Stored in <code style="font-size:var(--text-xs)">ZeroTrustActionRepository</code> (Redis or in-memory) &rarr; <strong>enforced on next request</strong>
+              </div>
+            </div>
+
+
+            <h3>Zero Trust Enforcement (Next Request)</h3>
+            <p>Everything above &mdash; synchronous event publication, asynchronous AI analysis, LLM decisions &mdash; <strong>converges here</strong>. Every subsequent request from this user is now governed by the AI's verdict. The decision is not a suggestion; it is fused into Spring Security's <code>Authentication</code> itself.</p>
+
+            <div class="arch-flow">
+              <!-- 1. Every request -->
+              <div class="arch-flow-node arch-flow-node--secondary">
+                Every User Request
+                <span class="arch-flow-detail">Every HTTP request passes through this pipeline &mdash; not just the next one. The AI decision persists until a new analysis overrides it.</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <!-- 2. SecurityContext loading -->
+              <div class="arch-flow-node arch-flow-node--filter" style="padding:var(--space-4) var(--space-5)">
+                <div style="display:flex;gap:var(--space-4);justify-content:center;flex-wrap:wrap">
+                  <div style="text-align:center">
+                    <div style="font-weight:700">AISessionSecurityContextRepository</div>
+                    <div style="font-size:var(--text-xs);color:var(--text-secondary);margin-top:2px">Session-based login</div>
+                  </div>
+                  <div style="font-size:var(--text-lg);opacity:0.4;align-self:center">/</div>
+                  <div style="text-align:center">
+                    <div style="font-weight:700">AIOAuth2ZeroTrustFilter</div>
+                    <div style="font-size:var(--text-xs);color:var(--text-secondary);margin-top:2px">JWT / OAuth2</div>
+                  </div>
+                </div>
+                <span class="arch-flow-badge" style="background:var(--brand-primary);margin-top:var(--space-2)">Spring SecurityContext Loading</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <!-- 3. ZeroTrustSecurityService -->
+              <div class="arch-flow-node arch-flow-node--agent">
+                ZeroTrustSecurityService
+                <span class="arch-flow-detail">Reads <code>ZeroTrustAction</code> from Redis &rarr; replaces <code>Authentication</code> with <code>ZeroTrustAuthenticationToken</code></span>
+                <span class="arch-flow-badge" style="margin-top:16px">AI Decision &rarr; Spring Security Authority</span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <!-- 4. Action already assigned -->
+              <div style="padding:var(--space-3) var(--space-5);background:linear-gradient(135deg,rgba(99,102,241,0.08),rgba(168,85,247,0.08));border:1px dashed var(--brand-primary);border-radius:var(--radius-lg);text-align:center;max-width:420px;width:100%">
+                <div style="font-size:var(--text-xs);font-weight:600;color:var(--brand-primary);margin-bottom:var(--space-2)">Action already assigned to this user</div>
+                <div style="display:flex;gap:var(--space-2);justify-content:center;flex-wrap:wrap">
+                  <span class="arch-flow-branch-item" style="background:var(--zt-allow)">ALLOW</span>
+                  <span class="arch-flow-branch-item" style="background:var(--zt-block)">BLOCK</span>
+                  <span class="arch-flow-branch-item" style="background:var(--zt-challenge)">CHALLENGE</span>
+                  <span class="arch-flow-branch-item" style="background:var(--zt-escalate)">ESCALATE</span>
+                </div>
+                <div style="font-size:11px;color:var(--text-tertiary);margin-top:var(--space-2)">This action governs <strong>every request</strong> until a new AI analysis overrides it</div>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <!-- 5. ZeroTrustAccessControlFilter -->
+              <div class="arch-flow-node arch-flow-node--decision">
+                ZeroTrustAccessControlFilter
+                <span class="arch-flow-detail">
+                  <strong>BLOCK</strong> &rarr; 403 Forbidden, session invalidated, cross-instance broadcast<br>
+                  <strong>ESCALATE</strong> &rarr; 423 Locked, Retry-After: 30s, auto-promotes to BLOCK on TTL expiry<br>
+                  <strong>PENDING</strong> &rarr; wraps response with <code>BlockableResponseWrapper</code> for mid-stream termination
+                </span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <!-- 6. ZeroTrustChallengeFilter -->
+              <div class="arch-flow-node arch-flow-node--decision">
+                ZeroTrustChallengeFilter
+                <span class="arch-flow-detail">
+                  <strong>CHALLENGE</strong> &rarr; initiates MFA via <code>ChallengeMfaInitializer</code><br>
+                  Max 2 attempts in 1hr window &mdash; failure auto-promotes to BLOCK
+                </span>
+              </div>
+              <div class="arch-flow-connector"></div>
+
+              <!-- 7. Result -->
+              <div style="padding:var(--space-3) var(--space-5);background:var(--bg-secondary);border:1px solid var(--border-light);border-radius:var(--radius-md);text-align:center;max-width:420px;width:100%;font-size:var(--text-xs);color:var(--text-secondary);font-weight:500">
+                <strong style="color:var(--zt-allow)">ALLOW</strong> &rarr; request reaches application code &nbsp;|&nbsp; all others &rarr; blocked before reaching controller
+              </div>
+            </div>
+
+            <p style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:var(--space-4)">For detailed enforcement mechanics including <code>BlockableResponseWrapper</code>, <code>BlockingSignalBroadcaster</code>, and cross-instance propagation, see <a href="zero-trust-flow.html#enforcement">Zero Trust Flow &mdash; Enforcement Infrastructure</a>.</p>
+          </section>
+
+
+          <!-- Section 3: Module Dependencies -->
+          <section>
+            <h2 id="module-dependencies">Module Dependencies</h2>
+            <p>The modules form a layered dependency graph. Higher-level modules depend on the core AI engine and shared infrastructure, while the starter aggregates everything.</p>
+
+            <div class="dep-diagram"><!--
+-->spring-boot-starter-contexa
+  |
+  +-- contexa-autoconfigure
+  |     |
+  |     +-- contexa-identity
+  |     |     +-- contexa-core
+  |     |     +-- contexa-common
+  |     |
+  |     +-- contexa-iam
+  |     |     +-- contexa-core
+  |     |     +-- contexa-common
+  |     |
+  |     +-- contexa-core
+  |           +-- contexa-common
+  |
+  +-- contexa-identity
+  +-- contexa-iam
+  +-- contexa-core
+  +-- contexa-common</div>
+
+            <table style="width:100%;border-collapse:collapse;margin:var(--space-4) 0;font-size:var(--text-sm)">
+              <thead>
+                <tr style="border-bottom:2px solid var(--border-medium)">
+                  <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:600">Module</th>
+                  <th style="text-align:left;padding:var(--space-2) var(--space-3);font-weight:600">Depends On</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--border-light)">
+                  <td style="padding:var(--space-2) var(--space-3)"><code>contexa-identity</code></td>
+                  <td style="padding:var(--space-2) var(--space-3)"><code>contexa-core</code>, <code>contexa-common</code></td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border-light)">
+                  <td style="padding:var(--space-2) var(--space-3)"><code>contexa-iam</code></td>
+                  <td style="padding:var(--space-2) var(--space-3)"><code>contexa-core</code>, <code>contexa-common</code></td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border-light)">
+                  <td style="padding:var(--space-2) var(--space-3)"><code>contexa-core</code></td>
+                  <td style="padding:var(--space-2) var(--space-3)"><code>contexa-common</code></td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border-light)">
+                  <td style="padding:var(--space-2) var(--space-3)"><code>contexa-autoconfigure</code></td>
+                  <td style="padding:var(--space-2) var(--space-3)">All modules</td>
+                </tr>
+                <tr>
+                  <td style="padding:var(--space-2) var(--space-3)"><code>spring-boot-starter-contexa</code></td>
+                  <td style="padding:var(--space-2) var(--space-3)">All modules</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+
+          <!-- Section 4: Infrastructure Modes -->
+          <section>
+            <h2 id="infrastructure-modes">Infrastructure Modes</h2>
+            <p>Contexa supports two infrastructure modes, allowing you to start with a zero-dependency setup for development and scale to a distributed architecture for production.</p>
+
+            <div class="mode-cards">
+              <div class="mode-card">
+                <h3 style="color:var(--color-info)">STANDALONE</h3>
+                <p>In-memory implementations for all services. Zero external dependencies &mdash; ideal for development, testing, and rapid prototyping.</p>
+                <div style="display:flex;flex-direction:column;gap:var(--space-1)">
+                  <code>contexa.infrastructure.mode=STANDALONE</code>
+                </div>
+                <ul style="margin-top:var(--space-3);font-size:var(--text-sm);color:var(--text-secondary);padding-left:var(--space-5)">
+                  <li>In-memory ZeroTrustAction storage</li>
+                  <li>In-memory cache service</li>
+                  <li>In-memory event bus</li>
+                  <li>No Redis or Kafka required</li>
+                </ul>
+              </div>
+              <div class="mode-card">
+                <h3 style="color:var(--zt-allow)">DISTRIBUTED</h3>
+                <p>Redis + Kafka backed services for production deployments. Supports horizontal scaling and multi-instance coordination.</p>
+                <div style="display:flex;flex-direction:column;gap:var(--space-1)">
+                  <code>contexa.infrastructure.mode=DISTRIBUTED</code>
+                </div>
+                <ul style="margin-top:var(--space-3);font-size:var(--text-sm);color:var(--text-secondary);padding-left:var(--space-5)">
+                  <li>Redis-backed ZeroTrustAction storage</li>
+                  <li>Redis cache with TTL management</li>
+                  <li>Kafka event streaming</li>
+                  <li>Cluster-aware session management</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+
+
+          <!-- Section 5: Shadow Mode -->
+          <section>
+            <h2 id="shadow-mode">Shadow Mode</h2>
+            <p>Contexa supports a <strong>Shadow Mode</strong> for safe, progressive adoption. Controlled by a single property, <code>security.zerotrust.mode</code>, it determines whether AI decisions are enforced or only logged.</p>
+
+            <div class="mode-cards">
+              <div class="mode-card">
+                <h3 style="color:var(--zt-challenge)">SHADOW</h3>
+                <p>The full AI pipeline runs &mdash; HCAD analysis, tiered LLM evaluation, risk scoring &mdash; but <code>SecurityDecisionEnforcementHandler</code> skips enforcement via <code>canHandle()</code>. No actions are saved to Redis. All AI decisions are recorded in audit logs only.</p>
+                <div style="display:flex;flex-direction:column;gap:var(--space-1)">
+                  <code>security.zerotrust.mode: SHADOW</code>
+                </div>
+              </div>
+              <div class="mode-card">
+                <h3 style="color:var(--zt-allow)">ENFORCE</h3>
+                <p>Default mode. AI decisions are saved to Redis by <code>SecurityDecisionEnforcementHandler</code> and enforced by <code>ZeroTrustAccessControlFilter</code> on subsequent requests. Full enforcement with BLOCK, CHALLENGE, ESCALATE actions active.</p>
+                <div style="display:flex;flex-direction:column;gap:var(--space-1)">
+                  <code>security.zerotrust.mode: ENFORCE</code>
+                </div>
+              </div>
+            </div>
+
+            <p style="font-size:var(--text-sm);color:var(--text-secondary)">See <a href="../../../docs/install/shadow-mode.html">Shadow Mode Migration Guide</a> for a detailed walkthrough of the recommended adoption timeline and rollback strategy.</p>
+          </section>
+
+
+          <!-- Section 6: AI Integration Points -->
+          <section>
+            <h2 id="ai-integration">AI Integration Points</h2>
+            <p>AI and LLM capabilities are deeply integrated throughout the platform. The following are the primary points where AI-driven decisions are made.</p>
+
+            <ol class="ai-list">
+              <li>
+                <div class="ai-list-num">1</div>
+                <div class="ai-list-content">
+                  <strong>Zero-Trust Threat Evaluation</strong>
+                  <span>SecurityPlaneAgent uses a tiered LLM strategy &mdash; Layer 1 for fast contextual analysis, Layer 2 for deep expert investigation &mdash; to evaluate every suspicious request and produce a ZeroTrustAction.</span>
+                </div>
+              </li>
+              <li>
+                <div class="ai-list-num">2</div>
+                <div class="ai-list-content">
+                  <strong>@Protectable Method Authorization</strong>
+                  <span>Methods annotated with <code>@Protectable</code> trigger AI-driven authorization decisions at the method level, going beyond static role checks to evaluate request context dynamically.</span>
+                </div>
+              </li>
+              <li>
+                <div class="ai-list-num">3</div>
+                <div class="ai-list-content">
+                  <strong>HCAD Baseline Learning &amp; Anomaly Scoring</strong>
+                  <span>The Host &amp; Context Anomaly Detection system learns normal behavioral baselines and scores each request for deviation, feeding anomaly data into the threat evaluation pipeline.</span>
+                </div>
+              </li>
+              <li>
+                <div class="ai-list-num">4</div>
+                <div class="ai-list-content">
+                  <strong>Adaptive MFA Policy Decisions</strong>
+                  <span>AIAdaptiveMfaPolicyProvider uses AI analysis to determine when additional authentication factors should be required, adapting challenge strength based on risk context.</span>
+                </div>
+              </li>
+              <li>
+                <div class="ai-list-num">5</div>
+                <div class="ai-list-content">
+                  <strong>AI-Generated XACML Policies</strong>
+                  <span>The platform can generate and suggest XACML access control policies using AI, reducing the manual effort of policy authoring while maintaining fine-grained control.</span>
+                </div>
+              </li>
+              <li>
+                <div class="ai-list-num">6</div>
+                <div class="ai-list-content">
+                  <strong>Behavior Analytics</strong>
+                  <span>Behavioral embeddings capture user interaction patterns as vectors, enabling the AI engine to detect subtle anomalies that rule-based systems would miss.</span>
+                </div>
+              </li>
+              <li>
+                <div class="ai-list-num">7</div>
+                <div class="ai-list-content">
+                  <strong>SOAR Orchestration</strong>
+                  <span>Layer 2 Expert Investigation integrates with SOAR workflows via SoarApprovalNotifier. High-risk decisions can require human approval before enforcement, bridging automated analysis with operational oversight.</span>
+                </div>
+              </li>
+              <li>
+                <div class="ai-list-num">8</div>
+                <div class="ai-list-content">
+                  <strong>Central Audit Logging</strong>
+                  <span>Every AI decision is recorded by AuditingHandler through CentralAuditFacade &mdash; regardless of whether enforcement is active (ENFORCE mode) or observation-only (SHADOW mode). Provides a complete audit trail for compliance and forensics.</span>
+                </div>
+              </li>
+            </ol>
+          </section>
+
+
+          <!-- Navigation Footer -->
+          <div class="docs-nav-footer">
+            <a href="../../../docs/install/quickstart.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">Quick Start</span>
+            </a>
+            <a href="../../../docs/reference/security/zero-trust.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">Zero Trust Engine</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

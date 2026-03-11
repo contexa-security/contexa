@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Community | Contexa</title>
+  <meta name="description" content="Join the Contexa community. Contribute to the AI Native Zero Trust Platform<br>for Spring, report issues, and connect with other developers.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="./assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="./assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="./assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="./assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="./assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="./index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="./assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="./index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="./get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="./docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="./docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="./docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="./docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="./docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="./docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="./docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="./docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="./community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="./community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="./index.html" class="mobile-nav-link">Overview</a>
+    <a href="./get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="./docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="./docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="./docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="./docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="./docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="./docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="./docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="./docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="./community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+
+  <main class="site-main">
+
+    <!-- ── Page Header ── -->
+    <section class="section">
+      <div class="container-narrow">
+        <span class="eyebrow">Open Source</span>
+        <h1>Community</h1>
+        <p class="lead">Join the Contexa community. Contribute code, report issues, ask questions, and help shape the future of AI-native security for Spring.</p>
+      </div>
+    </section>
+
+    <!-- ── Contributing ── -->
+    <section class="section-sm">
+      <div class="container-narrow">
+        <h2>Contributing</h2>
+        <p>Contexa is an open source project and we welcome contributions of all kinds &mdash; from bug fixes and documentation improvements to new features and architectural enhancements.</p>
+
+        <div class="steps" style="margin-top: var(--space-6);">
+          <div class="step">
+            <div class="step-number">1</div>
+            <div>
+              <h3 class="step-title">Fork &amp; Clone</h3>
+              <p class="step-desc">Fork the repository on GitHub and clone it to your local machine.</p>
+              <div class="code-block" style="margin-top: var(--space-3);">
+                <div class="code-block-header">
+                  <span class="code-block-lang">Shell</span>
+                  <button class="code-copy-btn" type="button" aria-label="Copy code">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <pre><code class="language-bash">git clone https://github.com/your-username/contexa.git
+cd contexa
+git checkout -b feature/your-feature-name</code></pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <div>
+              <h3 class="step-title">Build &amp; Test</h3>
+              <p class="step-desc">Ensure all existing tests pass before making changes. Contexa uses Gradle for builds.</p>
+              <div class="code-block" style="margin-top: var(--space-3);">
+                <div class="code-block-header">
+                  <span class="code-block-lang">Shell</span>
+                  <button class="code-copy-btn" type="button" aria-label="Copy code">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    <span>Copy</span>
+                  </button>
+                </div>
+                <pre><code class="language-bash">./gradlew build
+./gradlew test</code></pre>
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <div>
+              <h3 class="step-title">Submit a Pull Request</h3>
+              <p class="step-desc">Push your branch and open a pull request against the <code>main</code> branch. Describe your changes clearly and reference any related issues.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ── GitHub Links ── -->
+    <section class="section">
+      <div class="container-narrow">
+        <h2>Connect on GitHub</h2>
+        <p>The Contexa project lives on GitHub. Here are the key places to get involved.</p>
+
+        <div class="grid grid-3 gap-6" style="margin-top: var(--space-6);">
+          <a href="https://github.com/contexa-security/contexa/issues" class="card card-interactive" target="_blank" rel="noopener" style="text-decoration: none;">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <h3 class="card-title">Issues</h3>
+            <p class="card-desc">Report bugs, request features, or browse existing issues. Use labels to filter by module or priority.</p>
+            <span class="card-link">Open Issues &rarr;</span>
+          </a>
+
+          <a href="https://github.com/contexa-security/contexa/discussions" class="card card-interactive" target="_blank" rel="noopener" style="text-decoration: none;">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3 class="card-title">Discussions</h3>
+            <p class="card-desc">Ask questions, share ideas, and discuss architecture decisions with the community and maintainers.</p>
+            <span class="card-link">Join Discussions &rarr;</span>
+          </a>
+
+          <a href="https://github.com/contexa-security/contexa/pulls" class="card card-interactive" target="_blank" rel="noopener" style="text-decoration: none;">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+            </div>
+            <h3 class="card-title">Pull Requests</h3>
+            <p class="card-desc">Review open pull requests, provide feedback, or submit your own contributions to the project.</p>
+            <span class="card-link">View PRs &rarr;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ── License ── -->
+    <section class="section" id="license">
+      <div class="container-narrow">
+        <h2>License</h2>
+        <p>Contexa is released under the <strong>Apache License 2.0</strong>, one of the most permissive open source licenses available. You are free to use, modify, and distribute Contexa in both personal and commercial projects.</p>
+
+        <div class="code-block" style="margin-top: var(--space-4);">
+          <div class="code-block-header">
+            <span class="code-block-lang">Text</span>
+            <button class="code-copy-btn" type="button" aria-label="Copy code">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <pre><code>Copyright 2025 Contexa
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.</code></pre>
+        </div>
+
+        <p style="margin-top: var(--space-4);">
+          <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE" class="btn btn-ghost" target="_blank" rel="noopener">
+            View full license on GitHub &rarr;
+          </a>
+        </p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ── Community vs Enterprise ── -->
+    <section class="section">
+      <div class="container-narrow">
+        <h2>Community vs Enterprise</h2>
+        <p>The Community Edition includes the full Contexa platform &mdash; Identity DSL, XACML policy engine, HCAD AI engine, Zero Trust actions, and both standalone and distributed deployment modes. Everything you need to secure your Spring applications with AI-native zero trust.</p>
+
+        <div class="card" style="margin-top: var(--space-6); overflow-x: auto;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th style="text-align: left; padding: var(--space-3) var(--space-4); border-bottom: 2px solid var(--border-medium); width: 50%;">Capability</th>
+                <th style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 2px solid var(--border-medium); width: 25%;">Community</th>
+                <th style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 2px solid var(--border-medium); width: 25%;">Enterprise</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">Full platform (6 modules, 45+ AutoConfigurations)</td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);"><span class="badge badge-success">Included</span></td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);"><span class="badge badge-success">Included</span></td>
+              </tr>
+              <tr>
+                <td style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">Admin Console &amp; Policy Studio</td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);"><span class="badge badge-secondary">Limited</span></td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);"><span class="badge badge-success">Full</span></td>
+              </tr>
+              <tr>
+                <td style="padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);">Priority Support &amp; SLA</td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);"><span class="badge badge-secondary">Community</span></td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border-light);"><span class="badge badge-success">Dedicated</span></td>
+              </tr>
+              <tr>
+                <td style="padding: var(--space-3) var(--space-4);">License</td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4);">Apache 2.0</td>
+                <td style="text-align: center; padding: var(--space-3) var(--space-4);">Commercial</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <p style="margin-top: var(--space-4);">For Enterprise Edition inquiries, please reach out through the contact channels below.</p>
+      </div>
+    </section>
+
+    <div class="divider"></div>
+
+    <!-- ── Contact ── -->
+    <section class="section">
+      <div class="container-narrow">
+        <h2>Contact</h2>
+        <p>Have questions about Contexa, need help with integration, or interested in the Enterprise Edition? Get in touch through any of these channels.</p>
+
+        <div class="grid grid-2 gap-6" style="margin-top: var(--space-6);">
+          <div class="card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            </div>
+            <h3 class="card-title">Technical Questions</h3>
+            <p class="card-desc">For technical questions, integration help, and feature discussions, use GitHub Discussions. The community and maintainers actively monitor and respond.</p>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="btn btn-secondary btn-sm" target="_blank" rel="noopener" style="margin-top: var(--space-3);">
+              Open a Discussion &rarr;
+            </a>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            </div>
+            <h3 class="card-title">Bug Reports</h3>
+            <p class="card-desc">Found a bug? Open an issue on GitHub with steps to reproduce, expected behavior, and your environment details (Java version, Spring Boot version, Contexa version).</p>
+            <a href="https://github.com/contexa-security/contexa/issues/new" class="btn btn-secondary btn-sm" target="_blank" rel="noopener" style="margin-top: var(--space-3);">
+              Report an Issue &rarr;
+            </a>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3 class="card-title">Security Vulnerabilities</h3>
+            <p class="card-desc">For security-sensitive issues, please report privately through GitHub Security Advisories. Do not open a public issue for vulnerabilities.</p>
+            <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md" class="btn btn-secondary btn-sm" target="_blank" rel="noopener" style="margin-top: var(--space-3);">
+              Security Policy &rarr;
+            </a>
+          </div>
+
+          <div class="card">
+            <div class="card-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            </div>
+            <h3 class="card-title">Enterprise Inquiries</h3>
+            <p class="card-desc">For Enterprise Edition licensing, dedicated support agreements, and partnership opportunities, contact the Contexa team directly.</p>
+            <a href="mailto:enterprise@contexa.io" class="btn btn-secondary btn-sm" style="margin-top: var(--space-3);">
+              Contact Sales &rarr;
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="./index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="./docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="./docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="./docs/install/configuration.html">Configuration</a></li>
+          <li><a href="./docs/reference/index.html">API Reference</a></li>
+          <li><a href="./docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="./docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="./docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="./docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="./docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="./community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  <script src="./assets/js/nav.js?v=1773190937296"></script>
+</body>
+</html>

@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adaptive MFA | Contexa Docs</title>
+  <meta name="description" content="Contexa Identity Adaptive MFA guide. Multi-factor authentication setup, primary/secondary factors, custom pages, policy customization, device trust, step-up authentication.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">Adaptive MFA</span>
+          </nav>
+
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-info">contexa-identity</span>
+            </div>
+            <h1>Adaptive MFA</h1>
+            <p class="lead">Multi-Factor Authentication (MFA) configuration guide. Combines secondary factors (OTT, Passkey) after primary authentication (Form/REST) to strengthen security. Supports AI-based adaptive policies, custom pages, Device Trust, and Step-up authentication.</p>
+          </div>
+
+          <!-- Overview -->
+          <section class="docs-section">
+            <h2 id="overview">Overview</h2>
+            <p>Contexa MFA consists of primary authentication + secondary factor(s). The policy engine determines whether MFA is required, and the state machine manages the authentication flow.</p>
+
+<pre class="arch-diagram"><code>
+  MFA Architecture
+  ================
+
+  [Primary Auth: Form/REST]
+          |
+          v
+  [MfaPolicyProvider] ---> MFA Not Required ---> Auth Complete
+          |
+          v (MFA Required)
+  [Factor Selection: OTT / Passkey]
+          |
+          v
+  [State Machine: Challenge -> Verification]
+          |
+          v
+  [MFA Success] ---> Auth Complete
+</code></pre>
+
+            <p>The default MFA order is <strong>200</strong>. Calling <code>.form()</code> or <code>.rest()</code> directly from <code>.mfa()</code> throws an <code>UnsupportedOperationException</code>. You must use <code>.primaryAuthentication()</code> instead.</p>
+          </section>
+
+          <!-- Quick Start -->
+          <section class="docs-section">
+            <h2 id="quick-start">Quick Start</h2>
+            <p>The simplest MFA configuration with Form primary authentication + Passkey secondary authentication.</p>
+
+<pre><code class="language-java">registry
+    .mfa(mfa -> mfa
+        .primaryAuthentication(primary -> primary
+            .formLogin(form -> form.loginPage("/login")))
+        .passkey(Customizer.withDefaults())
+    )
+    .session(Customizer.withDefaults())
+    .build();</code></pre>
+          </section>
+
+          <!-- Primary Authentication -->
+          <section class="docs-section">
+            <h2 id="primary-authentication">Primary Authentication</h2>
+            <p>Configures the primary authentication method via <code>primaryAuthentication()</code>. Only one of <code>formLogin()</code> or <code>restLogin()</code> can be selected (mutually exclusive).</p>
+
+            <h3>Form Primary</h3>
+<pre><code class="language-java">.mfa(mfa -> mfa
+    .primaryAuthentication(primary -> primary
+        .formLogin(form -> form
+            .loginPage("/login")
+            .usernameParameter("email")
+            .failureUrl("/login?error")))
+    .ott(Customizer.withDefaults())
+)</code></pre>
+
+            <h3>REST Primary</h3>
+<pre><code class="language-java">.mfa(mfa -> mfa
+    .primaryAuthentication(primary -> primary
+        .restLogin(rest -> rest
+            .loginProcessingUrl("/api/auth/login")))
+    .passkey(Customizer.withDefaults())
+)</code></pre>
+
+            <div class="callout callout-info">
+              <strong>Primary Authentication Order</strong><br>
+              Primary authentication is automatically assigned order 0. Secondary factors are automatically assigned sequential order values (1, 2, 3...) via <code>currentStepOrderCounter</code>.
+            </div>
+          </section>
+
+          <!-- MFA Factors -->
+          <section class="docs-section">
+            <h2 id="mfa-factors">MFA Factors (Secondary Authentication)</h2>
+            <p>Adds secondary authentication factors. At least one secondary factor is required, and multiple factors can be combined.</p>
+
+            <h3>Available Secondary Factors</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Method</th><th>Factor</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>.ott()</code></td><td>One-Time Token</td><td>Email/SMS one-time code</td></tr>
+                <tr><td><code>.passkey()</code></td><td>WebAuthn / Passkey</td><td>Biometric authentication / hardware key</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Multiple Factor Combination</h3>
+<pre><code class="language-java">.mfa(mfa -> mfa
+    .primaryAuthentication(primary -> primary
+        .formLogin(form -> form.loginPage("/login")))
+    .ott(ott -> ott
+        .tokenService(emailTokenService))
+    .passkey(passkey -> passkey
+        .rpName("My App")
+        .rpId("example.com"))
+)</code></pre>
+            <p>Each factor is automatically assigned a sequential order via <code>currentStepOrderCounter</code> (1, 2, 3...). Users select their preferred factor on the factor selection page.</p>
+          </section>
+
+          <!-- MFA Pages -->
+          <section class="docs-section">
+            <h2 id="mfa-pages">MFA Pages</h2>
+            <p>Customizes the page URLs for each step of the MFA flow via <code>mfaPage()</code>.</p>
+
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Method</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>selectFactorPage(String)</code></td><td>Factor selection page URL</td></tr>
+                <tr><td><code>ottPages(String requestUrl, String verifyUrl)</code></td><td>OTT request/verification page URLs (configured at once)</td></tr>
+                <tr><td><code>ottRequestPage(String)</code></td><td>OTT code request page URL</td></tr>
+                <tr><td><code>ottVerifyPage(String)</code></td><td>OTT code verification page URL</td></tr>
+                <tr><td><code>passkeyChallengePages(String)</code></td><td>Passkey challenge page URL</td></tr>
+                <tr><td><code>configurePageUrl(String)</code></td><td>MFA configuration page URL</td></tr>
+                <tr><td><code>failurePageUrl(String)</code></td><td>MFA failure page URL</td></tr>
+              </tbody>
+            </table></div>
+
+<pre><code class="language-java">.mfa(mfa -> mfa
+    .primaryAuthentication(primary -> primary
+        .formLogin(form -> form.loginPage("/login")))
+    .ott(Customizer.withDefaults())
+    .mfaPage(page -> page
+        .selectFactorPage("/mfa/select")
+        .ottPages("/mfa/ott/request", "/mfa/ott/verify")
+        .failurePageUrl("/mfa/failed"))
+)</code></pre>
+
+            <h3 id="custom-mfa-pages">Creating Custom MFA Pages</h3>
+            <p>You can freely modify the CSS and layout of MFA pages. However, the following elements must be preserved.</p>
+
+            <h4>Do Not Modify</h4>
+            <ul>
+              <li>CSRF meta tag: <code>&lt;meta name="_csrf" th:content="${csrfToken}"&gt;</code></li>
+              <li><code>id="contexa-page-config"</code> div and <code>data-*</code> attributes</li>
+              <li>Input name attributes: <code>username</code>, <code>password</code>, <code>token</code>, <code>_csrf</code>, <code>mfaSessionId</code></li>
+              <li>Form <code>id</code>, <code>method</code>, <code>th:action</code></li>
+              <li>button id: <code>loginButton</code>, <code>sendCodeButton</code>, <code>verifyButton</code>, <code>resendButton</code>, <code>authButton</code></li>
+              <li><code>th:utext="${hiddenInputsHtml}"</code> &mdash; Auto-generates CSRF + mfaSessionId hidden inputs</li>
+            </ul>
+
+            <h4>Safe to Modify</h4>
+            <ul>
+              <li>CSS colors, layout, background</li>
+              <li>Logos, icons</li>
+              <li>Text content</li>
+              <li>Form field styles</li>
+            </ul>
+
+            <h4>Required JavaScript Files</h4>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>File</th><th>Target Page</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>/js/contexa-mfa-sdk.js</code></td><td>All MFA pages (required)</td></tr>
+                <tr><td><code>/js/contexa-login-page.js</code></td><td>Login page</td></tr>
+                <tr><td><code>/js/contexa-ott-request-page.js</code></td><td>OTT code request page</td></tr>
+                <tr><td><code>/js/contexa-ott-verify-page.js</code></td><td>OTT code verification page</td></tr>
+                <tr><td><code>/js/contexa-passkey-page.js</code></td><td>Passkey challenge page</td></tr>
+              </tbody>
+            </table></div>
+
+            <h4>MFA Data Flow</h4>
+<pre class="arch-diagram"><code>
+  Login (/login)
+    |
+    v
+  POST /login (API) ---> MFA Not Required ---> Home
+    |
+    v (MFA Required)
+  /mfa/select-factor
+    |
+    +--- OTT ---+
+    |            |
+    |   /mfa/ott/request-code-ui
+    |            |
+    |   POST /mfa/ott/generate-code
+    |            |
+    |   /mfa/challenge/ott
+    |            |
+    |   POST /login/mfa-ott ---> Success/Failure
+    |
+    +--- Passkey ---+
+                    |
+       /mfa/challenge/passkey
+                    |
+       WebAuthn navigator.credentials.get()
+                    |
+       POST /mfa/webauthn/authenticate ---> Success/Failure
+</code></pre>
+          </section>
+
+          <!-- MFA Policy Customization -->
+          <section class="docs-section">
+            <h2 id="mfa-policy">MFA Policy Customization</h2>
+            <p>Implement <code>MfaPolicyProvider</code> to customize MFA requirement decisions. Since it is registered with <code>@ConditionalOnMissingBean</code>, defining a bean of the same type automatically overrides it.</p>
+
+            <h3>Built-in Implementations</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Implementation</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>DefaultMfaPolicyProvider</code></td><td>Static rule-based. Determines MFA requirement based on user roles and MFA configuration</td></tr>
+                <tr><td><code>AIAdaptiveMfaPolicyProvider</code></td><td>AI risk analysis-based dynamic policy. Falls back to DefaultMfaPolicyProvider when AI Core is unavailable</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Custom Policy Implementation Example</h3>
+<pre><code class="language-java">@Bean
+public MfaPolicyProvider mfaPolicyProvider() {
+    return new MfaPolicyProvider() {
+        @Override
+        public MfaDecision evaluateInitialMfaRequirement(FactorContext ctx) {
+            String ip = ctx.getRequest().getRemoteAddr();
+            if (trustedIpRanges.contains(ip)) {
+                return MfaDecision.noMfaRequired();
+            }
+            return MfaDecision.challenged("Untrusted IP");
+        }
+        // ... other methods
+    };
+}</code></pre>
+
+            <h3>MfaDecision Types</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>DecisionType</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>NO_MFA_REQUIRED</code></td><td>MFA not required. Authentication completes immediately</td></tr>
+                <tr><td><code>CHALLENGED</code></td><td>MFA required. Secondary factor authentication demanded</td></tr>
+                <tr><td><code>BLOCKED</code></td><td>Authentication blocked. Access denied</td></tr>
+                <tr><td><code>ESCALATED</code></td><td>Escalated for administrator review. Only administrators can resolve</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Injecting Policy via DSL</h3>
+<pre><code class="language-java">.mfa(mfa -> mfa
+    .policyProvider(customMfaPolicyProvider)
+    .primaryAuthentication(primary -> primary
+        .formLogin(form -> form.loginPage("/login")))
+    .passkey(Customizer.withDefaults())
+)</code></pre>
+          </section>
+
+          <!-- Device Trust -->
+          <section class="docs-section">
+            <h2 id="device-trust">Device Trust</h2>
+            <p>MFA can be skipped on trusted devices. Disabled by default.</p>
+
+<pre><code class="language-java">.mfa(mfa -> mfa
+    .defaultDeviceTrustEnabled(true)
+    .primaryAuthentication(primary -> primary
+        .formLogin(form -> form.loginPage("/login")))
+    .passkey(Customizer.withDefaults())
+)</code></pre>
+
+<pre class="arch-diagram"><code>
+  Device Trust Flow
+  =================
+
+  Client                              Server
+    |                                    |
+    | [localStorage: deviceId]           |
+    | X-Device-Id header  ------------->  |
+    |                                    | JWT device_id claim verification
+    |                                    | HCAD device behavior analysis
+    |                                    |
+    | Trusted Device -----> Skip MFA     |
+    | Untrusted Device ---> Proceed MFA  |
+</code></pre>
+
+            <h3>Configuration</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Property</th><th>Default</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>spring.auth.mfa.device-remember-duration-ms</code></td><td>2592000000 (30 days)</td><td>Device trust retention period</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <!-- Step-up Authentication -->
+          <section class="docs-section">
+            <h2 id="step-up">Step-up Authentication</h2>
+            <p>Requires additional authentication when an already authenticated user accesses sensitive resources.</p>
+
+<pre class="arch-diagram"><code>
+  Step-up Authentication Flow
+  ============================
+
+  [Authenticated User] ---> [Sensitive Resource Access]
+                           |
+                           v
+                  Server: 401 MFA_CHALLENGE_REQUIRED
+                           |
+                           v
+            SDK Global Interceptor: Auto-detect fetch/XHR responses
+                           |
+                           v
+                  Redirect to MFA factor selection page
+                           |
+                           v
+                  Additional auth complete ---> Auto-retry original request
+</code></pre>
+
+            <p>The ContexaMFA SDK Global Interceptor automatically detects <code>401</code>/<code>403</code>/<code>423</code> responses from all HTTP requests and redirects to the MFA challenge. After authentication completes, the original request is automatically retried.</p>
+          </section>
+
+          <!-- MFA State Machine Events -->
+          <section class="docs-section">
+            <h2 id="mfa-events">MFA State Machine Events</h2>
+            <p>Use <code>@EventListener</code> to receive MFA state change events for implementing audit logs, notifications, and more.</p>
+
+            <h3>Event Types</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Event</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>StateChangeEvent</code></td><td>MFA state transition (e.g., FACTOR_SELECTION -> OTT_CHALLENGE)</td></tr>
+                <tr><td><code>ErrorEvent</code></td><td>Error occurred (SECURITY, TIMEOUT, LIMIT_EXCEEDED, SYSTEM)</td></tr>
+                <tr><td><code>PerformanceAlertEvent</code></td><td>Performance warning (slow response, etc.)</td></tr>
+                <tr><td><code>CustomEvent</code></td><td>User-defined event</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Terminal States</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>State</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>MFA_SUCCESSFUL</code></td><td>MFA succeeded. Full authentication complete</td></tr>
+                <tr><td><code>MFA_NOT_REQUIRED</code></td><td>MFA not required. Skipped by policy</td></tr>
+                <tr><td><code>MFA_FAILED_TERMINAL</code></td><td>MFA permanently failed. No retry allowed</td></tr>
+                <tr><td><code>MFA_CANCELLED</code></td><td>User cancelled MFA</td></tr>
+                <tr><td><code>MFA_TIMEOUT</code></td><td>Session timeout</td></tr>
+                <tr><td><code>MFA_SESSION_EXPIRED</code></td><td>MFA session expired</td></tr>
+                <tr><td><code>MFA_ACCOUNT_LOCKED</code></td><td>Account locked</td></tr>
+                <tr><td><code>MFA_SYSTEM_ERROR</code></td><td>System error</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Audit Log Implementation Example</h3>
+<pre><code class="language-java">@EventListener
+public void onMfaStateChange(MfaStateMachineEvents.StateChangeEvent event) {
+    auditService.log(
+        event.getUserId(),
+        event.getFromState(),
+        event.getToState()
+    );
+}
+
+@EventListener
+public void onMfaError(MfaStateMachineEvents.ErrorEvent event) {
+    alertService.notify(
+        event.getErrorType(),
+        event.getMessage()
+    );
+}</code></pre>
+          </section>
+
+          <!-- MFA + Single Auth -->
+          <section class="docs-section">
+            <h2 id="mfa-with-single">MFA + Single Authentication Co-configuration</h2>
+            <p>Register both MFA and single authentication together to apply different authentication levels to different request paths.</p>
+
+<pre><code class="language-java">registry
+    // Admin: Form + OAuth2 (Single Auth)
+    .form(f -> f.order(20).loginPage("/admin/login")
+        .rawHttp(http -> http.securityMatcher("/admin/**")))
+    .oauth2(Customizer.withDefaults())
+
+    // User: MFA (Form Primary + Passkey) + Session
+    .mfa(m -> m.order(100)
+        .primaryAuthentication(auth -> auth
+            .formLogin(form -> form.loginPage("/login")))
+        .passkey(Customizer.withDefaults()))
+    .session(Customizer.withDefaults())
+
+    .build();</code></pre>
+
+            <p>Use <code>order()</code> to control filter chain priority, and <code>rawHttp()</code>'s <code>securityMatcher()</code> to determine which chain handles which requests. Different state management (session/oauth2) can be configured for each authentication method.</p>
+          </section>
+
+          <!-- MFA Handlers -->
+          <section class="docs-section">
+            <h2 id="mfa-handlers">MFA Handlers</h2>
+            <p>Custom handlers can be specified for MFA success and failure.</p>
+
+<pre><code class="language-java">.mfa(mfa -> mfa
+    .mfaSuccessHandler(customSuccessHandler)
+    .mfaFailureHandler(customFailureHandler)
+    .primaryAuthentication(primary -> primary
+        .formLogin(form -> form.loginPage("/login")))
+    .passkey(Customizer.withDefaults())
+)</code></pre>
+
+            <p>For handler interfaces and implementation guidance, refer to the handler auto-selection section in the <a href="authentication.html#handler-resolution">Authentication</a> documentation.</p>
+          </section>
+
+          <!-- MFA REST API -->
+          <section class="docs-section">
+            <h2 id="mfa-rest-api">MFA REST API</h2>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Method</th><th>URL</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>GET</code></td><td><code>/api/mfa/config</code></td><td>Retrieve MFA configuration</td></tr>
+                <tr><td><code>GET</code></td><td><code>/api/mfa/status</code></td><td>Retrieve MFA status</td></tr>
+                <tr><td><code>POST</code></td><td><code>/mfa/select-factor</code></td><td>Select MFA factor</td></tr>
+                <tr><td><code>POST</code></td><td><code>/mfa/ott/generate-code</code></td><td>Generate MFA OTT code</td></tr>
+                <tr><td><code>POST</code></td><td><code>/login/mfa-ott</code></td><td>Process MFA OTT login</td></tr>
+                <tr><td><code>POST</code></td><td><code>/mfa/webauthn/authenticate</code></td><td>MFA Passkey authentication</td></tr>
+                <tr><td><code>POST</code></td><td><code>/mfa/cancel</code></td><td>Cancel MFA</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Response Format</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Scenario</th><th>Response</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Authentication success</td><td><code>{ "success": true, "redirectUrl": "..." }</code></td></tr>
+                <tr><td>MFA required</td><td><code>{ "mfaRequired": true, "selectFactorUrl": "...", "mfaSessionId": "..." }</code></td></tr>
+                <tr><td>Authentication failure</td><td><code>{ "success": false, "error": "...", "failureType": "..." }</code></td></tr>
+                <tr><td>Step-up required</td><td><code>401 MFA_CHALLENGE_REQUIRED</code></td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <!-- ContexaMFA JavaScript SDK -->
+          <section class="docs-section">
+            <h2 id="js-sdk">ContexaMFA JavaScript SDK</h2>
+            <p>A JavaScript SDK (v2.2.0) that controls the MFA flow in the browser.</p>
+
+            <h3>Quick Start</h3>
+<pre><code class="language-html">&lt;script src="../../../js/contexa-mfa-sdk.js?v=1773190937296"&gt;&lt;/script&gt;
+&lt;script&gt;
+const mfa = new ContexaMFA.Client({
+    autoInit: true,
+    tokenPersistence: 'localstorage'
+});
+mfa.loginForm('username', 'password')
+    .then(result =&gt; { /* handle result */ });
+&lt;/script&gt;</code></pre>
+
+            <h3>Client API</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Method</th><th>Return Type</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>init()</code></td><td>Promise</td><td>Initialize SDK, load server configuration</td></tr>
+                <tr><td><code>login(username, password)</code></td><td>Promise&lt;LoginResult&gt;</td><td>JSON login request</td></tr>
+                <tr><td><code>loginForm(username, password)</code></td><td>Promise&lt;LoginResult&gt;</td><td>Form POST login</td></tr>
+                <tr><td><code>selectFactor(factorType)</code></td><td>Promise&lt;FactorResult&gt;</td><td>Select MFA factor</td></tr>
+                <tr><td><code>verifyOtt(token)</code></td><td>Promise&lt;VerifyResult&gt;</td><td>Verify OTT token</td></tr>
+                <tr><td><code>verifyPasskey()</code></td><td>Promise&lt;VerifyResult&gt;</td><td>WebAuthn Passkey authentication</td></tr>
+                <tr><td><code>requestOttCode(username)</code></td><td>Promise&lt;RequestResult&gt;</td><td>Request OTT code resend</td></tr>
+                <tr><td><code>logout()</code></td><td>Promise</td><td>Logout</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Constructor Options</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Option</th><th>Type</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>autoInit</code></td><td>boolean</td><td>Whether to auto-initialize</td></tr>
+                <tr><td><code>autoRedirect</code></td><td>boolean</td><td>Auto-redirect after authentication</td></tr>
+                <tr><td><code>tokenPersistence</code></td><td>'memory' | 'localstorage'</td><td>Token storage (memory or localStorage)</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>Global Interceptor</h3>
+            <p>Automatically detects <code>401</code>/<code>403</code>/<code>423</code> responses from all <code>fetch</code>/<code>XMLHttpRequest</code> calls and redirects to the Step-up authentication page. After authentication completes, the original request is automatically retried.</p>
+          </section>
+
+          <!-- MFA Configuration -->
+          <section>
+            <div class="callout callout-info">
+              <strong>MFA Configuration Properties</strong><br>
+              The <code>spring.auth.mfa.*</code> namespace provides 40+ configuration options including timeouts (sessionTimeoutMs, challengeTimeoutMs), retry settings (maxRetryAttempts, accountLockoutDurationMs), OTP (otpTokenValiditySeconds, otpTokenLength), session storage (sessionStorageType), and more. See the <a href="state-management.html">State Management</a> documentation for the complete list.
+            </div>
+          </section>
+
+          <div class="docs-nav-footer">
+            <a href="../../../docs/reference/identity/authentication.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">Authentication</span>
+            </a>
+            <a href="../../../docs/reference/identity/asep.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">ASEP Annotations</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>State Management | Contexa Docs</title>
+  <meta name="description" content="Contexa Identity state management guide. Session vs OAuth2, per-flow state configuration, AuthContextProperties reference, token transport, JWT settings.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">State Management</span>
+          </nav>
+
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-info">contexa-identity</span>
+            </div>
+            <h1>State Management</h1>
+            <p class="lead">Post-authentication state management strategy. Choose between Session (server memory/Redis) or OAuth2 (JWT Stateless). Each authentication method can be independently configured with a different state.</p>
+          </div>
+
+          <!-- Overview -->
+          <section class="docs-section">
+            <h2 id="overview">Overview</h2>
+            <p>Configure state by calling <code>.session()</code> or <code>.oauth2()</code> after an authentication method in the DSL. The <code>StateSetter</code> applies the state to the most recently added flow.</p>
+
+<pre><code class="language-java">registry
+    .form(f -> f.loginPage("/login"))
+    .session(Customizer.withDefaults())      // form -> Session
+
+    .rest(r -> r.loginProcessingUrl("/api/auth"))
+    .oauth2(Customizer.withDefaults())        // rest -> OAuth2
+
+    .mfa(m -> m.primaryAuthentication(...).passkey(...))
+    .session(Customizer.withDefaults())        // mfa -> Session
+
+    .build();</code></pre>
+          </section>
+
+          <!-- Comparison Table -->
+          <section class="docs-section">
+            <h2 id="comparison">Session vs OAuth2 Comparison</h2>
+
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Category</th><th>Session</th><th>OAuth2</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>State Storage</td><td>Server memory / Redis</td><td>JWT token (Stateless)</td></tr>
+                <tr><td>Suitable For</td><td>Traditional web apps, SSR</td><td>SPA, API, Microservices</td></tr>
+                <tr><td>Scalability</td><td>Requires Redis cluster</td><td>Stateless (easy horizontal scaling)</td></tr>
+                <tr><td>Built-in Security</td><td>Session fixation protection (sessionFixation().changeSessionId())</td><td>JWT + OIDC + Zero Trust Filter</td></tr>
+                <tr><td>CSRF</td><td>Required (cookie-based)</td><td>Not required (token-based)</td></tr>
+                <tr><td>Logout</td><td>Session invalidation + cookie deletion</td><td>Token revocation (OAuth2AuthorizationService)</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <!-- Session-Based -->
+          <section class="docs-section">
+            <h2 id="session">Session-Based</h2>
+            <p>Configured via <code>.session(Customizer.withDefaults())</code>. Suitable for traditional web applications and server-side rendering.</p>
+
+            <h3>Auto-Applied</h3>
+            <ul>
+              <li><code>sessionFixation().changeSessionId()</code> &mdash; Session fixation attack protection</li>
+              <li>Session invalidation + cookie deletion on logout</li>
+              <li><code>CompositeLogoutHandler</code> integration (Strategy pattern)</li>
+            </ul>
+
+            <h3>Additional Configuration via rawHttp</h3>
+<pre><code class="language-java">.form(f -> f
+    .rawHttp(http -> http.sessionManagement(s -> s
+        .maximumSessions(1)
+        .maxSessionsPreventsLogin(true)))
+)
+.session(Customizer.withDefaults())</code></pre>
+          </section>
+
+          <!-- OAuth2-Based -->
+          <section class="docs-section">
+            <h2 id="oauth2">OAuth2-Based</h2>
+            <p>Configured via <code>.oauth2(Customizer.withDefaults())</code>. Suitable for SPA, microservices, and API servers.</p>
+
+            <h3>Auto-Applied</h3>
+            <ul>
+              <li><strong>Resource Server</strong>: JWT authentication converter, authentication failure/access denied handlers, <code>SessionCreationPolicy.STATELESS</code></li>
+              <li><strong>Authorization Server</strong>: <code>AuthorizationService</code>, <code>ClientRepository</code>, token endpoint, <code>authenticated_user</code> grant type, OIDC support</li>
+              <li>OAuth2 CSRF: Controlled by the <code>spring.auth.oauth2-csrf</code> configuration</li>
+            </ul>
+
+            <h3>authenticated_user Grant Type</h3>
+            <p>A custom grant type that issues OAuth2 tokens to users who have completed Identity authentication (Form, REST, MFA). It bridges traditional authentication with OAuth2 token issuance.</p>
+
+<pre class="arch-diagram"><code>
+  authenticated_user Grant Flow
+  ===============================
+
+  [Form/REST/MFA Authentication Complete]
+           |
+           v
+  [AuthenticatedUserGrantAuthenticationProvider]
+           |
+           +-- Client Verification
+           +-- User Lookup (UserRepository)
+           +-- Scope Resolution
+           +-- Access Token Generation (JWT)
+           +-- Refresh Token Generation (optional)
+           +-- Authorization Persistence (transactional)
+           |
+           v
+  [JWT Token Issuance Complete]
+</code></pre>
+          </section>
+
+          <!-- Configuration Properties -->
+          <section class="docs-section">
+            <h2 id="config-properties">Configuration Properties</h2>
+            <p>Core settings from <code>AuthContextProperties</code> (<code>spring.auth.*</code>).</p>
+
+            <h3 id="core-settings">Core Settings (spring.auth.*)</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Property</th><th>Type</th><th>Default</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>state-type</code></td><td>enum</td><td><code>OAUTH2</code></td><td>Authentication state type (OAUTH2, SESSION)</td></tr>
+                <tr><td><code>token-transport-type</code></td><td>enum</td><td><code>HEADER</code></td><td>Token transport method (HEADER, COOKIE, HEADER_COOKIE)</td></tr>
+                <tr><td><code>token-issuer</code></td><td>enum</td><td><code>INTERNAL</code></td><td>Token issuer (INTERNAL, AUTHORIZATION_SERVER)</td></tr>
+                <tr><td><code>access-token-validity</code></td><td>long (ms)</td><td>3600000 (1h)</td><td>Access token validity period</td></tr>
+                <tr><td><code>refresh-token-validity</code></td><td>long (ms)</td><td>604800000 (7d)</td><td>Refresh token validity period</td></tr>
+                <tr><td><code>enable-refresh-token</code></td><td>boolean</td><td>true</td><td>Enable refresh token</td></tr>
+                <tr><td><code>allow-multiple-logins</code></td><td>boolean</td><td>false</td><td>Allow concurrent multiple logins</td></tr>
+                <tr><td><code>max-concurrent-logins</code></td><td>int</td><td>3</td><td>Maximum concurrent login count</td></tr>
+                <tr><td><code>cookie-secure</code></td><td>boolean</td><td>true</td><td>Cookie Secure flag</td></tr>
+                <tr><td><code>token-persistence</code></td><td>String</td><td>"memory"</td><td>Token storage (memory, localstorage)</td></tr>
+                <tr><td><code>token-prefix</code></td><td>String</td><td>"Bearer "</td><td>Token prefix</td></tr>
+                <tr><td><code>roles-claim</code></td><td>String</td><td>"roles"</td><td>JWT roles claim</td></tr>
+                <tr><td><code>oauth2-csrf</code></td><td>boolean</td><td>false</td><td>OAuth2 CSRF protection</td></tr>
+              </tbody>
+            </table></div>
+
+            <h4>TokenTransportType Details</h4>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Value</th><th>accessToken</th><th>refreshToken</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>HEADER</code></td><td>HTTP Header</td><td>HTTP Header</td></tr>
+                <tr><td><code>COOKIE</code></td><td>Cookie</td><td>Cookie</td></tr>
+                <tr><td><code>HEADER_COOKIE</code> (recommended)</td><td>HTTP Header</td><td>Cookie</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3 id="oauth2-settings">OAuth2 Settings (spring.auth.oauth2.*)</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Property</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>client-id</code></td><td>OAuth2 client ID</td></tr>
+                <tr><td><code>client-secret</code></td><td>Client secret</td></tr>
+                <tr><td><code>issuer-uri</code></td><td>Token issuer URI</td></tr>
+                <tr><td><code>jwk-key-store-path</code></td><td>JWK keystore path</td></tr>
+                <tr><td><code>jwk-key-store-password</code></td><td>Keystore password</td></tr>
+                <tr><td><code>jwk-key-alias</code></td><td>Key alias</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3 id="mfa-settings">MFA Settings (spring.auth.mfa.*)</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Property</th><th>Default</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>session-timeout-ms</code></td><td>600000 (10min)</td><td>MFA session timeout</td></tr>
+                <tr><td><code>challenge-timeout-ms</code></td><td>300000 (5min)</td><td>Challenge timeout</td></tr>
+                <tr><td><code>max-retry-attempts</code></td><td>5</td><td>Maximum retry attempts</td></tr>
+                <tr><td><code>account-lockout-duration-ms</code></td><td>900000 (15min)</td><td>Account lockout duration</td></tr>
+                <tr><td><code>otp-token-validity-seconds</code></td><td>300</td><td>OTP validity period (seconds)</td></tr>
+                <tr><td><code>otp-token-length</code></td><td>6</td><td>OTP code length</td></tr>
+                <tr><td><code>device-remember-duration-ms</code></td><td>2592000000 (30d)</td><td>Device trust retention period</td></tr>
+                <tr><td><code>session-storage-type</code></td><td>http-session</td><td>Session storage (http-session, redis, memory)</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3 id="session-security">Session Security Settings (security.session.*)</h3>
+            <div class="table-scroll"><table class="api-table">
+              <thead>
+                <tr><th>Property</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>header.name</code></td><td>Session header name (default: X-Auth-Token)</td></tr>
+                <tr><td><code>cookie.name</code></td><td>Session cookie name (default: SESSION)</td></tr>
+                <tr><td><code>hijack.detection.enabled</code></td><td>Enable session hijacking detection</td></tr>
+                <tr><td><code>threat.ip-change-risk</code></td><td>IP change risk score (default: 0.4)</td></tr>
+                <tr><td><code>threat.ua-change-risk</code></td><td>User-Agent change risk score (default: 0.3)</td></tr>
+              </tbody>
+            </table></div>
+
+            <h3>application.yml Example</h3>
+<pre><code class="language-yaml">spring:
+  auth:
+    state-type: OAUTH2
+    token-transport-type: header_cookie
+    access-token-validity: 3600000
+    enable-refresh-token: true
+    oauth2:
+      client-id: my-client
+      issuer-uri: https://auth.example.com
+      jwk-key-store-path: classpath:keystore.jks
+    mfa:
+      session-timeout-ms: 600000
+      otp-token-validity-seconds: 300
+      session-storage-type: redis</code></pre>
+          </section>
+
+          <div class="docs-nav-footer">
+            <a href="../../../docs/reference/identity/asep.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">ASEP Annotations</span>
+            </a>
+            <a href="../../../docs/reference/iam/xacml.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">Authorization Overview</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

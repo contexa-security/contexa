@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Authorization Architecture | Contexa Docs</title>
+  <meta name="description" content="XACML-based authorization architecture with dynamic policy enforcement, AI-powered security expressions, and five core components: PEP, PDP, PAP, PIP, and PRP.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">Authorization Architecture</span>
+          </nav>
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-warning">contexa-iam</span>
+            </div>
+            <h1>Authorization Architecture</h1>
+            <p class="lead">XACML-based authorization architecture with dynamic policy enforcement at both URL and method levels, AI-powered security expressions, and runtime policy management &mdash; all without code changes or redeployment.</p>
+          </div>
+
+          <!-- Concept Introduction -->
+          <section>
+            <h2 id="overview">Overview</h2>
+            <p>Traditional Spring Security authorization uses static annotations like <code>@PreAuthorize("hasRole('ADMIN')")</code> that are hardcoded at compile time. When business requirements change &mdash; such as restricting admin access to business hours or requiring MFA for sensitive operations &mdash; you must modify source code and redeploy.</p>
+            <p>Contexa's authorization architecture solves this by <strong>externalizing authorization policies into the database</strong>. Policies are managed through the <a href="../../../docs/reference/iam/admin.html">Admin Dashboard</a> UI and applied at runtime without code changes. The engine follows the XACML standard architecture with five components that separate policy enforcement, decision-making, administration, information gathering, and retrieval into distinct, testable concerns.</p>
+            <p>For details on how these components are wired into the Spring Security filter chain, see <a href="../../../docs/reference/identity/dsl.html">Identity DSL</a>.</p>
+
+            <h3>Static vs Dynamic Authorization</h3>
+            <table>
+              <thead>
+                <tr><th>Aspect</th><th>Static (Spring Security default)</th><th>Dynamic (Contexa)</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Policy definition</td><td>Annotations in source code</td><td>Database-stored policies via Admin UI</td></tr>
+                <tr><td>Policy changes</td><td>Requires code change + redeploy</td><td>Runtime hot-reload, zero downtime</td></tr>
+                <tr><td>Enforcement scope</td><td>Per-method or per-URL (compile time)</td><td>URL-level + method-level (runtime)</td></tr>
+                <tr><td>Context awareness</td><td>Authentication + authorities only</td><td>User, resource, environment, behavioral metrics, AI threat scores</td></tr>
+                <tr><td>AI integration</td><td>Not available</td><td><code>#ai.isAllowed()</code>, <code>#ai.needsChallenge()</code> in SpEL</td></tr>
+                <tr><td>Audit trail</td><td>Manual implementation required</td><td>Built-in via <code>CentralAuditFacade</code></td></tr>
+                <tr><td>Coexistence</td><td colspan="2">Both can work together: <code>.requestMatchers().permitAll()</code> for static rules, <code>.anyRequest().access(customDynamicAuthorizationManager)</code> for dynamic</td></tr>
+              </tbody>
+            </table>
+
+            <h3>Key Capabilities</h3>
+            <ul>
+              <li><strong>Runtime policy changes</strong> &mdash; Add, modify, or revoke access rules without redeployment via the Admin Dashboard or REST API</li>
+              <li><strong>Two enforcement layers</strong> &mdash; URL-level via <a href="../../../docs/reference/iam/dynamic-authorization.html">Dynamic Authorization</a> and method-level via <a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+              <li><strong>Rich context evaluation</strong> &mdash; Policies can reference behavioral metrics, time-of-day, device info, and AI threat scores collected by the PIP</li>
+              <li><strong>AI-powered security expressions</strong> &mdash; Use <code>#ai.isAllowed()</code>, <code>#ai.needsChallenge()</code>, and other AI expressions directly in SpEL policy conditions</li>
+              <li><strong>End-to-end resource management</strong> &mdash; <a href="../../../docs/reference/iam/resource-scanner.html">Resource Scanner</a> discovers endpoints, <a href="../../../docs/reference/iam/admin.html">Resource Workbench</a> defines permissions, <a href="../../../docs/reference/iam/policy.html">Policy Builder</a> creates policies</li>
+              <li><strong>SpEL-native</strong> &mdash; Uses Spring Expression Language instead of XML, keeping the familiar Spring Security programming model</li>
+            </ul>
+
+            <div class="callout callout-info">
+              <strong>Related pages:</strong>
+              <ul style="margin:0.5em 0 0 0;padding-left:1.2em">
+                <li><a href="../../../docs/reference/iam/dynamic-authorization.html">Dynamic Authorization</a> &mdash; URL-level enforcement in detail</li>
+                <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a> &mdash; Method-level enforcement</li>
+                <li><a href="../../../docs/reference/iam/policy.html">Policy Management</a> &mdash; Policy lifecycle and the Policy Builder</li>
+                <li><a href="../../../docs/reference/iam/resource-scanner.html">Resource Scanner</a> &mdash; Automatic resource discovery and the end-to-end workflow</li>
+              </ul>
+            </div>
+          </section>
+
+          <!-- Architecture -->
+          <section>
+            <h2 id="architecture">Architecture Overview</h2>
+            <p>Contexa implements the XACML reference architecture with SpEL (Spring Expression Language) as the policy expression language. Instead of XML-based XACML policies, Contexa uses a relational data model where policies, rules, conditions, and targets are stored as JPA entities with SpEL expressions for evaluation.</p>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Text</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <div class="diagram-container">
+                <div class="diagram-flow-vertical">
+                  <div class="diagram-box">
+                    <div class="diagram-box-name">Incoming Request</div>
+                  </div>
+                  <div class="diagram-arrow-down"></div>
+                  <div class="diagram-box diagram-highlight">
+                    <div class="diagram-box-name">PEP (Enforcement)</div>
+                    <div class="diagram-box-desc">CustomDynamicAuthorizationManager</div>
+                  </div>
+                  <div class="diagram-arrow-down"></div>
+                  <div class="diagram-group">
+                    <div class="diagram-group-title">Policy Components</div>
+                    <div class="diagram-flow">
+                      <div class="diagram-box">
+                        <div class="diagram-box-name">PIP</div>
+                        <div class="diagram-box-desc">Attribute Info</div>
+                      </div>
+                      <div class="diagram-box">
+                        <div class="diagram-box-name">PDP</div>
+                        <div class="diagram-box-desc">Policy Decision</div>
+                      </div>
+                      <div class="diagram-box">
+                        <div class="diagram-box-name">PRP</div>
+                        <div class="diagram-box-desc">Policy Retrieval</div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="diagram-arrow-down"></div>
+                  <div class="diagram-box">
+                    <div class="diagram-box-name">Decision: ALLOW / DENY</div>
+                  </div>
+                  <div class="diagram-arrow-down"></div>
+                  <div class="diagram-box">
+                    <div class="diagram-box-name">PEP Enforce</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- PEP -->
+          <section>
+            <h2 id="pep">PEP &mdash; Policy Enforcement Point</h2>
+            <p>The PEP intercepts authorization requests and delegates decisions to the PDP. Contexa provides two PEP implementations for URL-level and method-level enforcement.</p>
+
+            <h3>CustomDynamicAuthorizationManager</h3>
+            <p>Implements <code>AuthorizationManager&lt;RequestAuthorizationContext&gt;</code> for URL-based policy enforcement. On application context refresh, it loads all URL policies from the PRP and builds a list of <code>RequestMatcherEntry</code> mappings.</p>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">public class CustomDynamicAuthorizationManager
+        implements AuthorizationManager&lt;RequestAuthorizationContext&gt; {
+
+    private final PolicyRetrievalPoint policyRetrievalPoint;
+    private final ExpressionAuthorizationManagerResolver managerResolver;
+    private final ContextHandler contextHandler;
+    private final ZeroTrustEventPublisher zeroTrustEventPublisher;
+    private final AuthorizationMetrics metricsCollector;
+
+    // Initializes on ContextRefreshedEvent
+    @EventListener
+    public void onApplicationEvent(ContextRefreshedEvent event) {
+        initialize();
+    }
+
+    @Override
+    public AuthorizationDecision check(
+            Supplier&lt;Authentication&gt; authenticationSupplier,
+            RequestAuthorizationContext context) { ... }
+
+    // Hot-reload: clears PRP cache and re-initializes mappings
+    public synchronized void reload() { ... }
+}</code></pre>
+            </div>
+
+            <h4>Policy-to-Expression Conversion</h4>
+            <p>The <code>getExpressionFromPolicy()</code> method converts a <code>Policy</code> entity into a SpEL expression string:</p>
+            <ul>
+              <li>No conditions with ALLOW effect &rarr; <code>permitAll</code></li>
+              <li>No conditions with DENY effect &rarr; <code>denyAll</code></li>
+              <li>Single condition &rarr; uses the expression directly</li>
+              <li>Multiple simple authority conditions &rarr; <code>hasAnyAuthority('A','B')</code></li>
+              <li>Multiple mixed conditions &rarr; joined with <code>or</code></li>
+              <li>DENY effect &rarr; wraps the expression in <code>!()</code></li>
+              <li><code>hasPermission()</code> calls are stripped from URL policies since they are only relevant for method-level evaluation</li>
+            </ul>
+
+            <h3>ExpressionAuthorizationManagerResolver</h3>
+            <p>Resolves SpEL expression strings into <code>AuthorizationManager</code> instances by delegating to a chain of <code>ExpressionEvaluator</code> implementations.</p>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">public class ExpressionAuthorizationManagerResolver {
+
+    private final List&lt;ExpressionEvaluator&gt; evaluators;
+    private final SecurityExpressionHandler&lt;RequestAuthorizationContext&gt;
+            customWebSecurityExpressionHandler;
+
+    public AuthorizationManager&lt;RequestAuthorizationContext&gt; resolve(
+            String expression) {
+        // Iterates evaluators; WebSpelExpressionEvaluator creates
+        // WebExpressionAuthorizationManager with custom handler
+    }
+}</code></pre>
+            </div>
+          </section>
+
+          <!-- PDP -->
+          <section>
+            <h2 id="pdp">PDP &mdash; Policy Decision Point</h2>
+            <p>The PDP evaluates authorization requests against policies and returns decisions. In Contexa, the PDP operates through SpEL expression evaluation, with the <code>PolicyTranslator</code> providing bidirectional translation between policy entities and human-readable descriptions.</p>
+
+            <h3>PolicyTranslator</h3>
+            <p>Translates <code>Policy</code> entities to human-readable strings and <code>EntitlementDto</code> objects by walking the SpEL AST (Abstract Syntax Tree). It supports pluggable <code>SpelFunctionTranslator</code> instances for custom SpEL method translations.</p>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">public class PolicyTranslator {
+
+    private final RoleRepository roleRepository;
+    private final GroupRepository groupRepository;
+    private final PermissionRepository permissionRepository;
+    private final List&lt;SpelFunctionTranslator&gt; translators;
+
+    // Policy -> Human readable string
+    public String translatePolicyToString(Policy policy) { ... }
+
+    // Policy -> Entitlement DTOs with subject/action/condition analysis
+    public Stream&lt;EntitlementDto&gt; translate(Policy policy, String resourceName) { ... }
+
+    // Policy -> ExpressionNode tree for programmatic analysis
+    public ExpressionNode parsePolicy(Policy policy) { ... }
+
+    // Single condition -> ExpressionNode
+    public ExpressionNode parseCondition(PolicyCondition condition) { ... }
+}</code></pre>
+            </div>
+
+            <h4>SpEL AST Node Translation</h4>
+            <table>
+              <thead>
+                <tr><th>SpEL Node</th><th>Translation</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>OpAnd</code></td><td><code>(left and right)</code></td></tr>
+                <tr><td><code>OpOr</code></td><td><code>(left or right)</code></td></tr>
+                <tr><td><code>OperatorNot</code></td><td><code>NOT (expr)</code></td></tr>
+                <tr><td><code>OpEQ</code></td><td><code>left equals right</code></td></tr>
+                <tr><td><code>MethodReference</code></td><td>Delegated to matching <code>SpelFunctionTranslator</code></td></tr>
+                <tr><td><code>Identifier("permitAll")</code></td><td><code>All access permitted</code></td></tr>
+                <tr><td><code>Identifier("denyAll")</code></td><td><code>All access denied</code></td></tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- PAP -->
+          <section>
+            <h2 id="pap">PAP &mdash; Policy Administration Point</h2>
+            <p>The PAP manages the lifecycle of authorization policies. See the <a href="../../../docs/reference/iam/policy.html">Policy Management</a> page for detailed API documentation of all PAP services.</p>
+
+            <table>
+              <thead>
+                <tr><th>Service</th><th>Responsibility</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>PolicyService</code></td>
+                  <td>Manages policy CRUD operations and synchronizes policies when role-permission assignments change.</td>
+                </tr>
+                <tr>
+                  <td><code>PolicyBuilderService</code></td>
+                  <td>Provides a visual policy builder with reusable templates and automatic conflict detection between policies.</td>
+                </tr>
+                <tr>
+                  <td><code>PolicySynchronizationService</code></td>
+                  <td>Automatically regenerates and updates policies when a <code>RolePermissionsChangedEvent</code> is published.</td>
+                </tr>
+                <tr>
+                  <td><code>PolicyEnrichmentService</code></td>
+                  <td>Enriches policies with human-readable descriptions by delegating to the <code>PolicyTranslator</code>.</td>
+                </tr>
+                <tr>
+                  <td><code>BusinessPolicyService</code></td>
+                  <td>Translates business-level rules into technical policy representations that the PDP can evaluate.</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+
+          <!-- PIP -->
+          <section>
+            <h2 id="pip">PIP &mdash; Policy Information Point</h2>
+            <p>The PIP collects attributes needed for policy evaluation. It provides contextual data about subjects, resources, actions, and the environment to the PDP.</p>
+
+            <h3>AttributeInformationPoint</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">public interface AttributeInformationPoint {
+    Map&lt;String, Object&gt; getAttributes(AuthorizationContext context);
+}</code></pre>
+            </div>
+
+            <h3>DatabaseAttributePIP</h3>
+            <p>The primary PIP implementation that enriches the authorization context from database sources. It collects five categories of attributes:</p>
+            <table>
+              <thead>
+                <tr><th>Category</th><th>Attributes Collected</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Basic User</td>
+                  <td><code>userId</code>, <code>userEmail</code>, <code>userGroups</code>, <code>groupCount</code>, <code>mfaEnabled</code>, <code>createdAt</code></td>
+                </tr>
+                <tr>
+                  <td>Behavior Metrics</td>
+                  <td><code>requestsInLastHour</code>, <code>requestsInLastDay</code>, <code>uniqueResourcesAccessed</code>, <code>typicalAccessHours</code>, <code>accessVelocity</code></td>
+                </tr>
+                <tr>
+                  <td>Resource Patterns</td>
+                  <td><code>resourceTotalAccess</code>, <code>resourceUniqueUsers</code>, <code>resourceSensitivityLevel</code>, <code>resourceRecentFailures</code></td>
+                </tr>
+                <tr>
+                  <td>Time/Environment</td>
+                  <td><code>currentHour</code>, <code>currentDayOfWeek</code>, <code>isBusinessHours</code>, <code>isWeekend</code>, <code>remoteAddress</code></td>
+                </tr>
+                <tr>
+                  <td>Security Profile</td>
+                  <td><code>userSecurityScore</code>, <code>hasRecentFailures</code>, <code>highAccessVelocity</code>, <code>unusualAccessTime</code>, <code>riskIndicatorCount</code></td>
+                </tr>
+              </tbody>
+            </table>
+
+            <h3>AuthorizationContext</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">public record AuthorizationContext(
+    Authentication subject,
+    Users subjectEntity,
+    ResourceDetails resource,
+    String action,
+    EnvironmentDetails environment,
+    Map&lt;String, Object&gt; attributes
+) {}</code></pre>
+            </div>
+
+            <h3>ContextHandler</h3>
+            <p>Creates <code>AuthorizationContext</code> instances for both URL and method-level authorization:</p>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">public interface ContextHandler {
+    AuthorizationContext create(Authentication authentication,
+                               HttpServletRequest request);
+    AuthorizationContext create(Authentication authentication,
+                               MethodInvocation invocation);
+}</code></pre>
+            </div>
+          </section>
+
+          <!-- PRP -->
+          <section>
+            <h2 id="prp">PRP &mdash; Policy Retrieval Point</h2>
+            <p>The PRP retrieves policies from the underlying data store. Contexa caches policies through <code>ContexaCacheService</code> to minimize database queries during high-throughput authorization.</p>
+
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">public interface PolicyRetrievalPoint {
+    List&lt;Policy&gt; findUrlPolicies();
+    void clearUrlPoliciesCache();
+    List&lt;Policy&gt; findMethodPolicies(String methodIdentifier);
+    void clearMethodPoliciesCache();
+}</code></pre>
+            </div>
+
+            <h3>DatabasePolicyRetrievalPoint</h3>
+            <p>The default implementation that retrieves policies from the database via <code>PolicyRepository</code> with caching through <code>ContexaCacheService</code>.</p>
+            <table>
+              <thead>
+                <tr><th>Cache Key</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>policies:url:all</code></td><td>All active URL policies</td></tr>
+                <tr><td><code>policies:method:{identifier}</code></td><td>Method-specific policies by method identifier</td></tr>
+              </tbody>
+            </table>
+            <p>AI-generated policies are only included when their <code>approvalStatus</code> is <code>APPROVED</code> and <code>isActive</code> is <code>true</code>. Unapproved AI policies are filtered out during the initialization phase in the PEP.</p>
+          </section>
+
+          <!-- XACML Flow -->
+          <section>
+            <h2 id="flow">Complete Authorization Flow</h2>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Text</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code>1. Request arrives at Spring Security filter chain
+2. PEP (CustomDynamicAuthorizationManager) receives RequestAuthorizationContext
+3. ContextHandler creates AuthorizationContext with subject, resource, action
+4. PEP matches request URL against cached RequestMatcherEntry list
+5. Matched entry's AuthorizationManager evaluates the SpEL expression
+   - The expression was derived from Policy -> Rules -> Conditions
+   - hasRole(), hasAuthority(), hasAnyAuthority() etc.
+6. PDP (SpEL evaluator) returns AuthorizationDecision(granted/denied)
+7. PEP enforces the decision
+   - If granted: request proceeds to the controller
+   - If denied: 403 Forbidden response
+8. Audit log records the authorization attempt via CentralAuditFacade</code></pre>
+            </div>
+          </section>
+
+          <!-- AI-Powered Security Expressions -->
+          <section>
+            <h2 id="ai-expressions">AI-Powered Security Expressions</h2>
+            <p>Contexa extends the standard Spring Security SpEL environment with AI-driven expressions. These are available in both URL-level and method-level policy conditions through the <code>#ai</code> variable, backed by <code>AbstractAISecurityExpressionRoot</code>.</p>
+
+            <h3>AI Expression Reference</h3>
+            <p>All AI expressions query the Zero Trust analysis result for the current request. The analysis is performed asynchronously by the AI Engine and the result is stored in Redis.</p>
+            <table>
+              <thead>
+                <tr><th>Expression</th><th>Return Type</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>#ai.isAllowed()</code></td><td><code>boolean</code></td><td>Returns <code>true</code> if the AI Zero Trust action is <code>ALLOW</code></td></tr>
+                <tr><td><code>#ai.isBlocked()</code></td><td><code>boolean</code></td><td>Returns <code>true</code> if the AI Zero Trust action is <code>BLOCK</code></td></tr>
+                <tr><td><code>#ai.needsChallenge()</code></td><td><code>boolean</code></td><td>Returns <code>true</code> if the AI recommends a step-up authentication challenge</td></tr>
+                <tr><td><code>#ai.needsEscalation()</code></td><td><code>boolean</code></td><td>Returns <code>true</code> if the AI recommends escalation to a human reviewer</td></tr>
+                <tr><td><code>#ai.isPendingAnalysis()</code></td><td><code>boolean</code></td><td>Returns <code>true</code> if the AI analysis has not yet completed</td></tr>
+                <tr><td><code>#ai.hasAction('ACTION')</code></td><td><code>boolean</code></td><td>Returns <code>true</code> if the Zero Trust action matches the given string</td></tr>
+                <tr><td><code>#ai.hasActionIn('A','B')</code></td><td><code>boolean</code></td><td>Returns <code>true</code> if the Zero Trust action is one of the given values</td></tr>
+                <tr><td><code>#ai.hasActionOrDefault('DEFAULT','A','B')</code></td><td><code>boolean</code></td><td>Like <code>hasActionIn</code>, but uses the default action when no analysis result exists</td></tr>
+              </tbody>
+            </table>
+
+            <h4>Usage in SpEL Policy Conditions</h4>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">SpEL</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code>// Require both role and AI approval
+hasRole('ADMIN') and #ai.isAllowed()
+
+// Allow if user has role OR AI allows it
+hasRole('MANAGER') or #ai.isAllowed()
+
+// Block if AI detects threat, regardless of role
+hasRole('USER') and !#ai.isBlocked()
+
+// Flexible action matching with fallback
+hasRole('USER') and #ai.hasActionOrDefault('ALLOW', 'ALLOW', 'CHALLENGE')</code></pre>
+            </div>
+
+            <h3>URL-Level Expressions</h3>
+            <p><code>CustomWebSecurityExpressionRoot</code> adds HTTP-specific expressions available in URL policy conditions:</p>
+            <table>
+              <thead>
+                <tr><th>Expression</th><th>Description</th></tr>
+              </thead>
+              <tbody>
+                <tr><td><code>hasIpAddress('192.168.1.0/24')</code></td><td>Checks if the request originates from the specified IP address or CIDR range</td></tr>
+                <tr><td><code>getHttpMethod()</code></td><td>Returns the HTTP method of the request (GET, POST, PUT, DELETE, etc.)</td></tr>
+              </tbody>
+            </table>
+
+            <h3>Method-Level Expressions</h3>
+            <p><code>CustomMethodSecurityExpressionRoot</code> adds method-specific expressions with local caching:</p>
+            <ul>
+              <li><strong><code>hasPermission(target, permission)</code></strong> &mdash; Evaluates permission through the <a href="../../../docs/reference/iam/permission-evaluators.html">CompositePermissionEvaluator</a>, including ownership verification when <code>ownerField</code> is set</li>
+              <li><strong><code>hasPermission(targetId, targetType, permission)</code></strong> &mdash; ID-based permission evaluation with the same ownership support</li>
+              <li><strong>Local cache</strong> &mdash; Zero Trust action results are cached locally using Caffeine with a 5-second TTL and 10,000-entry maximum to minimize Redis lookups</li>
+            </ul>
+
+            <div class="callout callout-tip">
+              <strong>Expression hierarchy:</strong>
+              <ul style="margin:0.5em 0 0 0;padding-left:1.2em">
+                <li><code>AbstractAISecurityExpressionRoot</code> &mdash; provides AI expressions (<code>#ai.*</code>) to both URL and method contexts</li>
+                <li><code>CustomWebSecurityExpressionRoot</code> &mdash; adds <code>hasIpAddress()</code> for URL policies</li>
+                <li><code>CustomMethodSecurityExpressionRoot</code> &mdash; adds <code>hasPermission()</code> with ownership verification for method policies</li>
+              </ul>
+            </div>
+          </section>
+
+          <!-- Quick Start -->
+          <section>
+            <h2 id="quickstart">Quick Start</h2>
+            <p>Get dynamic authorization running in four steps:</p>
+
+            <h3>1. Configure Spring Security</h3>
+            <p>Inject <code>CustomDynamicAuthorizationManager</code> and add it to your security filter chain:</p>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@Configuration
+public class SecurityConfig {
+
+    @Autowired
+    private CustomDynamicAuthorizationManager dynamicAuthManager;
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.authorizeHttpRequests(auth -> auth
+            // Static rules evaluated first
+            .requestMatchers("/", "/home", "/css/**", "/js/**").permitAll()
+            .requestMatchers("/login", "/register").permitAll()
+            // All other requests use dynamic authorization
+            .anyRequest().access(dynamicAuthManager)
+        );
+        return http.build();
+    }
+}</code></pre>
+            </div>
+
+            <h3>2. Create Your First Policy</h3>
+            <p>Open the <a href="../../../docs/reference/iam/admin.html">Admin Dashboard</a> and navigate to <strong>Policies &rarr; Create Policy</strong>. Set a URL target (e.g., <code>/admin/**</code>) with an ALLOW effect and condition <code>hasRole('ADMIN')</code>.</p>
+
+            <h3>3. Protect a Method</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@Service
+public class OrderService {
+
+    @PreAuthorize("hasRole('ROLE_USER')")
+    public Order getOrder(Long orderId) {
+        return orderRepository.findById(orderId).orElseThrow();
+    }
+}</code></pre>
+            </div>
+
+            <h3>4. Verify</h3>
+            <p>Access the protected URL or method. The authorization decision is logged via <code>CentralAuditFacade</code> and visible in the Admin Dashboard. To change the policy, update it in the Admin Dashboard &mdash; the change takes effect immediately through the hot-reload mechanism.</p>
+
+            <div class="callout callout-info">
+              <strong>Next steps:</strong>
+              <ul style="margin:0.5em 0 0 0;padding-left:1.2em">
+                <li><a href="../../../docs/reference/iam/dynamic-authorization.html">Dynamic Authorization</a> &mdash; Detailed URL-level setup</li>
+                <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a> &mdash; Method-level protection</li>
+                <li><a href="../../../docs/reference/iam/resource-scanner.html">Resource Scanner</a> &mdash; Automatic resource discovery and policy creation</li>
+              </ul>
+            </div>
+          </section>
+
+          <!-- Getting Started with Admin -->
+          <section>
+            <h2 id="admin-getting-started">Getting Started with Admin Dashboard</h2>
+            <p>The Contexa Admin Dashboard provides a visual interface for managing the entire authorization lifecycle. Access it at <code>/admin/dashboard</code> after enabling the admin module.</p>
+
+            <h3>Core Authorization Workflows</h3>
+            <p>The Admin Dashboard offers three main workflows for building and managing authorization policies:</p>
+            <ol>
+              <li><strong>Resource Workbench</strong> &mdash; Discover and define protected resources. The workbench scans your application endpoints and lets you organize them into resource groups with appropriate protection levels.</li>
+              <li><strong>Policy Builder / Wizard</strong> &mdash; Create authorization policies through a guided interface. Define targets, conditions, and effects without writing raw SpEL expressions. The AI-assisted mode can suggest policies based on your resource structure.</li>
+              <li><strong>Authorization Studio</strong> &mdash; Test and simulate policies before they go live. Run what-if scenarios against your policy set to verify that authorization decisions match expectations.</li>
+            </ol>
+            <p>For the complete Admin Dashboard reference, see the <a href="../../../docs/reference/iam/admin.html">Admin Dashboard</a> documentation. For a step-by-step walkthrough covering resource discovery through policy testing, see the <a href="../../../docs/reference/iam/e2e-workflow.html">End-to-End Workflow</a> guide.</p>
+          </section>
+
+          <div class="docs-nav-footer">
+            <div></div>
+            <a href="../../../docs/reference/iam/dynamic-authorization.html" class="docs-nav-next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">Dynamic Authorization</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>

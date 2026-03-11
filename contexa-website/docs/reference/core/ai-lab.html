@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Lab System | Contexa Docs</title>
+  <meta name="description" content="API reference for the Contexa AI Lab system. Covers AILab interface, AbstractAILab base class, AILabFactory, and DefaultAILabFactory for building domain-specific AI processing labs.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../../assets/css/variables.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/base.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/layout.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/components.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/code.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/docs.css?v=1773190937296">
+  <link rel="stylesheet" href="../../../assets/css/responsive.css?v=1773190937296">
+</head>
+<body>
+  <header class="site-header" role="banner">
+  <div class="header-inner">
+    <!-- Logo -->
+    <a href="../../../index.html" class="logo" aria-label="Contexa Home">
+      <img class="logo-icon" src="../../../assets/img/logo.png" alt="Contexa">
+      <span class="logo-text">CONTE<span class="logo-x">X</span>A</span>
+      <span class="logo-tagline">AI Native Zero Trust Platform<br>for Spring</span>
+    </a>
+
+    <!-- Main Navigation -->
+    <nav class="main-nav" aria-label="Main navigation">
+      <!-- Overview -->
+      <div class="nav-item">
+        <a href="../../../index.html" class="nav-link">Overview</a>
+      </div>
+
+      <!-- Get Started -->
+      <div class="nav-item">
+        <a href="../../../get-started.html" class="nav-link">Get Started</a>
+      </div>
+
+      <!-- Docs (Mega Menu) -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Docs
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel dropdown-panel-mega">
+            <!-- Getting Started Column -->
+            <div>
+              <div class="dropdown-section-title">Getting Started</div>
+              <a href="../../../docs/install/quickstart.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Quick Start</span>
+                <span class="dropdown-link-desc">5-minute integration guide</span>
+              </a>
+              <a href="../../../docs/install/spring-boot.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Spring Boot</span>
+                <span class="dropdown-link-desc">Starter dependency setup</span>
+              </a>
+              <a href="../../../docs/install/configuration.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Configuration</span>
+                <span class="dropdown-link-desc">Properties reference</span>
+              </a>
+              <a href="../../../docs/install/shadow-mode.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Shadow Mode</span>
+                <span class="dropdown-link-desc">4-stage migration path</span>
+              </a>
+            </div>
+            <!-- Reference Column -->
+            <div>
+              <div class="dropdown-section-title">Reference</div>
+              <a href="../../../docs/reference/identity/dsl.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">Identity &mdash; DSL</span>
+                <span class="dropdown-link-desc">Auth flows, MFA, adapters</span>
+              </a>
+              <a href="../../../docs/reference/iam/protectable.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">IAM &mdash; @Protectable</span>
+                <span class="dropdown-link-desc">XACML, policies, permissions</span>
+              </a>
+              <a href="../../../docs/reference/core/ai-lab.html" class="dropdown-link" role="menuitem">
+                <span class="dropdown-link-title">AI Engine &mdash; Lab &amp; LLM</span>
+                <span class="dropdown-link-desc">AI pipeline, models, streaming</span>
+              </a>
+              <a href="../../../docs/reference/index.html" class="dropdown-link" role="menuitem" style="margin-top: var(--space-2); border-top: 1px solid var(--border-light); padding-top: var(--space-3);">
+                <span class="dropdown-link-title">View all Reference &rarr;</span>
+                <span class="dropdown-link-desc">Complete API documentation</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Community -->
+      <div class="nav-item">
+        <button class="nav-link" aria-expanded="false" aria-haspopup="true">
+          Community
+          <svg class="nav-chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M3 5L6 8L9 5"/>
+          </svg>
+        </button>
+        <div class="nav-dropdown" role="menu">
+          <div class="dropdown-panel">
+            <a href="https://github.com/contexa-security/contexa" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">GitHub</span>
+              <span class="dropdown-link-desc">Source code &amp; issues</span>
+            </a>
+            <a href="../../../community.html" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">Contributing</span>
+              <span class="dropdown-link-desc">How to contribute</span>
+            </a>
+            <a href="https://github.com/contexa-security/contexa/discussions" class="dropdown-link" role="menuitem" target="_blank" rel="noopener">
+              <span class="dropdown-link-title">Discussions</span>
+              <span class="dropdown-link-desc">Questions &amp; ideas</span>
+            </a>
+            <a href="../../../community.html#license" class="dropdown-link" role="menuitem">
+              <span class="dropdown-link-title">License</span>
+              <span class="dropdown-link-desc">Apache License 2.0</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Header Actions -->
+    <div class="header-actions">
+      <a href="https://github.com/contexa-security/contexa" class="github-link" target="_blank" rel="noopener" aria-label="Contexa on GitHub">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+        </svg>
+        <span>GitHub</span>
+      </a>
+    </div>
+
+    <!-- Mobile Menu Toggle -->
+    <button class="mobile-menu-toggle" aria-label="Toggle menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- Mobile Navigation -->
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <div class="mobile-nav-section">
+    <a href="../../../index.html" class="mobile-nav-link">Overview</a>
+    <a href="../../../get-started.html" class="mobile-nav-link">Get Started</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Getting Started</div>
+    <a href="../../../docs/install/quickstart.html" class="mobile-nav-link">Quick Start</a>
+    <a href="../../../docs/install/spring-boot.html" class="mobile-nav-link">Spring Boot</a>
+    <a href="../../../docs/install/configuration.html" class="mobile-nav-link">Configuration</a>
+    <a href="../../../docs/install/shadow-mode.html" class="mobile-nav-link">Shadow Mode</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Reference</div>
+    <a href="../../../docs/reference/identity/dsl.html" class="mobile-nav-link">Identity: DSL</a>
+    <a href="../../../docs/reference/iam/protectable.html" class="mobile-nav-link">IAM: @Protectable</a>
+    <a href="../../../docs/reference/core/ai-lab.html" class="mobile-nav-link">AI Engine: Lab &amp; LLM</a>
+    <a href="../../../docs/reference/index.html" class="mobile-nav-link">All Reference</a>
+  </div>
+
+  <div class="mobile-nav-section">
+    <div class="mobile-nav-title">Community</div>
+    <a href="https://github.com/contexa-security/contexa" class="mobile-nav-link" target="_blank" rel="noopener">GitHub</a>
+    <a href="../../../community.html" class="mobile-nav-link">Contributing</a>
+    <a href="https://github.com/contexa-security/contexa/discussions" class="mobile-nav-link" target="_blank" rel="noopener">Discussions</a>
+  </div>
+</div>
+
+
+  <main class="site-main">
+    <div class="docs-layout">
+      <nav class="docs-sidebar" aria-label="Documentation sidebar">
+  <!-- Getting Started Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Getting Started
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/install/quickstart.html" class="sidebar-link" style="display:block;text-align:center">Quick Start</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/installation-guide.html" class="sidebar-link" style="display:block;text-align:center">Installation Guide</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/spring-boot.html" class="sidebar-link" style="display:block;text-align:center">Spring Boot</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/configuration.html" class="sidebar-link" style="display:block;text-align:center">Configuration</a></li>
+      <li style="text-align:center"><a href="../../../docs/install/shadow-mode.html" class="sidebar-link" style="display:block;text-align:center">Shadow Mode</a></li>
+    </ul>
+  </div>
+
+  <!-- Architecture Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Architecture
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/overview.html" class="sidebar-link" style="display:block;text-align:center">Platform Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/architecture/zero-trust-flow.html" class="sidebar-link" style="display:block;text-align:center">Zero Trust Flow</a></li>
+    </ul>
+  </div>
+
+  <!-- Identity Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Identity
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/identity/dsl.html" class="sidebar-link" style="display:block;text-align:center">Identity DSL</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/authentication.html" class="sidebar-link" style="display:block;text-align:center">Authentication</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/mfa.html" class="sidebar-link" style="display:block;text-align:center">Adaptive MFA</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/asep.html" class="sidebar-link" style="display:block;text-align:center">ASEP Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/identity/state-management.html" class="sidebar-link" style="display:block;text-align:center">State Management</a></li>
+    </ul>
+  </div>
+
+  <!-- IAM Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      IAM
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/iam/xacml.html" class="sidebar-link" style="display:block;text-align:center">Authorization Overview</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/dynamic-authorization.html" class="sidebar-link" style="display:block;text-align:center">Dynamic Authorization</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/protectable.html" class="sidebar-link" style="display:block;text-align:center">@Protectable</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/ai-security-expressions.html" class="sidebar-link" style="display:block;text-align:center">AI Security Expressions</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/permission-evaluators.html" class="sidebar-link" style="display:block;text-align:center">Permission Evaluators</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/policy.html" class="sidebar-link" style="display:block;text-align:center">Policy Management</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/resource-scanner.html" class="sidebar-link" style="display:block;text-align:center">Resource Scanner</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/admin.html" class="sidebar-link" style="display:block;text-align:center">Admin Dashboard</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/iam/end-to-end-workflow.html" class="sidebar-link" style="display:block;text-align:center">End-to-End Workflow</a></li>
+    </ul>
+  </div>
+
+  <!-- AI Engine Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      AI Engine
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/core/ai-lab.html" class="sidebar-link" style="display:block;text-align:center">AI Lab</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/llm-orchestrator.html" class="sidebar-link" style="display:block;text-align:center">LLM Orchestrator</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/pipeline.html" class="sidebar-link" style="display:block;text-align:center">AI Pipeline</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/model-provider.html" class="sidebar-link" style="display:block;text-align:center">Model Providers</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/rag.html" class="sidebar-link" style="display:block;text-align:center">RAG &amp; Vectors</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/streaming.html" class="sidebar-link" style="display:block;text-align:center">Streaming</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/advisor.html" class="sidebar-link" style="display:block;text-align:center">Advisor System</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/core/strategy.html" class="sidebar-link" style="display:block;text-align:center">AI Strategy</a></li>
+    </ul>
+  </div>
+
+  <!-- Infrastructure Section -->
+  <div class="sidebar-section" style="width:100%">
+    <div class="sidebar-section-title" style="display:flex;justify-content:center;align-items:center;gap:6px">
+      Infrastructure
+      <svg class="chevron" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5L6 8L9 5"/></svg>
+    </div>
+    <ul class="sidebar-links" style="list-style:none;padding:0;text-align:center">
+      <li style="text-align:center"><a href="../../../docs/reference/common/annotations.html" class="sidebar-link" style="display:block;text-align:center">Annotations</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/entities.html" class="sidebar-link" style="display:block;text-align:center">Entity Model</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/common/cache.html" class="sidebar-link" style="display:block;text-align:center">Cache Service</a></li>
+      <li style="text-align:center"><a href="../../../docs/reference/autoconfigure/index.html" class="sidebar-link" style="display:block;text-align:center">Auto-Configuration</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay"></div>
+
+<!-- Mobile sidebar toggle button -->
+<button class="sidebar-toggle" aria-label="Toggle documentation sidebar" aria-expanded="false">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="15" y2="12"/>
+    <line x1="3" y1="18" x2="18" y2="18"/>
+  </svg>
+</button>
+
+
+      <div class="docs-content">
+        <div class="docs-content-inner">
+          <!-- Breadcrumb -->
+          <nav class="breadcrumb">
+            <a href="../../../index.html">Home</a>
+            <span class="breadcrumb-separator">/</span>
+            <a href="../../../docs/reference/index.html">Reference</a>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-current">AI Lab</span>
+          </nav>
+
+          <!-- Module Badge + Page Header -->
+          <div class="docs-page-header">
+            <div class="docs-module-badge">
+              <span class="badge badge-primary">contexa-core</span>
+            </div>
+            <h1>AI Lab System</h1>
+            <p class="lead">The AI Lab system provides a generic abstraction for building domain-specific AI processing units. Each lab encapsulates a focused AI workload with synchronous, asynchronous, and streaming execution modes. Labs are discovered and managed through the Spring application context via <code>AILabFactory</code>.</p>
+          </div>
+
+          <!-- Overview -->
+          <section class="docs-section">
+            <h2 id="overview">Overview</h2>
+            <p>The lab architecture follows a template method pattern. You implement <code>AILab&lt;Req, Res&gt;</code> (or extend <code>AbstractAILab</code>) to define a processing unit, then register it as a Spring bean. The <code>AILabFactory</code> locates labs by type at runtime, and the strategy layer delegates work to the appropriate lab based on the current <code>DiagnosisType</code>.</p>
+            <p>Each lab is assigned a unique ID on creation and supports three execution modes:</p>
+            <ul>
+              <li><strong>Synchronous</strong> &mdash; <code>process(Req)</code> blocks until the result is ready.</li>
+              <li><strong>Asynchronous</strong> &mdash; <code>processAsync(Req)</code> returns a <code>Mono&lt;Res&gt;</code> for non-blocking execution.</li>
+              <li><strong>Streaming</strong> &mdash; <code>processStream(Req)</code> returns a <code>Flux&lt;String&gt;</code> for real-time chunk delivery.</li>
+            </ul>
+          </section>
+
+          <!-- AILab Interface -->
+          <section class="docs-section">
+            <h2 id="ailab-interface">AILab&lt;Req, Res&gt;</h2>
+            <p>The core interface that every lab must implement. The generic parameters define the request and response types for the lab's domain.</p>
+
+            <div class="api-signature">
+              <code>public interface AILab&lt;Req, Res&gt;</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getLabId()</span>
+                <span class="api-method-return">String</span>
+              </div>
+              <div class="api-method-desc">Returns the unique identifier assigned to this lab instance. Generated automatically in <code>AbstractAILab</code> using a UUID-based prefix.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getLabName()</span>
+                <span class="api-method-return">String</span>
+              </div>
+              <div class="api-method-desc">Returns the human-readable name of this lab, set during construction.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">process(Req request)</span>
+                <span class="api-method-return">Res</span>
+              </div>
+              <div class="api-method-desc">Synchronously processes the request and returns the result. Throws <code>LabProcessingException</code> on failure.</div>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">request</span>
+                  <span class="api-param-type">Req</span>
+                  <span class="api-param-desc">The domain-specific request object.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">processAsync(Req request)</span>
+                <span class="api-method-return">Mono&lt;Res&gt;</span>
+              </div>
+              <div class="api-method-desc">Asynchronously processes the request using Project Reactor's <code>Mono</code>. The default implementation in <code>AbstractAILab</code> wraps the synchronous <code>doProcess</code> call.</div>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">request</span>
+                  <span class="api-param-type">Req</span>
+                  <span class="api-param-desc">The domain-specific request object.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">processStream(Req request)</span>
+                <span class="api-method-return">Flux&lt;String&gt;</span>
+              </div>
+              <div class="api-method-desc">Streams the response as a series of string chunks. Only available when <code>supportsStreaming()</code> returns <code>true</code>.</div>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">request</span>
+                  <span class="api-param-type">Req</span>
+                  <span class="api-param-desc">The domain-specific request object.</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">supportsStreaming()</span>
+                <span class="api-method-return">boolean</span>
+              </div>
+              <div class="api-method-desc">Returns whether this lab supports streaming execution. Defaults to <code>false</code>. Override to enable streaming.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">isActive()</span>
+                <span class="api-method-return">boolean</span>
+              </div>
+              <div class="api-method-desc">Returns whether this lab is currently active and available for processing. Defaults to <code>true</code>.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">canProcess(Req request)</span>
+                <span class="api-method-return">boolean</span>
+              </div>
+              <div class="api-method-desc">Checks whether this lab can handle the given request. The default implementation returns <code>true</code> when the request is non-null and the lab is active.</div>
+              <div class="api-method-params">
+                <div class="api-param">
+                  <span class="api-param-name">request</span>
+                  <span class="api-param-type">Req</span>
+                  <span class="api-param-desc">The request to evaluate.</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- AbstractAILab -->
+          <section class="docs-section">
+            <h2 id="abstract-ai-lab">AbstractAILab&lt;Req, Res&gt;</h2>
+            <p>The base class for all lab implementations. It provides the template method pattern with lifecycle hooks for validation, pre-processing, core processing, and post-processing. Subclasses only need to implement <code>doProcess()</code>.</p>
+
+            <div class="api-signature">
+              <code>public abstract class AbstractAILab&lt;Req, Res&gt; implements AILab&lt;Req, Res&gt;</code>
+            </div>
+
+            <h3>Template Method Lifecycle</h3>
+            <div class="arch-flow">
+              <div class="arch-flow-step">validateRequest(request)</div>
+              <div class="arch-flow-arrow"></div>
+              <div class="arch-flow-step">preProcess(request)</div>
+              <div class="arch-flow-arrow"></div>
+              <div class="arch-flow-step highlight">doProcess(request)</div>
+              <div class="arch-flow-arrow"></div>
+              <div class="arch-flow-step">postProcess(request, result)</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">doProcess(Req request)</span>
+                <span class="api-method-return">Res</span>
+              </div>
+              <div class="api-method-desc"><strong>Abstract.</strong> The core processing logic that subclasses must implement. Called within the template method after validation and pre-processing.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">doProcessAsync(Req request)</span>
+                <span class="api-method-return">Mono&lt;Res&gt;</span>
+              </div>
+              <div class="api-method-desc">Override for truly asynchronous processing. The default delegates to <code>doProcess()</code> wrapped in <code>Mono.fromCallable()</code>.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">doProcessStream(Req request)</span>
+                <span class="api-method-return">Flux&lt;String&gt;</span>
+              </div>
+              <div class="api-method-desc">Override to provide streaming output. The default throws <code>UnsupportedOperationException</code>. Remember to also override <code>supportsStreaming()</code> to return <code>true</code>.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">validateRequest(Req request)</span>
+                <span class="api-method-return">void</span>
+              </div>
+              <div class="api-method-desc">Validates the request before processing. The default checks for null. Override to add domain-specific validation.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">preProcess(Req request)</span>
+                <span class="api-method-return">void</span>
+              </div>
+              <div class="api-method-desc">Hook executed before <code>doProcess()</code>. No-op by default.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">postProcess(Req request, Res result)</span>
+                <span class="api-method-return">void</span>
+              </div>
+              <div class="api-method-desc">Hook executed after successful processing. No-op by default.</div>
+            </div>
+
+            <h3>Inner Class: LabProcessingException</h3>
+            <p>Runtime exception thrown when lab processing fails. Wraps the original cause and includes the lab name in the message.</p>
+          </section>
+
+          <!-- AILabFactory -->
+          <section class="docs-section">
+            <h2 id="ailab-factory">AILabFactory</h2>
+            <p>Factory interface for discovering and retrieving lab instances from the Spring application context.</p>
+
+            <div class="api-signature">
+              <code>public interface AILabFactory</code>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getLab(Class&lt;T&gt; labType)</span>
+                <span class="api-method-return">Optional&lt;T&gt;</span>
+              </div>
+              <div class="api-method-desc">Retrieves a lab bean by its class type. Returns <code>Optional.empty()</code> if the lab is not registered.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">createLab(Class&lt;T&gt; labType)</span>
+                <span class="api-method-return">T</span>
+              </div>
+              <div class="api-method-desc">Returns an existing lab or throws <code>UnsupportedOperationException</code> if none exists. Labs are expected to be pre-registered as Spring beans.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">getLabByClassName(String className)</span>
+                <span class="api-method-return">Optional&lt;AILab&lt;?, ?&gt;&gt;</span>
+              </div>
+              <div class="api-method-desc">Retrieves a lab by its fully-qualified class name. Useful for dynamic lab resolution from configuration.</div>
+            </div>
+
+            <div class="api-method">
+              <div class="api-method-header">
+                <span class="api-method-name">hasLab(Class&lt;?&gt; labType)</span>
+                <span class="api-method-return">boolean</span>
+              </div>
+              <div class="api-method-desc">Checks whether a lab of the given type is registered. Default method delegates to <code>getLab()</code>.</div>
+            </div>
+          </section>
+
+          <!-- DefaultAILabFactory -->
+          <section class="docs-section">
+            <h2 id="default-factory">DefaultAILabFactory</h2>
+            <p>The default <code>AILabFactory</code> implementation that uses the Spring <code>ApplicationContext</code> to discover lab beans.</p>
+
+            <div class="api-signature">
+              <code>public class DefaultAILabFactory implements AILabFactory</code>
+            </div>
+
+            <p>This class is auto-configured by <code>CoreAutonomousAutoConfiguration</code>. It resolves labs using <code>ApplicationContext.getBean(Class)</code>, so any class implementing <code>AILab</code> and annotated as a Spring component is automatically discoverable.</p>
+          </section>
+
+          <!-- Code Examples -->
+          <section class="docs-section">
+            <h2 id="examples">Code Examples</h2>
+
+            <h3>Implementing a Custom Lab</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@Component
+public class ThreatAnalysisLab
+        extends AbstractAILab&lt;ThreatRequest, ThreatResponse&gt; {
+
+    private final UnifiedLLMOrchestrator orchestrator;
+
+    public ThreatAnalysisLab(UnifiedLLMOrchestrator orchestrator) {
+        super("ThreatAnalysis");
+        this.orchestrator = orchestrator;
+    }
+
+    @Override
+    protected ThreatResponse doProcess(ThreatRequest request)
+            throws Exception {
+        ExecutionContext ctx = ExecutionContext.builder()
+                .prompt(request.toPrompt())
+                .securityTaskType(SecurityTaskType.THREAT_FILTERING)
+                .build();
+
+        String json = orchestrator.execute(ctx).block();
+        return ThreatResponse.fromJson(json);
+    }
+
+    @Override
+    protected void validateRequest(ThreatRequest request) {
+        super.validateRequest(request);
+        if (request.getPayload() == null) {
+            throw new IllegalArgumentException(
+                    "Threat payload is required");
+        }
+    }
+}</code></pre>
+            </div>
+
+            <h3>Retrieving a Lab via Factory</h3>
+            <div class="code-block">
+              <div class="code-block-header">
+                <span class="code-block-lang">Java</span>
+                <button class="code-copy-btn" type="button" aria-label="Copy code">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  <span>Copy</span>
+                </button>
+              </div>
+              <pre><code class="language-java">@Service
+public class SecurityService {
+
+    private final AILabFactory labFactory;
+
+    public SecurityService(AILabFactory labFactory) {
+        this.labFactory = labFactory;
+    }
+
+    public ThreatResponse analyzeThreat(ThreatRequest request) {
+        ThreatAnalysisLab lab = labFactory
+                .getLab(ThreatAnalysisLab.class)
+                .orElseThrow(() -&gt; new IllegalStateException(
+                        "ThreatAnalysisLab not available"));
+
+        return lab.process(request);
+    }
+}</code></pre>
+            </div>
+          </section>
+
+          <!-- Related Links -->
+          <section class="docs-section">
+            <h2 id="related">Related</h2>
+            <div class="related-links">
+              <div class="related-links-grid">
+                <a href="../../../docs/reference/core/strategy.html" class="related-link-card">
+                  <h3>AI Strategy</h3>
+                  <p>Strategy layer that delegates to labs based on DiagnosisType.</p>
+                </a>
+                <a href="../../../docs/reference/core/llm-orchestrator.html" class="related-link-card">
+                  <h3>LLM Orchestrator</h3>
+                  <p>The LLM client that labs use for AI inference.</p>
+                </a>
+                <a href="../../../docs/reference/core/pipeline.html" class="related-link-card">
+                  <h3>AI Pipeline</h3>
+                  <p>Pipeline execution that can be used alongside or instead of labs.</p>
+                </a>
+              </div>
+            </div>
+          </section>
+
+          <!-- Navigation Footer -->
+          <div class="docs-nav-footer">
+            <a href="../../../docs/reference/index.html" class="docs-nav-link prev">
+              <span class="docs-nav-label">Previous</span>
+              <span class="docs-nav-title">Reference Overview</span>
+            </a>
+            <a href="../../../docs/reference/core/llm-orchestrator.html" class="docs-nav-link next">
+              <span class="docs-nav-label">Next</span>
+              <span class="docs-nav-title">LLM Orchestrator</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <footer class="site-footer" role="contentinfo">
+  <div class="container">
+    <div class="footer-grid">
+      <!-- Brand -->
+      <div class="footer-brand">
+        <a href="../../../index.html" class="logo">
+          <svg class="logo-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="32" height="32" rx="8" fill="url(#footer-logo-gradient)"/>
+            <path d="M16 6L26 12V20L16 26L6 20V12L16 6Z" fill="white" fill-opacity="0.9"/>
+            <path d="M16 10L22 14V18L16 22L10 18V14L16 10Z" fill="url(#footer-logo-gradient)" fill-opacity="0.6"/>
+            <circle cx="16" cy="16" r="3" fill="white"/>
+            <defs>
+              <linearGradient id="footer-logo-gradient" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+                <stop stop-color="#2563EB"/>
+                <stop offset="1" stop-color="#7C3AED"/>
+              </linearGradient>
+            </defs>
+          </svg>
+          <span class="logo-text">Contexa</span>
+        </a>
+        <p class="footer-brand-desc">
+          AI Native Zero Trust Platform for Spring.
+          Continuous verification after authentication &mdash; identity, authorization, AI analysis, and response orchestration unified in one platform.
+        </p>
+      </div>
+
+      <!-- Documentation -->
+      <div>
+        <h4 class="footer-section-title">Documentation</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/install/quickstart.html">Quick Start</a></li>
+          <li><a href="../../../docs/install/spring-boot.html">Spring Boot Integration</a></li>
+          <li><a href="../../../docs/install/configuration.html">Configuration</a></li>
+          <li><a href="../../../docs/reference/index.html">API Reference</a></li>
+          <li><a href="../../../docs/install/shadow-mode.html">Shadow Mode</a></li>
+        </ul>
+      </div>
+
+      <!-- Platform -->
+      <div>
+        <h4 class="footer-section-title">Platform</h4>
+        <ul class="footer-links">
+          <li><a href="../../../docs/reference/core/ai-lab.html">AI Lab System</a></li>
+          <li><a href="../../../docs/reference/identity/dsl.html">Identity DSL</a></li>
+          <li><a href="../../../docs/reference/iam/protectable.html">@Protectable</a></li>
+          <li><a href="../../../docs/reference/iam/xacml.html">XACML Engine</a></li>
+        </ul>
+      </div>
+
+      <!-- Community -->
+      <div>
+        <h4 class="footer-section-title">Community</h4>
+        <ul class="footer-links">
+          <li><a href="https://github.com/contexa-security/contexa" target="_blank" rel="noopener">GitHub</a></li>
+          <li><a href="../../../community.html">Contributing</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/discussions" target="_blank" rel="noopener">Discussions</a></li>
+          <li><a href="https://github.com/contexa-security/contexa/issues" target="_blank" rel="noopener">Issues</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p class="footer-copyright">&copy; 2025 Contexa. Released under the Apache License 2.0.</p>
+      <div class="footer-legal">
+        <a href="https://github.com/contexa-security/contexa/blob/main/LICENSE">License</a>
+        <a href="https://github.com/contexa-security/contexa/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+  <script src="../../../assets/js/nav.js?v=1773190937296"></script>
+  <script src="../../../assets/js/sidebar.js?v=1773190937296"></script>
+  <script src="../../../assets/js/code-highlight.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-search.js?v=1773190937296"></script>
+  <script src="../../../assets/js/docs-toc.js?v=1773190937296"></script>
+</body>
+</html>
