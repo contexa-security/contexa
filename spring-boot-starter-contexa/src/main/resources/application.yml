@@ -10,7 +10,7 @@ logging:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/identity
+    url: jdbc:postgresql://localhost:5432/contexa
     username: admin
     password: 1111
     driver-class-name: org.postgresql.Driver
@@ -72,7 +72,7 @@ spring:
         table-name: vector_store
         index-type: HNSW
         distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
-        dimensions: 1536
+        dimensions: 1024
         initialize-schema: true
         max-document-batch-size: 10000
 

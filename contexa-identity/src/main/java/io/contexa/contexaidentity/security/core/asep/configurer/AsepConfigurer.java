@@ -31,7 +31,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
     private final List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers;
     private final List<SecurityHandlerMethodReturnValueHandler> defaultReturnValueHandlers;
     private final List<HttpMessageConverter<?>> messageConverters;
-    private final Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping; 
+    private final Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping;
     private int order;
 
     public AsepConfigurer(
@@ -39,19 +39,19 @@ public final class AsepConfigurer implements SecurityConfigurer {
             List<SecurityHandlerMethodArgumentResolver> defaultArgumentResolvers,
             List<SecurityHandlerMethodReturnValueHandler> defaultReturnValueHandlers,
             HttpMessageConverters httpMessageConverters,
-            Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) { 
+            Map<String, Class<? extends BaseAsepAttributes>> dslAttributesMapping) {
 
         this.methodRegistry = Objects.requireNonNull(methodRegistry, "SecurityExceptionHandlerMethodRegistry cannot be null");
         this.defaultArgumentResolvers = defaultArgumentResolvers != null ? List.copyOf(defaultArgumentResolvers) : Collections.emptyList();
         this.defaultReturnValueHandlers = defaultReturnValueHandlers != null ? List.copyOf(defaultReturnValueHandlers) : Collections.emptyList();
         this.messageConverters = Objects.requireNonNull(httpMessageConverters, "HttpMessageConverters cannot be null").getConverters();
-        this.dslAttributesMapping = dslAttributesMapping != null ? Map.copyOf(dslAttributesMapping) : Collections.emptyMap(); 
+        this.dslAttributesMapping = dslAttributesMapping != null ? Map.copyOf(dslAttributesMapping) : Collections.emptyMap();
         this.order = Ordered.LOWEST_PRECEDENCE - 1000;
 
         if (this.messageConverters.isEmpty()) {
             log.warn("ASEP: HttpMessageConverter list is empty in AsepConfigurer. Body processing for ASEP responses may not work as expected.");
         }
-        if (this.dslAttributesMapping.isEmpty()) { 
+        if (this.dslAttributesMapping.isEmpty()) {
             log.warn("ASEP: dslAttributesMapping is empty. DSL-specific ASEP settings might not load correctly if HttpSecurity shared objects are used for attributes.");
         }
     }
@@ -72,14 +72,14 @@ public final class AsepConfigurer implements SecurityConfigurer {
             log.warn("ASEP Init: No HttpMessageConverters available. Response body generation for ASEP might fail. " +
                     "Ensure HttpMessageConverters are correctly configured in the Spring context (e.g., via HttpMessageConvertersAutoConfiguration).");
         }
-            }
+    }
 
     @Override
     public void configure(FlowContext flowCtx) throws Exception {
         Objects.requireNonNull(flowCtx, "FlowContext cannot be null");
         HttpSecurity http = Objects.requireNonNull(flowCtx.http(), "HttpSecurity from FlowContext cannot be null");
         AuthenticationFlowConfig flowConfig = Objects.requireNonNull(flowCtx.flow(), "AuthenticationFlowConfig from FlowContext cannot be null");
-        String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null").toLowerCase(); 
+        String flowTypeName = Objects.requireNonNull(flowConfig.getTypeName(), "Flow typeName cannot be null").toLowerCase();
 
         List<SecurityHandlerMethodArgumentResolver> collectedCustomArgumentResolvers = new ArrayList<>();
         List<SecurityHandlerMethodReturnValueHandler> collectedCustomReturnValueHandlers = new ArrayList<>();
@@ -89,7 +89,7 @@ public final class AsepConfigurer implements SecurityConfigurer {
         if ("mfa".equalsIgnoreCase(flowTypeName)) {
             flowSpecificAsepAttributes = flowConfig.getMfaAsepAttributes();
             if (flowSpecificAsepAttributes != null) {
-                            }
+            }
         } else if (!flowConfig.getStepConfigs().isEmpty()) {
             AuthenticationStepConfig mainStep = flowConfig.getStepConfigs().get(0);
             Object optionsObject = mainStep.getOptions().get("_options");
@@ -100,14 +100,14 @@ public final class AsepConfigurer implements SecurityConfigurer {
             else if (optionsObject instanceof PasskeyOptions po) flowSpecificAsepAttributes = po.getAsepAttributes();
 
             if (flowSpecificAsepAttributes != null) {
-                            }
+            }
         }
 
         if (flowSpecificAsepAttributes != null) {
             collectedCustomArgumentResolvers.addAll(flowSpecificAsepAttributes.getCustomArgumentResolvers());
             collectedCustomReturnValueHandlers.addAll(flowSpecificAsepAttributes.getCustomReturnValueHandlers());
-                    } else {
-                    }
+        } else {
+        }
 
         List<SecurityHandlerMethodArgumentResolver> finalArgumentResolvers = new ArrayList<>(this.defaultArgumentResolvers);
         collectedCustomArgumentResolvers.forEach(customRes -> {
@@ -124,12 +124,12 @@ public final class AsepConfigurer implements SecurityConfigurer {
         AnnotationAwareOrderComparator.sort(finalReturnValueHandlers);
 
         if (log.isDebugEnabled()) {
-                                }
+        }
 
         SecurityExceptionHandlerInvoker handlerInvoker = new SecurityExceptionHandlerInvoker(finalArgumentResolvers, finalReturnValueHandlers);
         ASEPFilter asepFilter = new ASEPFilter(this.methodRegistry, handlerInvoker, this.messageConverters);
 
-            }
+    }
 
     @Override
     public int getOrder() {
