@@ -1,10 +1,67 @@
-version: '3.8'
+# Contexa Infrastructure - Docker Compose
+#
+# Usage:
+#   Standalone mode (PostgreSQL + Ollama):
+#     docker compose up
+#
+#   Distributed mode (PostgreSQL + Ollama + Redis + Kafka):
+#     docker compose --profile distributed up
 
 services:
-  # Redis - 세션 및 캐시 저장소
+  # --- Core Services (always started) ---
+
+  # PostgreSQL with PGVector - main database and vector store
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: contexa-postgres
+    environment:
+      POSTGRES_DB: contexa
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: 1111
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - contexa-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d contexa"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # Ollama - local LLM server for AI-native security analysis
+  ollama:
+    image: ollama/ollama:latest
+    container_name: contexa-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - contexa-network
+    environment:
+      - OLLAMA_KEEP_ALIVE=30m
+      - OLLAMA_NUM_PARALLEL=2
+      - OLLAMA_MAX_QUEUE=256
+      - OLLAMA_MAX_LOADED_MODELS=1
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # --- Distributed Profile Services ---
+
+  # Redis - session store, cache, and distributed locks
   redis:
     image: redis:7.2-alpine
     container_name: contexa-redis
+    profiles:
+      - distributed
     ports:
       - "6379:6379"
     command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
@@ -19,37 +76,15 @@ services:
       retries: 5
     restart: unless-stopped
 
-  # PostgreSQL with PGVector - 메인 데이터베이스 및 Vector Store
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: contexa-postgres
-    environment:
-      POSTGRES_DB: identity
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 1111
-      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./migration/init:/docker-entrypoint-initdb.d
-    networks:
-      - contexa-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U admin -d identity"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-
-  # Zookeeper - Kafka 코디네이터
+  # Zookeeper - Kafka coordinator
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
     container_name: contexa-zookeeper
+    profiles:
+      - distributed
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-      ZOOKEEPER_SYNC_LIMIT: 2
     ports:
       - "2181:2181"
     volumes:
@@ -65,10 +100,12 @@ services:
       start_period: 30s
     restart: unless-stopped
 
-  # Kafka - 이벤트 스트리밍 플랫폼
+  # Kafka - event streaming platform
   kafka:
     image: confluentinc/cp-kafka:7.4.0
     container_name: contexa-kafka
+    profiles:
+      - distributed
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -83,9 +120,6 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_LOG_SEGMENT_BYTES: 1073741824
-      KAFKA_LOG_RETENTION_CHECK_INTERVAL_MS: 300000
     ports:
       - "9092:9092"
     volumes:
@@ -100,10 +134,12 @@ services:
       start_period: 40s
     restart: unless-stopped
 
-  # Kafka UI - Kafka 관리 인터페이스
+  # Kafka UI - management interface
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: contexa-kafka-ui
+    profiles:
+      - distributed
     depends_on:
       kafka:
         condition: service_healthy
@@ -113,15 +149,17 @@ services:
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
       DYNAMIC_CONFIG_ENABLED: "true"
     ports:
-      - "8090:8080"
+      - "9091:8080"
     networks:
       - contexa-network
     restart: unless-stopped
 
-  # Kafka Init - Kafka 토픽 초기화
+  # Kafka topic initialization
   kafka-init:
     image: confluentinc/cp-kafka:7.4.0
     container_name: contexa-kafka-init
+    profiles:
+      - distributed
     depends_on:
       kafka:
         condition: service_healthy
@@ -133,7 +171,7 @@ services:
 
         echo "Creating Kafka topics..."
 
-        # Security Event Topics
+        # Security event topics
         kafka-topics --create --if-not-exists --topic security-authorization-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
         kafka-topics --create --if-not-exists --topic auth-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
         kafka-topics --create --if-not-exists --topic security-incident-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
@@ -141,10 +179,10 @@ services:
         kafka-topics --create --if-not-exists --topic security-audit-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
         kafka-topics --create --if-not-exists --topic security-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
 
-        # DLQ Topic
+        # Dead letter queue topic
         kafka-topics --create --if-not-exists --topic security-dlq --partitions 1 --replication-factor 1 --bootstrap-server kafka:9093
 
-        # Tiered Processing Topics
+        # Tiered processing topics
         kafka-topics --create --if-not-exists --topic security-tier1-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
         kafka-topics --create --if-not-exists --topic security-tier2-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
         kafka-topics --create --if-not-exists --topic security-tier3-events --partitions 3 --replication-factor 1 --bootstrap-server kafka:9093
@@ -155,117 +193,18 @@ services:
       - contexa-network
     restart: "no"
 
-  # Ollama - 로컬 LLM 서버 (AI Native 보안 분석용)
-  # 로컬 GPU 환경에서 실행 시 docker-compose up ollama
-  ollama:
-    image: ollama/ollama:latest
-    container_name: contexa-ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    networks:
-      - contexa-network
-    environment:
-      # AI Native - GTX 4060 (8GB VRAM) optimized settings
-      - OLLAMA_KEEP_ALIVE=30m           # Prevent model unloading
-      - OLLAMA_NUM_PARALLEL=2           # Max concurrent inferences for 8GB VRAM
-      - OLLAMA_MAX_QUEUE=256            # Fail fast on queue saturation
-      - OLLAMA_MAX_LOADED_MODELS=1      # Single model only for 8GB VRAM
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    restart: unless-stopped
-    profiles:
-      - gpu  # GPU 환경에서만 활성화: docker-compose --profile gpu up
-
-  # Ollama Model Loader - 모델 자동 다운로드
-  # GPU 지원 필요 - 현재 비활성화
-  # ollama-init:
-  #   image: ollama/ollama:latest
-  #   container_name: contexa-ollama-init
-  #   depends_on:
-  #     ollama:
-  #       condition: service_healthy
-  #   entrypoint: ["/bin/bash", "-c"]
-  #   command:
-  #     - |
-  #       echo "Waiting for Ollama to be ready..."
-  #       sleep 10
-
-  #       echo "Pulling AI models..."
-
-  #       # Layer1 Fast Filter Model
-  #       ollama pull tinyllama || echo "TinyLlama pull failed, continuing..."
-
-  #       # Layer2 Contextual Analysis Model
-  #       ollama pull llama3.1:8b || echo "Llama3.1:8b pull failed, continuing..."
-
-  #       # Embedding Model
-  #       ollama pull nomic-embed-text || echo "Nomic-embed-text pull failed, continuing..."
-
-  #       echo "Model pulling completed!"
-  #       ollama list
-  #   networks:
-  #     - contexa-network
-  #   restart: "no"
-
-  # Grafana - 모니터링 대시보드
-  grafana:
-    image: grafana/grafana:latest
-    container_name: contexa-grafana
-    ports:
-      - "3000:3000"
-    volumes:
-      - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
-      - ./monitoring/grafana/grafana.ini:/etc/grafana/grafana.ini
-    networks:
-      - contexa-network
-    depends_on:
-      - prometheus
-      - postgres
-      - redis
-    restart: unless-stopped
-
-  # Prometheus - 메트릭 수집
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: contexa-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-      - prometheus-data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
-      - '--web.console.templates=/usr/share/prometheus/consoles'
-      - '--storage.tsdb.retention.time=30d'
-    networks:
-      - contexa-network
-    restart: unless-stopped
-
 volumes:
+  pgdata:
+    driver: local
+  ollama-data:
+    driver: local
   redis-data:
     driver: local
-  pgdata:
-    external: true
   zookeeper-data:
     driver: local
   zookeeper-logs:
     driver: local
   kafka-data:
-    driver: local
-  ollama-data:
-    driver: local
-  grafana-data:
-    driver: local
-  prometheus-data:
     driver: local
 
 networks:
