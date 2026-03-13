@@ -156,7 +156,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
     private boolean isMfaRelatedPath(String requestUri) {
         return requestUri.startsWith("/mfa/")
-                || requestUri.startsWith("/api/mfa/");
+                || requestUri.startsWith("/api/mfa/")
+                || requestUri.startsWith("/webauthn/")
+                || requestUri.startsWith("/login/mfa-");
     }
 
     private void initializeBlockMfa(HttpServletRequest request,
