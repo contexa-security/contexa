@@ -34,6 +34,7 @@ class AbstractContexaCacheServiceTest {
         ConcreteContexaCacheService(ContexaCacheProperties properties, ObjectMapper objectMapper) {
             super(properties, objectMapper);
         }
+
         void initDefaultCache(int ttlSeconds) {
             defaultLocalCache = buildLocalCache(ttlSeconds);
         }
