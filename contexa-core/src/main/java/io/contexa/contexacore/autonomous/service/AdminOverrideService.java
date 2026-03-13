@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
@@ -26,6 +27,10 @@ public class AdminOverrideService {
     private final ZeroTrustActionRepository actionRedisRepository;
     private final DistributedLockService lockService;
     private final CentralAuditFacade centralAuditFacade;
+
+    @Setter
+    @Autowired(required = false)
+    private BlockingSignalBroadcaster blockingSignalBroadcaster;
 
     private static final String BASELINE_LOCK_PREFIX = "baseline:update:";
     private static final Duration BASELINE_LOCK_TIMEOUT = Duration.ofSeconds(10);
@@ -161,6 +166,9 @@ public class AdminOverrideService {
 
             if (!ztAction.isBlocking()) {
                 actionRedisRepository.approveOverrideAtomically(userId, ztAction);
+                if (blockingSignalBroadcaster != null) {
+                    blockingSignalBroadcaster.registerUnblock(userId);
+                }
             } else {
                 actionRedisRepository.saveAction(userId, ztAction, null);
             }

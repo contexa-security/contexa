@@ -68,9 +68,6 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                             sessionId, key, value.getClass().getName());
                 }
             });
-
-            if (decision.getMetadata().containsKey(FactorContextAttributes.StateControl.USER_INFO)) {
-            }
         }
 
         if (decision.isBlocked()) {
@@ -81,40 +78,27 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                     ctx.getUsername(), decision.getReason());
         }
 
+        AuthenticationFlowConfig mfaFlowConfig = platformConfig.getFlows().stream()
+                .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
+                .findFirst()
+                .orElse(null);
+
+        if (mfaFlowConfig.getStateConfig() != null) {
+            ctx.setStateConfig(mfaFlowConfig.getStateConfig());
+        }
+
         if (decision.isRequired()) {
+            Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
+            ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
 
-            AuthenticationFlowConfig mfaFlowConfig = platformConfig.getFlows().stream()
-                    .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
-                    .findFirst()
-                    .orElse(null);
+            Set<AuthType> verifyFactors = ctx.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
+            if (verifyFactors == null || verifyFactors.isEmpty()) {
+                log.error("[InitializeMfaAction] availableFactors verification FAILED for session: {}",
+                        ctx.getMfaSessionId());
+            }
 
-            if (mfaFlowConfig != null) {
-
-                Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
-                ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
-
-                Set<AuthType> verifyFactors = ctx.getSetAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS);
-                if (verifyFactors == null || verifyFactors.isEmpty()) {
-                    log.error("[InitializeMfaAction] availableFactors verification FAILED for session: {}",
-                            ctx.getMfaSessionId());
-                } else {
-                }
-
-                if (mfaFlowConfig.getStateConfig() != null) {
-                    ctx.setStateConfig(mfaFlowConfig.getStateConfig());
-                }
-
-            } else {
-
-                List<AuthType> requiredFactors = decision.getRequiredFactors();
-                if (requiredFactors != null && !requiredFactors.isEmpty()) {
-                    Set<AuthType> availableFactors = new LinkedHashSet<>(requiredFactors);
-                    ctx.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
-                } else {
-                    log.error("No available factors for user: {}. Configuration error.", ctx.getUsername());
-                    ctx.changeState(MfaState.MFA_SYSTEM_ERROR);
-                    ctx.setLastError("MFA configuration error: no available factors");
-                }
+            if (mfaFlowConfig.getStateConfig() != null) {
+                ctx.setStateConfig(mfaFlowConfig.getStateConfig());
             }
         }
     }
