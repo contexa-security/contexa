@@ -11,6 +11,8 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.lang.Nullable;
 
 import java.time.Duration;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
@@ -25,6 +27,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
     private Duration sessionTimeout = Duration.ofMinutes(30);
     private final AtomicLong totalSessionsCreated = new AtomicLong(0);
     private final AtomicLong sessionCollisions = new AtomicLong(0);
+    private final Set<String> activeSessionIds = ConcurrentHashMap.newKeySet();
 
     public HttpSessionMfaRepository(SessionIdGenerator sessionIdGenerator) {
         this.sessionIdGenerator = sessionIdGenerator;
@@ -37,6 +40,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
         session.setAttribute(SESSION_CREATION_TIME_ATTRIBUTE, System.currentTimeMillis());
         session.setMaxInactiveInterval((int) sessionTimeout.toSeconds());
 
+        activeSessionIds.add(sessionId);
         totalSessionsCreated.incrementAndGet();
             }
 
@@ -56,7 +60,8 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
         if (session != null) {
             session.removeAttribute(MFA_SESSION_ID_ATTRIBUTE);
             session.removeAttribute(SESSION_CREATION_TIME_ATTRIBUTE);
-                    }
+        }
+        activeSessionIds.remove(sessionId);
     }
 
     @Override
@@ -65,7 +70,7 @@ public class HttpSessionMfaRepository implements MfaSessionRepository {
 
     @Override
     public boolean existsSession(String sessionId) {
-        return sessionId != null;
+        return sessionId != null && activeSessionIds.contains(sessionId);
     }
 
     @Override

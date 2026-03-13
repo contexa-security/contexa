@@ -40,7 +40,6 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public List<String> getRecentSessionActions(String sessionId, int count) {
         try {
             String key = ZeroTrustRedisKeys.sessionActions(sessionId);

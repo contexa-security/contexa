@@ -2,13 +2,16 @@ package io.contexa.contexacore.autonomous.store;
 
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 
-import java.util.Set;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
 
+    private static final Duration VERIFIED_TTL = Duration.ofHours(1);
+
     private final ZeroTrustActionRepository actionRepository;
-    private final Set<String> verifiedUsers = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, Instant> verifiedExpiry = new ConcurrentHashMap<>();
 
     public InMemoryBlockMfaStateStore(ZeroTrustActionRepository actionRepository) {
         this.actionRepository = actionRepository;
@@ -16,12 +19,20 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
 
     @Override
     public void setVerified(String userId) {
-        verifiedUsers.add(userId);
+        verifiedExpiry.put(userId, Instant.now().plus(VERIFIED_TTL));
     }
 
     @Override
     public boolean isVerified(String userId) {
-        return verifiedUsers.contains(userId);
+        Instant expiry = verifiedExpiry.get(userId);
+        if (expiry == null) {
+            return false;
+        }
+        if (Instant.now().isAfter(expiry)) {
+            verifiedExpiry.remove(userId);
+            return false;
+        }
+        return true;
     }
 
     @Override

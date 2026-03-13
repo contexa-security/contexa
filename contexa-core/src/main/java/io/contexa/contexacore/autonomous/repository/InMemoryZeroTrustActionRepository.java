@@ -21,8 +21,11 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final ConcurrentHashMap<String, AnalysisEntry> analysisStore = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, ActionEntry> lastVerifiedStore = new ConcurrentHashMap<>();
     private final Set<String> blockedUsers = ConcurrentHashMap.newKeySet();
-    private final ConcurrentHashMap<String, AtomicLong> mfaFailCounts = new ConcurrentHashMap<>();
-    private final Set<String> mfaPendingUsers = ConcurrentHashMap.newKeySet();
+    private static final Duration MFA_PENDING_TTL = Duration.ofMinutes(10);
+    private static final Duration FAIL_COUNT_TTL = Duration.ofHours(24);
+
+    private final ConcurrentHashMap<String, FailCountEntry> mfaFailCounts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, Instant> mfaPendingExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> escalateRetries = new ConcurrentHashMap<>();
 
     @Override
@@ -124,8 +127,15 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         if (userId == null) {
             return 0;
         }
-        AtomicLong count = mfaFailCounts.get(userId);
-        return count != null ? count.get() : 0;
+        FailCountEntry entry = mfaFailCounts.get(userId);
+        if (entry == null) {
+            return 0;
+        }
+        if (Instant.now().isAfter(entry.expiresAt)) {
+            mfaFailCounts.remove(userId);
+            return 0;
+        }
+        return entry.count.get();
     }
 
     @Override
@@ -147,13 +157,24 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
     @Override
     public boolean isBlockMfaPending(String userId) {
-        return userId != null && mfaPendingUsers.contains(userId);
+        if (userId == null) {
+            return false;
+        }
+        Instant expiry = mfaPendingExpiry.get(userId);
+        if (expiry == null) {
+            return false;
+        }
+        if (Instant.now().isAfter(expiry)) {
+            mfaPendingExpiry.remove(userId);
+            return false;
+        }
+        return true;
     }
 
     @Override
     public void setBlockMfaPending(String userId) {
         if (userId != null) {
-            mfaPendingUsers.add(userId);
+            mfaPendingExpiry.put(userId, Instant.now().plus(MFA_PENDING_TTL));
         }
     }
 
@@ -301,7 +322,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     @Override
     public void clearBlockMfaPending(String userId) {
         if (userId != null) {
-            mfaPendingUsers.remove(userId);
+            mfaPendingExpiry.remove(userId);
         }
     }
 
@@ -310,9 +331,14 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         if (userId == null) {
             return 0;
         }
-        return mfaFailCounts
-                .computeIfAbsent(userId, k -> new AtomicLong(0))
-                .incrementAndGet();
+        FailCountEntry entry = mfaFailCounts.compute(userId, (k, v) -> {
+            if (v == null || Instant.now().isAfter(v.expiresAt)) {
+                return new FailCountEntry(new AtomicLong(1), Instant.now().plus(FAIL_COUNT_TTL));
+            }
+            v.count.incrementAndGet();
+            return v;
+        });
+        return entry.count.get();
     }
 
     @Override
@@ -324,7 +350,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         lastVerifiedStore.remove(userId);
         blockedUsers.remove(userId);
         mfaFailCounts.remove(userId);
-        mfaPendingUsers.remove(userId);
+        mfaPendingExpiry.remove(userId);
         escalateRetries.remove(userId);
     }
 
@@ -363,5 +389,15 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private static class ActionEntry {
         String action;
         Instant expiresAt;
+    }
+
+    private static class FailCountEntry {
+        final AtomicLong count;
+        final Instant expiresAt;
+
+        FailCountEntry(AtomicLong count, Instant expiresAt) {
+            this.count = count;
+            this.expiresAt = expiresAt;
+        }
     }
 }

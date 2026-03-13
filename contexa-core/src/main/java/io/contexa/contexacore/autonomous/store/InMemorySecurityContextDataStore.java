@@ -2,20 +2,37 @@ package io.contexa.contexacore.autonomous.store;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class InMemorySecurityContextDataStore implements SecurityContextDataStore {
 
     private static final int MAX_SESSION_ACTIONS = 100;
+    private static final int MAX_PROCESSED_EVENTS = 50_000;
+    private static final int MAX_SOAR_EXECUTIONS = 10_000;
+    private static final int MAX_SESSION_ENTRIES = 10_000;
 
     private final ConcurrentHashMap<String, List<String>> sessionActions = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Double> sessionRisks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastRequestTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> previousPaths = new ConcurrentHashMap<>();
-    private final Set<String> processedEvents = ConcurrentHashMap.newKeySet();
-    private final ConcurrentHashMap<String, Object> soarExecutions = new ConcurrentHashMap<>();
+    private final Set<String> processedEvents = Collections.newSetFromMap(
+            Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Boolean> eldest) {
+                    return size() > MAX_PROCESSED_EVENTS;
+                }
+            }));
+    private final Map<String, Object> soarExecutions = Collections.synchronizedMap(
+            new LinkedHashMap<>(16, 0.75f, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Object> eldest) {
+                    return size() > MAX_SOAR_EXECUTIONS;
+                }
+            });
     private final ConcurrentHashMap<String, Set<String>> userSessions = new ConcurrentHashMap<>();
 
     @Override
@@ -83,5 +100,35 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     @Override
     public void trackUserSession(String userId, String sessionId) {
         userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(sessionId);
+        evictIfOversized();
+    }
+
+    private void evictIfOversized() {
+        if (sessionActions.size() > MAX_SESSION_ENTRIES) {
+            sessionActions.keys().asIterator().forEachRemaining(key -> {
+                if (sessionActions.size() <= MAX_SESSION_ENTRIES) {
+                    return;
+                }
+                sessionActions.remove(key);
+                sessionRisks.remove(key);
+            });
+        }
+        if (lastRequestTimes.size() > MAX_SESSION_ENTRIES) {
+            lastRequestTimes.keys().asIterator().forEachRemaining(key -> {
+                if (lastRequestTimes.size() <= MAX_SESSION_ENTRIES) {
+                    return;
+                }
+                lastRequestTimes.remove(key);
+                previousPaths.remove(key);
+            });
+        }
+        if (userSessions.size() > MAX_SESSION_ENTRIES) {
+            userSessions.keys().asIterator().forEachRemaining(key -> {
+                if (userSessions.size() <= MAX_SESSION_ENTRIES) {
+                    return;
+                }
+                userSessions.remove(key);
+            });
+        }
     }
 }
