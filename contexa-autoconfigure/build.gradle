@@ -29,6 +29,14 @@ dependencies {
     compileOnly("org.redisson:redisson-spring-boot-starter:3.48.0")
 
     compileOnly 'org.springframework.ai:spring-ai-starter-mcp-client'
+
+    testImplementation project(':contexa-common')
+    testImplementation project(':contexa-core')
+    testImplementation project(':contexa-identity')
+    testImplementation project(':contexa-iam')
+    testImplementation 'com.h2database:h2'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.security:spring-security-test'
 }
 
 bootJar.enabled = false

@@ -96,7 +96,7 @@ public class PolicyTranslator {
         }
 
         if (node instanceof Identifier) {
-            String identifier = ((Identifier) node).toString();
+            String identifier = node.toStringAST();
             if ("permitAll".equalsIgnoreCase(identifier)) return "All access permitted";
             if ("denyAll".equalsIgnoreCase(identifier)) return "All access denied";
         }
@@ -214,7 +214,7 @@ public class PolicyTranslator {
         }
 
         if (node instanceof Identifier) {
-            String identifier = ((Identifier) node).toString();
+            String identifier = node.toStringAST();
             if ("permitAll".equalsIgnoreCase(identifier)) return new TerminalNode("Permit all users", false);
             if ("denyAll".equalsIgnoreCase(identifier)) return new TerminalNode("Deny all users", false);
         }

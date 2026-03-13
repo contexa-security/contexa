@@ -33,7 +33,11 @@ dependencies {
     implementation 'org.springframework.statemachine:spring-statemachine-starter'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-security'
     testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    testImplementation 'org.springframework.security:spring-security-oauth2-authorization-server:1.5.1'
+    testImplementation 'com.h2database:h2'
     testImplementation 'org.springframework.statemachine:spring-statemachine-test:4.0.0'
     testImplementation 'org.assertj:assertj-core:3.24.2'
     testImplementation 'org.mockito:mockito-core'

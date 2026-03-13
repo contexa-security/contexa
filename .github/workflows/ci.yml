@@ -14,7 +14,7 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_DB: identity
+          POSTGRES_DB: contexa
           POSTGRES_USER: admin
           POSTGRES_PASSWORD: 1111
         ports:
@@ -33,6 +33,7 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+          cache: 'gradle'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
@@ -41,5 +42,20 @@ jobs:
         run: ./gradlew clean compileJava
 
       - name: Run tests
-        run: ./gradlew test
-        continue-on-error: true
+        run: ./gradlew test jacocoTestReport
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: '**/build/reports/tests/'
+          retention-days: 14
+
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: '**/build/reports/jacoco/'
+          retention-days: 14

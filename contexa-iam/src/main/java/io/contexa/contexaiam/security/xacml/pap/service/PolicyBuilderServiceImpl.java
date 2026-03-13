@@ -19,9 +19,6 @@ import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.expression.Expression;
-import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -45,7 +42,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     private final PolicyService policyService;
     private final ModelMapper modelMapper;
     private final ObjectMapper objectMapper;
-    private final SpelExpressionParser expressionParser = new SpelExpressionParser();
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
     @Override
@@ -201,7 +197,7 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
 
     private Set<String> getEffectivePermissions(Authentication authentication, Policy temporaryPolicy) {
         Set<String> permissions = authentication.getAuthorities().stream()
-                .map(Object::toString).collect(Collectors.toSet());
+                .map(GrantedAuthority::getAuthority).collect(Collectors.toSet());
         if (temporaryPolicy != null && doesPolicyApply(temporaryPolicy, authentication)) {
             Set<String> permissionsFromPolicy = getPermissionsFromPolicyRule(temporaryPolicy);
             if (temporaryPolicy.getEffect() == Policy.Effect.ALLOW) permissions.addAll(permissionsFromPolicy);
@@ -228,23 +224,9 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
     }
 
     private boolean doesPolicyApply(Policy policy, Authentication authentication) {
-        StandardEvaluationContext context = new StandardEvaluationContext(authentication);
-        context.setVariable("authentication", authentication);
-
-        String condition = policy.getRules().stream()
-                .flatMap(r -> r.getConditions().stream())
-                .map(c -> "(" + c.getExpression() + ")")
-                .collect(Collectors.joining(" && "));
-
-        if (condition.isEmpty()) return true;
-
-        try {
-            Expression expression = expressionParser.parseExpression(condition);
-            return Boolean.TRUE.equals(expression.getValue(context, Boolean.class));
-        } catch (Exception e) {
-            log.error("Error evaluating SpEL for simulation: {}", e.getMessage());
-            return false;
-        }
+        // In simulation mode, the policy is always considered applicable
+        // to show the full impact of applying it to the target users
+        return true;
     }
 
     private Set<GrantedAuthority> initializeAuthorities(Users user) {

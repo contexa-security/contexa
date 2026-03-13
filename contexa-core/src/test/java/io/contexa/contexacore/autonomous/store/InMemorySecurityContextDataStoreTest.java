@@ -1,0 +1,132 @@
+package io.contexa.contexacore.autonomous.store;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class InMemorySecurityContextDataStoreTest {
+
+    private InMemorySecurityContextDataStore store;
+
+    @BeforeEach
+    void setUp() {
+        store = new InMemorySecurityContextDataStore();
+    }
+
+    @Test
+    @DisplayName("addSessionAction and getRecentSessionActions returns stored actions")
+    void addSessionAction_getRecentSessionActions_returnsActions() {
+        store.addSessionAction("session1", "LOGIN");
+        store.addSessionAction("session1", "VIEW_PROFILE");
+        store.addSessionAction("session1", "LOGOUT");
+
+        List<String> actions = store.getRecentSessionActions("session1", 2);
+
+        assertThat(actions).hasSize(2);
+        assertThat(actions).containsExactly("VIEW_PROFILE", "LOGOUT");
+    }
+
+    @Test
+    @DisplayName("getRecentSessionActions returns empty list for unknown session")
+    void getRecentSessionActions_unknownSession_returnsEmptyList() {
+        List<String> actions = store.getRecentSessionActions("unknown", 10);
+
+        assertThat(actions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("getRecentSessionActions returns all actions when count exceeds size")
+    void getRecentSessionActions_countExceedsSize_returnsAll() {
+        store.addSessionAction("session1", "ACTION_A");
+        store.addSessionAction("session1", "ACTION_B");
+
+        List<String> actions = store.getRecentSessionActions("session1", 100);
+
+        assertThat(actions).hasSize(2);
+        assertThat(actions).containsExactly("ACTION_A", "ACTION_B");
+    }
+
+    @Test
+    @DisplayName("Circular buffer evicts oldest actions when exceeding MAX_SESSION_ACTIONS")
+    void addSessionAction_exceedsMax_evictsOldest() {
+        // MAX_SESSION_ACTIONS = 100
+        for (int i = 0; i < 105; i++) {
+            store.addSessionAction("session1", "ACTION_" + i);
+        }
+
+        List<String> actions = store.getRecentSessionActions("session1", 200);
+
+        assertThat(actions).hasSize(100);
+        // Oldest 5 actions (ACTION_0 to ACTION_4) should be evicted
+        assertThat(actions.getFirst()).isEqualTo("ACTION_5");
+        assertThat(actions.getLast()).isEqualTo("ACTION_104");
+    }
+
+    @Test
+    @DisplayName("tryMarkEventAsProcessed returns true on first call, false on duplicate")
+    void tryMarkEventAsProcessed_firstCallTrue_duplicateFalse() {
+        boolean first = store.tryMarkEventAsProcessed("event-1");
+        boolean duplicate = store.tryMarkEventAsProcessed("event-1");
+
+        assertThat(first).isTrue();
+        assertThat(duplicate).isFalse();
+    }
+
+    @Test
+    @DisplayName("tryMarkEventAsProcessed allows different eventIds")
+    void tryMarkEventAsProcessed_differentEvents_allReturnTrue() {
+        assertThat(store.tryMarkEventAsProcessed("event-1")).isTrue();
+        assertThat(store.tryMarkEventAsProcessed("event-2")).isTrue();
+        assertThat(store.tryMarkEventAsProcessed("event-3")).isTrue();
+    }
+
+    @Test
+    @DisplayName("setLastRequestTime and getLastRequestTime work correctly")
+    void setLastRequestTime_getLastRequestTime_returnsTimestamp() {
+        long timestamp = System.currentTimeMillis();
+        store.setLastRequestTime("user1", timestamp);
+
+        Long result = store.getLastRequestTime("user1");
+
+        assertThat(result).isEqualTo(timestamp);
+    }
+
+    @Test
+    @DisplayName("getLastRequestTime returns null for unknown user")
+    void getLastRequestTime_unknownUser_returnsNull() {
+        Long result = store.getLastRequestTime("unknown");
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("setPreviousPath and getPreviousPath work correctly")
+    void setPreviousPath_getPreviousPath_returnsPath() {
+        store.setPreviousPath("user1", "/api/users");
+
+        String result = store.getPreviousPath("user1");
+
+        assertThat(result).isEqualTo("/api/users");
+    }
+
+    @Test
+    @DisplayName("getPreviousPath returns null for unknown user")
+    void getPreviousPath_unknownUser_returnsNull() {
+        String result = store.getPreviousPath("unknown");
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("setPreviousPath overwrites existing path")
+    void setPreviousPath_overwritesExisting() {
+        store.setPreviousPath("user1", "/api/v1");
+        store.setPreviousPath("user1", "/api/v2");
+
+        assertThat(store.getPreviousPath("user1")).isEqualTo("/api/v2");
+    }
+}

@@ -259,7 +259,8 @@
       "Bash(find /e/projects/contexa-examples/contexa-example-shadow-enforce -type f \\\\\\(-name *.html -o -name *.css -o -name *.js -o -name *.properties \\\\\\))",
       "Bash(find e:/projects/contexa -type f \\\\\\(-name *.env* -o -name Dockerfile* -o -name docker* \\\\\\))",
       "Bash(find e:/projects/contexa-enterprise -type f \\\\\\(-name *.env* -o -name Dockerfile* -o -name docker* \\\\\\))",
-      "Bash(find e:/projects/contexa-examples -type f \\\\\\(-name *.env* -o -name Dockerfile* -o -name docker* \\\\\\))"
+      "Bash(find e:/projects/contexa-examples -type f \\\\\\(-name *.env* -o -name Dockerfile* -o -name docker* \\\\\\))",
+      "Bash(do grep:*)"
     ],
     "deny": [],
     "ask": []
