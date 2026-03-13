@@ -85,4 +85,17 @@ public class ContexaCacheAutoConfiguration {
             return new LocalContexaCacheService(properties, objectMapper);
         }
     }
+
+    @Configuration
+    @ConditionalOnMissingBean(ContexaCacheService.class)
+    static class FallbackCacheConfig {
+
+        @Bean
+        public LocalContexaCacheService contexaCacheService(
+                ContexaCacheProperties properties,
+                ObjectMapper objectMapper) {
+            log.error("No ContexaCacheService bean found from distributed or standalone config. Falling back to local cache.");
+            return new LocalContexaCacheService(properties, objectMapper);
+        }
+    }
 }

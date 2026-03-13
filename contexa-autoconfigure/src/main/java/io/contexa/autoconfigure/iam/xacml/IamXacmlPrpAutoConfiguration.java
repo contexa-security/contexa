@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.iam.xacml;
 
+import io.contexa.contexacommon.cache.ContexaCacheAutoConfiguration;
 import io.contexa.contexacommon.cache.ContexaCacheService;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.prp.DatabasePolicyRetrievalPoint;
@@ -8,7 +9,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 
 
-@AutoConfiguration
+@AutoConfiguration(after = ContexaCacheAutoConfiguration.class)
 public class IamXacmlPrpAutoConfiguration {
 
     @Bean

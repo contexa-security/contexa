@@ -29,7 +29,7 @@ public class PlatformSecurityConfig {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
-                    .csrf(AbstractHttpConfigurer::disable)
+//                    .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)
@@ -39,12 +39,12 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-                .form(form -> form.order(20)
+                /*.form(form -> form.order(20)
                         .loginPage("/admin/login")
                         .defaultSuccessUrl("/admin")
                         .rawHttp(http-> http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)))
                 )
-                .oauth2(Customizer.withDefaults())
+                .oauth2(Customizer.withDefaults())*/
 //                .rest(rest -> rest.order(10)
 //                        .defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
 //                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
@@ -62,8 +62,8 @@ public class PlatformSecurityConfig {
                         /*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/mfa/ott/request-code-ui", "/custom/mfa/challenge/ott")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))
-                        .order(60)*/
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
+                        .order(60)
                 ).session(Customizer.withDefaults())
                 .build();
     }

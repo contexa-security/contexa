@@ -261,7 +261,8 @@
       "Bash(find e:/projects/contexa-enterprise -type f \\\\\\(-name *.env* -o -name Dockerfile* -o -name docker* \\\\\\))",
       "Bash(find e:/projects/contexa-examples -type f \\\\\\(-name *.env* -o -name Dockerfile* -o -name docker* \\\\\\))",
       "Bash(do grep:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(find /d/projects/contexa /e/projects/contexa-docs /e/projects/contexa-examples -type f \\\\\\(-name *final* -o -name *scenario* -o -name *page* \\\\\\))"
     ],
     "deny": [],
     "ask": []

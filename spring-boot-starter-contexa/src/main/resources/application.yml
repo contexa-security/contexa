@@ -1,6 +1,6 @@
 contexa:
   infrastructure:
-    mode: standalone
+    mode: distributed
 
 logging:
   level:
@@ -10,7 +10,7 @@ logging:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/contexa
+    url: jdbc:postgresql://localhost:5432/identity
     username: admin
     password: 1111
     driver-class-name: org.postgresql.Driver
