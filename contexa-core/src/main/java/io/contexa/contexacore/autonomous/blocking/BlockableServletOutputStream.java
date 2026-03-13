@@ -55,6 +55,9 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public void close() throws IOException {
+        if (aborted) {
+            return;
+        }
         checkBlocked();
         delegate.close();
     }

@@ -4,6 +4,7 @@ import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.blocking.BlockableResponseWrapper;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.autonomous.blocking.ResponseBlockedException;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
@@ -336,12 +337,19 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 response, blockingDecisionRegistry, userId);
         try {
             filterChain.doFilter(request, wrapper);
+            wrapper.flushBuffer();
         } catch (IOException e) {
             if (blockingDecisionRegistry.isBlocked(userId)) {
                 log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
                 return;
             }
             throw e;
+        } catch (ResponseBlockedException e) {
+            log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
+            if (!response.isCommitted()) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            }
+            return;
         }
     }
 

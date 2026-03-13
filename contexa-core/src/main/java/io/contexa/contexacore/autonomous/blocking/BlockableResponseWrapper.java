@@ -5,7 +5,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpServletResponseWrapper;
 
 import java.io.IOException;
-import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 
 /**
@@ -41,12 +40,8 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     @Override
     public PrintWriter getWriter() throws IOException {
         if (writer == null) {
-            String encoding = getCharacterEncoding();
-            if (encoding == null) {
-                encoding = "UTF-8";
-            }
-            writer = new PrintWriter(
-                    new OutputStreamWriter(getOutputStream(), encoding), true);
+            writer = new BlockablePrintWriter(
+                    super.getWriter(), registry, userId);
         }
         return writer;
     }
@@ -72,11 +67,10 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     @Override
     public void flushBuffer() throws IOException {
         ensureNotBlocked();
-        if (writer != null) {
-            writer.flush();
-        } else if (blockableStream != null) {
+        if (blockableStream != null) {
             blockableStream.flush();
         }
+        ensureNotBlocked();
         super.flushBuffer();
     }
 
