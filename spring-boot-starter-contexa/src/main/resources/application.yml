@@ -1,6 +1,6 @@
 contexa:
   infrastructure:
-    mode: distributed
+    mode: standalone
 
 logging:
   level:

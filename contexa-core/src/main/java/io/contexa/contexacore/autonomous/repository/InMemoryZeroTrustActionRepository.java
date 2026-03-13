@@ -151,6 +151,13 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     }
 
     @Override
+    public void setBlockMfaPending(String userId) {
+        if (userId != null) {
+            mfaPendingUsers.add(userId);
+        }
+    }
+
+    @Override
     public boolean hasEscalateRetry(String userId) {
         if (userId == null) {
             return false;

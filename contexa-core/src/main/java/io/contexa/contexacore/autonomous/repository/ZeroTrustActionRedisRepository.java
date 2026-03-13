@@ -223,6 +223,19 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
     }
 
     @Override
+    public void setBlockMfaPending(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return;
+        }
+        try {
+            String key = ZeroTrustRedisKeys.blockMfaPending(userId);
+            stringRedisTemplate.opsForValue().set(key, "true", Duration.ofMinutes(10));
+        } catch (Exception e) {
+            log.error("[ZeroTrustActionRedisRepository] Failed to set block-mfa-pending: userId={}", userId, e);
+        }
+    }
+
+    @Override
     public boolean hasEscalateRetry(String userId) {
         if (userId == null || userId.isBlank()) {
             return false;

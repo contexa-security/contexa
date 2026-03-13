@@ -9,7 +9,6 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
 
     private final ZeroTrustActionRepository actionRepository;
     private final Set<String> verifiedUsers = ConcurrentHashMap.newKeySet();
-    private final Set<String> pendingUsers = ConcurrentHashMap.newKeySet();
 
     public InMemoryBlockMfaStateStore(ZeroTrustActionRepository actionRepository) {
         this.actionRepository = actionRepository;
@@ -27,12 +26,12 @@ public class InMemoryBlockMfaStateStore implements BlockMfaStateStore {
 
     @Override
     public void setPending(String userId) {
-        pendingUsers.add(userId);
+        actionRepository.setBlockMfaPending(userId);
     }
 
     @Override
     public void clearPending(String userId) {
-        pendingUsers.remove(userId);
+        actionRepository.clearBlockMfaPending(userId);
     }
 
     @Override

@@ -33,6 +33,8 @@ public interface ZeroTrustActionRepository {
 
     boolean isBlockMfaPending(String userId);
 
+    void setBlockMfaPending(String userId);
+
     boolean hasEscalateRetry(String userId);
 
     void setEscalateRetry(String userId, Duration ttl);
