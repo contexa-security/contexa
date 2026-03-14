@@ -1,73 +1,38 @@
-﻿<img src="logo.png" alt="Contexa Logo" width="80" align="left" />
+<img src="logo.png" alt="Contexa Logo" width="80" align="left" />
 
 # CONTEXA
 
-*AI-Native Zero Trust Security Platform for Spring*
+**AI-Native Zero Trust Security Platform for Spring**
 
 <br clear="left" />
 
-Contexa is a Spring-first security platform that connects identity, authorization, AI-assisted risk evaluation, and response orchestration into one flow.
-It is designed for teams that need to keep verifying requests after authentication, not just at login time.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://openjdk.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5-green.svg)](https://spring.io/projects/spring-boot)
 
-## What Problem Contexa Solves
+> Security doesn't end at login.
+> Contexa continuously verifies every request after authentication using AI-driven behavioral analysis.
 
-Many real-world incidents happen after successful authentication.
-The session is valid, the credentials are valid, and the request looks normal enough to pass static access rules.
+**[Website](https://www.ctxa.ai)** · **[Documentation](https://www.ctxa.ai/get-started.html)** · **[Architecture](https://www.ctxa.ai/docs/architecture/platform-overview.html)** · **[GitHub](https://github.com/contexa-security/contexa)**
 
-Traditional controls such as RBAC, URL rules, and `@PreAuthorize` remain necessary, but they are not enough on their own when the real signal lives in request context, session behavior, and evolving risk.
+---
 
-Contexa adds four things around a Spring application:
+## Why Contexa
 
-- identity flow orchestration with adaptive MFA
-- policy-driven authorization for URL, method, and resource access
-- AI-assisted analysis with vector retrieval and contextual enrichment
-- Zero Trust response handling
+Most breaches happen **after** successful authentication — valid credentials, valid sessions, but malicious intent.
 
-## Core Value
+Traditional security stops at login. Contexa starts there.
 
-- Continuous verification after login
-- Policy and AI working together instead of separately
-- Human-in-the-loop response for high-risk actions
-- A path from standalone deployment to distributed operation
+| | Traditional Security | + Contexa |
+|---|---|---|
+| **When** | At login only | Every request, continuously |
+| **How** | Static rules (RBAC, ACL) | AI behavioral analysis |
+| **Scope** | Network / endpoint | Inside the application |
+| **Response** | Allow or deny | ALLOW · CHALLENGE · BLOCK · ESCALATE |
 
-## Architecture Overview
+## Quick Start
 
-```text
-Request
-  -> contexa-identity
-     - form / rest / ott / passkey / mfa flows
-  -> contexa-iam
-     - URL / method / resource policy evaluation
-     - @Protectable method protection
-  -> contexa-core
-     - AI analysis
-     - vector retrieval / RAG
-     - Zero Trust action decision
-  -> Action
-     - ALLOW | CHALLENGE | BLOCK | ESCALATE | PENDING_ANALYSIS
-```
-
-## Modules
-
-| Module | Responsibility |
-|---|---|
-| `contexa-core` | AI pipeline orchestration, LLM integration, streaming, RAG, vector services, autonomous security processing, Zero Trust state handling |
-| `contexa-identity` | Identity DSL, form/rest/OTT/passkey/MFA flows, adaptive MFA integration, Zero Trust access control |
-| `contexa-iam` | Dynamic authorization, XACML-style evaluation, resource scanning, policy authoring workflow, AI-assisted policy generation APIs |
-| `contexa-common` | Shared annotations, DTOs, enums, and contracts |
-| `contexa-autoconfigure` | Spring Boot auto-configuration layer |
-| `spring-boot-starter-contexa` | Community starter |
-
-## Community Edition
-
-The Community edition centers on these modules:
-
-- `contexa-core`
-- `contexa-identity`
-- `contexa-iam`
-- `spring-boot-starter-contexa`
-
-The recommended entry point is the starter, not manual module-by-module wiring.
+**1. Add dependency**
 
 ```gradle
 dependencies {
@@ -75,14 +40,15 @@ dependencies {
 }
 ```
 
+**2. Enable AI Security**
+
 ```java
 @SpringBootApplication
 @EnableAISecurity
-public class MyApplication {
-}
+public class MyApplication { }
 ```
 
-If method-level protection is needed, Contexa also provides `@Protectable`.
+**3. Protect resources**
 
 ```java
 @Protectable
@@ -92,174 +58,103 @@ public void disableUser(@PathVariable Long id) {
 }
 ```
 
-A minimal configuration looks like this:
+That's it. Two annotations. Contexa handles the rest — context collection, AI analysis, and autonomous response.
 
-```yaml
-contexa:
-  infrastructure:
-    mode: standalone
+> For full setup including database and LLM configuration, see the **[Get Started Guide](https://www.ctxa.ai/get-started.html)**.
 
-spring:
-  ai:
-    chat:
-      model:
-        priority: ollama,anthropic,openai
-    embedding:
-      model:
-        priority: ollama,openai
-    ollama:
-      base-url: http://127.0.0.1:11434
-      chat:
-        options:
-          model: qwen2.5:7b
-          keep-alive: "24h"
-    vectorstore:
-      pgvector:
-        table-name: vector_store
-        dimensions: 1536
-        distance-type: COSINE_DISTANCE
+## Zero Trust Actions
+
+Every request receives a real-time AI verdict:
+
+| Action | HTTP | Meaning |
+|---|---|---|
+| `ALLOW` | 200 | Behavior matches baseline — access granted |
+| `CHALLENGE` | 401 | Suspicious signal detected — MFA required |
+| `BLOCK` | 403 | Active threat — immediate denial |
+| `ESCALATE` | 423 | Ambiguous — requires admin review |
+| `PENDING_ANALYSIS` | 503 | Analysis in progress |
+
+## How It Works
+
+```
+Request (Human / API / AI Agent)
+  │
+  ├─ contexa-identity ─── Authentication flows (Form / REST / OTT / Passkey / MFA)
+  │
+  ├─ contexa-iam ──────── Policy evaluation (URL / Method / Resource)
+  │                        @Protectable method protection
+  │
+  ├─ contexa-core ─────── AI behavioral analysis
+  │                        Baseline comparison + RAG + LLM reasoning
+  │                        Zero Trust action decision
+  │
+  └─ Action ───────────── ALLOW │ CHALLENGE │ BLOCK │ ESCALATE │ PENDING_ANALYSIS
 ```
 
-## Enterprise Edition
+## Modules
 
-The Enterprise edition is available as a separate repository and extends Community capabilities with SOAR approval workflows, MCP tool calling, security response simulation, and extended metrics.
-Contact the maintainers for Enterprise access.
+| Module | Responsibility |
+|---|---|
+| `contexa-core` | AI pipeline, LLM orchestration, RAG, vector services, autonomous security processing, Zero Trust state |
+| `contexa-identity` | Identity DSL, authentication flows (Form/REST/OTT/Passkey/MFA), adaptive MFA, Zero Trust access control |
+| `contexa-iam` | Dynamic authorization, XACML-style evaluation, resource scanning, policy workflow, AI-assisted policy generation |
+| `contexa-common` | Shared annotations, DTOs, enums, contracts |
+| `contexa-autoconfigure` | Spring Boot auto-configuration layer |
+| `spring-boot-starter-contexa` | Community starter (recommended entry point) |
 
 ## Key Capabilities
 
-### 1. Identity DSL
+### Identity DSL
+Model authentication flows through a DSL instead of scattered configuration. Supports form login, REST, OTT, passkey, and MFA combinations.
 
-`contexa-identity` lets teams model security configuration around authentication flows instead of scattered low-level configuration.
-It supports form login, REST login, OTT, passkey, and MFA combinations through a DSL-oriented platform configuration model.
+### Dynamic Authorization
+Policy-driven access control at URL, method, and resource levels. `@Protectable` enables method-level Zero Trust protection with AI-assisted risk evaluation.
 
-```java
-@Bean
-public PlatformConfig platformDslConfig(
-        IdentityDslRegistry<HttpSecurity> registry,
-        CustomDynamicAuthorizationManager authManager,
-        AISessionSecurityContextRepository sessionRepo) throws Exception {
+### AI Security Engine
+LLM-powered behavioral analysis with contextual enrichment. Compares each request against learned baselines using vector retrieval (RAG) to detect anomalies that static rules miss.
 
-    return registry
-            .global(http -> http
-                    .authorizeHttpRequests(auth -> auth.anyRequest().access(authManager))
-                    .securityContext(sc -> sc.securityContextRepository(sessionRepo)))
-            .mfa(mfa -> mfa
-                    .primaryAuthentication(auth -> auth.formLogin(Customizer.withDefaults()))
-                    .ott(Customizer.withDefaults()))
-            .session(Customizer.withDefaults())
-            .build();
-}
-```
-
-### 2. Policy-Driven Authorization
-
-`contexa-iam` evaluates access at URL, method, and resource levels.
-It does not stop at static role checks. Policy expressions can incorporate AI-aware conditions in the authorization path.
-
-Typical IAM responsibilities include:
-
-- dynamic URL authorization
-- `@Protectable` method-level protection
-- resource scanning and metadata registration
-- policy authoring and workflow support
-- AI-assisted policy generation APIs
-
-### 3. AI-Native Security Core
-
-`contexa-core` is the execution layer behind LLM calls, streaming, vector retrieval, and autonomous security processing.
-
-Its responsibilities include:
-
-- unified LLM orchestration
-- model priority selection
-- streaming response handling
-- vector store retrieval and contextual enrichment
-- autonomous security event processing
-- Zero Trust action state handling
-
-The Zero Trust action model exposed across the platform is:
-
-- `ALLOW`
-- `CHALLENGE`
-- `BLOCK`
-- `ESCALATE`
-- `PENDING_ANALYSIS`
-
-### 4. Autonomous Security Plane
-
-Contexa includes an event-driven security processing layer that collects security events, enriches context, runs AI analysis, and applies response state back into the platform.
-This is where `contexa-core`, `contexa-identity`, and `contexa-iam` connect most tightly.
-
-### 5. SOAR and MCP (Enterprise)
-
-SOAR approval workflows and MCP tool calling are available in the Enterprise edition.
-See the Enterprise Edition section above for details.
+### Autonomous Security Plane
+Event-driven processing layer that collects security events, enriches context, runs AI analysis, and applies Zero Trust actions back into the platform in real-time.
 
 ## Operating Modes
 
-Contexa supports two operating modes:
-
-- `standalone`
-  Default mode, favoring in-memory implementations and local operation.
-- `distributed`
-  Extended mode using distributed components such as Redis and Kafka where configured.
+| Mode | Infrastructure | Use Case |
+|---|---|---|
+| `standalone` | PostgreSQL + Ollama | Development, small deployments |
+| `distributed` | + Redis + Kafka | Production, multi-instance |
 
 ```yaml
 contexa:
   infrastructure:
-    mode: standalone
+    mode: standalone   # or distributed
 ```
 
 ## Community vs Enterprise
 
 | Capability | Community | Enterprise |
 |---|---|---|
-| Identity DSL | Yes | Yes |
-| Adaptive MFA | Yes | Yes |
+| Identity DSL & Adaptive MFA | Yes | Yes |
 | Dynamic Authorization | Yes | Yes |
-| LLM Orchestration | Yes | Yes |
-| RAG and Vector Retrieval | Yes | Yes |
+| AI Security Engine & RAG | Yes | Yes |
 | Autonomous Security Plane | Yes | Yes |
-| SOAR Approval Workflow | - | Available separately |
-| MCP Tool Calling | - | Available separately |
-| Simulation | - | Available separately |
-| Extended Metrics and Dashboard | - | Available separately |
+| Zero Trust Actions | Yes | Yes |
+| SOAR Approval Workflow | — | Yes |
+| MCP Tool Calling | — | Yes |
+| Security Response Simulation | — | Yes |
+| Extended Metrics & Dashboard | — | Yes |
 
-## Who Contexa Is For
+The Community edition includes the full Zero Trust core engine.
+Enterprise extends it with SOAR, MCP orchestration, and operational tooling.
 
-Contexa fits teams that:
+> Contact the maintainers for Enterprise access.
 
-- run Spring Security-based systems
-- need security decisions after authentication, not only before it
-- want IAM policy and AI-assisted risk evaluation in one platform
-- want a path from human approval to controlled automation
+## Links
 
-## Repository Layout
-
-This repository is a multi-module platform, not a single library.
-The root build includes:
-
-- `contexa-core`
-- `contexa-identity`
-- `contexa-iam`
-- `contexa-common`
-- `contexa-autoconfigure`
-- `spring-boot-starter-contexa`
-
-## Practical Notes
-
-- Community use still requires understanding of Spring Security, LLM configuration, and vector store setup.
-- `standalone` and `distributed` should be treated as deliberate deployment choices.
-- Contexa is not just an AI chat integration. It is an identity, authorization, analysis, and response platform.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## Security
-
-See [SECURITY.md](SECURITY.md).
+- **Website**: [https://www.ctxa.ai](https://www.ctxa.ai)
+- **Documentation**: [Get Started](https://www.ctxa.ai/get-started.html) · [Architecture](https://www.ctxa.ai/docs/architecture/platform-overview.html)
+- **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Security**: [SECURITY.md](SECURITY.md)
 
 ## License
 
-This project is released under Apache License 2.0.
+Apache License 2.0 — see [LICENSE](LICENSE) for details.

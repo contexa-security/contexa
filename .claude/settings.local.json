@@ -265,7 +265,8 @@
       "Bash(find /d/projects/contexa /e/projects/contexa-docs /e/projects/contexa-examples -type f \\\\\\(-name *final* -o -name *scenario* -o -name *page* \\\\\\))",
       "Bash(jar tf:*)",
       "Bash(jar xf:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(find /e/projects/contexa-docs -path */node_modules -prune -o -type f \\\\\\(-name *.md -o -name *.json \\\\\\) -print)"
     ],
     "deny": [],
     "ask": []
