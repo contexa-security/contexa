@@ -266,7 +266,8 @@
       "Bash(jar tf:*)",
       "Bash(jar xf:*)",
       "Bash(git stash:*)",
-      "Bash(find /e/projects/contexa-docs -path */node_modules -prune -o -type f \\\\\\(-name *.md -o -name *.json \\\\\\) -print)"
+      "Bash(find /e/projects/contexa-docs -path */node_modules -prune -o -type f \\\\\\(-name *.md -o -name *.json \\\\\\) -print)",
+      "Bash(find /e/projects/contexa -type f \\\\\\(-name *.java -o -name *.html -o -name *.js -o -name *.xml \\\\\\))"
     ],
     "deny": [],
     "ask": []
