@@ -54,6 +54,9 @@ nul
 *_backup
 *_temp.txt
 
+### GeoIP Database ###
+*.mmdb
+
 ### Project Specific ###
 # 개발 중 임시 파일
 **/temp/

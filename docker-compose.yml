@@ -54,6 +54,40 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # Contexa Application (optional - build from source)
+  contexa-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contexa-app
+    profiles:
+      - app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/contexa
+      SPRING_DATASOURCE_USERNAME: admin
+      SPRING_DATASOURCE_PASSWORD: 1111
+      SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
+      HCAD_GEOIP_ENABLED: "true"
+      HCAD_GEOIP_DB_PATH: data/GeoLite2-City.mmdb
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data:ro
+    networks:
+      - contexa-network
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+    restart: unless-stopped
+
   # --- Distributed Profile Services ---
 
   # Redis - session store, cache, and distributed locks

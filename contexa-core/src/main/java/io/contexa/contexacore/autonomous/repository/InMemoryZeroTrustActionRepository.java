@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * In-memory implementation of ZeroTrustActionRepository for standalone mode.
@@ -27,6 +28,7 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     private final ConcurrentHashMap<String, FailCountEntry> mfaFailCounts = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> mfaPendingExpiry = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Instant> escalateRetries = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ReentrantLock> userLocks = new ConcurrentHashMap<>();
 
     @Override
     public ZeroTrustAction getCurrentAction(String userId) {
@@ -59,10 +61,13 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     public ZeroTrustAction getCurrentAction(String userId, String contextBindingHash) {
         ZeroTrustAction action = getCurrentAction(userId);
 
-        if (action == ZeroTrustAction.ALLOW && contextBindingHash != null) {
+        if (action != ZeroTrustAction.PENDING_ANALYSIS
+                && action != ZeroTrustAction.BLOCK
+                && contextBindingHash != null) {
             AnalysisEntry entry = analysisStore.get(userId);
             if (entry != null && entry.contextBindingHash != null
                     && !entry.contextBindingHash.equals(contextBindingHash)) {
+                log.error("[InMemoryZTARepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
                 return ZeroTrustAction.PENDING_ANALYSIS;
             }
         }
@@ -243,12 +248,10 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
 
         analysisStore.put(userId, entry);
 
-        if (action != ZeroTrustAction.BLOCK) {
-            ActionEntry lastEntry = new ActionEntry();
-            lastEntry.action = action.name();
-            lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
-            lastVerifiedStore.put(userId, lastEntry);
-        }
+        ActionEntry lastEntry = new ActionEntry();
+        lastEntry.action = action.name();
+        lastEntry.expiresAt = Instant.now().plus(24, ChronoUnit.HOURS);
+        lastVerifiedStore.put(userId, lastEntry);
     }
 
     @Override
@@ -360,9 +363,13 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
             return;
         }
 
-        synchronized (userId.intern()) {
+        ReentrantLock lock = userLocks.computeIfAbsent(userId, k -> new ReentrantLock());
+        lock.lock();
+        try {
             blockedUsers.remove(userId);
             saveActionWithPrevious(userId, newAction);
+        } finally {
+            lock.unlock();
         }
     }
 

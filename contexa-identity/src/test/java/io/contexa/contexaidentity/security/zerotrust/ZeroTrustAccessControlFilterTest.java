@@ -71,7 +71,8 @@ class ZeroTrustAccessControlFilterTest {
                 blockedUserRecorder,
                 challengeMfaInitializer,
                 authUrlProvider,
-                blockingSignalBroadcaster
+                blockingSignalBroadcaster,
+                2
         );
 
         when(request.getContextPath()).thenReturn("");

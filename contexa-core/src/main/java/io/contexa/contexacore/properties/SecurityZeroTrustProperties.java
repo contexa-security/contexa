@@ -12,6 +12,8 @@ public class SecurityZeroTrustProperties {
 
     private SecurityMode mode = SecurityMode.ENFORCE;
 
+    private int maxBlockMfaAttempts = 2;
+
     public enum SecurityMode {
         SHADOW,
         ENFORCE;

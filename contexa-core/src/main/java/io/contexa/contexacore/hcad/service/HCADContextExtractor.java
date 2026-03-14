@@ -36,6 +36,9 @@ public class HCADContextExtractor {
     @Setter
     private BaselineLearningService baselineLearningService;
 
+    @Setter
+    private GeoIpService geoIpService;
+
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public HCADContext extractContext(HttpServletRequest request, Authentication authentication) {
@@ -74,6 +77,8 @@ public class HCADContextExtractor {
             enrichWithSecurityInfo(context, userId, authentication);
 
             enrichWithResourceInfo(context, request);
+
+            enrichWithGeoLocation(context, clientIp);
 
             long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
 
@@ -348,6 +353,81 @@ public class HCADContextExtractor {
         } catch (Exception e) {
             context.setResourceType(null);
             context.setIsSensitiveResource(null);
+        }
+    }
+
+    private void enrichWithGeoLocation(HCADContext context, String clientIp) {
+        if (geoIpService == null || clientIp == null) {
+            return;
+        }
+        try {
+            GeoIpService.GeoLocation location = geoIpService.lookup(clientIp);
+            if (location != null && location.isKnown()) {
+                context.setCountry(location.country());
+                context.setCity(location.city());
+                context.setLatitude(location.latitude());
+                context.setLongitude(location.longitude());
+
+                detectImpossibleTravel(context, location);
+            }
+        } catch (Exception e) {
+            log.error("[HCADContextExtractor] GeoIP enrichment failed: ip={}", clientIp, e);
+        }
+    }
+
+    private void detectImpossibleTravel(HCADContext context, GeoIpService.GeoLocation currentLocation) {
+        if (!currentLocation.hasCoordinates() || context.getUserId() == null || securityContextDataStore == null) {
+            return;
+        }
+        try {
+            String userId = context.getUserId();
+            String prevLocationKey = "geoloc:" + userId;
+
+            String prevData = securityContextDataStore.getPreviousPath(prevLocationKey);
+
+            String currentData = String.format("%f,%f,%d,%s,%s",
+                    currentLocation.latitude(), currentLocation.longitude(),
+                    System.currentTimeMillis(),
+                    currentLocation.city() != null ? currentLocation.city() : "",
+                    currentLocation.country() != null ? currentLocation.country() : "");
+            securityContextDataStore.setPreviousPath(prevLocationKey, currentData);
+
+            if (prevData == null || prevData.isBlank()) {
+                return;
+            }
+
+            String[] parts = prevData.split(",", 5);
+            if (parts.length < 3) {
+                return;
+            }
+
+            double prevLat = Double.parseDouble(parts[0]);
+            double prevLon = Double.parseDouble(parts[1]);
+            long prevTimeMs = Long.parseLong(parts[2]);
+            String prevCity = parts.length > 3 ? parts[3] : "";
+            String prevCountry = parts.length > 4 ? parts[4] : "";
+
+            long elapsedMs = System.currentTimeMillis() - prevTimeMs;
+            double distanceKm = GeoIpService.distanceKm(
+                    prevLat, prevLon,
+                    currentLocation.latitude(), currentLocation.longitude());
+
+            if (GeoIpService.isImpossibleTravel(distanceKm, elapsedMs)) {
+                Map<String, Object> attrs = context.getAdditionalAttributes();
+                if (attrs == null) {
+                    attrs = new java.util.HashMap<>();
+                    context.setAdditionalAttributes(attrs);
+                }
+                attrs.put("impossibleTravel", true);
+                attrs.put("travelDistanceKm", (int) distanceKm);
+                attrs.put("travelElapsedMinutes", elapsedMs / 60000);
+                attrs.put("previousLocation", prevCity.isEmpty() ? prevCountry : prevCity + ", " + prevCountry);
+
+                log.error("[HCADContextExtractor] Impossible travel detected: userId={}, distance={}km, elapsed={}min",
+                        userId, (int) distanceKm, elapsedMs / 60000);
+            }
+        } catch (Exception e) {
+            log.error("[HCADContextExtractor] Impossible travel detection failed", e);
         }
     }
 

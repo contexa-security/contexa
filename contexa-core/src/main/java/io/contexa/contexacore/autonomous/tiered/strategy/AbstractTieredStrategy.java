@@ -182,24 +182,32 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     int similarityPct = (int) (score * 100);
 
                     StringBuilder summary = new StringBuilder();
-                    Object docType = meta.get("documentType");
-                    if ("threat".equals(String.valueOf(docType))) {
-                        summary.append("[BLOCKED] ");
+                    String docType = String.valueOf(meta.get("documentType"));
+                    switch (docType) {
+                        case "threat" -> summary.append("[BLOCKED] ");
+                        case "suspicious" -> summary.append("[CHALLENGED] ");
+                        case "ambiguous" -> summary.append("[ESCALATED] ");
+                        default -> {}
                     }
                     summary.append(String.format("Similarity:%d%%", similarityPct));
 
                     appendMetaIfPresent(summary, meta, "sourceIp", "IP");
                     appendMetaIfPresent(summary, meta, "requestPath", "Path");
                     appendMetaIfPresent(summary, meta, "hour", "Hour");
+                    appendMetaIfPresent(summary, meta, "dayOfWeek", "Day");
                     appendMetaIfPresent(summary, meta, "userAgentOS", "OS");
                     appendMetaIfPresent(summary, meta, "userAgentBrowser", "UA");
+                    appendMetaIfPresent(summary, meta, "riskScore", "Risk");
+                    appendMetaIfPresent(summary, meta, "confidence", "Conf");
+                    appendMetaIfPresent(summary, meta, "action", "Action");
 
                     String content = doc.getText();
                     if (content != null && !content.isBlank()) {
-                        String truncated = content.length() > 120
-                                ? content.substring(0, 120) + "..."
+                        int maxPreview = "threat".equals(docType) ? 400 : 300;
+                        String truncated = content.length() > maxPreview
+                                ? content.substring(0, maxPreview) + "..."
                                 : content;
-                        summary.append(" -> ").append(truncated);
+                        summary.append("\n  ").append(truncated);
                     }
 
                     return summary.toString();
@@ -323,6 +331,37 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 queryBuilder.append("OS: ").append(currentOS);
             }
 
+            String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
+            if (browser != null) {
+                if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
+                queryBuilder.append("UA: ").append(browser);
+            }
+
+            if (event.getTimestamp() != null) {
+                int hour = event.getTimestamp().getHour();
+                if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
+                queryBuilder.append("Hour: ").append(hour);
+            }
+
+            Map<String, Object> meta = event.getMetadata();
+            if (meta != null) {
+                Object httpMethod = meta.get("httpMethod");
+                if (httpMethod != null) {
+                    if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
+                    queryBuilder.append("Method: ").append(httpMethod);
+                }
+
+                if (Boolean.TRUE.equals(meta.get("isNewDevice"))) {
+                    if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
+                    queryBuilder.append("NewDevice: true");
+                }
+
+                if (Boolean.TRUE.equals(meta.get("isSensitiveResource"))) {
+                    if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
+                    queryBuilder.append("SensitiveResource: true");
+                }
+            }
+
             String query = queryBuilder.toString().trim();
             if (query.isEmpty()) {
                 return Collections.emptyList();
@@ -338,8 +377,14 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
             Filter.Expression filter = filterBuilder.and(
                 filterBuilder.or(
-                    filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
-                    filterBuilder.eq("documentType", VectorDocumentType.THREAT.getValue())
+                    filterBuilder.or(
+                        filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
+                        filterBuilder.eq("documentType", VectorDocumentType.THREAT.getValue())
+                    ),
+                    filterBuilder.or(
+                        filterBuilder.eq("documentType", VectorDocumentType.SUSPICIOUS.getValue()),
+                        filterBuilder.eq("documentType", VectorDocumentType.AMBIGUOUS.getValue())
+                    )
                 ),
                 filterBuilder.eq("userId", userId)
             ).build();

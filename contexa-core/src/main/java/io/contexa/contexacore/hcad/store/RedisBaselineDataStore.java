@@ -39,6 +39,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                     .lastUpdated(parseInstant(data.get("lastUpdated")))
                     .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
                     .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
+                    .normalAccessDays(parseIntegerArray(data.get("normalAccessDays")))
                     .frequentPaths(parseStringArray(data.get("frequentPaths")))
                     .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
                     .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
@@ -69,6 +70,11 @@ public class RedisBaselineDataStore implements BaselineDataStore {
             }
             if (baseline.getNormalAccessHours() != null && baseline.getNormalAccessHours().length > 0) {
                 data.put("normalAccessHours", Arrays.stream(baseline.getNormalAccessHours())
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(",")));
+            }
+            if (baseline.getNormalAccessDays() != null && baseline.getNormalAccessDays().length > 0) {
+                data.put("normalAccessDays", Arrays.stream(baseline.getNormalAccessDays())
                         .map(String::valueOf)
                         .collect(Collectors.joining(",")));
             }
@@ -113,6 +119,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
                     .lastUpdated(parseInstant(data.get("lastUpdated")))
                     .normalIpRanges(parseStringArray(data.get("normalIpRanges")))
                     .normalAccessHours(parseIntegerArray(data.get("normalAccessHours")))
+                    .normalAccessDays(parseIntegerArray(data.get("normalAccessDays")))
                     .frequentPaths(parseStringArray(data.get("frequentPaths")))
                     .normalUserAgents(parseStringArray(data.get("normalUserAgents")))
                     .normalOperatingSystems(parseStringArray(data.get("normalOperatingSystems")))
@@ -142,6 +149,11 @@ public class RedisBaselineDataStore implements BaselineDataStore {
             }
             if (baseline.getNormalAccessHours() != null && baseline.getNormalAccessHours().length > 0) {
                 data.put("normalAccessHours", Arrays.stream(baseline.getNormalAccessHours())
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(",")));
+            }
+            if (baseline.getNormalAccessDays() != null && baseline.getNormalAccessDays().length > 0) {
+                data.put("normalAccessDays", Arrays.stream(baseline.getNormalAccessDays())
                         .map(String::valueOf)
                         .collect(Collectors.joining(",")));
             }

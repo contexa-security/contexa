@@ -13,6 +13,7 @@ import org.springframework.ai.document.Document;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -35,7 +36,7 @@ public class SecurityDecisionPostProcessor {
         }
 
         try {
-            dataStore.addSessionAction(sessionId, buildBehaviorSentence(event, decision));
+            dataStore.addSessionAction(sessionId, buildActionSummary(event, decision));
 
             if (decision.getAction() == ZeroTrustAction.BLOCK) {
                 dataStore.setSessionRisk(sessionId, decision.getRiskScore());
@@ -52,43 +53,204 @@ public class SecurityDecisionPostProcessor {
 
         try {
             ZeroTrustAction action = decision.getAction();
-
-            if (action == ZeroTrustAction.ALLOW) {
-                storeBehaviorDocument(event, decision);
+            if (action == null) {
+                log.error("[SecurityDecisionPostProcessor] Decision action is null, skipping vector storage: eventId={}",
+                        event.getEventId());
+                return;
             }
 
-            if (action == ZeroTrustAction.BLOCK) {
-                String content = buildBehaviorContent(event, decision);
-                storeThreatDocument(event, decision, content);
+            switch (action) {
+                case ALLOW -> storeBehaviorDocument(event, decision);
+                case BLOCK -> storeThreatDocument(event, decision);
+                case CHALLENGE -> storeSuspiciousDocument(event, decision);
+                case ESCALATE, PENDING_ANALYSIS -> storeAmbiguousDocument(event, decision);
             }
 
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            log.error("[SecurityDecisionPostProcessor] Failed to store vector document: eventId={}",
+                    event.getEventId(), e);
         }
     }
+
+    // ── ALLOW: behavior document ──
 
     private void storeBehaviorDocument(SecurityEvent event, SecurityDecision decision) {
         try {
-            String content = buildBehaviorSentence(event, decision);
-            Map<String, Object> metadata = buildBaseMetadata(event, decision, VectorDocumentType.BEHAVIOR.getValue());
+            String content = buildBehaviorContent(event, decision);
+            Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.BEHAVIOR.getValue());
 
             Document document = new Document(content, metadata);
             unifiedVectorService.storeDocument(document);
-
         } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            log.error("[SecurityDecisionPostProcessor] Failed to store behavior document: eventId={}",
+                    event.getEventId(), e);
         }
     }
 
-    private String buildBehaviorSentence(SecurityEvent event, SecurityDecision decision) {
+    private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append(buildActionSummary(event, decision));
+        sb.append("\n");
+
+        sb.append("Decision: action=").append(decision.getAction().name());
+        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
+        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
+        if (decision.getProcessingLayer() > 0) {
+            sb.append(", analysisLayer=").append(decision.getProcessingLayer());
+        }
+        sb.append("\n");
+
+        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
+            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 300)).append("\n");
+        }
+
+        appendSessionContext(sb, event);
+
+        return sb.toString();
+    }
+
+    // ── BLOCK: threat document ──
+
+    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision) {
+        try {
+            String content = buildThreatContent(event, decision);
+            Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.THREAT.getValue());
+
+            if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
+                metadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
+            }
+
+            Document threatDoc = new Document(content, metadata);
+            unifiedVectorService.storeDocument(threatDoc);
+        } catch (Exception e) {
+            log.error("[SecurityDecisionPostProcessor] Failed to store threat document: eventId={}",
+                    event.getEventId(), e);
+        }
+    }
+
+    private String buildThreatContent(SecurityEvent event, SecurityDecision decision) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("[BLOCKED] ");
+        sb.append(buildActionSummary(event, decision));
+        sb.append("\n");
+
+        sb.append("Threat: action=BLOCK");
+        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
+        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
+        if (decision.getProcessingLayer() > 0) {
+            sb.append(", analysisLayer=").append(decision.getProcessingLayer());
+        }
+        sb.append("\n");
+
+        if (decision.getThreatCategory() != null) {
+            sb.append("ThreatCategory: ").append(decision.getThreatCategory()).append("\n");
+        }
+
+        if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
+            sb.append("BehaviorPatterns: ").append(String.join(", ", decision.getBehaviorPatterns())).append("\n");
+        }
+
+        if (decision.getIocIndicators() != null && !decision.getIocIndicators().isEmpty()) {
+            sb.append("IOC: ").append(String.join(", ", decision.getIocIndicators())).append("\n");
+        }
+
+        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
+            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 500)).append("\n");
+        }
+
+        if (decision.getEvidence() != null && !decision.getEvidence().isEmpty()) {
+            sb.append("Evidence: ").append(String.join("; ", decision.getEvidence())).append("\n");
+        }
+
+        appendSessionContext(sb, event);
+
+        return sb.toString();
+    }
+
+    // ── CHALLENGE: suspicious document ──
+
+    private void storeSuspiciousDocument(SecurityEvent event, SecurityDecision decision) {
+        try {
+            String content = buildSuspiciousContent(event, decision);
+            Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.SUSPICIOUS.getValue());
+
+            Document doc = new Document(content, metadata);
+            unifiedVectorService.storeDocument(doc);
+        } catch (Exception e) {
+            log.error("[SecurityDecisionPostProcessor] Failed to store suspicious document: eventId={}",
+                    event.getEventId(), e);
+        }
+    }
+
+    private String buildSuspiciousContent(SecurityEvent event, SecurityDecision decision) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("[CHALLENGED] ");
+        sb.append(buildActionSummary(event, decision));
+        sb.append("\n");
+
+        sb.append("Decision: action=CHALLENGE");
+        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
+        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
+        if (decision.getProcessingLayer() > 0) {
+            sb.append(", analysisLayer=").append(decision.getProcessingLayer());
+        }
+        sb.append("\n");
+
+        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
+            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 400)).append("\n");
+        }
+
+        appendSessionContext(sb, event);
+
+        return sb.toString();
+    }
+
+    // ── ESCALATE/PENDING: ambiguous document ──
+
+    private void storeAmbiguousDocument(SecurityEvent event, SecurityDecision decision) {
+        try {
+            String content = buildAmbiguousContent(event, decision);
+            Map<String, Object> metadata = buildEnrichedMetadata(event, decision, VectorDocumentType.AMBIGUOUS.getValue());
+
+            Document doc = new Document(content, metadata);
+            unifiedVectorService.storeDocument(doc);
+        } catch (Exception e) {
+            log.error("[SecurityDecisionPostProcessor] Failed to store ambiguous document: eventId={}",
+                    event.getEventId(), e);
+        }
+    }
+
+    private String buildAmbiguousContent(SecurityEvent event, SecurityDecision decision) {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("[ESCALATED] ");
+        sb.append(buildActionSummary(event, decision));
+        sb.append("\n");
+
+        sb.append("Decision: action=").append(decision.getAction().name());
+        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
+        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
+        sb.append("\n");
+
+        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
+            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 400)).append("\n");
+        }
+
+        appendSessionContext(sb, event);
+
+        return sb.toString();
+    }
+
+    // ── shared builders ──
+
+    private String buildActionSummary(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sentence = new StringBuilder();
 
-        String method = null;
+        String method = extractMetaString(event, "httpMethod");
         String path = extractPath(event);
-        if (event.getMetadata() != null) {
-            Object m = event.getMetadata().get("httpMethod");
-            if (m != null) method = m.toString();
-        }
 
         sentence.append("User accessed ");
         if (path != null) {
@@ -116,88 +278,51 @@ public class SecurityDecisionPostProcessor {
             sentence.append(String.format(" at %02d:%02d",
                     event.getTimestamp().getHour(),
                     event.getTimestamp().getMinute()));
+            int dow = event.getTimestamp().getDayOfWeek().getValue();
+            sentence.append(" (").append(dayOfWeekLabel(dow)).append(")");
         }
-
-        sentence.append(", observed ").append(decision.getAction().name().toLowerCase());
 
         return sentence.toString();
     }
 
-    private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
-        StringBuilder content = new StringBuilder();
+    private void appendSessionContext(StringBuilder sb, SecurityEvent event) {
+        if (event.getMetadata() == null) return;
 
-        if (event.getUserId() != null) {
-            content.append("User: ").append(event.getUserId());
+        Object mfaVerified = event.getMetadata().get("mfaVerified");
+        if (mfaVerified != null) {
+            sb.append("MfaVerified: ").append(mfaVerified).append("\n");
         }
 
-        if (event.getSourceIp() != null) {
-            if (!content.isEmpty()) content.append(", ");
-            content.append("IP: ").append(event.getSourceIp());
+        Object isNewDevice = event.getMetadata().get("isNewDevice");
+        if (Boolean.TRUE.equals(isNewDevice)) {
+            sb.append("NewDevice: true\n");
         }
 
-        String path = extractPath(event);
-        if (path != null) {
-            if (!content.isEmpty()) content.append(", ");
-            content.append("Path: ").append(path);
+        Object isNewSession = event.getMetadata().get("isNewSession");
+        if (Boolean.TRUE.equals(isNewSession)) {
+            sb.append("NewSession: true\n");
         }
 
-        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
-        if (os != null && !"Desktop".equals(os)) {
-            if (!content.isEmpty()) content.append(", ");
-            content.append("OS: ").append(os);
+        Object recentRequestCount = event.getMetadata().get("recentRequestCount");
+        if (recentRequestCount instanceof Number) {
+            sb.append("RecentRequestCount: ").append(recentRequestCount).append("\n");
         }
 
-        return content.toString();
-    }
-
-    private String extractPath(SecurityEvent event) {
-        if (event.getMetadata() != null) {
-
-            Object uri = event.getMetadata().get("requestPath");
-            if (uri != null) {
-                return uri.toString();
-            }
-
-            Object fullPath = event.getMetadata().get("fullPath");
-            if (fullPath != null) {
-                return fullPath.toString();
-            }
+        Object failedLoginAttempts = event.getMetadata().get("failedLoginAttempts");
+        if (failedLoginAttempts == null) {
+            failedLoginAttempts = event.getMetadata().get("auth.failure_count");
         }
-        return null;
-    }
+        if (failedLoginAttempts instanceof Number && ((Number) failedLoginAttempts).intValue() > 0) {
+            sb.append("FailedLoginAttempts: ").append(failedLoginAttempts).append("\n");
+        }
 
-    private void storeThreatDocument(SecurityEvent event, SecurityDecision decision, String analysisContent) {
-        try {
-            Map<String, Object> threatMetadata = buildBaseMetadata(event, decision, VectorDocumentType.THREAT.getValue());
-
-            if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
-                threatMetadata.put("behaviorPatterns", String.join(", ", decision.getBehaviorPatterns()));
-            }
-
-            StringBuilder threatDesc = new StringBuilder("Contextual Threat:");
-
-            if (event.getUserId() != null) {
-                threatDesc.append(" User=").append(event.getUserId());
-            }
-            if (event.getSourceIp() != null) {
-                threatDesc.append(", IP=").append(event.getSourceIp());
-            }
-            if (decision.getThreatCategory() != null) {
-                threatDesc.append(", ThreatCategory=").append(decision.getThreatCategory());
-            }
-            if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
-                threatDesc.append(", BehaviorPatterns=").append(decision.getBehaviorPatterns());
-            }
-
-            Document threatDoc = new Document(threatDesc.toString(), threatMetadata);
-            unifiedVectorService.storeDocument(threatDoc);
-
-        } catch (Exception e) {
-            log.error("[SecurityDecisionPostProcessor] Failed to store threat document: eventId={}", event.getEventId(), e);
+        Object isSensitive = event.getMetadata().get("isSensitiveResource");
+        if (Boolean.TRUE.equals(isSensitive)) {
+            sb.append("SensitiveResource: true\n");
         }
     }
 
-    private Map<String, Object> buildBaseMetadata(SecurityEvent event, SecurityDecision decision, String documentType) {
+    private Map<String, Object> buildEnrichedMetadata(SecurityEvent event, SecurityDecision decision, String documentType) {
         Map<String, Object> metadata = new HashMap<>();
 
         metadata.put("documentType", documentType);
@@ -209,6 +334,7 @@ public class SecurityDecisionPostProcessor {
 
         if (event.getTimestamp() != null) {
             metadata.put("hour", event.getTimestamp().getHour());
+            metadata.put("dayOfWeek", event.getTimestamp().getDayOfWeek().getValue());
         }
 
         if (event.getEventId() != null) {
@@ -224,6 +350,18 @@ public class SecurityDecisionPostProcessor {
             metadata.put("sessionId", event.getSessionId());
         }
 
+        if (decision.getAction() != null) {
+            metadata.put("action", decision.getAction().name());
+        }
+        double rs = decision.getRiskScore();
+        metadata.put("riskScore", Double.isNaN(rs) ? -1.0 : rs);
+        double conf = decision.getConfidence();
+        metadata.put("confidence", Double.isNaN(conf) ? -1.0 : conf);
+
+        if (decision.getProcessingLayer() > 0) {
+            metadata.put("analysisDepth", decision.getProcessingLayer());
+        }
+
         if (decision.getThreatCategory() != null) {
             metadata.put("threatCategory", decision.getThreatCategory());
         }
@@ -231,6 +369,11 @@ public class SecurityDecisionPostProcessor {
         String requestPath = extractPath(event);
         if (requestPath != null) {
             metadata.put("requestPath", requestPath);
+        }
+
+        String httpMethod = extractMetaString(event, "httpMethod");
+        if (httpMethod != null) {
+            metadata.put("httpMethod", httpMethod);
         }
 
         if (event.getUserAgent() != null && !event.getUserAgent().isEmpty()) {
@@ -249,4 +392,47 @@ public class SecurityDecisionPostProcessor {
         return metadata;
     }
 
+    private String extractPath(SecurityEvent event) {
+        if (event.getMetadata() != null) {
+            Object uri = event.getMetadata().get("requestPath");
+            if (uri != null) {
+                return uri.toString();
+            }
+
+            Object fullPath = event.getMetadata().get("fullPath");
+            if (fullPath != null) {
+                return fullPath.toString();
+            }
+        }
+        return null;
+    }
+
+    private String extractMetaString(SecurityEvent event, String key) {
+        if (event.getMetadata() == null) return null;
+        Object val = event.getMetadata().get(key);
+        return val != null ? val.toString() : null;
+    }
+
+    private static String formatScore(double score) {
+        if (Double.isNaN(score)) return "N/A";
+        return String.format("%.2f", score);
+    }
+
+    private static String truncate(String text, int maxLen) {
+        if (text == null) return "";
+        return text.length() > maxLen ? text.substring(0, maxLen) + "..." : text;
+    }
+
+    private static String dayOfWeekLabel(int dow) {
+        return switch (dow) {
+            case 1 -> "Mon";
+            case 2 -> "Tue";
+            case 3 -> "Wed";
+            case 4 -> "Thu";
+            case 5 -> "Fri";
+            case 6 -> "Sat";
+            case 7 -> "Sun";
+            default -> "?";
+        };
+    }
 }

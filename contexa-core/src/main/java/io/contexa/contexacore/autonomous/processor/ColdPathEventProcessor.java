@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -30,8 +30,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
     private static final int ESCALATE_SAMPLE_WINDOW = 100;
     private static final double ESCALATE_RATE_THRESHOLD = 0.5;
-    private final AtomicInteger escalateCount = new AtomicInteger(0);
-    private final AtomicInteger totalAnalysisCount = new AtomicInteger(0);
+    private final ReentrantLock escalateWindowLock = new ReentrantLock();
+    private int escalateCount = 0;
+    private int totalAnalysisCount = 0;
 
     @Override
     public ProcessingResult processEvent(SecurityEvent event, double riskScore) {
@@ -124,26 +125,37 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 event.getMetadata().put("layer1Assessment", layer1Assessment);
             }
 
-            int total = totalAnalysisCount.incrementAndGet();
-            if (total >= ESCALATE_SAMPLE_WINDOW) {
-                totalAnalysisCount.set(0);
-                escalateCount.set(0);
+            boolean shouldApplyEscalateProtection = false;
+            escalateWindowLock.lock();
+            try {
+                totalAnalysisCount++;
+                if (layer1Assessment != null && layer1Assessment.isShouldEscalate()) {
+                    escalateCount++;
+                }
+                if (totalAnalysisCount > 10) {
+                    double escalateRate = (double) escalateCount / totalAnalysisCount;
+                    if (escalateRate > ESCALATE_RATE_THRESHOLD) {
+                        log.error("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold, applying CHALLENGE fallback: eventId={}",
+                                escalateCount, totalAnalysisCount, String.format("%.1f", escalateRate * 100), event.getEventId());
+                        shouldApplyEscalateProtection = true;
+                    }
+                }
+                if (totalAnalysisCount >= ESCALATE_SAMPLE_WINDOW) {
+                    totalAnalysisCount = 0;
+                    escalateCount = 0;
+                }
+            } finally {
+                escalateWindowLock.unlock();
             }
 
-            if (layer1Assessment != null && layer1Assessment.isShouldEscalate()) {
-                int escalates = escalateCount.incrementAndGet();
-                double escalateRate = (double) escalates / total;
-                if (escalateRate > ESCALATE_RATE_THRESHOLD && total > 10) {
-                    log.error("[ColdPath] Escalate rate {}/{} ({}%) exceeded threshold, applying CHALLENGE fallback: eventId={}",
-                            escalates, total, String.format("%.1f", escalateRate * 100), event.getEventId());
-                    result.setFinalScore(0.5);
-                    result.setConfidence(0.4);
-                    result.setAction(ZeroTrustAction.CHALLENGE.name());
-                    result.setReasoning("Escalate overload protection - CHALLENGE applied");
-                    result.setAnalysisDepth(1);
-                    publishDecisionApplied(userId, ZeroTrustAction.CHALLENGE.name(), "ESCALATE_PROTECTION", requestPath);
-                    return result;
-                }
+            if (shouldApplyEscalateProtection) {
+                result.setFinalScore(0.5);
+                result.setConfidence(0.4);
+                result.setAction(ZeroTrustAction.CHALLENGE.name());
+                result.setReasoning("Escalate overload protection - CHALLENGE applied");
+                result.setAnalysisDepth(1);
+                publishDecisionApplied(userId, ZeroTrustAction.CHALLENGE.name(), "ESCALATE_PROTECTION", requestPath);
+                return result;
             }
 
             if (expertStrategy != null) {

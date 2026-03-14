@@ -118,6 +118,24 @@ public class ZeroTrustEventPublisher {
             payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
             payload.put("mfaVerified", requestInfo.getMfaVerified());
             payload.put("userRoles", requestInfo.getUserRoles());
+            if (requestInfo.getGeoCountry() != null) {
+                payload.put("geoCountry", requestInfo.getGeoCountry());
+            }
+            if (requestInfo.getGeoCity() != null) {
+                payload.put("geoCity", requestInfo.getGeoCity());
+            }
+            if (requestInfo.getGeoLatitude() != null) {
+                payload.put("geoLatitude", requestInfo.getGeoLatitude());
+            }
+            if (requestInfo.getGeoLongitude() != null) {
+                payload.put("geoLongitude", requestInfo.getGeoLongitude());
+            }
+            if (Boolean.TRUE.equals(requestInfo.getImpossibleTravel())) {
+                payload.put("impossibleTravel", true);
+                payload.put("travelDistanceKm", requestInfo.getTravelDistanceKm());
+                payload.put("travelElapsedMinutes", requestInfo.getTravelElapsedMinutes());
+                payload.put("previousLocation", requestInfo.getPreviousLocation());
+            }
         }
 
         if (actionRedisRepository != null && authentication != null) {

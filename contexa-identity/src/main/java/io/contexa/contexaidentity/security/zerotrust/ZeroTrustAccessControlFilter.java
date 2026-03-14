@@ -42,7 +42,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private static final Duration ESCALATE_RETRY_TTL = Duration.ofMinutes(5);
     private static final Duration BLOCK_MFA_VERIFIED_TTL = Duration.ofHours(1);
     private static final int RETRY_AFTER_SECONDS = 30;
-    private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
 
     private final ZeroTrustActionRepository actionRedisRepository;
     private final AuthResponseWriter responseWriter;
@@ -50,19 +49,23 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private final ChallengeMfaInitializer challengeMfaInitializer;
     private final AuthUrlProvider authUrlProvider;
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
+    private final int maxBlockMfaAttempts;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
             AuthResponseWriter responseWriter,
             IBlockedUserRecorder blockedUserRecorder,
             ChallengeMfaInitializer challengeMfaInitializer,
-            AuthUrlProvider authUrlProvider, BlockingSignalBroadcaster blockingDecisionRegistry) {
+            AuthUrlProvider authUrlProvider,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            int maxBlockMfaAttempts) {
         this.actionRedisRepository = actionRedisRepository;
         this.responseWriter = responseWriter;
         this.blockedUserRecorder = blockedUserRecorder;
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.authUrlProvider = authUrlProvider;
         this.blockingDecisionRegistry = blockingDecisionRegistry;
+        this.maxBlockMfaAttempts = maxBlockMfaAttempts;
     }
 
     @Override
@@ -131,7 +134,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
 
         if (isBlockMfaPending(userId)) {
             long failCount = actionRedisRepository.getBlockMfaFailCount(userId);
-            if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
+            if (failCount >= maxBlockMfaAttempts) {
                 log.error("[ZeroTrustAccessControlFilter] BLOCK MFA attempts exhausted, denying MFA: userId={}", userId);
                 handleBlocked(request, response, userId);
                 return;
@@ -294,6 +297,12 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                                         HttpServletRequest request,
                                         HttpServletResponse response) throws IOException {
         try {
+            ZeroTrustAction currentAction = actionRedisRepository.getActionFromHash(userId);
+            if (currentAction == ZeroTrustAction.BLOCK) {
+                handleBlocked(request, response, userId);
+                return;
+            }
+
             String requestId = UUID.randomUUID().toString();
             String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
 
@@ -307,9 +316,12 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             actionRedisRepository.saveAction(userId, ZeroTrustAction.BLOCK, fields);
             actionRedisRepository.setBlockedFlag(userId);
 
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            String username = (auth != null) ? auth.getName() : null;
+
             if (blockedUserRecorder != null) {
                 blockedUserRecorder.recordBlock(
-                        requestId, userId, null,
+                        requestId, userId, username,
                         1.0, 0.0,
                         "Auto-promoted from ESCALATE: TTL expired without resolution",
                         request.getRemoteAddr(),

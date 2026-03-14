@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
@@ -22,8 +23,7 @@ public class ZeroTrustPageController {
 
     private final BlockMfaStateStore blockMfaStateStore;
     private final BlockedUserJpaRepository blockedUserJpaRepository;
-
-    private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     @GetMapping("/blocked")
     public String blocked(Principal principal, Model model) {
@@ -42,11 +42,12 @@ public class ZeroTrustPageController {
             mfaVerified = blockMfaStateStore.isVerified(userId);
             mfaFailCount = blockMfaStateStore.getFailCount(userId);
         }
+        int maxAttempts = securityZeroTrustProperties.getMaxBlockMfaAttempts();
         model.addAttribute("mfaVerified", mfaVerified);
         model.addAttribute("mfaFailed", mfaFailed);
         model.addAttribute("mfaFailCount", mfaFailCount);
-        model.addAttribute("maxMfaAttempts", MAX_BLOCK_MFA_ATTEMPTS);
-        model.addAttribute("mfaExhausted", mfaFailed || mfaFailCount >= MAX_BLOCK_MFA_ATTEMPTS);
+        model.addAttribute("maxMfaAttempts", maxAttempts);
+        model.addAttribute("mfaExhausted", mfaFailed || mfaFailCount >= maxAttempts);
         return "zero-trust/blocked";
     }
 

@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.iam.aiam;
 
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.autonomous.store.InMemoryBlockMfaStateStore;
 import io.contexa.contexacore.autonomous.store.RedisBlockMfaStateStore;
 import io.contexa.contexacore.std.operations.AICoreOperations;
@@ -52,15 +53,17 @@ public class IamAiamWebAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustPageController zeroTrustPageController(BlockMfaStateStore blockMfaStateStore,
-                                                            BlockedUserJpaRepository blockedUserJpaRepository) {
-        return new ZeroTrustPageController(blockMfaStateStore, blockedUserJpaRepository);
+                                                            BlockedUserJpaRepository blockedUserJpaRepository,
+                                                            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ZeroTrustPageController(blockMfaStateStore, blockedUserJpaRepository, securityZeroTrustProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public ZeroTrustUnblockController zeroTrustUnblockController(
-            BlockedUserService blockedUserService, BlockMfaStateStore blockMfaStateStore) {
-        return new ZeroTrustUnblockController(blockedUserService, blockMfaStateStore);
+            BlockedUserService blockedUserService, BlockMfaStateStore blockMfaStateStore,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
+        return new ZeroTrustUnblockController(blockedUserService, blockMfaStateStore, securityZeroTrustProperties);
     }
 
     @Configuration

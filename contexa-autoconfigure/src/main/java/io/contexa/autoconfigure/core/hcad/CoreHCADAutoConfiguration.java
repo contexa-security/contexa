@@ -7,6 +7,7 @@ import io.contexa.contexacore.properties.HcadProperties;
 
 import io.contexa.contexacore.hcad.filter.HCADFilter;
 import io.contexa.contexacore.hcad.service.HCADAnalysisService;
+import io.contexa.contexacore.hcad.service.GeoIpService;
 import io.contexa.contexacore.hcad.service.HCADContextExtractor;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
@@ -39,11 +40,20 @@ public class CoreHCADAutoConfiguration {
             SecurityContextDataStore securityContextDataStore,
             HcadProperties hcadProperties,
             ObjectProvider<BlockMfaStateStore> blockMfaStateStoreProvider,
-            ObjectProvider<BaselineLearningService> baselineLearningServiceProvider) {
+            ObjectProvider<BaselineLearningService> baselineLearningServiceProvider,
+            ObjectProvider<GeoIpService> geoIpServiceProvider) {
         HCADContextExtractor extractor = new HCADContextExtractor(hcadDataStore, securityContextDataStore, hcadProperties);
         extractor.setBlockMfaStateStore(blockMfaStateStoreProvider.getIfAvailable());
         extractor.setBaselineLearningService(baselineLearningServiceProvider.getIfAvailable());
+        extractor.setGeoIpService(geoIpServiceProvider.getIfAvailable());
         return extractor;
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    @ConditionalOnProperty(prefix = "hcad.geoip", name = "enabled", havingValue = "true")
+    public GeoIpService geoIpService(HcadProperties hcadProperties) {
+        return new GeoIpService(hcadProperties.getGeoip().getDbPath());
     }
 
     @Bean

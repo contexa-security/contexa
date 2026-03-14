@@ -296,6 +296,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     ctx.setBaselineUserAgents(baseline.getNormalUserAgents());
                     ctx.setBaselineFrequentPaths(baseline.getFrequentPaths());
                     ctx.setBaselineAccessHours(baseline.getNormalAccessHours());
+                    ctx.setBaselineAccessDays(baseline.getNormalAccessDays());
                     ctx.setBaselineUpdateCount(baseline.getUpdateCount());
                     ctx.setBaselineAvgTrustScore(baseline.getAvgTrustScore());
                     if (baseline.getNormalUserAgents() != null

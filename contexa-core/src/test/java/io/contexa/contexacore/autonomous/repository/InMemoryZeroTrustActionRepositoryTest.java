@@ -189,13 +189,13 @@ class InMemoryZeroTrustActionRepositoryTest {
     }
 
     @Test
-    @DisplayName("BLOCK action does not save to lastVerifiedStore")
-    void saveAction_blockAction_doesNotSaveToLastVerified() {
+    @DisplayName("BLOCK action saves to lastVerifiedStore for audit tracking")
+    void saveAction_blockAction_savesToLastVerified() {
         repository.saveAction("user1", ZeroTrustAction.BLOCK, null);
 
         ZeroTrustAction lastVerified = repository.getLastVerifiedAction("user1");
 
-        assertThat(lastVerified).isNull();
+        assertThat(lastVerified).isEqualTo(ZeroTrustAction.BLOCK);
     }
 
     @Test

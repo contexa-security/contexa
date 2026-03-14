@@ -84,15 +84,20 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String analysisKey = ZeroTrustRedisKeys.hcadAnalysis(userId);
             List<Object> values = redisTemplate.opsForHash()
                     .multiGet(analysisKey, List.of("action", "contextBindingHash"));
+            if (values == null || values.size() < 2) {
+                return ZeroTrustAction.PENDING_ANALYSIS;
+            }
             Object actionValue = values.get(0);
             Object storedHash = values.get(1);
 
             if (actionValue != null) {
                 ZeroTrustAction action = ZeroTrustAction.fromString(actionValue.toString());
-                if (action == ZeroTrustAction.ALLOW
+                if (action != ZeroTrustAction.PENDING_ANALYSIS
+                        && action != ZeroTrustAction.BLOCK
                         && contextBindingHash != null
                         && storedHash != null
                         && !storedHash.toString().equals(contextBindingHash)) {
+                    log.error("[ZeroTrustActionRedisRepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
                     return ZeroTrustAction.PENDING_ANALYSIS;
                 }
                 return action;
@@ -102,10 +107,13 @@ public class ZeroTrustActionRedisRepository implements ZeroTrustActionRepository
             String lastAction = stringRedisTemplate.opsForValue().get(lastActionKey);
             if (lastAction != null) {
                 ZeroTrustAction action = ZeroTrustAction.fromString(lastAction);
-                if (action == ZeroTrustAction.ALLOW && contextBindingHash != null) {
+                if (action != ZeroTrustAction.PENDING_ANALYSIS
+                        && action != ZeroTrustAction.BLOCK
+                        && contextBindingHash != null) {
                     String lastContextKey = ZeroTrustRedisKeys.hcadLastVerifiedActionContext(userId);
                     String lastContextHash = stringRedisTemplate.opsForValue().get(lastContextKey);
                     if (lastContextHash != null && !lastContextHash.equals(contextBindingHash)) {
+                        log.error("[ZeroTrustActionRedisRepository] Last verified context binding hash mismatch: userId={}, action={}", userId, action);
                         return ZeroTrustAction.PENDING_ANALYSIS;
                     }
                 }

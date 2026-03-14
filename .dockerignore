@@ -1,0 +1,39 @@
+# Build outputs
+build/
+**/build/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+!README.md
+LICENSE
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
+SECURITY.md
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Claude/AI
+.claude/
+
+# Misc
+*.tmp
+*.temp
+*.log
+*.png
+*.pdf
+*.pptx

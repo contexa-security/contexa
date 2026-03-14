@@ -2,6 +2,12 @@ contexa:
   infrastructure:
     mode: standalone
 
+hcad:
+  enabled: true
+  geoip:
+    enabled: true
+    dbPath: data/GeoLite2-City.mmdb
+
 logging:
   level:
     io.contexa.contexacore.std.pipeline.streaming: DEBUG

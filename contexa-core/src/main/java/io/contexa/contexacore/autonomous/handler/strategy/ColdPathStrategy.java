@@ -18,12 +18,13 @@ public class ColdPathStrategy implements ProcessingStrategy {
         try {
             return coldPathProcessor.processEvent(context.getSecurityEvent(), 0.0);
         } catch (Exception e) {
-            log.error("[ColdPathStrategy] Error processing event: {}", context.getSecurityEvent().getEventId(), e);
+            log.error("[ColdPathStrategy] Error processing event, defaulting to ESCALATE: {}", context.getSecurityEvent().getEventId(), e);
             return ProcessingResult.builder()
                 .success(false)
                 .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .message("AI analysis processing failed")
-                .riskScore(0.0)
+                .action("ESCALATE")
+                .riskScore(0.7)
                 .build();
         }
     }

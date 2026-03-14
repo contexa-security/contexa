@@ -56,6 +56,9 @@ public class HcadProperties {
     @NestedConfigurationProperty
     private RedisSettings redis = new RedisSettings();
 
+    @NestedConfigurationProperty
+    private GeoIpSettings geoip = new GeoIpSettings();
+
     @Data
     public static class ThresholdSettings {
         private double base = 0.7;
@@ -282,5 +285,11 @@ public class HcadProperties {
     @Data
     public static class RedisSettings {
         private String keyPrefix = "hcad:baseline:v2:";
+    }
+
+    @Data
+    public static class GeoIpSettings {
+        private boolean enabled = false;
+        private String dbPath = "data/GeoLite2-City.mmdb";
     }
 }

@@ -56,7 +56,27 @@ public class HCADFilter extends OncePerRequestFilter {
                 request.setAttribute("hcad.baseline_confidence", ctx.getBaselineConfidence());
                 request.setAttribute("hcad.is_sensitive_resource", ctx.getIsSensitiveResource());
                 request.setAttribute("hcad.mfa_verified", ctx.getHasValidMFA());
+                if (ctx.getCountry() != null) {
+                    request.setAttribute("hcad.country", ctx.getCountry());
+                }
+                if (ctx.getCity() != null) {
+                    request.setAttribute("hcad.city", ctx.getCity());
+                }
+                if (ctx.getLatitude() != null) {
+                    request.setAttribute("hcad.latitude", ctx.getLatitude());
+                }
+                if (ctx.getLongitude() != null) {
+                    request.setAttribute("hcad.longitude", ctx.getLongitude());
+                }
                 Map<String, Object> attrs = ctx.getAdditionalAttributes();
+                if (attrs != null) {
+                    if (Boolean.TRUE.equals(attrs.get("impossibleTravel"))) {
+                        request.setAttribute("hcad.impossibleTravel", true);
+                        request.setAttribute("hcad.travelDistanceKm", attrs.get("travelDistanceKm"));
+                        request.setAttribute("hcad.travelElapsedMinutes", attrs.get("travelElapsedMinutes"));
+                        request.setAttribute("hcad.previousLocation", attrs.get("previousLocation"));
+                    }
+                }
                 if (attrs != null && attrs.get("userRoles") != null) {
                     request.setAttribute("hcad.user_roles", attrs.get("userRoles").toString());
                 }

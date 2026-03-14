@@ -10,6 +10,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.bootstrap.*;
@@ -363,9 +364,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             IBlockedUserRecorder blockedUserRecorder,
             ChallengeMfaInitializer challengeMfaInitializer,
             AuthUrlProvider authUrlProvider,
-            BlockingSignalBroadcaster blockingDecisionRegistry) {
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            SecurityZeroTrustProperties securityZeroTrustProperties) {
         return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
-                blockedUserRecorder, challengeMfaInitializer, authUrlProvider, blockingDecisionRegistry);
+                blockedUserRecorder, challengeMfaInitializer, authUrlProvider, blockingDecisionRegistry,
+                securityZeroTrustProperties.getMaxBlockMfaAttempts());
     }
 
     @Bean

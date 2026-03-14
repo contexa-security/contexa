@@ -60,7 +60,11 @@ public enum VectorDocumentType {
 
     RESOURCE_NAMING_RESULT("resource_naming_result"),
 
-    RESOURCE_NAMING_FEEDBACK("resource_naming_feedback");
+    RESOURCE_NAMING_FEEDBACK("resource_naming_feedback"),
+
+    SUSPICIOUS("suspicious"),
+
+    AMBIGUOUS("ambiguous");
 
     private final String value;
 

@@ -126,6 +126,9 @@ public class SecurityPromptTemplate {
                 section.append("Timestamp: ").append(event.getTimestamp()).append("\n");
             }
             section.append("CurrentHour: ").append(event.getTimestamp().getHour()).append("\n");
+            int dow = event.getTimestamp().getDayOfWeek().getValue();
+            section.append("CurrentDay: ").append(dayOfWeekLabel(dow))
+                   .append(" (").append(dow).append(")\n");
         }
         if (userId != null) {
             section.append("User: ").append(PromptTemplateUtils.sanitizeUserInput(userId)).append("\n");
@@ -217,6 +220,14 @@ public class SecurityPromptTemplate {
             }
         }
 
+        if (event.getMetadata() != null) {
+            Object recentCount = event.getMetadata().get("recentRequestCount");
+            if (recentCount instanceof Number && ((Number) recentCount).intValue() > 0) {
+                int count = ((Number) recentCount).intValue();
+                section.append("Requests in last 5 minutes: ").append(count).append(".\n");
+            }
+        }
+
         return section.toString();
     }
 
@@ -256,6 +267,9 @@ public class SecurityPromptTemplate {
         if (!patterns.hourSet.isEmpty()) {
             profile.append("accesses the system during hours ")
                    .append(String.join(", ", patterns.hourSet));
+            if (!patterns.daySet.isEmpty()) {
+                profile.append(" (primarily ").append(String.join("/", patterns.daySet)).append(")");
+            }
         }
 
         if (!patterns.ipSet.isEmpty()) {
@@ -521,14 +535,22 @@ public class SecurityPromptTemplate {
                 {
                   "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
                   "riskScore":<0.0-1.0>,
-                  "confidence":<0.3-0.95>,
+                  "confidence":<0.1-0.95>,
                   "reasoning":"<1-2 sentence explanation of key factors>"
                 }
+
+                CONFIDENCE CALIBRATION:
+                - 0.1-0.3: Very low - insufficient data or conflicting signals, prefer ESCALATE
+                - 0.3-0.5: Low - some signals present but ambiguous
+                - 0.5-0.7: Moderate - clear primary signal with minor ambiguity
+                - 0.7-0.85: High - multiple consistent signals confirming judgment
+                - 0.85-0.95: Very high - overwhelming evidence, baseline match/mismatch clear
 
                 ACTION DECISION GUIDE:
 
                 BLOCK - Active threat detected, immediate denial required:
                   - Session hijacking indicators (context binding hash mismatch, mid-session device/OS change)
+                  - IMPOSSIBLE TRAVEL DETECTED (physically impossible geographic movement between requests)
                   - Similar past events include [BLOCKED] threat patterns matching current request
                   - Multiple high-risk signals combined (unknown IP + unknown device + sensitive resource + MfaVerified: false)
                   - Known attack patterns (credential stuffing: high FailedLoginAttempts + new location + new device)
@@ -558,7 +580,11 @@ public class SecurityPromptTemplate {
                   - FailedLoginAttempts: N (brute-force indicator)
                   - SENSITIVE resource flag (from CURRENT REQUEST section)
                   - Context binding hash MISMATCH (from SESSION TIMELINE)
+                  - IMPOSSIBLE TRAVEL DETECTED (from NETWORK section - physically impossible location change)
                   - [BLOCKED] prefix in SIMILAR PAST EVENTS (prior threat match)
+                  - [CHALLENGED] prefix in SIMILAR PAST EVENTS (prior suspicious activity requiring MFA)
+                  - [ESCALATED] prefix in SIMILAR PAST EVENTS (prior ambiguous/insufficient data case)
+                  - Risk/Conf values in SIMILAR PAST EVENTS (prior analysis scores for comparison)
 
                 """;
     }
@@ -659,6 +685,14 @@ public class SecurityPromptTemplate {
                 }
             }
         }
+
+        if (behaviorAnalysis.getBaselineAccessDays() != null) {
+            for (Integer day : behaviorAnalysis.getBaselineAccessDays()) {
+                if (day != null) {
+                    patterns.daySet.add(dayOfWeekLabel(day));
+                }
+            }
+        }
     }
 
     private void addAllNonEmpty(Set<String> target, String[] source) {
@@ -684,6 +718,39 @@ public class SecurityPromptTemplate {
                 network.append("SessionId: ").append(sanitizedSessionId).append("\n");
             } else {
                 network.append("SessionId: NOT_PROVIDED [CRITICAL: Cannot verify session]\n");
+            }
+        }
+
+        Map<String, Object> meta = event.getMetadata();
+        if (meta != null) {
+            Object country = meta.get("geoCountry");
+            Object city = meta.get("geoCity");
+            if (country != null || city != null) {
+                StringBuilder location = new StringBuilder("Location: ");
+                if (city != null) location.append(city);
+                if (city != null && country != null) location.append(", ");
+                if (country != null) location.append(country);
+                Object lat = meta.get("geoLatitude");
+                Object lon = meta.get("geoLongitude");
+                if (lat instanceof Number && lon instanceof Number) {
+                    location.append(String.format(" (%.4f, %.4f)",
+                            ((Number) lat).doubleValue(), ((Number) lon).doubleValue()));
+                }
+                network.append(location).append("\n");
+            }
+
+            if (Boolean.TRUE.equals(meta.get("impossibleTravel"))) {
+                network.append("ALERT: IMPOSSIBLE TRAVEL DETECTED\n");
+                Object prevLoc = meta.get("previousLocation");
+                Object distKm = meta.get("travelDistanceKm");
+                Object elapsedMin = meta.get("travelElapsedMinutes");
+                if (prevLoc != null) {
+                    network.append("Previous location: ").append(prevLoc).append("\n");
+                }
+                if (distKm != null && elapsedMin != null) {
+                    network.append(String.format("Distance: %s km in %s minutes (physically impossible)\n",
+                            distKm, elapsedMin));
+                }
             }
         }
 
@@ -782,6 +849,19 @@ public class SecurityPromptTemplate {
 
     private boolean isValidData(String value) {
         return PromptTemplateUtils.isValidData(value);
+    }
+
+    private static String dayOfWeekLabel(int dow) {
+        return switch (dow) {
+            case 1 -> "Mon";
+            case 2 -> "Tue";
+            case 3 -> "Wed";
+            case 4 -> "Thu";
+            case 5 -> "Fri";
+            case 6 -> "Sat";
+            case 7 -> "Sun";
+            default -> "?";
+        };
     }
 
     private Set<String> normalizeIPSet(Set<String> ipSet) {
@@ -905,6 +985,7 @@ public class SecurityPromptTemplate {
         final Set<String> osSet = new HashSet<>();
         final Set<String> ipSet = new HashSet<>();
         final Set<String> hourSet = new HashSet<>();
+        final Set<String> daySet = new HashSet<>();
         final Set<String> uaSet = new HashSet<>();
         final Set<String> pathSet = new HashSet<>();
         String relatedContext;
@@ -985,6 +1066,7 @@ public class SecurityPromptTemplate {
         private String[] baselineUserAgents;
         private String[] baselineFrequentPaths;
         private Integer[] baselineAccessHours;
+        private Integer[] baselineAccessDays;
 
         private Long baselineUpdateCount;
         private Double baselineAvgTrustScore;
@@ -1092,6 +1174,14 @@ public class SecurityPromptTemplate {
 
         public void setBaselineAccessHours(Integer[] baselineAccessHours) {
             this.baselineAccessHours = baselineAccessHours;
+        }
+
+        public Integer[] getBaselineAccessDays() {
+            return baselineAccessDays;
+        }
+
+        public void setBaselineAccessDays(Integer[] baselineAccessDays) {
+            this.baselineAccessDays = baselineAccessDays;
         }
 
         public Long getBaselineUpdateCount() {

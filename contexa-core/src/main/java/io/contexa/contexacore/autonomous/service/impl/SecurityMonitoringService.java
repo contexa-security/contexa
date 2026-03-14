@@ -59,22 +59,19 @@ public class SecurityMonitoringService {
             if (events == null || events.isEmpty()) {
                 return;
             }
-            SecurityMonitoringService.log.error("[DirectBatchListener] Received batch of {} events", events.size());
             List<SecurityEvent> processedList = events.stream()
                     .map(DefaultBatchEventListener.this::preprocessEventSafe)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
 
             if (processedList.isEmpty()) {
-                SecurityMonitoringService.log.error("[DirectBatchListener] All events filtered during preprocessing");
                 return;
             }
             if (batchProcessor != null) {
                 try {
                     batchProcessor.processBatch(processedList);
                 } catch (Exception e) {
-                    SecurityMonitoringService.log.error("[DirectBatchListener] Failed to process batch", e);
-                    throw new RuntimeException("Batch processing failed", e);
+                    SecurityMonitoringService.log.error("[DirectBatchListener] Failed to process batch of {} events", processedList.size(), e);
                 }
             } else {
                 SecurityMonitoringService.log.error("[DirectBatchListener] No batch processor registered, {} events dropped", processedList.size());

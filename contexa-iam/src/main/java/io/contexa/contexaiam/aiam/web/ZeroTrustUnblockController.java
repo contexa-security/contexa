@@ -1,6 +1,7 @@
 package io.contexa.contexaiam.aiam.web;
 
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.admin.web.auth.service.BlockedUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,10 +21,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ZeroTrustUnblockController {
 
-    private static final int MAX_BLOCK_MFA_ATTEMPTS = 2;
-
     private final BlockedUserService blockedUserService;
     private final BlockMfaStateStore blockMfaStateStore;
+    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     @PostMapping("/initiate-block-mfa")
     public ResponseEntity<Map<String, Object>> initiateBlockMfa(Principal principal) {
@@ -37,7 +37,7 @@ public class ZeroTrustUnblockController {
 
         try {
             int failCount = blockMfaStateStore.getFailCount(userId);
-            if (failCount >= MAX_BLOCK_MFA_ATTEMPTS) {
+            if (failCount >= securityZeroTrustProperties.getMaxBlockMfaAttempts()) {
                 return ResponseEntity.status(403).body(Map.of(
                         "success", false,
                         "message", "MFA attempts exhausted"));

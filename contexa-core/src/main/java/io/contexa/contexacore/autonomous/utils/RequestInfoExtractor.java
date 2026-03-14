@@ -43,6 +43,14 @@ public final class RequestInfoExtractor {
                 .isSensitiveResource((Boolean) request.getAttribute("hcad.is_sensitive_resource"))
                 .mfaVerified(castToBoolean(request.getAttribute("hcad.mfa_verified")))
                 .userRoles((String) request.getAttribute("hcad.user_roles"))
+                .geoCountry((String) request.getAttribute("hcad.country"))
+                .geoCity((String) request.getAttribute("hcad.city"))
+                .geoLatitude(castToDouble(request.getAttribute("hcad.latitude")))
+                .geoLongitude(castToDouble(request.getAttribute("hcad.longitude")))
+                .impossibleTravel(castToBoolean(request.getAttribute("hcad.impossibleTravel")))
+                .travelDistanceKm(castToInteger(request.getAttribute("hcad.travelDistanceKm")))
+                .travelElapsedMinutes(castToInteger(request.getAttribute("hcad.travelElapsedMinutes")))
+                .previousLocation((String) request.getAttribute("hcad.previousLocation"))
                 .build();
     }
 
@@ -183,6 +191,16 @@ public final class RequestInfoExtractor {
         private final Boolean isSensitiveResource;
         private final Boolean mfaVerified;
         private final String userRoles;
+
+        private final String geoCountry;
+        private final String geoCity;
+        private final Double geoLatitude;
+        private final Double geoLongitude;
+
+        private final Boolean impossibleTravel;
+        private final Integer travelDistanceKm;
+        private final Integer travelElapsedMinutes;
+        private final String previousLocation;
     }
 
     private static Integer castToInteger(Object value) {

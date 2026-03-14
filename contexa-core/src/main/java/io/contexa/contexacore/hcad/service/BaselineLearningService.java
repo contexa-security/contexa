@@ -75,6 +75,8 @@ public class BaselineLearningService {
             return current;
         }
 
+        Integer currentDay = extractDayOfWeekFromSecurityEvent(event);
+
         if (current == null) {
 
             Map<String, Long> frequencies = new HashMap<>();
@@ -94,6 +96,9 @@ public class BaselineLearningService {
             }
             if (currentHour != null) {
                 builder.normalAccessHours(new Integer[]{currentHour});
+            }
+            if (currentDay != null) {
+                builder.normalAccessDays(new Integer[]{currentDay});
             }
             if (currentPath != null) {
                 builder.frequentPaths(new String[]{currentPath});
@@ -139,6 +144,7 @@ public class BaselineLearningService {
 
         String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp, frequencies);
         Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
+        Integer[] normalAccessDays = updateNormalAccessDays(current.getNormalAccessDays(), currentDay);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath, frequencies);
 
         String normalizedUA = extractUASignature(currentUserAgent);
@@ -160,6 +166,7 @@ public class BaselineLearningService {
 
                 .normalIpRanges(normalIpRanges)
                 .normalAccessHours(normalAccessHours)
+                .normalAccessDays(normalAccessDays)
                 .frequentPaths(frequentPaths)
                 .normalUserAgents(normalUserAgents)
                 .normalOperatingSystems(normalOperatingSystems)
@@ -172,6 +179,38 @@ public class BaselineLearningService {
             return null;
         }
         return event.getTimestamp().getHour();
+    }
+
+    private Integer extractDayOfWeekFromSecurityEvent(SecurityEvent event) {
+        if (event == null || event.getTimestamp() == null) {
+            return null;
+        }
+        return event.getTimestamp().getDayOfWeek().getValue();
+    }
+
+    private Integer[] updateNormalAccessDays(Integer[] current, Integer newDay) {
+        if (newDay == null || newDay < 1 || newDay > 7) {
+            return current;
+        }
+
+        if (current == null || current.length == 0) {
+            return new Integer[]{newDay};
+        }
+
+        for (Integer existing : current) {
+            if (newDay.equals(existing)) {
+                return current;
+            }
+        }
+
+        if (current.length >= 7) {
+            return current;
+        }
+
+        Integer[] updated = new Integer[current.length + 1];
+        System.arraycopy(current, 0, updated, 0, current.length);
+        updated[current.length] = newDay;
+        return updated;
     }
 
     private String extractIpRange(String ip) {
@@ -457,6 +496,7 @@ public class BaselineLearningService {
                         .lastUpdated(orgBaseline.getLastUpdated())
                         .normalIpRanges(orgBaseline.getNormalIpRanges())
                         .normalAccessHours(orgBaseline.getNormalAccessHours())
+                        .normalAccessDays(orgBaseline.getNormalAccessDays())
                         .frequentPaths(orgBaseline.getFrequentPaths())
                         .normalUserAgents(orgBaseline.getNormalUserAgents())
                         .normalOperatingSystems(orgBaseline.getNormalOperatingSystems())
@@ -491,6 +531,7 @@ public class BaselineLearningService {
                         .lastUpdated(Instant.now())
                         .normalIpRanges(userBaseline.getNormalIpRanges())
                         .normalAccessHours(userBaseline.getNormalAccessHours())
+                        .normalAccessDays(userBaseline.getNormalAccessDays())
                         .frequentPaths(userBaseline.getFrequentPaths())
                         .normalUserAgents(userBaseline.getNormalUserAgents())
                         .normalOperatingSystems(userBaseline.getNormalOperatingSystems())
@@ -516,6 +557,8 @@ public class BaselineLearningService {
                             orgBaseline.getNormalIpRanges(), userBaseline.getNormalIpRanges()))
                     .normalAccessHours(mergeIntegerArrays(
                             orgBaseline.getNormalAccessHours(), userBaseline.getNormalAccessHours()))
+                    .normalAccessDays(mergeIntegerArrays(
+                            orgBaseline.getNormalAccessDays(), userBaseline.getNormalAccessDays()))
                     .frequentPaths(mergeStringArrays(
                             orgBaseline.getFrequentPaths(), userBaseline.getFrequentPaths()))
                     .normalUserAgents(mergeStringArrays(
@@ -639,6 +682,7 @@ public class BaselineLearningService {
     private void appendBaselineDetails(StringBuilder sb, BaselineVector baseline) {
         String[] normalIps = baseline.getNormalIpRanges();
         Integer[] normalHours = baseline.getNormalAccessHours();
+        Integer[] normalDays = baseline.getNormalAccessDays();
         String[] normalUserAgents = baseline.getNormalUserAgents();
         String[] normalOS = baseline.getNormalOperatingSystems();
         String[] frequentPaths = baseline.getFrequentPaths();
@@ -656,9 +700,25 @@ public class BaselineLearningService {
             sb.append("Known Hours: ").append(hours).append("\n");
         }
 
-        String uaSignature = normalUserAgents != null && normalUserAgents.length > 0
-                ? extractUASignature(normalUserAgents[0]) : "none";
-        sb.append("Known UA: ").append(uaSignature).append("\n");
+        if (normalDays != null && normalDays.length > 0) {
+            StringBuilder days = new StringBuilder();
+            for (int i = 0; i < normalDays.length; i++) {
+                if (i > 0) days.append(", ");
+                days.append(dayOfWeekLabel(normalDays[i]));
+            }
+            sb.append("Known Days: ").append(days).append("\n");
+        }
+
+        if (normalUserAgents != null && normalUserAgents.length > 0) {
+            StringBuilder uas = new StringBuilder();
+            for (int i = 0; i < normalUserAgents.length; i++) {
+                if (i > 0) uas.append(", ");
+                uas.append(extractUASignature(normalUserAgents[i]));
+            }
+            sb.append("Known UA: ").append(uas).append("\n");
+        } else {
+            sb.append("Known UA: none\n");
+        }
 
         if (normalOS != null && normalOS.length > 0) {
             sb.append("Known OS: ").append(String.join(", ", normalOS)).append("\n");
@@ -667,6 +727,31 @@ public class BaselineLearningService {
         if (frequentPaths != null && frequentPaths.length > 0) {
             sb.append("Frequent Paths: ").append(String.join(", ", frequentPaths)).append("\n");
         }
+
+        if (baseline.getUpdateCount() != null) {
+            sb.append("Observations: ").append(baseline.getUpdateCount()).append("\n");
+        }
+
+        if (baseline.getAvgTrustScore() != null) {
+            sb.append("AvgTrustScore: ").append(String.format("%.2f", baseline.getAvgTrustScore())).append("\n");
+        }
+
+        if (baseline.getLastUpdated() != null) {
+            sb.append("LastUpdated: ").append(baseline.getLastUpdated()).append("\n");
+        }
+    }
+
+    private static String dayOfWeekLabel(int dow) {
+        return switch (dow) {
+            case 1 -> "Mon";
+            case 2 -> "Tue";
+            case 3 -> "Wed";
+            case 4 -> "Thu";
+            case 5 -> "Fri";
+            case 6 -> "Sat";
+            case 7 -> "Sun";
+            default -> "?";
+        };
     }
 
     private String buildNewUserWarning(String userId, SecurityEvent currentEvent) {

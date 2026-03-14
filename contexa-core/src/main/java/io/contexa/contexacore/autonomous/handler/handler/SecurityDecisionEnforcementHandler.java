@@ -127,17 +127,25 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         if (blockedUserRecorder != null) {
-            try {
-                blockedUserRecorder.recordBlock(
-                        requestId, userId, event.getUserName(),
-                        result.getRiskScore(),
-                        result.getConfidence(),
-                        reasoning,
-                        event.getSourceIp(),
-                        event.getUserAgent()
-                );
-            } catch (Exception ex) {
-                log.error("[SecurityDecisionEnforcementHandler] Failed to record block to DB: userId={}", userId, ex);
+            boolean recorded = false;
+            for (int attempt = 0; attempt < 2 && !recorded; attempt++) {
+                try {
+                    blockedUserRecorder.recordBlock(
+                            requestId, userId, event.getUserName(),
+                            result.getRiskScore(),
+                            result.getConfidence(),
+                            reasoning,
+                            event.getSourceIp(),
+                            event.getUserAgent()
+                    );
+                    recorded = true;
+                } catch (Exception ex) {
+                    log.error("[SecurityDecisionEnforcementHandler] Failed to record block to DB (attempt {}): userId={}",
+                            attempt + 1, userId, ex);
+                }
+            }
+            if (!recorded) {
+                log.error("[SecurityDecisionEnforcementHandler] All DB record attempts failed, BLOCK exists only in Redis: userId={}, requestId={}", userId, requestId);
             }
         }
     }
