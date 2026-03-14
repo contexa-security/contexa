@@ -13,7 +13,7 @@
 > Security doesn't end at login.
 > Contexa continuously verifies every request after authentication using AI-driven behavioral analysis.
 
-**[Website](https://www.ctxa.ai)** · **[Documentation](https://www.ctxa.ai/get-started.html)** · **[Architecture](https://www.ctxa.ai/docs/architecture/platform-overview.html)** · **[GitHub](https://github.com/contexa-security/contexa)**
+**[Website](https://www.ctxa.ai)** · **[Documentation](https://www.ctxa.ai/get-started.html)** · **[Architecture](https://ctxa.ai/en/docs/reference/architecture/overview)** · **[GitHub](https://github.com/contexa-security/contexa)**
 
 ---
 
@@ -132,7 +132,7 @@ contexa:
 ## Links
 
 - **Website**: [https://www.ctxa.ai](https://www.ctxa.ai)
-- **Documentation**: [Get Started](https://www.ctxa.ai/get-started.html) · [Architecture](https://www.ctxa.ai/docs/architecture/platform-overview.html)
+- **Documentation**: [Get Started](https://www.ctxa.ai/get-started.html) · [Architecture](https://ctxa.ai/en/docs/reference/architecture/overview)
 - **Contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Security**: [SECURITY.md](SECURITY.md)
 
