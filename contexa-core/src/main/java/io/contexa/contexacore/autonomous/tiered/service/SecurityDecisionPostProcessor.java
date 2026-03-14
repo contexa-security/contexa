@@ -387,6 +387,21 @@ public class SecurityDecisionPostProcessor {
             }
         }
 
+        Map<String, Object> eventMeta = event.getMetadata();
+        if (eventMeta != null) {
+            copyIfPresent(eventMeta, metadata, "isSensitiveResource");
+            copyIfPresent(eventMeta, metadata, "geoCountry");
+            copyIfPresent(eventMeta, metadata, "geoCity");
+            copyIfPresent(eventMeta, metadata, "geoLatitude");
+            copyIfPresent(eventMeta, metadata, "geoLongitude");
+            if (Boolean.TRUE.equals(eventMeta.get("impossibleTravel"))) {
+                metadata.put("impossibleTravel", true);
+                copyIfPresent(eventMeta, metadata, "travelDistanceKm");
+                copyIfPresent(eventMeta, metadata, "travelElapsedMinutes");
+                copyIfPresent(eventMeta, metadata, "previousLocation");
+            }
+        }
+
         return metadata;
     }
 
@@ -409,6 +424,13 @@ public class SecurityDecisionPostProcessor {
         if (event.getMetadata() == null) return null;
         Object val = event.getMetadata().get(key);
         return val != null ? val.toString() : null;
+    }
+
+    private static void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
+        Object val = source.get(key);
+        if (val != null) {
+            target.put(key, val);
+        }
     }
 
     private static String formatScore(double score) {

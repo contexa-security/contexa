@@ -200,6 +200,14 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     appendMetaIfPresent(summary, meta, "riskScore", "Risk");
                     appendMetaIfPresent(summary, meta, "confidence", "Conf");
                     appendMetaIfPresent(summary, meta, "action", "Action");
+                    appendMetaIfPresent(summary, meta, "geoCity", "City");
+                    appendMetaIfPresent(summary, meta, "geoCountry", "Country");
+                    if (Boolean.TRUE.equals(meta.get("impossibleTravel"))) {
+                        summary.append(", IMPOSSIBLE_TRAVEL");
+                    }
+                    if (Boolean.TRUE.equals(meta.get("isSensitiveResource"))) {
+                        summary.append(", SENSITIVE");
+                    }
 
                     String content = doc.getText();
                     if (content != null && !content.isBlank()) {

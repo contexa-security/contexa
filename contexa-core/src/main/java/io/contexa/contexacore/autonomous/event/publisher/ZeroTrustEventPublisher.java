@@ -97,8 +97,11 @@ public class ZeroTrustEventPublisher {
             String denialReason) {
 
         RequestInfo requestInfo = extractRequestInfoFromContext();
-        String resource = methodInvocation.getMethod().getDeclaringClass().getSimpleName()
+        String methodResource = methodInvocation.getMethod().getDeclaringClass().getSimpleName()
                 + "." + methodInvocation.getMethod().getName();
+        String resource = (requestInfo != null && requestInfo.getRequestUri() != null)
+                ? requestInfo.getRequestUri()
+                : methodResource;
 
         Map<String, Object> payload = new HashMap<>();
         payload.put("granted", granted);
@@ -108,6 +111,7 @@ public class ZeroTrustEventPublisher {
 
         if (requestInfo != null) {
             payload.put("httpUri", requestInfo.getRequestUri());
+            payload.put("requestPath", requestInfo.getRequestUri());
             payload.put("httpMethod", requestInfo.getMethod());
             payload.put("isNewSession", requestInfo.getIsNewSession());
             payload.put("isNewUser", requestInfo.getIsNewUser());
