@@ -1199,13 +1199,14 @@
 
     #revenue {
       break-after: page;
-      padding: 16px 14px !important;
+      padding: 12px 14px !important;
     }
-    #revenue .section-title { font-size: 32px !important; margin-bottom: 4px !important; }
-    #revenue [style*="margin-top:28px"] { margin-top: 8px !important; }
-    #revenue [style*="margin-top:60px"] { margin-top: 14px !important; }
-    #revenue [style*="margin-top:36px"] { margin-top: 10px !important; }
-    #revenue [style*="margin-top:20px"] { margin-top: 6px !important; }
+    #revenue .section-title { font-size: 28px !important; margin-bottom: 2px !important; }
+    #revenue [style*="margin-top:28px"] { margin-top: 4px !important; }
+    #revenue [style*="margin-top:60px"] { margin-top: 10px !important; }
+    #revenue [style*="margin-top:36px"] { margin-top: 8px !important; }
+    #revenue [style*="margin-top:20px"] { margin-top: 4px !important; }
+    #revenue svg { max-height: 380px !important; }
     #revenue [style*="padding:16px 12px"] { padding: 4px 6px !important; }
     #revenue [style*="font-size:20px"][style*="font-weight:700"] { font-size: 15px !important; }
     #revenue .problem-insight { margin-top: 10px !important; padding: 8px 14px !important; }
@@ -1214,6 +1215,29 @@
     #business {
       break-after: page;
     }
+
+    #revenue-detail {
+      break-after: page;
+      padding: 24px 20px !important;
+    }
+    #revenue-detail .section-title { font-size: 26px !important; margin-bottom: 4px !important; }
+    #revenue-detail [style*="margin-top:36px"] { margin-top: 14px !important; }
+    #revenue-detail [style*="margin-top:48px"] { margin-top: 18px !important; }
+    #revenue-detail [style*="padding:16px 16px"] [style*="line-height:1.6"] { display: none !important; }
+    #revenue-detail [style*="padding:16px 16px"] { padding: 10px 12px !important; }
+    #revenue-detail table { font-size: 11px !important; }
+    #revenue-detail table th, #revenue-detail table td { padding: 8px 8px !important; }
+    #revenue-detail .problem-insight { margin-top: 14px !important; padding: 10px 16px !important; }
+    #revenue-detail .problem-insight p { font-size: 14px !important; }
+    #revenue-detail [style*="grid-template-columns:repeat(4"] { grid-template-columns: repeat(4, 1fr) !important; }
+    #revenue-detail [style*="grid-template-columns:repeat(5"] { grid-template-columns: repeat(5, 1fr) !important; }
+
+    #data-moat {
+      break-after: page;
+      padding: 24px 20px !important;
+    }
+    #data-moat .section-title { font-size: 26px !important; margin-bottom: 4px !important; }
+    #data-moat .section-sub { font-size: 13px !important; margin-bottom: 14px !important; }
 
     #team {
       break-after: page;
@@ -1348,8 +1372,9 @@
     <li><a href="#kisa">정책</a></li>
     <li><a href="#legacy">왜 지금인가?</a></li>
     <li><a href="#market">시장</a></li>
-    <li><a href="#revenue">비즈니스 모델</a></li>
-
+    <li><a href="#revenue">수익 방향</a></li>
+    <li><a href="#revenue-detail">수익 구체화</a></li>
+    <li><a href="#data-moat">수익 경쟁력</a></li>
     <li><a href="#team">팀</a></li>
     <li><a href="#roadmap">로드맵</a></li>
   </ul>
@@ -2371,7 +2396,7 @@
      09. BUSINESS MODEL — Open Core Strategy
      ══════════════════════════════════════════════════════════════ -->
 <section class="business" id="revenue">
-  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">09</span> <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">비즈니스 모델</span><span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// 오픈 코어</span></div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">09-1</span> <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">수익 모델 방향</span><span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// 오픈 코어</span></div>
   <h2 class="section-title reveal">오픈 코어 모델</h2>
 
   <!-- ═══ Part 1: Community Edition ═══ -->
@@ -2383,7 +2408,7 @@
     <div style="height:1px; background:linear-gradient(90deg, var(--gold), transparent 60%); margin-bottom:12px;"></div>
   </div>
   <div class="reveal" style="max-width:1100px; margin-top:0;">
-    <svg width="100%" height="480" viewBox="0 0 1000 480" preserveAspectRatio="xMidYMid meet">
+    <svg width="100%" height="440" viewBox="0 0 1000 440" preserveAspectRatio="xMidYMid meet">
       <!-- ── Top 3 boxes: structural conditions ── -->
       <!-- Left: Zero competitors -->
       <rect x="30" y="20" width="260" height="68" rx="8" fill="rgba(230,57,70,0.06)" stroke="var(--red)" stroke-width="1.5"/>
@@ -2448,7 +2473,7 @@
 
       <!-- ── Bottom box: community = value ── -->
       <rect x="250" y="326" width="500" height="60" rx="10" fill="rgba(0,194,224,0.06)" stroke="var(--cyan)" stroke-width="2"/>
-      <text x="500" y="362" fill="var(--cyan)" font-family="var(--sans)" font-size="20" font-weight="700" text-anchor="middle">커뮤니티 성장 → 기업 가치</text>
+      <text x="500" y="362" fill="var(--cyan)" font-family="var(--sans)" font-size="20" font-weight="700" text-anchor="middle">커뮤니티 성장 → 기업 가치 ↑</text>
 
       <!-- Open core cases below box -->
       <text x="500" y="414" fill="var(--muted)" font-family="var(--mono)" font-size="14" text-anchor="middle">오픈 코어 실제 사례</text>
@@ -2456,66 +2481,347 @@
     </svg>
   </div>
 
-  <!-- ═══ Part 2: Enterprise Edition ═══ -->
+  <!-- ═══ Part 2: SaaS 수익 전략 ═══ -->
   <div class="reveal" style="max-width:1100px; margin-top:60px; margin-bottom:0;">
     <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:8px;">
       <div style="font-size:22px; color:var(--text); font-weight:700;">2. Enterprise Edition</div>
-      <div style="font-family:var(--mono); font-size:13px; color:var(--muted); letter-spacing:0.15em;">// 초기 매출로 시장 반응 검증</div>
+      <div style="font-family:var(--mono); font-size:15px; color:var(--muted); letter-spacing:0.15em;">// 오픈 코어 + SaaS-first 하이브리드</div>
     </div>
-    <div style="height:1px; background:linear-gradient(90deg, var(--cyan), transparent 60%); margin-bottom:12px;"></div>
+    <div style="height:1px; background:linear-gradient(90deg, var(--cyan), transparent 60%); margin-bottom:20px;"></div>
   </div>
-  <div class="reveal" style="max-width:1100px; margin-top:0;">
-    <svg width="100%" height="200" viewBox="0 0 1000 200" preserveAspectRatio="xMidYMid meet">
-      <!-- Left: Regulation -->
-      <rect x="20" y="50" width="260" height="90" rx="8" fill="rgba(6,214,160,0.06)" stroke="var(--green)" stroke-width="1.5"/>
-      <text x="150" y="82" fill="var(--green)" font-family="var(--sans)" font-size="18" font-weight="700" text-anchor="middle">제로트러스트 의무화</text>
-      <text x="150" y="106" fill="#667788" font-family="var(--sans)" font-size="13" text-anchor="middle">KISA 가이드라인</text>
-      <text x="150" y="126" fill="var(--green)" font-family="var(--sans)" font-size="13" font-weight="600" text-anchor="middle">Contexa 구현 완료</text>
 
-      <!-- Arrow left to center -->
-      <line x1="280" y1="95" x2="360" y2="95" stroke="var(--green)" stroke-width="2.5"/>
-      <polygon points="356,88 370,95 356,102" fill="var(--green)"/>
+  <!-- 핵심 전략 -->
+  <div class="reveal" style="max-width:1100px;">
+    <div style="padding:24px 28px; background:rgba(0,194,224,0.04); border:1px solid rgba(0,194,224,0.2); border-left:3px solid var(--cyan); margin-bottom:20px;">
+      <div style="font-size:17px; font-weight:700; color:var(--cyan); margin-bottom:10px;">핵심 전략</div>
+      <div style="font-size:16px; color:var(--text); line-height:1.8;">
+        SaaS의 주력 수익원은 <strong style="color:var(--cyan);">엔터프라이즈 운영 Control Plane</strong>이다.<br>
+        과금 구조는 플랫폼 사용료 + 보호 대상 단위 + 운영 좌석 + 호스팅 크레딧 + 전용 배포 프리미엄이다.
+      </div>
+    </div>
+  </div>
 
-      <!-- Center: Conversion -->
-      <rect x="370" y="40" width="260" height="110" rx="12" fill="rgba(0,194,224,0.06)" stroke="var(--cyan)" stroke-width="2"/>
-      <text x="500" y="74" fill="var(--cyan)" font-family="var(--sans)" font-size="18" font-weight="700" text-anchor="middle">규제 준수 기업</text>
-      <line x1="410" y1="88" x2="590" y2="88" stroke="rgba(0,194,224,0.2)" stroke-width="1"/>
-      <text x="500" y="114" fill="#8899AA" font-family="var(--sans)" font-size="14" text-anchor="middle">Community로 검증 후</text>
-      <text x="500" y="138" fill="var(--cyan)" font-family="var(--sans)" font-size="16" font-weight="700" text-anchor="middle">Enterprise 전환</text>
+  <!-- 성장 경로 -->
+  <div class="reveal" style="max-width:1100px;">
+    <svg width="100%" height="120" viewBox="0 0 1100 120" preserveAspectRatio="xMidYMid meet">
+      <!-- Community -->
+      <rect x="0" y="20" width="190" height="80" rx="8" fill="rgba(6,214,160,0.06)" stroke="var(--green)" stroke-width="2.5"/>
+      <text x="95" y="52" fill="var(--green)" font-family="var(--sans)" font-size="17" font-weight="700" text-anchor="middle">Community</text>
+      <text x="95" y="76" fill="#667788" font-family="var(--sans)" font-size="14" text-anchor="middle">채택 &amp; 검증</text>
 
-      <!-- Arrow center to right -->
-      <line x1="630" y1="95" x2="710" y2="95" stroke="var(--gold)" stroke-width="2.5"/>
-      <polygon points="706,88 720,95 706,102" fill="var(--gold)"/>
+      <!-- Arrow 1 -->
+      <line x1="198" y1="60" x2="248" y2="60" stroke="var(--cyan)" stroke-width="2.5"/>
+      <polygon points="244,53 258,60 244,67" fill="var(--cyan)"/>
 
-      <!-- Right: Revenue = Validation -->
-      <rect x="720" y="50" width="260" height="90" rx="8" fill="rgba(255,209,102,0.12)" stroke="var(--gold)" stroke-width="2.5"/>
-      <text x="850" y="86" fill="var(--gold)" font-family="var(--sans)" font-size="20" font-weight="800" text-anchor="middle">PoC + 매출 검증</text>
-      <text x="850" y="112" fill="#8899AA" font-family="var(--sans)" font-size="14" text-anchor="middle">제품이 작동한다는 증거</text>
+      <!-- Standard -->
+      <rect x="264" y="20" width="190" height="80" rx="8" fill="rgba(255,255,255,0.04)" stroke="var(--text)" stroke-width="2.5"/>
+      <text x="359" y="52" fill="var(--text)" font-family="var(--sans)" font-size="17" font-weight="600" text-anchor="middle">Standard</text>
+      <text x="359" y="76" fill="#667788" font-family="var(--sans)" font-size="14" text-anchor="middle">진입 상품</text>
+
+      <!-- Arrow 2 -->
+      <line x1="462" y1="60" x2="512" y2="60" stroke="var(--cyan)" stroke-width="2.5"/>
+      <polygon points="508,53 522,60 508,67" fill="var(--cyan)"/>
+
+      <!-- Advanced (highlighted) -->
+      <rect x="528" y="10" width="210" height="100" rx="10" fill="rgba(0,194,224,0.08)" stroke="var(--cyan)" stroke-width="2.5"/>
+      <text x="633" y="44" fill="var(--cyan)" font-family="var(--sans)" font-size="19" font-weight="800" text-anchor="middle">Advanced</text>
+      <text x="633" y="68" fill="var(--cyan)" font-family="var(--sans)" font-size="15" font-weight="600" text-anchor="middle">주력 매출 상품</text>
+      <text x="633" y="92" fill="var(--cyan)" font-family="var(--mono)" font-size="14" font-weight="700" text-anchor="middle">ACV $90K</text>
+
+      <!-- Arrow 3 -->
+      <line x1="746" y1="60" x2="796" y2="60" stroke="var(--gold)" stroke-width="2.5"/>
+      <polygon points="792,53 806,60 792,67" fill="var(--gold)"/>
+
+      <!-- Dedicated -->
+      <rect x="812" y="20" width="210" height="80" rx="8" fill="rgba(255,209,102,0.06)" stroke="var(--gold)" stroke-width="2.5"/>
+      <text x="917" y="52" fill="var(--gold)" font-family="var(--sans)" font-size="17" font-weight="700" text-anchor="middle">Dedicated SaaS</text>
+      <text x="917" y="76" fill="#667788" font-family="var(--sans)" font-size="14" text-anchor="middle">규제 산업 / 대기업</text>
     </svg>
   </div>
 
-  <!-- Pricing tiers -->
-  <div class="reveal" style="max-width:1100px; margin-top:20px; display:grid; grid-template-columns:repeat(3, 1fr); gap:0; border:1px solid rgba(255,255,255,0.08); border-radius:4px; overflow:hidden;">
-    <div style="padding:16px 12px; text-align:center; border-right:1px solid rgba(255,255,255,0.06);">
-      <div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--cyan);">$50K<span style="font-size:12px; color:var(--muted);">/yr</span></div>
-      <div style="font-size:13px; color:var(--muted); margin-top:4px;">Starter</div>
+  <!-- 상품 역할 정리 -->
+  <div class="reveal" style="max-width:1100px; margin-top:16px; display:grid; grid-template-columns:1fr 1fr; gap:2px;">
+    <div style="padding:18px 24px; background:rgba(255,255,255,0.02); border:1px solid var(--border);">
+      <div style="font-size:15px; color:var(--text); line-height:1.8;">
+        <strong style="color:var(--green);">Standard</strong>는 진입 상품이다. <br>커뮤니티에서 검증한 팀이 운영 기능이 필요할 때 전환한다.
+      </div>
     </div>
-    <div style="padding:16px 12px; text-align:center; border-right:1px solid rgba(255,255,255,0.06); background:rgba(0,194,224,0.03);">
-      <div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--cyan);">$200K<span style="font-size:12px; color:var(--muted);">/yr</span></div>
-      <div style="font-size:13px; color:var(--muted); margin-top:4px;">Enterprise</div>
-    </div>
-    <div style="padding:16px 12px; text-align:center; background:rgba(255,209,102,0.03);">
-      <div style="font-family:var(--mono); font-size:20px; font-weight:700; color:var(--gold);">$500K<span style="font-size:12px; color:var(--muted);">/yr</span></div>
-      <div style="font-size:13px; color:var(--muted); margin-top:4px;">Finance / Public</div>
+    <div style="padding:18px 24px; background:rgba(255,255,255,0.02); border:1px solid var(--border);">
+      <div style="font-size:15px; color:var(--text); line-height:1.8;">
+        <strong style="color:var(--muted);">Self-Managed Enterprise</strong>는 SaaS 불가 고객을 위한 방어용 상품이다. <br>주력화하지 않는다.
+      </div>
     </div>
   </div>
-
 
   <!-- ═══ Insight ═══ -->
   <div class="problem-insight reveal" style="max-width:1100px; margin-top:36px; border-left-color:var(--gold); background:rgba(232,181,58,0.04);">
     <p style="font-size:18px; line-height:1.6; margin:0;">
-      <strong style="color:var(--gold);">경쟁자가 없는 $1.2B 시장에, 900만 개발자 생태계 위에 세워지는 강력한 오픈소스 접근.</strong>
+      <strong style="color:var(--gold);">경쟁자가 드문 시장에, 900만 개발자 생태계 위에 세워지는 강력한 오픈소스 접근.</strong>
       이 조건에서 커뮤니티가 성장하지 않을 이유를 찾기가 더 어렵습니다.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     09-2. BUSINESS MODEL DETAIL — Revenue Structure & Metrics
+     ══════════════════════════════════════════════════════════════ -->
+<section class="business" id="revenue-detail">
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;">
+    <span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">09-2</span>
+    <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">수익 모델 구체화</span>
+    <span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// SaaS Revenue</span>
+  </div>
+  <h2 class="section-title reveal">엔터프라이즈 운영 플랫폼</h2>
+
+  <!-- ═══ Block 1: 과금 구조 4축 다이어그램 ═══ -->
+  <div class="reveal" style="max-width:1100px; margin-top:36px;">
+    <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:16px;">
+      <div style="font-size:18px; color:var(--text); font-weight:700;">과금 구조</div>
+      <div style="font-family:var(--mono); font-size:15px; color:var(--muted);">//커뮤니티 코어와 명확히 구분되는 4가지 과금 축</div>
+    </div>
+    <div style="height:1px; background:linear-gradient(90deg, var(--cyan), transparent 60%); margin-bottom:20px;"></div>
+  </div>
+  <div class="reveal" style="max-width:1100px; display:grid; grid-template-columns:repeat(4, 1fr); gap:2px;">
+    <div style="padding:12px 16px; background:rgba(0,194,224,0.04); border:1px solid rgba(0,194,224,0.2); text-align:center;">
+      <div style="font-size:22px; margin-bottom:4px;">&#9678;</div>
+      <div style="font-family:var(--mono); font-size:15px; font-weight:700; color:var(--cyan);">플랫폼 사용료</div>
+    </div>
+    <div style="padding:12px 16px; background:rgba(6,214,160,0.04); border:1px solid rgba(6,214,160,0.2); text-align:center;">
+      <div style="font-size:22px; margin-bottom:4px;">&#9632;</div>
+      <div style="font-family:var(--mono); font-size:15px; font-weight:700; color:var(--green);">보호 대상 수</div>
+    </div>
+    <div style="padding:12px 16px; background:rgba(255,209,102,0.04); border:1px solid rgba(255,209,102,0.2); text-align:center;">
+      <div style="font-size:22px; margin-bottom:4px;">&#9775;</div>
+      <div style="font-family:var(--mono); font-size:15px; font-weight:700; color:var(--gold);">관리자 수</div>
+    </div>
+    <div style="padding:12px 16px; background:rgba(230,57,70,0.04); border:1px solid rgba(230,57,70,0.2); text-align:center;">
+      <div style="font-size:22px; margin-bottom:4px;">&#9889;</div>
+      <div style="font-family:var(--mono); font-size:15px; font-weight:700; color:var(--red);">사용량</div>
+    </div>
+  </div>
+
+  <!-- ═══ Block 2: 상품 티어 비교표 ═══ -->
+  <div class="reveal" style="max-width:1100px; margin-top:48px;">
+    <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:16px;">
+      <div style="font-size:18px; color:var(--text); font-weight:700;">상품 구조 & 가격</div>
+      <div style="font-family:var(--mono); font-size:15px; color:var(--muted);">//Advanced가 매출 중심 상품</div>
+    </div>
+    <div style="height:1px; background:linear-gradient(90deg, var(--gold), transparent 60%); margin-bottom:20px;"></div>
+  </div>
+  <div class="reveal" style="max-width:1100px; overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:15px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="padding:16px 14px; text-align:left; color:var(--muted); font-family:var(--mono); font-size:14px; width:20%;">상품</th>
+          <th style="padding:16px 14px; text-align:center; color:var(--muted); font-size:14px;">커뮤니티</th>
+          <th style="padding:16px 14px; text-align:center; color:var(--muted); font-size:14px;">스탠다드</th>
+          <th style="padding:16px 14px; text-align:center; color:var(--cyan); font-size:14px; background:rgba(0,194,224,0.04); border-left:2px solid var(--cyan); border-right:2px solid var(--cyan); border-top:2px solid var(--cyan);">&#9733; 어드밴스드</th>
+          <th style="padding:16px 14px; text-align:center; color:var(--muted); font-size:14px;">전용 배포</th>
+          <th style="padding:16px 14px; text-align:center; color:var(--muted); font-size:14px;">자체 운영</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:16px 14px; color:var(--muted); font-size:14px;">연간 가격</td>
+          <td style="padding:16px 14px; text-align:center; color:var(--green); font-weight:700; font-size:17px;">무료</td>
+          <td style="padding:16px 14px; text-align:center; color:var(--text); font-weight:700; font-family:var(--mono); font-size:16px;">$36K<span style="font-size:12px; color:var(--muted);">/yr</span></td>
+          <td style="padding:16px 14px; text-align:center; color:var(--cyan); font-weight:800; font-family:var(--mono); font-size:20px; background:rgba(0,194,224,0.04); border-left:2px solid var(--cyan); border-right:2px solid var(--cyan);">$90K<span style="font-size:12px; color:var(--muted);">/yr</span></td>
+          <td style="padding:16px 14px; text-align:center; color:var(--gold); font-weight:700; font-family:var(--mono); font-size:16px;">$216K+<span style="font-size:12px; color:var(--muted);">/yr</span></td>
+          <td style="padding:16px 14px; text-align:center; color:var(--text); font-weight:700; font-family:var(--mono); font-size:16px;">$120K+<span style="font-size:12px; color:var(--muted);">/yr</span></td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:14px; color:var(--muted); font-size:14px;">보호 앱 그룹</td>
+          <td style="padding:14px; text-align:center; color:var(--muted);">&mdash;</td>
+          <td style="padding:14px; text-align:center; color:var(--text);">10</td>
+          <td style="padding:14px; text-align:center; color:var(--cyan); font-weight:600; background:rgba(0,194,224,0.04); border-left:2px solid var(--cyan); border-right:2px solid var(--cyan);">30</td>
+          <td style="padding:14px; text-align:center; color:var(--text);">75</td>
+          <td style="padding:14px; text-align:center; color:var(--muted);">무제한</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:14px; color:var(--muted); font-size:14px;">운영자 좌석</td>
+          <td style="padding:14px; text-align:center; color:var(--muted);">&mdash;</td>
+          <td style="padding:14px; text-align:center; color:var(--text);">5</td>
+          <td style="padding:14px; text-align:center; color:var(--cyan); font-weight:600; background:rgba(0,194,224,0.04); border-left:2px solid var(--cyan); border-right:2px solid var(--cyan);">20</td>
+          <td style="padding:14px; text-align:center; color:var(--text);">40</td>
+          <td style="padding:14px; text-align:center; color:var(--muted);">무제한</td>
+        </tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06);">
+          <td style="padding:14px; color:var(--muted); font-size:14px;">운영 크레딧</td>
+          <td style="padding:14px; text-align:center; color:var(--muted);">&mdash;</td>
+          <td style="padding:14px; text-align:center; color:var(--text);">250K</td>
+          <td style="padding:14px; text-align:center; color:var(--cyan); font-weight:600; background:rgba(0,194,224,0.04); border-left:2px solid var(--cyan); border-right:2px solid var(--cyan);">1.5M</td>
+          <td style="padding:14px; text-align:center; color:var(--text);">5M</td>
+          <td style="padding:14px; text-align:center; color:var(--muted);">&mdash;</td>
+        </tr>
+        <tr>
+          <td style="padding:14px; color:var(--muted); font-size:14px;">주요 대상</td>
+          <td style="padding:14px; text-align:center; font-size:13px; color:var(--muted);">개발팀 / PoC</td>
+          <td style="padding:14px; text-align:center; font-size:13px; color:var(--muted);">초기 엔터프라이즈</td>
+          <td style="padding:14px; text-align:center; font-size:13px; color:var(--cyan); font-weight:600; background:rgba(0,194,224,0.04); border-left:2px solid var(--cyan); border-right:2px solid var(--cyan); border-bottom:2px solid var(--cyan);">주력 매출 상품</td>
+          <td style="padding:14px; text-align:center; font-size:13px; color:var(--muted);">규제 산업 / 대기업</td>
+          <td style="padding:14px; text-align:center; font-size:13px; color:var(--muted);">SaaS 불가 고객</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ Block 3: 기능 패키징 매트릭스 ═══ -->
+  <div class="reveal" style="max-width:1100px; margin-top:48px;">
+    <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:16px;">
+      <div style="font-size:18px; color:var(--text); font-weight:700;">기능 패키징</div>
+      <div style="font-family:var(--mono); font-size:15px; color:var(--muted);">//커뮤니티 vs 엔터프라이즈 가치 구분</div>
+    </div>
+    <div style="height:1px; background:linear-gradient(90deg, var(--green), transparent 60%); margin-bottom:20px;"></div>
+  </div>
+  <div class="reveal" style="max-width:1100px; overflow-x:auto;">
+    <table style="width:100%; border-collapse:collapse; font-size:15px;">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border);">
+          <th style="padding:12px 14px; text-align:left; color:var(--muted); font-size:14px; width:28%;">기능</th>
+          <th style="padding:12px 10px; text-align:center; color:var(--muted); font-size:13px;">무료</th>
+          <th style="padding:12px 10px; text-align:center; color:var(--muted); font-size:13px;">스탠다드</th>
+          <th style="padding:12px 10px; text-align:center; color:var(--cyan); font-size:13px;">어드밴스드</th>
+          <th style="padding:12px 10px; text-align:center; color:var(--muted); font-size:13px;">전용</th>
+          <th style="padding:12px 10px; text-align:center; color:var(--muted); font-size:13px;">자체</th>
+        </tr>
+      </thead>
+      <tbody style="color:var(--text);">
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">제로트러스트 코어 엔진</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">중앙 운영 콘솔</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--gold);">선택</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">중앙 정책 배포</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">승인 워크플로우</td><td style="text-align:center; color:var(--gold);">기본</td><td style="text-align:center; color:var(--gold);">기본</td><td style="text-align:center; color:var(--green);">고급</td><td style="text-align:center; color:var(--green);">고급</td><td style="text-align:center; color:var(--green);">고급</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">SOAR 자동화</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--gold);">제한</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">MCP 오케스트레이션</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--gold);">제한</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">컴플라이언스 리포트</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--gold);">기본</td><td style="text-align:center; color:var(--green);">고급</td><td style="text-align:center; color:var(--green);">고급</td><td style="text-align:center; color:var(--green);">고급</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">모델 라우팅 관리</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--green);">&#10003;</td><td style="text-align:center; color:var(--muted);">&#8212;</td></tr>
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.04);"><td style="padding:10px 14px;">데이터 보존</td><td style="text-align:center; color:var(--muted);">자체</td><td style="text-align:center; color:var(--text);">90일</td><td style="text-align:center; color:var(--cyan);">13개월</td><td style="text-align:center; color:var(--text);">맞춤</td><td style="text-align:center; color:var(--muted);">자체</td></tr>
+        <tr><td style="padding:10px 14px;">엔터프라이즈 지원</td><td style="text-align:center; color:var(--muted);">&#8212;</td><td style="text-align:center; color:var(--gold);">기본</td><td style="text-align:center; color:var(--green);">프리미엄</td><td style="text-align:center; color:var(--green);">+전담</td><td style="text-align:center; color:var(--green);">프리미엄</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ═══ Insight ═══ -->
+  <div class="problem-insight reveal" style="max-width:1100px; margin-top:36px; border-left-color:var(--cyan); background:rgba(0,194,224,0.04);">
+    <p style="font-size:17px; line-height:1.7; margin:0;">
+      <strong style="color:var(--cyan);">파는 것은 AI 엔진이 아닙니다. 파는 것은 운영되는 엔터프라이즈 Zero Trust 보안 플랫폼입니다.</strong><br>
+      <span style="color:var(--muted);">커뮤니티로 채택하고, Advanced로 매출을 만들고, Dedicated로 대형 계약을 확보합니다.</span>
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     09-3. AI DATA MOAT — 경쟁사가 절대 모방할 수 없는 무기
+     ══════════════════════════════════════════════════════════════ -->
+<section class="business" id="data-moat">
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;">
+    <span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">09-3</span>
+    <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">수익 모델 경쟁력</span>
+    <span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// 돈으로 살 수 없는 해자</span>
+  </div>
+  <h2 class="section-title reveal">기술은 모방할 수 있어도, 데이터는 절대 모방할 수 없습니다.</h2>
+  <p class="section-sub reveal" style="max-width:900px;">
+    AI Native 보안 플랫폼의 진정한 가치는 엔진이 아닙니다.<br>
+    수천 고객의 실전 환경에서 축적된 <strong style="color:var(--gold);">위협 패턴 학습 데이터</strong>가 AI의 판단을 정교하게 만들고,<br>
+    이것이 경쟁사가 도저히 따라올 수 없는 우리 기업의 가치를 만듭니다.
+  </p>
+
+  <!-- ═══ Block 1: 경쟁사 vs Contexa 비교 ═══ -->
+  <div class="reveal" style="max-width:1100px; margin-top:20px;">
+    <svg width="100%" height="260" viewBox="0 0 1100 260" preserveAspectRatio="xMidYMid meet">
+      <!-- 경쟁사 영역 -->
+      <rect x="30" y="20" width="480" height="220" rx="12" fill="rgba(255,255,255,0.02)" stroke="var(--border)" stroke-width="2" stroke-dasharray="6,4"/>
+      <text x="270" y="55" fill="var(--muted)" font-family="var(--sans)" font-size="18" font-weight="700" text-anchor="middle">경쟁사가 모방할 수 있는 것</text>
+
+      <rect x="60" y="80" width="200" height="56" rx="6" fill="rgba(255,255,255,0.03)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="160" y="114" fill="var(--muted)" font-family="var(--sans)" font-size="15" text-anchor="middle">오픈소스 코드</text>
+
+      <rect x="280" y="80" width="200" height="56" rx="6" fill="rgba(255,255,255,0.03)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="380" y="114" fill="var(--muted)" font-family="var(--sans)" font-size="15" text-anchor="middle">아키텍처 설계</text>
+
+      <rect x="60" y="156" width="200" height="56" rx="6" fill="rgba(255,255,255,0.03)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="160" y="190" fill="var(--muted)" font-family="var(--sans)" font-size="15" text-anchor="middle">프롬프트 엔지니어링</text>
+
+      <rect x="280" y="156" width="200" height="56" rx="6" fill="rgba(255,255,255,0.03)" stroke="var(--border)" stroke-width="1.5"/>
+      <text x="380" y="190" fill="var(--muted)" font-family="var(--sans)" font-size="15" text-anchor="middle">기능 구현</text>
+
+      <!-- VS 구분선 -->
+      <line x1="550" y1="30" x2="550" y2="240" stroke="var(--gold)" stroke-width="2" stroke-dasharray="4,4"/>
+      <rect x="532" y="110" width="36" height="36" rx="18" fill="var(--bg)" stroke="var(--gold)" stroke-width="2"/>
+      <text x="550" y="134" fill="var(--gold)" font-family="var(--sans)" font-size="14" font-weight="800" text-anchor="middle">VS</text>
+
+      <!-- Contexa 영역 -->
+      <rect x="590" y="20" width="480" height="220" rx="12" fill="rgba(255,209,102,0.06)" stroke="var(--gold)" stroke-width="2.5"/>
+      <text x="830" y="55" fill="var(--gold)" font-family="var(--sans)" font-size="18" font-weight="700" text-anchor="middle">Contexa만이 가진 것 &mdash; 절대 복제 불가</text>
+
+      <rect x="620" y="80" width="420" height="56" rx="6" fill="rgba(255,209,102,0.08)" stroke="var(--gold)" stroke-width="1.5"/>
+      <text x="830" y="106" fill="var(--gold)" font-family="var(--sans)" font-size="16" font-weight="700" text-anchor="middle">수천 고객의 실전 위협 패턴 학습 데이터</text>
+      <text x="830" y="126" fill="#8899AA" font-family="var(--sans)" font-size="13" text-anchor="middle">행동 기준선, 공격 시그니처, 판단 피드백</text>
+
+      <rect x="620" y="156" width="420" height="56" rx="6" fill="rgba(255,209,102,0.08)" stroke="var(--gold)" stroke-width="1.5"/>
+      <text x="830" y="182" fill="var(--gold)" font-family="var(--sans)" font-size="16" font-weight="700" text-anchor="middle">데이터로 학습된 AI의 판단 품질</text>
+      <text x="830" y="202" fill="#8899AA" font-family="var(--sans)" font-size="13" text-anchor="middle">정확도, 신뢰도, 완성도 &mdash; 시간이 곧 해자</text>
+    </svg>
+  </div>
+
+  <!-- ═══ Block 2: AI 판단 품질 — 핵심 경쟁력 시각화 ═══ -->
+  <div class="reveal" style="max-width:1100px; margin-top:28px;">
+    <svg width="100%" height="340" viewBox="0 0 1100 340" preserveAspectRatio="xMidYMid meet">
+
+      <!-- 좌측: 고객 증가 입력 -->
+      <text x="130" y="30" fill="var(--cyan)" font-family="var(--sans)" font-size="16" font-weight="700" text-anchor="middle">고객이 늘수록</text>
+
+      <rect x="30" y="50" width="200" height="50" rx="6" fill="rgba(0,194,224,0.06)" stroke="var(--cyan)" stroke-width="1.5"/>
+      <text x="130" y="82" fill="var(--cyan)" font-family="var(--sans)" font-size="14" text-anchor="middle">위협 패턴 데이터 축적 ↑</text>
+
+      <rect x="30" y="115" width="200" height="50" rx="6" fill="rgba(0,194,224,0.06)" stroke="var(--cyan)" stroke-width="1.5"/>
+      <text x="130" y="147" fill="var(--cyan)" font-family="var(--sans)" font-size="14" text-anchor="middle">행동 기준선 다양화 ↑</text>
+
+      <rect x="30" y="180" width="200" height="50" rx="6" fill="rgba(0,194,224,0.06)" stroke="var(--cyan)" stroke-width="1.5"/>
+      <text x="130" y="212" fill="var(--cyan)" font-family="var(--sans)" font-size="14" text-anchor="middle">판단 피드백 누적 ↑</text>
+
+      <!-- 화살표 3개 -> 중앙 -->
+      <line x1="238" y1="75" x2="370" y2="150" stroke="var(--gold)" stroke-width="2"/>
+      <line x1="238" y1="140" x2="370" y2="155" stroke="var(--gold)" stroke-width="2"/>
+      <line x1="238" y1="205" x2="370" y2="165" stroke="var(--gold)" stroke-width="2"/>
+      <polygon points="366,145 380,155 366,165" fill="var(--gold)"/>
+
+      <!-- 중앙: AI 판단 품질 (핵심 — 크고 강조) -->
+      <rect x="386" y="70" width="330" height="180" rx="20" fill="rgba(255,209,102,0.10)" stroke="var(--gold)" stroke-width="4"/>
+      <text x="551" y="125" fill="var(--gold)" font-family="var(--sans)" font-size="32" font-weight="900" text-anchor="middle">AI 판단 품질</text>
+      <text x="551" y="165" fill="var(--text)" font-family="var(--sans)" font-size="20" font-weight="700" text-anchor="middle">정확도 / 신뢰도 / 완성도</text>
+      <text x="551" y="200" fill="var(--gold)" font-family="var(--sans)" font-size="17" text-anchor="middle">고객이 많을수록 지속 상승</text>
+      <text x="551" y="232" fill="var(--muted)" font-family="var(--sans)" font-size="14" text-anchor="middle">* 익명화된 학습 데이터 기반 &mdash; 개인정보 미포함</text>
+
+      <!-- 화살표: 중앙 -> 우측 -->
+      <line x1="724" y1="155" x2="790" y2="155" stroke="var(--gold)" stroke-width="3"/>
+      <polygon points="786,147 804,155 786,163" fill="var(--gold)"/>
+
+      <!-- 우측: 파급 효과 -->
+      <text x="950" y="30" fill="var(--gold)" font-family="var(--sans)" font-size="16" font-weight="700" text-anchor="middle">이것이 만드는 결과</text>
+
+      <rect x="810" y="50" width="280" height="64" rx="8" fill="rgba(255,209,102,0.10)" stroke="var(--gold)" stroke-width="2.5"/>
+      <text x="950" y="76" fill="var(--gold)" font-family="var(--sans)" font-size="18" font-weight="800" text-anchor="middle">기업 가치 폭발적 상승</text>
+      <text x="950" y="102" fill="#8899AA" font-family="var(--sans)" font-size="14" text-anchor="middle">돈으로 살 수 없는 자산</text>
+
+      <rect x="810" y="130" width="280" height="50" rx="8" fill="rgba(230,57,70,0.06)" stroke="var(--red)" stroke-width="1.5"/>
+      <text x="950" y="162" fill="var(--red)" font-family="var(--sans)" font-size="16" font-weight="700" text-anchor="middle">경쟁사 추격 극히 어려움</text>
+
+      <rect x="810" y="196" width="280" height="50" rx="8" fill="rgba(6,214,160,0.06)" stroke="var(--green)" stroke-width="1.5"/>
+      <text x="950" y="228" fill="var(--green)" font-family="var(--sans)" font-size="16" font-weight="700" text-anchor="middle">고객 이탈 방지 (Lock-in)</text>
+
+      <!-- 하단: 선순환 루프 표시 -->
+      <path d="M 950,260 Q 950,310 551,310 Q 130,310 130,245" fill="none" stroke="var(--cyan)" stroke-width="2" stroke-dasharray="6,4"/>
+      <polygon points="124,250 130,232 136,250" fill="var(--cyan)"/>
+      <text x="551" y="300" fill="var(--cyan)" font-family="var(--mono)" font-size="14" font-weight="600" text-anchor="middle">AI 품질 ↑ → 더 많은 고객 유입 → 데이터 ↑ → AI 품질 ↑↑ (선순환)</text>
+
+    </svg>
+  </div>
+
+  <!-- ═══ Insight: 기업 가치 공식 ═══ -->
+  <div class="problem-insight reveal" style="max-width:1100px; margin-top:20px; border-left-color:var(--gold); background:rgba(255,209,102,0.04);">
+    <p style="font-size:17px; line-height:1.6; margin:0;">
+      <strong style="color:var(--gold);">고객 수 x 운영 시간 = 학습 데이터 축적 = AI 품질 상승 = 기업 가치 상승</strong><br>
+      <span style="color:var(--text);">경쟁사가 돈으로 만들 수 없는, 오직 시간과 고객이 만드는 자산입니다.</span>
     </p>
   </div>
 </section>
@@ -2757,8 +3063,9 @@
     <li><a href="#kisa">정합성</a></li>
     <li><a href="#legacy">왜 지금인가?</a></li>
     <li><a href="#market">시장</a></li>
-    <li><a href="#revenue">수익</a></li>
-
+    <li><a href="#revenue">수익 방향</a></li>
+    <li><a href="#revenue-detail">수익 구체화</a></li>
+    <li><a href="#data-moat">수익 경쟁력</a></li>
     <li><a href="#team">팀</a></li>
     <li><a href="#roadmap">로드맵</a></li>
     <li><a href="#cta">결론</a></li>
