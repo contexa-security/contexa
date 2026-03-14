@@ -77,6 +77,14 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return true;
         }
 
+        if (requestUri.startsWith("/webauthn/")) {
+            return true;
+        }
+
+        if (requestUri.startsWith("/login/webauthn")) {
+            return true;
+        }
+
         if (requestUri.startsWith("/zero-trust")) {
             return true;
         }

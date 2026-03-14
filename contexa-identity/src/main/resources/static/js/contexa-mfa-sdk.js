@@ -1011,6 +1011,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json',
                     ...headers
                 }
             });
@@ -1076,6 +1077,7 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json',
                     ...headers
                 },
                 body: JSON.stringify(body)
