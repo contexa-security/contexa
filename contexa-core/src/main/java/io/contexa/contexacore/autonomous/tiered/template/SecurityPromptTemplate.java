@@ -573,7 +573,6 @@ public class SecurityPromptTemplate {
                   - Multiple high-risk signals combined (unknown IP + unknown device + sensitive resource + MfaVerified: false)
                   - Known attack patterns (credential stuffing: high FailedLoginAttempts + new location + new device)
                   - No baseline at all (neither personal nor organization) and accessing a SENSITIVE resource
-                  When in doubt between BLOCK and CHALLENGE: if 3+ risk signals are present simultaneously, choose BLOCK.
 
                 CHALLENGE - Suspicious but verifiable, require re-authentication:
                   - Partial mismatch with baseline (1-2 signals differ, e.g., new IP but same device/OS)
@@ -581,7 +580,6 @@ public class SecurityPromptTemplate {
                   - Unusual time but matching device fingerprint
                   - SENSITIVE resource access with MfaVerified: false (when baseline otherwise matches)
                   - Single anomalous signal in otherwise normal session
-                  When in doubt between CHALLENGE and ALLOW: if accessing SENSITIVE resource, choose CHALLENGE.
 
                 ALLOW - Legitimate access confirmed:
                   - Current request matches established baseline patterns (IP, device, time, path)
