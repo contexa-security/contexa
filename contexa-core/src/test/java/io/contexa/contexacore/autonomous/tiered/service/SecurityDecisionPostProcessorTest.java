@@ -43,8 +43,8 @@ class SecurityDecisionPostProcessorTest {
     }
 
     @Test
-    @DisplayName("updateSessionContext should call addSessionAction")
-    void shouldCallAddSessionAction() {
+    @DisplayName("ALLOW decision should not call setSessionRisk")
+    void shouldNotCallSetSessionRiskForAllow() {
         // given
         SecurityEvent event = SecurityEvent.builder()
                 .eventId("evt-1")
@@ -63,7 +63,7 @@ class SecurityDecisionPostProcessorTest {
         postProcessor.updateSessionContext(event, decision);
 
         // then
-        verify(dataStore).addSessionAction(eq("session-1"), anyString());
+        verify(dataStore, never()).setSessionRisk(anyString(), any(double.class));
     }
 
     @Test
@@ -84,7 +84,6 @@ class SecurityDecisionPostProcessorTest {
         postProcessor.updateSessionContext(event, decision);
 
         // then
-        verify(dataStore).addSessionAction(eq("session-1"), anyString());
         verify(dataStore).setSessionRisk("session-1", 0.95);
     }
 

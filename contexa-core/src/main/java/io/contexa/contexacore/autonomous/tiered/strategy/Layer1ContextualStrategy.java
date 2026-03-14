@@ -275,6 +275,18 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
 
+        if (event != null && event.getMetadata() != null) {
+            Map<String, Object> meta = event.getMetadata();
+            Object isNewSession = meta.get("isNewSession");
+            Object isNewDevice = meta.get("isNewDevice");
+            if (isNewSession instanceof Boolean) {
+                ctx.setIsNewSession((Boolean) isNewSession);
+            }
+            if (isNewDevice instanceof Boolean) {
+                ctx.setIsNewDevice((Boolean) isNewDevice);
+            }
+        }
+
         if (event != null && event.getUserAgent() != null) {
             ctx.setCurrentUserAgentOS(
                     SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent()));

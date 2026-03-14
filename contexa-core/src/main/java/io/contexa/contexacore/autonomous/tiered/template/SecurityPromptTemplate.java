@@ -151,6 +151,8 @@ public class SecurityPromptTemplate {
         String eventPath = extractRequestPath(event);
         if (eventPath != null && !eventPath.isEmpty()) {
             section.append("Path: ").append(PromptTemplateUtils.sanitizeUserInput(eventPath)).append("\n");
+        } else {
+            section.append("Path: unknown\n");
         }
 
         return section.toString();
@@ -201,9 +203,15 @@ public class SecurityPromptTemplate {
 
         if (event.getMetadata() != null) {
             Object sensitiveResource = event.getMetadata().get("isSensitiveResource");
-            if (Boolean.TRUE.equals(sensitiveResource)) {
+            if (sensitiveResource == null) {
+                section.append("Resource sensitivity: unknown.\n");
+            } else if (Boolean.TRUE.equals(sensitiveResource)) {
                 section.append("This is a SENSITIVE resource.\n");
+            } else {
+                section.append("This is NOT a sensitive resource.\n");
             }
+        } else {
+            section.append("Resource sensitivity: unknown.\n");
         }
 
         if (behaviorAnalysis != null) {
@@ -240,7 +248,16 @@ public class SecurityPromptTemplate {
         if (meta != null) {
             Object userRoles = meta.get("userRoles");
             if (userRoles != null) {
-                section.append("User roles: ").append(userRoles).append(".\n");
+                String rolesStr = userRoles.toString();
+                rolesStr = rolesStr.replaceAll("ROLE_PENDING_ANALYSIS,?\\s*", "")
+                                   .replaceAll("ROLE_BLOCKED,?\\s*", "")
+                                   .replaceAll("ROLE_MFA_REQUIRED,?\\s*", "")
+                                   .replaceAll("ROLE_REVIEW_REQUIRED,?\\s*", "")
+                                   .replaceAll(",\\s*]", "]")
+                                   .replaceAll("\\[\\s*,", "[");
+                if (!rolesStr.equals("[]") && !rolesStr.isBlank()) {
+                    section.append("User roles: ").append(rolesStr).append(".\n");
+                }
             }
             Object baselineConfidence = meta.get("baselineConfidence");
             if (baselineConfidence instanceof Number) {
@@ -252,8 +269,9 @@ public class SecurityPromptTemplate {
         }
 
         if (baselineStatus == BaselineStatus.NEW_USER) {
-            section.append("This is a new user without established behavioral baseline.\n");
-            section.append("No historical data available to compare against.\n");
+            section.append("User is registered but has NO established behavioral baseline yet.\n");
+            section.append("Insufficient observation data to compare against.\n");
+            section.append("NOTE: NewUser in EVENT section reflects registration status, not baseline status.\n");
             return section.toString();
         }
 
@@ -573,6 +591,12 @@ public class SecurityPromptTemplate {
                 ESCALATE - Insufficient data for any confident judgment:
                   - Context is too ambiguous or incomplete to form either hypothesis
                   - Conflicting signals that cannot be resolved with available data
+
+                CRITICAL RULES:
+                - Base your judgment ONLY on explicitly provided data above. Do NOT assume or infer information not present.
+                - If SENSITIVE status says "NOT a sensitive resource", do NOT treat it as sensitive.
+                - If a field is not mentioned, treat it as unknown/not applicable, NOT as suspicious.
+                - Do NOT hallucinate facts. If the context does not mention something, it does not exist.
 
                 Risk signal reference (from EVENT and NETWORK sections):
                   - MfaVerified: false/true (MFA authentication status)

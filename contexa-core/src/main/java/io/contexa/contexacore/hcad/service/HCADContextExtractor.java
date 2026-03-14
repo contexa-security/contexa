@@ -228,6 +228,17 @@ public class HCADContextExtractor {
             context.setPreviousPath(previousPath);
             securityContextDataStore.setPreviousPath(userId, request.getRequestURI());
 
+            String sessionId = context.getSessionId();
+            if (sessionId != null && securityContextDataStore != null) {
+                String actionEntry = String.format("%02d:%02d | %s %s | %s",
+                        java.time.LocalTime.now().getHour(),
+                        java.time.LocalTime.now().getMinute(),
+                        request.getMethod(),
+                        request.getRequestURI(),
+                        context.getRemoteIp() != null ? context.getRemoteIp() : "unknown");
+                securityContextDataStore.addSessionAction(sessionId, actionEntry);
+            }
+
         } catch (Exception e) {
             context.setRecentRequestCount(0);
             context.setLastRequestInterval(0L);
