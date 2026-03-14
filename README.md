@@ -129,25 +129,6 @@ contexa:
     mode: standalone   # or distributed
 ```
 
-## Community vs Enterprise
-
-| Capability | Community | Enterprise |
-|---|---|---|
-| Identity DSL & Adaptive MFA | Yes | Yes |
-| Dynamic Authorization | Yes | Yes |
-| AI Security Engine & RAG | Yes | Yes |
-| Autonomous Security Plane | Yes | Yes |
-| Zero Trust Actions | Yes | Yes |
-| SOAR Approval Workflow | — | Yes |
-| MCP Tool Calling | — | Yes |
-| Security Response Simulation | — | Yes |
-| Extended Metrics & Dashboard | — | Yes |
-
-The Community edition includes the full Zero Trust core engine.
-Enterprise extends it with SOAR, MCP orchestration, and operational tooling.
-
-> Contact the maintainers for Enterprise access.
-
 ## Links
 
 - **Website**: [https://www.ctxa.ai](https://www.ctxa.ai)
