@@ -611,6 +611,7 @@ public class SecurityPromptTemplate {
                 """;
     }
 
+
     private DetectedPatterns collectDetectedPatterns(List<Document> relatedDocuments, String userId) {
         DetectedPatterns patterns = new DetectedPatterns();
         StringBuilder relatedContextBuilder = new StringBuilder();
