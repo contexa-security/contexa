@@ -14,6 +14,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.hcad.store.HCADDataStore;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
@@ -124,6 +125,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 handleBlockMfaSuccess(userId, request, response);
                 return;
             }
+            markMfaVerifiedOnChallengeSuccess(userId);
             resetActionOnMfaSuccess(userId, request);
         }
 
@@ -501,6 +503,20 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             writeJsonResponse(response, responseData);
         } else {
             response.sendRedirect(redirectUrl);
+        }
+    }
+
+    private void markMfaVerifiedOnChallengeSuccess(String userId) {
+        try {
+            if (blockMfaStateStore != null) {
+                blockMfaStateStore.setVerified(userId);
+            }
+            HCADDataStore hcadDataStore = applicationContext.getBean(HCADDataStore.class);
+            if (hcadDataStore != null) {
+                hcadDataStore.markMfaVerified(userId);
+            }
+        } catch (Exception e) {
+            log.error("[MFA] Failed to mark MFA verified on challenge success: userId={}", userId, e);
         }
     }
 

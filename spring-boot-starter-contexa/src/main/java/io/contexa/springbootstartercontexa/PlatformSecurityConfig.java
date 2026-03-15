@@ -55,7 +55,7 @@ public class PlatformSecurityConfig {
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
                 .mfa(mfa -> mfa
-                        .primaryAuthentication(auth -> auth.formLogin(form -> form/*.loginPage("/customLogin")*/.defaultSuccessUrl("/admin")))
+                        .primaryAuthentication(auth -> auth.formLogin(form -> form/*.loginPage("/customLogin")*/.defaultSuccessUrl("/test/zero-trust-demo")))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
                         .passkey(Customizer.withDefaults())
 //                        .ott(Customizer.withDefaults())

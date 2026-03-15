@@ -22,6 +22,8 @@ public interface HCADDataStore {
 
     boolean isMfaVerified(String userId);
 
+    void markMfaVerified(String userId);
+
     Map<Object, Object> getHcadAnalysis(String userId);
 
     void saveHcadAnalysis(String userId, Map<String, Object> analysisData);

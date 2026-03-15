@@ -92,6 +92,11 @@ public class InMemoryHCADDataStore implements HCADDataStore {
     }
 
     @Override
+    public void markMfaVerified(String userId) {
+        mfaVerifiedUsers.add(userId);
+    }
+
+    @Override
     public Map<Object, Object> getHcadAnalysis(String userId) {
         Map<Object, Object> analysis = hcadAnalysis.get(userId);
         return analysis != null ? new HashMap<>(analysis) : new HashMap<>();

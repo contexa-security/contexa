@@ -130,6 +130,16 @@ public class RedisHCADDataStore implements HCADDataStore {
     }
 
     @Override
+    public void markMfaVerified(String userId) {
+        try {
+            String key = "security:mfa:verified:" + userId;
+            redisTemplate.opsForValue().set(key, "true");
+        } catch (Exception e) {
+            log.error("[HCADDataStore] Failed to mark MFA verified: userId={}", userId, e);
+        }
+    }
+
+    @Override
     public Map<Object, Object> getHcadAnalysis(String userId) {
         try {
             String key = ZeroTrustRedisKeys.hcadAnalysis(userId);
