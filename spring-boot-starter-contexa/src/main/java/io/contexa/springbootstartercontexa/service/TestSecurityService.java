@@ -111,6 +111,20 @@ public class TestSecurityService {
     }
 
     /**
+     * Streaming bulk data access validation
+     *
+     * AnalysisRequirement.PREFERRED + enableRuntimeInterception:
+     * - Triggers Zero Trust event before streaming response
+     * - Used by /bulk-stream endpoint for real-time response blocking demo
+     *
+     * Method ID: io.contexa.springbootstartercontexa.service.TestSecurityService.validateBulkStreamAccess()
+     */
+    @Protectable
+    public void validateBulkStreamAccess() {
+        log.info("Bulk stream access validation - @Protectable triggered");
+    }
+
+    /**
      * 대량 데이터 조회 - 실시간 차단 활성화
      *
      * AnalysisRequirement.PREFERRED + enableRuntimeInterception:

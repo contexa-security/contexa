@@ -15,8 +15,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -33,10 +36,17 @@ public class ColdPathEventProcessor implements IPathProcessor {
     private final ReentrantLock escalateWindowLock = new ReentrantLock();
     private int escalateCount = 0;
     private int totalAnalysisCount = 0;
+    private volatile boolean listenerInjected = false;
 
     @Override
     public ProcessingResult processEvent(SecurityEvent event, double riskScore) {
         long startTime = System.currentTimeMillis();
+
+        // Lazy inject listener into strategy
+        if (!listenerInjected && contextualStrategy != null && llmAnalysisEventListener != null) {
+            contextualStrategy.setLlmEventListener(llmAnalysisEventListener);
+            listenerInjected = true;
+        }
 
         try {
             String userId = event.getUserId();
@@ -50,6 +60,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
             String requestPath = extractRequestPath(event);
             String analysisRequirement = extractAnalysisRequirement(event);
+
+            // Publish HCAD analysis data from event metadata
+            publishHcadAnalysis(userId, event);
+
             publishContextCollected(userId, requestPath, analysisRequirement);
 
             ProcessingResult result = ProcessingResult.builder()
@@ -112,6 +126,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     publishLayer1Complete(userId, layer1Assessment.getAction(),
                             layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
                             reasoning, extractMitre(layer1Assessment), layer1ElapsedMs);
+
+                    // Publish threat indicators
+                    publishThreatIndicatorsFromAssessment(userId, layer1Assessment);
 
                     publishDecisionApplied(userId, layer1Assessment.getAction(), "LAYER1", requestPath);
 
@@ -181,6 +198,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 publishLayer2Complete(userId, layer2Assessment.getAction(),
                         layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
                         layer2Reasoning, extractMitre(layer2Assessment), layer2ElapsedMs);
+
+                // Publish threat indicators
+                publishThreatIndicatorsFromAssessment(userId, layer2Assessment);
 
                 publishDecisionApplied(userId, layer2Assessment.getAction(), "LAYER2", requestPath);
 
@@ -327,5 +347,55 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
     private void publishDecisionApplied(String userId, String action, String layer, String requestPath) {
         llmAnalysisEventListener.onDecisionApplied(userId, action, layer, requestPath);
+    }
+
+    private void publishHcadAnalysis(String userId, SecurityEvent event) {
+        if (llmAnalysisEventListener == null || event.getMetadata() == null) return;
+        try {
+            Map<String, Object> hcadData = new LinkedHashMap<>();
+            Map<String, Object> meta = event.getMetadata();
+
+            hcadData.put("sourceIp", event.getSourceIp());
+            hcadData.put("userAgent", event.getUserAgent());
+            hcadData.put("sessionId", event.getSessionId());
+
+            putIfPresent(hcadData, meta, "geoCountry");
+            putIfPresent(hcadData, meta, "geoCity");
+            putIfPresent(hcadData, meta, "isNewSession");
+            putIfPresent(hcadData, meta, "isNewDevice");
+            putIfPresent(hcadData, meta, "isNewUser");
+            putIfPresent(hcadData, meta, "recentRequestCount");
+            putIfPresent(hcadData, meta, "failedLoginAttempts");
+            putIfPresent(hcadData, meta, "baselineConfidence");
+            putIfPresent(hcadData, meta, "isSensitiveResource");
+            putIfPresent(hcadData, meta, "mfaVerified");
+            putIfPresent(hcadData, meta, "impossibleTravel");
+            putIfPresent(hcadData, meta, "travelDistanceKm");
+            putIfPresent(hcadData, meta, "previousLocation");
+
+            llmAnalysisEventListener.onHcadAnalysis(userId, hcadData);
+        } catch (Exception e) {
+            log.error("[ColdPath] Failed to publish HCAD analysis event: userId={}", userId, e);
+        }
+    }
+
+    private void putIfPresent(Map<String, Object> target, Map<String, Object> source, String key) {
+        Object val = source.get(key);
+        if (val != null) target.put(key, val);
+    }
+
+    private void publishThreatIndicatorsFromAssessment(String userId, ThreatAssessment assessment) {
+        if (llmAnalysisEventListener == null || assessment == null) return;
+        try {
+            String indicators = assessment.getIndicators() != null
+                    ? String.join(", ", assessment.getIndicators().stream().map(Object::toString).toList())
+                    : "none";
+            String actions = assessment.getRecommendedActions() != null
+                    ? String.join(", ", assessment.getRecommendedActions())
+                    : "none";
+            llmAnalysisEventListener.onThreatIndicators(userId, indicators, actions);
+        } catch (Exception e) {
+            log.error("[ColdPath] Failed to publish threat indicators: userId={}", userId, e);
+        }
     }
 }

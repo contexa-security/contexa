@@ -7,6 +7,7 @@ import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
+import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -39,6 +40,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
     private final Cache<String, SessionContext> sessionContextCache;
+    private volatile LlmAnalysisEventListener llmEventListener;
 
     public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
                                     UnifiedVectorService unifiedVectorService,
@@ -62,6 +64,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .expireAfterAccess(cacheConfig.getTtlMinutes(), TimeUnit.MINUTES)
                 .recordStats()
                 .build();
+    }
+
+    public void setLlmEventListener(LlmAnalysisEventListener listener) {
+        this.llmEventListener = listener;
     }
 
     @Override
@@ -100,14 +106,46 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             SessionContext sessionContext = buildSessionContext(event);
             sessionContextMs = System.currentTimeMillis() - sessionContextStart;
 
+            // SSE: session context loaded
+            if (llmEventListener != null) {
+                Map<String, Object> sessionData = new HashMap<>();
+                sessionData.put("sessionId", sessionContext.getSessionId());
+                sessionData.put("authMethod", sessionContext.getAuthMethod());
+                sessionData.put("accessFrequency", sessionContext.getAccessFrequency());
+                sessionData.put("recentActionsCount", sessionContext.getRecentActions() != null ? sessionContext.getRecentActions().size() : 0);
+                sessionData.put("sessionContextMs", sessionContextMs);
+                llmEventListener.onSessionContextLoaded(event.getUserId(), sessionData);
+            }
+
             long ragSearchStart = System.currentTimeMillis();
             List<Document> relatedDocuments = searchRelatedContext(event);
             List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
             ragSearchMs = System.currentTimeMillis() - ragSearchStart;
 
+            // SSE: RAG search complete
+            if (llmEventListener != null) {
+                llmEventListener.onRagSearchComplete(event.getUserId(), relatedDocuments != null ? relatedDocuments.size() : 0, ragSearchMs);
+            }
+
             long behaviorAnalysisStart = System.currentTimeMillis();
             BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
             behaviorAnalysisMs = System.currentTimeMillis() - behaviorAnalysisStart;
+
+            // SSE: behavior analysis complete
+            if (llmEventListener != null) {
+                Map<String, Object> behaviorData = new HashMap<>();
+                behaviorData.put("baselineEstablished", behaviorAnalysis.isBaselineEstablished());
+                behaviorData.put("similarEventsCount", behaviorAnalysis.getSimilarEvents() != null ? behaviorAnalysis.getSimilarEvents().size() : 0);
+                behaviorData.put("behaviorAnalysisMs", behaviorAnalysisMs);
+                // isNewSession/isNewDevice from event metadata (set by HCADFilter)
+                if (event.getMetadata() != null) {
+                    Object newSession = event.getMetadata().get("isNewSession");
+                    Object newDevice = event.getMetadata().get("isNewDevice");
+                    if (newSession != null) behaviorData.put("isNewSession", newSession);
+                    if (newDevice != null) behaviorData.put("isNewDevice", newDevice);
+                }
+                llmEventListener.onBehaviorAnalysisComplete(event.getUserId(), behaviorData);
+            }
 
             long promptBuildStart = System.currentTimeMillis();
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
@@ -119,6 +157,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
             promptBuildMs = System.currentTimeMillis() - promptBuildStart;
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
+
+            // SSE: LLM execution start
+            if (llmEventListener != null) {
+                llmEventListener.onLlmExecutionStart(event.getUserId(), "1차 AI (Qwen 2.5 7B)", promptBuildMs);
+            }
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
@@ -149,6 +192,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 long responseParseStart = System.currentTimeMillis();
                 response = parseJsonResponse(jsonResponse);
                 responseParseMs = System.currentTimeMillis() - responseParseStart;
+
+                // SSE: LLM execution complete
+                if (llmEventListener != null) {
+                    llmEventListener.onLlmExecutionComplete(event.getUserId(), llmExecutionMs, responseParseMs);
+                }
             } else {
                 log.error("[Layer1] UnifiedLLMOrchestrator not available");
                 response = createDefaultResponse();

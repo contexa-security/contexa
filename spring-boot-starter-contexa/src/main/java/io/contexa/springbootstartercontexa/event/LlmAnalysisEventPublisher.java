@@ -1,5 +1,7 @@
 package io.contexa.springbootstartercontexa.event;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -254,6 +256,115 @@ public class LlmAnalysisEventPublisher {
         publishEvent(event);
         log.info("[LlmAnalysisEventPublisher] DECISION_APPLIED - userId: {}, action: {}, layer: {}, path: {}",
                 userId, action, layer, requestPath);
+    }
+
+    /**
+     * Response blocked event
+     */
+    public void publishResponseBlocked(String userId, long bytesTransferred, String reason) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.responseBlocked(userId, bytesTransferred, reason);
+        publishEvent(event);
+        log.error("[LlmAnalysisEventPublisher] RESPONSE_BLOCKED - userId: {}, bytesTransferred: {}, reason: {}",
+                userId, bytesTransferred, reason);
+    }
+
+    // ========================================================================
+    // Detailed pipeline events
+    // ========================================================================
+
+    private static final ObjectMapper mapper = new ObjectMapper();
+
+    private String toJsonString(Map<String, Object> data) {
+        try { return mapper.writeValueAsString(data); }
+        catch (JsonProcessingException e) { return "{}"; }
+    }
+
+    public void publishHcadAnalysis(String userId, Map<String, Object> hcadData) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
+                .type(LlmAnalysisEvent.EventType.HCAD_ANALYSIS)
+                .userId(userId)
+                .status(LlmAnalysisEvent.Status.COMPLETED)
+                .metadata(toJsonString(hcadData))
+                .timestamp(System.currentTimeMillis())
+                .build();
+        publishEvent(event);
+        log.info("[LlmAnalysisEventPublisher] HCAD_ANALYSIS - userId: {}", userId);
+    }
+
+    public void publishSessionContextLoaded(String userId, Map<String, Object> sessionData) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
+                .type(LlmAnalysisEvent.EventType.SESSION_CONTEXT_LOADED)
+                .userId(userId)
+                .status(LlmAnalysisEvent.Status.COMPLETED)
+                .metadata(toJsonString(sessionData))
+                .timestamp(System.currentTimeMillis())
+                .build();
+        publishEvent(event);
+        log.info("[LlmAnalysisEventPublisher] SESSION_CONTEXT_LOADED - userId: {}", userId);
+    }
+
+    public void publishRagSearchComplete(String userId, int matchedCount, long ragSearchMs) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
+                .type(LlmAnalysisEvent.EventType.RAG_SEARCH_COMPLETE)
+                .userId(userId)
+                .status(LlmAnalysisEvent.Status.COMPLETED)
+                .elapsedMs(ragSearchMs)
+                .metadata(String.valueOf(matchedCount))
+                .timestamp(System.currentTimeMillis())
+                .build();
+        publishEvent(event);
+        log.info("[LlmAnalysisEventPublisher] RAG_SEARCH_COMPLETE - userId: {}, matched: {}, {}ms", userId, matchedCount, ragSearchMs);
+    }
+
+    public void publishBehaviorAnalysisComplete(String userId, Map<String, Object> behaviorData) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
+                .type(LlmAnalysisEvent.EventType.BEHAVIOR_ANALYSIS_COMPLETE)
+                .userId(userId)
+                .status(LlmAnalysisEvent.Status.COMPLETED)
+                .metadata(toJsonString(behaviorData))
+                .timestamp(System.currentTimeMillis())
+                .build();
+        publishEvent(event);
+        log.info("[LlmAnalysisEventPublisher] BEHAVIOR_ANALYSIS_COMPLETE - userId: {}", userId);
+    }
+
+    public void publishLlmExecutionStart(String userId, String modelName, long promptBuildMs) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
+                .type(LlmAnalysisEvent.EventType.LLM_EXECUTION_START)
+                .userId(userId)
+                .status(LlmAnalysisEvent.Status.IN_PROGRESS)
+                .elapsedMs(promptBuildMs)
+                .metadata(modelName)
+                .timestamp(System.currentTimeMillis())
+                .build();
+        publishEvent(event);
+        log.info("[LlmAnalysisEventPublisher] LLM_EXECUTION_START - userId: {}, model: {}, promptBuild: {}ms", userId, modelName, promptBuildMs);
+    }
+
+    public void publishLlmExecutionComplete(String userId, long llmExecutionMs, long responseParseMs) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
+                .type(LlmAnalysisEvent.EventType.LLM_EXECUTION_COMPLETE)
+                .userId(userId)
+                .status(LlmAnalysisEvent.Status.COMPLETED)
+                .elapsedMs(llmExecutionMs)
+                .metadata(String.valueOf(responseParseMs))
+                .timestamp(System.currentTimeMillis())
+                .build();
+        publishEvent(event);
+        log.info("[LlmAnalysisEventPublisher] LLM_EXECUTION_COMPLETE - userId: {}, llm: {}ms, parse: {}ms", userId, llmExecutionMs, responseParseMs);
+    }
+
+    public void publishThreatIndicators(String userId, String indicators, String recommendedActions) {
+        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
+                .type(LlmAnalysisEvent.EventType.THREAT_INDICATORS)
+                .userId(userId)
+                .status(LlmAnalysisEvent.Status.COMPLETED)
+                .mitre(indicators)
+                .reasoning(recommendedActions)
+                .timestamp(System.currentTimeMillis())
+                .build();
+        publishEvent(event);
+        log.info("[LlmAnalysisEventPublisher] THREAT_INDICATORS - userId: {}, indicators: {}", userId, indicators);
     }
 
     /**

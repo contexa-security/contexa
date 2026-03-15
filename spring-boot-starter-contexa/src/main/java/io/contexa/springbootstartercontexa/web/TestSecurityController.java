@@ -15,10 +15,15 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.springframework.http.MediaType;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * 보안 플로우 테스트용 REST 컨트롤러
@@ -307,6 +312,99 @@ public class TestSecurityController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(createErrorResponse(e, "bulk", "PREFERRED (Runtime Interception)", processingTime, timestamp, auth));
         }
+    }
+
+    /**
+     * Streaming bulk data endpoint for response blocking demo
+     *
+     * Generates 10,000 employee records streamed over ~20 seconds.
+     * Each flush triggers BlockableServletOutputStream.checkBlocked(),
+     * enabling real-time response termination by AI security decisions.
+     */
+    @GetMapping("/bulk-stream")
+    public ResponseEntity<StreamingResponseBody> testBulkStream() {
+
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = auth != null ? auth.getName() : "anonymous";
+
+        log.info("[Security Test] Bulk stream started - user: {}", username);
+
+        try {
+            testSecurityService.validateBulkStreamAccess();
+        } catch (AccessDeniedException e) {
+            log.error("[Security Test] Bulk stream access denied - user: {}, reason: {}", username, e.getMessage());
+            StreamingResponseBody errorBody = outputStream -> {
+                String error = "{\"error\":\"ACCESS_DENIED\",\"message\":\"" + e.getMessage() + "\"}";
+                outputStream.write(error.getBytes(StandardCharsets.UTF_8));
+                outputStream.flush();
+            };
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(errorBody);
+        }
+
+        StreamingResponseBody body = outputStream -> {
+            int totalRecords = 10000;
+
+            for (int i = 1; i <= totalRecords; i++) {
+                String record = generateEmployeeRecord(i);
+                outputStream.write(record.getBytes(StandardCharsets.UTF_8));
+
+                if (i % 100 == 0) {
+                    outputStream.flush();
+                    try {
+                        Thread.sleep(200);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+            }
+
+            outputStream.flush();
+            log.info("[Security Test] Bulk stream completed - user: {}", username);
+        };
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header("X-Total-Records", "10000")
+                .header("Cache-Control", "no-cache")
+                .body(body);
+    }
+
+    private static final String[] LAST_NAMES = {
+        "Kim", "Lee", "Park", "Choi", "Jung", "Kang", "Cho", "Yoon", "Jang", "Lim",
+        "Han", "Oh", "Seo", "Shin", "Kwon", "Hwang", "Ahn", "Song", "Yoo", "Hong"
+    };
+
+    private static final String[] FIRST_NAMES = {
+        "Minjun", "Soyeon", "Jihoon", "Yuna", "Seojin", "Hajin", "Doyeon", "Hyunwoo",
+        "Eunji", "Taehyun", "Jiwon", "Subin", "Yeji", "Junhyeok", "Chaeyoung", "Dongwook"
+    };
+
+    private static final String[] DEPARTMENTS = {
+        "Engineering", "HR", "Finance", "Marketing", "Sales", "Operations",
+        "Legal", "R&D", "Security", "Product", "Design", "QA"
+    };
+
+    private String generateEmployeeRecord(int index) {
+        ThreadLocalRandom rng = ThreadLocalRandom.current();
+        String lastName = LAST_NAMES[rng.nextInt(LAST_NAMES.length)];
+        String firstName = FIRST_NAMES[rng.nextInt(FIRST_NAMES.length)];
+        String dept = DEPARTMENTS[rng.nextInt(DEPARTMENTS.length)];
+        int salary = 45_000_000 + rng.nextInt(80_000_000);
+        int birthYear = 70 + rng.nextInt(30);
+        int gender = rng.nextInt(2) + 1;
+
+        return String.format("EMP-%05d | %-15s | %-12s | %,11d KRW | SSN: %d***-%d****** | %s.%s@company.com\n",
+                index,
+                lastName + " " + firstName,
+                dept,
+                salary,
+                birthYear,
+                gender,
+                firstName.toLowerCase(),
+                lastName.toLowerCase());
     }
 
     /**

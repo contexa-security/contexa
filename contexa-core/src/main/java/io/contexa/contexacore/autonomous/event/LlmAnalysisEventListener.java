@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.event;
 
+import java.util.Map;
+
 public interface LlmAnalysisEventListener {
 
     void onContextCollected(String userId, String requestPath, String analysisRequirement);
@@ -17,4 +19,13 @@ public interface LlmAnalysisEventListener {
     void onDecisionApplied(String userId, String action, String layer, String requestPath);
 
     void onError(String userId, String message);
+
+    // Detailed pipeline events (default methods for backward compatibility)
+    default void onHcadAnalysis(String userId, Map<String, Object> hcadData) {}
+    default void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {}
+    default void onRagSearchComplete(String userId, int matchedCount, long ragSearchMs) {}
+    default void onBehaviorAnalysisComplete(String userId, Map<String, Object> behaviorData) {}
+    default void onLlmExecutionStart(String userId, String modelName, long promptBuildMs) {}
+    default void onLlmExecutionComplete(String userId, long llmExecutionMs, long responseParseMs) {}
+    default void onThreatIndicators(String userId, String indicators, String recommendedActions) {}
 }

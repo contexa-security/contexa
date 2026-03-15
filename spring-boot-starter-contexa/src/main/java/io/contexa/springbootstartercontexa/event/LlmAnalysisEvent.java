@@ -146,7 +146,17 @@ public class LlmAnalysisEvent {
         public static final String LAYER2_START = "LAYER2_START";
         public static final String LAYER2_COMPLETE = "LAYER2_COMPLETE";
         public static final String DECISION_APPLIED = "DECISION_APPLIED";
+        public static final String RESPONSE_BLOCKED = "RESPONSE_BLOCKED";
         public static final String ERROR = "ERROR";
+
+        // Detailed pipeline events
+        public static final String HCAD_ANALYSIS = "HCAD_ANALYSIS";
+        public static final String SESSION_CONTEXT_LOADED = "SESSION_CONTEXT_LOADED";
+        public static final String RAG_SEARCH_COMPLETE = "RAG_SEARCH_COMPLETE";
+        public static final String BEHAVIOR_ANALYSIS_COMPLETE = "BEHAVIOR_ANALYSIS_COMPLETE";
+        public static final String LLM_EXECUTION_START = "LLM_EXECUTION_START";
+        public static final String LLM_EXECUTION_COMPLETE = "LLM_EXECUTION_COMPLETE";
+        public static final String THREAT_INDICATORS = "THREAT_INDICATORS";
     }
 
     /**
@@ -262,6 +272,21 @@ public class LlmAnalysisEvent {
                 .layer(layer)
                 .requestPath(requestPath)
                 .status(Status.COMPLETED)
+                .timestamp(System.currentTimeMillis())
+                .build();
+    }
+
+    /**
+     * Response blocked event
+     */
+    public static LlmAnalysisEvent responseBlocked(String userId, long bytesTransferred, String reason) {
+        return LlmAnalysisEvent.builder()
+                .type(EventType.RESPONSE_BLOCKED)
+                .userId(userId)
+                .status(Status.COMPLETED)
+                .action("BLOCK")
+                .reasoning(reason)
+                .metadata(String.valueOf(bytesTransferred))
                 .timestamp(System.currentTimeMillis())
                 .build();
     }
