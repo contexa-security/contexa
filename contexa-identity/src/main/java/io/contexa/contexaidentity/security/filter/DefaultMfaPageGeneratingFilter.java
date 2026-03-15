@@ -1317,26 +1317,59 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <meta name="_csrf_parameter" content="%s">
                     <title>Login - MFA Authentication</title>
                     <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-                        .container { max-width: 400px; width: 100%%; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
-                        h1 { margin: 0 0 24px; font-size: 24px; color: #333; text-align: center; }
-                        .message { padding: 12px; margin-bottom: 16px; border-radius: 6px; }
-                        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-                        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-                        .message.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
-                        input { width: 100%%; padding: 12px; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-                        input:focus { outline: none; border-color: #007bff; }
-                        button { width: 100%%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
-                        button:hover { background: #0056b3; }
-                        button:disabled { background: #6c757d; cursor: not-allowed; }
-                        .form-footer { margin-top: 16px; text-align: center; font-size: 14px; color: #666; }
-                        .spinner { display: none; text-align: center; margin-top: 8px; }
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+                            min-height: 100vh;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 20px;
+                        }
+                        .container {
+                            background: white;
+                            border-radius: 12px;
+                            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                            padding: 40px;
+                            max-width: 480px;
+                            width: 100%%;
+                            text-align: center;
+                        }
+                        .icon { font-size: 64px; margin-bottom: 24px; }
+                        h1 { color: #333; font-size: 24px; margin-bottom: 8px; }
+                        .description { color: #666; font-size: 14px; margin-bottom: 24px; }
+                        .message { padding: 12px; margin-bottom: 16px; border-radius: 8px; font-size: 14px; }
+                        .message.error { background: #fff0f0; color: #c0392b; border: 1px solid #f5c6cb; }
+                        .message.success { background: #f0fff4; color: #27ae60; border: 1px solid #c3e6cb; }
+                        .message.info { background: #f0f8ff; color: #2980b9; border: 1px solid #bee5eb; }
+                        input {
+                            width: 100%%; padding: 14px 16px; margin-bottom: 16px;
+                            border: 1px solid #e0e0e0; border-radius: 8px;
+                            box-sizing: border-box; font-size: 15px;
+                            transition: border-color 0.2s, box-shadow 0.2s;
+                        }
+                        input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15); }
+                        .primary-button {
+                            width: 100%%; padding: 14px;
+                            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+                            color: white; border: none; border-radius: 8px;
+                            font-size: 16px; font-weight: 600; cursor: pointer;
+                            transition: transform 0.2s, box-shadow 0.2s;
+                        }
+                        .primary-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
+                        .primary-button:active:not(:disabled) { transform: translateY(0); }
+                        .primary-button:disabled { opacity: 0.6; cursor: not-allowed; }
+                        .form-footer { margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0; text-align: center; font-size: 14px; color: #666; }
+                        .spinner { display: none; text-align: center; margin-top: 12px; color: #667eea; font-size: 14px; }
                         .spinner.active { display: block; }
                     </style>
                 </head>
                 <body>
                     <div class="container">
+                        <div class="icon">🔑</div>
                         <h1>Login</h1>
+                        <p class="description">Enter your credentials to continue.</p>
                         <div id="message-area">
                             %s
                             %s
@@ -1344,7 +1377,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         <div id="loginContainer" class="form">
                             <input type="text" id="username" placeholder="Username or Email" required autofocus>
                             <input type="password" id="password" placeholder="Password" required>
-                            <button type="button" id="loginButton">Login</button>
+                            <button type="button" id="loginButton" class="primary-button">Login</button>
                             <div class="spinner" id="spinner">Authenticating...</div>
                         </div>
                         <div class="form-footer" id="form-footer">
@@ -1474,26 +1507,59 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <meta name="_csrf_parameter" content="%s">
                     <title>Login - MFA Authentication (REST)</title>
                     <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-                        .container { max-width: 400px; width: 100%%; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
-                        h1 { margin: 0 0 24px; font-size: 24px; color: #333; text-align: center; }
-                        .message { padding: 12px; margin-bottom: 16px; border-radius: 6px; }
-                        .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-                        .message.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-                        .message.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
-                        input { width: 100%%; padding: 12px; margin-bottom: 16px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-                        input:focus { outline: none; border-color: #007bff; }
-                        button { width: 100%%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
-                        button:hover { background: #0056b3; }
-                        button:disabled { background: #6c757d; cursor: not-allowed; }
-                        .form-footer { margin-top: 16px; text-align: center; font-size: 14px; color: #666; }
-                        .spinner { display: none; text-align: center; margin-top: 8px; }
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+                            min-height: 100vh;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 20px;
+                        }
+                        .container {
+                            background: white;
+                            border-radius: 12px;
+                            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+                            padding: 40px;
+                            max-width: 480px;
+                            width: 100%%;
+                            text-align: center;
+                        }
+                        .icon { font-size: 64px; margin-bottom: 24px; }
+                        h1 { color: #333; font-size: 24px; margin-bottom: 8px; }
+                        .description { color: #666; font-size: 14px; margin-bottom: 24px; }
+                        .message { padding: 12px; margin-bottom: 16px; border-radius: 8px; font-size: 14px; }
+                        .message.error { background: #fff0f0; color: #c0392b; border: 1px solid #f5c6cb; }
+                        .message.success { background: #f0fff4; color: #27ae60; border: 1px solid #c3e6cb; }
+                        .message.info { background: #f0f8ff; color: #2980b9; border: 1px solid #bee5eb; }
+                        input {
+                            width: 100%%; padding: 14px 16px; margin-bottom: 16px;
+                            border: 1px solid #e0e0e0; border-radius: 8px;
+                            box-sizing: border-box; font-size: 15px;
+                            transition: border-color 0.2s, box-shadow 0.2s;
+                        }
+                        input:focus { outline: none; border-color: #667eea; box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15); }
+                        .primary-button {
+                            width: 100%%; padding: 14px;
+                            background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%);
+                            color: white; border: none; border-radius: 8px;
+                            font-size: 16px; font-weight: 600; cursor: pointer;
+                            transition: transform 0.2s, box-shadow 0.2s;
+                        }
+                        .primary-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4); }
+                        .primary-button:active:not(:disabled) { transform: translateY(0); }
+                        .primary-button:disabled { opacity: 0.6; cursor: not-allowed; }
+                        .form-footer { margin-top: 24px; padding-top: 24px; border-top: 1px solid #e0e0e0; text-align: center; font-size: 14px; color: #666; }
+                        .spinner { display: none; text-align: center; margin-top: 12px; color: #667eea; font-size: 14px; }
                         .spinner.active { display: block; }
                     </style>
                 </head>
                 <body>
                     <div class="container">
-                        <h1>Login (REST API)</h1>
+                        <div class="icon">🔑</div>
+                        <h1>Login</h1>
+                        <p class="description">Enter your credentials to continue.</p>
                         <div id="message-area">
                             %s
                             %s
@@ -1501,7 +1567,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         <div id="loginContainer" class="form">
                             <input type="text" id="username" placeholder="Username or Email" required autofocus>
                             <input type="password" id="password" placeholder="Password" required>
-                            <button type="button" id="loginButton">Login</button>
+                            <button type="button" id="loginButton" class="primary-button">Login</button>
                             <div class="spinner" id="spinner">Authenticating...</div>
                         </div>
                         <div class="form-footer" id="form-footer">
