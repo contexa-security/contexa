@@ -123,11 +123,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
-        } else if (ztAction == ZeroTrustAction.CHALLENGE) {
-            // CHALLENGE also requires real-time response termination for in-flight requests
-            if (blockingDecisionRegistry != null) {
-                blockingDecisionRegistry.registerBlock(userId);
-            }
         }
     }
 
