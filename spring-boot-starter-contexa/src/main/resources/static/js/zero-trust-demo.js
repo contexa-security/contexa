@@ -29,8 +29,8 @@
 
     const SCENARIO_HEADERS = {
         'NORMAL_USER': { 'X-Forwarded-For': '192.168.1.100' },
-        'ACCOUNT_TAKEOVER': { 'X-Forwarded-For': '203.0.113.50' },
-        'DATA_EXFILTRATION': { 'X-Forwarded-For': '10.0.0.99' }
+        'ACCOUNT_TAKEOVER': { 'X-Forwarded-For': '203.0.113.50', 'X-Simulated-User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36 Tor/11.0' },
+        'DATA_EXFILTRATION': { 'X-Forwarded-For': '10.0.0.99', 'X-Simulated-User-Agent': 'python-requests/2.31.0' }
     };
 
     const SCENARIO_INFO = {
@@ -898,6 +898,14 @@
 
         updateActionBadge('PENDING');
         updateMetrics(0, 0);
+
+        // URL ?tab= parameter support
+        var params = new URLSearchParams(window.location.search);
+        var tabParam = params.get('tab');
+        if (tabParam) {
+            var tabBtn = document.querySelector('.tab-btn[data-tab="' + tabParam + '"]');
+            if (tabBtn) tabBtn.click();
+        }
     }
 
     if (document.readyState === 'loading') {

@@ -165,6 +165,67 @@
             } else {
                 console[type](prefix, message);
             }
+        },
+
+        renderResponseBlockedPage() {
+            document.documentElement.innerHTML = `
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Contexa - Access Blocked</title>
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body {
+                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            min-height: 100vh;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            padding: 20px;
+                        }
+                        .card {
+                            background: white;
+                            border-radius: 16px;
+                            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+                            padding: 48px 40px;
+                            max-width: 480px;
+                            width: 100%;
+                            text-align: center;
+                        }
+                        .icon { font-size: 64px; margin-bottom: 24px; }
+                        h1 { color: #1a1a2e; font-size: 22px; font-weight: 800; margin-bottom: 12px; }
+                        .desc { color: #555; font-size: 15px; line-height: 1.7; margin-bottom: 32px; }
+                        .btn {
+                            display: inline-block;
+                            padding: 14px 40px;
+                            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            color: white;
+                            border: none;
+                            border-radius: 10px;
+                            font-size: 16px;
+                            font-weight: 700;
+                            text-decoration: none;
+                            cursor: pointer;
+                            transition: transform 0.2s, box-shadow 0.2s;
+                        }
+                        .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }
+                        .footer { margin-top: 24px; font-size: 12px; color: #999; }
+                    </style>
+                </head>
+                <body>
+                    <div class="card">
+                        <div class="icon">&#128721;</div>
+                        <h1>보안 정책에 의해 접근이 차단되었습니다</h1>
+                        <p class="desc">
+                            AI 보안 분석에 의해 현재 세션의 응답이 강제 종료되었습니다.<br>
+                            정상적인 접근이라면 관리자에게 문의해 주세요.
+                        </p>
+                        <a class="btn" href="/">홈으로 이동</a>
+                        <div class="footer">Contexa AI Native Zero Trust Security Platform</div>
+                    </div>
+                </body>
+            `;
         }
     };
 
@@ -1253,7 +1314,16 @@
         const originalFetch = window.fetch;
 
         window.fetch = async function(...args) {
-            const response = await originalFetch.apply(this, args);
+            var response;
+            try {
+                response = await originalFetch.apply(this, args);
+            } catch (networkError) {
+                // Network error during streaming may indicate response was forcibly terminated
+                if (typeof ContexaMFAUtils !== 'undefined') {
+                    ContexaMFAUtils.log('Network error during fetch - possible response blocking', 'warn');
+                }
+                throw networkError;
+            }
 
             // Detect 401 MFA Challenge response
             if (response.status === 401) {
@@ -1290,6 +1360,12 @@
                             data
                         );
                         window.location.href = data.redirectUrl;
+                        return new Promise(() => {});
+                    }
+
+                    if (data.error === 'RESPONSE_BLOCKED') {
+                        ContexaMFAUtils.log('Response blocked by AI security decision', 'warn', data);
+                        ContexaMFAUtils.renderResponseBlockedPage();
                         return new Promise(() => {});
                     }
 
@@ -1375,6 +1451,13 @@
                             'XHR: MFA Challenge detected, redirecting to: ' + xhrRedirectTarget,
                             'info', data);
                         window.location.href = xhrRedirectTarget;
+                        return;
+                    }
+
+                    // 403 Response Blocked (in-flight termination)
+                    if (status === 403 && data.error === 'RESPONSE_BLOCKED') {
+                        ContexaMFAUtils.log('XHR: Response blocked by AI security decision', 'warn', data);
+                        ContexaMFAUtils.renderResponseBlockedPage();
                         return;
                     }
 

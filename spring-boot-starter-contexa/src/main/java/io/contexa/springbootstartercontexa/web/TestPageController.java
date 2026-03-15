@@ -74,6 +74,17 @@ public class TestPageController {
         return "test/security-test";
     }
 
+    @GetMapping("/test/zero-trust-index")
+    public String zeroTrustIndexPage(Model model) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String username = "anonymous";
+        if (auth != null && auth.isAuthenticated()) {
+            username = auth.getName();
+        }
+        model.addAttribute("username", username);
+        return "test/zero-trust-index";
+    }
+
     @GetMapping("/test/zero-trust-demo")
     public String zeroTrustDemoPage(Model model) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

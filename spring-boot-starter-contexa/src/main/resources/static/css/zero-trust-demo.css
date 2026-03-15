@@ -144,6 +144,16 @@ body {
     backdrop-filter: blur(4px);
 }
 .badge-text { font-size: 0.95rem; font-weight: 800; letter-spacing: 1px; }
+.home-badge {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.home-badge:hover {
+    background: rgba(255,255,255,0.25);
+    border-color: rgba(255,255,255,0.5);
+}
 
 /* ============================================================================
    TABS

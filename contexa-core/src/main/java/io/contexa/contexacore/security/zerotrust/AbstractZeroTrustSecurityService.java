@@ -109,6 +109,13 @@ public abstract class AbstractZeroTrustSecurityService implements ZeroTrustSecur
         }
     }
 
+    @Override
+    public void invalidateDecisionCache(String userId) {
+        if (userId != null) {
+            decisionCache.invalidate(userId);
+        }
+    }
+
     protected abstract void doRegisterSession(String userId, String sessionId);
 
     protected abstract void doCleanupSessionData(String userId, String sessionId);

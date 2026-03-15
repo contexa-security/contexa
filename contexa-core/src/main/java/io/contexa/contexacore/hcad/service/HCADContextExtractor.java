@@ -65,7 +65,9 @@ public class HCADContextExtractor {
             context.setHttpMethod(request.getMethod());
             context.setRemoteIp(clientIp);
 
-            String userAgent = request.getHeader("User-Agent");
+            String simulatedUA = request.getHeader("X-Simulated-User-Agent");
+            String userAgent = (simulatedUA != null && !simulatedUA.isEmpty())
+                    ? simulatedUA : request.getHeader("User-Agent");
             context.setUserAgent(userAgent != null ? userAgent : "unknown");
             context.setReferer(request.getHeader("Referer"));
             context.setTimestamp(Instant.now());

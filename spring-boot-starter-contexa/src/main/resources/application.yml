@@ -73,6 +73,15 @@ spring:
 #      layer2:
 #        model: qwen3:8b  # Layer 2: High-performance model
 
+    security:
+      tiered:
+        security:
+          trusted-proxy-validation-enabled: true
+          trusted-proxies:
+            - "127.0.0.1"
+            - "::1"
+            - "0:0:0:0:0:0:0:1"
+
     vectorstore:
       pgvector:
         table-name: vector_store

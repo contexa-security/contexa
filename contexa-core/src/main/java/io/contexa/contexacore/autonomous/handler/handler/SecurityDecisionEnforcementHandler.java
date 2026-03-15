@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
@@ -39,6 +40,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     @Setter
     @Autowired(required = false)
     private BlockingSignalBroadcaster blockingDecisionRegistry;
+
+    @Setter
+    @Autowired(required = false)
+    private ZeroTrustSecurityService zeroTrustSecurityService;
 
     @Override
     public boolean canHandle(SecurityEventContext context) {
@@ -111,8 +116,18 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         actionRedisRepository.saveAction(userId, ztAction, additionalFields);
 
+        // Invalidate decision cache so next request picks up the new action immediately
+        if (zeroTrustSecurityService != null) {
+            zeroTrustSecurityService.invalidateDecisionCache(userId);
+        }
+
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
+        } else if (ztAction == ZeroTrustAction.CHALLENGE) {
+            // CHALLENGE also requires real-time response termination for in-flight requests
+            if (blockingDecisionRegistry != null) {
+                blockingDecisionRegistry.registerBlock(userId);
+            }
         }
     }
 

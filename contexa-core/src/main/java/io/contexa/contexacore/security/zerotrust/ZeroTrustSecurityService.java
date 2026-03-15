@@ -14,4 +14,6 @@ public interface ZeroTrustSecurityService {
     void cleanupOnLogout(String userId, String sessionId);
 
     void invalidateAllUserSessions(String userId, String reason);
+
+    default void invalidateDecisionCache(String userId) {}
 }

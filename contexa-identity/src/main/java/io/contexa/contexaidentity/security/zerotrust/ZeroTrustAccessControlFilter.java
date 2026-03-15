@@ -353,15 +353,28 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         } catch (IOException e) {
             if (blockingDecisionRegistry.isBlocked(userId)) {
                 log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
+                sendBlockedResponseIfPossible(response, request);
                 return;
             }
             throw e;
         } catch (ResponseBlockedException e) {
             log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
-            if (!response.isCommitted()) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            }
+            sendBlockedResponseIfPossible(response, request);
             return;
+        }
+    }
+
+    private void sendBlockedResponseIfPossible(HttpServletResponse response, HttpServletRequest request) {
+        if (!response.isCommitted()) {
+            try {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json;charset=UTF-8");
+                response.getWriter().write(
+                        "{\"error\":\"RESPONSE_BLOCKED\",\"message\":\"Response terminated by AI security decision\",\"redirectUrl\":\"/zero-trust/blocked\"}");
+                response.getWriter().flush();
+            } catch (Exception ex) {
+                log.error("[ZeroTrustAccessControlFilter] Failed to send blocked response JSON", ex);
+            }
         }
     }
 

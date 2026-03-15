@@ -85,6 +85,11 @@ public final class RequestInfoExtractor {
     }
 
     public static String extractUserAgent(HttpServletRequest request) {
+        // Test simulation header takes priority
+        String simulated = request.getHeader("X-Simulated-User-Agent");
+        if (simulated != null && !simulated.isEmpty()) {
+            return simulated;
+        }
         String userAgent = request.getHeader("User-Agent");
         return userAgent != null ? userAgent : "unknown";
     }
