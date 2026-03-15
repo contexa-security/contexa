@@ -121,6 +121,14 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             zeroTrustSecurityService.invalidateDecisionCache(userId);
         }
 
+        // Register block signal for in-flight response termination (BLOCK, CHALLENGE, ESCALATE)
+        // The signal will be cleared immediately after response termination in handlePendingAnalysis()
+        if (ztAction == ZeroTrustAction.BLOCK || ztAction == ZeroTrustAction.CHALLENGE || ztAction == ZeroTrustAction.ESCALATE) {
+            if (blockingDecisionRegistry != null) {
+                blockingDecisionRegistry.registerBlock(userId);
+            }
+        }
+
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
         }
@@ -131,10 +139,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         String reasoning = result.getReasoning() != null ? result.getReasoning() : "";
 
         actionRedisRepository.setBlockedFlag(userId);
-
-        if (blockingDecisionRegistry != null) {
-            blockingDecisionRegistry.registerBlock(userId);
-        }
 
         if (blockedUserRecorder != null) {
             boolean recorded = false;
