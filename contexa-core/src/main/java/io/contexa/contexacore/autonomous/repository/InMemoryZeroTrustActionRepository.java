@@ -61,13 +61,13 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
     public ZeroTrustAction getCurrentAction(String userId, String contextBindingHash) {
         ZeroTrustAction action = getCurrentAction(userId);
 
-        if (action != ZeroTrustAction.PENDING_ANALYSIS
-                && action != ZeroTrustAction.BLOCK
-                && contextBindingHash != null) {
+        // ALLOW action: verify contextBindingHash to prevent reuse from different IP/device
+        // If hash mismatch, treat as new context requiring fresh analysis
+        if (action == ZeroTrustAction.ALLOW && contextBindingHash != null) {
             AnalysisEntry entry = analysisStore.get(userId);
             if (entry != null && entry.contextBindingHash != null
                     && !entry.contextBindingHash.equals(contextBindingHash)) {
-                log.error("[InMemoryZTARepository] Context binding hash mismatch detected: userId={}, action={}", userId, action);
+                log.error("[InMemoryZTARepository] Context binding hash mismatch on ALLOW: userId={}", userId);
                 return ZeroTrustAction.PENDING_ANALYSIS;
             }
         }
