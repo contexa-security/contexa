@@ -388,6 +388,8 @@
     }
 
     function handleResponseBlocked(data) {
+        // Prevent duplicate display if stream catch already showed BLOCK
+        if (elements.modalFinal && elements.modalFinal.style.display !== 'none') return;
         addTimelineEntry('error', `응답 강제 차단: ${data.reasoning || 'AI 보안 결정에 의해 응답이 중단되었습니다'}`);
         showModalDecision('BLOCK');
     }
@@ -650,6 +652,9 @@
 
         var scenario = state.t2SelectedScenario;
         var scenarioInfo = SCENARIO_INFO[scenario];
+
+        // Reset previous analysis state
+        resetAnalysisUI();
 
         // Open modal
         openModal(scenarioInfo.name);
