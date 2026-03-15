@@ -1317,8 +1317,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <meta name="_csrf_parameter" content="%s">
                     <title>Login - MFA Authentication</title>
                     <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-                        .container { max-width: 400px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+                        .container { max-width: 400px; width: 100%%; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
                         h1 { margin: 0 0 24px; font-size: 24px; color: #333; text-align: center; }
                         .message { padding: 12px; margin-bottom: 16px; border-radius: 6px; }
                         .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
@@ -1474,8 +1474,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     <meta name="_csrf_parameter" content="%s">
                     <title>Login - MFA Authentication (REST)</title>
                     <style>
-                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
-                        .container { max-width: 400px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: linear-gradient(135deg, #667eea 0%%, #764ba2 100%%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+                        .container { max-width: 400px; width: 100%%; background: white; padding: 32px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.15); }
                         h1 { margin: 0 0 24px; font-size: 24px; color: #333; text-align: center; }
                         .message { padding: 12px; margin-bottom: 16px; border-radius: 6px; }
                         .message.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }

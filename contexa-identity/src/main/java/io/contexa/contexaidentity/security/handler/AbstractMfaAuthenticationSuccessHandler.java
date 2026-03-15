@@ -508,9 +508,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private void markMfaVerifiedOnChallengeSuccess(String userId) {
         try {
-            if (blockMfaStateStore != null) {
-                blockMfaStateStore.setVerified(userId);
-            }
+            // CHALLENGE MFA -> hcadDataStore only (for LLM prompt MfaVerified flag)
+            // blockMfaStateStore is reserved for BLOCK MFA flow only (handleBlockMfaSuccess)
             HCADDataStore hcadDataStore = applicationContext.getBean(HCADDataStore.class);
             if (hcadDataStore != null) {
                 hcadDataStore.markMfaVerified(userId);
