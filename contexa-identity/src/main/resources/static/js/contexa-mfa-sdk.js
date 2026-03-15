@@ -1318,11 +1318,51 @@
             try {
                 response = await originalFetch.apply(this, args);
             } catch (networkError) {
-                // Network error during streaming may indicate response was forcibly terminated
                 if (typeof ContexaMFAUtils !== 'undefined') {
                     ContexaMFAUtils.log('Network error during fetch - possible response blocking', 'warn');
                 }
                 throw networkError;
+            }
+
+            // Wrap streaming responses to detect mid-stream termination by server
+            if (response.ok && response.body) {
+                var originalBody = response.body;
+                var wrappedStream = new ReadableStream({
+                    start: function(controller) {
+                        var reader = originalBody.getReader();
+                        function pump() {
+                            reader.read().then(function(result) {
+                                if (result.done) {
+                                    controller.close();
+                                    return;
+                                }
+                                controller.enqueue(result.value);
+                                pump();
+                            }).catch(function(streamError) {
+                                // Stream terminated mid-flight - check if blocked by server
+                                if (typeof ContexaMFAUtils !== 'undefined') {
+                                    ContexaMFAUtils.log('Stream terminated - checking block status', 'warn');
+                                    originalFetch.apply(window, ['/api/test-action/status', { credentials: 'same-origin' }])
+                                        .then(function(r) { return r.json(); })
+                                        .then(function(data) {
+                                            if (data.action === 'BLOCK') {
+                                                ContexaMFAUtils.renderResponseBlockedPage();
+                                            }
+                                        })
+                                        .catch(function() { /* ignore */ });
+                                }
+                                controller.error(streamError);
+                            });
+                        }
+                        pump();
+                    }
+                });
+
+                return new Response(wrappedStream, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers: response.headers
+                });
             }
 
             // Detect 401 MFA Challenge response
