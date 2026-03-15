@@ -215,6 +215,13 @@ body {
 /* ============================================================================
    SCENARIO CARDS
    ============================================================================ */
+.current-user {
+    margin-left: auto;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-sub);
+}
+
 .scenario-cards { display: flex; flex-direction: column; gap: 16px; }
 
 .scenario-card {
@@ -631,16 +638,29 @@ body {
 
 /* Step indicators (shared with main page) */
 .step-indicator, .m-step-indicator {
-    width: 28px; height: 28px;
+    width: 36px; height: 36px;
     border-radius: 50%;
-    border: 2px solid var(--border-inner);
+    border: 3px solid var(--border-inner);
     background: var(--bg-card-inner);
-    transition: all 0.3s;
+    transition: all 0.4s cubic-bezier(0.16,1,0.3,1);
 }
 .step-indicator.waiting, .m-step-indicator.waiting { border-color: var(--border-inner); }
-.step-indicator.active, .m-step-indicator.active { border-color: var(--blue-400); background: rgba(59,130,196,0.15); animation: pulseBlue 1.5s ease infinite; }
-.step-indicator.completed, .m-step-indicator.completed { border-color: #34d399; background: rgba(52,211,153,0.15); }
-.step-indicator.error, .m-step-indicator.error { border-color: #f87171; background: rgba(248,113,113,0.15); }
+.step-indicator.active, .m-step-indicator.active {
+    border-color: var(--blue-400);
+    background: rgba(59,130,196,0.2);
+    box-shadow: 0 0 12px rgba(59,130,196,0.4), 0 0 24px rgba(59,130,196,0.15);
+    animation: pulseBlueGlow 1.2s ease infinite;
+}
+.step-indicator.completed, .m-step-indicator.completed {
+    border-color: #34d399;
+    background: rgba(52,211,153,0.15);
+    box-shadow: 0 0 8px rgba(52,211,153,0.2);
+}
+.step-indicator.error, .m-step-indicator.error {
+    border-color: #f87171;
+    background: rgba(248,113,113,0.15);
+    box-shadow: 0 0 8px rgba(248,113,113,0.2);
+}
 
 /* ---- Modal Real-time Log (= security-test.html timeline-container) ---- */
 .m-log-container {
@@ -757,6 +777,67 @@ body {
 .m-final-icon { font-size: 2rem; }
 .m-final-text { font-weight: 900; letter-spacing: 2px; }
 
+/* ---- Analyzing Indicator ---- */
+.analyzing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    margin: 8px 0;
+    border-radius: 8px;
+    background: rgba(59,130,196,0.08);
+    border: 1px solid rgba(59,130,196,0.2);
+    animation: fadeIn 0.3s ease;
+}
+.analyzing-spinner {
+    width: 20px;
+    height: 20px;
+    border: 3px solid var(--border-inner);
+    border-top-color: var(--blue-400);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+}
+.analyzing-text {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--blue-300);
+    transition: color 0.3s;
+}
+.analyzing-indicator.completed {
+    background: rgba(52,211,153,0.08);
+    border-color: rgba(52,211,153,0.25);
+}
+.analyzing-indicator.completed .analyzing-text {
+    color: #6ee7b7;
+}
+.analyzing-check {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: rgba(52,211,153,0.2);
+    border: 2px solid #34d399;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: #34d399;
+}
+.analyzing-check::after {
+    content: '\2713';
+}
+.analyzing-dots::after {
+    content: '';
+    animation: analyzeDotsAnim 1.5s steps(4, end) infinite;
+}
+@keyframes analyzeDotsAnim {
+    0%  { content: ''; }
+    25% { content: '.'; }
+    50% { content: '..'; }
+    75% { content: '...'; }
+}
+
 /* ============================================================================
    FOOTER
    ============================================================================ */
@@ -785,6 +866,16 @@ body {
 @keyframes pulseBlue {
     0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,168,0.3); }
     50% { box-shadow: 0 0 0 8px rgba(37,99,168,0); }
+}
+@keyframes pulseBlueGlow {
+    0%, 100% {
+        box-shadow: 0 0 12px rgba(59,130,196,0.4), 0 0 24px rgba(59,130,196,0.15);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 20px rgba(59,130,196,0.6), 0 0 40px rgba(59,130,196,0.25);
+        transform: scale(1.1);
+    }
 }
 
 /* ============================================================================

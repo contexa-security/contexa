@@ -312,10 +312,12 @@
         state.analysisPhase = 'layer1';
         updateStepStatus('context', 'completed');
         updateStepStatus('layer1', 'active');
-        addTimelineEntry('info', '1차 AI 분석 시작 (Qwen 2.5 7B)');
+        addTimelineEntry('info', '1차 AI 분석 시작 (모델: Qwen 2.5 7B)');
+        showAnalyzingIndicator();
     }
 
     function handleLayer1Complete(data) {
+        hideAnalyzingIndicator();
         updateStepStatus('layer1', 'completed');
         updateMetrics(data.riskScore, data.confidence);
 
@@ -347,10 +349,12 @@
         if (elements.layer2Arrow) elements.layer2Arrow.style.display = 'flex';
 
         updateStepStatus('layer2', 'active');
+        showAnalyzingIndicator();
         addTimelineEntry('warning', `2차 정밀 분석 시작 (Claude Sonnet): ${data.reasoning || data.reason || 'N/A'}`);
     }
 
     function handleLayer2Complete(data) {
+        hideAnalyzingIndicator();
         updateStepStatus('layer2', 'completed');
         updateMetrics(data.riskScore, data.confidence);
 
@@ -465,6 +469,37 @@
 
         if (elements.stepLayer2) elements.stepLayer2.style.display = 'none';
         if (elements.layer2Arrow) elements.layer2Arrow.style.display = 'none';
+    }
+
+    // ========================================================================
+    // Analyzing Indicator
+    // ========================================================================
+    function showAnalyzingIndicator() {
+        if (!elements.modalLogContainer) return;
+        var existing = elements.modalLogContainer.querySelector('.analyzing-indicator');
+        if (existing) existing.remove();
+
+        var el = document.createElement('div');
+        el.className = 'analyzing-indicator';
+        el.innerHTML =
+            '<span class="analyzing-spinner"></span>' +
+            '<span class="analyzing-text">AI 분석 진행 중</span>' +
+            '<span class="analyzing-dots"></span>';
+        elements.modalLogContainer.appendChild(el);
+        elements.modalLogContainer.scrollTop = elements.modalLogContainer.scrollHeight;
+    }
+
+    function hideAnalyzingIndicator() {
+        if (!elements.modalLogContainer) return;
+        var el = elements.modalLogContainer.querySelector('.analyzing-indicator');
+        if (!el) return;
+        el.classList.add('completed');
+        var spinner = el.querySelector('.analyzing-spinner');
+        if (spinner) spinner.className = 'analyzing-check';
+        var text = el.querySelector('.analyzing-text');
+        if (text) text.textContent = 'AI 분석 완료';
+        var dots = el.querySelector('.analyzing-dots');
+        if (dots) dots.remove();
     }
 
     // ========================================================================

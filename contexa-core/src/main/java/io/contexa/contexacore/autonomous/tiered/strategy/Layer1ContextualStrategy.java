@@ -160,7 +160,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             // SSE: LLM execution start
             if (llmEventListener != null) {
-                llmEventListener.onLlmExecutionStart(event.getUserId(), "1차 AI (Qwen 2.5 7B)", promptBuildMs);
+                llmEventListener.onLlmExecutionStart(event.getUserId(), "1차 AI (모델: Qwen 2.5 7B)", promptBuildMs);
             }
 
             SecurityResponse response = null;

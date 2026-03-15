@@ -34,7 +34,7 @@
     <div class="tab-content active" id="tab-test1">
         <div class="main-grid">
             <section class="section">
-                <h2 class="section-title">시나리오 선택</h2>
+                <h2 class="section-title">시나리오 선택 <span class="current-user">현재 접속자: <span th:text="${username}">user</span></span></h2>
                 <div class="scenario-cards">
                     <div class="scenario-card" data-scenario="NORMAL_USER" data-tab-owner="test1">
                         <div class="scenario-left normal"><span class="scenario-icon">&#128100;</span></div>
@@ -82,7 +82,7 @@
                     <span class="mitre-value" id="mitre-value"></span>
                 </div>
                 <div class="reasoning-display" id="reasoning-display" style="display:none;">
-                    <h4>LLM 분석 근거</h4>
+                    <h4>AI 분석 근거</h4>
                     <p class="reasoning-text" id="reasoning-text"></p>
                 </div>
             </section>
@@ -101,7 +101,7 @@
     <div class="tab-content" id="tab-test2">
         <div class="main-grid">
             <section class="section">
-                <h2 class="section-title">시나리오 선택</h2>
+                <h2 class="section-title">시나리오 선택 <span class="current-user">현재 접속자: <span th:text="${username}">user</span></span></h2>
                 <div class="scenario-cards">
                     <div class="scenario-card" data-scenario="NORMAL_USER" data-tab-owner="test2">
                         <div class="scenario-left normal"><span class="scenario-icon">&#128100;</span></div>
