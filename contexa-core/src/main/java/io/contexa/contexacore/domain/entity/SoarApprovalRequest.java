@@ -112,7 +112,7 @@ public class SoarApprovalRequest {
     @Column(name = "remaining_approvals")
     private Integer remainingApprovals;
 
-    @Column(name = "quorum_satisfied", nullable = false)
+    @Column(name = "quorum_satisfied", nullable = false, columnDefinition = "boolean default false")
     private boolean quorumSatisfied;
 
     @Column(name = "current_step_number")
@@ -124,7 +124,7 @@ public class SoarApprovalRequest {
     @Column(name = "reopened_from_request_id")
     private String reopenedFromRequestId;
 
-    @Column(name = "break_glass_requested", nullable = false)
+    @Column(name = "break_glass_requested", nullable = false, columnDefinition = "boolean default false")
     private boolean breakGlassRequested;
 
     @Lob
