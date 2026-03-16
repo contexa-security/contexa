@@ -27,6 +27,7 @@ import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -43,7 +44,15 @@ import java.util.Map;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@AutoConfigureBefore(name = {"org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration", "org.springframework.ai.autoconfigure.chat.client.ChatClientAutoConfiguration", "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"})
+@AutoConfigureAfter(name = {
+        "org.springframework.ai.model.ollama.autoconfigure.OllamaEmbeddingAutoConfiguration",
+        "org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration"
+})
+@AutoConfigureBefore(name = {
+        "org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration",
+        "org.springframework.ai.autoconfigure.chat.client.ChatClientAutoConfiguration",
+        "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"
+})
 @EnableConfigurationProperties(TieredLLMProperties.class)
 public class CoreLLMTieredAutoConfiguration {
 
