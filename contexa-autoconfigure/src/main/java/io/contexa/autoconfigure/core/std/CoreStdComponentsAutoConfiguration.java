@@ -3,22 +3,17 @@ package io.contexa.autoconfigure.core.std;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacommon.domain.PromptTemplate;
-import io.contexa.contexacommon.repository.AuditLogRepository;
-import io.contexa.contexacommon.repository.BusinessResourceActionRepository;
-import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.config.TieredLLMProperties;
-import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
-import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.properties.ContexaAdvisorProperties;
 import io.contexa.contexacore.properties.ContexaRagProperties;
+import io.contexa.contexacore.repository.ApprovalPolicyJpaRepository;
+import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
-import io.contexa.contexacore.std.components.prompt.*;
+import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
-import io.contexa.contexacore.std.labs.AILabFactory;
 import io.contexa.contexacore.std.labs.DefaultAILabFactory;
-import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.llm.config.ToolCapableLLMClient;
 import io.contexa.contexacore.std.llm.handler.DefaultStreamingHandler;
@@ -27,7 +22,6 @@ import io.contexa.contexacore.std.llm.model.provider.AnthropicModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OllamaModelProvider;
 import io.contexa.contexacore.std.llm.model.provider.OpenAIModelProvider;
 import io.contexa.contexacore.std.llm.strategy.DynamicModelSelectionStrategy;
-import io.contexa.contexacore.std.operations.AICoreOperations;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.pipeline.executor.PipelineExecutor;
 import io.contexa.contexacore.std.pipeline.executor.StreamingUniversalPipelineExecutor;
@@ -50,8 +44,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -75,14 +67,13 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @Primary
-    @ConditionalOnBean(VectorStore.class)
+    @ConditionalOnMissingBean(ContextRetriever.class)
     public ContextRetriever contextRetriever(VectorStore vectorStore, ContexaRagProperties ragProperties) {
         return new ContextRetriever(vectorStore, ragProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ContextRetriever.class)
     public ContextRetrieverRegistry contextRetrieverRegistry(ContextRetriever defaultRetriever) {
         return new ContextRetrieverRegistry(defaultRetriever);
     }
@@ -121,7 +112,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ChatModel.class)
     public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
             DynamicModelRegistry dynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
@@ -131,7 +121,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = {"llmExecutionStep", "streamingLLMExecutionStep", "contextRetrievalStep"})
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -149,7 +138,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(name = {"llmExecutionStep", "contextRetrievalStep"})
     public UniversalPipelineExecutor universalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -164,14 +152,13 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ContextRetrieverRegistry.class)
     public ContextRetrievalStep contextRetrievalStep(ContextRetrieverRegistry contextRetrieverRegistry) {
         return new ContextRetrievalStep(contextRetrieverRegistry);
     }
 
     @Bean
     @Qualifier("llmExecutionStep")
-    @ConditionalOnBean(LLMClient.class)
+    @ConditionalOnMissingBean(LLMExecutionStep.class)
     public LLMExecutionStep llmExecutionStep(LLMClient llmClient) {
         return new LLMExecutionStep(llmClient);
     }
@@ -203,7 +190,6 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ToolCapableLLMClient.class)
     public StreamingLLMExecutionStep streamingLLMExecutionStep(ToolCapableLLMClient toolCapableLLMClient) {
         return new StreamingLLMExecutionStep(toolCapableLLMClient);
     }

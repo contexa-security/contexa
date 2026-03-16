@@ -344,7 +344,7 @@ public class TestSecurityController {
         }
 
         StreamingResponseBody body = outputStream -> {
-            int totalRecords = 10000;
+            int totalRecords = 100000;
 
             for (int i = 1; i <= totalRecords; i++) {
                 String record = generateEmployeeRecord(i);

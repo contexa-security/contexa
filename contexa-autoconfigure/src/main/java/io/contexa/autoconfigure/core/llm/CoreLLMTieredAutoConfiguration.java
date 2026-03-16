@@ -29,7 +29,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -68,7 +67,6 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Bean
     @Primary
-    @Conditional(AnyChatModelAvailableCondition.class)
     public ChatModel primaryChatModel(
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
             ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
@@ -113,7 +111,6 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @Conditional(AnyChatModelAvailableCondition.class)
     public ChatClient primaryChatClient(ChatModel primaryChatModel, AdvisorRegistry advisorRegistry) {
         ChatClient.Builder builder = ChatClient.builder(primaryChatModel);
         List<Advisor> advisors = advisorRegistry.getEnabled();
@@ -131,7 +128,7 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Bean
     @Primary
-    @ConditionalOnBean(ChatClient.class)
+    @ConditionalOnMissingBean(UnifiedLLMOrchestrator.class)
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ModelSelectionStrategy modelSelectionStrategy,
             StreamingHandler streamingHandler,
@@ -141,13 +138,13 @@ public class CoreLLMTieredAutoConfiguration {
     }
 
     @Bean(name = "llmClient")
-    @ConditionalOnBean(UnifiedLLMOrchestrator.class)
+    @ConditionalOnMissingBean(LLMClient.class)
     public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "toolCapableLLMClient")
-    @ConditionalOnBean(UnifiedLLMOrchestrator.class)
+    @ConditionalOnMissingBean(ToolCapableLLMClient.class)
     public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         return unifiedLLMOrchestrator;
     }

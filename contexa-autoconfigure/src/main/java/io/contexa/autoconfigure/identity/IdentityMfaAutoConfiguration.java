@@ -77,7 +77,6 @@ public class IdentityMfaAutoConfiguration {
 
     @Bean
     @Primary
-    @ConditionalOnBean(AICoreOperations.class)
     @ConditionalOnMissingBean(name = "aiAdaptiveMfaPolicyProvider")
     public AIAdaptiveMfaPolicyProvider aiAdaptiveMfaPolicyProvider(
             UserRepository userRepository,

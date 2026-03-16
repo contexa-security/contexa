@@ -2,7 +2,7 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
@@ -11,31 +11,26 @@ import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.listener.InMemorySecurityEventCollector;
-import io.contexa.contexacore.autonomous.event.publisher.InMemorySecurityEventPublisher;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
-import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-
-import io.contexa.contexacore.properties.SecurityKafkaProperties;
-
-import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexacore.properties.TieredStrategyProperties;
-
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
+import io.contexa.contexacore.autonomous.event.publisher.InMemorySecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.KafkaSecurityEventPublisher;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
-import io.contexa.contexacore.soar.event.NoOpSecurityActionEventPublisher;
 import io.contexa.contexacore.autonomous.handler.handler.ProcessingExecutionHandler;
 import io.contexa.contexacore.autonomous.handler.handler.SecurityDecisionEnforcementHandler;
 import io.contexa.contexacore.autonomous.handler.strategy.ColdPathStrategy;
 import io.contexa.contexacore.autonomous.handler.strategy.ProcessingStrategy;
 import io.contexa.contexacore.autonomous.processor.ColdPathEventProcessor;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
+import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
-
-
+import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
+import io.contexa.contexacore.soar.event.NoOpSecurityActionEventPublisher;
+import org.redisson.api.RedissonClient;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -44,8 +39,6 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.redisson.api.RedissonClient;
-
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.List;
@@ -57,7 +50,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(KafkaTemplate.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public KafkaSecurityEventCollector kafkaSecurityEventCollector(
             ObjectMapper objectMapper,
@@ -68,7 +60,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(KafkaTemplate.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
             KafkaTemplate<String, Object> kafkaTemplate,
@@ -137,7 +128,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ProcessingStrategy.class)
     public ProcessingExecutionHandler processingExecutionHandler(
             List<ProcessingStrategy> processingStrategies) {
         return new ProcessingExecutionHandler(processingStrategies);
@@ -145,7 +135,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ColdPathEventProcessor.class)
     public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
         return new ColdPathStrategy(coldPathEventProcessor);
     }
@@ -166,7 +155,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean({Layer1ContextualStrategy.class, Layer2ExpertStrategy.class})
     public ColdPathEventProcessor coldPathEventProcessor(
             Layer1ContextualStrategy contextualStrategy,
             Layer2ExpertStrategy expertStrategy,
@@ -176,7 +164,6 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(SecurityLearningService.class)
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRepository,
             SecurityLearningService securityLearningService,

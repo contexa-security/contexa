@@ -23,7 +23,6 @@ import io.contexa.contexaiam.repository.ConditionTemplateRepository;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
@@ -34,7 +33,6 @@ public class IamAiamLabsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
     public PolicyGenerationVectorService policyGenerationVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
@@ -44,7 +42,6 @@ public class IamAiamLabsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(VectorStore.class)
     public StudioQueryVectorService studioQueryVectorService(
             VectorStore vectorStore,
             @Autowired(required = false) VectorStoreMetrics vectorStoreMetrics,
@@ -97,7 +94,6 @@ public class IamAiamLabsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(PolicyGenerationVectorService.class)
     public AdvancedPolicyGenerationLab advancedPolicyGenerationLab(
             PipelineOrchestrator orchestrator,
             IAMDataCollectionService dataCollectionService,
@@ -107,7 +103,6 @@ public class IamAiamLabsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(StudioQueryVectorService.class)
     public StudioQueryLab studioQueryLab(
             PipelineOrchestrator orchestrator,
             QueryIntentAnalyzer queryIntentAnalyzer,

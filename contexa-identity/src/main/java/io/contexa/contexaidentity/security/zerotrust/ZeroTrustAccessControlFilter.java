@@ -17,9 +17,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -349,7 +347,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 response, blockingDecisionRegistry, userId);
         try {
             filterChain.doFilter(request, wrapper);
-            wrapper.flushBuffer();
+//            wrapper.flushBuffer();
         } catch (IOException e) {
             if (blockingDecisionRegistry.isBlocked(userId)) {
                 log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);

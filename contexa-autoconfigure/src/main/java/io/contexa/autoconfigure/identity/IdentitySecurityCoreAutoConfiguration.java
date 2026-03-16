@@ -325,7 +325,6 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ChallengeMfaInitializer.class)
     public ZeroTrustChallengeFilter zeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
             AuthResponseWriter responseWriter,
@@ -350,7 +349,6 @@ public class IdentitySecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(ZeroTrustChallengeFilter.class)
     public ZeroTrustChallengeConfigurer zeroTrustChallengeConfigurer(
             ZeroTrustChallengeFilter zeroTrustChallengeFilter) {
         return new ZeroTrustChallengeConfigurer(zeroTrustChallengeFilter);

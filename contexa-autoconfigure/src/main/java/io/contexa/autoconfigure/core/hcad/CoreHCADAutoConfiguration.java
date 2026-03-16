@@ -81,7 +81,7 @@ public class CoreHCADAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(HCADFilter.class)
+    @ConditionalOnMissingBean
     public FilterRegistrationBean<HCADFilter> hcadFilterRegistrationBean(HCADFilter hcadFilter, HcadProperties hcadProperties) {
         FilterRegistrationBean<HCADFilter> filterRegistrationBean = new FilterRegistrationBean<>();
         filterRegistrationBean.setFilter(hcadFilter);
