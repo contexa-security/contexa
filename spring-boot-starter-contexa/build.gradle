@@ -42,7 +42,8 @@ tasks.named('test') {
 }
 
 tasks.named('processResources') {
-    exclude 'templates/test/**'
+    exclude 'templates/test/security-test.html'
+    exclude 'templates/test/token-test.html'
     exclude 'static/js/security-test.js'
     exclude 'static/js/token-test.js'
     exclude 'static/css/security-test.css'
