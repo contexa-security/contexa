@@ -274,7 +274,8 @@
       "Bash(sidebar \")",
       "Bash(find /e/projects/contexa -path *src/main/java* \\\\\\(-name AuditLog.java -o -name AuditRecord.java -o -name Audit.java \\\\\\))",
       "Read(//e/projects/**)",
-      "Bash(find /e/projects/contexa -path *src/main/java* \\\\\\(-name BlockedUser*.java -o -name BlockedUserService.java \\\\\\))"
+      "Bash(find /e/projects/contexa -path *src/main/java* \\\\\\(-name BlockedUser*.java -o -name BlockedUserService.java \\\\\\))",
+      "Bash(find e:/projects/contexa-enterprise/contexa-iam-enterprise/src -type f \\\\\\(-name *.java -o -name *.yml -o -name *.yaml -o -name *.properties -o -name *.xml \\\\\\))"
     ],
     "deny": [],
     "ask": []
