@@ -17,7 +17,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -76,7 +75,6 @@ class SecurityDecisionEnforcementHandlerTest {
                 .riskScore(0.95)
                 .confidence(0.9)
                 .reasoning("Malicious activity detected")
-                .threatIndicators(List.of("brute-force"))
                 .build();
         context.addMetadata("processingResult", processingResult);
 

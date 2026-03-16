@@ -16,8 +16,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.util.List;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -61,8 +59,6 @@ class ColdPathEventProcessorTest {
                 .action(ZeroTrustAction.ALLOW.name())
                 .reasoning("Normal traffic")
                 .shouldEscalate(false)
-                .indicators(List.of())
-                .recommendedActions(List.of())
                 .build();
 
         when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
@@ -92,8 +88,6 @@ class ColdPathEventProcessorTest {
                 .action(ZeroTrustAction.ESCALATE.name())
                 .reasoning("Low confidence, escalating")
                 .shouldEscalate(true)
-                .indicators(List.of())
-                .recommendedActions(List.of())
                 .build();
 
         ThreatAssessment layer2Assessment = ThreatAssessment.builder()
@@ -102,8 +96,6 @@ class ColdPathEventProcessorTest {
                 .action(ZeroTrustAction.BLOCK.name())
                 .reasoning("Confirmed threat")
                 .shouldEscalate(false)
-                .indicators(List.of("suspicious-pattern"))
-                .recommendedActions(List.of("block-ip"))
                 .build();
 
         when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
@@ -132,8 +124,6 @@ class ColdPathEventProcessorTest {
                 .riskScore(0.6)
                 .confidence(0.3)
                 .shouldEscalate(true)
-                .indicators(List.of())
-                .recommendedActions(List.of())
                 .build();
 
         when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);

@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @Data
@@ -33,15 +32,11 @@ public class ProcessingResult {
     @Builder.Default
     private Map<String, Object> analysisData = new HashMap<>();
 
-    private List<String> threatIndicators;
-
     private long processingTimeMs;
 
     private LocalDateTime processedAt;
 
     private int aiAnalysisLevel;
-
-    private List<String> recommendedActions;
 
     private ProcessingStatus status;
 

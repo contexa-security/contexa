@@ -83,8 +83,4 @@ public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
         eventPublisher.publishLlmExecutionComplete(userId, llmExecutionMs, responseParseMs);
     }
 
-    @Override
-    public void onThreatIndicators(String userId, String indicators, String recommendedActions) {
-        eventPublisher.publishThreatIndicators(userId, indicators, recommendedActions);
-    }
 }

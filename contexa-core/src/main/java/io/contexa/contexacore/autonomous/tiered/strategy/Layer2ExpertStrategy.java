@@ -66,8 +66,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return ThreatAssessment.builder()
                 .riskScore(expertDecision.getRiskScore())
                 .confidence(expertDecision.getConfidence())
-                .indicators(new ArrayList<>())
-                .recommendedActions(List.of(mapActionToRecommendation(expertDecision.getAction())))
                 .strategyName("Layer2-Expert")
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(false)
@@ -242,12 +240,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private SecurityDecision convertToSecurityDecision(SecurityResponse response, SecurityEvent event) {
         SecurityDecision decision = convertToSecurityDecisionBase(response, event);
         decision.setProcessingLayer(2);
-        decision.setLlmModel("tier-2-auto-selected");
-        if (response != null && response.getMitre() != null && !response.getMitre().isEmpty()) {
-            Map<String, String> mitreMapping = new HashMap<>();
-            mitreMapping.put(response.getMitre(), response.getMitre());
-            decision.setMitreMapping(mitreMapping);
-        }
         return decision;
     }
 
@@ -264,14 +256,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         "parameters", Map.of("ip", event.getSourceIp())
                 );
                 actions.add(blockAction);
-            }
-
-            if (decision.getIocIndicators() != null && !decision.getIocIndicators().isEmpty()) {
-                Map<String, Object> investigateAction = Map.of(
-                        "actionType", "INVESTIGATE_IOC",
-                        "parameters", Map.of("iocs", decision.getIocIndicators())
-                );
-                actions.add(investigateAction);
             }
 
             Map<String, Object> notifyAction = Map.of(
@@ -349,12 +333,4 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return "Layer2-Expert-Strategy";
     }
 
-    private String mapActionToRecommendation(ZeroTrustAction action) {
-        return switch (action) {
-            case ALLOW -> "ALLOW_WITH_MONITORING";
-            case BLOCK -> "BLOCK_WITH_INCIDENT_RESPONSE";
-            case CHALLENGE -> "REQUIRE_REAUTHENTICATION";
-            case ESCALATE, PENDING_ANALYSIS -> "ESCALATE_TO_SOC";
-        };
-    }
 }

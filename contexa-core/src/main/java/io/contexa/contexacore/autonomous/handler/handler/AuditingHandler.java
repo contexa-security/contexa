@@ -52,8 +52,6 @@ public class AuditingHandler implements SecurityEventHandler {
             details.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : null);
             details.put("aiAnalysisLevel", result.getAiAnalysisLevel());
             details.put("processingTimeMs", processingTimeMs);
-            details.put("threatIndicators", result.getThreatIndicators());
-            details.put("recommendedActions", result.getRecommendedActions());
             details.put("eventSource", event.getSource() != null ? event.getSource().toString() : null);
             details.put("eventTimestamp", event.getTimestamp() != null ? event.getTimestamp().toString() : null);
             if (targetResource != null) {

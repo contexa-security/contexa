@@ -156,7 +156,6 @@ public class LlmAnalysisEvent {
         public static final String BEHAVIOR_ANALYSIS_COMPLETE = "BEHAVIOR_ANALYSIS_COMPLETE";
         public static final String LLM_EXECUTION_START = "LLM_EXECUTION_START";
         public static final String LLM_EXECUTION_COMPLETE = "LLM_EXECUTION_COMPLETE";
-        public static final String THREAT_INDICATORS = "THREAT_INDICATORS";
     }
 
     /**

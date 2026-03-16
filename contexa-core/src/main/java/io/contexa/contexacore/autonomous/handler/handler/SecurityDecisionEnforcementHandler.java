@@ -18,9 +18,7 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -104,8 +102,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         Map<String, Object> additionalFields = new HashMap<>();
         additionalFields.put("riskScore", result.getRiskScore());
         additionalFields.put("confidence", result.getConfidence());
-        additionalFields.put("threatEvidence", result.getThreatIndicators() != null
-                ? String.join(", ", result.getThreatIndicators()) : "");
         additionalFields.put("analysisDepth", result.getAiAnalysisLevel());
 
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
@@ -193,17 +189,10 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             reasoningPrefix = "AI Analysis Incomplete: ";
         }
 
-        List<String> indicators = result.getThreatIndicators() != null
-                ? new ArrayList<>(result.getThreatIndicators()) : new ArrayList<>();
-        List<String> mitigationActions = result.getRecommendedActions() != null
-                ? new ArrayList<>(result.getRecommendedActions()) : new ArrayList<>();
-
         return SecurityDecision.builder()
                 .action(decisionAction)
                 .riskScore(result.getRiskScore())
                 .confidence(result.getConfidence())
-                .iocIndicators(indicators)
-                .mitigationActions(mitigationActions)
                 .reasoning(reasoningPrefix)
                 .build();
     }

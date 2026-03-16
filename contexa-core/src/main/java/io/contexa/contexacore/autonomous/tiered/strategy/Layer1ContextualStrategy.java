@@ -82,8 +82,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .assessedAt(LocalDateTime.now())
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
-                .indicators(new ArrayList<>())
-                .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer1-Contextual")
                 .shouldEscalate(shouldEscalate)
                 .action(action)
@@ -488,15 +486,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     @Override
     protected String getLayerName() {
         return "Layer1";
-    }
-
-    private String mapActionToRecommendation(ZeroTrustAction action) {
-        return switch (action) {
-            case ALLOW -> "ALLOW";
-            case BLOCK -> "BLOCK_IMMEDIATELY";
-            case CHALLENGE -> "REQUIRE_MFA";
-            case ESCALATE, PENDING_ANALYSIS -> "ESCALATE_TO_EXPERT";
-        };
     }
 
     private class SessionContext extends BaseSessionContext {

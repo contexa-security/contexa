@@ -271,7 +271,10 @@
       "Bash(grep -E \"\\\\.\\(java\\)$\")",
       "Bash(find e:projectscontexa-docsassets -type f \\\\\\(-name *search* -o -name *nav* -o -name *header* \\\\\\))",
       "Bash(toc)",
-      "Bash(sidebar \")"
+      "Bash(sidebar \")",
+      "Bash(find /e/projects/contexa -path *src/main/java* \\\\\\(-name AuditLog.java -o -name AuditRecord.java -o -name Audit.java \\\\\\))",
+      "Read(//e/projects/**)",
+      "Bash(find /e/projects/contexa -path *src/main/java* \\\\\\(-name BlockedUser*.java -o -name BlockedUserService.java \\\\\\))"
     ],
     "deny": [],
     "ask": []

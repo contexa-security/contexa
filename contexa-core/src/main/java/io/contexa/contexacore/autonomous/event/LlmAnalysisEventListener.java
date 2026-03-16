@@ -27,5 +27,4 @@ public interface LlmAnalysisEventListener {
     default void onBehaviorAnalysisComplete(String userId, Map<String, Object> behaviorData) {}
     default void onLlmExecutionStart(String userId, String modelName, long promptBuildMs) {}
     default void onLlmExecutionComplete(String userId, long llmExecutionMs, long responseParseMs) {}
-    default void onThreatIndicators(String userId, String indicators, String recommendedActions) {}
 }

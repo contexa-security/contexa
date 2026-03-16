@@ -150,10 +150,6 @@ public class SecurityDecisionPostProcessor {
             sb.append("BehaviorPatterns: ").append(String.join(", ", decision.getBehaviorPatterns())).append("\n");
         }
 
-        if (decision.getIocIndicators() != null && !decision.getIocIndicators().isEmpty()) {
-            sb.append("IOC: ").append(String.join(", ", decision.getIocIndicators())).append("\n");
-        }
-
         if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
             sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 500)).append("\n");
         }

@@ -354,19 +354,6 @@ public class LlmAnalysisEventPublisher {
         log.info("[LlmAnalysisEventPublisher] LLM_EXECUTION_COMPLETE - userId: {}, llm: {}ms, parse: {}ms", userId, llmExecutionMs, responseParseMs);
     }
 
-    public void publishThreatIndicators(String userId, String indicators, String recommendedActions) {
-        LlmAnalysisEvent event = LlmAnalysisEvent.builder()
-                .type(LlmAnalysisEvent.EventType.THREAT_INDICATORS)
-                .userId(userId)
-                .status(LlmAnalysisEvent.Status.COMPLETED)
-                .mitre(indicators)
-                .reasoning(recommendedActions)
-                .timestamp(System.currentTimeMillis())
-                .build();
-        publishEvent(event);
-        log.info("[LlmAnalysisEventPublisher] THREAT_INDICATORS - userId: {}, indicators: {}", userId, indicators);
-    }
-
     /**
      * 에러 이벤트 발행
      */

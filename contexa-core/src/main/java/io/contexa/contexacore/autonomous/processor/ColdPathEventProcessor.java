@@ -14,13 +14,8 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 @Slf4j
@@ -78,8 +73,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.setAction(analysisResult.getAction());
             result.setConfidence(analysisResult.getConfidence());
             result.setReasoning(analysisResult.getReasoning());
-            result.setThreatIndicators(analysisResult.getIndicators());
-            result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
             result.addAnalysisData("aiAssessment", analysisResult);
 
@@ -116,8 +109,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.getRiskScore());
                     result.setConfidence(layer1Assessment.getConfidence());
-                    result.addIndicators(layer1Assessment.getIndicators());
-                    result.addRecommendedActions(layer1Assessment.getRecommendedActions());
                     result.setAnalysisDepth(1);
                     result.setAction(layer1Assessment.getAction());
                     result.setReasoning(layer1Assessment.getReasoning());
@@ -125,10 +116,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                             ? layer1Assessment.getReasoning() : "Layer1 analysis completed";
                     publishLayer1Complete(userId, layer1Assessment.getAction(),
                             layer1Assessment.getRiskScore(), layer1Assessment.getConfidence(),
-                            reasoning, extractMitre(layer1Assessment), layer1ElapsedMs);
-
-                    // Publish threat indicators
-                    publishThreatIndicatorsFromAssessment(userId, layer1Assessment);
+                            reasoning, "none", layer1ElapsedMs);
 
                     publishDecisionApplied(userId, layer1Assessment.getAction(), "LAYER1", requestPath);
 
@@ -188,8 +176,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
                 result.setFinalScore(layer2Assessment.getRiskScore());
                 result.setConfidence(layer2Assessment.getConfidence());
-                result.addIndicators(layer2Assessment.getIndicators());
-                result.addRecommendedActions(layer2Assessment.getRecommendedActions());
                 result.setAnalysisDepth(2);
                 result.setAction(layer2Assessment.getAction());
                 result.setReasoning(layer2Assessment.getReasoning());
@@ -197,10 +183,7 @@ public class ColdPathEventProcessor implements IPathProcessor {
                         ? layer2Assessment.getReasoning() : "Layer2 expert analysis completed";
                 publishLayer2Complete(userId, layer2Assessment.getAction(),
                         layer2Assessment.getRiskScore(), layer2Assessment.getConfidence(),
-                        layer2Reasoning, extractMitre(layer2Assessment), layer2ElapsedMs);
-
-                // Publish threat indicators
-                publishThreatIndicatorsFromAssessment(userId, layer2Assessment);
+                        layer2Reasoning, "none", layer2ElapsedMs);
 
                 publishDecisionApplied(userId, layer2Assessment.getAction(), "LAYER2", requestPath);
 
@@ -234,27 +217,9 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private double baseScore;
         private double finalScore;
         private double confidence;
-        private Set<String> indicators = new HashSet<>();
-        private Set<String> recommendedActions = new HashSet<>();
         private int analysisDepth = 0;
         private String action;
         private String reasoning;
-
-        public List<String> getIndicators() {
-            return new ArrayList<>(indicators);
-        }
-
-        public void addIndicators(List<?> newIndicators) {
-            if (newIndicators != null) {
-                newIndicators.forEach(i -> this.indicators.add(i.toString()));
-            }
-        }
-
-        public void addRecommendedActions(List<String> actions) {
-            if (actions != null) {
-                this.recommendedActions.addAll(actions);
-            }
-        }
 
         public SecurityDecision getFinalDecision() {
             ZeroTrustAction decisionAction;
@@ -271,8 +236,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
                     .action(decisionAction)
                     .riskScore(finalScore)
                     .confidence(confidence)
-                    .iocIndicators(new ArrayList<>(indicators))
-                    .mitigationActions(new ArrayList<>(recommendedActions))
                     .reasoning(reasoningPrefix)
                     .build();
         }
@@ -312,19 +275,6 @@ public class ColdPathEventProcessor implements IPathProcessor {
             return fullPath.toString();
         }
         return "unknown";
-    }
-
-    private String extractMitre(ThreatAssessment assessment) {
-        if (assessment == null || assessment.getIndicators() == null) {
-            return "none";
-        }
-        for (Object indicator : assessment.getIndicators()) {
-            String str = indicator.toString();
-            if (str.startsWith("T") && str.matches("T\\d{4}.*")) {
-                return str.split(" ")[0];
-            }
-        }
-        return "none";
     }
 
     private void publishLayer1Start(String userId, String requestPath) {
@@ -384,18 +334,4 @@ public class ColdPathEventProcessor implements IPathProcessor {
         if (val != null) target.put(key, val);
     }
 
-    private void publishThreatIndicatorsFromAssessment(String userId, ThreatAssessment assessment) {
-        if (llmAnalysisEventListener == null || assessment == null) return;
-        try {
-            String indicators = assessment.getIndicators() != null
-                    ? String.join(", ", assessment.getIndicators().stream().map(Object::toString).toList())
-                    : "none";
-            String actions = assessment.getRecommendedActions() != null
-                    ? String.join(", ", assessment.getRecommendedActions())
-                    : "none";
-            llmAnalysisEventListener.onThreatIndicators(userId, indicators, actions);
-        } catch (Exception e) {
-            log.error("[ColdPath] Failed to publish threat indicators: userId={}", userId, e);
-        }
-    }
 }

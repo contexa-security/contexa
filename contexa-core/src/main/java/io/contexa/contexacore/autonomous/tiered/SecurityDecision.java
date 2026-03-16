@@ -22,16 +22,11 @@ public class SecurityDecision {
     private long processingTimeMs;            
     private int processingLayer;              
 
-    private String llmModel;                  
+    private Map<String, Object> sessionContext;
+    private List<String> behaviorPatterns;
+    private String threatCategory;
+    private String reasoning;
 
-    private Map<String, Object> sessionContext;    
-    private List<String> behaviorPatterns;        
-    private String threatCategory;                 
-    private List<String> mitigationActions;       
-    private String reasoning;                      
-
-    private List<String> iocIndicators;            
-    private Map<String, String> mitreMapping;      
     private String soarPlaybook;                   
     private boolean requiresApproval;              
     private String expertRecommendation;           

@@ -177,9 +177,6 @@
             state.eventSource.addEventListener('LLM_EXECUTION_COMPLETE', function(event) {
                 handleLlmExecutionComplete(JSON.parse(event.data));
             });
-            state.eventSource.addEventListener('THREAT_INDICATORS', function(event) {
-                handleThreatIndicators(JSON.parse(event.data));
-            });
             state.eventSource.addEventListener('LAYER1_COMPLETE', function(event) {
                 handleLayer1Complete(JSON.parse(event.data));
             });
@@ -282,16 +279,6 @@
         addTimelineEntry('success', '[AI 엔진] 응답 수신 | 분석: ' + llmMs + 'ms | 파싱: ' + parseMs + 'ms');
     }
 
-    function handleThreatIndicators(data) {
-        var indicators = data.mitre || 'none';
-        var actions = data.reasoning || 'none';
-        if (indicators !== 'none' && indicators.trim()) {
-            addTimelineEntry('warning', '[위협 지표] ' + indicators);
-        }
-        if (actions !== 'none' && actions.trim()) {
-            addTimelineEntry('info', '[권고 조치] ' + actions);
-        }
-    }
 
     // ========================================================================
     // SSE Event Handlers (security-test.js 그대로 + 모달 로그 추가)
