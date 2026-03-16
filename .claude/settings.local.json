@@ -268,7 +268,10 @@
       "Bash(git stash:*)",
       "Bash(find /e/projects/contexa-docs -path */node_modules -prune -o -type f \\\\\\(-name *.md -o -name *.json \\\\\\) -print)",
       "Bash(find /e/projects/contexa -type f \\\\\\(-name *.java -o -name *.html -o -name *.js -o -name *.xml \\\\\\))",
-      "Bash(grep -E \"\\\\.\\(java\\)$\")"
+      "Bash(grep -E \"\\\\.\\(java\\)$\")",
+      "Bash(find e:projectscontexa-docsassets -type f \\\\\\(-name *search* -o -name *nav* -o -name *header* \\\\\\))",
+      "Bash(toc)",
+      "Bash(sidebar \")"
     ],
     "deny": [],
     "ask": []
