@@ -28,12 +28,18 @@ public class BlockablePrintWriter extends PrintWriter {
 
     @Override
     public void write(char[] buf, int off, int len) {
+        if (buf == null || len == 0) {
+            return;
+        }
         checkBlocked();
         super.write(buf, off, len);
     }
 
     @Override
     public void write(String s, int off, int len) {
+        if (s == null || len == 0) {
+            return;
+        }
         checkBlocked();
         super.write(s, off, len);
     }
@@ -45,7 +51,7 @@ public class BlockablePrintWriter extends PrintWriter {
     }
 
     private void checkBlocked() {
-        if (registry.isBlocked(userId)) {
+        if (registry != null && registry.isBlocked(userId)) {
             throw new ResponseBlockedException(
                     "Response aborted: user " + userId + " blocked by security decision");
         }

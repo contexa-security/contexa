@@ -85,9 +85,13 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     }
 
     private void ensureNotBlocked() throws IOException {
-        if (registry.isBlocked(userId)) {
-            if (!isCommitted()) {
-                setStatus(HttpServletResponse.SC_FORBIDDEN);
+        if (registry != null && registry.isBlocked(userId)) {
+            try {
+                if (!isCommitted()) {
+                    setStatus(HttpServletResponse.SC_FORBIDDEN);
+                }
+            } catch (Exception ignored) {
+                // Response may already be in an invalid state — setStatus failure is non-critical
             }
             throw new IOException("Response aborted: user " + userId + " blocked by security decision");
         }

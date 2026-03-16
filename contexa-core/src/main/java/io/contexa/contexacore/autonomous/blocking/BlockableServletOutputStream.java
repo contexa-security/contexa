@@ -37,18 +37,27 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public void write(byte[] b) throws IOException {
+        if (b == null || b.length == 0) {
+            return;
+        }
         checkBlocked();
         delegate.write(b);
     }
 
     @Override
     public void write(byte[] b, int off, int len) throws IOException {
+        if (b == null || len == 0) {
+            return;
+        }
         checkBlocked();
         delegate.write(b, off, len);
     }
 
     @Override
     public void flush() throws IOException {
+        if (aborted) {
+            return;
+        }
         checkBlocked();
         delegate.flush();
     }
@@ -64,22 +73,28 @@ public class BlockableServletOutputStream extends ServletOutputStream {
 
     @Override
     public boolean isReady() {
-        return delegate.isReady();
+        return !aborted && delegate.isReady();
     }
 
     @Override
     public void setWriteListener(WriteListener listener) {
-        delegate.setWriteListener(listener);
+        if (listener != null) {
+            delegate.setWriteListener(listener);
+        }
     }
 
     private void checkBlocked() throws IOException {
         if (aborted) {
             throw new IOException("Response aborted: user blocked");
         }
-        if (registry.isBlocked(userId)) {
+        if (registry != null && registry.isBlocked(userId)) {
             aborted = true;
-            if (!response.isCommitted()) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            try {
+                if (response != null && !response.isCommitted()) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                }
+            } catch (Exception ignored) {
+                // Response may already be in an invalid state — setStatus failure is non-critical
             }
             throw new IOException("Response aborted: user " + userId + " blocked by security decision");
         }
