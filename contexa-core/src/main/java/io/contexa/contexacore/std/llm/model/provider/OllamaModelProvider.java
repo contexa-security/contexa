@@ -5,7 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
-import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
@@ -73,7 +73,7 @@ public class OllamaModelProvider extends BaseModelProvider {
         }
 
         try {
-            OllamaOptions.Builder optionsBuilder = OllamaOptions.builder()
+            OllamaChatOptions.Builder optionsBuilder = OllamaChatOptions.builder()
                     .model(modelId);
 
             if (descriptor.getOptions() != null) {
@@ -101,7 +101,7 @@ public class OllamaModelProvider extends BaseModelProvider {
                 }
             }
 
-            OllamaOptions ollamaOptions = optionsBuilder.build();
+            OllamaChatOptions ollamaOptions = optionsBuilder.build();
 
             OllamaChatModel chatModel = OllamaChatModel.builder()
                     .ollamaApi(getOllamaApi())

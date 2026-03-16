@@ -10,7 +10,7 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.ollama.OllamaChatModel;
-import org.springframework.ai.ollama.api.OllamaOptions;
+import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import reactor.core.publisher.Flux;
 
@@ -172,12 +172,12 @@ public class DefaultStreamingHandler implements StreamingHandler {
                 || context.getSecurityTaskType() != null;
     }
 
-    private OllamaOptions buildOllamaOptions(ExecutionContext context, OllamaChatModel selectedModel) {
+    private OllamaChatOptions buildOllamaOptions(ExecutionContext context, OllamaChatModel selectedModel) {
         String modelName = determineModelName(context);
         ChatOptions defaultOptions = selectedModel.getDefaultOptions();
-        OllamaOptions options = defaultOptions instanceof OllamaOptions ollamaDefaults
-                ? OllamaOptions.fromOptions(ollamaDefaults)
-                : OllamaOptions.builder().build();
+        OllamaChatOptions options = defaultOptions instanceof OllamaChatOptions ollamaDefaults
+                ? OllamaChatOptions.fromOptions(ollamaDefaults)
+                : OllamaChatOptions.builder().build();
 
         if (modelName != null && !modelName.isBlank()) {
             options.setModel(modelName);

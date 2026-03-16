@@ -251,7 +251,6 @@
         function subscribeToSpecificApproval(approvalId) {
             if (stompClient && stompClient.connected) {
                 stompClient.subscribe('/topic/soar/approval-results/' + approvalId, function(message) {
-                    console.log('Received specific approval result for ' + approvalId + ':', message.body);
                     handleApprovalStatus(JSON.parse(message.body));
                 });
             }
@@ -262,26 +261,22 @@
             stompClient = Stomp.over(socket);
             
             stompClient.connect({}, function(frame) {
-                console.log('Connected: ' + frame);
                 sessionId = frame.headers['user-name'] || 'anonymous';
                 updateConnectionStatus(true);
                 
                 // Subscribe to SOAR approval broadcast topic
                 stompClient.subscribe('/topic/soar/approvals', function(message) {
-                    console.log('Received approval request:', message.body);
                     handleApprovalRequest(JSON.parse(message.body));
                 });
                 
                 // Subscribe to approval results broadcast
                 stompClient.subscribe('/topic/soar/approval-results', function(message) {
-                    console.log('Received approval result:', message.body);
                     handleApprovalStatus(JSON.parse(message.body));
                 });
                 
                 // Subscribe to user-specific notifications (if needed)
                 // Currently not used by server but kept for future use
                 stompClient.subscribe('/user/queue/notifications', function(message) {
-                    console.log('Received notification:', message.body);
                     showNotification(JSON.parse(message.body));
                 });
                 
@@ -319,7 +314,6 @@
         }
 
         function handleApprovalRequest(request) {
-            console.log('Approval request received:', request);
             
             // Map server format to expected format
             const approvalRequest = {
@@ -465,7 +459,6 @@
         }
 
         function handleApprovalStatus(status) {
-            console.log('Approval status update:', status);
             showNotification({
                 type: status.approved ? 'success' : 'error',
                 message: `Tool ${status.toolName}: ${status.approved ? 'Approved' : 'Denied'}`

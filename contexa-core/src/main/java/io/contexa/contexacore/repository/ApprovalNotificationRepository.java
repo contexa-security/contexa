@@ -22,7 +22,11 @@ public interface ApprovalNotificationRepository extends JpaRepository<ApprovalNo
 
     List<ApprovalNotification> findByIsReadFalseOrderByCreatedAtDesc();
 
+    List<ApprovalNotification> findTop10ByIsReadFalseOrderByCreatedAtDesc();
+
     long countByUserIdAndIsReadFalse(String userId);
+
+    long countByIsReadFalse();
 
     @Query("SELECT n FROM ApprovalNotification n WHERE n.userId = :userId AND n.priority IN :priorities AND n.isRead = false ORDER BY n.createdAt DESC")
     List<ApprovalNotification> findByUserIdAndPriorities(@Param("userId") String userId, @Param("priorities") List<String> priorities);

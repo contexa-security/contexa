@@ -92,7 +92,8 @@ public class CoreHCADAutoConfiguration {
     }
 
     @Configuration
-    @ConditionalOnBean(RedisTemplate.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
+    @ConditionalOnBean(name = "generalRedisTemplate")
     static class DistributedHCADConfig {
 
         @Bean
@@ -110,7 +111,7 @@ public class CoreHCADAutoConfiguration {
     }
 
     @Configuration
-    @ConditionalOnMissingBean(RedisTemplate.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "standalone", matchIfMissing = true)
     static class StandaloneHCADConfig {
 
         @Bean

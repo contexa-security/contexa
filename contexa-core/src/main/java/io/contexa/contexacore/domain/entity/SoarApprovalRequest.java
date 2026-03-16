@@ -15,7 +15,8 @@ import java.util.Map;
 
 @Entity
 @Table(name = "soar_approval_requests")
-@Getter @Setter
+@Getter
+@Setter
 @EntityListeners(AuditingEntityListener.class)
 public class SoarApprovalRequest {
 
@@ -27,37 +28,37 @@ public class SoarApprovalRequest {
     private String requestId;
 
     @Column(nullable = false, updatable = false)
-    private String playbookInstanceId;  
+    private String playbookInstanceId;
 
     @Column(name = "incident_id")
-    private String incidentId;  
-    
+    private String incidentId;
+
     @Column(name = "session_id")
     private String sessionId;
-    
+
     @Column(name = "risk_level")
-    private String riskLevel;  
-    
+    private String riskLevel;
+
     @Column(name = "approval_type")
-    private String approvalType;  
-    
+    private String approvalType;
+
     @Column(name = "requested_by")
     private String requestedBy;
-    
+
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
-    
+
     @Column(name = "action_type")
     private String actionType;
-    
+
     @Column(name = "approval_timeout")
     private Integer approvalTimeout;
 
     @Column(nullable = false, updatable = false)
     private String actionName;
-    
+
     @Column(name = "tool_name")
-    private String toolName;  
+    private String toolName;
 
     @Lob
     @Column(updatable = false)
@@ -72,19 +73,19 @@ public class SoarApprovalRequest {
     private String status;
 
     @Column
-    private String reviewerId;  
-    
+    private String reviewerId;
+
     @Column(name = "approved_by")
-    private String approvedBy;  
-    
+    private String approvedBy;
+
     private String organizationId;
 
     @Lob
-    private String reviewerComment;  
-    
+    private String reviewerComment;
+
     @Column(name = "approval_comment")
     @Lob
-    private String approvalComment;  
+    private String approvalComment;
 
     @CreatedDate
     @Column(nullable = false, updatable = false)
@@ -102,4 +103,31 @@ public class SoarApprovalRequest {
     @Column(columnDefinition = "TEXT")
     private List<String> requiredRoles;
 
+    @Column(name = "approved_count")
+    private Integer approvedCount;
+
+    @Column(name = "rejected_count")
+    private Integer rejectedCount;
+
+    @Column(name = "remaining_approvals")
+    private Integer remainingApprovals;
+
+    @Column(name = "quorum_satisfied", nullable = false)
+    private boolean quorumSatisfied;
+
+    @Column(name = "current_step_number")
+    private Integer currentStepNumber;
+
+    @Column(name = "total_steps")
+    private Integer totalSteps;
+
+    @Column(name = "reopened_from_request_id")
+    private String reopenedFromRequestId;
+
+    @Column(name = "break_glass_requested", nullable = false)
+    private boolean breakGlassRequested;
+
+    @Lob
+    @Column(name = "break_glass_reason")
+    private String breakGlassReason;
 }

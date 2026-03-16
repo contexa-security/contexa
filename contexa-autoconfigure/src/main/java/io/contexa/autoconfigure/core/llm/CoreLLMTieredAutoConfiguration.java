@@ -12,6 +12,8 @@ import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.api.Advisor;
@@ -26,9 +28,11 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
 
@@ -39,9 +43,10 @@ import java.util.Map;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@AutoConfigureBefore(ChatClientAutoConfiguration.class)
+@AutoConfigureBefore(name = {"org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration", "org.springframework.ai.autoconfigure.chat.client.ChatClientAutoConfiguration"})
 @EnableConfigurationProperties(TieredLLMProperties.class)
 public class CoreLLMTieredAutoConfiguration {
+
 
     @Value("${spring.ai.chat.model.priority:ollama,anthropic,openai}")
     private String chatModelPriority;
@@ -54,6 +59,7 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Bean
     @Primary
+    @Conditional(AnyChatModelAvailableCondition.class)
     public ChatModel primaryChatModel(
             ObjectProvider<OllamaChatModel> ollamaChatModelProvider,
             ObjectProvider<AnthropicChatModel> anthropicChatModelProvider,
@@ -98,6 +104,7 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @Conditional(AnyChatModelAvailableCondition.class)
     public ChatClient primaryChatClient(ChatModel primaryChatModel, AdvisorRegistry advisorRegistry) {
         ChatClient.Builder builder = ChatClient.builder(primaryChatModel);
         List<Advisor> advisors = advisorRegistry.getEnabled();
@@ -115,6 +122,7 @@ public class CoreLLMTieredAutoConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnBean(ChatClient.class)
     public UnifiedLLMOrchestrator unifiedLLMOrchestrator(
             ModelSelectionStrategy modelSelectionStrategy,
             StreamingHandler streamingHandler,
@@ -124,11 +132,13 @@ public class CoreLLMTieredAutoConfiguration {
     }
 
     @Bean(name = "llmClient")
+    @ConditionalOnBean(UnifiedLLMOrchestrator.class)
     public LLMClient llmClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         return unifiedLLMOrchestrator;
     }
 
     @Bean(name = "toolCapableLLMClient")
+    @ConditionalOnBean(UnifiedLLMOrchestrator.class)
     public ToolCapableLLMClient toolCapableLLMClient(UnifiedLLMOrchestrator unifiedLLMOrchestrator) {
         return unifiedLLMOrchestrator;
     }
@@ -136,6 +146,7 @@ public class CoreLLMTieredAutoConfiguration {
     @Bean(name = "primaryEmbeddingModel")
     @Primary
     @ConditionalOnMissingBean(name = "primaryEmbeddingModel")
+    @Conditional(AnyEmbeddingModelAvailableCondition.class)
     public EmbeddingModel primaryEmbeddingModel(
             ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,
             ObjectProvider<OpenAiEmbeddingModel> openAiEmbeddingModelProvider) {

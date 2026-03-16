@@ -10,6 +10,7 @@ import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
@@ -21,9 +22,9 @@ public class IamAdminBlacklistAutoConfiguration {
             BlockedUserJpaRepository blockedUserJpaRepository,
             AdminOverrideService adminOverrideService,
             ZeroTrustActionRepository actionRedisRepository,
-            SecurityActionEventPublisher securityActionEventPublisher) {
+            ApplicationEventPublisher eventPublisher) {
         return new BlockedUserService(
-                blockedUserJpaRepository, adminOverrideService, actionRedisRepository, securityActionEventPublisher);
+                blockedUserJpaRepository, adminOverrideService, actionRedisRepository, eventPublisher);
     }
 
     @Bean

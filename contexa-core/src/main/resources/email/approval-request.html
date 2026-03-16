@@ -3,218 +3,66 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOAR 승인 요청</title>
+    <title>SOAR Approval Request</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            background-color: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            overflow: hidden;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 30px 20px;
-            text-align: center;
-        }
-        .header h1 {
-            margin: 0;
-            font-size: 24px;
-            font-weight: 600;
-        }
-        .risk-badge {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 14px;
-            margin-top: 10px;
-            background-color: white;
-        }
-        .content {
-            padding: 30px 20px;
-        }
-        .greeting {
-            font-size: 16px;
-            margin-bottom: 20px;
-        }
-        .info-section {
-            background-color: #f8f9fa;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            margin: 20px 0;
-        }
-        .info-row {
-            display: flex;
-            padding: 8px 0;
-            border-bottom: 1px solid #e9ecef;
-        }
-        .info-row:last-child {
-            border-bottom: none;
-        }
-        .info-label {
-            font-weight: 600;
-            width: 150px;
-            color: #495057;
-        }
-        .info-value {
-            flex: 1;
-            color: #212529;
-        }
-        .tool-params {
-            background-color: #f1f3f5;
-            border-radius: 4px;
-            padding: 10px;
-            margin-top: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            white-space: pre-wrap;
-            word-break: break-all;
-        }
-        .action-buttons {
-            display: flex;
-            gap: 15px;
-            margin: 30px 0;
-            justify-content: center;
-        }
-        .btn {
-            display: inline-block;
-            padding: 12px 30px;
-            text-decoration: none;
-            border-radius: 5px;
-            font-weight: 600;
-            font-size: 16px;
-            text-align: center;
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-        .btn-approve {
-            background-color: #28a745;
-            color: white;
-        }
-        .btn-approve:hover {
-            background-color: #218838;
-        }
-        .btn-reject {
-            background-color: #dc3545;
-            color: white;
-        }
-        .btn-reject:hover {
-            background-color: #c82333;
-        }
-        .warning {
-            background-color: #fff3cd;
-            border: 1px solid #ffc107;
-            border-radius: 4px;
-            padding: 15px;
-            margin: 20px 0;
-            color: #856404;
-        }
-        .footer {
-            background-color: #f8f9fa;
-            padding: 20px;
-            text-align: center;
-            font-size: 14px;
-            color: #6c757d;
-            border-top: 1px solid #dee2e6;
-        }
-        .footer a {
-            color: #667eea;
-            text-decoration: none;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; line-height: 1.6; color: #1f2933; max-width: 640px; margin: 0 auto; padding: 24px; background-color: #f3f5f7; }
+        .container { background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08); }
+        .header { background: linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); color: #ffffff; padding: 28px 24px; }
+        .header h1 { margin: 0; font-size: 24px; }
+        .risk-badge { display: inline-block; margin-top: 14px; padding: 6px 14px; border-radius: 999px; background: #ffffff; font-weight: 700; }
+        .content { padding: 28px 24px; }
+        .summary { margin: 0 0 20px 0; font-size: 16px; }
+        .panel { background: #f8fafc; border: 1px solid #d8dee6; border-radius: 10px; padding: 18px; margin: 18px 0; }
+        .row { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
+        .row:last-child { border-bottom: none; }
+        .label { width: 160px; font-weight: 700; color: #475569; }
+        .value { flex: 1; color: #0f172a; }
+        .code-box { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 14px; white-space: pre-wrap; word-break: break-word; font-family: Consolas, 'Courier New', monospace; font-size: 13px; }
+        .actions { margin: 28px 0 18px; text-align: center; }
+        .btn { display: inline-block; padding: 12px 22px; border-radius: 8px; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; }
+        .note { background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 16px; color: #9a3412; }
+        .footer { padding: 20px 24px 28px; color: #64748b; font-size: 13px; border-top: 1px solid #e5e7eb; }
+        .footer a { color: #2563eb; text-decoration: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>SOAR 승인 요청</h1>
-            <span class="risk-badge" th:style="'color: ' + ${riskColor}">
-                <span th:text="${riskLevel}">MEDIUM</span> RISK
-            </span>
+<div class="container">
+    <div class="header">
+        <h1>SOAR approval request</h1>
+        <span class="risk-badge" th:style="'color:' + ${riskColor}" th:text="${riskLevel} ?: 'INFO'">HIGH</span>
+    </div>
+    <div class="content">
+        <p class="summary">A governed SOAR action requires operator approval before any high-risk execution can continue.</p>
+
+        <div class="panel">
+            <div class="row"><div class="label">Approval ID</div><div class="value" th:text="${approvalId}">APR-0001</div></div>
+            <div class="row"><div class="label">Tool</div><div class="value" th:text="${toolName}">ip_blocking</div></div>
+            <div class="row"><div class="label">Description</div><div class="value" th:text="${description}">Contain suspicious traffic source</div></div>
+            <div class="row"><div class="label">Incident ID</div><div class="value" th:text="${incidentId}">INC-1234</div></div>
+            <div class="row"><div class="label">Organization</div><div class="value" th:text="${organizationId}">org-main</div></div>
+            <div class="row"><div class="label">Requested by</div><div class="value" th:text="${requestedBy}">system</div></div>
+            <div class="row"><div class="label">Requested at</div><div class="value" th:text="${requestedAt}">2026-03-11 21:00:00</div></div>
+            <div class="row"><div class="label">Timeout</div><div class="value"><span th:text="${timeoutMinutes}">5</span> minute(s)</div></div>
         </div>
-        
-        <div class="content">
-            <div class="greeting">
-                안녕하세요, <strong th:text="${recipientName}">관리자</strong>님
-            </div>
-            
-            <p>아래 SOAR 도구 실행에 대한 승인이 필요합니다:</p>
-            
-            <div class="info-section">
-                <div class="info-row">
-                    <div class="info-label">승인 ID</div>
-                    <div class="info-value" th:text="${approvalId}">APR-2024-001</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">도구명</div>
-                    <div class="info-value"><strong th:text="${toolName}">NetworkScanner</strong></div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">설명</div>
-                    <div class="info-value" th:text="${description}">네트워크 스캔 도구 실행</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">인시던트 ID</div>
-                    <div class="info-value" th:text="${incidentId}">INC-2024-1234</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">요청자</div>
-                    <div class="info-value" th:text="${requestedBy}">system</div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">요청 시간</div>
-                    <div class="info-value" th:text="${requestedAt}">2024-01-15 10:30:00</div>
-                </div>
-            </div>
-            
-            <div th:if="${toolArguments != null and !toolArguments.isEmpty()}">
-                <h3>도구 파라미터:</h3>
-                <div class="tool-params" th:text="${#strings.toString(toolArguments)}">
-                    {
-                        "target": "192.168.1.0/24",
-                        "scanType": "full"
-                    }
-                </div>
-            </div>
-            
-            <div class="warning">
-                <strong>주의:</strong> 이 승인 요청은
-                <span th:text="${timeoutMinutes}">5</span>분 후에 자동으로 만료됩니다.
-            </div>
-            
-            <div class="action-buttons">
-                <a th:href="${approveUrl}" class="btn btn-approve">
-                    승인
-                </a>
-                <a th:href="${rejectUrl}" class="btn btn-reject">
-                    거부
-                </a>
-            </div>
-            
-            <p style="text-align: center; color: #6c757d; font-size: 14px;">
-                또는 <a th:href="${baseUrl + '/admin/soar-approvals'}" style="color: #667eea;">웹 콘솔</a>에서 처리할 수 있습니다.
-            </p>
+
+        <div class="panel" th:if="${toolArguments != null and !toolArguments.isEmpty()}">
+            <div style="font-weight:700; margin-bottom:10px;">Tool arguments</div>
+            <div class="code-box" th:text="${#strings.toString(toolArguments)}">{"target":"10.0.0.5"}</div>
         </div>
-        
-        <div class="footer">
-            <p>
-                이 메일은 contexa SOAR 시스템에서 자동으로 발송되었습니다.<br>
-                문의사항: <a href="mailto:support@contexa.com">support@contexa.com</a>
-            </p>
-            <p style="font-size: 12px; margin-top: 10px;">
-                <span th:text="${timestamp}">2024-01-15 10:30:00</span> | 
-                <a th:href="${baseUrl}">contexa SOAR</a>
-            </p>
+
+        <div class="note">
+            Review the request in the enterprise operations console. Email shortcuts are intentionally disabled for safety and audit consistency.
+        </div>
+
+        <div class="actions">
+            <a class="btn" th:href="${approvalDetailUrl}">Open approval detail</a>
         </div>
     </div>
+    <div class="footer">
+        <div>This email was generated by the Contexa SOAR approval workflow.</div>
+        <div><a th:href="${approvalListUrl}">Open approval inbox</a> · <a th:href="${baseUrl}" th:text="${baseUrl}">https://contexa.example.com</a></div>
+        <div style="margin-top:10px;">Generated at <span th:text="${timestamp}">2026-03-11 21:00:00</span> · Support <a th:href="${'mailto:' + supportEmail}" th:text="${supportEmail}">support@example.com</a></div>
+    </div>
+</div>
 </body>
 </html>

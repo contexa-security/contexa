@@ -65,6 +65,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
     public BehaviorVectorService behaviorVectorService(
             VectorStore vectorStore,
@@ -76,12 +77,12 @@ public class CoreRAGAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public DistributedStrategyExecutor distributedStrategyExecutor(
-            PipelineOrchestrator orchestrator,
             AIStrategyRegistry strategyRegistry) {
         return new DistributedStrategyExecutor(strategyRegistry);
     }
 
     @Bean
+    @ConditionalOnBean(VectorStore.class)
     @ConditionalOnMissingBean
     public VectorStoreCacheLayer vectorStoreCacheLayer(VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties) {
@@ -89,6 +90,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean({VectorStore.class, VectorStoreCacheLayer.class})
     @ConditionalOnMissingBean
     public UnifiedVectorService unifiedVectorService(
             PgVectorStoreProperties properties,
@@ -109,7 +111,7 @@ public class CoreRAGAutoConfiguration {
 
     @Bean
     @Primary
-    @ConditionalOnBean(ChatModel.class)
+    @ConditionalOnBean({ChatModel.class, VectorStore.class})
     @ConditionalOnMissingBean(name = "behaviorAnalysisRagAdvisor")
     public RetrievalAugmentationAdvisor behaviorAnalysisRagAdvisor(
             VectorStore vectorStore,
@@ -139,7 +141,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(ChatModel.class)
+    @ConditionalOnBean({ChatModel.class, VectorStore.class})
     @ConditionalOnMissingBean(name = "riskAssessmentRagAdvisor")
     public RetrievalAugmentationAdvisor riskAssessmentRagAdvisor(
             VectorStore vectorStore,
@@ -165,7 +167,7 @@ public class CoreRAGAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnBean(ChatModel.class)
+    @ConditionalOnBean({ChatModel.class, VectorStore.class})
     @ConditionalOnMissingBean(name = "policyGenerationRagAdvisor")
     public RetrievalAugmentationAdvisor policyGenerationRagAdvisor(
             VectorStore vectorStore,

@@ -43,6 +43,7 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -74,6 +75,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @Primary
+    @ConditionalOnBean(VectorStore.class)
     public ContextRetriever contextRetriever(VectorStore vectorStore, ContexaRagProperties ragProperties) {
         return new ContextRetriever(vectorStore, ragProperties);
     }
@@ -118,6 +120,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ChatModel.class)
     public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
             DynamicModelRegistry dynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
@@ -127,6 +130,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(name = {"llmExecutionStep", "streamingLLMExecutionStep", "contextRetrievalStep"})
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -144,6 +148,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(name = {"llmExecutionStep", "contextRetrievalStep"})
     public UniversalPipelineExecutor universalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -158,12 +163,14 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ContextRetrieverRegistry.class)
     public ContextRetrievalStep contextRetrievalStep(ContextRetrieverRegistry contextRetrieverRegistry) {
         return new ContextRetrievalStep(contextRetrieverRegistry);
     }
 
     @Bean
     @Qualifier("llmExecutionStep")
+    @ConditionalOnBean(LLMClient.class)
     public LLMExecutionStep llmExecutionStep(LLMClient llmClient) {
         return new LLMExecutionStep(llmClient);
     }
@@ -195,6 +202,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ToolCapableLLMClient.class)
     public StreamingLLMExecutionStep streamingLLMExecutionStep(ToolCapableLLMClient toolCapableLLMClient) {
         return new StreamingLLMExecutionStep(toolCapableLLMClient);
     }

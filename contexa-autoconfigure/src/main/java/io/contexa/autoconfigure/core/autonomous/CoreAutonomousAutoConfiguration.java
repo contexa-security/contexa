@@ -14,6 +14,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.exception.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
+import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.repository.*;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
@@ -90,8 +91,12 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityPromptTemplate securityPromptTemplate(
             SecurityEventEnricher securityEventEnricher,
-            TieredStrategyProperties tieredStrategyProperties) {
-        return new SecurityPromptTemplate(securityEventEnricher, tieredStrategyProperties);
+            TieredStrategyProperties tieredStrategyProperties,
+            ObjectProvider<McpSecurityContextProvider> mcpSecurityContextProvider) {
+        return new SecurityPromptTemplate(
+                securityEventEnricher,
+                tieredStrategyProperties,
+                mcpSecurityContextProvider.getIfAvailable());
     }
 
     @Bean
@@ -159,6 +164,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(VectorStore.class)
     public VectorStoreCacheLayer vectorStoreCacheLayer(
             VectorStore vectorStore,
             TieredStrategyProperties tieredStrategyProperties) {
@@ -167,6 +173,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer1ContextualStrategy contextualStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
             UnifiedVectorService unifiedVectorService,
@@ -184,6 +191,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer2ExpertStrategy expertStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
             @Autowired(required = false) ApprovalService approvalService,
@@ -204,6 +212,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(UnifiedVectorService.class)
     public SecurityDecisionPostProcessor securityDecisionPostProcessor(
             SecurityContextDataStore dataStore,
             UnifiedVectorService unifiedVectorService) {
@@ -212,6 +221,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SecurityEventProcessor.class)
     public SecurityPlaneAgent securityPlaneAgent(
             SecurityMonitoringService securityMonitor,
             SecurityContextDataStore dataStore,
@@ -227,6 +237,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SecurityPlaneAgent.class)
     public SynchronousProtectableDecisionService synchronousProtectableDecisionService(
             ZeroTrustEventPublisher zeroTrustEventPublisher,
             ZeroTrustEventListener zeroTrustEventListener,

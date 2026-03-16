@@ -8,6 +8,7 @@ import io.contexa.contexaiam.aiam.labs.policy.PolicyGenerationVectorService;
 import io.contexa.contexaiam.aiam.labs.studio.StudioQueryVectorService;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
@@ -52,6 +53,7 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, PolicyGenerationVectorService.class})
     public PolicyGenerationContextRetriever policyGenerationContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,
@@ -63,6 +65,7 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class})
     public ConditionTemplateContextRetriever conditionTemplateContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,
@@ -73,6 +76,7 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class})
     public ResourceNamingContextRetriever resourceNamingContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,
@@ -83,6 +87,7 @@ public class IamAiamComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({VectorStore.class, ContextRetrieverRegistry.class, StudioQueryVectorService.class})
     public StudioQueryContextRetriever studioQueryContextRetriever(
             VectorStore vectorStore,
             ContextRetrieverRegistry contextRetrieverRegistry,

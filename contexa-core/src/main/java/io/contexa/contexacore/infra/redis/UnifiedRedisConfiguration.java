@@ -8,6 +8,8 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.notification.SoarApprovalNotifier;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -20,6 +22,8 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 @Slf4j
 @Configuration
+@ConditionalOnBean(RedisConnectionFactory.class)
+@ConditionalOnProperty(prefix = "contexa.infrastructure", name = "mode", havingValue = "distributed")
 public class UnifiedRedisConfiguration {
 
     public static final String SOAR_APPROVAL_CHANNEL = "soar:approval:requests";

@@ -45,6 +45,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProvider;
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientProviderBuilder;
@@ -79,6 +80,7 @@ import org.springframework.security.web.authentication.logout.LogoutSuccessHandl
 import org.springframework.security.web.csrf.HttpSessionCsrfTokenRepository;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import javax.sql.DataSource;
 import java.io.InputStream;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -230,6 +232,8 @@ public class IdentityOAuth2AutoConfiguration {
         String redirectUri = oauth2.getRedirectUri();
         String authorizedUri = oauth2.getAuthorizedUri();
 
+        initializeAuthorizationServerSchema(jdbcTemplate.getDataSource());
+
         JdbcRegisteredClientRepository repository = new JdbcRegisteredClientRepository(jdbcTemplate);
 
         RegisteredClient existingClient = repository.findByClientId(clientId);
@@ -275,6 +279,17 @@ public class IdentityOAuth2AutoConfiguration {
         }
 
         return repository;
+    }
+
+    private void initializeAuthorizationServerSchema(DataSource dataSource) {
+        if (dataSource == null) {
+            throw new IllegalStateException("DataSource is required for OAuth2 authorization server schema initialization");
+        }
+
+        ResourceDatabasePopulator populator = new ResourceDatabasePopulator(
+                new org.springframework.core.io.ClassPathResource("contexa-oauth2-authorization-schema.sql"));
+        populator.setContinueOnError(false);
+        populator.execute(dataSource);
     }
 
     @Bean

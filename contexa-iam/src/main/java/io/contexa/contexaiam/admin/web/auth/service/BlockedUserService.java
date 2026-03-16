@@ -15,12 +15,11 @@ import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -29,7 +28,7 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final AdminOverrideService adminOverrideService;
     private final ZeroTrustActionRepository actionRedisRepository;
-    private final SecurityActionEventPublisher securityActionEventPublisher;
+    private final ApplicationEventPublisher eventPublisher;;
 
     @Setter
     @Autowired(required = false)
@@ -188,6 +187,17 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
                     log.error("[BlockedUserService] MFA failed - auto response triggered: userId={}", userId);
 
+                    Map<String, Object> metadata = new HashMap<>();
+                    metadata.put("severity", "HIGH");
+                    metadata.put("threatType", "ACCOUNT_TAKEOVER_CONTAINMENT");
+                    metadata.put("zeroTrustAction", ZeroTrustAction.BLOCK.name());
+                    metadata.put("securityEventType", "BLOCKED_USER_MFA_FAILED");
+                    metadata.put("riskScore", b.getRiskScore() != null ? b.getRiskScore() : 0.95d);
+                    metadata.put("confidence", b.getConfidence() != null ? b.getConfidence() : 0.90d);
+                    metadata.put("allowedTools", List.of("session_termination", "ip_blocking"));
+                    metadata.put("incidentId", b.getRequestId());
+                    metadata.put("sessionId", b.getRequestId());
+
                     SecurityActionEvent event = SecurityActionEvent.builder()
                             .eventId(UUID.randomUUID().toString())
                             .actionType(SecurityActionEvent.ActionType.SOAR_AUTO_RESPONSE)
@@ -195,9 +205,10 @@ public class BlockedUserService implements IBlockedUserRecorder {
                             .sourceIp(b.getSourceIp())
                             .reason("MFA authentication failed for blocked user")
                             .triggeredBy("BlockedUserService")
+                            .metadata(metadata)
                             .build();
 
-                    securityActionEventPublisher.publish(event);
+                    eventPublisher.publishEvent(event);
                 });
     }
 

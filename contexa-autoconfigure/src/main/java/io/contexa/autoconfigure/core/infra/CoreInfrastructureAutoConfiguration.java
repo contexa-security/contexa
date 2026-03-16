@@ -6,6 +6,7 @@ import io.contexa.contexacore.infra.kafka.KafkaConfiguration;
 import io.contexa.contexacore.infra.redis.UnifiedRedisConfiguration;
 import io.contexa.contexacore.security.async.InMemoryAsyncSecurityContextProvider;
 import io.contexa.contexacore.security.async.RedisAsyncSecurityContextProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -44,16 +45,16 @@ public class CoreInfrastructureAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    @ConditionalOnBean(RedisTemplate.class)
+    @ConditionalOnBean(name = "generalRedisTemplate")
     @ConditionalOnProperty(prefix = "contexa.security.async", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public RedisAsyncSecurityContextProvider asyncSecurityContextProvider(RedisTemplate<String, Object> redisTemplate) {
+    public RedisAsyncSecurityContextProvider asyncSecurityContextProvider(@Qualifier("generalRedisTemplate") RedisTemplate<String, Object> redisTemplate) {
         return new RedisAsyncSecurityContextProvider(redisTemplate);
     }
 
     // === Standalone mode: In-memory async security context ===
 
     @Configuration
-    @ConditionalOnMissingBean(RedisTemplate.class)
+    @ConditionalOnMissingBean(name = "generalRedisTemplate")
     static class StandaloneAsyncConfiguration {
 
         @Bean

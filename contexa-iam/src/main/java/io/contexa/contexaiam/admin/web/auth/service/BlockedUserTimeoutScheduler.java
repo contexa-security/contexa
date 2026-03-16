@@ -7,11 +7,14 @@ import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -26,17 +29,28 @@ public class BlockedUserTimeoutScheduler {
     private static final int TIMEOUT_HOURS = 24;
 
     private final BlockedUserJpaRepository blockedUserJpaRepository;
-    private final SecurityActionEventPublisher securityActionEventPublisher;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Scheduled(fixedDelay = 3600000)
     public void checkBlockedUserTimeout() {
         LocalDateTime threshold = LocalDateTime.now().minusHours(TIMEOUT_HOURS);
-        List<BlockedUser> blockedUsers = blockedUserJpaRepository
+        List<BlockedUser> timedOut = blockedUserJpaRepository
                 .findByStatusAndBlockedAtBefore(BlockedUserStatus.BLOCKED, threshold);
 
-        for (BlockedUser user : blockedUsers) {
+        for (BlockedUser user : timedOut) {
             log.error("Blocked user timeout - auto response triggered. userId={}, blockedAt={}",
                     user.getUserId(), user.getBlockedAt());
+
+            Map<String, Object> metadata = new HashMap<>();
+            metadata.put("severity", "MEDIUM");
+            metadata.put("threatType", "BLOCKED_USER_TIMEOUT_CONTAINMENT");
+            metadata.put("zeroTrustAction", "BLOCK");
+            metadata.put("securityEventType", "BLOCKED_USER_TIMEOUT");
+            metadata.put("riskScore", user.getRiskScore() != null ? user.getRiskScore() : 0.85d);
+            metadata.put("confidence", user.getConfidence() != null ? user.getConfidence() : 0.88d);
+            metadata.put("allowedTools", List.of("session_termination", "ip_blocking"));
+            metadata.put("incidentId", user.getRequestId());
+            metadata.put("sessionId", user.getRequestId());
 
             SecurityActionEvent event = SecurityActionEvent.builder()
                     .eventId(UUID.randomUUID().toString())
@@ -45,9 +59,10 @@ public class BlockedUserTimeoutScheduler {
                     .sourceIp(user.getSourceIp())
                     .reason("Blocked user timeout - no unblock request within " + TIMEOUT_HOURS + " hours")
                     .triggeredBy("BlockedUserTimeoutScheduler")
+                    .metadata(metadata)
                     .build();
 
-            securityActionEventPublisher.publish(event);
+            eventPublisher.publishEvent(event);
 
             user.setStatus(BlockedUserStatus.TIMEOUT_RESPONDED);
             blockedUserJpaRepository.save(user);

@@ -1,0 +1,18 @@
+<div th:fragment="menu" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+    <link rel="stylesheet" th:href="@{/css/admin-menu.css}" />
+    <nav class="admin-sidebar">
+        <div>
+            <h3 class="main-title">
+                <span>Tenant Workspace</span>
+            </h3>
+            <ul class="space-y-1">
+                <li><a th:href="@{/tenant/workspace}" class="menu-link-sub" th:classappend="${activePage == 'tenant-workspace'} ? ' active' : ''"><span class="menu-bullet"></span>Workspace<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{'/tenant/' + ${tenantId}}" class="menu-link-sub" th:classappend="${activePage == 'tenant-overview' or activePage == 'tenant-protected-apps'} ? ' active' : ''"><span class="menu-bullet"></span>Overview<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{'/tenant/' + ${tenantId} + '/operators'}" class="menu-link-sub" th:classappend="${activePage == 'tenant-operators'} ? ' active' : ''"><span class="menu-bullet"></span>Operators<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{'/tenant/' + ${tenantId} + '/clients'}" class="menu-link-sub" th:classappend="${activePage == 'tenant-clients'} ? ' active' : ''"><span class="menu-bullet"></span>Service Clients<span class="menu-glow"></span></a></li>`r`n                <li><a th:href="@{'/tenant/' + ${tenantId} + '/operations'}" class="menu-link-sub" th:classappend="${activePage == 'tenant-operations'} ? ' active' : ''"><span class="menu-bullet"></span>Operations<span class="menu-glow"></span></a></li>
+                <li sec:authorize="hasAnyRole('ADMIN','TENANT_ADMIN','TENANT_BILLING_ADMIN')"><a th:href="@{'/tenant/' + ${tenantId} + '/billing'}" class="menu-link-sub" th:classappend="${activePage == 'tenant-invoices'} ? ' active' : ''"><span class="menu-bullet"></span>Billing<span class="menu-glow"></span></a></li>
+            </ul>
+        </div>
+    </nav>
+    <script th:src="@{/js/admin-menu.js}"></script>
+</div>

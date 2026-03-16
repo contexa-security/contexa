@@ -58,6 +58,7 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(KafkaTemplate.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public KafkaSecurityEventCollector kafkaSecurityEventCollector(
             ObjectMapper objectMapper,
             KafkaTemplate<String, Object> kafkaTemplate,
@@ -68,6 +69,7 @@ public class CoreAutonomousEventAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(KafkaTemplate.class)
+    @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
             KafkaTemplate<String, Object> kafkaTemplate,
             SecurityKafkaProperties securityKafkaProperties) {
@@ -135,6 +137,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ProcessingStrategy.class)
     public ProcessingExecutionHandler processingExecutionHandler(
             List<ProcessingStrategy> processingStrategies) {
         return new ProcessingExecutionHandler(processingStrategies);
@@ -142,6 +145,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ColdPathEventProcessor.class)
     public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
         return new ColdPathStrategy(coldPathEventProcessor);
     }
@@ -162,6 +166,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({Layer1ContextualStrategy.class, Layer2ExpertStrategy.class})
     public ColdPathEventProcessor coldPathEventProcessor(
             Layer1ContextualStrategy contextualStrategy,
             Layer2ExpertStrategy expertStrategy,
@@ -171,6 +176,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SecurityLearningService.class)
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRepository,
             SecurityLearningService securityLearningService,
