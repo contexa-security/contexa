@@ -25,6 +25,7 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
         super(response);
         this.registry = registry;
         this.userId = userId;
+        response.setHeader("X-Contexa-Monitored", "true");
     }
 
     @Override

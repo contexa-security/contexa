@@ -1324,8 +1324,9 @@
                 throw networkError;
             }
 
-            // Wrap streaming responses to detect mid-stream termination by server
-            if (response.ok && response.body) {
+            // Wrap only server-monitored responses (BlockableResponseWrapper sets this header)
+            var isMonitored = response.headers.get('X-Contexa-Monitored') === 'true';
+            if (response.ok && response.body && isMonitored) {
                 var originalBody = response.body;
                 var wrappedStream = new ReadableStream({
                     start: function(controller) {

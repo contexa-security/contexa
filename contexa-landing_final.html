@@ -1871,7 +1871,7 @@
      04. ENGINE (Simulation 97% vs 12% + 3-Layer Architecture)
      ══════════════════════════════════════════════════════════════ -->
 <section class="how" id="engine">
-  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">04</span> <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">기술 아키텍처</span><span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// 작동 원리</span></div>
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">04-1</span> <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">기술 아키텍처</span><span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// 작동 원리</span></div>
   <h2 class="section-title reveal">인증 이후, Contexa 는 이렇게 판별합니다.</h2>
   <p class="section-sub reveal">
     <strong>Contexa 는 인증을 통과해도, 행동이 평소와 다르면 찾아냅니다.</strong>
@@ -1881,8 +1881,8 @@
     <!-- Column Headers: 3 columns -->
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; margin-bottom:0; gap:0;">
       <div style="font-size:20px; font-weight:700; color:var(--cyan); text-align:center; padding-bottom:14px;">정상 사용자<br><span style="font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400;">kim@company.com</span></div>
-      <div style="font-size:20px; font-weight:700; color:var(--red); text-align:center; padding-bottom:14px;">계정 탈취자<br><span style="font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400;">kim@company.com (탈취)</span></div>
-      <div style="font-size:20px; font-weight:700; color:var(--gold); text-align:center; padding-bottom:14px;">Agent AI<br><span style="font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400;">api-bot@company.com</span></div>
+      <div style="font-size:20px; font-weight:700; color:var(--gold); text-align:center; padding-bottom:14px;">계정 탈취자<br><span style="font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400;">kim@company.com (탈취)</span></div>
+      <div style="font-size:20px; font-weight:700; color:var(--red); text-align:center; padding-bottom:14px;">Agent AI<br><span style="font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:400;">api-bot@company.com</span></div>
     </div>
     <div style="display:grid; grid-template-columns:1fr 1fr 1fr; border:1px solid rgba(255,255,255,0.1); overflow:hidden;">
 
@@ -1902,14 +1902,14 @@
           <div style="font-size:14px; color:var(--text);">Windows, Chrome</div>
         </div>
               </div>
-      <div style="padding:18px 24px; background:rgba(230,57,70,0.04); border-right:1px solid rgba(255,255,255,0.06); border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="padding:18px 24px; background:rgba(255,209,102,0.04); border-right:1px solid rgba(255,255,255,0.06); border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex; flex-direction:column; gap:5px;">
           <div style="font-size:14px; color:var(--text);">유사 대역 IP</div>
           <div style="font-size:14px; color:var(--text);">오후 2시</div>
           <div style="font-size:14px; color:var(--text);">Windows, Chrome</div>
         </div>
               </div>
-      <div style="padding:18px 24px; background:rgba(255,209,102,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="padding:18px 24px; background:rgba(230,57,70,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex; flex-direction:column; gap:5px;">
           <div style="font-size:14px; color:var(--text);">API 토큰 인증</div>
           <div style="font-size:14px; color:var(--text);">새벽 3시</div>
@@ -1942,26 +1942,26 @@
           <span style="font-size:11px; font-weight:700; color:var(--cyan); letter-spacing:0.08em; padding:4px 12px; border:1px solid rgba(0,194,224,0.4); background:rgba(0,194,224,0.1); border-radius:3px;">정상 패턴</span>
         </div>
       </div>
-      <div style="padding:18px 24px; background:rgba(230,57,70,0.04); border-right:1px solid rgba(255,255,255,0.06); border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="padding:18px 24px; background:rgba(255,209,102,0.04); border-right:1px solid rgba(255,255,255,0.06); border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex; flex-direction:column; gap:6px;">
-          <div style="font-size:14px; color:var(--text);">행동 흐름 <span style="color:var(--red); font-weight:700;">인사DB 직행</span></div>
-          <div style="font-size:14px; color:var(--text);">접근 순서 <span style="color:var(--red); font-weight:700;">평소 없는 경로</span></div>
-          <div style="font-size:14px; color:var(--text);">요청 빈도 <span style="color:var(--red); font-weight:700;">대량 조회 시도</span></div>
-          <div style="font-size:14px; color:var(--text);">세션 흐름 <span style="color:var(--red); font-weight:700;">목적 지향적 직행</span></div>
+          <div style="font-size:14px; color:var(--text);">행동 흐름 <span style="color:var(--gold); font-weight:700;">인사DB 직행</span></div>
+          <div style="font-size:14px; color:var(--text);">접근 순서 <span style="color:var(--gold); font-weight:700;">평소 없는 경로</span></div>
+          <div style="font-size:14px; color:var(--text);">요청 빈도 <span style="color:var(--gold); font-weight:700;">대량 조회 시도</span></div>
+          <div style="font-size:14px; color:var(--text);">세션 흐름 <span style="color:var(--gold); font-weight:700;">목적 지향적 직행</span></div>
         </div>
         <div style="margin-top:12px; display:flex; justify-content:flex-end;">
-          <span style="font-size:11px; font-weight:700; color:var(--red); letter-spacing:0.08em; padding:4px 12px; border:1px solid rgba(230,57,70,0.4); background:rgba(230,57,70,0.1); border-radius:3px;">이상 패턴 감지</span>
+          <span style="font-size:11px; font-weight:700; color:var(--gold); letter-spacing:0.08em; padding:4px 12px; border:1px solid rgba(255,209,102,0.4); background:rgba(255,209,102,0.1); border-radius:3px;">이상 패턴 감지</span>
         </div>
       </div>
-      <div style="padding:18px 24px; background:rgba(255,209,102,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div style="padding:18px 24px; background:rgba(230,57,70,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
         <div style="display:flex; flex-direction:column; gap:6px;">
-          <div style="font-size:14px; color:var(--text);">행동 흐름 <span style="color:var(--gold); font-weight:700;">API 무차별 호출</span></div>
-          <div style="font-size:14px; color:var(--text);">접근 순서 <span style="color:var(--gold); font-weight:700;">24시간 무중단 접근</span></div>
-          <div style="font-size:14px; color:var(--text);">요청 빈도 <span style="color:var(--gold); font-weight:700;">초당 수십 건</span></div>
-          <div style="font-size:14px; color:var(--text);">세션 흐름 <span style="color:var(--gold); font-weight:700;">비인간적 속도 패턴</span></div>
+          <div style="font-size:14px; color:var(--text);">행동 흐름 <span style="color:var(--red); font-weight:700;">API 무차별 호출</span></div>
+          <div style="font-size:14px; color:var(--text);">접근 순서 <span style="color:var(--red); font-weight:700;">24시간 무중단 접근</span></div>
+          <div style="font-size:14px; color:var(--text);">요청 빈도 <span style="color:var(--red); font-weight:700;">초당 수십 건</span></div>
+          <div style="font-size:14px; color:var(--text);">세션 흐름 <span style="color:var(--red); font-weight:700;">비인간적 속도 패턴</span></div>
         </div>
         <div style="margin-top:12px; display:flex; justify-content:flex-end;">
-          <span style="font-size:11px; font-weight:700; color:var(--gold); letter-spacing:0.08em; padding:4px 12px; border:1px solid rgba(255,209,102,0.4); background:rgba(255,209,102,0.1); border-radius:3px;">비인간적 패턴</span>
+          <span style="font-size:11px; font-weight:700; color:var(--red); letter-spacing:0.08em; padding:4px 12px; border:1px solid rgba(230,57,70,0.4); background:rgba(230,57,70,0.1); border-radius:3px;">비인간적 패턴</span>
         </div>
       </div>
 
@@ -1985,25 +1985,25 @@
           <div style="flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:4px; position:relative;">
             <div style="position:absolute; left:0; top:0; width:97%; height:8px; background:var(--cyan); border-radius:4px;"></div>
           </div>
-          <div style="font-family:var(--mono); font-size:22px; font-weight:800; color:var(--cyan);">97%</div>
+          <div style="font-family:var(--mono); font-size:22px; font-weight:800; color:var(--cyan);">ALLOW</div>
         </div>
       </div>
-      <div style="padding:18px 24px; background:rgba(230,57,70,0.04); border-right:1px solid rgba(255,255,255,0.06); border-bottom:1px solid rgba(255,255,255,0.06);">
-        <div style="font-size:15px; font-weight:600; color:var(--red); margin-bottom:10px;">이상 행동 감지</div>
+      <div style="padding:18px 24px; background:rgba(255,209,102,0.04); border-right:1px solid rgba(255,255,255,0.06); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:15px; font-weight:600; color:var(--gold); margin-bottom:10px;">이상 행동 감지</div>
         <div style="display:flex; align-items:center; gap:10px;">
           <div style="flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:4px; position:relative;">
-            <div style="position:absolute; left:0; top:0; width:12%; height:8px; background:var(--red); border-radius:4px;"></div>
+            <div style="position:absolute; left:0; top:0; width:12%; height:8px; background:var(--gold); border-radius:4px;"></div>
           </div>
-          <div style="font-family:var(--mono); font-size:22px; font-weight:800; color:var(--red);">12%</div>
+          <div style="font-family:var(--mono); font-size:22px; font-weight:800; color:var(--gold);">CHALLENGE</div>
         </div>
       </div>
-      <div style="padding:18px 24px; background:rgba(255,209,102,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
-        <div style="font-size:15px; font-weight:600; color:var(--gold); margin-bottom:10px;">극도 위험</div>
+      <div style="padding:18px 24px; background:rgba(230,57,70,0.04); border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="font-size:15px; font-weight:600; color:var(--red); margin-bottom:10px;">극도 위험</div>
         <div style="display:flex; align-items:center; gap:10px;">
           <div style="flex:1; height:8px; background:rgba(255,255,255,0.06); border-radius:4px; position:relative;">
-            <div style="position:absolute; left:0; top:0; width:3%; height:8px; background:var(--gold); border-radius:4px;"></div>
+            <div style="position:absolute; left:0; top:0; width:3%; height:8px; background:var(--red); border-radius:4px;"></div>
           </div>
-          <div style="font-family:var(--mono); font-size:22px; font-weight:800; color:var(--gold);">3%</div>
+          <div style="font-family:var(--mono); font-size:22px; font-weight:800; color:var(--red);">BLOCK</div>
         </div>
       </div>
 
@@ -2023,17 +2023,126 @@
       <div style="padding:24px 16px; background:rgba(0,194,224,0.03); border-right:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center;">
         <div style="font-size:24px; font-weight:800; color:var(--green); letter-spacing:0.08em;">정상 허용</div>
       </div>
-      <div style="padding:24px 16px; background:rgba(230,57,70,0.04); border-right:1px solid rgba(255,255,255,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;">
-        <div style="font-size:13px; color:var(--text);">세션 제한 &middot; 권한 축소</div>
+      <div style="grid-column:2/4; padding:24px 16px; background:rgba(230,57,70,0.04); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;">
+        <div style="font-size:14px; color:var(--text);">세션 제한/파기 &middot; 권한 축소 &middot; IP 차단 &middot; 토큰 무효화</div>
         <div style="font-size:24px; font-weight:800; color:var(--red); letter-spacing:0.08em;">접근 통제</div>
-      </div>
-      <div style="padding:24px 16px; background:rgba(255,209,102,0.06); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;">
-        <div style="font-size:13px; color:var(--text);">세션 파기 &middot; IP 차단 &middot; 토큰 무효화</div>
-        <div style="font-size:24px; font-weight:800; color:var(--gold); letter-spacing:0.08em;">즉시 차단</div>
       </div>
 
     </div>
   </div>
+</section>
+
+<!-- ══════════════════════════════════════════════════════════════
+     04-2. RESPONSE BLOCKING (Data Exfiltration Prevention)
+     ══════════════════════════════════════════════════════════════ -->
+<section class="how" id="response-blocking">
+  <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">04-2</span> <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">기술 아키텍처</span><span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// 데이터 유출 방지</span></div>
+  <h2 class="section-title reveal">유출이 진행 중이라도,<br>Contexa 는 즉시 차단합니다.</h2>
+  <p class="section-sub reveal">
+    공격자가 데이터를 받고 있는 <span style="color:var(--red); font-weight:700;">바로 그 순간에도</span>, Contexa AI가 동시에 분석하고<br>
+    위협으로 판정되는 즉시 <span style="color:var(--red); font-weight:700;">전송 중인 응답을 강제 중단</span>합니다.
+  </p>
+
+  <!-- ========== 좌우 대비: 기존 보안 vs Contexa ========== -->
+  <div class="reveal" style="max-width:1100px; margin-bottom:48px;">
+    <div style="display:grid; grid-template-columns:1fr auto 1fr; margin-bottom:14px; max-width:1000px; margin-left:auto; margin-right:auto;">
+      <div style="text-align:center;">
+        <div style="display:inline-block; padding:6px 20px; background:rgba(230,57,70,0.06); border:1px solid rgba(230,57,70,0.15); border-radius:4px;">
+          <span style="font-size:24px; color:var(--red); letter-spacing:0.1em; font-weight:700;">기존 보안</span>
+        </div>
+      </div>
+      <div style="width:72px;"></div>
+      <div style="text-align:center;">
+        <div style="display:inline-block; padding:6px 20px; background:rgba(0,194,224,0.06); border:1px solid rgba(0,194,224,0.15); border-radius:4px;">
+          <span style="font-size:24px; color:var(--cyan); letter-spacing:0.1em; font-weight:700;">Contexa</span>
+        </div>
+      </div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr auto 1fr; overflow:hidden; gap:0; max-width:1000px; margin:0 auto;">
+
+      <!-- 좌: 기존 보안 - 유출 완료 -->
+      <div style="padding:40px 28px; background:rgba(230,57,70,0.06); border:1px solid rgba(230,57,70,0.15); border-radius:8px 0 0 8px; text-align:center;">
+        <div style="font-size:48px; margin-bottom:16px;">&#9202;</div>
+        <div style="font-size:28px; font-weight:800; color:var(--red); line-height:1.2; margin-bottom:12px;">유출 완료 후<br>사후 분석</div>
+        <div style="font-size:16px; color:var(--muted); margin-bottom:24px;">데이터가 모두 빠져나간 뒤에야 탐지</div>
+
+        <!-- 완료된 프로그레스 바 -->
+        <div style="margin-bottom:16px;">
+          <div style="height:20px; background:rgba(255,255,255,0.04); border-radius:10px; overflow:hidden;">
+            <div style="width:100%; height:20px; background:linear-gradient(90deg, rgba(230,57,70,0.4), var(--red)); border-radius:10px;"></div>
+          </div>
+          <div style="font-family:var(--mono); font-size:22px; font-weight:900; color:var(--red); margin-top:8px;">100% 유출</div>
+        </div>
+
+        <div style="padding:16px; background:rgba(230,57,70,0.08); border:1px solid rgba(230,57,70,0.2); border-radius:8px;">
+          <div style="font-size:15px; color:var(--red); font-weight:700;">수백만 건 개인정보 전부 유출</div>
+          <div style="font-size:14px; color:var(--muted); margin-top:6px;">사후 분석 &middot; 이미 늦음</div>
+        </div>
+      </div>
+
+      <!-- 중앙 화살표 -->
+      <div style="display:flex; align-items:center; justify-content:center; padding:0 8px;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:8px;">
+          <span style="font-size:14px; color:var(--muted); font-weight:600;">VS</span>
+        </div>
+      </div>
+
+      <!-- 우: Contexa - 즉시 차단 -->
+      <div style="padding:40px 28px; background:rgba(0,194,224,0.04); border:1px solid rgba(0,194,224,0.15); border-radius:0 8px 8px 0; text-align:center;">
+        <div style="font-size:48px; margin-bottom:16px;">&#9889;</div>
+        <div style="font-size:28px; font-weight:800; color:var(--cyan); line-height:1.2; margin-bottom:12px;">수초 내 감지<br>즉시 차단</div>
+        <div style="font-size:16px; color:var(--muted); margin-bottom:24px;">AI가 전송과 동시에 분석, 위협 감지 즉시 중단</div>
+
+        <!-- 차단된 프로그레스 바 -->
+        <div style="margin-bottom:16px;">
+          <div style="height:20px; background:rgba(255,255,255,0.04); border-radius:10px; position:relative; overflow:visible;">
+            <div style="width:15%; height:20px; background:linear-gradient(90deg, rgba(230,57,70,0.3), var(--red)); border-radius:10px 0 0 10px;"></div>
+            <div style="position:absolute; left:15%; top:-4px; width:3px; height:28px; background:var(--cyan); box-shadow:0 0 10px var(--cyan); z-index:2;"></div>
+          </div>
+          <div style="font-family:var(--mono); font-size:22px; font-weight:900; color:var(--cyan); margin-top:8px;">즉시 차단</div>
+        </div>
+
+        <div style="padding:16px; background:rgba(0,194,224,0.06); border:1px solid rgba(0,194,224,0.15); border-radius:8px;">
+          <div style="font-size:15px; color:var(--cyan); font-weight:700;">최소 건수만 전송 &mdash; 불완전 데이터</div>
+          <div style="font-size:14px; color:var(--green); font-weight:600; margin-top:6px;">&#128737; 복원 불가 &middot; 고객 자산 보호</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 실제 차단 장면 ========== -->
+  <div class="reveal" style="max-width:1100px; margin-top:80px;">
+    <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:12px;">
+      <div style="font-size:20px; color:var(--red); font-weight:700; border-left:3px solid var(--red); padding-left:12px;">공격자의 데이터 유출이 중간에 끊깁니다</div>
+    </div>
+    <div style="height:1px; background:linear-gradient(90deg, var(--red), transparent 60%); margin-bottom:16px;"></div>
+    <div style="background:#0a0e18; border:1px solid rgba(255,255,255,0.08); border-radius:10px; overflow:hidden;">
+      <div style="padding:10px 16px; background:rgba(255,255,255,0.03); border-bottom:1px solid rgba(255,255,255,0.06); display:flex; align-items:center; gap:8px;">
+        <div style="width:10px; height:10px; border-radius:50%; background:#ff5f56;"></div>
+        <div style="width:10px; height:10px; border-radius:50%; background:#ffbd2e;"></div>
+        <div style="width:10px; height:10px; border-radius:50%; background:#27c93f;"></div>
+        <span style="font-family:var(--mono); font-size:14px; color:var(--muted); margin-left:8px;">전 직원 인사DB &mdash; 급여, 주민번호, 개인정보 유출 중</span>
+      </div>
+      <div style="padding:20px 24px; font-family:var(--mono); font-size:14px; line-height:1.9; color:#7ec8e3;">
+        <div style="opacity:0.5;">EMP-02895 | Jang Seojin&nbsp;&nbsp;| Sales&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| 67,300,000 KRW | SSN: 90***-1****** | seojin.jang@company.com</div>
+        <div style="opacity:0.6;">EMP-02896 | Yoon Hajin&nbsp;&nbsp;&nbsp;| Legal&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| 83,500,000 KRW | SSN: 87***-2****** | hajin.yoon@company.com</div>
+        <div style="opacity:0.7;">EMP-02897 | Park Jihoon&nbsp;&nbsp;| Engineering&nbsp;| 78,400,000 KRW | SSN: 85***-1****** | jihoon.park@company.com</div>
+        <div style="opacity:0.8;">EMP-02898 | Lee Soyeon&nbsp;&nbsp;&nbsp;| HR&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| 65,200,000 KRW | SSN: 91***-2****** | soyeon.lee@company.com</div>
+        <div>EMP-02899 | Kim Minjun&nbsp;&nbsp;&nbsp;| Finance&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;| 92,100,000 KRW | SSN: 88***-1****** | minjun.kim@company.com</div>
+        <div style="color:rgba(126,200,227,0.5);">EMP-02900 | Choi Yuna&nbsp;&nbsp;&nbsp;&nbsp;| Marketing&nbsp;&nbsp;&nbsp;| 71,800,000 KRW | SSN: 93***-2<span style="color:var(--red);">&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;&#9608;</span></div>
+      </div>
+      <!-- 차단 블록 -->
+      <div style="padding:24px 24px; background:linear-gradient(180deg, rgba(230,57,70,0.15), rgba(230,57,70,0.06)); border-top:3px solid var(--red); display:flex; align-items:center; justify-content:center; gap:16px;">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" style="flex-shrink:0;"><circle cx="14" cy="14" r="12" fill="rgba(230,57,70,0.2)" stroke="var(--red)" stroke-width="2"/><path d="M9 9l10 10M19 9l-10 10" stroke="var(--red)" stroke-width="2.5" stroke-linecap="round"/></svg>
+        <div>
+          <div style="font-family:var(--mono); font-size:18px; font-weight:800; color:var(--red);">CONNECTION TERMINATED &mdash; Contexa AI 보안 결정에 의한 응답 차단</div>
+          <div style="font-size:14px; color:var(--muted); margin-top:4px;">전송 중인 응답 스트림이 서버에 의해 강제 종료되었습니다</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
 </section>
 
 <!-- ══════════════════════════════════════════════════════════════
@@ -2273,7 +2382,7 @@
      ══════════════════════════════════════════════════════════════ -->
 <section class="business" id="legacy" style="padding-top:60px;">
   <div class="section-tag reveal" style="display:flex; align-items:baseline; gap:14px;"><span style="font-family:var(--serif); font-size:20px; color:var(--cyan); letter-spacing:0.08em;">07</span> <span style="font-family:'Noto Serif KR',serif; font-size:22px; font-weight:700; color:var(--cyan);">왜 지금인가?</span><span style="font-family:var(--mono); font-size:14px; color:var(--muted); letter-spacing:0.15em;">// 블루오션</span></div>
-  <h2 class="section-title reveal" style="line-height:1.6; margin-bottom:8px;">Java/Spring 시장에는<br>적용 가능한 AI 보안 플랫폼이 없습니다</h2>
+  <h2 class="section-title reveal" style="line-height:1.6; margin-bottom:8px;">Java/Spring 시장에는<br>적용 가능한 AI 보안 플랫폼이 비어 있습니다</h2>
   <p class="section-sub reveal">
     Java/Spring 생태계는 세계에서 가장 거대한 엔터프라이즈 플랫폼입니다.<br>
     <strong>그 안에서 바로 도입 가능한 AI 보안 플랫폼은 아직 없습니다.</strong>
