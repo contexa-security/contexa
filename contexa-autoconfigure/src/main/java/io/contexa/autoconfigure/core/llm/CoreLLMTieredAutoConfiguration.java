@@ -43,7 +43,7 @@ import java.util.Map;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-@AutoConfigureBefore(name = {"org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration", "org.springframework.ai.autoconfigure.chat.client.ChatClientAutoConfiguration"})
+@AutoConfigureBefore(name = {"org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration", "org.springframework.ai.autoconfigure.chat.client.ChatClientAutoConfiguration", "org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration"})
 @EnableConfigurationProperties(TieredLLMProperties.class)
 public class CoreLLMTieredAutoConfiguration {
 
