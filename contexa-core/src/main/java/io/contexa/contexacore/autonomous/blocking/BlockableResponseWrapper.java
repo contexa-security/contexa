@@ -18,6 +18,7 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     private final String userId;
     private BlockableServletOutputStream blockableStream;
     private PrintWriter writer;
+    private boolean monitoredHeaderSet = false;
 
     public BlockableResponseWrapper(HttpServletResponse response,
                                     BlockingSignalBroadcaster registry,
@@ -25,12 +26,19 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
         super(response);
         this.registry = registry;
         this.userId = userId;
-        response.setHeader("X-Contexa-Monitored", "true");
+    }
+
+    private void ensureMonitoredHeader() {
+        if (!monitoredHeaderSet) {
+            monitoredHeaderSet = true;
+            setHeader("X-Contexa-Monitored", "true");
+        }
     }
 
     @Override
     public ServletOutputStream getOutputStream() throws IOException {
         if (blockableStream == null) {
+            ensureMonitoredHeader();
             blockableStream = new BlockableServletOutputStream(
                     super.getOutputStream(), registry, userId,
                     (HttpServletResponse) getResponse());
@@ -41,6 +49,7 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     @Override
     public PrintWriter getWriter() throws IOException {
         if (writer == null) {
+            ensureMonitoredHeader();
             writer = new BlockablePrintWriter(
                     super.getWriter(), registry, userId);
         }
