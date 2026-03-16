@@ -82,6 +82,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ContextRetriever.class)
     public ContextRetrieverRegistry contextRetrieverRegistry(ContextRetriever defaultRetriever) {
         return new ContextRetrieverRegistry(defaultRetriever);
     }
