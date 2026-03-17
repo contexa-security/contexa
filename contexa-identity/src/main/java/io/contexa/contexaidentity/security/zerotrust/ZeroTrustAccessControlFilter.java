@@ -10,6 +10,7 @@ import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
@@ -30,6 +31,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -48,6 +50,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     private final AuthUrlProvider authUrlProvider;
     private final BlockingSignalBroadcaster blockingDecisionRegistry;
     private final int maxBlockMfaAttempts;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
 
     public ZeroTrustAccessControlFilter(
             ZeroTrustActionRepository actionRedisRepository,
@@ -57,6 +60,19 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             AuthUrlProvider authUrlProvider,
             BlockingSignalBroadcaster blockingDecisionRegistry,
             int maxBlockMfaAttempts) {
+        this(actionRedisRepository, responseWriter, blockedUserRecorder, challengeMfaInitializer,
+                authUrlProvider, blockingDecisionRegistry, maxBlockMfaAttempts, null);
+    }
+
+    public ZeroTrustAccessControlFilter(
+            ZeroTrustActionRepository actionRedisRepository,
+            AuthResponseWriter responseWriter,
+            IBlockedUserRecorder blockedUserRecorder,
+            ChallengeMfaInitializer challengeMfaInitializer,
+            AuthUrlProvider authUrlProvider,
+            BlockingSignalBroadcaster blockingDecisionRegistry,
+            int maxBlockMfaAttempts,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry) {
         this.actionRedisRepository = actionRedisRepository;
         this.responseWriter = responseWriter;
         this.blockedUserRecorder = blockedUserRecorder;
@@ -64,6 +80,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         this.authUrlProvider = authUrlProvider;
         this.blockingDecisionRegistry = blockingDecisionRegistry;
         this.maxBlockMfaAttempts = maxBlockMfaAttempts;
+        this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
     }
 
     @Override
@@ -157,10 +174,30 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     }
 
     private boolean isMfaRelatedPath(String requestUri) {
-        return requestUri.startsWith("/mfa/")
+        if (requestUri.startsWith("/mfa/")
                 || requestUri.startsWith("/api/mfa/")
                 || requestUri.startsWith("/webauthn/")
-                || requestUri.startsWith("/login/mfa-");
+                || requestUri.startsWith("/login/mfa-")) {
+            return true;
+        }
+        // Check against dynamically configured MFA URLs from all flows (urlPrefix support)
+        if (mfaFlowUrlRegistry != null) {
+            Set<String> allFlowUrls = mfaFlowUrlRegistry.getAllMfaPageUrls();
+            for (String mfaUrl : allFlowUrls) {
+                if (requestUri.startsWith(mfaUrl) || requestUri.equals(mfaUrl)) {
+                    return true;
+                }
+            }
+        }
+        if (authUrlProvider != null) {
+            Set<String> mfaPageUrls = authUrlProvider.getMfaPageUrls();
+            for (String mfaUrl : mfaPageUrls) {
+                if (requestUri.startsWith(mfaUrl) || requestUri.equals(mfaUrl)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void initializeBlockMfa(HttpServletRequest request,

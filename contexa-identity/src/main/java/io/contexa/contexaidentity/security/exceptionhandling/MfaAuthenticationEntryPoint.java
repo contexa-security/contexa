@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaidentity.domain.ErrorResponse;
 import io.contexa.contexacommon.enums.ErrorCode;
 import io.contexa.contexacommon.properties.MfaPageConfig;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import io.contexa.contexaidentity.security.utils.WebUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,12 +22,19 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
 
     private final ObjectMapper objectMapper;
     private final MfaPageConfig mfaPageConfig;
+    private final AuthUrlProvider authUrlProvider;
 
-    public MfaAuthenticationEntryPoint(ObjectMapper objectMapper, String loginPageUrl, MfaPageConfig mfaPageConfig) {
-        super(loginPageUrl);  
+    public MfaAuthenticationEntryPoint(ObjectMapper objectMapper, String loginPageUrl,
+                                       MfaPageConfig mfaPageConfig, AuthUrlProvider authUrlProvider) {
+        super(loginPageUrl);
         Assert.notNull(objectMapper, "ObjectMapper cannot be null");
         this.objectMapper = objectMapper;
-        this.mfaPageConfig = mfaPageConfig;  
+        this.mfaPageConfig = mfaPageConfig;
+        this.authUrlProvider = authUrlProvider;
+    }
+
+    public MfaAuthenticationEntryPoint(ObjectMapper objectMapper, String loginPageUrl, MfaPageConfig mfaPageConfig) {
+        this(objectMapper, loginPageUrl, mfaPageConfig, null);
     }
 
     @Override
@@ -92,42 +100,42 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         if (mfaPageConfig != null && mfaPageConfig.hasCustomSelectFactorPage()) {
             return mfaPageConfig.getSelectFactorPageUrl();
         }
-        return "/mfa/select-factor";  
+        return authUrlProvider != null ? authUrlProvider.getMfaSelectFactor() : "/mfa/select-factor";
     }
 
     private String getOttRequestPageUrl() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttRequestPage()) {
             return mfaPageConfig.getOttRequestPageUrl();
         }
-        return "/mfa/ott/request-code-ui";  
+        return authUrlProvider != null ? authUrlProvider.getOttRequestCodeUi() : "/mfa/ott/request-code-ui";
     }
 
     private String getOttVerifyPageUrl() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttVerifyPage()) {
             return mfaPageConfig.getOttVerifyPageUrl();
         }
-        return "/mfa/challenge/ott";  
+        return authUrlProvider != null ? authUrlProvider.getOttChallengeUi() : "/mfa/challenge/ott";
     }
 
     private String getPasskeyChallengePageUrl() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomPasskeyPage()) {
             return mfaPageConfig.getPasskeyChallengePageUrl();
         }
-        return "/mfa/challenge/passkey";  
+        return authUrlProvider != null ? authUrlProvider.getPasskeyChallengeUi() : "/mfa/challenge/passkey";
     }
 
     private String getConfigurePageUrl() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomConfigurePage()) {
             return mfaPageConfig.getConfigurePageUrl();
         }
-        return "/mfa/configure";  
+        return authUrlProvider != null ? authUrlProvider.getMfaConfig() : "/mfa/configure";
     }
 
     private String getFailurePageUrl() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomFailurePage()) {
             return mfaPageConfig.getFailurePageUrl();
         }
-        return "/mfa/failure";  
+        return authUrlProvider != null ? authUrlProvider.getMfaFailure() : "/mfa/failure";
     }
 
     private boolean isSelectFactorRequest(HttpServletRequest request) {

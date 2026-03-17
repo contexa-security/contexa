@@ -35,34 +35,39 @@ public class MfaUrlMatcher {
     }
 
     public void initializeMatchers() {
-        
+        initializeMatchersFromProvider(this.authUrlProvider);
+    }
+
+    public void initializeMatchers(AuthUrlProvider flowUrlProvider) {
+        initializeMatchersFromProvider(flowUrlProvider);
+    }
+
+    private void initializeMatchersFromProvider(AuthUrlProvider provider) {
         lock.writeLock().lock();
         try {
-            
             matcherMap.clear();
             configuredUrls.clear();
 
             addMatcher(MfaRequestType.FACTOR_SELECTION,
-                    authUrlProvider.getMfaSelectFactor(), "GET");
+                    provider.getMfaSelectFactor(), "GET");
             addMatcher(MfaRequestType.FACTOR_SELECTION,
-                    authUrlProvider.getMfaSelectFactor(), "POST");
+                    provider.getMfaSelectFactor(), "POST");
 
             addMatcher(MfaRequestType.OTT_CODE_REQUEST,
-                    authUrlProvider.getOttCodeGeneration(), "POST");
+                    provider.getOttCodeGeneration(), "POST");
 
             addMatcher(MfaRequestType.OTT_CODE_VERIFY,
-                    authUrlProvider.getOttLoginProcessing(), "POST");
+                    provider.getOttLoginProcessing(), "POST");
 
             addMatcher(MfaRequestType.CHALLENGE_INITIATION,
-                    authUrlProvider.getPasskeyChallengeUi(), "POST");
+                    provider.getPasskeyChallengeUi(), "POST");
 
             addMatcher(MfaRequestType.LOGIN_PROCESSING,
-                    authUrlProvider.getPasskeyLoginProcessing(), "POST");
+                    provider.getPasskeyLoginProcessing(), "POST");
 
             addMatcher(MfaRequestType.CANCEL_MFA,
-                    authUrlProvider.getMfaCancel(), "POST");
-
-                                } finally {
+                    provider.getMfaCancel(), "POST");
+        } finally {
             lock.writeLock().unlock();
         }
     }

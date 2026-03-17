@@ -39,6 +39,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
+    private volatile String flowTypeName;
 
     public MfaContinuationFilter(AuthContextProperties authContextProperties,
                                  AuthResponseWriter responseWriter,
@@ -80,6 +81,14 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
         if (ctx != null) {
             request.setAttribute(FACTOR_CONTEXT_ATTR, ctx);
+        }
+
+        // Session-based flow routing: skip if this request belongs to a different MFA flow
+        if (this.flowTypeName != null && ctx != null
+                && ctx.getFlowTypeName() != null
+                && !this.flowTypeName.equalsIgnoreCase(ctx.getFlowTypeName())) {
+            filterChain.doFilter(request, response);
+            return;
         }
 
         ValidationResult validation = MfaContextValidator.validateFactorSelectionContext(ctx);
@@ -142,5 +151,14 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     public void initializeUrlMatchers() {
         urlMatcher.initializeMatchers();
         initialized = true;
+    }
+
+    public void initializeUrlMatchers(AuthUrlProvider flowUrlProvider) {
+        this.urlMatcher.initializeMatchers(flowUrlProvider);
+        initialized = true;
+    }
+
+    public void setFlowTypeName(String flowTypeName) {
+        this.flowTypeName = flowTypeName;
     }
 }

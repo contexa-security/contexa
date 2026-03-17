@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
@@ -50,7 +51,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
-    private final RequestCache requestCache = new HttpSessionRequestCache();
+    // RequestCache is created per-method call to avoid shared mutable state in singleton handler
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
@@ -196,16 +197,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             return request.getContextPath() + defaultTargetUrl;
         }
 
-        String dslDefaultSuccessUrl = getDslDefaultSuccessUrl();
-        boolean alwaysUseDslUrl = isDslAlwaysUseDefaultSuccessUrl();
+        String dslDefaultSuccessUrl = getDslDefaultSuccessUrl(request);
+        boolean alwaysUseDslUrl = isDslAlwaysUseDefaultSuccessUrl(request);
 
         if (alwaysUseDslUrl && dslDefaultSuccessUrl != null) {
             return request.getContextPath() + dslDefaultSuccessUrl;
         }
 
-        SavedRequest savedRequest = this.requestCache.getRequest(request, response);
+        RequestCache requestCache = new HttpSessionRequestCache();
+        SavedRequest savedRequest = requestCache.getRequest(request, response);
         if (savedRequest != null) {
-            this.requestCache.removeRequest(request, response);
+            requestCache.removeRequest(request, response);
             String redirectUrl = savedRequest.getRedirectUrl();
             if (isValidRedirectUrl(redirectUrl)) {
                 return redirectUrl;
@@ -218,13 +220,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return request.getContextPath() + authUrlProvider.getMfaSuccess();
     }
 
-    private String getDslDefaultSuccessUrl() {
+    private String getDslDefaultSuccessUrl(HttpServletRequest request) {
         try {
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
-                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
-                    .findFirst()
-                    .orElse(null);
+            AuthenticationFlowConfig mfaFlow = findCurrentMfaFlow(platformConfig, request);
 
             if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
                 var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
@@ -238,13 +237,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         return null;
     }
 
-    private boolean isDslAlwaysUseDefaultSuccessUrl() {
+    private boolean isDslAlwaysUseDefaultSuccessUrl(HttpServletRequest request) {
         try {
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
-            AuthenticationFlowConfig mfaFlow = platformConfig.getFlows().stream()
-                    .filter(f -> AuthType.MFA.name().equalsIgnoreCase(f.getTypeName()))
-                    .findFirst()
-                    .orElse(null);
+            AuthenticationFlowConfig mfaFlow = findCurrentMfaFlow(platformConfig, request);
 
             if (mfaFlow != null && mfaFlow.getPrimaryAuthenticationOptions() != null) {
                 var formOptions = mfaFlow.getPrimaryAuthenticationOptions().getFormOptions();
@@ -256,6 +252,28 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             log.error("Failed to get DSL alwaysUseDefaultSuccessUrl: {}", e.getMessage());
         }
         return false;
+    }
+
+    private AuthenticationFlowConfig findCurrentMfaFlow(PlatformConfig platformConfig, HttpServletRequest request) {
+        FactorContext ctx = (FactorContext) request.getAttribute("io.contexa.mfa.FactorContext");
+        if (ctx == null) {
+            ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        }
+        if (ctx != null && ctx.getFlowTypeName() != null) {
+            String targetFlowTypeName = ctx.getFlowTypeName();
+            AuthenticationFlowConfig specificFlow = platformConfig.getFlows().stream()
+                    .filter(f -> f.getTypeName().equalsIgnoreCase(targetFlowTypeName))
+                    .findFirst()
+                    .orElse(null);
+            if (specificFlow != null) {
+                return specificFlow;
+            }
+        }
+        // Fallback for single MFA flow backward compatibility
+        return platformConfig.getFlows().stream()
+                .filter(f -> MfaFlowTypeUtils.isMfaFlow(f.getTypeName()))
+                .findFirst()
+                .orElse(null);
     }
 
     private boolean isValidRedirectUrl(String url) {

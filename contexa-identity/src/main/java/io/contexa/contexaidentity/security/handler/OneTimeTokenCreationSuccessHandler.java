@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
@@ -42,7 +43,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
         String usernameFromToken = token.getUsername();
 
         if (factorContext != null &&
-                AuthType.MFA.name().equalsIgnoreCase(factorContext.getFlowTypeName()) &&
+                MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()) &&
                 Objects.equals(factorContext.getUsername(), usernameFromToken) &&
                 factorContext.getCurrentProcessingFactor() == AuthType.MFA_OTT) {
 
@@ -73,7 +74,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             return;
         }
 
-        if ((factorContext == null || !AuthType.MFA.name().equalsIgnoreCase(factorContext.getFlowTypeName()))) {
+        if ((factorContext == null || !MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()))) {
             String email = URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8);
             String codeSentUrl = authUrlProvider.getOttCodeSent();
             if (!StringUtils.hasText(codeSentUrl)) {

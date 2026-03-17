@@ -10,6 +10,7 @@ import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -65,6 +66,9 @@ class MfaAuthenticationAdapterTest {
 
     @Mock
     private AuthUrlProvider authUrlProvider;
+
+    @Mock
+    private MfaFlowUrlRegistry mfaFlowUrlRegistry;
 
     @Mock
     private StateConfig stateConfig;
@@ -220,7 +224,7 @@ class MfaAuthenticationAdapterTest {
             when(mfaFlow.getMfaPageConfig()).thenReturn(null);
 
             setupCommonBeans(mfaFlow);
-            when(applicationContext.getBean(AuthUrlProvider.class)).thenReturn(authUrlProvider);
+
 
             // Should not throw - creates a no-op matcher when no processing URLs found
             assertThatCode(() -> adapter.apply(httpSecurity, Collections.emptyList(), stateConfig))
@@ -249,7 +253,7 @@ class MfaAuthenticationAdapterTest {
             when(mfaFlow.getStepConfigs()).thenReturn(List.of(primaryStep, step));
 
             setupCommonBeans(mfaFlow);
-            when(applicationContext.getBean(AuthUrlProvider.class)).thenReturn(authUrlProvider);
+
 
             assertThatCode(() -> adapter.apply(httpSecurity, Collections.emptyList(), stateConfig))
                     .doesNotThrowAnyException();
@@ -271,5 +275,8 @@ class MfaAuthenticationAdapterTest {
         when(applicationContext.getBean(ConfiguredFactorFilterProvider.class)).thenReturn(factorFilterProvider);
         when(applicationContext.getBean(AuthContextProperties.class)).thenReturn(authContextProperties);
         when(applicationContext.getBean(AuthResponseWriter.class)).thenReturn(responseWriter);
+        when(applicationContext.getBean(MfaFlowUrlRegistry.class)).thenReturn(mfaFlowUrlRegistry);
+        when(mfaFlowUrlRegistry.createAndRegister(any(), any(), any(), any())).thenReturn(authUrlProvider);
+        when(mfaFlowUrlRegistry.createAndRegister(any(), any(), any(), any(), any())).thenReturn(authUrlProvider);
     }
 }

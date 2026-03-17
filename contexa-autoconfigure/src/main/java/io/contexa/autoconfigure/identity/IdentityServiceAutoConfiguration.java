@@ -2,7 +2,9 @@ package io.contexa.autoconfigure.identity;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.controller.MfaConfigController;
+import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.service.ott.EmailOneTimeTokenService;
 import io.contexa.contexaidentity.security.service.ott.EmailService;
 import io.contexa.contexaidentity.security.service.ott.MagicLinkHandler;
@@ -34,6 +36,12 @@ public class IdentityServiceAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public MfaFlowUrlRegistry mfaFlowUrlRegistry(AuthContextProperties properties) {
+        return new MfaFlowUrlRegistry(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public EmailService emailService(@Autowired(required = false) JavaMailSender mailSender) {
         return new EmailService(mailSender);
     }
@@ -61,7 +69,9 @@ public class IdentityServiceAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnBean(AuthUrlProvider.class)
-    public MfaConfigController mfaConfigController(AuthUrlProvider authUrlProvider) {
-        return new MfaConfigController(authUrlProvider);
+    public MfaConfigController mfaConfigController(AuthUrlProvider authUrlProvider,
+                                                     MfaFlowUrlRegistry mfaFlowUrlRegistry,
+                                                     MfaStateMachineIntegrator stateMachineIntegrator) {
+        return new MfaConfigController(authUrlProvider, mfaFlowUrlRegistry, stateMachineIntegrator);
     }
 }

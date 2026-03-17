@@ -10,6 +10,7 @@ import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.http.HttpServletRequest;
@@ -219,8 +220,21 @@ public class ChallengeMfaInitializer {
     }
 
     private AuthenticationFlowConfig getMfaFlowConfig() {
+        return getMfaFlowConfig(null);
+    }
+
+    private AuthenticationFlowConfig getMfaFlowConfig(String flowTypeName) {
+        if (flowTypeName != null) {
+            AuthenticationFlowConfig specificFlow = platformConfig.getFlows().stream()
+                    .filter(flow -> flow.getTypeName().equalsIgnoreCase(flowTypeName))
+                    .findFirst()
+                    .orElse(null);
+            if (specificFlow != null) {
+                return specificFlow;
+            }
+        }
         return platformConfig.getFlows().stream()
-                .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
+                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
                 .findFirst()
                 .orElse(null);
     }

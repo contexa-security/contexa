@@ -25,9 +25,25 @@ public class AuthUrlProvider {
     private final Map<AuthType, AuthenticationProcessingOptions> factorOptionsMap = new HashMap<>();
 
     private PrimaryAuthenticationOptions primaryAuthOptions;
+    private String urlPrefix;
 
     public AuthUrlProvider(AuthContextProperties properties) {
         this.properties = properties;
+    }
+
+    public void setUrlPrefix(String urlPrefix) {
+        this.urlPrefix = urlPrefix;
+    }
+
+    public String getUrlPrefix() {
+        return this.urlPrefix;
+    }
+
+    private String applyPrefix(String url) {
+        if (urlPrefix != null && url != null && !url.startsWith(urlPrefix)) {
+            return urlPrefix + url;
+        }
+        return url;
     }
 
     public void setPrimaryAuthenticationOptions(@Nullable PrimaryAuthenticationOptions primaryAuthOptions) {
@@ -54,45 +70,45 @@ public class AuthUrlProvider {
     public String getPrimaryFormLoginProcessing() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginProcessingUrl())) {
             if (primaryAuthOptions.isFormLogin()) {
-                return primaryAuthOptions.getLoginProcessingUrl();
+                return applyPrefix(primaryAuthOptions.getLoginProcessingUrl());
             }
         }
-        return properties.getUrls().getPrimary().getFormLoginProcessing();
+        return applyPrefix(properties.getUrls().getPrimary().getFormLoginProcessing());
     }
 
     public String getPrimaryRestLoginProcessing() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginProcessingUrl())) {
             if (primaryAuthOptions.isRestLogin()) {
-                return primaryAuthOptions.getLoginProcessingUrl();
+                return applyPrefix(primaryAuthOptions.getLoginProcessingUrl());
             }
         }
-        return properties.getUrls().getPrimary().getRestLoginProcessing();
+        return applyPrefix(properties.getUrls().getPrimary().getRestLoginProcessing());
     }
 
     public String getPrimaryLoginPage() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getLoginPage())) {
-            return primaryAuthOptions.getLoginPage();
+            return applyPrefix(primaryAuthOptions.getLoginPage());
         }
-        return properties.getUrls().getPrimary().getFormLoginPage();
+        return applyPrefix(properties.getUrls().getPrimary().getFormLoginPage());
     }
 
     public String getDefaultPrimaryLoginPage() {
-        return properties.getUrls().getPrimary().getFormLoginPage();
+        return applyPrefix(properties.getUrls().getPrimary().getFormLoginPage());
     }
 
     public String getPrimaryLoginFailure() {
         if (primaryAuthOptions != null && StringUtils.hasText(primaryAuthOptions.getFailureUrl())) {
-            return primaryAuthOptions.getFailureUrl();
+            return applyPrefix(primaryAuthOptions.getFailureUrl());
         }
-        return properties.getUrls().getPrimary().getLoginFailure();
+        return applyPrefix(properties.getUrls().getPrimary().getLoginFailure());
     }
 
     public String getPrimaryLoginSuccess() {
-        return properties.getUrls().getPrimary().getLoginSuccess();
+        return applyPrefix(properties.getUrls().getPrimary().getLoginSuccess());
     }
 
     public String getLogoutPage() {
-        return properties.getUrls().getPrimary().getLogoutPage();
+        return applyPrefix(properties.getUrls().getPrimary().getLogoutPage());
     }
 
     public String getSingleFormLoginProcessing() {
@@ -173,43 +189,43 @@ public class AuthUrlProvider {
 
     public String getMfaSelectFactor() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomSelectFactorPage()) {
-            return mfaPageConfig.getSelectFactorPageUrl();
+            return applyPrefix(mfaPageConfig.getSelectFactorPageUrl());
         }
-        return properties.getUrls().getMfa().getSelectFactor();
+        return applyPrefix(properties.getUrls().getMfa().getSelectFactor());
     }
 
     public String getMfaSuccess() {
-        return properties.getUrls().getMfa().getSuccess();
+        return applyPrefix(properties.getUrls().getMfa().getSuccess());
     }
 
     public String getMfaFailure() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomFailurePage()) {
-            return mfaPageConfig.getFailurePageUrl();
+            return applyPrefix(mfaPageConfig.getFailurePageUrl());
         }
-        return properties.getUrls().getMfa().getFailure();
+        return applyPrefix(properties.getUrls().getMfa().getFailure());
     }
 
     public String getMfaCancel() {
-        return properties.getUrls().getMfa().getCancel();
+        return applyPrefix(properties.getUrls().getMfa().getCancel());
     }
 
     public String getMfaStatus() {
-        return properties.getUrls().getMfa().getStatus();
+        return applyPrefix(properties.getUrls().getMfa().getStatus());
     }
 
     public String getMfaRequestOttCode() {
-        return properties.getUrls().getMfa().getRequestOttCode();
+        return applyPrefix(properties.getUrls().getMfa().getRequestOttCode());
     }
 
     public String getMfaConfig() {
-        return properties.getUrls().getMfa().getConfig();
+        return applyPrefix(properties.getUrls().getMfa().getConfig());
     }
 
     public String getOttRequestCodeUi() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttRequestPage()) {
-            return mfaPageConfig.getOttRequestPageUrl();
+            return applyPrefix(mfaPageConfig.getOttRequestPageUrl());
         }
-        return properties.getUrls().getFactors().getOtt().getRequestCodeUi();
+        return applyPrefix(properties.getUrls().getFactors().getOtt().getRequestCodeUi());
     }
 
     public String getOttCodeGeneration() {
@@ -217,27 +233,27 @@ public class AuthUrlProvider {
         if (ottOpts instanceof OttOptions ottOptions) {
             String customUrl = ottOptions.getTokenGeneratingUrl();
             if (StringUtils.hasText(customUrl)) {
-                return customUrl;
+                return applyPrefix(customUrl);
             }
         }
 
-        return properties.getUrls().getFactors().getOtt().getCodeGeneration();
+        return applyPrefix(properties.getUrls().getFactors().getOtt().getCodeGeneration());
     }
 
     public String getOttChallengeUi() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttVerifyPage()) {
-            return mfaPageConfig.getOttVerifyPageUrl();
+            return applyPrefix(mfaPageConfig.getOttVerifyPageUrl());
         }
 
         AuthenticationProcessingOptions ottOpts = factorOptionsMap.get(AuthType.MFA_OTT);
         if (ottOpts instanceof OttOptions ottOptions) {
             String customUrl = ottOptions.getDefaultSubmitPageUrl();
             if (StringUtils.hasText(customUrl)) {
-                return customUrl;
+                return applyPrefix(customUrl);
             }
         }
 
-        return properties.getUrls().getFactors().getOtt().getChallengeUi();
+        return applyPrefix(properties.getUrls().getFactors().getOtt().getChallengeUi());
     }
 
     public String getOttLoginProcessing() {
@@ -245,11 +261,11 @@ public class AuthUrlProvider {
         if (ottOpts instanceof OttOptions ottOptions) {
             String customUrl = ottOptions.getLoginProcessingUrl();
             if (StringUtils.hasText(customUrl)) {
-                return customUrl;
+                return applyPrefix(customUrl);
             }
         }
 
-        return properties.getUrls().getFactors().getOtt().getLoginProcessing();
+        return applyPrefix(properties.getUrls().getFactors().getOtt().getLoginProcessing());
     }
 
     public String getMfaOttCodeGeneration() {
@@ -265,11 +281,11 @@ public class AuthUrlProvider {
     }
 
     public String getOttCodeSent() {
-        return properties.getUrls().getFactors().getOtt().getCodeSent();
+        return applyPrefix(properties.getUrls().getFactors().getOtt().getCodeSent());
     }
 
     public String getOttDefaultFailure() {
-        return properties.getUrls().getFactors().getOtt().getDefaultFailure();
+        return applyPrefix(properties.getUrls().getFactors().getOtt().getDefaultFailure());
     }
 
     public String getPasskeyLoginProcessing() {
@@ -277,11 +293,11 @@ public class AuthUrlProvider {
         if (passkeyOpts instanceof PasskeyOptions passkeyOptions) {
             String customUrl = passkeyOptions.getLoginProcessingUrl();
             if (StringUtils.hasText(customUrl)) {
-                return customUrl;
+                return applyPrefix(customUrl);
             }
         }
 
-        return properties.getUrls().getFactors().getPasskey().getLoginProcessing();
+        return applyPrefix(properties.getUrls().getFactors().getPasskey().getLoginProcessing());
     }
 
     public String getPasskeyAssertionOptions() {
@@ -289,11 +305,11 @@ public class AuthUrlProvider {
         if (passkeyOpts instanceof PasskeyOptions passkeyOptions) {
             String customUrl = passkeyOptions.getAssertionOptionsEndpoint();
             if (StringUtils.hasText(customUrl)) {
-                return customUrl;
+                return applyPrefix(customUrl);
             }
         }
 
-        return properties.getUrls().getFactors().getPasskey().getAssertionOptions();
+        return applyPrefix(properties.getUrls().getFactors().getPasskey().getAssertionOptions());
     }
 
     public String getMfaPasskeyLoginProcessing() {
@@ -306,33 +322,33 @@ public class AuthUrlProvider {
 
     public String getPasskeyChallengeUi() {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomPasskeyPage()) {
-            return mfaPageConfig.getPasskeyChallengePageUrl();
+            return applyPrefix(mfaPageConfig.getPasskeyChallengePageUrl());
         }
-        return properties.getUrls().getFactors().getPasskey().getChallengeUi();
+        return applyPrefix(properties.getUrls().getFactors().getPasskey().getChallengeUi());
     }
 
     public String getPasskeyDefaultFailure() {
-        return properties.getUrls().getFactors().getPasskey().getDefaultFailure();
+        return applyPrefix(properties.getUrls().getFactors().getPasskey().getDefaultFailure());
     }
 
     public String getPasskeyRegistrationRequest() {
-        return properties.getUrls().getFactors().getPasskey().getRegistrationRequest();
+        return applyPrefix(properties.getUrls().getFactors().getPasskey().getRegistrationRequest());
     }
 
     public String getPasskeyRegistrationProcessing() {
-        return properties.getUrls().getFactors().getPasskey().getRegistrationProcessing();
+        return applyPrefix(properties.getUrls().getFactors().getPasskey().getRegistrationProcessing());
     }
 
     public String getPasskeyRegistrationOptions() {
-        return properties.getUrls().getFactors().getPasskey().getRegistrationOptions();
+        return applyPrefix(properties.getUrls().getFactors().getPasskey().getRegistrationOptions());
     }
 
     public String getRecoveryCodeLoginProcessing() {
-        return properties.getUrls().getFactors().getRecoveryCodeLoginProcessing();
+        return applyPrefix(properties.getUrls().getFactors().getRecoveryCodeLoginProcessing());
     }
 
     public String getRecoveryCodeChallengeUi() {
-        return properties.getUrls().getFactors().getRecoveryCodeChallengeUi();
+        return applyPrefix(properties.getUrls().getFactors().getRecoveryCodeChallengeUi());
     }
 
     public List<String> getAllFactorProcessingUrls() {

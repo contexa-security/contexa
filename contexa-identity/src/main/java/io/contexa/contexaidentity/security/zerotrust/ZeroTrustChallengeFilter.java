@@ -7,6 +7,7 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.WebUtil;
@@ -27,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
@@ -41,6 +43,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final DistributedLockService lockService;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
 
     public ZeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
@@ -49,12 +52,25 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             MfaSessionRepository sessionRepository,
             MfaStateMachineIntegrator stateMachineIntegrator,
             DistributedLockService lockService) {
+        this(challengeMfaInitializer, responseWriter, authUrlProvider, sessionRepository,
+                stateMachineIntegrator, lockService, null);
+    }
+
+    public ZeroTrustChallengeFilter(
+            ChallengeMfaInitializer challengeMfaInitializer,
+            AuthResponseWriter responseWriter,
+            AuthUrlProvider authUrlProvider,
+            MfaSessionRepository sessionRepository,
+            MfaStateMachineIntegrator stateMachineIntegrator,
+            DistributedLockService lockService,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry) {
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.responseWriter = responseWriter;
         this.authUrlProvider = authUrlProvider;
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.lockService = lockService;
+        this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
     }
 
     @Override
@@ -67,6 +83,19 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
         if (authUrlProvider.getMfaPageUrls().contains(requestUri)) {
             return true;
+        }
+
+        // Check against all flows' MFA URLs (urlPrefix support)
+        if (mfaFlowUrlRegistry != null) {
+            Set<String> allFlowUrls = mfaFlowUrlRegistry.getAllMfaPageUrls();
+            if (allFlowUrls.contains(requestUri)) {
+                return true;
+            }
+            for (String mfaUrl : allFlowUrls) {
+                if (requestUri.startsWith(mfaUrl)) {
+                    return true;
+                }
+            }
         }
 
         if (requestUri.startsWith("/mfa/challenge/")) {

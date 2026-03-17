@@ -22,9 +22,9 @@ public abstract class AbstractTokenBasedSuccessHandler implements PlatformAuthen
     protected final TokenService tokenService;
     protected final AuthResponseWriter responseWriter;
     protected final AuthContextProperties authContextProperties;
-    private PlatformAuthenticationSuccessHandler delegateHandler;
-    protected String defaultTargetUrl;
-    protected boolean alwaysUse;
+    private volatile PlatformAuthenticationSuccessHandler delegateHandler;
+    protected volatile String defaultTargetUrl;
+    protected volatile boolean alwaysUse;
 
     protected AbstractTokenBasedSuccessHandler(TokenService tokenService,
                                                AuthResponseWriter responseWriter,

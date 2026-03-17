@@ -5,6 +5,7 @@ import io.contexa.contexacore.infra.session.SessionIdGenerationException;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -43,6 +44,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
 
     private String usernameParameter = "username";
     private String passwordParameter = "password";
+    private String flowTypeName;
 
     public MfaFormAuthenticationFilter(AuthenticationManager authenticationManager,
                                        ApplicationContext applicationContext,
@@ -95,7 +97,7 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
         cleanupExistingSession(request, response);
 
         String mfaSessionId = generateSecureDistributedSessionId(request);
-        String flowTypeNameForContext = AuthType.MFA.name().toLowerCase();
+        String flowTypeNameForContext = (this.flowTypeName != null) ? this.flowTypeName : MfaFlowTypeUtils.getBaseMfaTypeName();
 
         FactorContext factorContext = new FactorContext(
                 mfaSessionId,
@@ -268,5 +270,9 @@ public class MfaFormAuthenticationFilter extends BaseAuthenticationFilter {
     public void setPasswordParameter(String passwordParameter) {
         Assert.hasText(passwordParameter, "passwordParameter cannot be empty");
         this.passwordParameter = passwordParameter;
+    }
+
+    public void setFlowTypeName(String flowTypeName) {
+        this.flowTypeName = flowTypeName;
     }
 }

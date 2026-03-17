@@ -7,12 +7,14 @@ import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
 import io.contexa.contexaidentity.security.filter.DefaultMfaPageGeneratingFilter;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaPageConfig;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
 import org.springframework.http.MediaType;
@@ -46,7 +48,7 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
     public void configure(FlowContext flowContext) {
         AuthenticationFlowConfig flowConfig = flowContext.flow();
 
-        if (!AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
+        if (!MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
             log.debug("Skipping MfaPageGeneratingFilter for non-MFA flow: {}", flowConfig.getTypeName());
             return;
         }
@@ -54,9 +56,12 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
         try {
             MfaStateMachineIntegrator stateMachineIntegrator =
                     applicationContext.getBean(MfaStateMachineIntegrator.class);
-            AuthUrlProvider authUrlProvider =
-                    applicationContext.getBean(AuthUrlProvider.class);
-            authUrlProvider.setMfaPageConfig(flowConfig.getMfaPageConfig());
+            MfaFlowUrlRegistry flowUrlRegistry =
+                    applicationContext.getBean(MfaFlowUrlRegistry.class);
+            AuthUrlProvider authUrlProvider = flowUrlRegistry.getProvider(flowConfig.getTypeName());
+            if (authUrlProvider == null) {
+                authUrlProvider = applicationContext.getBean(AuthUrlProvider.class);
+            }
             AuthContextProperties authContextProperties =
                     applicationContext.getBean(AuthContextProperties.class);
 

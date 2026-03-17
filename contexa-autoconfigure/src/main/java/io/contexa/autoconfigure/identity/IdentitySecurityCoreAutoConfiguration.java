@@ -36,6 +36,7 @@ import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ChallengeMfaInitializer;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import jakarta.servlet.Filter;
@@ -331,11 +332,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthUrlProvider authUrlProvider,
             MfaSessionRepository sessionRepository,
             MfaStateMachineIntegrator stateMachineIntegrator,
-            DistributedLockService lockService) {
+            DistributedLockService lockService,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry) {
 
         return new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
-                sessionRepository, stateMachineIntegrator, lockService);
+                sessionRepository, stateMachineIntegrator, lockService, mfaFlowUrlRegistry);
     }
 
     @Bean
@@ -363,10 +365,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             ChallengeMfaInitializer challengeMfaInitializer,
             AuthUrlProvider authUrlProvider,
             BlockingSignalBroadcaster blockingDecisionRegistry,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            SecurityZeroTrustProperties securityZeroTrustProperties,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry) {
         return new ZeroTrustAccessControlFilter(actionRedisRepository, responseWriter,
                 blockedUserRecorder, challengeMfaInitializer, authUrlProvider, blockingDecisionRegistry,
-                securityZeroTrustProperties.getMaxBlockMfaAttempts());
+                securityZeroTrustProperties.getMaxBlockMfaAttempts(), mfaFlowUrlRegistry);
     }
 
     @Bean

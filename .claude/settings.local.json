@@ -275,7 +275,14 @@
       "Bash(find /e/projects/contexa -path *src/main/java* \\\\\\(-name AuditLog.java -o -name AuditRecord.java -o -name Audit.java \\\\\\))",
       "Read(//e/projects/**)",
       "Bash(find /e/projects/contexa -path *src/main/java* \\\\\\(-name BlockedUser*.java -o -name BlockedUserService.java \\\\\\))",
-      "Bash(find e:/projects/contexa-enterprise/contexa-iam-enterprise/src -type f \\\\\\(-name *.java -o -name *.yml -o -name *.yaml -o -name *.properties -o -name *.xml \\\\\\))"
+      "Bash(find e:/projects/contexa-enterprise/contexa-iam-enterprise/src -type f \\\\\\(-name *.java -o -name *.yml -o -name *.yaml -o -name *.properties -o -name *.xml \\\\\\))",
+      "Bash(find /e -name *.java -type f -exec grep -l AdapterRegistry {})",
+      "Bash(2)",
+      "Bash(xargs grep:*)",
+      "Bash(unzip -l spring-security-webauthn-7.0.0.jar)",
+      "Bash(unzip -l spring-security-config-6.5.2.jar)",
+      "Bash(unzip -p spring-security-config-6.5.2.jar org/springframework/security/config/annotation/web/configurers/WebAuthnConfigurer.class)",
+      "Bash(xxd)"
     ],
     "deny": [],
     "ask": []

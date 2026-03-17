@@ -33,6 +33,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
     private final MfaSessionRepository sessionRepository;
     private final MfaSettings mfaSettings;
     private final AuthResponseWriter responseWriter;
+    private volatile String flowTypeName;
 
     public MfaStepFilterWrapper(ConfiguredFactorFilterProvider configuredFactorFilterProvider,
                                 RequestMatcher mfaFactorProcessingMatcher,
@@ -64,7 +65,14 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
             if (ctx != null) {
                 request.setAttribute("io.contexa.mfa.FactorContext", ctx);
             }
-        } else {
+        }
+
+        // Session-based flow routing: skip if this request belongs to a different MFA flow
+        if (this.flowTypeName != null && ctx != null
+                && ctx.getFlowTypeName() != null
+                && !this.flowTypeName.equalsIgnoreCase(ctx.getFlowTypeName())) {
+            chain.doFilter(request, response);
+            return;
         }
 
         ValidationResult validation = MfaContextValidator.validateFactorProcessingContext(ctx);
@@ -153,6 +161,10 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
     private boolean isRetryLimitExceeded(FactorContext ctx) {
         int attempts = ctx.getAttemptCount(ctx.getCurrentProcessingFactor());
         return !mfaSettings.isRetryAllowed(attempts);
+    }
+
+    public void setFlowTypeName(String flowTypeName) {
+        this.flowTypeName = flowTypeName;
     }
 
     private void ensureMinimumDelay(long startTime) {

@@ -1,6 +1,9 @@
 package io.contexa.contexaidentity.security.core.dsl.configurer.impl;
 
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.filter.BaseAuthenticationFilter;
+import io.contexa.contexaidentity.security.filter.MfaFormAuthenticationFilter;
+import io.contexa.contexaidentity.security.filter.MfaRestAuthenticationFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -73,6 +76,16 @@ public abstract class AbstractAuthenticationConfigurer<T extends AbstractAuthent
         } else {
             SecurityContextRepository resolvedRepository = http.getSharedObject(SecurityContextRepository.class);
             filter.setSecurityContextRepository(resolvedRepository);
+        }
+
+        // Propagate flowTypeName to MFA primary auth filters for Multi MFA support
+        AuthenticationFlowConfig flowConfig = http.getSharedObject(AuthenticationFlowConfig.class);
+        if (flowConfig != null) {
+            if (filter instanceof MfaFormAuthenticationFilter mfaFormFilter) {
+                mfaFormFilter.setFlowTypeName(flowConfig.getTypeName());
+            } else if (filter instanceof MfaRestAuthenticationFilter mfaRestFilter) {
+                mfaRestFilter.setFlowTypeName(flowConfig.getTypeName());
+            }
         }
     }
 

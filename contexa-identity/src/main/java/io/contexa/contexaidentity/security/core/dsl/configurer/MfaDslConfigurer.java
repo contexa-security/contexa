@@ -8,7 +8,9 @@ import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailure
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import org.springframework.security.config.Customizer;
 
-public interface MfaDslConfigurer extends SecurityConfigurerDsl { 
+public interface MfaDslConfigurer extends SecurityConfigurerDsl {
+    MfaDslConfigurer name(String flowName);
+    MfaDslConfigurer urlPrefix(String urlPrefix);
     MfaDslConfigurer order(int order);
     MfaDslConfigurer form(Customizer<FormConfigurerConfigurer> formConfigurer); 
     MfaDslConfigurer rest(Customizer<RestConfigurerConfigurer> restConfigurer); 

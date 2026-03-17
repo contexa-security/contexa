@@ -6,6 +6,7 @@ import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.handler.OAuth2SingleAuthFailureHandler;
 import io.contexa.contexaidentity.security.handler.OAuth2SingleAuthSuccessHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
@@ -56,7 +57,7 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
             ApplicationContext appContext) {
 
         StateType stateType = determineStateType(stateConfig, appContext);
-        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
+        boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
             return super.resolveSuccessHandler(options, currentFlow, myStepConfig, allSteps, stateConfig, appContext);
@@ -77,7 +78,7 @@ public abstract class BaseRestAuthenticationAdapter<T extends AbstractHttpConfig
             ApplicationContext appContext) {
 
         StateType stateType = determineStateType(stateConfig, appContext);
-        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
+        boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
             return super.resolveFailureHandler(options, currentFlow, stateConfig, appContext);

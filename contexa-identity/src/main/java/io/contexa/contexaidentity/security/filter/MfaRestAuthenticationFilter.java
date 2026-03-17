@@ -6,6 +6,7 @@ import io.contexa.contexaidentity.domain.LoginRequest;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -41,6 +42,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
 
     private static final int MAX_SESSION_ID_GENERATION_ATTEMPTS = 5;
     private static final int MAX_COLLISION_RESOLUTION_ATTEMPTS = 3;
+    private String flowTypeName;
 
     public MfaRestAuthenticationFilter(AuthenticationManager authenticationManager,
                                        ApplicationContext applicationContext,
@@ -70,7 +72,7 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         cleanupExistingSession(request, response);
 
         String mfaSessionId = generateSecureDistributedSessionId(request);
-        String flowTypeNameForContext = AuthType.MFA.name().toLowerCase();
+        String flowTypeNameForContext = (this.flowTypeName != null) ? this.flowTypeName : MfaFlowTypeUtils.getBaseMfaTypeName();
 
         FactorContext factorContext = new FactorContext(
                 mfaSessionId,
@@ -273,5 +275,9 @@ public class MfaRestAuthenticationFilter extends BaseAuthenticationFilter {
         byte[] bytes = new byte[24];
         secureRandom.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+    }
+
+    public void setFlowTypeName(String flowTypeName) {
+        this.flowTypeName = flowTypeName;
     }
 }

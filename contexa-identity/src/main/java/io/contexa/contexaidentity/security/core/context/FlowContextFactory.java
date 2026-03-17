@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.context;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.bootstrap.AdapterRegistry;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -56,7 +57,7 @@ public class FlowContextFactory {
         AuthenticationFlowConfig flowConfig = fc.flow();
         ApplicationContext appContext = this.applicationContext;
 
-        boolean isMfaFlow = AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName());
+        boolean isMfaFlow = MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName());
         if (isMfaFlow) {
 
             setSharedObjectIfAbsent(http, MfaPolicyProvider.class, () -> {

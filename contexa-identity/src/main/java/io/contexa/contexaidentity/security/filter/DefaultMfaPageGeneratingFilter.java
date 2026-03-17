@@ -6,6 +6,7 @@ import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.properties.MfaPageConfig;
 import io.contexa.contexacommon.properties.MfaSettings;
@@ -957,7 +958,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             MfaSettings mfaSettings,
             String tokenPersistence) {
         Assert.notNull(mfaFlowConfig, "AuthenticationFlowConfig cannot be null");
-        Assert.isTrue(AuthType.MFA.name().equalsIgnoreCase(mfaFlowConfig.getTypeName()),
+        Assert.isTrue(MfaFlowTypeUtils.isMfaFlow(mfaFlowConfig.getTypeName()),
                 "This filter only works with MFA flow config. Provided flow type: " + mfaFlowConfig.getTypeName());
         Assert.notNull(stateMachineIntegrator, "MfaStateMachineIntegrator cannot be null");
         Assert.notNull(authUrlProvider, "AuthUrlProvider cannot be null");
@@ -1013,8 +1014,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
             if (primaryOpts.isFormLogin()) {
                 FormOptions formOpts = primaryOpts.getFormOptions();
-                return StringUtils.hasText(formOpts.getLoginPage()) ?
-                        formOpts.getLoginPage() : authUrlProvider.getPrimaryLoginPage();
+                String effectiveUrl = formOpts.getEffectiveLoginPage();
+                return StringUtils.hasText(effectiveUrl) ?
+                        effectiveUrl : authUrlProvider.getPrimaryLoginPage();
             }
 
             if (primaryOpts.isRestLogin()) {
@@ -1026,7 +1028,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private boolean isCustomLoginPage(String loginPage) {
-
+        PrimaryAuthenticationOptions primaryOpts = mfaFlowConfig.getPrimaryAuthenticationOptions();
+        if (primaryOpts != null && primaryOpts.isFormLogin()) {
+            FormOptions formOpts = primaryOpts.getFormOptions();
+            if (formOpts != null) {
+                return formOpts.hasExplicitCustomLoginPage();
+            }
+        }
+        // Fallback: compare with default
         String defaultLoginPage = authUrlProvider.getDefaultPrimaryLoginPage();
         return StringUtils.hasText(loginPage) && !loginPage.equals(defaultLoginPage);
     }
@@ -1477,6 +1486,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 tokenPersistence
         );
 
+        html = html.replace("/mfa/select-factor", authUrlProvider.getMfaSelectFactor());
         writer.write(html);
         writer.flush();
 
@@ -1667,6 +1677,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 tokenPersistence
         );
 
+        html = html.replace("/mfa/select-factor", authUrlProvider.getMfaSelectFactor());
         writer.write(html);
         writer.flush();
 

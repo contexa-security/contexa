@@ -6,6 +6,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import jakarta.servlet.http.HttpServletRequest;
@@ -79,7 +80,7 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
         }
 
         AuthenticationFlowConfig mfaFlowConfig = platformConfig.getFlows().stream()
-                .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
+                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
                 .findFirst()
                 .orElse(null);
 

@@ -7,20 +7,20 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class DefaultPlatformContext implements PlatformContext{
 
     private final ApplicationContext applicationContext;
     private List<FlowContext> flowContexts;
     private final ObjectProvider<HttpSecurity> httpProvider;
-    private final List<AuthenticationStepConfig> authConfigs = new ArrayList<>();
-    private final Map<Class<?>, Object> shared = new HashMap<>();
-    private final Map<String, SecurityFilterChain> chains = new HashMap<>();
-    private final Map<AuthenticationFlowConfig, HttpSecurity> flowHttpMap = new HashMap<>();
+    private final List<AuthenticationStepConfig> authConfigs = new CopyOnWriteArrayList<>();
+    private final Map<Class<?>, Object> shared = new ConcurrentHashMap<>();
+    private final Map<String, SecurityFilterChain> chains = new ConcurrentHashMap<>();
+    private final Map<AuthenticationFlowConfig, HttpSecurity> flowHttpMap = new ConcurrentHashMap<>();
 
     public DefaultPlatformContext(ApplicationContext applicationContext, ObjectProvider<HttpSecurity> httpProvider) {
         this.applicationContext = applicationContext;

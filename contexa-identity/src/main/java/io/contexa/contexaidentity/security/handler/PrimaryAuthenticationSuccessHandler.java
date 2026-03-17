@@ -372,8 +372,9 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
 
+            String targetFlowTypeName = context.getFlowTypeName();
             AuthenticationFlowConfig flowConfig = platformConfig.getFlows().stream()
-                    .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
+                    .filter(flow -> flow.getTypeName().equalsIgnoreCase(targetFlowTypeName))
                     .findFirst()
                     .orElse(null);
 

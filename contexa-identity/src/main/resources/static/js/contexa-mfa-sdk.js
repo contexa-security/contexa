@@ -450,23 +450,26 @@
     const ContexaMFAApiClient = {
         endpoints: {},
         initialized: false,
+        configUrl: '/api/mfa/config',
 
         /**
          * SDK 초기화 - 서버에서 엔드포인트 설정 로드
          *
-         * 서버 응답 구조:
-         * {
-         *   mfa: { initiate, configure, selectFactor, failure, success, cancel, status },
-         *   ott: { requestCodeUi, codeGeneration, challenge, loginProcessing, ... },
-         *   passkey: { loginProcessing, challenge, ... },
-         *   api: { selectFactor, cancel, status, requestOttCode, context, assertionOptions, config }
-         * }
+         * Multi MFA 지원: 서버의 /api/mfa/config는 현재 MFA 세션의 Flow에 해당하는
+         * URL 설정을 반환합니다. MFA_SID 쿠키를 기반으로 Flow를 식별합니다.
+         *
+         * @param {Object} [options] - 초기화 옵션
+         * @param {string} [options.configUrl] - config 엔드포인트 URL (기본: /api/mfa/config)
          */
-        async init() {
+        async init(options) {
             if (this.initialized) return;
 
+            if (options && options.configUrl) {
+                this.configUrl = options.configUrl;
+            }
+
             try {
-                const response = await fetch('/api/mfa/config', {
+                const response = await fetch(this.configUrl, {
                     method: 'GET',
                     headers: ContexaMFAUtils.createHeaders()
                 });
@@ -492,10 +495,11 @@
         },
 
         /**
-         * 기본 엔드포인트 설정 (fallback)
+         * 기본 엔드포인트 설정 (fallback - 서버 미응답 시에만 사용)
          *
-         * 서버가 /api/mfa/config 엔드포인트를 통해 제공하는 구조와 동일한 형식을 유지합니다.
-         * 서버 설정은 AuthContextProperties (application.yml)에서 관리됩니다.
+         * 정상 동작 시 서버의 /api/mfa/config에서 Flow별 동적 URL을 제공합니다.
+         * 이 fallback은 서버가 응답하지 않는 극단적 상황에서만 사용되며,
+         * Multi MFA 환경에서는 서버 설정이 반드시 우선합니다.
          */
         _getDefaultEndpoints() {
             return {
@@ -921,9 +925,11 @@
 
         /**
          * SDK 초기화
+         * @param {Object} [options] - 초기화 옵션
+         * @param {string} [options.configUrl] - config 엔드포인트 URL (Multi MFA 시 Flow별 설정)
          */
-        async init() {
-            await this.apiClient.init();
+        async init(options) {
+            await this.apiClient.init(options);
             ContexaMFAUtils.log('MFA SDK initialized', 'info');
         }
 

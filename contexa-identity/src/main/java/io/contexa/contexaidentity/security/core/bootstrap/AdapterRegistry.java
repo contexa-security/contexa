@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.core.bootstrap;
 
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.adapter.AuthenticationAdapter;
 import io.contexa.contexaidentity.security.core.adapter.StateAdapter;
 import io.contexa.contexaidentity.security.core.adapter.auth.MfaAuthenticationAdapter;
@@ -12,13 +13,14 @@ import org.springframework.lang.Nullable;
 import org.springframework.util.CollectionUtils;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Slf4j
 public class AdapterRegistry {
 
-    private final Map<String, AuthenticationAdapter> authAdapter = new HashMap<>();
-    private final Map<String, StateAdapter> stateAdapter = new HashMap<>();
+    private final Map<String, AuthenticationAdapter> authAdapter = new ConcurrentHashMap<>();
+    private final Map<String, StateAdapter> stateAdapter = new ConcurrentHashMap<>();
 
     private final ApplicationContext applicationContext;
 
@@ -73,7 +75,7 @@ public class AdapterRegistry {
             }
             String flowTypeNameLower = flow.getTypeName().toLowerCase();
 
-            if (AuthType.MFA.name().equalsIgnoreCase(flowTypeNameLower)) {
+            if (MfaFlowTypeUtils.isMfaFlow(flowTypeNameLower)) {
                 AuthenticationAdapter mfaBaseAdapter = authAdapter.get(AuthType.MFA.name().toLowerCase());
                 if (mfaBaseAdapter != null) {
                     featuresToApply.add(mfaBaseAdapter);

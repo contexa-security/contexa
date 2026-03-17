@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.config.StateConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.OttOptions;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexaidentity.security.handler.*;
@@ -139,7 +140,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             ApplicationContext appContext) {
 
         StateType stateType = determineStateType(stateConfig, appContext);
-        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
+        boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
             if (allSteps != null) {
@@ -169,7 +170,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             ApplicationContext appContext) {
 
         StateType stateType = determineStateType(stateConfig, appContext);
-        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
+        boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
 
@@ -207,7 +208,7 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
             AuthenticationStepConfig myStepConfig,
             @Nullable List<AuthenticationStepConfig> allSteps, O options) {
 
-        boolean isMfaFlow = (currentFlow != null && AuthType.MFA.name().equalsIgnoreCase(currentFlow.getTypeName()));
+        boolean isMfaFlow = (currentFlow != null && MfaFlowTypeUtils.isMfaFlow(currentFlow.getTypeName()));
 
         if (isMfaFlow) {
             if (allSteps != null) {

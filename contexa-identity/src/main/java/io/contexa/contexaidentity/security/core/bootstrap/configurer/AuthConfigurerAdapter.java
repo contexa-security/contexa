@@ -7,6 +7,7 @@ import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -34,7 +35,7 @@ public class AuthConfigurerAdapter implements SecurityConfigurer {
 
         if (adapter instanceof MfaAuthenticationAdapter) {
 
-            if (AuthType.MFA.name().equalsIgnoreCase(fc.flow().getTypeName())) {
+            if (MfaFlowTypeUtils.isMfaFlow(fc.flow().getTypeName())) {
                 adapter.apply(fc.http(), steps, fc.flow().getStateConfig());
                 return;
             }

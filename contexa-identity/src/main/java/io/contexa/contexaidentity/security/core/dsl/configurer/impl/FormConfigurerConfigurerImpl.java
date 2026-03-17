@@ -40,6 +40,12 @@ public final class FormConfigurerConfigurerImpl
     }
 
     @Override
+    public FormConfigurerConfigurer defaultLoginUrl(String defaultLoginUrl) {
+        getOptionsBuilder().defaultLoginUrl(defaultLoginUrl);
+        return self();
+    }
+
+    @Override
     public FormConfigurerConfigurer loginProcessingUrl(String loginProcessingUrl) {
         getOptionsBuilder().loginProcessingUrl(loginProcessingUrl);
         return self();

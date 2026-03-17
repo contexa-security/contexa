@@ -8,6 +8,7 @@ public interface FormConfigurerConfigurer
         extends AuthenticationFactorConfigurer<FormOptions, FormAsepAttributes, FormConfigurerConfigurer> { 
 
     FormConfigurerConfigurer loginPage(String loginPageUrl);
+    FormConfigurerConfigurer defaultLoginUrl(String defaultLoginUrl);
     FormConfigurerConfigurer usernameParameter(String usernameParameter);
     FormConfigurerConfigurer passwordParameter(String passwordParameter);
     FormConfigurerConfigurer defaultSuccessUrl(String defaultSuccessUrl);

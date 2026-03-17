@@ -16,7 +16,7 @@ import java.util.Map;
 public abstract class AbstractTokenBasedFailureHandler implements PlatformAuthenticationFailureHandler {
 
     protected final AuthResponseWriter responseWriter;
-    private PlatformAuthenticationFailureHandler delegateHandler;
+    private volatile PlatformAuthenticationFailureHandler delegateHandler;
 
     protected AbstractTokenBasedFailureHandler(AuthResponseWriter responseWriter) {
         this.responseWriter = responseWriter;

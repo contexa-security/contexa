@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.AbstractMfaPolicyEvaluator;
 import io.contexa.contexaidentity.security.core.mfa.policy.evaluator.MfaPolicyEvaluator;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
@@ -29,7 +30,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     protected final AuthContextProperties properties;
     protected final MfaPolicyEvaluator policyEvaluator;
     protected final PlatformConfig platformConfig;
-    private AuthenticationFlowConfig cachedMfaFlowConfig;
+    private final Map<String, AuthenticationFlowConfig> cachedMfaFlowConfigs = new java.util.concurrent.ConcurrentHashMap<>();
 
     public DefaultMfaPolicyProvider(
             UserRepository userRepository,
@@ -48,12 +49,12 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     public void initializeMfaFlowConfig() {
         try {
             if (platformConfig != null) {
-                cachedMfaFlowConfig = platformConfig.getFlows().stream()
-                        .filter(flow -> AuthType.MFA.name().equalsIgnoreCase(flow.getTypeName()))
-                        .findFirst()
-                        .orElse(null);
+                platformConfig.getFlows().stream()
+                        .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
+                        .forEach(flow -> cachedMfaFlowConfigs.put(
+                                flow.getTypeName().toLowerCase(), flow));
 
-                if (cachedMfaFlowConfig == null) {
+                if (cachedMfaFlowConfigs.isEmpty()) {
                     log.error("No MFA flow configuration found during initialization");
                 }
             }
@@ -84,7 +85,8 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             }
         }
 
-        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
+        String flowType = ctx != null ? ctx.getFlowTypeName() : null;
+        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(flowType);
         if (mfaFlowConfig == null) {
             log.error("MFA flow config not found. Factor {} not available for user: {}", factorType, username);
             return false;
@@ -97,7 +99,7 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     @Override
     public long getRequiredFactorCount(String userId, String flowType) {
         long baseCount = 1;
-        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
+        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(flowType);
         long mfaStepCount = 0;
         if (mfaFlowConfig != null) {
             mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
@@ -156,14 +158,24 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
     @Nullable
     private AuthenticationFlowConfig findMfaFlowConfig() {
-        return cachedMfaFlowConfig;
+        // Backward compatibility: return first cached MFA flow config
+        return cachedMfaFlowConfigs.values().stream().findFirst().orElse(null);
+    }
+
+    @Nullable
+    protected AuthenticationFlowConfig findMfaFlowConfig(String flowTypeName) {
+        if (flowTypeName == null) {
+            return findMfaFlowConfig();
+        }
+        AuthenticationFlowConfig config = cachedMfaFlowConfigs.get(flowTypeName.toLowerCase());
+        return config != null ? config : findMfaFlowConfig();
     }
 
     @Override
     public NextFactorDecision evaluateNextFactor(FactorContext ctx) {
         Assert.notNull(ctx, "FactorContext cannot be null.");
 
-        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig();
+        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(ctx.getFlowTypeName());
         if (mfaFlowConfig == null) {
             log.error("MFA flow configuration not found");
             return NextFactorDecision.error("MFA flow configuration not found");

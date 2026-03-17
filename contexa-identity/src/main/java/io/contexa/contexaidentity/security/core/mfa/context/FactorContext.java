@@ -12,6 +12,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.time.Instant;
 import java.util.*;
@@ -487,5 +489,11 @@ public class FactorContext implements FactorContextExtensions, Serializable {
             log.error("[FactorContext] Attribute '{}' is not a Map: {}", key, value.getClass().getName());
         }
         return new HashMap<>();
+    }
+
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+        this.stateLock = new ReentrantReadWriteLock();
+        this.factorsLock = new ReentrantReadWriteLock();
     }
 }

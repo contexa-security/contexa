@@ -13,6 +13,8 @@ import java.util.Objects;
 public final class FormOptions extends AuthenticationProcessingOptions {
 
     private final String loginPage;
+    private final String defaultLoginUrl;
+    private final boolean explicitCustomLoginPage;
     private final String usernameParameter;
     private final String passwordParameter;
     private final String defaultSuccessUrl;
@@ -25,6 +27,8 @@ public final class FormOptions extends AuthenticationProcessingOptions {
     private FormOptions(Builder builder) {
         super(builder);
         this.loginPage = builder.loginPage;
+        this.defaultLoginUrl = builder.defaultLoginUrl;
+        this.explicitCustomLoginPage = builder.explicitCustomLoginPage;
         this.usernameParameter = Objects.requireNonNull(builder.usernameParameter, "usernameParameter cannot be null");
         this.passwordParameter = Objects.requireNonNull(builder.passwordParameter, "passwordParameter cannot be null");
         this.defaultSuccessUrl = builder.defaultSuccessUrl;
@@ -43,8 +47,28 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         return new Builder(applicationContext, true);
     }
 
+    public boolean hasExplicitCustomLoginPage() {
+        return explicitCustomLoginPage;
+    }
+
+    /**
+     * Returns the effective login page URL for this form.
+     * Priority: loginPage (custom) > defaultLoginUrl (auto-form URL change) > authUrlProvider default
+     */
+    public String getEffectiveLoginPage() {
+        if (loginPage != null && explicitCustomLoginPage) {
+            return loginPage;
+        }
+        if (defaultLoginUrl != null) {
+            return defaultLoginUrl;
+        }
+        return loginPage;
+    }
+
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<FormOptions, Builder> {
         private String loginPage;
+        private String defaultLoginUrl;
+        private boolean explicitCustomLoginPage = false;
         private String usernameParameter = "username";
         private String passwordParameter = "password";
         private String defaultSuccessUrl;
@@ -84,6 +108,15 @@ public final class FormOptions extends AuthenticationProcessingOptions {
         public Builder loginPage(String loginPage) {
             Assert.hasText(loginPage, "loginPage cannot be empty or null");
             this.loginPage = loginPage;
+            this.explicitCustomLoginPage = true;
+            return this;
+        }
+
+        public Builder defaultLoginUrl(String defaultLoginUrl) {
+            Assert.hasText(defaultLoginUrl, "defaultLoginUrl cannot be empty or null");
+            this.defaultLoginUrl = defaultLoginUrl;
+            // Sync loginProcessingUrl to match the page URL (same as Spring Security standard)
+            super.loginProcessingUrl(defaultLoginUrl);
             return this;
         }
 

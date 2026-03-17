@@ -7,6 +7,7 @@ import org.springframework.util.StringUtils;
 @Data
 public class MfaPageConfig {
     
+    private String primaryLoginPageUrl;
     private String selectFactorPageUrl;
 
     
@@ -25,6 +26,10 @@ public class MfaPageConfig {
     private String failurePageUrl;
 
     
+    public boolean hasCustomPrimaryLoginPage() {
+        return StringUtils.hasText(primaryLoginPageUrl);
+    }
+
     public boolean hasCustomSelectFactorPage() {
         return StringUtils.hasText(selectFactorPageUrl);
     }

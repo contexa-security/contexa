@@ -11,6 +11,7 @@ import io.contexa.contexaidentity.security.core.dsl.configurer.AbstractOptionsBu
 import io.contexa.contexaidentity.security.core.dsl.configurer.AuthenticationFactorConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.MfaDslConfigurer;
 import io.contexa.contexaidentity.security.core.dsl.configurer.impl.MfaDslConfigurerImpl;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.dsl.factory.AuthMethodConfigurerFactory;
 import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexacommon.enums.AuthType;
@@ -93,10 +94,23 @@ public abstract class AbstractFlowRegistrar<H extends HttpSecurityBuilder<H>> im
         MfaDslConfigurerImpl<H> mfaDslConfigurer =
                 authMethodConfigurerFactory.createMfaConfigurer(this.applicationContext);
         Objects.requireNonNull(customizer, "mfa customizer cannot be null").customize(mfaDslConfigurer);
-        AuthenticationFlowConfig mfaFlow = mfaDslConfigurer.build(); 
+        AuthenticationFlowConfig mfaFlow = mfaDslConfigurer.build();
+
+        // Auto-numbering for multi MFA flows when name() was not explicitly set
+        if (mfaDslConfigurer.getUserDefinedFlowName() == null) {
+            String currentTypeName = mfaFlow.getTypeName();
+            if (platformBuilder.getModifiableFlows().stream()
+                    .anyMatch(f -> f.getTypeName().equalsIgnoreCase(currentTypeName))) {
+                long existingMfaCount = platformBuilder.getModifiableFlows().stream()
+                        .filter(f -> MfaFlowTypeUtils.isMfaFlow(f.getTypeName()))
+                        .count();
+                String newTypeName = MfaFlowTypeUtils.generateAutoNumberedTypeName(existingMfaCount);
+                mfaFlow = mfaFlow.withTypeName(newTypeName);
+            }
+        }
 
         platformBuilder.addFlow(mfaFlow);
-                return this.stateSetter;
+        return this.stateSetter;
     }
 
     private final class StateSetter implements IdentityStateDsl {

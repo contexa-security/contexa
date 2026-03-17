@@ -1,14 +1,13 @@
 package io.contexa.contexaidentity.security.core.bootstrap.configurer;
 
-import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.DefaultMfaPageGeneratingFilter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustChallengeFilter;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.web.authentication.logout.LogoutFilter;
 
 @Slf4j
 public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
@@ -35,7 +34,7 @@ public class ZeroTrustChallengeConfigurer implements SecurityConfigurer {
 
         AuthenticationFlowConfig flowConfig = fc.flow();
 
-        if (!AuthType.MFA.name().equalsIgnoreCase(flowConfig.getTypeName())) {
+        if (!MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
             log.debug("Skipping MfaPageGeneratingFilter for non-MFA flow: {}", flowConfig.getTypeName());
             return;
         }

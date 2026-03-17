@@ -13,6 +13,7 @@ import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.exception.DslConfigurationException;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
@@ -50,13 +51,27 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private MfaAsepAttributes mfaAsepAttributes;
     private MfaPageConfig mfaPageConfig;
 
-    private final String mfaFlowTypeName = AuthType.MFA.name().toLowerCase();
+    private String mfaFlowTypeName = MfaFlowTypeUtils.getBaseMfaTypeName();
+    private String userDefinedFlowName;
+    private String urlPrefix;
 
     public MfaDslConfigurerImpl(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null");
-        this.flowConfigBuilder = AuthenticationFlowConfig.builder(AuthType.MFA.name().toLowerCase());
+        this.flowConfigBuilder = AuthenticationFlowConfig.builder(MfaFlowTypeUtils.getBaseMfaTypeName());
         this.authMethodConfigurerFactory = new AuthMethodConfigurerFactory(this.applicationContext);
         this.primaryAuthConfigurer = new PrimaryAuthDslConfigurerImpl<>(this.applicationContext);
+    }
+
+    @Override
+    public MfaDslConfigurerImpl<H> name(String flowName) {
+        this.userDefinedFlowName = flowName;
+        return this;
+    }
+
+    @Override
+    public MfaDslConfigurerImpl<H> urlPrefix(String urlPrefix) {
+        this.urlPrefix = urlPrefix;
+        return this;
     }
 
     @Override
@@ -157,8 +172,20 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 return this;
     }
 
+    /**
+     * Returns the user-defined flow name set via name(), or null if not set.
+     * Used by AbstractFlowRegistrar for auto-numbering logic.
+     */
+    public String getUserDefinedFlowName() {
+        return this.userDefinedFlowName;
+    }
+
     @Override
     public AuthenticationFlowConfig build() {
+        if (StringUtils.hasText(this.userDefinedFlowName)) {
+            this.mfaFlowTypeName = MfaFlowTypeUtils.generateTypeName(this.userDefinedFlowName);
+        }
+
         PrimaryAuthenticationOptions primaryAuthOptionsForFlow = null;
 
         if (this.primaryAuthConfigurer.getFormLoginCustomizer() != null || this.primaryAuthConfigurer.getRestLoginCustomizer() != null) {
@@ -240,7 +267,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint = createMfaAuthenticationEntryPoint(primaryAuthOptionsForFlow);
 
         return flowConfigBuilder
-                .typeName(AuthType.MFA.name().toLowerCase())
+                .typeName(this.mfaFlowTypeName)
                 .order(this.order)
                 .primaryAuthenticationOptions(primaryAuthOptionsForFlow)
                 .stepConfigs(Collections.unmodifiableList(new ArrayList<>(this.configuredSteps)))
@@ -252,6 +279,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .mfaAsepAttributes(this.mfaAsepAttributes)
                 .mfaPageConfig(this.mfaPageConfig)
                 .mfaAuthenticationEntryPoint(mfaAuthenticationEntryPoint)
+                .urlPrefix(this.urlPrefix)
                 .build();
     }
 

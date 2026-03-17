@@ -5,6 +5,7 @@ import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcess
 import io.contexa.contexaidentity.security.core.mfa.options.PrimaryAuthenticationOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexacommon.enums.AuthType;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.exceptionhandling.MfaAuthenticationEntryPoint;
 import io.contexa.contexacommon.properties.MfaPageConfig;
 import lombok.Getter;
@@ -34,6 +35,7 @@ public final class AuthenticationFlowConfig {
     private final MfaPageConfig mfaPageConfig;
     private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
     private final List<AuthenticationStepConfig> stepConfigs;
+    private final String urlPrefix;
 
     private AuthenticationFlowConfig(Builder builder) {
         this.typeName = builder.typeName;
@@ -52,6 +54,33 @@ public final class AuthenticationFlowConfig {
         this.stepConfigs = builder.stepConfigs != null ?
                 Collections.unmodifiableList(new ArrayList<>(builder.stepConfigs)) :
                 Collections.emptyList();
+        this.urlPrefix = builder.urlPrefix;
+    }
+
+    public AuthenticationFlowConfig withTypeName(String newTypeName) {
+        Builder builder = new Builder(newTypeName)
+                .order(this.order)
+                .rawHttpCustomizer(this.rawHttpCustomizer)
+                .primaryAuthenticationOptions(this.primaryAuthenticationOptions)
+                .mfaPolicyProvider(this.mfaPolicyProvider)
+                .mfaFailureHandler(this.mfaFailureHandler)
+                .finalSuccessHandler(this.finalSuccessHandler)
+                .registeredFactorOptions(this.registeredFactorOptions != null ? new LinkedHashMap<>(this.registeredFactorOptions) : null)
+                .defaultDeviceTrustEnabled(this.defaultDeviceTrustEnabled)
+                .mfaAsepAttributes(this.mfaAsepAttributes)
+                .mfaPageConfig(this.mfaPageConfig)
+                .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
+                .stepConfigs(this.stepConfigs != null ? new ArrayList<>(this.stepConfigs) : null)
+                .stateConfig(this.stateConfig)
+                .urlPrefix(this.urlPrefix);
+        AuthenticationFlowConfig newFlow = new AuthenticationFlowConfig(builder);
+        // Regenerate stepIds with the new typeName
+        if (newFlow.stepConfigs != null) {
+            for (AuthenticationStepConfig step : newFlow.stepConfigs) {
+                step.setStepId(AuthenticationStepConfig.generateId(newTypeName, step.getType(), step.getOrder()));
+            }
+        }
+        return newFlow;
     }
 
     public AuthenticationFlowConfig withStateConfig(StateConfig newStateConfig) {
@@ -68,7 +97,8 @@ public final class AuthenticationFlowConfig {
                 .mfaPageConfig(this.mfaPageConfig)
                 .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
                 .stepConfigs(this.stepConfigs != null ? new ArrayList<>(this.stepConfigs) : null)
-                .stateConfig(newStateConfig);
+                .stateConfig(newStateConfig)
+                .urlPrefix(this.urlPrefix);
         return new AuthenticationFlowConfig(builder);
     }
 
@@ -93,6 +123,7 @@ public final class AuthenticationFlowConfig {
         private MfaPageConfig mfaPageConfig;
         private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
         private List<AuthenticationStepConfig> stepConfigs = new ArrayList<>();
+        private String urlPrefix;
 
         public Builder(String typeName) {
             Assert.hasText(typeName, "typeName cannot be empty");
@@ -170,8 +201,13 @@ public final class AuthenticationFlowConfig {
             return this;
         }
 
+        public Builder urlPrefix(String urlPrefix) {
+            this.urlPrefix = urlPrefix;
+            return this;
+        }
+
         public AuthenticationFlowConfig build() {
-            if (AuthType.MFA.name().equalsIgnoreCase(typeName)) {
+            if (MfaFlowTypeUtils.isMfaFlow(typeName)) {
                 Assert.notNull(primaryAuthenticationOptions, "PrimaryAuthenticationOptions must be set for MFA flow named '" + typeName + "'");
 
                 Assert.isTrue(this.stepConfigs != null && this.stepConfigs.size() > 1, "MFA flow must have its primary and at least one secondary factor step configured in stepConfigs field.");

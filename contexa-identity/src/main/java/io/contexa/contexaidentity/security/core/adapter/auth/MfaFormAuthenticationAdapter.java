@@ -28,11 +28,12 @@ public final class MfaFormAuthenticationAdapter extends BaseFormAuthenticationAd
                                                FormOptions opts,
                                                PlatformAuthenticationSuccessHandler successHandler,
                                                PlatformAuthenticationFailureHandler failureHandler) {
+        String effectiveLoginPage = opts.getEffectiveLoginPage();
         configurer
                 .loginProcessingUrl(opts.getLoginProcessingUrl())
                 .usernameParameter(opts.getUsernameParameter())
                 .passwordParameter(opts.getPasswordParameter())
-                .loginPage(opts.getLoginPage())
+                .loginPage(effectiveLoginPage)
                 .failureUrl(opts.getFailureUrl())
                 .successUrl(opts.getDefaultSuccessUrl())
                 .successUrl(opts.getDefaultSuccessUrl(), opts.isAlwaysUseDefaultSuccessUrl())

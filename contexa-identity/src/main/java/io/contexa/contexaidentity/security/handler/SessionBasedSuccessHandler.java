@@ -14,9 +14,8 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
 
     protected final AuthResponseWriter responseWriter;
     protected final AuthContextProperties authContextProperties;
-    protected final RequestCache requestCache = new HttpSessionRequestCache();
-    protected String defaultTargetUrl;
-    protected boolean alwaysUse;
+    protected volatile String defaultTargetUrl;
+    protected volatile boolean alwaysUse;
 
     protected SessionBasedSuccessHandler(AuthResponseWriter responseWriter,
                                          AuthContextProperties authContextProperties) {
@@ -35,13 +34,14 @@ public abstract class SessionBasedSuccessHandler implements PlatformAuthenticati
     }
 
     protected String determineTargetUrl(HttpServletRequest request, HttpServletResponse response) {
-        SavedRequest savedRequest = requestCache.getRequest(request, response);
+        RequestCache localRequestCache = new HttpSessionRequestCache();
+        SavedRequest savedRequest = localRequestCache.getRequest(request, response);
 
         if (savedRequest != null) {
             String redirectUrl = savedRequest.getRedirectUrl();
 
             if (isValidRedirectUrl(redirectUrl)) {
-                requestCache.removeRequest(request, response);
+                localRequestCache.removeRequest(request, response);
                 return redirectUrl;
             } else {
                 log.error("Invalid saved redirect URL ignored: {}", redirectUrl);

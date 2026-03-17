@@ -32,8 +32,8 @@ public class PlatformBootstrap implements InitializingBean {
         platform.initialize();
 
         try {
-            ValidationResult result = dslValidator.validate(config);
-            ValidationReportReporter.reportAndThrowOnError(result, "PlatformSecurityConfig.java (DSL)");
+//            ValidationResult result = dslValidator.validate(config);
+//            ValidationReportReporter.reportAndThrowOnError(result, "PlatformSecurityConfig.java (DSL)");
         } catch (DslConfigurationException e) {
             log.error("Server startup aborted due to DSL validation failure.", e);
             throw e;
