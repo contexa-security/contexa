@@ -1009,21 +1009,6 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private String extractPrimaryLoginPage() {
-        PrimaryAuthenticationOptions primaryOpts = mfaFlowConfig.getPrimaryAuthenticationOptions();
-        if (primaryOpts != null) {
-
-            if (primaryOpts.isFormLogin()) {
-                FormOptions formOpts = primaryOpts.getFormOptions();
-                String effectiveUrl = formOpts.getEffectiveLoginPage();
-                return StringUtils.hasText(effectiveUrl) ?
-                        effectiveUrl : authUrlProvider.getPrimaryLoginPage();
-            }
-
-            if (primaryOpts.isRestLogin()) {
-                String loginPage = primaryOpts.getLoginPage();
-                return StringUtils.hasText(loginPage) ? loginPage : authUrlProvider.getPrimaryLoginPage();
-            }
-        }
         return authUrlProvider.getPrimaryLoginPage();
     }
 
