@@ -122,7 +122,15 @@
             t2ProgressPct: document.getElementById('t2-progress-pct'),
             t2RecordCount: document.getElementById('t2-record-count'),
             t2BytesReceived: document.getElementById('t2-bytes-received'),
-            t2Terminal: document.getElementById('t2-terminal')
+            t2Terminal: document.getElementById('t2-terminal'),
+
+            // Modal download widget
+            mdwWidget: document.getElementById('modal-download-widget'),
+            mdwStatus: document.getElementById('mdw-status'),
+            mdwProgressFill: document.getElementById('mdw-progress-fill'),
+            mdwPct: document.getElementById('mdw-pct'),
+            mdwRecords: document.getElementById('mdw-records'),
+            mdwBytes: document.getElementById('mdw-bytes')
         };
     }
 
@@ -542,12 +550,55 @@
         if (elements.mRiskValue) elements.mRiskValue.textContent = '0.00';
         if (elements.mConfValue) elements.mConfValue.textContent = '0.00';
 
+        // Show download widget for Test2 (Response Blocking) tab
+        var isTest2 = state.activeTab === 'test2';
+        if (elements.mdwWidget) {
+            elements.mdwWidget.style.display = isTest2 ? 'block' : 'none';
+            if (isTest2) {
+                syncModalDownloadWidget();
+                if (elements.mdwStatus) {
+                    elements.mdwStatus.textContent = 'Downloading...';
+                    elements.mdwStatus.className = 'mdw-status';
+                }
+                if (elements.mdwProgressFill) {
+                    elements.mdwProgressFill.className = 'mdw-progress-fill';
+                }
+            }
+        }
+
         if (elements.modalScenarioLabel) elements.modalScenarioLabel.textContent = scenarioName;
         if (elements.modalOverlay) elements.modalOverlay.classList.add('active');
     }
 
     function closeModal() {
         if (elements.modalOverlay) elements.modalOverlay.classList.remove('active');
+        if (elements.mdwWidget) elements.mdwWidget.style.display = 'none';
+    }
+
+    function syncModalDownloadWidget() {
+        if (!elements.mdwWidget || elements.mdwWidget.style.display === 'none') return;
+
+        var pct = elements.t2ProgressPct ? elements.t2ProgressPct.textContent : '0%';
+        var records = elements.t2RecordCount ? elements.t2RecordCount.textContent : '0 / 10,000';
+        var bytes = elements.t2BytesReceived ? elements.t2BytesReceived.textContent : '0 KB';
+        var barWidth = elements.t2ProgressBar ? elements.t2ProgressBar.style.width : '0%';
+
+        if (elements.mdwPct) elements.mdwPct.textContent = pct;
+        if (elements.mdwRecords) elements.mdwRecords.textContent = records;
+        if (elements.mdwBytes) elements.mdwBytes.textContent = bytes;
+        if (elements.mdwProgressFill) elements.mdwProgressFill.style.width = barWidth;
+    }
+
+    function updateModalDownloadBlocked() {
+        if (!elements.mdwWidget || elements.mdwWidget.style.display === 'none') return;
+
+        if (elements.mdwStatus) {
+            elements.mdwStatus.textContent = 'BLOCKED';
+            elements.mdwStatus.className = 'mdw-status blocked';
+        }
+        if (elements.mdwProgressFill) {
+            elements.mdwProgressFill.classList.add('blocked');
+        }
     }
 
     function showModalMetrics(risk, conf) {
@@ -709,6 +760,7 @@
                 if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = Math.round(pct) + '%';
                 if (elements.t2RecordCount) elements.t2RecordCount.textContent = lineCount.toLocaleString() + ' / ' + TOTAL.toLocaleString() + ' 건';
                 if (elements.t2BytesReceived) elements.t2BytesReceived.textContent = formatBytes(totalBytes);
+                syncModalDownloadWidget();
 
                 if (lineCount % 1000 === 0) {
                     addTimelineEntry('info', `스트리밍 진행: ${lineCount.toLocaleString()}건 수신 (${formatBytes(totalBytes)})`);
@@ -719,10 +771,14 @@
             addTimelineEntry('success', `다운로드 완료: ${TOTAL.toLocaleString()}건, ${formatBytes(totalBytes)}`);
             if (elements.t2ProgressBar) elements.t2ProgressBar.style.width = '100%';
             if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = '100%';
+            syncModalDownloadWidget();
+            if (elements.mdwStatus) { elements.mdwStatus.textContent = 'Completed'; elements.mdwStatus.className = 'mdw-status completed'; }
             showModalDecision('ALLOW');
 
         } catch (err) {
             if (elements.t2ProgressBar) elements.t2ProgressBar.classList.add('blocked');
+            syncModalDownloadWidget();
+            updateModalDownloadBlocked();
             addTerminalLine(elements.t2Terminal, '', '');
             addTerminalLine(elements.t2Terminal, '\u2588\u2588 서버에 의해 연결 강제 종료 \u2588\u2588', 't-blocked');
             addTerminalLine(elements.t2Terminal, '[AI 보안 결정에 의한 응답 차단]', 't-blocked');
