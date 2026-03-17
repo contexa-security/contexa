@@ -347,7 +347,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 response, blockingDecisionRegistry, userId);
         try {
             filterChain.doFilter(request, wrapper);
-//            wrapper.flushBuffer();
         } catch (IOException e) {
             if (blockingDecisionRegistry.isBlocked(userId)) {
                 log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
