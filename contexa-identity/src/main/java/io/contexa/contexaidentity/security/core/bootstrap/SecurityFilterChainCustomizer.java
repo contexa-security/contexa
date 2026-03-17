@@ -6,6 +6,8 @@ import io.contexa.contexaidentity.security.core.dsl.option.PasskeyOptions;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.ContexaWebAuthnRegistrationPageFilter;
 import io.contexa.contexaidentity.security.handler.*;
+import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -31,29 +33,42 @@ import org.springframework.util.StringUtils;
  * 3. Replace DefaultWebAuthnRegistrationPageGeneratingFilter with Contexa version
  */
 @Slf4j
-public class WebAuthnFilterCustomizer {
+public class SecurityFilterChainCustomizer {
 
     public void customize(DefaultSecurityFilterChain builtChain,
                           AuthenticationFlowConfig flowConfig,
                           ApplicationContext appContext) {
 
-        AuthenticationStepConfig passkeyStep = findPasskeyStep(flowConfig);
-        if (passkeyStep == null) {
-            return;
-        }
-
-        PasskeyOptions passkeyOpts = extractPasskeyOptions(passkeyStep);
         boolean isMfaFlow = MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName());
 
-        replaceHandlers(builtChain, flowConfig, appContext, isMfaFlow);
-        applyCustomUrls(builtChain, flowConfig, appContext, passkeyOpts, isMfaFlow);
-        replaceRegistrationPage(builtChain, appContext);
+        AuthenticationStepConfig passkeyStep = findPasskeyStep(flowConfig);
+        if (passkeyStep != null) {
+            PasskeyOptions passkeyOpts = extractPasskeyOptions(passkeyStep);
+            replaceHandlers(builtChain, flowConfig, appContext, isMfaFlow);
+            if (isMfaFlow) {
+                applyCustomPasskeyUrls(builtChain, flowConfig, appContext, passkeyOpts);
+            }
+            replaceRegistrationPage(builtChain, appContext);
+        }
+
+        AuthenticationStepConfig ottStep = findOttStep(flowConfig);
+        if (ottStep != null && isMfaFlow && flowConfig.getUrlPrefix() != null) {
+            applyCustomOttUrls(builtChain, flowConfig, appContext);
+        }
     }
 
     private AuthenticationStepConfig findPasskeyStep(AuthenticationFlowConfig flowConfig) {
         return flowConfig.getStepConfigs().stream()
                 .filter(step -> AuthType.PASSKEY.name().equalsIgnoreCase(step.getType()) ||
                         AuthType.MFA_PASSKEY.name().equalsIgnoreCase(step.getType()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private AuthenticationStepConfig findOttStep(AuthenticationFlowConfig flowConfig) {
+        return flowConfig.getStepConfigs().stream()
+                .filter(step -> AuthType.OTT.name().equalsIgnoreCase(step.getType()) ||
+                        AuthType.MFA_OTT.name().equalsIgnoreCase(step.getType()))
                 .findFirst()
                 .orElse(null);
     }
@@ -118,29 +133,34 @@ public class WebAuthnFilterCustomizer {
                 flowConfig.getTypeName());
     }
 
-    private void applyCustomUrls(DefaultSecurityFilterChain builtChain,
+    private void applyCustomPasskeyUrls(DefaultSecurityFilterChain builtChain,
                                   AuthenticationFlowConfig flowConfig,
                                   ApplicationContext appContext,
-                                  PasskeyOptions passkeyOpts,
-                                  boolean isMfaFlow) {
+                                  PasskeyOptions passkeyOpts) {
 
-        if (!isMfaFlow) {
+        if (flowConfig.getUrlPrefix() == null) {
             return;
         }
 
+        // Use per-flow AuthUrlProvider (with urlPrefix applied) when available
+        AuthUrlProvider flowUrlProvider = resolveFlowUrlProvider(flowConfig, appContext);
         AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
 
-        // Resolve loginProcessingUrl: PasskeyOptions (DSL) > AuthContextProperties (properties)
-        String loginProcessingUrl = null;
-        if (passkeyOpts != null && StringUtils.hasText(passkeyOpts.getLoginProcessingUrl())) {
+        // Resolve loginProcessingUrl: per-flow AuthUrlProvider > PasskeyOptions (DSL) > properties
+        String loginProcessingUrl;
+        if (flowUrlProvider != null) {
+            loginProcessingUrl = flowUrlProvider.getPasskeyLoginProcessing();
+        } else if (passkeyOpts != null && StringUtils.hasText(passkeyOpts.getLoginProcessingUrl())) {
             loginProcessingUrl = passkeyOpts.getLoginProcessingUrl();
         } else {
             loginProcessingUrl = authProps.getUrls().getFactors().getPasskey().getLoginProcessing();
         }
 
-        // Resolve assertionOptionsEndpoint: PasskeyOptions (DSL) > AuthContextProperties (properties)
-        String assertionOptionsUrl = null;
-        if (passkeyOpts != null && StringUtils.hasText(passkeyOpts.getAssertionOptionsEndpoint())) {
+        // Resolve assertionOptionsEndpoint: per-flow AuthUrlProvider > PasskeyOptions (DSL) > properties
+        String assertionOptionsUrl;
+        if (flowUrlProvider != null) {
+            assertionOptionsUrl = flowUrlProvider.getPasskeyAssertionOptions();
+        } else if (passkeyOpts != null && StringUtils.hasText(passkeyOpts.getAssertionOptionsEndpoint())) {
             assertionOptionsUrl = passkeyOpts.getAssertionOptionsEndpoint();
         } else {
             assertionOptionsUrl = authProps.getUrls().getFactors().getPasskey().getAssertionOptions();
@@ -176,7 +196,9 @@ public class WebAuthnFilterCustomizer {
 
             // PublicKeyCredentialCreationOptionsFilter - registrationOptionsEndpoint
             if (filterClassName.equals("PublicKeyCredentialCreationOptionsFilter")) {
-                String registrationOptionsUrl = resolveRegistrationOptionsUrl(passkeyOpts, authProps);
+                String registrationOptionsUrl = flowUrlProvider != null
+                        ? flowUrlProvider.getPasskeyRegistrationOptions()
+                        : resolveRegistrationOptionsUrl(passkeyOpts, authProps);
                 if (StringUtils.hasText(registrationOptionsUrl)) {
                     try {
                         RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
@@ -192,7 +214,9 @@ public class WebAuthnFilterCustomizer {
 
             // WebAuthnRegistrationFilter - registerEndpoint
             if (filterClassName.equals("WebAuthnRegistrationFilter")) {
-                String registerUrl = resolveRegisterUrl(passkeyOpts, authProps);
+                String registerUrl = flowUrlProvider != null
+                        ? flowUrlProvider.getPasskeyRegistrationProcessing()
+                        : resolveRegisterUrl(passkeyOpts, authProps);
                 if (StringUtils.hasText(registerUrl)) {
                     try {
                         RequestMatcher registerMatcher = PathPatternRequestMatcher.withDefaults()
@@ -201,6 +225,48 @@ public class WebAuthnFilterCustomizer {
                                 .invoke(filter, registerMatcher);
                     } catch (Exception e) {
                         log.error("Failed to set custom registerEndpoint on WebAuthnRegistrationFilter for flow: {}",
+                                flowConfig.getTypeName(), e);
+                    }
+                }
+            }
+        }
+    }
+
+    private void applyCustomOttUrls(DefaultSecurityFilterChain builtChain,
+                                     AuthenticationFlowConfig flowConfig,
+                                     ApplicationContext appContext) {
+
+        AuthUrlProvider flowUrlProvider = resolveFlowUrlProvider(flowConfig, appContext);
+        if (flowUrlProvider == null) {
+            return;
+        }
+
+        String ottLoginProcessingUrl = flowUrlProvider.getOttLoginProcessing();
+        String ottTokenGeneratingUrl = flowUrlProvider.getOttCodeGeneration();
+
+        for (Filter filter : builtChain.getFilters()) {
+            String filterClassName = filter.getClass().getSimpleName();
+
+            // OneTimeTokenAuthenticationFilter - loginProcessingUrl
+            if (filter instanceof AbstractAuthenticationProcessingFilter authFilter
+                    && filterClassName.contains("OneTimeToken") && filterClassName.contains("Authentication")) {
+                if (StringUtils.hasText(ottLoginProcessingUrl)) {
+                    RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.POST, ottLoginProcessingUrl);
+                    authFilter.setRequiresAuthenticationRequestMatcher(customMatcher);
+                }
+            }
+
+            // GenerateOneTimeTokenFilter - tokenGeneratingUrl
+            if (filterClassName.contains("GenerateOneTimeToken")) {
+                if (StringUtils.hasText(ottTokenGeneratingUrl)) {
+                    try {
+                        RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
+                                .matcher(HttpMethod.POST, ottTokenGeneratingUrl);
+                        filter.getClass().getMethod("setRequestMatcher", RequestMatcher.class)
+                                .invoke(filter, customMatcher);
+                    } catch (Exception e) {
+                        log.error("Failed to set custom tokenGeneratingUrl on GenerateOneTimeTokenFilter for flow: {}",
                                 flowConfig.getTypeName(), e);
                     }
                 }
@@ -232,17 +298,20 @@ public class WebAuthnFilterCustomizer {
         }
     }
 
-    private String resolveRegistrationOptionsUrl(PasskeyOptions passkeyOpts, AuthContextProperties authProps) {
-        if (passkeyOpts != null) {
-            // PasskeyOptions does not have registrationOptionsEndpoint yet - use properties
+    private AuthUrlProvider resolveFlowUrlProvider(AuthenticationFlowConfig flowConfig, ApplicationContext appContext) {
+        try {
+            MfaFlowUrlRegistry registry = appContext.getBean(MfaFlowUrlRegistry.class);
+            return registry.getProvider(flowConfig.getTypeName());
+        } catch (Exception e) {
+            return null;
         }
+    }
+
+    private String resolveRegistrationOptionsUrl(PasskeyOptions passkeyOpts, AuthContextProperties authProps) {
         return authProps.getUrls().getFactors().getPasskey().getRegistrationOptions();
     }
 
     private String resolveRegisterUrl(PasskeyOptions passkeyOpts, AuthContextProperties authProps) {
-        if (passkeyOpts != null) {
-            // PasskeyOptions does not have registerEndpoint yet - use properties
-        }
         return authProps.getUrls().getFactors().getPasskey().getRegistrationProcessing();
     }
 }

@@ -56,9 +56,8 @@ public class PlatformSecurityConfig {
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
-                .mfa(mfa -> mfa
+                .mfa(mfa -> mfa.urlPrefix("/admin")
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
-                                        .defaultLoginUrl("/admin/mfa/login")
                                         .defaultSuccessUrl("/admin")
                                         .rawHttp(http -> http.securityMatcher("/admin/**"))))
                                 .passkey(Customizer.withDefaults())
@@ -68,10 +67,7 @@ public class PlatformSecurityConfig {
                         .primaryAuthentication(auth -> auth.formLogin(form -> form
                                 .defaultSuccessUrl("/test/zero-trust-index")))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
-                        .ott(ott -> ott.loginProcessingUrl("/admin/customLogin")
-                                .tokenGeneratingUrl("/admin/mfa/ott/request-code-ui")
-                                .defaultSubmitPageUrl("/admin/mfa/challenge/ot")
-                                .showDefaultSubmitPage(true))
+                        .ott(Customizer.withDefaults())
 //                        .ott(Customizer.withDefaults())
                         /*.mfaPage(page ->
                                 page

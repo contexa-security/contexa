@@ -1,15 +1,11 @@
 package io.contexa.contexaidentity.security.core.bootstrap;
 
-import io.contexa.contexacommon.enums.AuthType;
-import io.contexa.contexacommon.enums.StateType;
-import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.context.FlowContext;
 import io.contexa.contexaidentity.security.core.context.OrderedSecurityFilterChain;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorIdentifier;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
-import io.contexa.contexaidentity.security.handler.*;
 import jakarta.servlet.Filter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.BeanDefinition;
@@ -18,12 +14,8 @@ import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
-import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
-import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
@@ -34,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SecurityFilterChainRegistrar {
     private final ConfiguredFactorFilterProvider configuredFactorFilterProvider;
     private final Map<String, Class<? extends Filter>> stepFilterClasses;
-    private final WebAuthnFilterCustomizer webAuthnFilterCustomizer = new WebAuthnFilterCustomizer();
+    private final SecurityFilterChainCustomizer securityFilterChainCustomizer = new SecurityFilterChainCustomizer();
 
     public SecurityFilterChainRegistrar(ConfiguredFactorFilterProvider configuredFactorFilterProvider,
                                         Map<String, Class<? extends Filter>> stepFilterClasses) {
@@ -84,7 +76,7 @@ public class SecurityFilterChainRegistrar {
 
             DefaultSecurityFilterChain builtChain = fc.http().build();
 
-            webAuthnFilterCustomizer.customize(builtChain, flowConfig, appContext);
+            securityFilterChainCustomizer.customize(builtChain, flowConfig, appContext);
 
             for (AuthenticationStepConfig step : flowConfig.getStepConfigs()) {
                 Objects.requireNonNull(step, "AuthenticationStepConfig in flow cannot be null.");
