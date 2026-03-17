@@ -142,10 +142,6 @@ public class SecurityFilterChainCustomizer {
                                   ApplicationContext appContext,
                                   PasskeyOptions passkeyOpts) {
 
-        if (flowConfig.getUrlPrefix() == null) {
-            return;
-        }
-
         // Use per-flow AuthUrlProvider (with urlPrefix applied) when available
         AuthUrlProvider flowUrlProvider = resolveFlowUrlProvider(flowConfig, appContext);
         AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);

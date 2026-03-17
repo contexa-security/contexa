@@ -21,8 +21,5 @@ public class SinglePasskeyUrls {
     private String registrationOptions = "/webauthn/register/options";
 
     
-    private String registrationRequest = "/passkey/register-request";
-
-    
     private String registrationProcessing = "/webauthn/register";
 }

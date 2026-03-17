@@ -179,10 +179,6 @@ public class AuthUrlProvider {
         return properties.getUrls().getSingle().getPasskey().getRegistrationOptions();
     }
 
-    public String getSinglePasskeyRegistrationRequest() {
-        return properties.getUrls().getSingle().getPasskey().getRegistrationRequest();
-    }
-
     public String getSinglePasskeyRegistrationProcessing() {
         return properties.getUrls().getSingle().getPasskey().getRegistrationProcessing();
     }
@@ -327,14 +323,6 @@ public class AuthUrlProvider {
         return applyPrefix(properties.getUrls().getFactors().getPasskey().getChallengeUi());
     }
 
-    public String getPasskeyDefaultFailure() {
-        return applyPrefix(properties.getUrls().getFactors().getPasskey().getDefaultFailure());
-    }
-
-    public String getPasskeyRegistrationRequest() {
-        return applyPrefix(properties.getUrls().getFactors().getPasskey().getRegistrationRequest());
-    }
-
     public String getPasskeyRegistrationProcessing() {
         return applyPrefix(properties.getUrls().getFactors().getPasskey().getRegistrationProcessing());
     }
@@ -414,8 +402,6 @@ public class AuthUrlProvider {
         Map<String, String> passkeyUrls = new LinkedHashMap<>();
         passkeyUrls.put("challengeUi", getPasskeyChallengeUi());
         passkeyUrls.put("loginProcessing", getPasskeyLoginProcessing());
-        passkeyUrls.put("defaultFailure", getPasskeyDefaultFailure());
-        passkeyUrls.put("registrationRequest", getPasskeyRegistrationRequest());
         passkeyUrls.put("registrationProcessing", getPasskeyRegistrationProcessing());
         urls.put("passkey", passkeyUrls);
 
@@ -470,8 +456,6 @@ public class AuthUrlProvider {
 
         addUrlWithContext(urlToContexts, getPasskeyLoginProcessing(), "Passkey.loginProcessing");
         addUrlWithContext(urlToContexts, getPasskeyChallengeUi(), "Passkey.challengeUi");
-        addUrlWithContext(urlToContexts, getPasskeyDefaultFailure(), "Passkey.defaultFailure");
-        addUrlWithContext(urlToContexts, getPasskeyRegistrationRequest(), "Passkey.registrationRequest");
         addUrlWithContext(urlToContexts, getPasskeyRegistrationProcessing(), "Passkey.registrationProcessing");
         addUrlWithContext(urlToContexts, getPasskeyRegistrationOptions(), "Passkey.registrationOptions");
 
