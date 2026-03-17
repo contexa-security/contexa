@@ -19,8 +19,12 @@ import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
+import org.springframework.security.web.authentication.ott.GenerateOneTimeTokenFilter;
+import org.springframework.security.web.webauthn.authentication.PublicKeyCredentialRequestOptionsFilter;
 import org.springframework.security.web.webauthn.management.PublicKeyCredentialUserEntityRepository;
 import org.springframework.security.web.webauthn.management.UserCredentialRepository;
+import org.springframework.security.web.webauthn.registration.PublicKeyCredentialCreationOptionsFilter;
+import org.springframework.security.web.webauthn.registration.WebAuthnRegistrationFilter;
 import org.springframework.util.StringUtils;
 
 /**
@@ -180,53 +184,35 @@ public class SecurityFilterChainCustomizer {
             }
 
             // PublicKeyCredentialRequestOptionsFilter - assertionOptionsEndpoint
-            if (filterClassName.equals("PublicKeyCredentialRequestOptionsFilter")) {
+            if (filter instanceof PublicKeyCredentialRequestOptionsFilter requestOptionsFilter) {
                 if (StringUtils.hasText(assertionOptionsUrl)) {
-                    try {
-                        RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
-                                .matcher(HttpMethod.POST, assertionOptionsUrl);
-                        filter.getClass().getMethod("setRequestMatcher", RequestMatcher.class)
-                                .invoke(filter, customMatcher);
-                    } catch (Exception e) {
-                        log.error("Failed to set custom assertionOptionsEndpoint on PublicKeyCredentialRequestOptionsFilter for flow: {}",
-                                flowConfig.getTypeName(), e);
-                    }
+                    RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.POST, assertionOptionsUrl);
+                    requestOptionsFilter.setRequestMatcher(customMatcher);
                 }
             }
 
             // PublicKeyCredentialCreationOptionsFilter - registrationOptionsEndpoint
-            if (filterClassName.equals("PublicKeyCredentialCreationOptionsFilter")) {
+            if (filter instanceof PublicKeyCredentialCreationOptionsFilter creationOptionsFilter) {
                 String registrationOptionsUrl = flowUrlProvider != null
                         ? flowUrlProvider.getPasskeyRegistrationOptions()
                         : resolveRegistrationOptionsUrl(passkeyOpts, authProps);
                 if (StringUtils.hasText(registrationOptionsUrl)) {
-                    try {
-                        RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
-                                .matcher(HttpMethod.POST, registrationOptionsUrl);
-                        filter.getClass().getMethod("setRequestMatcher", RequestMatcher.class)
-                                .invoke(filter, customMatcher);
-                    } catch (Exception e) {
-                        log.error("Failed to set custom registrationOptionsEndpoint on PublicKeyCredentialCreationOptionsFilter for flow: {}",
-                                flowConfig.getTypeName(), e);
-                    }
+                    RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.POST, registrationOptionsUrl);
+                    creationOptionsFilter.setRequestMatcher(customMatcher);
                 }
             }
 
             // WebAuthnRegistrationFilter - registerEndpoint
-            if (filterClassName.equals("WebAuthnRegistrationFilter")) {
+            if (filter instanceof WebAuthnRegistrationFilter registrationFilter) {
                 String registerUrl = flowUrlProvider != null
                         ? flowUrlProvider.getPasskeyRegistrationProcessing()
                         : resolveRegisterUrl(passkeyOpts, authProps);
                 if (StringUtils.hasText(registerUrl)) {
-                    try {
-                        RequestMatcher registerMatcher = PathPatternRequestMatcher.withDefaults()
-                                .matcher(HttpMethod.POST, registerUrl);
-                        filter.getClass().getMethod("setRegisterCredentialMatcher", RequestMatcher.class)
-                                .invoke(filter, registerMatcher);
-                    } catch (Exception e) {
-                        log.error("Failed to set custom registerEndpoint on WebAuthnRegistrationFilter for flow: {}",
-                                flowConfig.getTypeName(), e);
-                    }
+                    RequestMatcher registerMatcher = PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.POST, registerUrl);
+                    registrationFilter.setRegisterCredentialMatcher(registerMatcher);
                 }
             }
         }
@@ -258,17 +244,11 @@ public class SecurityFilterChainCustomizer {
             }
 
             // GenerateOneTimeTokenFilter - tokenGeneratingUrl
-            if (filterClassName.contains("GenerateOneTimeToken")) {
+            if (filter instanceof GenerateOneTimeTokenFilter generateOttFilter) {
                 if (StringUtils.hasText(ottTokenGeneratingUrl)) {
-                    try {
-                        RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
-                                .matcher(HttpMethod.POST, ottTokenGeneratingUrl);
-                        filter.getClass().getMethod("setRequestMatcher", RequestMatcher.class)
-                                .invoke(filter, customMatcher);
-                    } catch (Exception e) {
-                        log.error("Failed to set custom tokenGeneratingUrl on GenerateOneTimeTokenFilter for flow: {}",
-                                flowConfig.getTypeName(), e);
-                    }
+                    RequestMatcher customMatcher = PathPatternRequestMatcher.withDefaults()
+                            .matcher(HttpMethod.POST, ottTokenGeneratingUrl);
+                    generateOttFilter.setRequestMatcher(customMatcher);
                 }
             }
         }
