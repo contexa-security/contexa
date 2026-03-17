@@ -17,6 +17,7 @@ import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -41,12 +42,14 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final ApplicationContext applicationContext;
 
     public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, @Nullable TokenService tokenService,
                                                AuthResponseWriter responseWriter, AuthContextProperties authContextProperties,
                                                ApplicationContext applicationContext, MfaStateMachineIntegrator stateMachineIntegrator,
                                                MfaSessionRepository sessionRepository, AuthUrlProvider authUrlProvider,
+                                               MfaFlowUrlRegistry mfaFlowUrlRegistry,
                                                ZeroTrustEventPublisher zeroTrustEventPublisher,
                                                ZeroTrustActionRepository actionRedisRepository,
                                                SecurityLearningService securityLearningService,
@@ -55,12 +58,13 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                CentralAuditFacade centralAuditFacade) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,
                 zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext, authUrlProvider,
-                blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
+                mfaFlowUrlRegistry, blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
+        this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
         this.applicationContext = applicationContext;
     }
 
@@ -175,7 +179,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 "MFA_REQUIRED_SELECT_FACTOR",
                 "Additional authentication is required. Please select an authentication method.",
                 factorContext,
-                request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
+                request.getContextPath() + resolveProvider(request).getMfaSelectFactor(),
                 2
         );
 
@@ -241,17 +245,29 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     }
 
     private String determineChallengeUrl(FactorContext ctx, HttpServletRequest request) {
+        AuthUrlProvider provider = resolveProvider(request);
         if (ctx.getCurrentProcessingFactor() == null) {
-            return request.getContextPath() + authUrlProvider.getMfaSelectFactor();
+            return request.getContextPath() + provider.getMfaSelectFactor();
         }
 
         return switch (ctx.getCurrentProcessingFactor()) {
             case MFA_OTT -> request.getContextPath() +
-                    authUrlProvider.getOttRequestCodeUi();
+                    provider.getOttRequestCodeUi();
             case MFA_PASSKEY -> request.getContextPath() +
-                    authUrlProvider.getPasskeyChallengeUi();
-            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
+                    provider.getPasskeyChallengeUi();
+            default -> request.getContextPath() + provider.getMfaSelectFactor();
         };
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
     }
 
     private void handleAuthenticationBlocked(HttpServletRequest request,

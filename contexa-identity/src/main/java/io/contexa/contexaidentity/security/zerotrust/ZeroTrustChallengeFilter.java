@@ -263,7 +263,19 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         );
     }
 
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
+    }
+
     private String buildMfaPageUrl(FactorContext context, HttpServletRequest request) {
+        AuthUrlProvider provider = resolveProvider(request);
         MfaState currentState = context.getCurrentState();
         String contextPath = request.getContextPath();
 
@@ -271,19 +283,19 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             AuthType currentFactor = context.getCurrentProcessingFactor();
             if (currentFactor != null) {
                 return switch (currentFactor) {
-                    case MFA_OTT -> contextPath + authUrlProvider.getOttRequestCodeUi();
-                    case MFA_PASSKEY -> contextPath + authUrlProvider.getPasskeyChallengeUi();
-                    default -> contextPath + authUrlProvider.getMfaSelectFactor();
+                    case MFA_OTT -> contextPath + provider.getOttRequestCodeUi();
+                    case MFA_PASSKEY -> contextPath + provider.getPasskeyChallengeUi();
+                    default -> contextPath + provider.getMfaSelectFactor();
                 };
             }
         }
 
         if (currentState == MfaState.AWAITING_FACTOR_SELECTION ||
                 currentState == MfaState.PRIMARY_AUTHENTICATION_COMPLETED) {
-            return contextPath + authUrlProvider.getMfaSelectFactor();
+            return contextPath + provider.getMfaSelectFactor();
         }
 
-        return contextPath + authUrlProvider.getMfaSelectFactor();
+        return contextPath + provider.getMfaSelectFactor();
     }
 
     private void handleInitializationError(HttpServletResponse response, HttpServletRequest request,

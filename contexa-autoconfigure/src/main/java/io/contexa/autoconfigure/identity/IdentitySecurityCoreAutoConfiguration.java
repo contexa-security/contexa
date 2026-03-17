@@ -255,6 +255,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             MfaSessionRepository mfaSessionRepository,
             AuthUrlProvider authUrlProvider,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
             TokenService tokenService,
             AuthContextProperties authContextProperties,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -265,7 +266,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             CentralAuditFacade centralAuditFacade) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
-                authUrlProvider, zeroTrustEventPublisher, actionRedisRepository, securityLearningService,
+                authUrlProvider, mfaFlowUrlRegistry, zeroTrustEventPublisher, actionRedisRepository, securityLearningService,
                 blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
     }
 
@@ -292,6 +293,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             AuthResponseWriter authResponseWriter,
             MfaSessionRepository mfaSessionRepository,
             AuthUrlProvider authUrlProvider,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
             AuthContextProperties authContextProperties,
             TokenService tokenService,
             ZeroTrustEventPublisher zeroTrustEventPublisher,
@@ -303,7 +305,7 @@ public class IdentitySecurityCoreAutoConfiguration {
             CentralAuditFacade centralAuditFacade) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider,
-                zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext,
+                mfaFlowUrlRegistry, zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext,
                 blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
     }
 

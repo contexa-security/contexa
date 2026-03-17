@@ -24,6 +24,7 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
@@ -57,6 +58,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final SecurityLearningService securityLearningService;
     private final ApplicationContext applicationContext;
     private final AuthUrlProvider authUrlProvider;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final BlockMfaStateStore blockMfaStateStore;
     private final CentralAuditFacade centralAuditFacade;
@@ -71,6 +73,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       SecurityLearningService securityLearningService,
                                                       ApplicationContext applicationContext,
                                                       AuthUrlProvider authUrlProvider,
+                                                      MfaFlowUrlRegistry mfaFlowUrlRegistry,
                                                       IBlockedUserRecorder blockedUserRecorder,
                                                       BlockMfaStateStore blockMfaStateStore,
                                                       CentralAuditFacade centralAuditFacade) {
@@ -82,6 +85,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         this.securityLearningService = securityLearningService;
         this.applicationContext = applicationContext;
         this.authUrlProvider = authUrlProvider;
+        this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
         this.blockedUserRecorder = blockedUserRecorder;
         this.blockMfaStateStore = blockMfaStateStore;
         this.centralAuditFacade = centralAuditFacade;
@@ -217,7 +221,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         if (dslDefaultSuccessUrl != null) {
             return request.getContextPath() + dslDefaultSuccessUrl;
         }
-        return request.getContextPath() + authUrlProvider.getMfaSuccess();
+        return request.getContextPath() + resolveProvider(request).getMfaSuccess();
     }
 
     private String getDslDefaultSuccessUrl(HttpServletRequest request) {
@@ -427,6 +431,17 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private String extractUserAgent(HttpServletRequest request) {
         return request.getHeader("User-Agent");
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
     }
 
     protected Map<String, Object> createProgressInfo(int currentStep, int totalSteps) {

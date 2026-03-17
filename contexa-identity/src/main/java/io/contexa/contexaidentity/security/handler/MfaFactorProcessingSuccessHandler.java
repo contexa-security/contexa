@@ -16,6 +16,7 @@ import io.contexa.contexaidentity.security.filter.RestAuthenticationToken;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
@@ -45,6 +46,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
 
     public MfaFactorProcessingSuccessHandler(MfaStateMachineIntegrator mfaStateMachineIntegrator,
                                              AuthResponseWriter responseWriter,
@@ -52,6 +54,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              MfaSessionRepository sessionRepository,
                                              TokenService tokenService,
                                              AuthUrlProvider authUrlProvider,
+                                             MfaFlowUrlRegistry mfaFlowUrlRegistry,
                                              ZeroTrustEventPublisher zeroTrustEventPublisher,
                                              ZeroTrustActionRepository actionRedisRepository,
                                              SecurityLearningService securityLearningService,
@@ -61,11 +64,12 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                                              CentralAuditFacade centralAuditFacade) {
         super(tokenService, responseWriter, sessionRepository, mfaStateMachineIntegrator, authContextProperties,
                 zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext, authUrlProvider,
-                blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
+                mfaFlowUrlRegistry, blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = mfaStateMachineIntegrator;
         this.sessionRepository = sessionRepository;
         this.authUrlProvider = authUrlProvider;
+        this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
     }
 
     @Override
@@ -184,7 +188,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
             Map<String, Object> responseBody = createMfaContinueResponse(
                     "Please select an authentication method.",
                     factorContext,
-                    request.getContextPath() + authUrlProvider.getMfaSelectFactor(),
+                    request.getContextPath() + resolveProvider(request).getMfaSelectFactor(),
                     2
             );
 
@@ -263,16 +267,28 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
     }
 
     private String determineNextFactorUrl(AuthType factorType, HttpServletRequest request) {
+        AuthUrlProvider provider = resolveProvider(request);
         return switch (factorType) {
             case MFA_OTT -> request.getContextPath() +
-                    authUrlProvider.getOttRequestCodeUi();
+                    provider.getOttRequestCodeUi();
             case MFA_PASSKEY -> request.getContextPath() +
-                    authUrlProvider.getPasskeyChallengeUi();
+                    provider.getPasskeyChallengeUi();
             default -> {
                 log.error("Unsupported MFA factor type: {}", factorType);
-                yield request.getContextPath() + authUrlProvider.getMfaSelectFactor();
+                yield request.getContextPath() + provider.getMfaSelectFactor();
             }
         };
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
     }
 
     private void handleStateTransitionError(HttpServletResponse response, HttpServletRequest request,

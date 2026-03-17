@@ -7,6 +7,7 @@ import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaSettings;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.MfaTimeUtils;
@@ -35,13 +36,15 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     private final MfaSettings mfaSettings;
     private final AuthUrlProvider authUrlProvider;
     private final MfaSessionRepository sessionRepository;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
 
     public StateMachineAwareMfaRequestHandler(AuthContextProperties authContextProperties,
                                               AuthResponseWriter responseWriter,
                                               ApplicationContext applicationContext,
                                               MfaStateMachineIntegrator stateMachineIntegrator,
                                               AuthUrlProvider authUrlProvider,
-                                              MfaSessionRepository sessionRepository) {
+                                              MfaSessionRepository sessionRepository,
+                                              MfaFlowUrlRegistry mfaFlowUrlRegistry) {
         this.authContextProperties = authContextProperties;
         this.responseWriter = responseWriter;
         this.applicationContext = applicationContext;
@@ -49,6 +52,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         this.mfaSettings = authContextProperties.getMfa();
         this.authUrlProvider = authUrlProvider;
         this.sessionRepository = sessionRepository;
+        this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
     }
 
     @Override
@@ -107,30 +111,34 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 responseWriter.writeSuccessResponse(response, responseBody, HttpServletResponse.SC_OK);
             }
             case MFA_FAILED_TERMINAL, MFA_RETRY_LIMIT_EXCEEDED -> {
+                AuthUrlProvider provider = resolveProvider(request);
                 responseBody.put("status", "MFA_FAILED");
                 responseBody.put("message", "MFA authentication failed.");
-                responseBody.put("redirectUrl", contextPath + authUrlProvider.getPrimaryLoginPage());
+                responseBody.put("redirectUrl", contextPath + provider.getPrimaryLoginPage());
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
                         "MFA_FAILED", "MFA authentication failed", requestUri, responseBody);
             }
             case MFA_SESSION_EXPIRED -> {
+                AuthUrlProvider provider = resolveProvider(request);
                 responseBody.put("status", "SESSION_EXPIRED");
                 responseBody.put("message", "MFA session has expired.");
-                responseBody.put("redirectUrl", contextPath + authUrlProvider.getPrimaryLoginPage());
+                responseBody.put("redirectUrl", contextPath + provider.getPrimaryLoginPage());
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_FORBIDDEN,
                         "SESSION_EXPIRED", "Session expired", requestUri, responseBody);
             }
             case MFA_CANCELLED -> {
+                AuthUrlProvider provider = resolveProvider(request);
                 responseBody.put("status", "MFA_CANCELLED");
                 responseBody.put("message", "MFA was cancelled by user.");
-                responseBody.put("redirectUrl", contextPath + authUrlProvider.getPrimaryLoginPage());
+                responseBody.put("redirectUrl", contextPath + provider.getPrimaryLoginPage());
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
                         "MFA_CANCELLED", "MFA cancelled", requestUri, responseBody);
             }
             case MFA_SYSTEM_ERROR -> {
+                AuthUrlProvider provider = resolveProvider(request);
                 responseBody.put("status", "SYSTEM_ERROR");
                 responseBody.put("message", "A system error has occurred.");
-                responseBody.put("redirectUrl", contextPath + authUrlProvider.getPrimaryLoginPage());
+                responseBody.put("redirectUrl", contextPath + provider.getPrimaryLoginPage());
                 responseWriter.writeErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
                         "SYSTEM_ERROR", "System error", requestUri, responseBody);
             }
@@ -340,7 +348,7 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             Map<String, Object> cancelResponse = createSuccessResponse(context, "MFA_CANCELLED",
                     "MFA was cancelled by user.");
             cancelResponse.put("cancelledAt", System.currentTimeMillis());
-            cancelResponse.put("redirectUrl", request.getContextPath() + authUrlProvider.getPrimaryLoginPage());
+            cancelResponse.put("redirectUrl", request.getContextPath() + resolveProvider(request).getPrimaryLoginPage());
 
             responseWriter.writeSuccessResponse(response, cancelResponse, HttpServletResponse.SC_OK);
 
@@ -449,17 +457,29 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
     }
 
     private String determineNextStepUrl(FactorContext context, HttpServletRequest request) {
+        AuthUrlProvider provider = resolveProvider(request);
         if (context.getCurrentProcessingFactor() == null) {
-            return request.getContextPath() + authUrlProvider.getMfaSelectFactor();
+            return request.getContextPath() + provider.getMfaSelectFactor();
         }
 
         return switch (context.getCurrentProcessingFactor()) {
             case MFA_OTT -> request.getContextPath() +
-                    authUrlProvider.getOttRequestCodeUi();
+                    provider.getOttRequestCodeUi();
             case MFA_PASSKEY -> request.getContextPath() +
-                    authUrlProvider.getPasskeyChallengeUi();
-            default -> request.getContextPath() + authUrlProvider.getMfaSelectFactor();
+                    provider.getPasskeyChallengeUi();
+            default -> request.getContextPath() + provider.getMfaSelectFactor();
         };
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
     }
 
     private void cleanupTerminalSession(String sessionId, HttpServletRequest request,

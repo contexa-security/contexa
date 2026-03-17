@@ -468,6 +468,13 @@
                 this.configUrl = options.configUrl;
             }
 
+            // Use inline config injected by DefaultMfaPageGeneratingFilter (per-flow, urlPrefix applied)
+            if (window.__MFA_CONFIG__) {
+                this.endpoints = window.__MFA_CONFIG__;
+                this.initialized = true;
+                return;
+            }
+
             try {
                 const response = await fetch(this.configUrl, {
                     method: 'GET',
@@ -483,12 +490,9 @@
                     );
                 }
 
-                // 서버에서 받은 설정을 그대로 사용
                 this.endpoints = await response.json();
                 this.initialized = true;
-                ContexaMFAUtils.log('✅ SDK initialized successfully with server configuration', 'info', this.endpoints);
             } catch (error) {
-                ContexaMFAUtils.log('⚠️ Failed to initialize SDK from server, using fallback defaults', 'warn', error);
                 this.endpoints = this._getDefaultEndpoints();
                 this.initialized = true;
             }

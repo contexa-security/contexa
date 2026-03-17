@@ -6,6 +6,7 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -24,14 +25,17 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
     private final AuthUrlProvider authUrlProvider;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final MfaSessionRepository sessionRepository;
 
     public OneTimeTokenCreationSuccessHandler(
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             AuthUrlProvider authUrlProvider,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
             MfaSessionRepository sessionRepository) {
         this.mfaStateMachineIntegrator = mfaStateMachineIntegrator;
         this.authUrlProvider = authUrlProvider;
+        this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
         this.sessionRepository = sessionRepository;
     }
 
@@ -64,7 +68,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
             log.error("[OTT-RESEND] After sendEvent: retryCount={}, state={}, sessionId={}",
                     factorContext.getRetryCount(), factorContext.getCurrentState(), factorContext.getMfaSessionId());
 
-            String challengeUiUrl = authUrlProvider.getOttChallengeUi();
+            String challengeUiUrl = resolveProvider(request).getOttChallengeUi();
             if (!StringUtils.hasText(challengeUiUrl)) {
                 challengeUiUrl = "/mfa/challenge/ott";
                 log.warn("MFA OTT challengeUrl not configured, using default: {}", challengeUiUrl);
@@ -76,7 +80,7 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
 
         if ((factorContext == null || !MfaFlowTypeUtils.isMfaFlow(factorContext.getFlowTypeName()))) {
             String email = URLEncoder.encode(usernameFromToken, StandardCharsets.UTF_8);
-            String codeSentUrl = authUrlProvider.getOttCodeSent();
+            String codeSentUrl = resolveProvider(request).getOttCodeSent();
             if (!StringUtils.hasText(codeSentUrl)) {
                 codeSentUrl = "/ott/sent";
             }
@@ -97,11 +101,22 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                 factorContext.getUsername(),
                 usernameFromToken);
 
-        String ottRequestUrl = authUrlProvider.getOttRequestCodeUi();
+        String ottRequestUrl = resolveProvider(request).getOttRequestCodeUi();
         if (!StringUtils.hasText(ottRequestUrl)) {
             ottRequestUrl = "/mfa/ott/request-code-ui";
         }
         response.sendRedirect(request.getContextPath() + ottRequestUrl + "?error=user_not_found");
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
     }
 
     private void handleSessionNotFound(HttpServletRequest request, HttpServletResponse response,

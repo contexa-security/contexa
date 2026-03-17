@@ -1,5 +1,6 @@
 package io.contexa.contexaidentity.security.filter;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.dsl.option.FormOptions;
 import io.contexa.contexaidentity.security.core.dsl.option.RestOptions;
@@ -37,7 +38,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private final AuthenticationFlowConfig mfaFlowConfig;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
-    private final AuthUrlProvider authUrlProvider;
+    private AuthUrlProvider authUrlProvider;
     private final MfaSettings mfaSettings;
     private final String tokenPersistence;
 
@@ -972,6 +973,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     }
 
+    public void setAuthUrlProvider(AuthUrlProvider authUrlProvider) {
+        Assert.notNull(authUrlProvider, "AuthUrlProvider cannot be null");
+        this.authUrlProvider = authUrlProvider;
+    }
+
     private boolean isPrimaryAuthPage(String requestUri) {
         String primaryLoginPage = extractPrimaryLoginPage();
         return requestUri.equals(primaryLoginPage);
@@ -1281,7 +1287,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(html);
+        writer.write(injectMfaConfig(html));
         writer.flush();
 
     }
@@ -1472,7 +1478,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         );
 
         html = html.replace("/mfa/select-factor", authUrlProvider.getMfaSelectFactor());
-        writer.write(html);
+        writer.write(injectMfaConfig(html));
         writer.flush();
 
     }
@@ -1663,7 +1669,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         );
 
         html = html.replace("/mfa/select-factor", authUrlProvider.getMfaSelectFactor());
-        writer.write(html);
+        writer.write(injectMfaConfig(html));
         writer.flush();
 
     }
@@ -1709,7 +1715,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(html);
+        writer.write(injectMfaConfig(html));
         writer.flush();
 
     }
@@ -1759,7 +1765,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(html);
+        writer.write(injectMfaConfig(html));
         writer.flush();
 
     }
@@ -1796,7 +1802,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(html);
+        writer.write(injectMfaConfig(html));
         writer.flush();
 
     }
@@ -1818,7 +1824,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .render();
 
         PrintWriter writer = response.getWriter();
-        writer.write(html);
+        writer.write(injectMfaConfig(html));
         writer.flush();
 
     }
@@ -1839,6 +1845,20 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         CsrfToken csrfToken =
                 (CsrfToken) request.getAttribute(CsrfToken.class.getName());
         return csrfToken != null ? csrfToken.getParameterName() : "_csrf";
+    }
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private String injectMfaConfig(String html) {
+        try {
+            Map<String, Object> config = authUrlProvider.getAllUiPageUrls();
+            String json = OBJECT_MAPPER.writeValueAsString(config);
+            String script = "<script>window.__MFA_CONFIG__=" + json + ";</script>";
+            return html.replace("</head>", script + "\n</head>");
+        } catch (Exception e) {
+            log.error("Failed to inject MFA config into page HTML", e);
+            return html;
+        }
     }
 
     @Nullable

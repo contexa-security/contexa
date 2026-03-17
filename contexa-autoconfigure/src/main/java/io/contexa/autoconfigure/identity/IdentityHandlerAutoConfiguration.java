@@ -5,6 +5,7 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.handler.*;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -27,10 +28,12 @@ public class IdentityHandlerAutoConfiguration {
     public OneTimeTokenCreationSuccessHandler oneTimeTokenCreationSuccessHandler(
             MfaStateMachineIntegrator mfaStateMachineIntegrator,
             AuthUrlProvider authUrlProvider,
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
             MfaSessionRepository sessionRepository) {
         return new OneTimeTokenCreationSuccessHandler(
                 mfaStateMachineIntegrator,
                 authUrlProvider,
+                mfaFlowUrlRegistry,
                 sessionRepository);
     }
 

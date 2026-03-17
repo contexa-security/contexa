@@ -11,6 +11,7 @@ import io.contexa.contexaidentity.security.filter.matcher.MfaRequestType;
 import io.contexa.contexaidentity.security.filter.matcher.MfaUrlMatcher;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -39,6 +40,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final MfaSessionRepository sessionRepository;
     private final AuthUrlProvider authUrlProvider;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private volatile String flowTypeName;
 
     public MfaContinuationFilter(AuthContextProperties authContextProperties,
@@ -51,6 +53,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         this.stateMachineIntegrator = applicationContext.getBean(MfaStateMachineIntegrator.class);
 
         this.sessionRepository = applicationContext.getBean(MfaSessionRepository.class);
+        this.mfaFlowUrlRegistry = applicationContext.getBean(MfaFlowUrlRegistry.class);
 
         this.requestHandler = new StateMachineAwareMfaRequestHandler(
                 authContextProperties,
@@ -58,7 +61,8 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
                 applicationContext,
                 stateMachineIntegrator,
                 authUrlProvider,
-                sessionRepository
+                sessionRepository,
+                mfaFlowUrlRegistry
         );
     }
 
@@ -140,7 +144,7 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
         errorResponse.put("message", "MFA session is invalid.");
         errorResponse.put("errors", validation.getErrors());
         errorResponse.put("warnings", validation.getWarnings());
-        errorResponse.put("redirectUrl", request.getContextPath() + authUrlProvider.getPrimaryLoginPage());
+        errorResponse.put("redirectUrl", request.getContextPath() + resolveProvider(request).getPrimaryLoginPage());
         errorResponse.put("repositoryType", sessionRepository.getRepositoryType());
 
         responseWriter.writeErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST,
@@ -156,6 +160,17 @@ public class MfaContinuationFilter extends OncePerRequestFilter {
     public void initializeUrlMatchers(AuthUrlProvider flowUrlProvider) {
         this.urlMatcher.initializeMatchers(flowUrlProvider);
         initialized = true;
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = stateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
     }
 
     public void setFlowTypeName(String flowTypeName) {

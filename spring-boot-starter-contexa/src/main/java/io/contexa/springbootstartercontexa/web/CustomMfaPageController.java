@@ -5,6 +5,7 @@ import io.contexa.contexacore.infra.session.MfaSessionRepository;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
+import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -29,12 +30,14 @@ public class CustomMfaPageController {
     private final MfaStateMachineIntegrator mfaStateMachineIntegrator;
     private final MfaSessionRepository mfaSessionRepository;
     private final AuthContextProperties authContextProperties;
+    private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
 
     @GetMapping("/customLogin")
     public String customLoginPage(HttpServletRequest request, Model model) {
         addCommonModelAttributes(request, model);
-        model.addAttribute("primaryFormLoginProcessingUrl", authUrlProvider.getPrimaryFormLoginProcessing());
-        model.addAttribute("selectFactorUrl", authUrlProvider.getMfaSelectFactor());
+        AuthUrlProvider provider = resolveProvider(request);
+        model.addAttribute("primaryFormLoginProcessingUrl", provider.getPrimaryFormLoginProcessing());
+        model.addAttribute("selectFactorUrl", provider.getMfaSelectFactor());
         model.addAttribute("error", request.getParameter("error"));
         model.addAttribute("logout", request.getParameter("logout"));
         return "custom/custom-login";
@@ -48,7 +51,7 @@ public class CustomMfaPageController {
         String username = factorContext != null && StringUtils.hasText(factorContext.getUsername())
                 ? factorContext.getUsername() : resolveUsername();
         model.addAttribute("username", username);
-        model.addAttribute("ottRequestUrl", authUrlProvider.getOttCodeGeneration());
+        model.addAttribute("ottRequestUrl", resolveProvider(request).getOttCodeGeneration());
         model.addAttribute("hiddenInputsHtml", buildHiddenInputs(request, false, null));
         model.addAttribute("errorCode", request.getParameter("error"));
 
@@ -65,14 +68,15 @@ public class CustomMfaPageController {
         String username = factorContext != null && StringUtils.hasText(factorContext.getUsername())
                 ? factorContext.getUsername() : resolveUsername();
 
+        AuthUrlProvider provider = resolveProvider(request);
         model.addAttribute("username", username);
-        model.addAttribute("ottVerifyUrl", authUrlProvider.getOttLoginProcessing());
-        model.addAttribute("ottResendUrl", authUrlProvider.getOttCodeGeneration());
+        model.addAttribute("ottVerifyUrl", provider.getOttLoginProcessing());
+        model.addAttribute("ottResendUrl", provider.getOttCodeGeneration());
         model.addAttribute("attemptsMade", attemptsMade);
         model.addAttribute("maxAttempts", maxAttempts);
         model.addAttribute("hiddenInputsHtml", buildHiddenInputs(request, false, null));
         model.addAttribute("resendHiddenInputsHtml", buildHiddenInputs(request, true, username));
-        model.addAttribute("mfaFailureUrl", authUrlProvider.getMfaFailure());
+        model.addAttribute("mfaFailureUrl", provider.getMfaFailure());
 
         return "custom/mfa-ott-verify";
     }
@@ -85,10 +89,21 @@ public class CustomMfaPageController {
         String username = factorContext != null && StringUtils.hasText(factorContext.getUsername())
                 ? factorContext.getUsername() : resolveUsername();
         model.addAttribute("username", username);
-        model.addAttribute("mfaFailureUrl", authUrlProvider.getMfaFailure());
+        model.addAttribute("mfaFailureUrl", resolveProvider(request).getMfaFailure());
         model.addAttribute("passkeyRegistrationUrl", "/webauthn/register");
 
         return "custom/mfa-passkey";
+    }
+
+    private AuthUrlProvider resolveProvider(HttpServletRequest request) {
+        FactorContext ctx = mfaStateMachineIntegrator.loadFactorContextFromRequest(request);
+        if (ctx != null && ctx.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(ctx.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
     }
 
     private void addCommonModelAttributes(HttpServletRequest request, Model model) {

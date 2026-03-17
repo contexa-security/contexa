@@ -233,11 +233,22 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         }
     }
 
+    private AuthUrlProvider resolveProvider(FactorContext context) {
+        if (context != null && context.getFlowTypeName() != null && mfaFlowUrlRegistry != null) {
+            AuthUrlProvider flowProvider = mfaFlowUrlRegistry.getProvider(context.getFlowTypeName());
+            if (flowProvider != null) {
+                return flowProvider;
+            }
+        }
+        return authUrlProvider;
+    }
+
     private String buildMfaPageUrl(FactorContext context, HttpServletRequest request) {
         if (authUrlProvider == null) {
             return request.getContextPath() + "/mfa/select-factor";
         }
 
+        AuthUrlProvider provider = resolveProvider(context);
         MfaState currentState = context.getCurrentState();
         String contextPath = request.getContextPath();
 
@@ -245,14 +256,14 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             AuthType currentFactor = context.getCurrentProcessingFactor();
             if (currentFactor != null) {
                 return switch (currentFactor) {
-                    case MFA_OTT -> contextPath + authUrlProvider.getOttRequestCodeUi();
-                    case MFA_PASSKEY -> contextPath + authUrlProvider.getPasskeyChallengeUi();
-                    default -> contextPath + authUrlProvider.getMfaSelectFactor();
+                    case MFA_OTT -> contextPath + provider.getOttRequestCodeUi();
+                    case MFA_PASSKEY -> contextPath + provider.getPasskeyChallengeUi();
+                    default -> contextPath + provider.getMfaSelectFactor();
                 };
             }
         }
 
-        return contextPath + authUrlProvider.getMfaSelectFactor();
+        return contextPath + provider.getMfaSelectFactor();
     }
 
     private void handleBlocked(HttpServletRequest request,
