@@ -647,7 +647,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         <p style="color: #666; font-size: 14px; margin-bottom: 8px;">
                             Don't have a registered Passkey?
                         </p>
-                        <a href="{{contextPath}}/webauthn/register"
+                        <a href="{{contextPath}}{{passkeyRegistrationUrl}}"
                            style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">
                             Register Passkey →
                         </a>
@@ -1798,6 +1798,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfParameterName", getCsrfParameterName(request))
                 .withValue("csrfHeaders", csrfHeaders)
                 .withValue("failureUrl", failureUrl)
+                .withValue("passkeyRegistrationUrl", authUrlProvider.getPasskeyRegistrationPage())
                 .withValue("tokenPersistence", tokenPersistence)
                 .render();
 

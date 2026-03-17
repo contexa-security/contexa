@@ -20,6 +20,10 @@ public abstract class AbstractFilterCustomizer {
         return PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, url);
     }
 
+    protected RequestMatcher createGetMatcher(String url) {
+        return PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.GET, url);
+    }
+
     protected void setMatcherIfPresent(AbstractAuthenticationProcessingFilter filter, String url) {
         if (StringUtils.hasText(url)) {
             filter.setRequiresAuthenticationRequestMatcher(createPostMatcher(url));

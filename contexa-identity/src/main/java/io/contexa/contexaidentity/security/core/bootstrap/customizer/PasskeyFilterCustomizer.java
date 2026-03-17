@@ -19,6 +19,8 @@ import org.springframework.security.web.webauthn.registration.PublicKeyCredentia
 import org.springframework.security.web.webauthn.registration.WebAuthnRegistrationFilter;
 import org.springframework.util.StringUtils;
 
+import java.util.List;
+
 /**
  * Applies per-flow URL prefix to WebAuthn (Passkey) filters.
  * Also handles WebAuthn handler replacement and registration page replacement.
@@ -66,6 +68,14 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
                 String url = flowUrlProvider.getPasskeyRegistrationProcessing();
                 if (StringUtils.hasText(url)) {
                     regFilter.setRegisterCredentialMatcher(createPostMatcher(url));
+                }
+            }
+
+            // ContexaWebAuthnRegistrationPageFilter - registration page URL
+            if (filter instanceof ContexaWebAuthnRegistrationPageFilter pageFilter) {
+                String url = flowUrlProvider.getPasskeyRegistrationPage();
+                if (StringUtils.hasText(url)) {
+                    pageFilter.setRequestMatcher(createGetMatcher(url));
                 }
             }
         }
@@ -134,7 +144,7 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
             ContexaWebAuthnRegistrationPageFilter contexaFilter =
                     new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
 
-            java.util.List<Filter> filters = builtChain.getFilters();
+            List<Filter> filters = builtChain.getFilters();
             for (int i = 0; i < filters.size(); i++) {
                 if (filters.get(i).getClass().getSimpleName().equals("DefaultWebAuthnRegistrationPageGeneratingFilter")) {
                     filters.set(i, contexaFilter);

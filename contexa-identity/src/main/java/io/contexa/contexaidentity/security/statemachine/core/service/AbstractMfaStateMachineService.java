@@ -405,7 +405,7 @@ public abstract class AbstractMfaStateMachineService implements MfaStateMachineS
         MfaState currentState = stateMachine.getState() != null ? stateMachine.getState().getId() : null;
 
         int timeoutSeconds = properties.getMfa().getTransitionTimeoutSeconds() != null ?
-                properties.getMfa().getTransitionTimeoutSeconds() : 10;
+                properties.getMfa().getTransitionTimeoutSeconds() : 30;
 
         Boolean accepted;
         try {

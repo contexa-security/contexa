@@ -355,8 +355,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
 
         setCurrentStepId(context, autoSelectedFactor);
 
-        boolean sent = stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
-        return sent;
+        return stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE_AUTO, context, request);
     }
 
     private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {

@@ -90,7 +90,7 @@ public class CustomMfaPageController {
                 ? factorContext.getUsername() : resolveUsername();
         model.addAttribute("username", username);
         model.addAttribute("mfaFailureUrl", resolveProvider(request).getMfaFailure());
-        model.addAttribute("passkeyRegistrationUrl", "/webauthn/register");
+        model.addAttribute("passkeyRegistrationUrl", resolveProvider(request).getPasskeyRegistrationPage());
 
         return "custom/mfa-passkey";
     }

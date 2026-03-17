@@ -331,6 +331,10 @@ public class AuthUrlProvider {
         return applyPrefix(properties.getUrls().getFactors().getPasskey().getRegistrationOptions());
     }
 
+    public String getPasskeyRegistrationPage() {
+        return applyPrefix("/webauthn/register");
+    }
+
     public String getRecoveryCodeLoginProcessing() {
         return applyPrefix(properties.getUrls().getFactors().getRecoveryCodeLoginProcessing());
     }
