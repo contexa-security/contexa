@@ -1302,9 +1302,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             username = "(Unknown)";
         }
 
-        // Show all registered factor types (duplicate types share a single button)
-        List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null
-                ? new java.util.ArrayList<>(ctx.getAvailableFactors()) : new java.util.ArrayList<>();
+        // Show remaining factor types (exclude already completed types)
+        List<AuthType> availableFactors = ctx != null && ctx.getRemainingFactors() != null
+                ? new java.util.ArrayList<>(ctx.getRemainingFactors()) : new java.util.ArrayList<>();
 
         // Fallback: use registered factor options from current flow config
         if (availableFactors.isEmpty() && mfaFlowConfig.getRegisteredFactorOptions() != null) {

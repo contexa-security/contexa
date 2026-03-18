@@ -122,6 +122,10 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         Objects.requireNonNull(factorConfigurerCustomizer, authType.name() + " customizer cannot be null").customize(configurer);
         O_FACTOR factorOptions = configurer.buildConcreteOptions();
 
+        // Remove existing step of the same factor type (last call wins)
+        configuredSteps.removeIf(step ->
+                authType.name().equalsIgnoreCase(step.getType()) && !step.isPrimary());
+
         int stepOrder = currentStepOrderCounter++;
         AuthenticationStepConfig factorStep = new AuthenticationStepConfig(this.mfaFlowTypeName, authType.name(), stepOrder, false);
         factorStep.getOptions().put("_options", factorOptions);

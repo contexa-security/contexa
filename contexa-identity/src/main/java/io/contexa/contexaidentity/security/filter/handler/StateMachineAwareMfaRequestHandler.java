@@ -1,5 +1,8 @@
 package io.contexa.contexaidentity.security.filter.handler;
 
+import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
+import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
+import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
@@ -240,6 +243,14 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
         if (selectedFactor == null) return;
 
+        // Prevent selecting the same factor type that is already completed
+        if (context.getCompletedFactors() != null && context.getCompletedFactors().stream()
+                .anyMatch(step -> selectedFactor.equalsIgnoreCase(step.getType()))) {
+            handleInvalidStateError(request, response, context, "FACTOR_ALREADY_COMPLETED",
+                    "This authentication method has already been used. Please select a different method.");
+            return;
+        }
+
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
             handleFactorSelectionSuccess(request, response, context, selectedFactor);
         } else {
@@ -421,6 +432,9 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 request.setAttribute("passkeyType", passkeyType);
             }
 
+            // Set currentStepId for the selected factor type
+            setCurrentStepIdForFactor(context, selectedFactor);
+
             boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
             if (accepted) {
                 // Transition from AWAITING_FACTOR_CHALLENGE_INITIATION to FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION
@@ -516,6 +530,30 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             }
         }
         return authUrlProvider;
+    }
+
+    private void setCurrentStepIdForFactor(FactorContext context, String selectedFactor) {
+        try {
+            PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+            AuthenticationFlowConfig flowConfig = platformConfig.getFlows().stream()
+                    .filter(flow -> flow.getTypeName().equalsIgnoreCase(context.getFlowTypeName()))
+                    .findFirst()
+                    .orElse(null);
+            if (flowConfig == null) return;
+
+            // Find the first uncompleted step of the selected factor type
+            Set<String> completedStepIds = context.getCompletedFactors().stream()
+                    .map(AuthenticationStepConfig::getStepId)
+                    .collect(java.util.stream.Collectors.toSet());
+
+            flowConfig.getStepConfigs().stream()
+                    .filter(step -> selectedFactor.equalsIgnoreCase(step.getType()))
+                    .filter(step -> !completedStepIds.contains(step.getStepId()))
+                    .min(java.util.Comparator.comparingInt(AuthenticationStepConfig::getOrder))
+                    .ifPresent(step -> context.setCurrentStepId(step.getStepId()));
+        } catch (Exception e) {
+            log.error("Failed to set currentStepId for factor: {}", selectedFactor, e);
+        }
     }
 
     private void cleanupTerminalSession(String sessionId, HttpServletRequest request,
