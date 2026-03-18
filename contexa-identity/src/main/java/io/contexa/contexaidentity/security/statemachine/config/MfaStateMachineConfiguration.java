@@ -243,6 +243,18 @@ public class MfaStateMachineConfiguration extends EnumStateMachineConfigurerAdap
                 .event(MfaEvent.CHALLENGE_TIMEOUT)
                 .and()
 
+                // Allow user to switch to a different factor from challenge or initiation states
+                .withExternal()
+                .source(MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION)
+                .target(MfaState.AWAITING_FACTOR_SELECTION)
+                .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
+                .and()
+                .withExternal()
+                .source(MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION)
+                .target(MfaState.AWAITING_FACTOR_SELECTION)
+                .event(MfaEvent.MFA_REQUIRED_SELECT_FACTOR)
+                .and()
+
                 .withExternal()
                 .source(MfaState.FACTOR_VERIFICATION_PENDING)
                 .target(MfaState.MFA_SYSTEM_ERROR)

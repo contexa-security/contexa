@@ -227,7 +227,16 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
             return;
         }
 
-        // POST: process factor selection
+        // POST: transition to AWAITING_FACTOR_SELECTION if not already there
+        if (context.getCurrentState() != MfaState.AWAITING_FACTOR_SELECTION) {
+            boolean transitioned = stateMachineIntegrator.sendEvent(
+                    MfaEvent.MFA_REQUIRED_SELECT_FACTOR, context, request);
+            if (!transitioned) {
+                handleFactorSelectionFailure(request, response, context);
+                return;
+            }
+        }
+
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
         if (selectedFactor == null) return;
 

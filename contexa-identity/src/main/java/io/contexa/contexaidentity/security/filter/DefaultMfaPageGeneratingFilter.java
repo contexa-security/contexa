@@ -265,6 +265,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     </form>
             
                     <!-- Form submit only (SDK Progressive Enhancement not required) -->
+
+                    {{selectFactorLink}}
                 </div>
             </body>
             </html>
@@ -537,6 +539,8 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             // Resend button uses form submit as-is (SDK not required)
                         }
                     </script>
+
+                    {{selectFactorLink}}
                 </div>
             </body>
             </html>
@@ -649,10 +653,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         </p>
                         <a href="{{contextPath}}{{passkeyRegistrationUrl}}"
                            style="color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;">
-                            Register Passkey →
+                            Register Passkey
                         </a>
                     </div>
-            
+
+                    {{selectFactorLink}}
+
                     <!-- Contexa MFA SDK (MFA flow management wrapper) -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
@@ -1771,6 +1777,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withRawHtml("usernameInput", usernameInput)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("errorMessage", errorMessage)
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -1821,6 +1828,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("tokenPersistence", tokenPersistence)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -1859,6 +1867,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("failureUrl", failureUrl)
                 .withValue("passkeyRegistrationUrl", authUrlProvider.getPasskeyRegistrationPage())
                 .withValue("tokenPersistence", tokenPersistence)
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -2026,5 +2035,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             case MFA_PASSKEY -> "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z\"/><circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/></svg>";
             default -> "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10\"/></svg>";
         };
+    }
+
+    private String buildSelectFactorLink(String contextPath) {
+        boolean hasMultipleFactors = mfaFlowConfig.getRegisteredFactorOptions() != null
+                && mfaFlowConfig.getRegisteredFactorOptions().size() > 1;
+        if (!hasMultipleFactors) {
+            return "";
+        }
+        String selectFactorUrl = contextPath + authUrlProvider.getMfaSelectFactor();
+        return "<div style=\"text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;\">"
+                + "<a href=\"" + selectFactorUrl + "\" style=\"color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;\">"
+                + "Try another method</a></div>";
     }
 }
