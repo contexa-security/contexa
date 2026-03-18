@@ -92,7 +92,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
                 return true;
             }
             for (String mfaUrl : allFlowUrls) {
-                if (requestUri.startsWith(mfaUrl)) {
+                if (!"/".equals(mfaUrl) && requestUri.startsWith(mfaUrl)) {
                     return true;
                 }
             }

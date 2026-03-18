@@ -1338,21 +1338,24 @@
             var isMonitored = response.headers.get('X-Contexa-Monitored') === 'true';
             if (response.ok && response.body && isMonitored) {
                 var BLOCK_SIGNAL = '__CONTEXA_RESPONSE_BLOCKED__';
+                var BLOCK_SIGNAL_PATTERN = /__CONTEXA_RESPONSE_BLOCKED__:(\w+)/;
                 var blockSignalDecoder = new TextDecoder();
                 var originalBody = response.body;
                 var wrappedStream = new ReadableStream({
                     start: function(controller) {
                         var reader = originalBody.getReader();
 
-                        function handleBlocked() {
-                            var redirectUrl = response.headers.get('X-Contexa-Blocked-Redirect');
-                            if (redirectUrl && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                window.location.href = redirectUrl;
-                            } else if (typeof ContexaMFAUtils !== 'undefined') {
-                                ContexaMFAUtils.log('Response blocked by AI security decision', 'warn');
-                                ContexaMFAUtils.renderResponseBlockedPage();
+                        function handleBlocked(action) {
+                            var effectiveAction = action || 'BLOCK';
+                            if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
+                                if (effectiveAction === 'CHALLENGE') {
+                                    window.location.href = '/zero-trust/challenge-required';
+                                } else {
+                                    var redirectUrl = response.headers.get('X-Contexa-Blocked-Redirect');
+                                    window.location.href = redirectUrl || '/zero-trust/blocked';
+                                }
                             }
-                            controller.error(new Error('Response blocked by AI security decision'));
+                            controller.error(new Error('Response blocked: ' + effectiveAction));
                         }
 
                         function pump() {
@@ -1361,17 +1364,18 @@
                                     controller.close();
                                     return;
                                 }
-                                // Path 1: In-band block signal detection
+                                // Path 1: In-band block signal detection with action type
                                 var text = blockSignalDecoder.decode(result.value, { stream: true });
                                 if (text.indexOf(BLOCK_SIGNAL) !== -1) {
-                                    handleBlocked();
+                                    var match = text.match(BLOCK_SIGNAL_PATTERN);
+                                    handleBlocked(match ? match[1] : null);
                                     return;
                                 }
                                 controller.enqueue(result.value);
                                 pump();
                             }).catch(function(streamError) {
                                 // Path 2: Stream error (network disruption)
-                                handleBlocked();
+                                handleBlocked(null);
                             });
                         }
                         pump();
@@ -1493,6 +1497,7 @@
             };
 
             var BLOCK_SIGNAL = '__CONTEXA_RESPONSE_BLOCKED__';
+            var BLOCK_SIGNAL_PATTERN = /__CONTEXA_RESPONSE_BLOCKED__:(\w+)/;
             var xhrBlockHandled = false;
 
             // Cache monitoring headers + detect in-band block signal
@@ -1512,11 +1517,15 @@
                     try {
                         if (xhr.responseText && xhr.responseText.indexOf(BLOCK_SIGNAL) !== -1) {
                             xhrBlockHandled = true;
-                            ContexaMFAUtils.log('XHR: In-band block signal detected', 'warn');
-                            if (blockedRedirectUrl && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                window.location.href = blockedRedirectUrl;
-                            } else {
-                                ContexaMFAUtils.renderResponseBlockedPage();
+                            var match = xhr.responseText.match(BLOCK_SIGNAL_PATTERN);
+                            var action = match ? match[1] : 'BLOCK';
+                            ContexaMFAUtils.log('XHR: In-band block signal detected: ' + action, 'warn');
+                            if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
+                                if (action === 'CHALLENGE') {
+                                    window.location.href = '/zero-trust/challenge-required';
+                                } else {
+                                    window.location.href = blockedRedirectUrl || '/zero-trust/blocked';
+                                }
                             }
                             xhr.abort();
                         }

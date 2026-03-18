@@ -20,8 +20,7 @@ import java.nio.charset.StandardCharsets;
  */
 public class BlockableServletOutputStream extends ServletOutputStream {
 
-    private static final byte[] BLOCK_SIGNAL =
-            "\n__CONTEXA_RESPONSE_BLOCKED__\n".getBytes(StandardCharsets.UTF_8);
+    private static final String BLOCK_SIGNAL_PREFIX = "\n__CONTEXA_RESPONSE_BLOCKED__:";
 
     private final ServletOutputStream delegate;
     private final BlockingSignalBroadcaster registry;
@@ -105,9 +104,12 @@ public class BlockableServletOutputStream extends ServletOutputStream {
                 }
             } catch (Exception ignored) {
             }
-            // Write in-band block signal so client interceptors can detect the block
+            // Write in-band block signal with action type so client can redirect appropriately
             try {
-                delegate.write(BLOCK_SIGNAL);
+                String action = registry.getBlockAction(userId);
+                byte[] signal = (BLOCK_SIGNAL_PREFIX + (action != null ? action : "BLOCK") + "\n")
+                        .getBytes(StandardCharsets.UTF_8);
+                delegate.write(signal);
                 delegate.flush();
             } catch (Exception ignored) {
             }

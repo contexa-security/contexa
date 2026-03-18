@@ -184,7 +184,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (mfaFlowUrlRegistry != null) {
             Set<String> allFlowUrls = mfaFlowUrlRegistry.getAllMfaPageUrls();
             for (String mfaUrl : allFlowUrls) {
-                if (requestUri.startsWith(mfaUrl) || requestUri.equals(mfaUrl)) {
+                if (!"/".equals(mfaUrl) && requestUri.startsWith(mfaUrl)) {
                     return true;
                 }
             }
@@ -192,7 +192,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         if (authUrlProvider != null) {
             Set<String> mfaPageUrls = authUrlProvider.getMfaPageUrls();
             for (String mfaUrl : mfaPageUrls) {
-                if (requestUri.startsWith(mfaUrl) || requestUri.equals(mfaUrl)) {
+                if (!"/".equals(mfaUrl) && requestUri.startsWith(mfaUrl)) {
                     return true;
                 }
             }

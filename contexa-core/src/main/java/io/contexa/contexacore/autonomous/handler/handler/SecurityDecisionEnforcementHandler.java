@@ -121,7 +121,7 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         // The signal will be cleared immediately after response termination in handlePendingAnalysis()
         if (ztAction == ZeroTrustAction.BLOCK || ztAction == ZeroTrustAction.CHALLENGE || ztAction == ZeroTrustAction.ESCALATE) {
             if (blockingDecisionRegistry != null) {
-                blockingDecisionRegistry.registerBlock(userId);
+                blockingDecisionRegistry.registerBlock(userId, ztAction.name());
             }
         }
 

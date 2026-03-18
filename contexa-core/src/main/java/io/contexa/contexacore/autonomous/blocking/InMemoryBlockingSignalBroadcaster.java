@@ -1,6 +1,5 @@
 package io.contexa.contexacore.autonomous.blocking;
 
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -9,12 +8,12 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class InMemoryBlockingSignalBroadcaster implements BlockingSignalBroadcaster {
 
-    private final Set<String> blockedUsers = ConcurrentHashMap.newKeySet();
+    private final ConcurrentHashMap<String, String> blockedUsers = new ConcurrentHashMap<>();
 
     @Override
-    public void registerBlock(String userId) {
+    public void registerBlock(String userId, String action) {
         if (userId != null && !userId.isBlank()) {
-            blockedUsers.add(userId);
+            blockedUsers.put(userId, (action != null && !action.isBlank()) ? action : "BLOCK");
         }
     }
 
@@ -30,6 +29,14 @@ public class InMemoryBlockingSignalBroadcaster implements BlockingSignalBroadcas
         if (userId == null || userId.isBlank()) {
             return false;
         }
-        return blockedUsers.contains(userId);
+        return blockedUsers.containsKey(userId);
+    }
+
+    @Override
+    public String getBlockAction(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        return blockedUsers.get(userId);
     }
 }

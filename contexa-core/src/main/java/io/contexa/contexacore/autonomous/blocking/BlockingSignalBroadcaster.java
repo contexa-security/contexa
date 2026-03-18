@@ -6,9 +6,15 @@ package io.contexa.contexacore.autonomous.blocking;
  */
 public interface BlockingSignalBroadcaster {
 
-    void registerBlock(String userId);
+    default void registerBlock(String userId) {
+        registerBlock(userId, "BLOCK");
+    }
+
+    void registerBlock(String userId, String action);
 
     void registerUnblock(String userId);
 
     boolean isBlocked(String userId);
+
+    String getBlockAction(String userId);
 }

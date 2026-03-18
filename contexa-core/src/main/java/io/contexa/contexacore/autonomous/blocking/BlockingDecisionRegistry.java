@@ -10,6 +10,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * In-memory registry backed by Redisson RTopic for real-time cross-instance
  * propagation of BLOCK/UNBLOCK signals. Allows O(1) local lookup so that
  * BlockableServletOutputStream can abort in-flight responses immediately.
+ *
+ * Stores the action type (BLOCK, CHALLENGE, ESCALATE) along with the block signal
+ * so the client can redirect to the appropriate page.
  */
 @Slf4j
 public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
@@ -18,7 +21,7 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
     private static final String BLOCK_PREFIX = "BLOCK:";
     private static final String UNBLOCK_PREFIX = "UNBLOCK:";
 
-    private final ConcurrentHashMap<String, Boolean> blockedUsers = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> blockedUsers = new ConcurrentHashMap<>();
     private final RTopic topic;
 
     public BlockingDecisionRegistry(RedissonClient redissonClient) {
@@ -26,8 +29,15 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
         this.topic.addListener(String.class, (channel, message) -> {
             try {
                 if (message.startsWith(BLOCK_PREFIX)) {
-                    String userId = message.substring(BLOCK_PREFIX.length());
-                    blockedUsers.put(userId, Boolean.TRUE);
+                    String payload = message.substring(BLOCK_PREFIX.length());
+                    int sep = payload.lastIndexOf(':');
+                    if (sep > 0) {
+                        String userId = payload.substring(0, sep);
+                        String action = payload.substring(sep + 1);
+                        blockedUsers.put(userId, action);
+                    } else {
+                        blockedUsers.put(payload, "BLOCK");
+                    }
                 } else if (message.startsWith(UNBLOCK_PREFIX)) {
                     String userId = message.substring(UNBLOCK_PREFIX.length());
                     blockedUsers.remove(userId);
@@ -38,26 +48,21 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
         });
     }
 
-    /**
-     * Register a BLOCK decision for the given user.
-     * Updates local cache and publishes to all instances via RTopic.
-     */
-    public void registerBlock(String userId) {
+    @Override
+    public void registerBlock(String userId, String action) {
         if (userId == null || userId.isBlank()) {
             return;
         }
-        blockedUsers.put(userId, Boolean.TRUE);
+        String effectiveAction = (action != null && !action.isBlank()) ? action : "BLOCK";
+        blockedUsers.put(userId, effectiveAction);
         try {
-            topic.publishAsync(BLOCK_PREFIX + userId);
+            topic.publishAsync(BLOCK_PREFIX + userId + ":" + effectiveAction);
         } catch (Exception e) {
             log.error("[BlockingDecisionRegistry] Failed to publish BLOCK signal: userId={}", userId, e);
         }
     }
 
-    /**
-     * Register an UNBLOCK decision for the given user.
-     * Removes from local cache and publishes to all instances via RTopic.
-     */
+    @Override
     public void registerUnblock(String userId) {
         if (userId == null || userId.isBlank()) {
             return;
@@ -70,13 +75,19 @@ public class BlockingDecisionRegistry implements BlockingSignalBroadcaster {
         }
     }
 
-    /**
-     * O(1) local lookup to check if a user is currently blocked.
-     */
+    @Override
     public boolean isBlocked(String userId) {
         if (userId == null || userId.isBlank()) {
             return false;
         }
         return blockedUsers.containsKey(userId);
+    }
+
+    @Override
+    public String getBlockAction(String userId) {
+        if (userId == null || userId.isBlank()) {
+            return null;
+        }
+        return blockedUsers.get(userId);
     }
 }
