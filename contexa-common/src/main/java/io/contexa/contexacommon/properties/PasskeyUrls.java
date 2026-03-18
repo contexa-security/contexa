@@ -13,11 +13,11 @@ public class PasskeyUrls {
     private String challengeUi = "/mfa/challenge/passkey";
 
     
-    private String registrationProcessing = "/mfa/passkey/register";
+    private String registrationProcessing = "/webauthn/register";
 
     
     private String assertionOptions = "/webauthn/authenticate/options";
 
     
-    private String registrationOptions = "/webauthn/registration/options";
+    private String registrationOptions = "/webauthn/register/options";
 }
