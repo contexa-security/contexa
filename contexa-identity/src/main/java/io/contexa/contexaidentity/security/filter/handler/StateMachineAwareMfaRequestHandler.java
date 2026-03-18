@@ -421,7 +421,12 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                 request.setAttribute("passkeyType", passkeyType);
             }
 
-            return stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
+            boolean accepted = stateMachineIntegrator.sendEvent(MfaEvent.FACTOR_SELECTED, context, request);
+            if (accepted) {
+                // Transition from AWAITING_FACTOR_CHALLENGE_INITIATION to FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION
+                stateMachineIntegrator.sendEvent(MfaEvent.INITIATE_CHALLENGE, context, request);
+            }
+            return accepted;
         } catch (Exception e) {
             log.error("Failed to send factor selection event", e);
             return false;
