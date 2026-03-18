@@ -172,18 +172,18 @@ public class ChallengeMfaInitializer {
     }
 
     private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {
+        Set<AuthType> remaining = context.getRemainingFactors();
+
         if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {
-            AuthType firstFactor = decision.getRequiredFactors().getFirst();
-            Set<AuthType> availableFactors = context.getAvailableFactors();
-            if (availableFactors != null && availableFactors.contains(firstFactor)) {
-                return firstFactor;
+            for (AuthType factor : decision.getRequiredFactors()) {
+                if (remaining != null && remaining.contains(factor)) {
+                    return factor;
+                }
             }
         }
 
-        Set<AuthType> availableFactors = context.getAvailableFactors();
-        if (availableFactors != null && !availableFactors.isEmpty()) {
-            List<AuthType> factorList = new ArrayList<>(availableFactors);
-            return factorList.getFirst();
+        if (remaining != null && !remaining.isEmpty()) {
+            return remaining.iterator().next();
         }
 
         AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();

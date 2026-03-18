@@ -31,6 +31,7 @@ import java.io.PrintWriter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -1301,8 +1302,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             username = "(Unknown)";
         }
 
-        List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null ?
-                new java.util.ArrayList<>(ctx.getAvailableFactors()) : new java.util.ArrayList<>();
+        // Show only remaining (not yet completed) factors
+        List<AuthType> availableFactors = ctx != null && ctx.getRemainingFactors() != null
+                ? new java.util.ArrayList<>(ctx.getRemainingFactors()) : new java.util.ArrayList<>();
 
         // Fallback: use registered factor options from current flow config
         if (availableFactors.isEmpty() && mfaFlowConfig.getRegisteredFactorOptions() != null) {
@@ -1777,7 +1779,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withRawHtml("usernameInput", usernameInput)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("errorMessage", errorMessage)
-                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath))
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -1828,7 +1830,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("tokenPersistence", tokenPersistence)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
-                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath))
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -1867,7 +1869,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("failureUrl", failureUrl)
                 .withValue("passkeyRegistrationUrl", authUrlProvider.getPasskeyRegistrationPage())
                 .withValue("tokenPersistence", tokenPersistence)
-                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath))
+                .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
                 .render();
 
         PrintWriter writer = response.getWriter();
@@ -2037,12 +2039,26 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         };
     }
 
-    private String buildSelectFactorLink(String contextPath) {
-        boolean hasMultipleFactors = mfaFlowConfig.getRegisteredFactorOptions() != null
-                && mfaFlowConfig.getRegisteredFactorOptions().size() > 1;
-        if (!hasMultipleFactors) {
+    private String buildSelectFactorLink(String contextPath, @Nullable FactorContext ctx) {
+        // Count secondary steps (not factor types) to support duplicate factor types
+        long totalSteps = mfaFlowConfig.getStepConfigs().stream()
+                .filter(step -> !step.isPrimary())
+                .count();
+        if (totalSteps <= 1) {
             return "";
         }
+
+        if (ctx != null) {
+            int completedCount = ctx.getCompletedFactors() != null ? ctx.getCompletedFactors().size() : 0;
+            long remainingSteps = totalSteps - completedCount;
+            int requiredCount = mfaFlowConfig.getRequiredFactorCount();
+            int remainingRequired = Math.max(0, (requiredCount > 0 ? requiredCount : (int) totalSteps) - completedCount);
+
+            if (remainingSteps <= 1 || remainingRequired >= remainingSteps) {
+                return "";
+            }
+        }
+
         String selectFactorUrl = contextPath + authUrlProvider.getMfaSelectFactor();
         return "<div style=\"text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e0e0e0;\">"
                 + "<a href=\"" + selectFactorUrl + "\" style=\"color: #667eea; text-decoration: none; font-weight: 600; font-size: 14px;\">"

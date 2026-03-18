@@ -183,7 +183,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                 2
         );
 
-        java.util.List<Map<String, Object>> factorDetails = factorContext.getAvailableFactors().stream()
+        java.util.List<Map<String, Object>> factorDetails = factorContext.getRemainingFactors().stream()
                 .map(authType -> createFactorDetail(authType.name()))
                 .toList();
         responseBody.put("availableFactors", factorDetails);
@@ -361,21 +361,19 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private AuthType determineAutoFactor(FactorContext context, MfaDecision decision) {
         String sessionId = context.getMfaSessionId();
 
-        if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {
-            AuthType firstFactor = decision.getRequiredFactors().getFirst();
+        // Use remaining factors (excluding already completed ones)
+        Set<AuthType> remaining = context.getRemainingFactors();
 
-            if (context.getAvailableFactors() != null &&
-                    context.getAvailableFactors().contains(firstFactor)) {
-                return firstFactor;
+        if (decision.getRequiredFactors() != null && !decision.getRequiredFactors().isEmpty()) {
+            for (AuthType factor : decision.getRequiredFactors()) {
+                if (remaining != null && remaining.contains(factor)) {
+                    return factor;
+                }
             }
         }
 
-        Set<AuthType> availableFactors = context.getAvailableFactors();
-        if (availableFactors != null && !availableFactors.isEmpty()) {
-
-            List<AuthType> factorList = new ArrayList<>(availableFactors);
-            AuthType firstAvailable = factorList.getFirst();
-            return firstAvailable;
+        if (remaining != null && !remaining.isEmpty()) {
+            return remaining.iterator().next();
         }
 
         log.error("No available factors for auto-selection in session: {}", sessionId);

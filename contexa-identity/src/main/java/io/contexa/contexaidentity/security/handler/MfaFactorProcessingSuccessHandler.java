@@ -192,7 +192,7 @@ public final class MfaFactorProcessingSuccessHandler extends AbstractMfaAuthenti
                     2
             );
 
-            java.util.List<Map<String, Object>> factorDetails = factorContext.getAvailableFactors().stream()
+            java.util.List<Map<String, Object>> factorDetails = factorContext.getRemainingFactors().stream()
                     .map(authType -> createFactorDetail(authType.name()))
                     .toList();
             responseBody.put("availableFactors", factorDetails);

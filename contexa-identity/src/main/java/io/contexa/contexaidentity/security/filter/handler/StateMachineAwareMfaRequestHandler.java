@@ -240,6 +240,14 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
         if (selectedFactor == null) return;
 
+        // Prevent selecting an already completed factor
+        if (context.getCompletedFactors() != null && context.getCompletedFactors().stream()
+                .anyMatch(step -> selectedFactor.equalsIgnoreCase(step.getType()))) {
+            handleInvalidStateError(request, response, context, "FACTOR_ALREADY_COMPLETED",
+                    "This factor has already been completed.");
+            return;
+        }
+
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
             handleFactorSelectionSuccess(request, response, context, selectedFactor);
         } else {
@@ -251,9 +259,9 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
                                            FactorContext context) throws IOException {
         Map<String, Object> infoResponse = createSuccessResponse(context, "FACTOR_SELECTION_INFO",
                 "Select an authentication factor.");
-        Set<AuthType> availableFactors = context.getAvailableFactors();
-        if (availableFactors != null) {
-            infoResponse.put("availableFactors", availableFactors.stream()
+        Set<AuthType> remainingFactors = context.getRemainingFactors();
+        if (remainingFactors != null) {
+            infoResponse.put("availableFactors", remainingFactors.stream()
                     .map(AuthType::name).toList());
         }
         responseWriter.writeSuccessResponse(response, infoResponse, HttpServletResponse.SC_OK);

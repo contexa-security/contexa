@@ -18,6 +18,7 @@ import java.io.Serializable;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -353,6 +354,25 @@ public class FactorContext implements FactorContextExtensions, Serializable {
     public boolean isFactorAvailable(AuthType factorType) {
         Set<AuthType> factors = getAvailableFactors();
         return factors != null && factors.contains(factorType);
+    }
+
+    public Set<AuthType> getRemainingFactors() {
+        Set<AuthType> available = getAvailableFactors();
+        if (available == null || available.isEmpty()) {
+            return Collections.emptySet();
+        }
+        factorsLock.readLock().lock();
+        try {
+            Set<String> completedTypes = this.completedFactors.stream()
+                    .map(AuthenticationStepConfig::getType)
+                    .map(String::toUpperCase)
+                    .collect(Collectors.toSet());
+            return available.stream()
+                    .filter(f -> !completedTypes.contains(f.name()))
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+        } finally {
+            factorsLock.readLock().unlock();
+        }
     }
 
     @Override

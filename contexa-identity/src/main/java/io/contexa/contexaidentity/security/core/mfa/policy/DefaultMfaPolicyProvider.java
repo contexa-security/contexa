@@ -135,18 +135,18 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
                 .map(AuthenticationStepConfig::getStepId)
                 .collect(Collectors.toSet());
 
-        for (AuthType factor : availableFactors) {
+        Set<String> availableTypeNames = availableFactors.stream()
+                .map(AuthType::name)
+                .collect(Collectors.toSet());
 
-            Optional<AuthenticationStepConfig> nextStep = flowSteps.stream()
-                    .filter(step -> factor.name().equalsIgnoreCase(step.getType()))
-                    .filter(step -> !completedStepIds.contains(step.getStepId()))
-                    .min(Comparator.comparingInt(AuthenticationStepConfig::getOrder));
-
-            if (nextStep.isPresent()) {
-                return factor;
-            }
-        }
-        return null;
+        // Find next uncompleted step by order (not by factor type iteration)
+        return flowSteps.stream()
+                .filter(step -> !step.isPrimary())
+                .filter(step -> availableTypeNames.contains(step.getType().toUpperCase()))
+                .filter(step -> !completedStepIds.contains(step.getStepId()))
+                .min(Comparator.comparingInt(AuthenticationStepConfig::getOrder))
+                .map(step -> AuthType.valueOf(step.getType().toUpperCase()))
+                .orElse(null);
     }
 
     @Nullable
@@ -175,13 +175,12 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return NextFactorDecision.noMoreFactors();
         }
 
-        Set<AuthType> availableFactors = ctx.getAvailableFactors();
-        if (availableFactors == null || availableFactors.isEmpty()) {
-            log.error("No available factors, all factors may be completed");
+        Set<AuthType> remainingFactors = ctx.getRemainingFactors();
+        if (remainingFactors == null || remainingFactors.isEmpty()) {
             return NextFactorDecision.noMoreFactors();
         }
 
-        List<AuthType> factorsForProcessing = new ArrayList<>(availableFactors);
+        List<AuthType> factorsForProcessing = new ArrayList<>(remainingFactors);
 
         AuthType nextFactorType = determineNextFactorInternal(
                 factorsForProcessing,

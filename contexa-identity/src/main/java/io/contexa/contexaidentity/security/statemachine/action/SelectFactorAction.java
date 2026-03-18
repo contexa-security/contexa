@@ -5,6 +5,8 @@ import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
+
+import java.util.Set;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.statemachine.StateContext;
@@ -40,11 +42,12 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             throw new IllegalArgumentException("Invalid factor type: " + selectedFactor);
         }
 
-        if (!factorContext.getAvailableFactors().contains(authType)) {
+        Set<AuthType> remaining = factorContext.getRemainingFactors();
+        if (remaining == null || !remaining.contains(authType)) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("Selected factor " + authType +
-                    " is not available for user: " + factorContext.getUsername());
+                    " is not available or already completed for user: " + factorContext.getUsername());
         }
 
         factorContext.setCurrentProcessingFactor(authType);
@@ -57,8 +60,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
     protected void validatePreconditions(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext) throws Exception {
 
-        if (factorContext.getAvailableFactors() == null ||
-                factorContext.getAvailableFactors().isEmpty()) {
+        if (factorContext.getRemainingFactors() == null ||
+                factorContext.getRemainingFactors().isEmpty()) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No MFA factors available for user: " +

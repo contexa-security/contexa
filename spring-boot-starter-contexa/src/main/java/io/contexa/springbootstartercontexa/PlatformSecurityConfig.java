@@ -56,13 +56,15 @@ public class PlatformSecurityConfig {
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
-                .mfa(mfa -> mfa.urlPrefix("/admin")
+                .mfa(mfa -> mfa.urlPrefix("/admin")/*.requiredFactors(2)*/
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
                                         .defaultSuccessUrl("/admin")
                                         .rawHttp(http -> http.securityMatcher("/admin/**"))))
                                 .passkey(Customizer.withDefaults())
                                 .ott(Customizer.withDefaults())
-                                .order(60)
+                                .passkey(Customizer.withDefaults())
+                                .ott(Customizer.withDefaults())
+                        .order(60)
                 ).session(Customizer.withDefaults())
                 .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth.formLogin(form -> form
