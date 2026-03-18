@@ -16,6 +16,7 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
 
     private final BlockingSignalBroadcaster registry;
     private final String userId;
+    private final String blockedRedirectUrl;
     private BlockableServletOutputStream blockableStream;
     private PrintWriter writer;
     private boolean monitoredHeaderSet = false;
@@ -23,15 +24,26 @@ public class BlockableResponseWrapper extends HttpServletResponseWrapper {
     public BlockableResponseWrapper(HttpServletResponse response,
                                     BlockingSignalBroadcaster registry,
                                     String userId) {
+        this(response, registry, userId, null);
+    }
+
+    public BlockableResponseWrapper(HttpServletResponse response,
+                                    BlockingSignalBroadcaster registry,
+                                    String userId,
+                                    String blockedRedirectUrl) {
         super(response);
         this.registry = registry;
         this.userId = userId;
+        this.blockedRedirectUrl = blockedRedirectUrl;
     }
 
     private void ensureMonitoredHeader() {
         if (!monitoredHeaderSet) {
             monitoredHeaderSet = true;
             setHeader("X-Contexa-Monitored", "true");
+            if (blockedRedirectUrl != null && !blockedRedirectUrl.isBlank()) {
+                setHeader("X-Contexa-Blocked-Redirect", blockedRedirectUrl);
+            }
         }
     }
 

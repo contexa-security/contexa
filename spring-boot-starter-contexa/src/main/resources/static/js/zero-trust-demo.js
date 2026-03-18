@@ -67,7 +67,8 @@
         eventSource: null,
         analysisPhase: 'idle',
         activeTab: 'test1',
-        t2SelectedScenario: null
+        t2SelectedScenario: null,
+        t2StreamReader: null
     };
 
     let elements = {};
@@ -376,6 +377,12 @@
         const layerInfo = data.layer ? ` (${data.layer})` : '';
         addTimelineEntry('decision', `최종 결정 적용: ${ACTION_LABELS[data.action] || data.action}${layerInfo}`);
 
+        // Cancel active stream on non-ALLOW decisions
+        if (data.action !== 'ALLOW' && state.t2StreamReader) {
+            state.t2StreamReader.cancel('Blocked by security decision');
+            state.t2StreamReader = null;
+        }
+
         showModalDecision(data.action);
 
         state.isTestRunning = false;
@@ -579,7 +586,7 @@
         if (!elements.mdwWidget || elements.mdwWidget.style.display === 'none') return;
 
         var pct = elements.t2ProgressPct ? elements.t2ProgressPct.textContent : '0%';
-        var records = elements.t2RecordCount ? elements.t2RecordCount.textContent : '0 / 1000,000';
+        var records = elements.t2RecordCount ? elements.t2RecordCount.textContent : '0 / 100,000';
         var bytes = elements.t2BytesReceived ? elements.t2BytesReceived.textContent : '0 KB';
         var barWidth = elements.t2ProgressBar ? elements.t2ProgressBar.style.width : '0%';
 
@@ -709,7 +716,7 @@
         // Reset progress UI
         if (elements.t2ProgressBar) { elements.t2ProgressBar.style.width = '0%'; elements.t2ProgressBar.classList.remove('blocked'); }
         if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = '0%';
-        if (elements.t2RecordCount) elements.t2RecordCount.textContent = '0 / 1000,000 건';
+        if (elements.t2RecordCount) elements.t2RecordCount.textContent = '0 / 100,000 건';
         if (elements.t2BytesReceived) elements.t2BytesReceived.textContent = '0 KB';
         if (elements.t2Terminal) elements.t2Terminal.innerHTML = '';
 
@@ -719,7 +726,7 @@
         var totalBytes = 0;
         var lineCount = 0;
         var buffer = '';
-        var TOTAL = 1000000;
+        var TOTAL = 100000;
 
         try {
             var response = await fetch(API.BULK_STREAM, {
@@ -738,6 +745,7 @@
             addTimelineEntry('success', `HTTP ${response.status} 연결 성공 - 데이터 스트리밍 시작`);
 
             var reader = response.body.getReader();
+            state.t2StreamReader = reader;
             var decoder = new TextDecoder();
 
             while (true) {
@@ -772,13 +780,29 @@
                 }
             }
 
-            addTerminalLine(elements.t2Terminal, '=== 다운로드 완료 ===', 't-complete');
-            addTimelineEntry('success', `다운로드 완료: ${TOTAL.toLocaleString()}건, ${formatBytes(totalBytes)}`);
-            if (elements.t2ProgressBar) elements.t2ProgressBar.style.width = '100%';
-            if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = '100%';
-            syncModalDownloadWidget();
-            if (elements.mdwStatus) { elements.mdwStatus.textContent = 'Completed'; elements.mdwStatus.className = 'mdw-status completed'; }
-            showModalDecision(state.currentAction || 'ALLOW');
+            // Check if stream ended due to security decision (reader.cancel)
+            if (state.currentAction && state.currentAction !== 'ALLOW' && state.currentAction !== 'PENDING' && state.currentAction !== 'PENDING_ANALYSIS') {
+                if (elements.t2ProgressBar) elements.t2ProgressBar.classList.add('blocked');
+                syncModalDownloadWidget();
+                updateModalDownloadBlocked();
+                addTerminalLine(elements.t2Terminal, '', '');
+                addTerminalLine(elements.t2Terminal, '\u2588\u2588 AI 보안 결정에 의해 응답이 중단됨 \u2588\u2588', 't-blocked');
+                addTerminalLine(elements.t2Terminal, '[' + (ACTION_LABELS[state.currentAction] || state.currentAction) + ']', 't-blocked');
+
+                var blocked = TOTAL - lineCount;
+                var preventPct = Math.round((blocked / TOTAL) * 100);
+                addTimelineEntry('error', `응답 강제 중단: ${lineCount.toLocaleString()}건에서 차단 (${preventPct}% 유출 방지)`);
+                addTimelineEntry('error', `AI Zero Trust: 응답이 중단됨 - 데이터 전송이 강제 차단되었습니다`);
+                showModalDecision(state.currentAction);
+            } else {
+                addTerminalLine(elements.t2Terminal, '=== 다운로드 완료 ===', 't-complete');
+                addTimelineEntry('success', `다운로드 완료: ${TOTAL.toLocaleString()}건, ${formatBytes(totalBytes)}`);
+                if (elements.t2ProgressBar) elements.t2ProgressBar.style.width = '100%';
+                if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = '100%';
+                syncModalDownloadWidget();
+                if (elements.mdwStatus) { elements.mdwStatus.textContent = 'Completed'; elements.mdwStatus.className = 'mdw-status completed'; }
+                showModalDecision(state.currentAction || 'ALLOW');
+            }
 
         } catch (err) {
             if (elements.t2ProgressBar) elements.t2ProgressBar.classList.add('blocked');
@@ -795,6 +819,7 @@
             showModalDecision(state.currentAction || 'BLOCK');
 
         } finally {
+            state.t2StreamReader = null;
             state.isTestRunning = false;
             enableTestButtons();
         }

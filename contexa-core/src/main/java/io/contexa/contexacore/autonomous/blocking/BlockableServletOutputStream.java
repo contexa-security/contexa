@@ -3,13 +3,16 @@ package io.contexa.contexacore.autonomous.blocking;
 import jakarta.servlet.ServletOutputStream;
 import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpServletResponseWrapper;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
 
 /**
  * ServletOutputStream wrapper that checks BlockingSignalBroadcaster on every
  * write() and flush(). When a BLOCK decision is detected mid-stream,
- * the stream is aborted with an IOException.
+ * the stream is aborted by forcefully closing the underlying Tomcat connection
+ * so the client receives a network error instead of a clean EOF.
  */
 public class BlockableServletOutputStream extends ServletOutputStream {
 
@@ -89,13 +92,46 @@ public class BlockableServletOutputStream extends ServletOutputStream {
         }
         if (registry != null && registry.isBlocked(userId)) {
             aborted = true;
-            try {
-                if (response != null && !response.isCommitted()) {
-                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                }
-            } catch (Exception ignored) {
-            }
+            abortTomcatConnection();
             throw new IOException("Response aborted: user " + userId + " blocked by security decision");
         }
+    }
+
+    /**
+     * Force-abort the underlying Tomcat connection so the client receives
+     * a network error (ERR_INCOMPLETE_CHUNKED_ENCODING) instead of a clean EOF.
+     *
+     * Without this, Tomcat sends the final 0-length chunk on IOException,
+     * causing the client's ReadableStream to end with {done: true} (success).
+     */
+    private void abortTomcatConnection() {
+        try {
+            HttpServletResponse unwrapped = unwrapResponse(response);
+            if (unwrapped != null) {
+                Field responseField = unwrapped.getClass().getDeclaredField("response");
+                responseField.setAccessible(true);
+                Object catalinaResponse = responseField.get(unwrapped);
+
+                var getCoyoteMethod = catalinaResponse.getClass().getMethod("getCoyoteResponse");
+                Object coyoteResponse = getCoyoteMethod.invoke(catalinaResponse);
+
+                Class<?> actionCodeClass = Class.forName("org.apache.coyote.ActionCode");
+                Object closeNow = Enum.valueOf((Class<Enum>) actionCodeClass, "CLOSE_NOW");
+
+                var actionMethod = coyoteResponse.getClass().getMethod("action", actionCodeClass, Object.class);
+                actionMethod.invoke(coyoteResponse, closeNow, null);
+            }
+        } catch (Exception ignored) {
+            // Fallback: if Tomcat internals are unavailable, the IOException alone
+            // will still stop the server-side loop, but the client may see a clean EOF.
+        }
+    }
+
+    private static HttpServletResponse unwrapResponse(HttpServletResponse response) {
+        HttpServletResponse current = response;
+        while (current instanceof HttpServletResponseWrapper wrapper) {
+            current = (HttpServletResponse) wrapper.getResponse();
+        }
+        return current;
     }
 }

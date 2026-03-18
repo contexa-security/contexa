@@ -1350,8 +1350,11 @@
                                 controller.enqueue(result.value);
                                 pump();
                             }).catch(function(streamError) {
-                                // Stream terminated mid-flight - check if blocked by server
-                                if (typeof ContexaMFAUtils !== 'undefined') {
+                                // Stream terminated mid-flight by AI security decision
+                                var redirectUrl = response.headers.get('X-Contexa-Blocked-Redirect');
+                                if (redirectUrl && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
+                                    window.location.href = redirectUrl;
+                                } else if (typeof ContexaMFAUtils !== 'undefined') {
                                     ContexaMFAUtils.log('Stream terminated - checking block status', 'warn');
                                     originalFetch.apply(window, ['/api/test-action/status', { credentials: 'same-origin' }])
                                         .then(function(r) { return r.json(); })
@@ -1360,7 +1363,7 @@
                                                 ContexaMFAUtils.renderResponseBlockedPage();
                                             }
                                         })
-                                        .catch(function() { /* ignore */ });
+                                        .catch(function() { });
                                 }
                                 controller.error(streamError);
                             });

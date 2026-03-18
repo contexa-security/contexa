@@ -391,8 +391,9 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
+        String blockedRedirectUrl = resolveBlockedRedirectUrl();
         BlockableResponseWrapper wrapper = new BlockableResponseWrapper(
-                response, blockingDecisionRegistry, userId);
+                response, blockingDecisionRegistry, userId, blockedRedirectUrl);
         try {
             filterChain.doFilter(request, wrapper);
         } catch (IOException e) {
@@ -421,6 +422,17 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 log.error("[ZeroTrustAccessControlFilter] Failed to send blocked response JSON", ex);
             }
         }
+    }
+
+    private String resolveBlockedRedirectUrl() {
+        if (authUrlProvider != null) {
+            try {
+                String urlPrefix = authUrlProvider.getUrlPrefix();
+                return (urlPrefix != null ? urlPrefix : "") + "/zero-trust/blocked";
+            } catch (Exception ignored) {
+            }
+        }
+        return "/zero-trust/blocked";
     }
 
     private String resolveRequestUri(HttpServletRequest request) {
