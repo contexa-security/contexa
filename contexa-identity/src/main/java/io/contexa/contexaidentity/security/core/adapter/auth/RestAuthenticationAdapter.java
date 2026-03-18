@@ -63,7 +63,9 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
                                          PlatformAuthenticationFailureHandler failureHandler) throws Exception {
         super.configureHttpSecurity(http, opts, currentFlow, successHandler, failureHandler);
 
-        DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter("/api/login");
+        String loginPageUrl = currentFlow.getUrlPrefix() != null
+                ? currentFlow.getUrlPrefix() + "/api/login" : "/api/login";
+        DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter(loginPageUrl);
         http.addFilterBefore(loginPageFilter, UsernamePasswordAuthenticationFilter.class);
     }
 }

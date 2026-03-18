@@ -6,7 +6,6 @@ import io.contexa.contexaidentity.security.core.bootstrap.ConfiguredFactorFilter
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.AuthenticationStepConfig;
 import io.contexa.contexaidentity.security.core.config.StateConfig;
-import io.contexa.contexaidentity.security.core.dsl.option.AuthenticationProcessingOptions;
 import io.contexa.contexaidentity.security.core.mfa.policy.MfaPolicyProvider;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.filter.MfaContinuationFilter;
@@ -96,61 +95,51 @@ public class MfaAuthenticationAdapter implements AuthenticationAdapter {
         );
         mfaContinuationFilter.setFlowTypeName(currentFlow.getTypeName());
 
-        if (currentFlow.getRegisteredFactorOptions() != null && !currentFlow.getRegisteredFactorOptions().isEmpty()) {
-            try {
-                MfaFlowUrlRegistry flowUrlRegistry = applicationContext.getBean(MfaFlowUrlRegistry.class);
-                AuthUrlProvider flowUrlProvider = flowUrlRegistry.createAndRegister(
-                        currentFlow.getTypeName(),
-                        currentFlow.getPrimaryAuthenticationOptions(),
-                        currentFlow.getRegisteredFactorOptions(),
-                        currentFlow.getMfaPageConfig(),
-                        currentFlow.getUrlPrefix()
-                );
-
-                // Auto-configure securityMatcher when urlPrefix is set
-                if (currentFlow.getUrlPrefix() != null) {
-                    http.securityMatcher(currentFlow.getUrlPrefix() + "/**");
-                }
-
-                mfaContinuationFilter.initializeUrlMatchers(flowUrlProvider);
-            } catch (Exception e) {
-
-                log.error("Critical: Failed to inject options or initialize URL matchers", e);
-                throw new IllegalStateException(
-                        "MFA initialization failed: Unable to inject authentication options or initialize URL matchers. " +
-                                "MFA flow cannot proceed safely. Please check your configuration.", e);
-            }
-        } else {
-
+        if (currentFlow.getRegisteredFactorOptions() == null || currentFlow.getRegisteredFactorOptions().isEmpty()) {
             log.error("Critical: MFA flow has no registered factor options");
             throw new IllegalStateException(
                     "MFA initialization failed: No factor options registered. " +
                             "MFA flow requires at least one secondary factor (OTT, Passkey, etc.).");
         }
 
+        AuthUrlProvider flowUrlProvider;
+        try {
+            MfaFlowUrlRegistry flowUrlRegistry = applicationContext.getBean(MfaFlowUrlRegistry.class);
+            flowUrlProvider = flowUrlRegistry.createAndRegister(
+                    currentFlow.getTypeName(),
+                    currentFlow.getPrimaryAuthenticationOptions(),
+                    currentFlow.getRegisteredFactorOptions(),
+                    currentFlow.getMfaPageConfig(),
+                    currentFlow.getUrlPrefix()
+            );
+
+            // Auto-configure securityMatcher when urlPrefix is set
+            if (currentFlow.getUrlPrefix() != null) {
+                http.securityMatcher(currentFlow.getUrlPrefix() + "/**");
+            }
+
+            mfaContinuationFilter.initializeUrlMatchers(flowUrlProvider);
+        } catch (Exception e) {
+            log.error("Critical: Failed to inject options or initialize URL matchers", e);
+            throw new IllegalStateException(
+                    "MFA initialization failed: Unable to inject authentication options or initialize URL matchers. " +
+                            "MFA flow cannot proceed safely. Please check your configuration.", e);
+        }
+
         http.addFilterBefore(mfaContinuationFilter, LogoutFilter.class);
 
+        // Build factor processing matchers from AuthUrlProvider (prefix-aware)
         List<RequestMatcher> factorProcessingMatchers = new ArrayList<>();
-        if (currentFlow.getStepConfigs() != null) {
-            for (AuthenticationStepConfig step : currentFlow.getStepConfigs()) {
-
-                if (step.getOrder() > 0) {
-                    Object optionsObj = step.getOptions().get("_options");
-                    if (optionsObj instanceof AuthenticationProcessingOptions procOpts) {
-                        String processingUrl = procOpts.getLoginProcessingUrl();
-                        if (processingUrl != null) {
-
-                            factorProcessingMatchers.add(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, processingUrl));
-                        }
-                    }
-                }
+        for (String processingUrl : flowUrlProvider.getAllFactorProcessingUrls()) {
+            if (processingUrl != null && !processingUrl.isEmpty()) {
+                factorProcessingMatchers.add(
+                        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, processingUrl));
             }
         }
 
         RequestMatcher mfaFactorProcessingMatcherForWrapper;
         if (factorProcessingMatchers.isEmpty()) {
             log.error("MfaAuthenticationAdapter: No specific factor processing URLs found for MfaStepFilterWrapper in flow '{}'. The wrapper might not match any requests.", currentFlow.getTypeName());
-
             mfaFactorProcessingMatcherForWrapper = request -> false;
         } else {
             mfaFactorProcessingMatcherForWrapper = new OrRequestMatcher(factorProcessingMatchers);

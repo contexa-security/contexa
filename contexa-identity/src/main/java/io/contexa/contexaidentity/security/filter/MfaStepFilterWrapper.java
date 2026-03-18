@@ -51,6 +51,7 @@ public class MfaStepFilterWrapper extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
 
+
         if (!this.mfaFactorProcessingMatcher.matches(request)) {
             chain.doFilter(request, response);
             return;

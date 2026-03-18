@@ -11,7 +11,7 @@
                         <div class="menu-icon-wrapper">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                         </div>
-                        <span>占쏙옙첬占쏙옙占?/span>
+                        <span>대시보드</span>
                         <span class="menu-glow"></span>
                     </a>
                 </li>
@@ -66,7 +66,7 @@
         </div>
 
         <div>
-            <h3 class="section-title">AI 占쏙옙占쏙옙 占쏙옙占쏙옙占쏙옙占쏙옙</h3>
+            <h3 class="section-title">AI 보안 어드바이저</h3>
             <ul class="space-y-1">
                 <li><a th:href="@{/admin/studio}" class="menu-link-sub" th:classappend="${activePage == 'studio'} ? ' active' : ''"><span class="menu-bullet"></span>Authorization Studio<span class="menu-glow"></span></a></li>
                 <li><a th:href="@{/admin/custom-llm}" class="menu-link-sub" th:classappend="${activePage == 'custom-llm'} ? ' active' : ''"><span class="menu-bullet"></span>Custom LLM Demo<span class="menu-glow"></span></a></li>
@@ -74,21 +74,21 @@
         </div>
 
         <div>
-            <h3 class="section-title">占쏙옙책 占쏙옙占쏙옙</h3>
+            <h3 class="section-title">인가 정책</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/policies}" class="menu-link-sub" th:classappend="${activePage == 'policies'} ? ' active' : ''"><span class="menu-bullet"></span>占쏙옙체 占쏙옙책 占쏙옙占?span class="menu-glow"></span></a></li>
-                <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/policy-builder}" class="menu-link-sub" th:classappend="${activePage == 'policy-builder'} ? ' active' : ''"><span class="menu-bullet"></span>AI 占쏙옙책 占쏙옙占?span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/policies}" class="menu-link-sub" th:classappend="${activePage == 'policies'} ? ' active' : ''"><span class="menu-bullet"></span>전체 정책 목록<span class="menu-glow"></span></a></li>
+                <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/policy-builder}" class="menu-link-sub" th:classappend="${activePage == 'policy-builder'} ? ' active' : ''"><span class="menu-bullet"></span>AI 정책 빌더<span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
         <div>
-            <h3 class="section-title">ID 占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙</h3>
+            <h3 class="section-title">ID 및 접근 관리</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/users}" class="menu-link-sub" th:classappend="${activePage == 'users'} ? ' active' : ''"><span class="menu-bullet"></span>占쏙옙占쏙옙占?占쏙옙占쏙옙<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/groups}" class="menu-link-sub" th:classappend="${activePage == 'groups'} ? ' active' : ''"><span class="menu-bullet"></span>占쌓뤄옙 占쏙옙占쏙옙<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/roles}" class="menu-link-sub" th:classappend="${activePage == 'roles'} ? ' active' : ''"><span class="menu-bullet"></span>占쏙옙占쏙옙 占쏙옙占쏙옙<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/permissions}" class="menu-link-sub" th:classappend="${activePage == 'permissions'} ? ' active' : ''"><span class="menu-bullet"></span>占쏙옙占쏙옙 占쏙옙占쏙옙<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/role-hierarchies}" class="menu-link-sub" th:classappend="${activePage == 'role-hierarchies'} ? ' active' : ''"><span class="menu-bullet"></span>占쏙옙占쏙옙 占쏙옙占쏙옙 占쏙옙占쏙옙<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/users}" class="menu-link-sub" th:classappend="${activePage == 'users'} ? ' active' : ''"><span class="menu-bullet"></span>사용자 관리<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/groups}" class="menu-link-sub" th:classappend="${activePage == 'groups'} ? ' active' : ''"><span class="menu-bullet"></span>그룹 관리<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/roles}" class="menu-link-sub" th:classappend="${activePage == 'roles'} ? ' active' : ''"><span class="menu-bullet"></span>역할 관리<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/permissions}" class="menu-link-sub" th:classappend="${activePage == 'permissions'} ? ' active' : ''"><span class="menu-bullet"></span>권한 관리<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/role-hierarchies}" class="menu-link-sub" th:classappend="${activePage == 'role-hierarchies'} ? ' active' : ''"><span class="menu-bullet"></span>역할 계층 관리<span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
@@ -100,9 +100,9 @@
         </div>
 
         <div>
-            <h3 class="section-title">占쏙옙占쌀쏙옙 占쏙옙타占쏙옙占쏙옙占쏙옙</h3>
+            <h3 class="section-title">시스템 메타데이터</h3>
             <ul class="space-y-1">
-                <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/workbench/resources}" class="menu-link-sub" th:classappend="${activePage == 'workbench-resources'} ? ' active' : ''"><span class="menu-bullet"></span><strong>占쏙옙占쌀쏙옙 占쏙옙크占쏙옙치</strong><span class="menu-glow"></span></a></li>
+                <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/workbench/resources}" class="menu-link-sub" th:classappend="${activePage == 'workbench-resources'} ? ' active' : ''"><span class="menu-bullet"></span><strong>리소스 워크벤치</strong><span class="menu-glow"></span></a></li>
             </ul>
         </div>
     </nav>
