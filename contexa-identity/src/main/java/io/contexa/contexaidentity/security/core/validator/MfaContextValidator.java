@@ -80,7 +80,8 @@ public class MfaContextValidator {
     }
 
     private static boolean isFactorProcessingState(MfaState state) {
-        return state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
+        return state == MfaState.AWAITING_FACTOR_CHALLENGE_INITIATION ||
+                state == MfaState.FACTOR_CHALLENGE_PRESENTED_AWAITING_VERIFICATION ||
                 state == MfaState.FACTOR_VERIFICATION_PENDING;
     }
 
