@@ -3,8 +3,10 @@ package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexaidentity.security.core.adapter.StateAdapter;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import io.contexa.contexaidentity.security.handler.logout.OAuth2LogoutSuccessHandler;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
+import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.utils.JsonAuthResponseWriter;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -112,12 +114,14 @@ public final class OAuth2StateAdapter implements StateAdapter {
     private void configureLogout(HttpSecurity http, ApplicationContext appContext) throws Exception {
         try {
             LogoutHandler logoutHandler = appContext.getBean("compositeLogoutHandler", LogoutHandler.class);
+            AuthResponseWriter responseWriter = appContext.getBean(AuthResponseWriter.class);
 
             http.setSharedObject(LogoutHandler.class, logoutHandler);
 
             http.logout(logout -> logout
                     .logoutRequestMatcher(PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/logout"))
                     .addLogoutHandler(logoutHandler)
+                    .logoutSuccessHandler(new OAuth2LogoutSuccessHandler(responseWriter))
                     .invalidateHttpSession(false)
                     .clearAuthentication(true)
             );

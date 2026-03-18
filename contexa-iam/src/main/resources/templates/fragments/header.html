@@ -42,11 +42,14 @@
                         <span>관리자</span>
                         <span class="nav-glow"></span>
                     </a>
-                    <a id="logoutLink" th:href="@{/admin/logout}" class="nav-link group nav-logout">
-                        <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
-                        <span>로그아웃</span>
-                        <span class="nav-glow"></span>
-                    </a>
+                    <form th:action="@{/admin/logout}" method="post" class="nav-logout-form">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                        <button type="submit" class="nav-link group nav-logout">
+                            <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
+                            <span>로그아웃</span>
+                            <span class="nav-glow"></span>
+                        </button>
+                    </form>
                 </th:block>
             </nav>
         </div>
@@ -118,6 +121,18 @@
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.5);
         }
 
+        .nav-logout-form {
+            display: inline;
+            margin: 0;
+            padding: 0;
+        }
+
+        button.nav-logout {
+            cursor: pointer;
+            font: inherit;
+            border: 1px solid;
+        }
+
         .nav-logout {
             background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
             border-color: rgba(239, 68, 68, 0.3);
@@ -147,41 +162,6 @@
             100% { transform: rotate(360deg); }
         }
     </style>
-    <script th:src="@{/js/contexa-mfa-sdk.js}"></script>
-    <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        var logoutLink = document.getElementById('logoutLink');
-        if (!logoutLink) return;
-        logoutLink.addEventListener('click', async function(e) {
-            e.preventDefault();
-            try {
-                var mfa = new ContexaMFA.Client();
-                await mfa.init();
-                await mfa.logout();
-            } catch (err) {
-                var form = document.createElement('form');
-                form.method = 'POST';
-                var mfaConfig = window.__MFA_CONFIG__;
-                form.action = (mfaConfig && mfaConfig.api && mfaConfig.api.logout) ? mfaConfig.api.logout : '/logout';
-                var csrf = document.querySelector('meta[name="_csrf"]');
-                var csrfParam = document.querySelector('meta[name="_csrf_parameter"]');
-                if (csrf && csrfParam) {
-                    var input = document.createElement('input');
-                    input.type = 'hidden';
-                    input.name = csrfParam.content;
-                    input.value = csrf.content;
-                    form.appendChild(input);
-                }
-                document.body.appendChild(form);
-                form.submit();
-                return;
-            }
-            var cfg = window.__MFA_CONFIG__;
-            var loginPage = (cfg && cfg.primary && cfg.primary.formLoginPage) ? cfg.primary.formLoginPage : '/login';
-            window.location.href = loginPage + '?logout';
-        });
-    });
-    </script>
 </div>
 </body>
 </html>

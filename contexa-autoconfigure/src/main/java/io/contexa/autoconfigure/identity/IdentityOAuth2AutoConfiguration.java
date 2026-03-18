@@ -404,7 +404,6 @@ public class IdentityOAuth2AutoConfiguration {
     @ConditionalOnMissingBean(name = "compositeLogoutHandler")
     public CompositeLogoutHandler compositeLogoutHandler(
             TokenService tokenService,
-            AuthResponseWriter responseWriter,
             AuthContextProperties authContextProperties,
             ObjectProvider<ZeroTrustSecurityService> zeroTrustSecurityServiceProvider,
             SessionIdResolver sessionIdResolver,
@@ -422,15 +421,14 @@ public class IdentityOAuth2AutoConfiguration {
         return new CompositeLogoutHandler(
                 strategies,
                 tokenService,
-                responseWriter,
                 zeroTrustService,
                 authorizationService);
     }
 
     @Bean("oauth2LogoutSuccessHandler")
     @ConditionalOnMissingBean(name = "oauth2LogoutSuccessHandler")
-    public LogoutSuccessHandler oauth2LogoutSuccessHandler(ObjectMapper objectMapper) {
-        return new OAuth2LogoutSuccessHandler(objectMapper);
+    public LogoutSuccessHandler oauth2LogoutSuccessHandler(AuthResponseWriter responseWriter) {
+        return new OAuth2LogoutSuccessHandler(responseWriter);
     }
 
     @Bean
