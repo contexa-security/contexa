@@ -1248,10 +1248,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         }
 
         List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null ?
-                new java.util.ArrayList<>(ctx.getAvailableFactors()) : List.of();
+                new java.util.ArrayList<>(ctx.getAvailableFactors()) : new java.util.ArrayList<>();
+
+        // Fallback: use registered factor options from current flow config
+        if (availableFactors.isEmpty() && mfaFlowConfig.getRegisteredFactorOptions() != null) {
+            availableFactors = new java.util.ArrayList<>(mfaFlowConfig.getRegisteredFactorOptions().keySet());
+        }
 
         if (availableFactors.isEmpty()) {
-            log.warn("Select Factor Page: No available factors. Session: {}",
+            log.error("Select Factor Page: No available factors. Session: {}",
                     ctx != null ? ctx.getMfaSessionId() : "unknown");
         }
 
