@@ -168,6 +168,13 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return NextFactorDecision.error("MFA flow configuration not found");
         }
 
+        // Check if required number of factors already completed
+        long requiredCount = getRequiredFactorCount(ctx.getUsername(), ctx.getFlowTypeName());
+        int completedCount = ctx.getCompletedFactors() != null ? ctx.getCompletedFactors().size() : 0;
+        if (completedCount >= requiredCount) {
+            return NextFactorDecision.noMoreFactors();
+        }
+
         Set<AuthType> availableFactors = ctx.getAvailableFactors();
         if (availableFactors == null || availableFactors.isEmpty()) {
             log.error("No available factors, all factors may be completed");

@@ -61,9 +61,10 @@ public class PlatformSecurityConfig {
                                         .defaultSuccessUrl("/admin")
                                         .rawHttp(http -> http.securityMatcher("/admin/**"))))
                                 .passkey(Customizer.withDefaults())
+                                .ott(Customizer.withDefaults())
                                 .order(60)
                 ).session(Customizer.withDefaults())
-                .mfa(mfa -> mfa
+                .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth.formLogin(form -> form
                                 .defaultSuccessUrl("/test/zero-trust-index")))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
