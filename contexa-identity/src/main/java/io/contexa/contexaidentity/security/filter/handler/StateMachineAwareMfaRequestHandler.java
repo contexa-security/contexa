@@ -240,14 +240,6 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
         String selectedFactor = extractAndValidateSelectedFactor(request, response, context);
         if (selectedFactor == null) return;
 
-        // Prevent selecting an already completed factor
-        if (context.getCompletedFactors() != null && context.getCompletedFactors().stream()
-                .anyMatch(step -> selectedFactor.equalsIgnoreCase(step.getType()))) {
-            handleInvalidStateError(request, response, context, "FACTOR_ALREADY_COMPLETED",
-                    "This factor has already been completed.");
-            return;
-        }
-
         if (sendFactorSelectionEvent(context, request, selectedFactor)) {
             handleFactorSelectionSuccess(request, response, context, selectedFactor);
         } else {

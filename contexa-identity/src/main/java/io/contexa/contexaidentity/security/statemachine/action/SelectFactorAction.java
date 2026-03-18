@@ -42,12 +42,11 @@ public class SelectFactorAction extends AbstractMfaStateAction {
             throw new IllegalArgumentException("Invalid factor type: " + selectedFactor);
         }
 
-        Set<AuthType> remaining = factorContext.getRemainingFactors();
-        if (remaining == null || !remaining.contains(authType)) {
+        if (!factorContext.isFactorAvailable(authType)) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("Selected factor " + authType +
-                    " is not available or already completed for user: " + factorContext.getUsername());
+                    " is not available for user: " + factorContext.getUsername());
         }
 
         factorContext.setCurrentProcessingFactor(authType);
@@ -60,8 +59,8 @@ public class SelectFactorAction extends AbstractMfaStateAction {
     protected void validatePreconditions(StateContext<MfaState, MfaEvent> context,
                                          FactorContext factorContext) throws Exception {
 
-        if (factorContext.getRemainingFactors() == null ||
-                factorContext.getRemainingFactors().isEmpty()) {
+        if (factorContext.getAvailableFactors() == null ||
+                factorContext.getAvailableFactors().isEmpty()) {
             factorContext.setAttribute(FactorContextAttributes.StateControl.ERROR_EVENT_RECOMMENDATION,
                     MfaEvent.SYSTEM_ERROR);
             throw new IllegalStateException("No MFA factors available for user: " +

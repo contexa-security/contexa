@@ -1302,9 +1302,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             username = "(Unknown)";
         }
 
-        // Show only remaining (not yet completed) factors
-        List<AuthType> availableFactors = ctx != null && ctx.getRemainingFactors() != null
-                ? new java.util.ArrayList<>(ctx.getRemainingFactors()) : new java.util.ArrayList<>();
+        // Show all registered factor types (duplicate types share a single button)
+        List<AuthType> availableFactors = ctx != null && ctx.getAvailableFactors() != null
+                ? new java.util.ArrayList<>(ctx.getAvailableFactors()) : new java.util.ArrayList<>();
 
         // Fallback: use registered factor options from current flow config
         if (availableFactors.isEmpty() && mfaFlowConfig.getRegisteredFactorOptions() != null) {
@@ -2040,23 +2040,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     private String buildSelectFactorLink(String contextPath, @Nullable FactorContext ctx) {
-        // Count secondary steps (not factor types) to support duplicate factor types
-        long totalSteps = mfaFlowConfig.getStepConfigs().stream()
-                .filter(step -> !step.isPrimary())
-                .count();
-        if (totalSteps <= 1) {
+        // Show link when multiple factor types are registered
+        int factorTypeCount = mfaFlowConfig.getRegisteredFactorOptions() != null
+                ? mfaFlowConfig.getRegisteredFactorOptions().size() : 0;
+        if (factorTypeCount <= 1) {
             return "";
-        }
-
-        if (ctx != null) {
-            int completedCount = ctx.getCompletedFactors() != null ? ctx.getCompletedFactors().size() : 0;
-            long remainingSteps = totalSteps - completedCount;
-            int requiredCount = mfaFlowConfig.getRequiredFactorCount();
-            int remainingRequired = Math.max(0, (requiredCount > 0 ? requiredCount : (int) totalSteps) - completedCount);
-
-            if (remainingSteps <= 1 || remainingRequired >= remainingSteps) {
-                return "";
-            }
         }
 
         String selectFactorUrl = contextPath + authUrlProvider.getMfaSelectFactor();

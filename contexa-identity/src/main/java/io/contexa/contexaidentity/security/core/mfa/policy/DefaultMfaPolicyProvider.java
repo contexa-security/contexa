@@ -175,12 +175,12 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
             return NextFactorDecision.noMoreFactors();
         }
 
-        Set<AuthType> remainingFactors = ctx.getRemainingFactors();
-        if (remainingFactors == null || remainingFactors.isEmpty()) {
+        Set<AuthType> availableFactors = ctx.getAvailableFactors();
+        if (availableFactors == null || availableFactors.isEmpty()) {
             return NextFactorDecision.noMoreFactors();
         }
 
-        List<AuthType> factorsForProcessing = new ArrayList<>(remainingFactors);
+        List<AuthType> factorsForProcessing = new ArrayList<>(availableFactors);
 
         AuthType nextFactorType = determineNextFactorInternal(
                 factorsForProcessing,
