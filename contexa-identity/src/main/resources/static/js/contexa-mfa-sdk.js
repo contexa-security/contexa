@@ -1479,10 +1479,39 @@
         function InterceptedXHR() {
             var xhr = new OriginalXHR();
             var originalOpen = xhr.open;
+            var isMonitored = false;
+            var blockedRedirectUrl = null;
 
             xhr.open = function() {
                 return originalOpen.apply(xhr, arguments);
             };
+
+            // Cache monitoring headers when they become available (readyState >= 2)
+            xhr.addEventListener('readystatechange', function() {
+                if (xhr.readyState >= 2) {
+                    try {
+                        var monitored = xhr.getResponseHeader('X-Contexa-Monitored');
+                        if (monitored === 'true') {
+                            isMonitored = true;
+                            blockedRedirectUrl = xhr.getResponseHeader('X-Contexa-Blocked-Redirect');
+                        }
+                    } catch (e) {
+                        // Headers not accessible yet
+                    }
+                }
+            });
+
+            // Detect network errors on monitored responses (mid-stream abort)
+            xhr.addEventListener('error', function() {
+                if (isMonitored && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
+                    ContexaMFAUtils.log('XHR: Monitored response terminated by security decision', 'warn');
+                    if (blockedRedirectUrl) {
+                        window.location.href = blockedRedirectUrl;
+                    } else {
+                        ContexaMFAUtils.renderResponseBlockedPage();
+                    }
+                }
+            });
 
             xhr.addEventListener('load', function() {
                 try {
@@ -1511,7 +1540,11 @@
                     // 403 Response Blocked (in-flight termination)
                     if (status === 403 && data.error === 'RESPONSE_BLOCKED') {
                         ContexaMFAUtils.log('XHR: Response blocked by AI security decision', 'warn', data);
-                        ContexaMFAUtils.renderResponseBlockedPage();
+                        if (blockedRedirectUrl && !window.__CONTEXA_SKIP_STREAM_REDIRECT) {
+                            window.location.href = blockedRedirectUrl;
+                        } else {
+                            ContexaMFAUtils.renderResponseBlockedPage();
+                        }
                         return;
                     }
 
