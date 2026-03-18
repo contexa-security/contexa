@@ -49,8 +49,6 @@ public class MfaUrlMatcher {
             configuredUrls.clear();
 
             addMatcher(MfaRequestType.FACTOR_SELECTION,
-                    provider.getMfaSelectFactor(), "GET");
-            addMatcher(MfaRequestType.FACTOR_SELECTION,
                     provider.getMfaSelectFactor(), "POST");
 
             addMatcher(MfaRequestType.OTT_CODE_REQUEST,
