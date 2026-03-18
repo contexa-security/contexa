@@ -5,17 +5,23 @@ import jakarta.servlet.WriteListener;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * ServletOutputStream wrapper that checks BlockingSignalBroadcaster on every
- * write() and flush(). When a BLOCK decision is detected mid-stream,
- * the stream is aborted with an IOException.
+ * write() and flush(). When a BLOCK decision is detected mid-stream:
  *
- * The server-side streaming loop is stopped by the IOException.
- * Client-side detection relies on SSE DECISION_APPLIED events or
- * the X-Contexa-Blocked-Redirect response header in the fetch interceptor.
+ * 1. Writes an in-band block signal marker to the stream (detected by client fetch/XHR interceptors)
+ * 2. Throws IOException to stop the server-side streaming loop
+ *
+ * Client-side detection uses two paths:
+ * - In-band signal: fetch/XHR interceptors detect the BLOCK_SIGNAL marker in response data
+ * - Stream error: pump() catch handles network errors when the connection is disrupted
  */
 public class BlockableServletOutputStream extends ServletOutputStream {
+
+    private static final byte[] BLOCK_SIGNAL =
+            "\n__CONTEXA_RESPONSE_BLOCKED__\n".getBytes(StandardCharsets.UTF_8);
 
     private final ServletOutputStream delegate;
     private final BlockingSignalBroadcaster registry;
@@ -97,6 +103,12 @@ public class BlockableServletOutputStream extends ServletOutputStream {
                 if (response != null && !response.isCommitted()) {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                 }
+            } catch (Exception ignored) {
+            }
+            // Write in-band block signal so client interceptors can detect the block
+            try {
+                delegate.write(BLOCK_SIGNAL);
+                delegate.flush();
             } catch (Exception ignored) {
             }
             throw new IOException("Response aborted: user " + userId + " blocked by security decision");
