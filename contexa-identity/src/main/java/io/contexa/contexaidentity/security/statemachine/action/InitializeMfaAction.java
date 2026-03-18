@@ -79,8 +79,11 @@ public class InitializeMfaAction extends AbstractMfaStateAction {
                     ctx.getUsername(), decision.getReason());
         }
 
+        String flowTypeName = ctx.getFlowTypeName();
         AuthenticationFlowConfig mfaFlowConfig = platformConfig.getFlows().stream()
-                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
+                .filter(flow -> flowTypeName != null
+                        ? flow.getTypeName().equalsIgnoreCase(flowTypeName)
+                        : MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
                 .findFirst()
                 .orElse(null);
 

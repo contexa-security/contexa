@@ -157,18 +157,12 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
     }
 
     @Nullable
-    private AuthenticationFlowConfig findMfaFlowConfig() {
-        // Backward compatibility: return first cached MFA flow config
-        return cachedMfaFlowConfigs.values().stream().findFirst().orElse(null);
-    }
-
-    @Nullable
     protected AuthenticationFlowConfig findMfaFlowConfig(String flowTypeName) {
         if (flowTypeName == null) {
-            return findMfaFlowConfig();
+            // Single MFA backward compatibility: return first cached flow
+            return cachedMfaFlowConfigs.values().stream().findFirst().orElse(null);
         }
-        AuthenticationFlowConfig config = cachedMfaFlowConfigs.get(flowTypeName.toLowerCase());
-        return config != null ? config : findMfaFlowConfig();
+        return cachedMfaFlowConfigs.get(flowTypeName.toLowerCase());
     }
 
     @Override

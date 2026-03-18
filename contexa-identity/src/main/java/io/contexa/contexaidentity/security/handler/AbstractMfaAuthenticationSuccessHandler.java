@@ -274,6 +274,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             }
         }
         // Fallback for single MFA flow backward compatibility
+        log.error("findCurrentMfaFlow: flowTypeName not available from FactorContext, falling back to first MFA flow");
         return platformConfig.getFlows().stream()
                 .filter(f -> MfaFlowTypeUtils.isMfaFlow(f.getTypeName()))
                 .findFirst()

@@ -63,7 +63,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     @Nullable
-    protected AuthenticationFlowConfig findMfaFlowConfigFromContext() {
+    protected AuthenticationFlowConfig findMfaFlowConfigFromContext(@Nullable String flowTypeName) {
         if (applicationContext == null) {
             log.error("ApplicationContext is not available in {}", getName());
             return null;
@@ -71,11 +71,19 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
         try {
             PlatformConfig platformConfig = applicationContext.getBean(PlatformConfig.class);
+
+            if (flowTypeName != null) {
+                AuthenticationFlowConfig specificFlow = platformConfig.getFlows().stream()
+                        .filter(flow -> flow.getTypeName().equalsIgnoreCase(flowTypeName))
+                        .findFirst()
+                        .orElse(null);
+                if (specificFlow != null) {
+                    return specificFlow;
+                }
+            }
+
             return platformConfig.getFlows().stream()
-                    .filter(flow -> {
-                        String typeName = flow.getTypeName();
-                        return isMfaFlowType(typeName);
-                    })
+                    .filter(flow -> isMfaFlowType(flow.getTypeName()))
                     .findFirst()
                     .orElseGet(() -> {
                         log.error("No MFA AuthenticationFlowConfig found in PlatformConfig");
@@ -134,7 +142,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
             return availableFactors;
         }
 
-        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext();
+        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext(context.getFlowTypeName());
         if (mfaFlowConfig != null) {
             Set<AuthType> factors = extractFactorsFromConfig(mfaFlowConfig);
             if (!factors.isEmpty()) {
@@ -150,7 +158,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
     }
 
     protected int determineFactorCount(@Nullable Users user, FactorContext context) {
-        int baseCount = getBaseFactorCountFromConfig();
+        int baseCount = getBaseFactorCountFromConfig(context.getFlowTypeName());
 
         if (user != null && isAdminUser(user)) {
             baseCount = Math.max(baseCount, 2);
@@ -159,8 +167,8 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         return baseCount;
     }
 
-    private int getBaseFactorCountFromConfig() {
-        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext();
+    private int getBaseFactorCountFromConfig(@Nullable String flowTypeName) {
+        AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext(flowTypeName);
         if (mfaFlowConfig != null) {
             long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
                     .filter(step -> !step.isPrimary())
