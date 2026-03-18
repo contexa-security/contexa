@@ -169,15 +169,20 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
 
     private int getBaseFactorCountFromConfig(@Nullable String flowTypeName) {
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfigFromContext(flowTypeName);
-        if (mfaFlowConfig != null) {
-            long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
-                    .filter(step -> !step.isPrimary())
-                    .count();
-            if (mfaStepCount > 0) {
-                return (int) mfaStepCount;
-            }
+        if (mfaFlowConfig == null) {
+            return 1;
         }
-        return 1;
+
+        // DSL .requiredFactors(n) setting takes precedence
+        if (mfaFlowConfig.getRequiredFactorCount() > 0) {
+            return mfaFlowConfig.getRequiredFactorCount();
+        }
+
+        // Default: all registered factors
+        long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
+                .filter(step -> !step.isPrimary())
+                .count();
+        return mfaStepCount > 0 ? (int) mfaStepCount : 1;
     }
 
     protected List<AuthType> prioritizeFactors(

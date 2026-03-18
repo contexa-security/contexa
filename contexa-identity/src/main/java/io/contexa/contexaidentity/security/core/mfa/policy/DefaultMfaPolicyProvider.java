@@ -98,28 +98,21 @@ public class DefaultMfaPolicyProvider implements MfaPolicyProvider {
 
     @Override
     public long getRequiredFactorCount(String userId, String flowType) {
-        long baseCount = 1;
         AuthenticationFlowConfig mfaFlowConfig = findMfaFlowConfig(flowType);
-        long mfaStepCount = 0;
-        if (mfaFlowConfig != null) {
-            mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
-                    .filter(step -> !step.isPrimary())
-                    .count();
-            if (mfaStepCount > 0) {
-                baseCount = (int) mfaStepCount;
-            }
+        if (mfaFlowConfig == null) {
+            return 1;
         }
 
-        /*Users user = userRepository.findByUsernameWithGroupsRolesAndPermissions(userId).orElse(null);
-        if (user != null) {
-            List<String> roles = user.getRoleNames();
-            if (roles != null && roles.stream().anyMatch(r ->
-                    r != null && AbstractMfaPolicyEvaluator.ADMIN_ROLES.contains(r.toUpperCase()))) {
-                baseCount = Math.max(baseCount, 2);
-            }
-        }*/
+        // DSL .requiredFactors(n) setting takes precedence
+        if (mfaFlowConfig.getRequiredFactorCount() > 0) {
+            return mfaFlowConfig.getRequiredFactorCount();
+        }
 
-        return baseCount;
+        // Default: all registered factors
+        long mfaStepCount = mfaFlowConfig.getStepConfigs().stream()
+                .filter(step -> !step.isPrimary())
+                .count();
+        return mfaStepCount > 0 ? mfaStepCount : 1;
     }
 
     private Optional<AuthenticationStepConfig> findNextStepConfig(

@@ -67,8 +67,8 @@ public class PlatformSecurityConfig {
                         .primaryAuthentication(auth -> auth.formLogin(form -> form
                                 .defaultSuccessUrl("/test/zero-trust-index")))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
-                        .ott(Customizer.withDefaults()).passkey(Customizer.withDefaults())
-//                        .ott(Customizer.withDefaults())
+                        .passkey(Customizer.withDefaults())
+                        .ott(Customizer.withDefaults())
                         /*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/mfa/ott/request-code-ui", "/custom/mfa/challenge/ott")

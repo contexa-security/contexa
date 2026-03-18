@@ -36,6 +36,7 @@ public final class AuthenticationFlowConfig {
     private final MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
     private final List<AuthenticationStepConfig> stepConfigs;
     private final String urlPrefix;
+    private final int requiredFactorCount;
 
     private AuthenticationFlowConfig(Builder builder) {
         this.typeName = builder.typeName;
@@ -55,6 +56,7 @@ public final class AuthenticationFlowConfig {
                 Collections.unmodifiableList(new ArrayList<>(builder.stepConfigs)) :
                 Collections.emptyList();
         this.urlPrefix = builder.urlPrefix;
+        this.requiredFactorCount = builder.requiredFactorCount;
     }
 
     public AuthenticationFlowConfig withTypeName(String newTypeName) {
@@ -72,7 +74,8 @@ public final class AuthenticationFlowConfig {
                 .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
                 .stepConfigs(this.stepConfigs != null ? new ArrayList<>(this.stepConfigs) : null)
                 .stateConfig(this.stateConfig)
-                .urlPrefix(this.urlPrefix);
+                .urlPrefix(this.urlPrefix)
+                .requiredFactorCount(this.requiredFactorCount);
         AuthenticationFlowConfig newFlow = new AuthenticationFlowConfig(builder);
         // Regenerate stepIds with the new typeName
         if (newFlow.stepConfigs != null) {
@@ -98,7 +101,8 @@ public final class AuthenticationFlowConfig {
                 .mfaAuthenticationEntryPoint(this.mfaAuthenticationEntryPoint)
                 .stepConfigs(this.stepConfigs != null ? new ArrayList<>(this.stepConfigs) : null)
                 .stateConfig(newStateConfig)
-                .urlPrefix(this.urlPrefix);
+                .urlPrefix(this.urlPrefix)
+                .requiredFactorCount(this.requiredFactorCount);
         return new AuthenticationFlowConfig(builder);
     }
 
@@ -124,6 +128,7 @@ public final class AuthenticationFlowConfig {
         private MfaAuthenticationEntryPoint mfaAuthenticationEntryPoint;
         private List<AuthenticationStepConfig> stepConfigs = new ArrayList<>();
         private String urlPrefix;
+        private int requiredFactorCount = -1;
 
         public Builder(String typeName) {
             Assert.hasText(typeName, "typeName cannot be empty");
@@ -203,6 +208,11 @@ public final class AuthenticationFlowConfig {
 
         public Builder urlPrefix(String urlPrefix) {
             this.urlPrefix = urlPrefix;
+            return this;
+        }
+
+        public Builder requiredFactorCount(int requiredFactorCount) {
+            this.requiredFactorCount = requiredFactorCount;
             return this;
         }
 

@@ -20,6 +20,7 @@ public interface MfaDslConfigurer extends SecurityConfigurerDsl {
     MfaDslConfigurer mfaSuccessHandler(PlatformAuthenticationSuccessHandler successHandler);
     MfaDslConfigurer policyProvider(MfaPolicyProvider policyProvider);
     MfaDslConfigurer defaultDeviceTrustEnabled(boolean enable);
+    MfaDslConfigurer requiredFactors(int count);
     AuthenticationFlowConfig build(); 
     MfaDslConfigurer asep(Customizer<MfaAsepAttributes> mfaAsepAttributesCustomizer);
     MfaDslConfigurer primaryAuthentication(Customizer<PrimaryAuthDslConfigurer> primaryAuthConfig);

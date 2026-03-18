@@ -56,6 +56,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     private String mfaFlowTypeName = MfaFlowTypeUtils.getBaseMfaTypeName();
     private String userDefinedFlowName;
     private String urlPrefix;
+    private int requiredFactorCount = -1;
 
     public MfaDslConfigurerImpl(ApplicationContext applicationContext) {
         this.applicationContext = Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null");
@@ -73,6 +74,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
     @Override
     public MfaDslConfigurerImpl<H> urlPrefix(String urlPrefix) {
         this.urlPrefix = urlPrefix;
+        return this;
+    }
+
+    @Override
+    public MfaDslConfigurerImpl<H> requiredFactors(int count) {
+        this.requiredFactorCount = count;
         return this;
     }
 
@@ -282,6 +289,7 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
                 .mfaPageConfig(this.mfaPageConfig)
                 .mfaAuthenticationEntryPoint(mfaAuthenticationEntryPoint)
                 .urlPrefix(this.urlPrefix)
+                .requiredFactorCount(this.requiredFactorCount)
                 .build();
     }
 
