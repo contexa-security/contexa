@@ -398,16 +398,14 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         } catch (IOException e) {
             if (blockingDecisionRegistry.isBlocked(userId)) {
                 log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
-                sendBlockedResponseIfPossible(response, request);
                 blockingDecisionRegistry.registerUnblock(userId);
-                return;
+                throw e;
             }
             throw e;
         } catch (ResponseBlockedException e) {
             log.error("[ZeroTrustAccessControlFilter] Response aborted for blocked user: userId={}", userId);
-            sendBlockedResponseIfPossible(response, request);
             blockingDecisionRegistry.registerUnblock(userId);
-            return;
+            throw new IOException("Response blocked by security decision: userId=" + userId, e);
         }
     }
 

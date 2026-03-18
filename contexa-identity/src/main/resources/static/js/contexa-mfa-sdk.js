@@ -1356,7 +1356,7 @@
                                     originalFetch.apply(window, ['/api/test-action/status', { credentials: 'same-origin' }])
                                         .then(function(r) { return r.json(); })
                                         .then(function(data) {
-                                            if (data.action === 'BLOCK') {
+                                            if (data.action === 'BLOCK' || data.action === 'CHALLENGE') {
                                                 ContexaMFAUtils.renderResponseBlockedPage();
                                             }
                                         })

@@ -154,7 +154,7 @@ public class TestSecurityService {
         }
 
         sb.append("==========================================\n");
-        sb.append("총 10,000건의 데이터가 조회되었습니다.");
+        sb.append("총 1000,000건의 데이터가 조회되었습니다.");
 
         return sb.toString();
     }

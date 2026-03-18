@@ -579,7 +579,7 @@
         if (!elements.mdwWidget || elements.mdwWidget.style.display === 'none') return;
 
         var pct = elements.t2ProgressPct ? elements.t2ProgressPct.textContent : '0%';
-        var records = elements.t2RecordCount ? elements.t2RecordCount.textContent : '0 / 10,000';
+        var records = elements.t2RecordCount ? elements.t2RecordCount.textContent : '0 / 1000,000';
         var bytes = elements.t2BytesReceived ? elements.t2BytesReceived.textContent : '0 KB';
         var barWidth = elements.t2ProgressBar ? elements.t2ProgressBar.style.width : '0%';
 
@@ -613,11 +613,16 @@
         if (elements.modalFinal) elements.modalFinal.style.display = '';
         if (elements.modalResultArea) elements.modalResultArea.style.display = '';
 
-        var isAllow = action === 'ALLOW';
-        if (elements.modalFinalBadge) {
-            elements.modalFinalBadge.className = 'm-final-badge ' + (isAllow ? 'allow' : 'block');
-        }
-        if (elements.modalFinalIcon) elements.modalFinalIcon.textContent = isAllow ? '\u2713' : '\u2717';
+        var styleMap = {
+            'ALLOW': { cls: 'allow', icon: '\u2713' },
+            'BLOCK': { cls: 'block', icon: '\u2717' },
+            'CHALLENGE': { cls: 'block', icon: '\u26A0' },
+            'ESCALATE': { cls: 'block', icon: '\u26A0' }
+        };
+        var style = styleMap[action] || styleMap['BLOCK'];
+
+        if (elements.modalFinalBadge) elements.modalFinalBadge.className = 'm-final-badge ' + style.cls;
+        if (elements.modalFinalIcon) elements.modalFinalIcon.textContent = style.icon;
         if (elements.modalFinalText) elements.modalFinalText.textContent = ACTION_LABELS[action] || action;
     }
 
@@ -704,7 +709,7 @@
         // Reset progress UI
         if (elements.t2ProgressBar) { elements.t2ProgressBar.style.width = '0%'; elements.t2ProgressBar.classList.remove('blocked'); }
         if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = '0%';
-        if (elements.t2RecordCount) elements.t2RecordCount.textContent = '0 / 10,000 건';
+        if (elements.t2RecordCount) elements.t2RecordCount.textContent = '0 / 1000,000 건';
         if (elements.t2BytesReceived) elements.t2BytesReceived.textContent = '0 KB';
         if (elements.t2Terminal) elements.t2Terminal.innerHTML = '';
 
@@ -714,7 +719,7 @@
         var totalBytes = 0;
         var lineCount = 0;
         var buffer = '';
-        var TOTAL = 10000;
+        var TOTAL = 1000000;
 
         try {
             var response = await fetch(API.BULK_STREAM, {
@@ -773,7 +778,7 @@
             if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = '100%';
             syncModalDownloadWidget();
             if (elements.mdwStatus) { elements.mdwStatus.textContent = 'Completed'; elements.mdwStatus.className = 'mdw-status completed'; }
-            showModalDecision('ALLOW');
+            showModalDecision(state.currentAction || 'ALLOW');
 
         } catch (err) {
             if (elements.t2ProgressBar) elements.t2ProgressBar.classList.add('blocked');
@@ -786,7 +791,8 @@
             var blocked = TOTAL - lineCount;
             var preventPct = Math.round((blocked / TOTAL) * 100);
             addTimelineEntry('error', `응답 강제 중단: ${lineCount.toLocaleString()}건에서 차단 (${preventPct}% 유출 방지)`);
-            showModalDecision('BLOCK');
+            addTimelineEntry('error', `AI Zero Trust: 응답이 중단됨 - 데이터 전송이 강제 차단되었습니다`);
+            showModalDecision(state.currentAction || 'BLOCK');
 
         } finally {
             state.isTestRunning = false;

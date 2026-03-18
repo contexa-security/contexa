@@ -15,8 +15,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+
+import java.io.IOException;
+import java.io.OutputStream;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -322,7 +326,7 @@ public class TestSecurityController {
      * enabling real-time response termination by AI security decisions.
      */
     @GetMapping("/bulk-stream")
-    public ResponseEntity<StreamingResponseBody> testBulkStream() {
+    public void testBulkStream(HttpServletResponse response) throws IOException {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String username = auth != null ? auth.getName() : "anonymous";
@@ -333,43 +337,37 @@ public class TestSecurityController {
             testSecurityService.validateBulkStreamAccess();
         } catch (AccessDeniedException e) {
             log.error("[Security Test] Bulk stream access denied - user: {}, reason: {}", username, e.getMessage());
-            StreamingResponseBody errorBody = outputStream -> {
-                String error = "{\"error\":\"ACCESS_DENIED\",\"message\":\"" + e.getMessage() + "\"}";
-                outputStream.write(error.getBytes(StandardCharsets.UTF_8));
-                outputStream.flush();
-            };
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(errorBody);
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"error\":\"ACCESS_DENIED\",\"message\":\"" + e.getMessage() + "\"}");
+            response.getWriter().flush();
+            return;
         }
 
-        StreamingResponseBody body = outputStream -> {
-            int totalRecords = 100000;
+        response.setContentType("application/octet-stream");
+        response.setHeader("X-Total-Records", "1000000");
+        response.setHeader("Cache-Control", "no-cache");
 
-            for (int i = 1; i <= totalRecords; i++) {
-                String record = generateEmployeeRecord(i);
-                outputStream.write(record.getBytes(StandardCharsets.UTF_8));
+        int totalRecords = 1000000;
+        OutputStream out = response.getOutputStream();
 
-                if (i % 100 == 0) {
-                    outputStream.flush();
-                    try {
-                        Thread.sleep(200);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
+        for (int i = 1; i <= totalRecords; i++) {
+            String record = generateEmployeeRecord(i);
+            out.write(record.getBytes(StandardCharsets.UTF_8));
+
+            if (i % 100 == 0) {
+                out.flush();
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }
+        }
 
-            outputStream.flush();
-            log.info("[Security Test] Bulk stream completed - user: {}", username);
-        };
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .header("X-Total-Records", "10000")
-                .header("Cache-Control", "no-cache")
-                .body(body);
+        out.flush();
+        log.info("[Security Test] Bulk stream completed - user: {}", username);
     }
 
     private static final String[] LAST_NAMES = {
