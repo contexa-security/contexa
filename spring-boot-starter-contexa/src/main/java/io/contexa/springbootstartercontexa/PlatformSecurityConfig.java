@@ -29,6 +29,7 @@ public class PlatformSecurityConfig {
 
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
+//                    .logout(logout -> logout.logoutUrl("/admin/logout").logoutSuccessUrl("/admin/mfa/login"))
 //                    .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
@@ -56,7 +57,7 @@ public class PlatformSecurityConfig {
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
                 .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
-                .mfa(mfa -> mfa.urlPrefix("/admin").requiredFactors(2)
+                .mfa(mfa -> mfa.urlPrefix("/admin").requiredFactors(1)
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
                                         .defaultSuccessUrl("/admin")
                                         .rawHttp(http -> http.securityMatcher("/admin/**"))))

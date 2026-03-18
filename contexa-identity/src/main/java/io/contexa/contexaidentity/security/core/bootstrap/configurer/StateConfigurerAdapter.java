@@ -23,7 +23,7 @@ public class StateConfigurerAdapter implements SecurityConfigurer {
     public void configure(FlowContext fc) throws Exception {
         StateConfig state = fc.flow().getStateConfig();
         if (state != null && stateAdapter.getId().equalsIgnoreCase(state.state())) {
-            stateAdapter.apply(fc.http(), ctx);
+            stateAdapter.apply(fc.http(), ctx, fc.flow());
         }
     }
 

@@ -111,6 +111,10 @@ public class AuthUrlProvider {
         return applyPrefix(properties.getUrls().getPrimary().getLogoutPage());
     }
 
+    public String getLogoutProcessingUrl() {
+        return applyPrefix("/logout");
+    }
+
     public String getSingleFormLoginProcessing() {
         return properties.getUrls().getSingle().getFormLoginProcessing();
     }
@@ -424,7 +428,8 @@ public class AuthUrlProvider {
                 "cancel", getMfaCancel(),
                 "status", getMfaStatus(),
                 "requestOttCode", getMfaRequestOttCode(),
-                "config", getMfaConfig()
+                "config", getMfaConfig(),
+                "logout", getLogoutProcessingUrl()
         ));
 
         return urls;

@@ -42,7 +42,7 @@
                         <span>관리자</span>
                         <span class="nav-glow"></span>
                     </a>
-                    <a id="logoutLink" th:href="@{/logout}" class="nav-link group nav-logout">
+                    <a id="logoutLink" th:href="@{/admin/logout}" class="nav-link group nav-logout">
                         <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
                         <span>로그아웃</span>
                         <span class="nav-glow"></span>
@@ -161,7 +161,8 @@
             } catch (err) {
                 var form = document.createElement('form');
                 form.method = 'POST';
-                form.action = '/logout';
+                var mfaConfig = window.__MFA_CONFIG__;
+                form.action = (mfaConfig && mfaConfig.api && mfaConfig.api.logout) ? mfaConfig.api.logout : '/logout';
                 var csrf = document.querySelector('meta[name="_csrf"]');
                 var csrfParam = document.querySelector('meta[name="_csrf_parameter"]');
                 if (csrf && csrfParam) {
@@ -175,7 +176,9 @@
                 form.submit();
                 return;
             }
-            window.location.href = '/';
+            var cfg = window.__MFA_CONFIG__;
+            var loginPage = (cfg && cfg.primary && cfg.primary.formLoginPage) ? cfg.primary.formLoginPage : '/login';
+            window.location.href = loginPage + '?logout';
         });
     });
     </script>

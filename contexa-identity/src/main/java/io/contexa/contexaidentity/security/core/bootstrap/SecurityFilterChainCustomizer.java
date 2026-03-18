@@ -30,6 +30,7 @@ public class SecurityFilterChainCustomizer {
     private final PasskeyFilterCustomizer passkeyCustomizer = new PasskeyFilterCustomizer();
     private final OttFilterCustomizer ottCustomizer = new OttFilterCustomizer();
     private final MfaPageFilterCustomizer pageCustomizer = new MfaPageFilterCustomizer();
+    private final LogoutFilterCustomizer logoutCustomizer = new LogoutFilterCustomizer();
 
     public void customize(DefaultSecurityFilterChain builtChain,
                           AuthenticationFlowConfig flowConfig,
@@ -59,6 +60,7 @@ public class SecurityFilterChainCustomizer {
             }
 
             pageCustomizer.customize(builtChain, flowUrlProvider, null);
+            logoutCustomizer.customize(builtChain, flowUrlProvider, null);
         }
     }
 
