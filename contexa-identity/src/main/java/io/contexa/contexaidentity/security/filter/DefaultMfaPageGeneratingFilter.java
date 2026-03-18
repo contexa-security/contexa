@@ -737,27 +737,26 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         border-radius: 12px;
                         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
                         padding: 40px;
-                        max-width: 480px;
+                        max-width: 520px;
                         width: 100%;
+                        text-align: center;
                     }
+                    .icon { font-size: 64px; margin-bottom: 16px; }
                     h1 {
                         color: #333;
                         font-size: 24px;
                         margin-bottom: 8px;
-                        text-align: center;
                     }
                     .description {
                         color: #666;
                         font-size: 14px;
-                        text-align: center;
                         margin-bottom: 24px;
                     }
                     .user-info {
                         background: #f6f8fa;
                         padding: 12px 16px;
                         border-radius: 8px;
-                        margin-bottom: 24px;
-                        text-align: center;
+                        margin-bottom: 28px;
                     }
                     .user-info .label {
                         font-size: 12px;
@@ -769,30 +768,78 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         font-weight: 600;
                         color: #333;
                     }
-                    .factor-list {
-                        list-style: none;
-                    }
-                    .factor-item {
-                        margin-bottom: 12px;
-                    }
+                    .factor-list { list-style: none; }
+                    .factor-item { margin-bottom: 14px; }
                     .factor-form button {
                         width: 100%;
-                        padding: 16px;
+                        display: flex;
+                        align-items: center;
+                        gap: 16px;
+                        padding: 18px 20px;
                         background: white;
                         border: 1.5px solid #e0e0e0;
-                        border-radius: 8px;
-                        font-size: 16px;
+                        border-radius: 12px;
+                        font-size: 15px;
                         cursor: pointer;
-                        transition: all 0.2s;
+                        transition: all 0.25s ease;
                         text-align: left;
                     }
                     .factor-form button:hover:not(:disabled) {
                         border-color: #667eea;
-                        background: #f8f9fa;
+                        background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+                        box-shadow: 0 4px 16px rgba(102, 126, 234, 0.15);
+                        transform: translateY(-2px);
+                    }
+                    .factor-form button:active:not(:disabled) {
+                        transform: translateY(0);
                     }
                     .factor-form button:disabled {
                         opacity: 0.6;
                         cursor: not-allowed;
+                    }
+                    .factor-icon {
+                        width: 44px;
+                        height: 44px;
+                        border-radius: 10px;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        flex-shrink: 0;
+                    }
+                    .factor-icon svg {
+                        width: 24px;
+                        height: 24px;
+                    }
+                    .factor-icon.passkey {
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                    }
+                    .factor-icon.ott {
+                        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                        color: white;
+                    }
+                    .factor-icon.default {
+                        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                        color: white;
+                    }
+                    .factor-text { flex: 1; }
+                    .factor-name {
+                        font-weight: 600;
+                        color: #333;
+                        margin-bottom: 2px;
+                    }
+                    .factor-desc {
+                        font-size: 12px;
+                        color: #888;
+                        font-weight: 400;
+                    }
+                    .factor-arrow {
+                        color: #ccc;
+                        flex-shrink: 0;
+                        transition: color 0.2s;
+                    }
+                    .factor-form button:hover:not(:disabled) .factor-arrow {
+                        color: #667eea;
                     }
                     .message {
                         padding: 12px;
@@ -807,8 +854,13 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
+                    <div class="icon">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#667eea" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1"/>
+                        </svg>
+                    </div>
                     <h1>Select Authentication Method</h1>
-                    <p class="description">Choose a two-factor authentication method.</p>
+                    <p class="description">Choose a second-factor to verify your identity.</p>
 
                     <div class="user-info">
                         <div class="label">Account being authenticated</div>
@@ -816,43 +868,32 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                     </div>
 
                     {{factorButtons}}
-            
+
                     <!-- Progressive Enhancement: JavaScript SDK support -->
                     <script src="{{contextPath}}/js/contexa-mfa-sdk.js"></script>
                     <script>
-                        // Enhanced UX through SDK when JavaScript is enabled
                         if (typeof ContexaMFA !== 'undefined') {
                             const forms = document.querySelectorAll('.factor-form');
                             const mfa = new ContexaMFA.Client({ autoRedirect: false, tokenPersistence: '{{tokenPersistence}}' });
-            
-                            // SDK initialization
                             mfa.init().catch(console.error);
-            
                             forms.forEach(form => {
                                 form.addEventListener('submit', async (e) => {
                                     e.preventDefault();
-            
                                     const factorType = form.dataset.factorType;
                                     const button = form.querySelector('button[type="submit"]');
-                                    const originalText = button.textContent;
-            
+                                    const nameEl = button.querySelector('.factor-name');
+                                    const originalText = nameEl ? nameEl.textContent : button.textContent;
                                     button.disabled = true;
-                                    button.textContent = 'Processing...';
-
+                                    if (nameEl) { nameEl.textContent = 'Processing...'; } else { button.textContent = 'Processing...'; }
                                     try {
                                         const result = await mfa.selectFactor(factorType);
-
-                                        // Explicit redirect handling
-                                        if (result.nextStepUrl) {
-                                            window.location.href = result.nextStepUrl;
-                                        } else if (result.redirectUrl) {
-                                            window.location.href = result.redirectUrl;
-                                        }
+                                        if (result.nextStepUrl) { window.location.href = result.nextStepUrl; }
+                                        else if (result.redirectUrl) { window.location.href = result.redirectUrl; }
                                     } catch (error) {
                                         console.error('Factor selection failed:', error);
                                         alert('Authentication method selection failed: ' + (error.message || 'Unknown error'));
                                         button.disabled = false;
-                                        button.textContent = originalText;
+                                        if (nameEl) { nameEl.textContent = originalText; } else { button.textContent = originalText; }
                                     }
                                 });
                             });
@@ -868,7 +909,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <form class="factor-form" method="post" action="{{selectFactorUrl}}" data-factor-type="{{factorType}}">
                     {{hiddenInputs}}
                     <input type="hidden" name="factorType" value="{{factorType}}">
-                    <button type="submit">{{factorDisplayName}}</button>
+                    <button type="submit">
+                        <div class="factor-icon {{factorIconClass}}">{{factorIconSvg}}</div>
+                        <div class="factor-text">
+                            <div class="factor-name">{{factorDisplayName}}</div>
+                            <div class="factor-desc">{{factorDescription}}</div>
+                        </div>
+                        <svg class="factor-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </button>
                 </form>
             </li>
             """;
@@ -1268,11 +1316,17 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         for (AuthType factorType : availableFactors) {
             String hiddenInputs = resolveHiddenInputs(request);
             String factorDisplayName = getFactorDisplayName(factorType);
+            String factorDescription = getFactorDescription(factorType);
+            String factorIconClass = getFactorIconClass(factorType);
+            String factorIconSvg = getFactorIconSvg(factorType);
 
             String buttonHtml = MfaHtmlTemplates.fromTemplate(FACTOR_BUTTON_TEMPLATE)
                     .withValue("selectFactorUrl", fullSelectFactorUrl)
                     .withValue("factorType", factorType.name())
                     .withValue("factorDisplayName", factorDisplayName)
+                    .withValue("factorDescription", factorDescription)
+                    .withValue("factorIconClass", factorIconClass)
+                    .withRawHtml("factorIconSvg", factorIconSvg)
                     .withRawHtml("hiddenInputs", hiddenInputs)
                     .render();
 
@@ -1944,9 +1998,33 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private String getFactorDisplayName(AuthType factorType) {
         return switch (factorType) {
-            case MFA_OTT -> "Email Authentication Code (OTT)";
-            case MFA_PASSKEY -> "Passkey Biometric Authentication";
+            case MFA_OTT -> "Email Verification Code";
+            case MFA_PASSKEY -> "Passkey Authentication";
             default -> factorType.name();
+        };
+    }
+
+    private String getFactorDescription(AuthType factorType) {
+        return switch (factorType) {
+            case MFA_OTT -> "Receive a one-time code via email";
+            case MFA_PASSKEY -> "Use biometrics or a security key";
+            default -> "Verify with " + factorType.name();
+        };
+    }
+
+    private String getFactorIconClass(AuthType factorType) {
+        return switch (factorType) {
+            case MFA_OTT -> "ott";
+            case MFA_PASSKEY -> "passkey";
+            default -> "default";
+        };
+    }
+
+    private String getFactorIconSvg(AuthType factorType) {
+        return switch (factorType) {
+            case MFA_OTT -> "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7\"/></svg>";
+            case MFA_PASSKEY -> "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M2 18v3c0 .6.4 1 1 1h4v-3h3v-3h2l1.4-1.4a6.5 6.5 0 1 0-4-4Z\"/><circle cx=\"16.5\" cy=\"7.5\" r=\".5\" fill=\"currentColor\"/></svg>";
+            default -> "<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10\"/></svg>";
         };
     }
 }

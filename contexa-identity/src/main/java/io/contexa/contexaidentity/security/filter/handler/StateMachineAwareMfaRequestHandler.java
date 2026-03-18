@@ -361,7 +361,29 @@ public class StateMachineAwareMfaRequestHandler implements MfaRequestHandler {
 
     private String extractAndValidateSelectedFactor(HttpServletRequest request, HttpServletResponse response,
                                                     FactorContext context) throws IOException {
+        // 1) Form parameter: "factor" or "factorType"
         String selectedFactor = request.getParameter("factor");
+        if (selectedFactor == null || selectedFactor.trim().isEmpty()) {
+            selectedFactor = request.getParameter("factorType");
+        }
+
+        // 2) JSON body: { "factorType": "..." } or { "factor": "..." }
+        if ((selectedFactor == null || selectedFactor.trim().isEmpty())
+                && request.getContentType() != null
+                && request.getContentType().contains("application/json")) {
+            try {
+                String body = new String(request.getInputStream().readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                com.fasterxml.jackson.databind.JsonNode json = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body);
+                if (json.has("factorType")) {
+                    selectedFactor = json.get("factorType").asText();
+                } else if (json.has("factor")) {
+                    selectedFactor = json.get("factor").asText();
+                }
+            } catch (Exception e) {
+                log.error("Failed to parse JSON body for factor selection", e);
+            }
+        }
+
         if (selectedFactor == null || selectedFactor.trim().isEmpty()) {
             Map<String, Object> errorResponse = createErrorResponse(context, "MISSING_FACTOR_PARAMETER",
                     "Please specify a factor to select.");
