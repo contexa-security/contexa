@@ -12,6 +12,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -61,6 +62,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
     private final IBlockedUserRecorder blockedUserRecorder;
     private final BlockMfaStateStore blockMfaStateStore;
     private final CentralAuditFacade centralAuditFacade;
+    private final BlockingSignalBroadcaster blockingSignalBroadcaster;
 
     protected AbstractMfaAuthenticationSuccessHandler(TokenService tokenService,
                                                       AuthResponseWriter responseWriter,
@@ -75,7 +77,8 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                                                       MfaFlowUrlRegistry mfaFlowUrlRegistry,
                                                       IBlockedUserRecorder blockedUserRecorder,
                                                       BlockMfaStateStore blockMfaStateStore,
-                                                      CentralAuditFacade centralAuditFacade) {
+                                                      CentralAuditFacade centralAuditFacade,
+                                                      BlockingSignalBroadcaster blockingSignalBroadcaster) {
         super(tokenService, responseWriter, authContextProperties);
         this.sessionRepository = sessionRepository;
         this.stateMachineIntegrator = stateMachineIntegrator;
@@ -88,6 +91,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
         this.blockedUserRecorder = blockedUserRecorder;
         this.blockMfaStateStore = blockMfaStateStore;
         this.centralAuditFacade = centralAuditFacade;
+        this.blockingSignalBroadcaster = blockingSignalBroadcaster;
     }
 
     protected final void handleFinalAuthenticationSuccess(HttpServletRequest request,
@@ -522,6 +526,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 blockMfaStateStore.setVerified(userId);
                 blockMfaStateStore.clearPending(userId);
             }
+
+            if (blockingSignalBroadcaster != null) {
+                blockingSignalBroadcaster.registerUnblock(userId);
+            }
         } catch (Exception e) {
             log.error("[MFA] Failed to process block MFA success for user: {}", userId, e);
         }
@@ -563,6 +571,10 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                 String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
                 actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
                 learnOnLlmChallengedMfaSuccess(userId, request);
+            }
+
+            if (blockingSignalBroadcaster != null) {
+                blockingSignalBroadcaster.registerUnblock(userId);
             }
 
         } catch (Exception e) {

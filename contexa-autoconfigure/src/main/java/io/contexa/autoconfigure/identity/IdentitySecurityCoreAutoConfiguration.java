@@ -263,11 +263,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             SecurityLearningService securityLearningService,
             IBlockedUserRecorder blockedUserRecorder,
             BlockMfaStateStore blockMfaStateStore,
-            CentralAuditFacade centralAuditFacade) {
+            CentralAuditFacade centralAuditFacade,
+            BlockingSignalBroadcaster blockingSignalBroadcaster) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
                 authUrlProvider, mfaFlowUrlRegistry, zeroTrustEventPublisher, actionRedisRepository, securityLearningService,
-                blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
+                blockedUserRecorder, blockMfaStateStore, centralAuditFacade, blockingSignalBroadcaster);
     }
 
     @Bean
@@ -302,11 +303,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             ApplicationContext applicationContext,
             IBlockedUserRecorder blockedUserRecorder,
             BlockMfaStateStore blockMfaStateStore,
-            CentralAuditFacade centralAuditFacade) {
+            CentralAuditFacade centralAuditFacade,
+            BlockingSignalBroadcaster blockingSignalBroadcaster) {
         return new MfaFactorProcessingSuccessHandler(mfaStateMachineIntegrator, authResponseWriter,
                 authContextProperties, mfaSessionRepository, tokenService, authUrlProvider,
                 mfaFlowUrlRegistry, zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext,
-                blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
+                blockedUserRecorder, blockMfaStateStore, centralAuditFacade, blockingSignalBroadcaster);
     }
 
     @Bean

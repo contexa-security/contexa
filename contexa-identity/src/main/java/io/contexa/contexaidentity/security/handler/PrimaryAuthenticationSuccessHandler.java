@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -55,10 +56,11 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                SecurityLearningService securityLearningService,
                                                IBlockedUserRecorder blockedUserRecorder,
                                                BlockMfaStateStore blockMfaStateStore,
-                                               CentralAuditFacade centralAuditFacade) {
+                                               CentralAuditFacade centralAuditFacade,
+                                               BlockingSignalBroadcaster blockingSignalBroadcaster) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,
                 zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext, authUrlProvider,
-                mfaFlowUrlRegistry, blockedUserRecorder, blockMfaStateStore, centralAuditFacade);
+                mfaFlowUrlRegistry, blockedUserRecorder, blockMfaStateStore, centralAuditFacade, blockingSignalBroadcaster);
         this.mfaPolicyProvider = mfaPolicyProvider;
         this.responseWriter = responseWriter;
         this.stateMachineIntegrator = stateMachineIntegrator;
