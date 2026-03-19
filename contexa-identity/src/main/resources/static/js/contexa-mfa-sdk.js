@@ -1348,12 +1348,9 @@
                         function handleBlocked(action) {
                             var effectiveAction = action || 'BLOCK';
                             if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                if (effectiveAction === 'CHALLENGE') {
-                                    window.location.href = '/zero-trust/challenge-required';
-                                } else {
-                                    var redirectUrl = response.headers.get('X-Contexa-Blocked-Redirect');
-                                    window.location.href = redirectUrl || '/zero-trust/blocked';
-                                }
+                                // Navigate to any protected URL - server filters will
+                                // redirect to the correct page (challenge-required or blocked)
+                                window.location.href = '/';
                             }
                             controller.error(new Error('Response blocked: ' + effectiveAction));
                         }
@@ -1521,11 +1518,7 @@
                             var action = match ? match[1] : 'BLOCK';
                             ContexaMFAUtils.log('XHR: In-band block signal detected: ' + action, 'warn');
                             if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                if (action === 'CHALLENGE') {
-                                    window.location.href = '/zero-trust/challenge-required';
-                                } else {
-                                    window.location.href = blockedRedirectUrl || '/zero-trust/blocked';
-                                }
+                                window.location.href = '/';
                             }
                             xhr.abort();
                         }

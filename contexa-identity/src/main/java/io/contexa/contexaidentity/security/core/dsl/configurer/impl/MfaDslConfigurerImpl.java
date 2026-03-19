@@ -21,6 +21,7 @@ import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegra
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
 import io.contexa.contexaidentity.security.service.MfaFlowUrlRegistry;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.MfaPageConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
@@ -303,8 +304,12 @@ public final class MfaDslConfigurerImpl<H extends HttpSecurityBuilder<H>>
         String loginPageUrl = primaryAuthOptions.getLoginPage();
 
         if (!StringUtils.hasText(loginPageUrl)) {
-            loginPageUrl = "/mfa/login";
-            log.warn("loginPage not configured in PrimaryAuthenticationOptions. Using default: /mfa/login");
+            AuthContextProperties authProps = this.applicationContext.getBean(AuthContextProperties.class);
+            loginPageUrl = authProps.getUrls().getPrimary().getFormLoginPage();
+        }
+
+        if (StringUtils.hasText(this.urlPrefix) && !loginPageUrl.startsWith(this.urlPrefix)) {
+            loginPageUrl = this.urlPrefix + loginPageUrl;
         }
 
         ObjectMapper objectMapper;

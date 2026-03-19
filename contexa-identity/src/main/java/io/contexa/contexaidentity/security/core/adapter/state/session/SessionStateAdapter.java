@@ -3,6 +3,8 @@ package io.contexa.contexaidentity.security.core.adapter.state.session;
 import io.contexa.contexaidentity.security.core.adapter.StateAdapter;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.context.PlatformContext;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
+import io.contexa.contexacommon.properties.AuthContextProperties;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -30,7 +32,15 @@ public class SessionStateAdapter implements StateAdapter {
 
         String urlPrefix = flowConfig != null ? flowConfig.getUrlPrefix() : null;
         String logoutUrl = urlPrefix != null ? urlPrefix + "/logout" : "/logout";
-        String logoutSuccessUrl = urlPrefix != null ? urlPrefix + "/mfa/login" : "/login";
+
+        String logoutSuccessUrl;
+        if (urlPrefix != null && flowConfig != null && MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
+            AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
+            String primaryLoginPage = authProps.getUrls().getPrimary().getFormLoginPage();
+            logoutSuccessUrl = urlPrefix + primaryLoginPage;
+        } else {
+            logoutSuccessUrl = "/login";
+        }
 
         http.logout(logout -> logout
                 .logoutUrl(logoutUrl)

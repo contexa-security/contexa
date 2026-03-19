@@ -244,11 +244,10 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
     }
 
     private String buildMfaPageUrl(FactorContext context, HttpServletRequest request) {
-        if (authUrlProvider == null) {
+        AuthUrlProvider provider = resolveProvider(context);
+        if (provider == null) {
             return request.getContextPath() + "/mfa/select-factor";
         }
-
-        AuthUrlProvider provider = resolveProvider(context);
         MfaState currentState = context.getCurrentState();
         String contextPath = request.getContextPath();
 

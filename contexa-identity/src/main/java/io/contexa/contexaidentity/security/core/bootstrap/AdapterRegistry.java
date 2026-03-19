@@ -93,7 +93,7 @@ public class AdapterRegistry {
                         String stepTypeNameLower = step.getType().toLowerCase();
                         AuthenticationAdapter stepAdapter = authAdapter.get(stepTypeNameLower);
                         if (stepAdapter != null) {
-                            if (!stepAdapter.getId().equalsIgnoreCase("mfa")) {
+                            if (!MfaFlowTypeUtils.isMfaFlow(stepAdapter.getId())) {
                                 featuresToApply.add(stepAdapter);
                             }
                         } else {

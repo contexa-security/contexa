@@ -39,7 +39,6 @@ public class ChallengeMfaInitializer {
 
     private final BytesKeyGenerator sessionIdGenerator = KeyGenerators.secureRandom(32);
 
-    private static final String CHALLENGE_FLOW_TYPE_NAME = "mfa";
     private static final String CHALLENGE_REASON_ATTRIBUTE = "challengeReason";
     private static final String CHALLENGE_INITIATED_ATTRIBUTE = "challengeInitiated";
 
@@ -61,11 +60,13 @@ public class ChallengeMfaInitializer {
 
         String mfaSessionId = generateSecureSessionId();
 
+        String flowTypeName = resolveFlowTypeName(request);
+
         FactorContext context = new FactorContext(
                 mfaSessionId,
                 authentication,
                 MfaState.NONE,
-                CHALLENGE_FLOW_TYPE_NAME
+                flowTypeName
         );
 
         enhanceFactorContextWithSecurityInfo(context, request);
@@ -217,6 +218,44 @@ public class ChallengeMfaInitializer {
             log.error("No step config found for factor: {} in session: {}",
                     factorType, context.getMfaSessionId());
         }
+    }
+
+    private String resolveFlowTypeName(HttpServletRequest request) {
+        // Try to get flow config from the current SecurityFilterChain's shared object
+        AuthenticationFlowConfig flowConfig =
+                (AuthenticationFlowConfig) request.getAttribute("io.contexa.currentFlowConfig");
+        if (flowConfig != null && MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
+            return flowConfig.getTypeName();
+        }
+
+        // Fallback: match request URI prefix against configured flows
+        String requestUri = request.getRequestURI();
+        String contextPath = request.getContextPath();
+        String path = contextPath.isEmpty() ? requestUri : requestUri.substring(contextPath.length());
+
+        for (AuthenticationFlowConfig flow : platformConfig.getFlows()) {
+            if (!MfaFlowTypeUtils.isMfaFlow(flow.getTypeName())) {
+                continue;
+            }
+            String urlPrefix = flow.getUrlPrefix();
+            if (urlPrefix != null && path.startsWith(urlPrefix)) {
+                return flow.getTypeName();
+            }
+        }
+
+        // Fallback: return first MFA flow without urlPrefix (default flow)
+        for (AuthenticationFlowConfig flow : platformConfig.getFlows()) {
+            if (MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()) && flow.getUrlPrefix() == null) {
+                return flow.getTypeName();
+            }
+        }
+
+        // Last resort: first MFA flow
+        return platformConfig.getFlows().stream()
+                .filter(flow -> MfaFlowTypeUtils.isMfaFlow(flow.getTypeName()))
+                .map(AuthenticationFlowConfig::getTypeName)
+                .findFirst()
+                .orElse(MfaFlowTypeUtils.getBaseMfaTypeName());
     }
 
     private AuthenticationFlowConfig getMfaFlowConfig() {

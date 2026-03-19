@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.core.mfa.policy.evaluator;
 import io.contexa.contexaidentity.security.core.config.AuthenticationFlowConfig;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContextAttributes;
 import io.contexa.contexaidentity.security.core.mfa.model.MfaDecision;
 import io.contexa.contexacommon.enums.AuthType;
@@ -111,12 +112,7 @@ public abstract class AbstractMfaPolicyEvaluator implements MfaPolicyEvaluator {
         if (flowType == null || flowType.trim().isEmpty()) {
             return false;
         }
-
-        String normalizedFlowType = flowType.trim().toLowerCase();
-        return normalizedFlowType.equals("mfa") ||
-                normalizedFlowType.equals("mfa-stepup") ||
-                normalizedFlowType.equals("mfa-transactional") ||
-                normalizedFlowType.startsWith("mfa-");
+        return MfaFlowTypeUtils.isMfaFlow(flowType);
     }
 
     protected boolean isAdminUser(@Nullable Users user) {
