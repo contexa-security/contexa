@@ -337,11 +337,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             MfaSessionRepository sessionRepository,
             MfaStateMachineIntegrator stateMachineIntegrator,
             DistributedLockService lockService,
-            MfaFlowUrlRegistry mfaFlowUrlRegistry) {
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
+            ZeroTrustActionRepository actionRepository) {
 
         return new ZeroTrustChallengeFilter(
                 challengeMfaInitializer, responseWriter, authUrlProvider,
-                sessionRepository, stateMachineIntegrator, lockService, mfaFlowUrlRegistry);
+                sessionRepository, stateMachineIntegrator, lockService, mfaFlowUrlRegistry, actionRepository);
     }
 
     @Bean

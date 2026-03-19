@@ -80,9 +80,9 @@ public class TieredStrategyProperties {
         @Data
         public static class Timeout {
 
-            private long totalMs = 15000;
+            private long totalMs = 45000;
 
-            private long llmMs = 10000;
+            private long llmMs = 30000;
         }
 
         @Data

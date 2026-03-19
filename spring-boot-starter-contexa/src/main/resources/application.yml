@@ -29,7 +29,7 @@ spring:
   ai:
     chat:
       model:
-        priority: ollama,anthropic,openai
+        priority: ollama,openai,anthropic
 
       embedding:
         model:
@@ -54,10 +54,13 @@ spring:
           keep-alive: "24h"
 #
     openai:
-      api-key: ${OPENAI_API_KEY:your-openai-api-key}
+      api-key: ${OPENAI_API_KEY}
       base-url: https://api.openai.com
       chat:
-        enabled: false
+        options:
+          model: gpt-4o-mini
+          temperature: 0.3
+        enabled: true
       embedding:
         enabled: false
         options:

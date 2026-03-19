@@ -64,15 +64,14 @@ public class BaselineLearningService {
         String currentPath = extractPath(event);
         String currentUserAgent = event != null ? event.getUserAgent() : null;
 
+        boolean uaValid = true;
         if (currentUserAgent == null || currentUserAgent.isEmpty()) {
-            log.error("[Baseline] UA missing - learning blocked: userId={}", userId);
-            return current;
-        }
-        String uaSignatureForValidation = extractUASignature(currentUserAgent);
-        if ("Browser".equals(uaSignatureForValidation) || "unknown".equals(uaSignatureForValidation)) {
-            log.error("[Baseline] UA parsing failed - learning blocked: userId={}, ua={}",
-                    userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
-            return current;
+            uaValid = false;
+        } else {
+            String uaSignatureForValidation = extractUASignature(currentUserAgent);
+            if ("Browser".equals(uaSignatureForValidation) || "unknown".equals(uaSignatureForValidation)) {
+                uaValid = false;
+            }
         }
 
         Integer currentDay = extractDayOfWeekFromSecurityEvent(event);
@@ -105,24 +104,16 @@ public class BaselineLearningService {
                 frequencies.put(FREQ_PREFIX_PATH + currentPath, 1L);
             }
 
-            String uaSignature = extractUASignature(currentUserAgent);
-            if (uaSignature != null && !uaSignature.equals("unknown") &&
-                    !uaSignature.equals("unknown (unknown)")) {
+            if (uaValid) {
+                String uaSignature = extractUASignature(currentUserAgent);
                 builder.normalUserAgents(new String[]{uaSignature});
                 frequencies.put(FREQ_PREFIX_UA + uaSignature, 1L);
-            } else {
 
-                String truncatedUA = currentUserAgent.length() > 100
-                        ? currentUserAgent.substring(0, 100) : currentUserAgent;
-                builder.normalUserAgents(new String[]{truncatedUA});
-                frequencies.put(FREQ_PREFIX_UA + truncatedUA, 1L);
-                log.error("[Baseline] SecurityEvent first learning - UA parsing failed, storing raw: {}", truncatedUA);
-            }
-
-            String os = extractOS(currentUserAgent);
-            if (!os.equals("Unknown")) {
-                builder.normalOperatingSystems(new String[]{os});
-                frequencies.put(FREQ_PREFIX_OS + os, 1L);
+                String os = extractOS(currentUserAgent);
+                if (!os.equals("Unknown")) {
+                    builder.normalOperatingSystems(new String[]{os});
+                    frequencies.put(FREQ_PREFIX_OS + os, 1L);
+                }
             }
 
             builder.elementFrequencies(frequencies);
@@ -131,7 +122,7 @@ public class BaselineLearningService {
 
         double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
         double alpha = hcadProperties.getBaseline().getLearning().getAlpha();
-        double confidenceWeight = decision.getConfidence() > 0.0 ? decision.getConfidence() : 1.0;
+        double confidenceWeight = Math.max(0.1, decision.getConfidence());
         double weightedAlpha = alpha * confidenceWeight;
         double newTrustScore = weightedAlpha * currentTrustScore + (1 - weightedAlpha) * oldTrustScore;
 
@@ -147,15 +138,17 @@ public class BaselineLearningService {
         Integer[] normalAccessDays = updateNormalAccessDays(current.getNormalAccessDays(), currentDay);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath, frequencies);
 
-        String normalizedUA = extractUASignature(currentUserAgent);
-        String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
-                !normalizedUA.equals("unknown (unknown)"))
-                ? normalizedUA : currentUserAgent;
-        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate, frequencies);
+        String[] normalUserAgents = current.getNormalUserAgents();
+        String[] normalOperatingSystems = current.getNormalOperatingSystems();
 
-        String currentOS = extractOS(currentUserAgent);
-        String[] normalOperatingSystems = updateNormalOperatingSystems(
-                current.getNormalOperatingSystems(), currentOS, frequencies);
+        if (uaValid) {
+            String normalizedUA = extractUASignature(currentUserAgent);
+            normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), normalizedUA, frequencies);
+
+            String currentOS = extractOS(currentUserAgent);
+            normalOperatingSystems = updateNormalOperatingSystems(
+                    current.getNormalOperatingSystems(), currentOS, frequencies);
+        }
 
         return BaselineVector.builder()
                 .userId(userId)
@@ -631,14 +624,10 @@ public class BaselineLearningService {
             return null;
         }
 
-        int underscoreIndex = userId.indexOf('_');
-        if (underscoreIndex > 0) {
-            return userId.substring(0, underscoreIndex);
-        }
-
         int atIndex = userId.indexOf('@');
         if (atIndex > 0) {
-            return userId.substring(0, atIndex);
+            String domain = userId.substring(atIndex + 1);
+            return domain.isEmpty() ? null : domain;
         }
 
         return null;

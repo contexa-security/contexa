@@ -274,7 +274,17 @@ public class SecurityPromptTemplate {
             if (baselineConfidence instanceof Number) {
                 double confidence = ((Number) baselineConfidence).doubleValue();
                 if (!Double.isNaN(confidence)) {
-                    section.append(String.format("Baseline confidence: %.1f.\n", confidence));
+                    section.append(String.format("Baseline confidence: %.1f", confidence));
+                    if (confidence < 0.1) {
+                        section.append(" (insufficient observations - baseline NOT yet established)");
+                    } else if (confidence < 0.4) {
+                        section.append(" (weak baseline - limited observations)");
+                    } else if (confidence < 0.8) {
+                        section.append(" (moderate baseline)");
+                    } else {
+                        section.append(" (strong baseline)");
+                    }
+                    section.append(".\n");
                 }
             }
         }
@@ -481,6 +491,7 @@ public class SecurityPromptTemplate {
             DetectedPatterns patterns) {
         StringBuilder section = new StringBuilder();
         section.append("\n=== SIMILAR PAST EVENTS ===\n");
+        section.append("Factual access records from past events. Evaluate the CURRENT request independently.\n");
 
         boolean hasContent = false;
 
@@ -580,7 +591,7 @@ public class SecurityPromptTemplate {
                 BLOCK - Active threat detected, immediate denial required:
                   - Session hijacking indicators (context binding hash mismatch, mid-session device/OS change)
                   - IMPOSSIBLE TRAVEL DETECTED (physically impossible geographic movement between requests)
-                  - Similar past events include [BLOCKED] threat patterns matching current request
+                  - Similar past events show threat patterns matching current request
                   - Multiple high-risk signals combined (unknown IP + unknown device + sensitive resource + MfaVerified: false)
                   - Known attack patterns (credential stuffing: high FailedLoginAttempts + new location + new device)
                   - No baseline at all (neither personal nor organization) and accessing a SENSITIVE resource
@@ -614,10 +625,7 @@ public class SecurityPromptTemplate {
                   - SENSITIVE resource flag (from CURRENT REQUEST section)
                   - Context binding hash MISMATCH (from SESSION TIMELINE)
                   - IMPOSSIBLE TRAVEL DETECTED (from NETWORK section - physically impossible location change)
-                  - [BLOCKED] prefix in SIMILAR PAST EVENTS (prior threat match)
-                  - [CHALLENGED] prefix in SIMILAR PAST EVENTS (prior suspicious activity requiring MFA)
-                  - [ESCALATED] prefix in SIMILAR PAST EVENTS (prior ambiguous/insufficient data case)
-                  - Risk/Conf values in SIMILAR PAST EVENTS (prior analysis scores for comparison)
+                  - SIMILAR PAST EVENTS contain factual access records only - judge independently
 
                 """;
     }

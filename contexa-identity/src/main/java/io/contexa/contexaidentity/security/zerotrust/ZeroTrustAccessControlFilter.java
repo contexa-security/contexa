@@ -111,15 +111,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             return;
         }
 
-        /*boolean isBlocked = hasAuthority(auth, ZeroTrustAction.BLOCK.getGrantedAuthority());
-        boolean isEscalated = hasAuthority(auth, ZeroTrustAction.ESCALATE.getGrantedAuthority());
-        boolean isPendingAnalysis = hasAuthority(auth, ZeroTrustAction.PENDING_ANALYSIS.getGrantedAuthority());
-
-        if (!isBlocked && !isEscalated && !isPendingAnalysis) {
-            filterChain.doFilter(request, response);
-            return;
-        }*/
-
         String userId = extractUserId(auth);
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
         ZeroTrustAction currentAction = actionRedisRepository.getCurrentAction(userId, contextBindingHash);
@@ -414,20 +405,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
         }
     }
 
-    private void sendBlockedResponseIfPossible(HttpServletResponse response, HttpServletRequest request) {
-        if (!response.isCommitted()) {
-            try {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType("application/json;charset=UTF-8");
-                response.getWriter().write(
-                        "{\"error\":\"RESPONSE_BLOCKED\",\"message\":\"Response terminated by AI security decision\",\"redirectUrl\":\"/zero-trust/blocked\"}");
-                response.getWriter().flush();
-            } catch (Exception ex) {
-                log.error("[ZeroTrustAccessControlFilter] Failed to send blocked response JSON", ex);
-            }
-        }
-    }
-
     private String resolveBlockedRedirectUrl() {
         if (authUrlProvider != null) {
             try {
@@ -446,15 +423,6 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             requestUri = requestUri.substring(contextPath.length());
         }
         return requestUri;
-    }
-
-    private boolean hasAuthority(Authentication auth, String authority) {
-        if (auth.getAuthorities() == null) {
-            return false;
-        }
-        return auth.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch(authority::equals);
     }
 
     private String extractUserId(Authentication auth) {

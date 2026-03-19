@@ -2,8 +2,11 @@ package io.contexa.contexaidentity.security.zerotrust;
 
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import io.contexa.contexacore.infra.session.MfaSessionRepository;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexaidentity.security.filter.handler.MfaStateMachineIntegrator;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
@@ -44,17 +47,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
     private final MfaStateMachineIntegrator stateMachineIntegrator;
     private final DistributedLockService lockService;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
-
-    public ZeroTrustChallengeFilter(
-            ChallengeMfaInitializer challengeMfaInitializer,
-            AuthResponseWriter responseWriter,
-            AuthUrlProvider authUrlProvider,
-            MfaSessionRepository sessionRepository,
-            MfaStateMachineIntegrator stateMachineIntegrator,
-            DistributedLockService lockService) {
-        this(challengeMfaInitializer, responseWriter, authUrlProvider, sessionRepository,
-                stateMachineIntegrator, lockService, null);
-    }
+    private final ZeroTrustActionRepository actionRepository;
 
     public ZeroTrustChallengeFilter(
             ChallengeMfaInitializer challengeMfaInitializer,
@@ -63,7 +56,8 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             MfaSessionRepository sessionRepository,
             MfaStateMachineIntegrator stateMachineIntegrator,
             DistributedLockService lockService,
-            MfaFlowUrlRegistry mfaFlowUrlRegistry) {
+            MfaFlowUrlRegistry mfaFlowUrlRegistry,
+            ZeroTrustActionRepository actionRepository) {
         this.challengeMfaInitializer = challengeMfaInitializer;
         this.responseWriter = responseWriter;
         this.authUrlProvider = authUrlProvider;
@@ -71,6 +65,7 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.lockService = lockService;
         this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
+        this.actionRepository = actionRepository;
     }
 
     @Override
@@ -132,7 +127,16 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
 
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth == null || !auth.isAuthenticated() || !hasAuthority(auth)) {
+        if (auth == null || !auth.isAuthenticated()) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        String userId = extractUserId(auth);
+        String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
+        ZeroTrustAction currentAction = actionRepository.getCurrentAction(userId, contextBindingHash);
+
+        if (currentAction != ZeroTrustAction.CHALLENGE) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -141,7 +145,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             return;
         }
 
-        String userId = extractUserId(auth);
         String lockKey = LOCK_KEY_PREFIX + userId;
         String lockOwner = Thread.currentThread().getName() + ":" + UUID.randomUUID();
 
@@ -156,7 +159,6 @@ public class ZeroTrustChallengeFilter extends OncePerRequestFilter {
             if (handleExistingChallengeSession(request, response, filterChain)) {
                 return;
             }
-
             FactorContext context = challengeMfaInitializer.initializeChallengeFlow(request, response, auth);
             redirectToMfaPage(context, request, response);
 

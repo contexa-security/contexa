@@ -309,7 +309,9 @@ public class HCADContextExtractor {
     private boolean resolveMfaVerified(String userId) {
         if (blockMfaStateStore != null) {
             try {
-                return blockMfaStateStore.isVerified(userId);
+                if (blockMfaStateStore.isVerified(userId)) {
+                    return true;
+                }
             } catch (Exception e) {
                 // fall through
             }

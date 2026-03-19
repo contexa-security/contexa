@@ -130,16 +130,7 @@ public class SecurityDecisionPostProcessor {
     private String buildThreatContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("[BLOCKED] ");
         sb.append(buildActionSummary(event, decision));
-        sb.append("\n");
-
-        sb.append("Threat: action=BLOCK");
-        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
-        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
-        if (decision.getProcessingLayer() > 0) {
-            sb.append(", analysisLayer=").append(decision.getProcessingLayer());
-        }
         sb.append("\n");
 
         if (decision.getThreatCategory() != null) {
@@ -148,14 +139,6 @@ public class SecurityDecisionPostProcessor {
 
         if (decision.getBehaviorPatterns() != null && !decision.getBehaviorPatterns().isEmpty()) {
             sb.append("BehaviorPatterns: ").append(String.join(", ", decision.getBehaviorPatterns())).append("\n");
-        }
-
-        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
-            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 500)).append("\n");
-        }
-
-        if (decision.getEvidence() != null && !decision.getEvidence().isEmpty()) {
-            sb.append("Evidence: ").append(String.join("; ", decision.getEvidence())).append("\n");
         }
 
         appendSessionContext(sb, event);
@@ -181,21 +164,8 @@ public class SecurityDecisionPostProcessor {
     private String buildSuspiciousContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("[CHALLENGED] ");
         sb.append(buildActionSummary(event, decision));
         sb.append("\n");
-
-        sb.append("Decision: action=CHALLENGE");
-        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
-        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
-        if (decision.getProcessingLayer() > 0) {
-            sb.append(", analysisLayer=").append(decision.getProcessingLayer());
-        }
-        sb.append("\n");
-
-        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
-            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 400)).append("\n");
-        }
 
         appendSessionContext(sb, event);
 
@@ -220,18 +190,8 @@ public class SecurityDecisionPostProcessor {
     private String buildAmbiguousContent(SecurityEvent event, SecurityDecision decision) {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("[ESCALATED] ");
         sb.append(buildActionSummary(event, decision));
         sb.append("\n");
-
-        sb.append("Decision: action=").append(decision.getAction().name());
-        sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
-        sb.append(", confidence=").append(formatScore(decision.getConfidence()));
-        sb.append("\n");
-
-        if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
-            sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 400)).append("\n");
-        }
 
         appendSessionContext(sb, event);
 

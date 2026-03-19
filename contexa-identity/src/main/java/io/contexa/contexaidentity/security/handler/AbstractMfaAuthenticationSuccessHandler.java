@@ -3,6 +3,7 @@ package io.contexa.contexaidentity.security.handler;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.AuthType;
 import io.contexa.contexacommon.enums.StateType;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexaidentity.security.core.mfa.util.MfaFlowTypeUtils;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.properties.AuthContextProperties;
@@ -13,6 +14,7 @@ import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.security.zerotrust.ZeroTrustAuthenticationToken;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.BlockMfaStateStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -36,6 +38,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.savedrequest.HttpSessionRequestCache;
@@ -44,6 +47,7 @@ import org.springframework.security.web.savedrequest.SavedRequest;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -128,13 +132,16 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
         String userId = finalAuthentication.getName();
         if (factorContext != null && factorContext.isCompleted()) {
+            log.error("[MFA-TEST1] completed but factorContext is not null: {}", factorContext.isCompleted());
             Boolean blockMfaFlow = (Boolean) factorContext.getAttribute(ZeroTrustAccessControlFilter.BLOCK_MFA_FLOW_ATTRIBUTE);
             if (Boolean.TRUE.equals(blockMfaFlow)) {
                 handleBlockMfaSuccess(userId, request, response);
                 return;
             }
             markMfaVerifiedOnChallengeSuccess(userId);
-            resetActionOnMfaSuccess(userId, request);
+            resetActionOnMfaSuccess(userId, request, factorContext);
+            recordMfaCompletionInSession(request, factorContext);
+            log.error("[MFA-TEST1] Action: {}", actionRedisRepository.getCurrentAction(userId));
         }
 
         Map<String, Object> responseData = buildResponseData(stateType, transportResult, request, response);
@@ -552,15 +559,14 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             // CHALLENGE MFA -> hcadDataStore only (for LLM prompt MfaVerified flag)
             // blockMfaStateStore is reserved for BLOCK MFA flow only (handleBlockMfaSuccess)
             HCADDataStore hcadDataStore = applicationContext.getBean(HCADDataStore.class);
-            if (hcadDataStore != null) {
-                hcadDataStore.markMfaVerified(userId);
-            }
+            hcadDataStore.markMfaVerified(userId);
         } catch (Exception e) {
             log.error("[MFA] Failed to mark MFA verified on challenge success: userId={}", userId, e);
         }
     }
 
-    private void resetActionOnMfaSuccess(String userId, HttpServletRequest request) {
+    private void resetActionOnMfaSuccess(String userId, HttpServletRequest request,
+                                         @Nullable FactorContext factorContext) {
         if (userId == null || userId.isBlank() || actionRedisRepository == null) {
             return;
         }
@@ -570,20 +576,58 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
             if (isLlmTriggeredMfa) {
                 String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(request);
                 actionRedisRepository.saveActionWithPrevious(userId, ZeroTrustAction.ALLOW, contextBindingHash);
-                learnOnLlmChallengedMfaSuccess(userId, request);
+                learnOnLlmChallengedMfaSuccess(userId, request, factorContext);
             }
 
             if (blockingSignalBroadcaster != null) {
                 blockingSignalBroadcaster.registerUnblock(userId);
             }
 
+            updateSecurityContextAction(ZeroTrustAction.ALLOW);
+
         } catch (Exception e) {
             log.error("[MFA] Failed to set action to ALLOW for user: {}", userId, e);
         }
     }
 
-    private void learnOnLlmChallengedMfaSuccess(String userId, HttpServletRequest request) {
+    private void updateSecurityContextAction(ZeroTrustAction newAction) {
         try {
+            Authentication currentAuth = SecurityContextHolder.getContext().getAuthentication();
+            if (currentAuth instanceof ZeroTrustAuthenticationToken ztToken) {
+                ztToken.setAction(newAction);
+            }
+        } catch (Exception e) {
+            log.error("[MFA] Failed to update SecurityContext action to {}", newAction, e);
+        }
+    }
+
+    private void recordMfaCompletionInSession(HttpServletRequest request, @Nullable FactorContext factorContext) {
+        try {
+            SecurityContextDataStore dataStore = applicationContext.getBean(SecurityContextDataStore.class);
+            String sessionId = request.getSession(false) != null ? request.getSession(false).getId() : null;
+            if (sessionId != null) {
+                String originalIp = factorContext != null
+                        ? (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP) : null;
+                String ip = originalIp != null ? originalIp : request.getRemoteAddr();
+                String record = String.format("%02d:%02d | MFA_COMPLETED (Zero Trust Challenge verified) | %s",
+                        LocalTime.now().getHour(), LocalTime.now().getMinute(), ip);
+                dataStore.addSessionAction(sessionId, record);
+            }
+        } catch (Exception e) {
+            log.error("[MFA] Failed to record MFA completion in session timeline", e);
+        }
+    }
+
+    private void learnOnLlmChallengedMfaSuccess(String userId, HttpServletRequest request,
+                                                  @Nullable FactorContext factorContext) {
+        try {
+            String originalIp = null;
+            if (factorContext != null) {
+                originalIp = (String) factorContext.getAttribute(FactorContextAttributes.DeviceAndSession.CLIENT_IP);
+            }
+            String effectiveIp = (originalIp != null && !originalIp.isBlank())
+                    ? originalIp : extractClientIp(request);
+
             SecurityDecision decision = SecurityDecision.builder()
                     .action(ZeroTrustAction.ALLOW)
                     .confidence(0.95)
@@ -596,7 +640,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     .eventId(UUID.randomUUID().toString())
                     .source(SecurityEvent.EventSource.IAM)
                     .userId(userId)
-                    .sourceIp(extractClientIp(request))
+                    .sourceIp(effectiveIp)
                     .sessionId(request.getSession(false) != null ?
                             request.getSession(false).getId() : null)
                     .userAgent(request.getHeader("User-Agent"))

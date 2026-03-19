@@ -183,12 +183,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
                     StringBuilder summary = new StringBuilder();
                     String docType = String.valueOf(meta.get("documentType"));
-                    switch (docType) {
-                        case "threat" -> summary.append("[BLOCKED] ");
-                        case "suspicious" -> summary.append("[CHALLENGED] ");
-                        case "ambiguous" -> summary.append("[ESCALATED] ");
-                        default -> {}
-                    }
                     summary.append(String.format("Similarity:%d%%", similarityPct));
 
                     appendMetaIfPresent(summary, meta, "sourceIp", "IP");
@@ -197,9 +191,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     appendMetaIfPresent(summary, meta, "dayOfWeek", "Day");
                     appendMetaIfPresent(summary, meta, "userAgentOS", "OS");
                     appendMetaIfPresent(summary, meta, "userAgentBrowser", "UA");
-                    appendMetaIfPresent(summary, meta, "riskScore", "Risk");
-                    appendMetaIfPresent(summary, meta, "confidence", "Conf");
-                    appendMetaIfPresent(summary, meta, "action", "Action");
                     appendMetaIfPresent(summary, meta, "geoCity", "City");
                     appendMetaIfPresent(summary, meta, "geoCountry", "Country");
                     if (Boolean.TRUE.equals(meta.get("impossibleTravel"))) {

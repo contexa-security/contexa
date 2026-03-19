@@ -10,7 +10,7 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
 
     private final double trustScore;
     private final double threatScore;
-    private final ZeroTrustAction action;
+    private volatile ZeroTrustAction action;
 
     public ZeroTrustAuthenticationToken(Object principal, Object credentials,
                                         Collection<? extends GrantedAuthority> authorities,
@@ -32,5 +32,9 @@ public class ZeroTrustAuthenticationToken extends UsernamePasswordAuthentication
 
     public ZeroTrustAction getAction() {
         return action;
+    }
+
+    public void setAction(ZeroTrustAction action) {
+        this.action = action;
     }
 }
