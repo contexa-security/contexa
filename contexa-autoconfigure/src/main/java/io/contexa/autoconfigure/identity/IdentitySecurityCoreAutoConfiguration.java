@@ -84,7 +84,7 @@ public class IdentitySecurityCoreAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
         httpSecurity.securityMatcher("/" + UUID.randomUUID())
-                .authorizeHttpRequests(auth -> auth.anyRequest().authenticated());
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         return httpSecurity.build();
     }
 

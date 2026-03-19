@@ -270,8 +270,22 @@
         .scenario-left.warning { background: linear-gradient(135deg,#7c2d12,#c2410c); box-shadow: 0 4px 12px rgba(194,65,12,0.3); }
         .scenario-left.danger  { background: linear-gradient(135deg,#6b21a8,#9333ea); box-shadow: 0 4px 12px rgba(107,33,168,0.3); }
 
-        .scenario-body h3 { font-size: 1.02rem; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .scenario-body h3 { font-size: 1.02rem; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
         .scenario-info { font-size: 0.85rem; color: var(--text-muted); }
+        .scenario-env {
+            display: flex; flex-wrap: nowrap; gap: 5px; margin-top: 8px;
+        }
+        .env-tag {
+            display: inline-flex; align-items: center; gap: 3px;
+            padding: 2px 7px; border-radius: 5px; font-size: 0.7rem; font-weight: 600;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace; white-space: nowrap;
+        }
+        .env-tag.ip { background: rgba(37,99,168,0.2); color: #7db8f0; border: 1px solid rgba(37,99,168,0.35); }
+        .env-tag.ua { background: rgba(22,163,74,0.15); color: #6ee7a0; border: 1px solid rgba(22,163,74,0.3); }
+        .env-tag.os { background: rgba(139,92,246,0.15); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.3); }
+        .env-tag.ip.threat { background: rgba(220,38,38,0.2); color: #fca5a5; border: 1px solid rgba(220,38,38,0.35); }
+        .env-tag.ua.threat { background: rgba(220,38,38,0.15); color: #fca5a5; border: 1px solid rgba(220,38,38,0.3); }
+        .env-tag.os.threat { background: rgba(220,38,38,0.15); color: #fca5a5; border: 1px solid rgba(220,38,38,0.3); }
 
         /* ────────── RESULT SECTION ────────── */
         .result-section { }
@@ -769,14 +783,24 @@
                         <div class="scenario-left normal"><span class="scenario-icon">&#128100;</span></div>
                         <div class="scenario-body">
                             <h3>정상 사용자</h3>
-                            <p class="scenario-info">192.168.1.100 | Chrome/120 (Windows)</p>
+                            <p class="scenario-info">사무실 환경에서 업무 시간 내 정상 접근</p>
+                            <div class="scenario-env">
+                                <span class="env-tag ip">IP 192.168.1.100</span>
+                                <span class="env-tag ua">Chrome/146</span>
+                                <span class="env-tag os">Windows</span>
+                            </div>
                         </div>
                     </div>
                     <div class="scenario-card" data-scenario="ACCOUNT_TAKEOVER" data-tab-owner="test1">
                         <div class="scenario-left warning"><span class="scenario-icon">&#9888;</span></div>
                         <div class="scenario-body">
                             <h3>계정 탈취</h3>
-                            <p class="scenario-info">203.0.113.50 | Android 10 (Tor)</p>
+                            <p class="scenario-info">탈취된 계정으로 외부 환경에서 접근 시도</p>
+                            <div class="scenario-env">
+                                <span class="env-tag ip threat">IP 203.0.113.50</span>
+                                <span class="env-tag ua threat">Tor Browser</span>
+                                <span class="env-tag os threat">Android 10</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -834,14 +858,24 @@
                         <div class="scenario-left normal"><span class="scenario-icon">&#128100;</span></div>
                         <div class="scenario-body">
                             <h3>정상 사용자</h3>
-                            <p class="scenario-info">192.168.1.100 | 월별 보고서 다운로드</p>
+                            <p class="scenario-info">월별 보고서 정상 다운로드 (30,000건)</p>
+                            <div class="scenario-env">
+                                <span class="env-tag ip">IP 192.168.1.100</span>
+                                <span class="env-tag ua">Chrome/146</span>
+                                <span class="env-tag os">Windows</span>
+                            </div>
                         </div>
                     </div>
                     <div class="scenario-card" data-scenario="DATA_EXFILTRATION" data-tab-owner="test2">
                         <div class="scenario-left danger"><span class="scenario-icon">&#128274;</span></div>
                         <div class="scenario-body">
                             <h3>데이터 유출 공격</h3>
-                            <p class="scenario-info">10.0.0.99 | 전 직원 DB 유출 (1,000,000건)</p>
+                            <p class="scenario-info">전 직원 개인정보 DB 유출 시도 (30,000건)</p>
+                            <div class="scenario-env">
+                                <span class="env-tag ip threat">IP 10.0.0.99</span>
+                                <span class="env-tag ua threat">Python/requests</span>
+                                <span class="env-tag os threat">Linux</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -855,7 +889,7 @@
                         <span class="progress-pct" id="t2-progress-pct">0%</span>
                     </div>
                     <div class="progress-info">
-                        <span id="t2-record-count">0 / 100,000 건</span>
+                        <span id="t2-record-count">0 / 30,000 건</span>
                         <span id="t2-bytes-received">0 KB</span>
                     </div>
                 </div>
@@ -867,7 +901,7 @@
             <div class="test-bar-label">대량 다운로드:</div>
             <div class="test-buttons">
                 <button class="btn-test strict" id="btn-test-bulk-stream" disabled>
-                    <span class="test-btn-label">직원 정보 100,000건 다운로드</span>
+                    <span class="test-btn-label">직원 정보 30,000건 다운로드</span>
                     <span class="test-btn-badge">STREAMING</span>
                 </button>
             </div>

@@ -586,7 +586,7 @@
         if (!elements.mdwWidget || elements.mdwWidget.style.display === 'none') return;
 
         var pct = elements.t2ProgressPct ? elements.t2ProgressPct.textContent : '0%';
-        var records = elements.t2RecordCount ? elements.t2RecordCount.textContent : '0 / 100,000';
+        var records = elements.t2RecordCount ? elements.t2RecordCount.textContent : '0 / 30,000';
         var bytes = elements.t2BytesReceived ? elements.t2BytesReceived.textContent : '0 KB';
         var barWidth = elements.t2ProgressBar ? elements.t2ProgressBar.style.width : '0%';
 
@@ -716,7 +716,7 @@
         // Reset progress UI
         if (elements.t2ProgressBar) { elements.t2ProgressBar.style.width = '0%'; elements.t2ProgressBar.classList.remove('blocked'); }
         if (elements.t2ProgressPct) elements.t2ProgressPct.textContent = '0%';
-        if (elements.t2RecordCount) elements.t2RecordCount.textContent = '0 / 100,000 건';
+        if (elements.t2RecordCount) elements.t2RecordCount.textContent = '0 / 30,000 건';
         if (elements.t2BytesReceived) elements.t2BytesReceived.textContent = '0 KB';
         if (elements.t2Terminal) elements.t2Terminal.innerHTML = '';
 
