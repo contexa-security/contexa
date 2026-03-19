@@ -19,7 +19,7 @@ public class InMemoryBlockingSignalBroadcaster implements BlockingSignalBroadcas
 
     @Override
     public void registerUnblock(String userId) {
-        if (userId != null) {
+        if (userId != null && !userId.isBlank()) {
             blockedUsers.remove(userId);
         }
     }
