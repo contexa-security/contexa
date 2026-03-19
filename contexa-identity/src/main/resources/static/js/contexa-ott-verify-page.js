@@ -3,7 +3,10 @@
     var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
     var maxAttempts = parseInt(configEl.dataset.maxAttempts || '5', 10);
     var attemptsMade = parseInt(configEl.dataset.attemptsMade || '0', 10);
-    var fallbackFailureUrl = configEl.dataset.failureUrl || '/mfa/failure';
+    var mfaConfig = window.__MFA_CONFIG__;
+    var fallbackFailureUrl = configEl.dataset.failureUrl
+        || (mfaConfig && mfaConfig.mfa && mfaConfig.mfa.failure)
+        || '/mfa/failure';
 
     var verifyForm = document.getElementById('verifyForm');
     var resendForm = document.getElementById('resendForm');

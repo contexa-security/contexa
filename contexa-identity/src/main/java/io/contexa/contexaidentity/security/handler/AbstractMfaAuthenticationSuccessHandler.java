@@ -52,7 +52,6 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
 
     private final MfaSessionRepository sessionRepository;
     private final MfaStateMachineIntegrator stateMachineIntegrator;
-    // RequestCache is created per-method call to avoid shared mutable state in singleton handler
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;

@@ -107,7 +107,7 @@ public class ChallengeMfaInitializer {
                 context = updatedContext;
             } else {
                 log.error("Could not load updated context from state machine, setting availableFactors manually for session: {}", mfaSessionId);
-                AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();
+                AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName());
                 if (mfaFlow != null) {
                     Set<AuthType> availableFactors = new LinkedHashSet<>(mfaFlow.getRegisteredFactorOptions().keySet());
                     context.setAttribute(FactorContextAttributes.Policy.AVAILABLE_FACTORS, availableFactors);
@@ -187,7 +187,7 @@ public class ChallengeMfaInitializer {
             return remaining.iterator().next();
         }
 
-        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();
+        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName());
         if (mfaFlow != null) {
             Set<AuthType> configuredFactors = new LinkedHashSet<>(mfaFlow.getRegisteredFactorOptions().keySet());
             if (!configuredFactors.isEmpty()) {
@@ -201,7 +201,7 @@ public class ChallengeMfaInitializer {
     }
 
     private void setCurrentStepId(FactorContext context, AuthType factorType) {
-        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig();
+        AuthenticationFlowConfig mfaFlow = getMfaFlowConfig(context.getFlowTypeName());
         if (mfaFlow == null) {
             log.error("MFA FlowConfig not found, stepId will not be set for session: {}", context.getMfaSessionId());
             return;
@@ -256,10 +256,6 @@ public class ChallengeMfaInitializer {
                 .map(AuthenticationFlowConfig::getTypeName)
                 .findFirst()
                 .orElse(MfaFlowTypeUtils.getBaseMfaTypeName());
-    }
-
-    private AuthenticationFlowConfig getMfaFlowConfig() {
-        return getMfaFlowConfig(null);
     }
 
     private AuthenticationFlowConfig getMfaFlowConfig(String flowTypeName) {

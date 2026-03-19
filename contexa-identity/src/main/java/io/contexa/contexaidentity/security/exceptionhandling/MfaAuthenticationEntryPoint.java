@@ -109,48 +109,42 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
         if (mfaPageConfig != null && mfaPageConfig.hasCustomSelectFactorPage()) {
             return mfaPageConfig.getSelectFactorPageUrl();
         }
-        AuthUrlProvider provider = resolveProvider(request);
-        return provider != null ? provider.getMfaSelectFactor() : "/mfa/select-factor";
+        return resolveProvider(request).getMfaSelectFactor();
     }
 
     private String getOttRequestPageUrl(HttpServletRequest request) {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttRequestPage()) {
             return mfaPageConfig.getOttRequestPageUrl();
         }
-        AuthUrlProvider provider = resolveProvider(request);
-        return provider != null ? provider.getOttRequestCodeUi() : "/mfa/ott/request-code-ui";
+        return resolveProvider(request).getOttRequestCodeUi();
     }
 
     private String getOttVerifyPageUrl(HttpServletRequest request) {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomOttVerifyPage()) {
             return mfaPageConfig.getOttVerifyPageUrl();
         }
-        AuthUrlProvider provider = resolveProvider(request);
-        return provider != null ? provider.getOttChallengeUi() : "/mfa/challenge/ott";
+        return resolveProvider(request).getOttChallengeUi();
     }
 
     private String getPasskeyChallengePageUrl(HttpServletRequest request) {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomPasskeyPage()) {
             return mfaPageConfig.getPasskeyChallengePageUrl();
         }
-        AuthUrlProvider provider = resolveProvider(request);
-        return provider != null ? provider.getPasskeyChallengeUi() : "/mfa/challenge/passkey";
+        return resolveProvider(request).getPasskeyChallengeUi();
     }
 
     private String getConfigurePageUrl(HttpServletRequest request) {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomConfigurePage()) {
             return mfaPageConfig.getConfigurePageUrl();
         }
-        AuthUrlProvider provider = resolveProvider(request);
-        return provider != null ? provider.getMfaConfig() : "/mfa/configure";
+        return resolveProvider(request).getMfaConfig();
     }
 
     private String getFailurePageUrl(HttpServletRequest request) {
         if (mfaPageConfig != null && mfaPageConfig.hasCustomFailurePage()) {
             return mfaPageConfig.getFailurePageUrl();
         }
-        AuthUrlProvider provider = resolveProvider(request);
-        return provider != null ? provider.getMfaFailure() : "/mfa/failure";
+        return resolveProvider(request).getMfaFailure();
     }
 
     private AuthUrlProvider resolveProvider(HttpServletRequest request) {
@@ -163,7 +157,11 @@ public class MfaAuthenticationEntryPoint extends LoginUrlAuthenticationEntryPoin
                 }
             }
         }
-        return authUrlProvider;
+        if (authUrlProvider != null) {
+            return authUrlProvider;
+        }
+        // Last resort: create minimal provider from ApplicationContext if available
+        throw new IllegalStateException("AuthUrlProvider is not available in MfaAuthenticationEntryPoint");
     }
 
     private boolean isSelectFactorRequest(HttpServletRequest request) {

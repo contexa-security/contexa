@@ -26,6 +26,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -240,14 +241,11 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
                 return flowProvider;
             }
         }
-        return authUrlProvider;
+        return Objects.requireNonNull(authUrlProvider, "AuthUrlProvider must not be null in ZeroTrustAccessControlFilter");
     }
 
     private String buildMfaPageUrl(FactorContext context, HttpServletRequest request) {
         AuthUrlProvider provider = resolveProvider(context);
-        if (provider == null) {
-            return request.getContextPath() + "/mfa/select-factor";
-        }
         MfaState currentState = context.getCurrentState();
         String contextPath = request.getContextPath();
 

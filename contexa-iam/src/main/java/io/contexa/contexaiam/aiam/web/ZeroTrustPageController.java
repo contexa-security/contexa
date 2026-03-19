@@ -53,8 +53,10 @@ public class ZeroTrustPageController {
 
     @GetMapping("/challenge-required")
     public String challengeRequired(
-            @RequestParam(value = "mfaUrl", required = false,
-                    defaultValue = "/mfa/select-factor") String mfaUrl, Model model) {
+            @RequestParam(value = "mfaUrl", required = false) String mfaUrl, Model model) {
+        if (mfaUrl == null || mfaUrl.isBlank()) {
+            mfaUrl = "/mfa/select-factor";
+        }
         String safeMfaUrl = sanitizeRelativeUrl(mfaUrl, "/mfa/select-factor");
         model.addAttribute("mfaUrl", safeMfaUrl);
         return "zero-trust/challenge-required";

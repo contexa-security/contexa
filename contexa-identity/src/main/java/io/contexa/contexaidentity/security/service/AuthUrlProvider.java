@@ -432,6 +432,10 @@ public class AuthUrlProvider {
                 "logout", getLogoutProcessingUrl()
         ));
 
+        if (urlPrefix != null) {
+            urls.put("urlPrefix", urlPrefix);
+        }
+
         return urls;
     }
 

@@ -1,7 +1,10 @@
 (function () {
     var configEl = document.getElementById('contexa-page-config');
     var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
-    var fallbackSelectFactorUrl = configEl.dataset.selectFactorUrl || '/mfa/select-factor';
+    var mfaConfig = window.__MFA_CONFIG__;
+    var fallbackSelectFactorUrl = configEl.dataset.selectFactorUrl
+        || (mfaConfig && mfaConfig.mfa && mfaConfig.mfa.selectFactor)
+        || '/mfa/select-factor';
 
     var messageArea = document.getElementById('message-area');
     var loginButton = document.getElementById('loginButton');

@@ -69,10 +69,6 @@ public final class OneTimeTokenCreationSuccessHandler implements OneTimeTokenGen
                     factorContext.getRetryCount(), factorContext.getCurrentState(), factorContext.getMfaSessionId());
 
             String challengeUiUrl = resolveProvider(request).getOttChallengeUi();
-            if (!StringUtils.hasText(challengeUiUrl)) {
-                challengeUiUrl = "/mfa/challenge/ott";
-                log.warn("MFA OTT challengeUrl not configured, using default: {}", challengeUiUrl);
-            }
             String redirectUrl = request.getContextPath() + challengeUiUrl;
             response.sendRedirect(redirectUrl);
             return;

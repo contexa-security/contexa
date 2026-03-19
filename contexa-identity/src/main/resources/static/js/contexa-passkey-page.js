@@ -3,7 +3,10 @@
     var errorMessage = document.getElementById('errorMessage');
     var configEl = document.getElementById('contexa-page-config');
     var tokenPersistence = configEl.dataset.tokenPersistence || 'memory';
-    var failureUrl = configEl.dataset.failureUrl || '/mfa/failure';
+    var mfaConfig = window.__MFA_CONFIG__;
+    var failureUrl = configEl.dataset.failureUrl
+        || (mfaConfig && mfaConfig.mfa && mfaConfig.mfa.failure)
+        || '/mfa/failure';
 
     if (typeof ContexaMFA === 'undefined') {
         authButton.disabled = true;

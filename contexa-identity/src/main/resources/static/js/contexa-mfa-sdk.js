@@ -506,26 +506,28 @@
          * Multi MFA 환경에서는 서버 설정이 반드시 우선합니다.
          */
         _getDefaultEndpoints() {
+            var cfg = window.__MFA_CONFIG__;
+            var prefix = (cfg && cfg.urlPrefix) ? cfg.urlPrefix : '';
             return {
                 primary: {
-                    restLoginProcessing: '/api/login',
-                    formLoginProcessing: '/mfa/login'
+                    restLoginProcessing: prefix + '/api/login',
+                    formLoginProcessing: prefix + '/mfa/login'
                 },
                 ott: {
-                    loginProcessing: '/login/mfa-ott'
+                    loginProcessing: prefix + '/login/mfa-ott'
                 },
                 passkey: {
-                    loginProcessing: '/login/mfa-webauthn'
+                    loginProcessing: prefix + '/login/mfa-webauthn'
                 },
                 api: {
-                    selectFactor: '/mfa/select-factor',
-                    requestOttCode: '/mfa/request-ott-code',
+                    selectFactor: prefix + '/mfa/select-factor',
+                    requestOttCode: prefix + '/mfa/request-ott-code',
                     config: '/api/mfa/config',
-                    logout: '/logout'
+                    logout: prefix + '/logout'
                 },
                 webauthn: {
-                    assertionOptions: '/webauthn/authenticate/options',
-                    assertionVerify: '/login/webauthn'
+                    assertionOptions: prefix + '/webauthn/authenticate/options',
+                    assertionVerify: prefix + '/login/webauthn'
                 }
             };
         },
@@ -1348,9 +1350,25 @@
                         function handleBlocked(action) {
                             var effectiveAction = action || 'BLOCK';
                             if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                // Navigate to any protected URL - server filters will
-                                // redirect to the correct page (challenge-required or blocked)
-                                window.location.href = '/';
+                                // Navigate to a protected URL with prefix so server filters
+                                // can redirect to the correct page (challenge-required or blocked)
+                                var prefix = '';
+                                var cfg = window.__MFA_CONFIG__;
+                                if (cfg && cfg.urlPrefix) {
+                                    prefix = cfg.urlPrefix;
+                                } else {
+                                    // Detect prefix from current URL path (e.g., /admin/... -> /admin)
+                                    var path = window.location.pathname;
+                                    var segments = path.split('/').filter(Boolean);
+                                    if (segments.length > 0 && segments[0] !== 'api') {
+                                        var firstSegment = '/' + segments[0];
+                                        if (firstSegment !== '/mfa' && firstSegment !== '/login'
+                                            && firstSegment !== '/zero-trust' && firstSegment !== '/logout') {
+                                            prefix = firstSegment;
+                                        }
+                                    }
+                                }
+                                window.location.href = prefix + '/';
                             }
                             controller.error(new Error('Response blocked: ' + effectiveAction));
                         }
@@ -1518,7 +1536,12 @@
                             var action = match ? match[1] : 'BLOCK';
                             ContexaMFAUtils.log('XHR: In-band block signal detected: ' + action, 'warn');
                             if (!window.__CONTEXA_SKIP_STREAM_REDIRECT) {
-                                window.location.href = '/';
+                                var xhrPrefix = '';
+                                var xhrCfg = window.__MFA_CONFIG__;
+                                if (xhrCfg && xhrCfg.urlPrefix) {
+                                    xhrPrefix = xhrCfg.urlPrefix;
+                                }
+                                window.location.href = xhrPrefix + '/';
                             }
                             xhr.abort();
                         }
