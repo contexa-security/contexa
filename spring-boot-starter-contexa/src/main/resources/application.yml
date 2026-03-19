@@ -27,6 +27,11 @@ spring:
     token-persistence: localstorage
 
   ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:your-anthropic-api-key}
+      chat:
+        enabled: false
+
     chat:
       model:
         priority: ollama,openai,anthropic
@@ -35,14 +40,10 @@ spring:
         model:
           priority: ollama,openai
 
-    anthropic:
-      api-key: ${ANTHROPIC_API_KEY:your-anthropic-api-key}
-      chat:
-        enabled: false
         options:
           model: claude-sonnet-4-20250514
           temperature: 0.3
-#
+
     ollama:
       base-url: http://127.0.0.1:11434
       embedding:
@@ -52,7 +53,7 @@ spring:
         options:
           model: qwen2.5:7b
           keep-alive: "24h"
-#
+
     openai:
       api-key: ${OPENAI_API_KEY}
       base-url: https://api.openai.com

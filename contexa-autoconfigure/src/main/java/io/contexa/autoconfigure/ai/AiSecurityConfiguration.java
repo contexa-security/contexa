@@ -12,10 +12,10 @@ import io.contexa.contexaidentity.security.core.dsl.IdentityDslRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
@@ -40,12 +40,10 @@ public class AiSecurityConfiguration {
     @Bean
     @ConditionalOnMissingBean(PlatformConfig.class)
     public PlatformConfig platformDslConfig(
-            ApplicationContext applicationContext,
+            IdentityDslRegistry<HttpSecurity> registry,
             AISessionSecurityContextRepository aiSessionSecurityContextRepository) throws Exception {
 
         SecurityMode mode = resolveSecurityMode();
-
-        IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
 
         if (mode == SecurityMode.SANDBOX) {
             log.error("[Contexa] SANDBOX mode activated - bridging legacy authentication");
@@ -53,6 +51,9 @@ public class AiSecurityConfiguration {
 
             return registry
                     .global(http -> http
+                            .csrf(AbstractHttpConfigurer::disable)
+                            .cors(AbstractHttpConfigurer::disable)
+                            .headers(AbstractHttpConfigurer::disable)
                             .securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository))
                             .addFilterAfter(bridgeFilter, SecurityContextHolderFilter.class))
                     .mfa(mfa -> mfa
