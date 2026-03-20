@@ -26,7 +26,6 @@ public class ApprovalPolicyEntity {
     private int requiredApprovers;
 
     @Convert(converter = JpaListConverter.class)
-    @Lob
     @Column(columnDefinition = "TEXT")
     private List<String> requiredRoles;
 

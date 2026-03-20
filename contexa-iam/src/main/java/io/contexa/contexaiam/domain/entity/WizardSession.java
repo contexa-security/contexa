@@ -23,7 +23,6 @@ public class WizardSession {
     @Column(name = "session_id", length = 36)
     private String id;
 
-    @Lob
     @Column(name = "context_data", nullable = false, columnDefinition = "TEXT")
     private String contextData;
 

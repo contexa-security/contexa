@@ -30,7 +30,8 @@ spring:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:your-anthropic-api-key}
       chat:
-        enabled: false
+        options:
+          model: claude-3-sonnet-20240229
 
     chat:
       model:
@@ -40,14 +41,9 @@ spring:
         model:
           priority: ollama,openai
 
-        options:
-          model: claude-sonnet-4-20250514
-          temperature: 0.3
-
     ollama:
       base-url: http://127.0.0.1:11434
       embedding:
-        enabled: true
         model: mxbai-embed-large
       chat:
         options:
@@ -61,9 +57,7 @@ spring:
         options:
           model: gpt-4o-mini
           temperature: 0.3
-        enabled: true
       embedding:
-        enabled: false
         options:
           model: text-embedding-3-small
 #

@@ -66,7 +66,6 @@ public class ApprovalNotification {
     private LocalDateTime expiresAt;
 
     @Convert(converter = JpaMapConverter.class)
-    @Lob
     @Column(name = "notification_data", columnDefinition = "TEXT")
     private Map<String, Object> notificationData;
 

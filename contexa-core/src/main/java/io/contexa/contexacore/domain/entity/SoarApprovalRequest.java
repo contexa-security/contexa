@@ -60,12 +60,10 @@ public class SoarApprovalRequest {
     @Column(name = "tool_name")
     private String toolName;
 
-    @Lob
-    @Column(updatable = false)
+    @Column(columnDefinition = "TEXT", updatable = false)
     private String description;
 
     @Convert(converter = JpaMapConverter.class)
-    @Lob
     @Column(columnDefinition = "TEXT", updatable = false)
     private Map<String, Object> parameters;
 
@@ -80,11 +78,10 @@ public class SoarApprovalRequest {
 
     private String organizationId;
 
-    @Lob
+    @Column(columnDefinition = "TEXT")
     private String reviewerComment;
 
-    @Column(name = "approval_comment")
-    @Lob
+    @Column(name = "approval_comment", columnDefinition = "TEXT")
     private String approvalComment;
 
     @CreatedDate
@@ -99,7 +96,6 @@ public class SoarApprovalRequest {
     private Integer requiredApprovers;
 
     @Convert(converter = JpaListConverter.class)
-    @Lob
     @Column(columnDefinition = "TEXT")
     private List<String> requiredRoles;
 
@@ -127,7 +123,6 @@ public class SoarApprovalRequest {
     @Column(name = "break_glass_requested", nullable = false, columnDefinition = "boolean default false")
     private boolean breakGlassRequested;
 
-    @Lob
-    @Column(name = "break_glass_reason")
+    @Column(name = "break_glass_reason", columnDefinition = "TEXT")
     private String breakGlassReason;
 }

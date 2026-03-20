@@ -45,7 +45,6 @@ public class SoarIncident {
     private String metadata;
 
     @Convert(converter = JpaListConverter.class)
-    @Lob
     @Column(columnDefinition = "TEXT")
     private List<IncidentHistoryLog> history = new ArrayList<>();
 
