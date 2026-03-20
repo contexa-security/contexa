@@ -1,5 +1,7 @@
 package io.contexa.contexaidentity.security.core.dsl.option;
 
+import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.properties.PasskeyUrls;
 import io.contexa.contexaidentity.security.core.asep.dsl.PasskeyAsepAttributes;
 import io.contexa.contexaidentity.security.service.AuthUrlProvider;
 import lombok.Getter;
@@ -45,13 +47,13 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions {
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
 
-            String configuredRpId = applicationContext.getEnvironment()
-                    .getProperty("contexa.security.passkey.rp-id");
-            this.rpId = (configuredRpId != null && !configuredRpId.isBlank())
-                    ? configuredRpId : "localhost";
+            AuthContextProperties authProps = applicationContext.getBean(AuthContextProperties.class);
+            PasskeyUrls passkeyUrls = authProps.getUrls().getFactors().getPasskey();
 
-            String configuredOrigins = applicationContext.getEnvironment()
-                    .getProperty("contexa.security.passkey.allowed-origins");
+            this.rpId = passkeyUrls.getRpId();
+            this.rpName = passkeyUrls.getRpName();
+
+            String configuredOrigins = passkeyUrls.getAllowedOrigins();
             if (configuredOrigins != null && !configuredOrigins.isBlank()) {
                 this.allowedOrigins = Set.of(configuredOrigins.split(","));
             } else {

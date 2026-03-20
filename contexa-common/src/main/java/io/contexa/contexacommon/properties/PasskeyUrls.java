@@ -5,7 +5,12 @@ import lombok.Data;
 
 @Data
 public class PasskeyUrls {
-    
+
+    private String rpId = "localhost";
+
+    private String rpName = "contexa-identity";
+
+    private String allowedOrigins;
 
     private String loginProcessing = "/login/mfa-webauthn";
 
