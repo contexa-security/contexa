@@ -16,9 +16,9 @@ logging:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/identity
-    username: admin
-    password: 1111
+    url: jdbc:postgresql://localhost:5432/contexa
+    username: contexa
+    password: contexa1234!@#
     driver-class-name: org.postgresql.Driver
 
   auth:
