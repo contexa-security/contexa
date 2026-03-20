@@ -15,7 +15,7 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     @Override
     void delete(Role role);
 
-    @Query("select r from Role r where r.isExpression = 'N'")
+    @Query("select r from Role r where r.isExpression = false")
     List<Role> findAllRolesWithoutExpression();
 
     @Query("SELECT r FROM Role r LEFT JOIN FETCH r.rolePermissions p WHERE r.id = :id")
