@@ -69,7 +69,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
 
         String html = MfaHtmlTemplates.fromTemplate(HTML_TEMPLATE)
                 .withValue("contextPath", request.getContextPath())
-                .withRawHtml("csrfHeaders", renderCsrfHeader(csrfToken))
+                .withRawHtml("csrfHeaders", csrfToken != null ? renderCsrfHeader(csrfToken) : "{}")
                 .withRawHtml("passkeys", passkeyRows(request.getRemoteUser(), request.getContextPath(), csrfToken))
                 .render();
 
@@ -95,8 +95,8 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 .withValue("lastUsed", formatInstant(credential.getLastUsed()))
                 .withValue("signatureCount", String.valueOf(credential.getSignatureCount()))
                 .withValue("credentialId", credential.getCredentialId().toBase64UrlString())
-                .withValue("csrfParameterName", csrfToken.getParameterName())
-                .withValue("csrfToken", csrfToken.getToken())
+                .withValue("csrfParameterName", csrfToken != null ? csrfToken.getParameterName() : "_csrf")
+                .withValue("csrfToken", csrfToken != null ? csrfToken.getToken() : "")
                 .withValue("contextPath", contextPath)
                 .render();
     }
@@ -111,6 +111,9 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
     }
 
     private String renderCsrfHeader(CsrfToken csrfToken) {
+        if (csrfToken == null) {
+            return "{}";
+        }
         return MfaHtmlTemplates.fromTemplate(CSRF_HEADERS)
                 .withValue("headerName", csrfToken.getHeaderName())
                 .withValue("headerValue", csrfToken.getToken())

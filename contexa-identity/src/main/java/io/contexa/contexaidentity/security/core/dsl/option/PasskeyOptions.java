@@ -39,11 +39,20 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions {
         private String assertionOptionsEndpoint;
         private String rpName = "contexa-identity";
         private String rpId = "localhost";
-        private Set<String> allowedOrigins = Set.of("http://localhost:8080");
+        private Set<String> allowedOrigins;
         private PasskeyAsepAttributes asepAttributes;
 
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
+
+            String configuredOrigins = applicationContext.getEnvironment()
+                    .getProperty("contexa.security.passkey.allowed-origins");
+            if (configuredOrigins != null && !configuredOrigins.isBlank()) {
+                this.allowedOrigins = Set.of(configuredOrigins.split(","));
+            } else {
+                String serverPort = applicationContext.getEnvironment().getProperty("server.port", "8080");
+                this.allowedOrigins = Set.of("http://localhost:" + serverPort);
+            }
 
             AuthUrlProvider urlProvider = applicationContext.getBean(AuthUrlProvider.class);
 

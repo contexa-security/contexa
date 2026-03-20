@@ -30,7 +30,7 @@ public class PlatformSecurityConfig {
         SafeHttpCustomizer<HttpSecurity> globalHttpCustomizer = http -> {
             http
 //                    .logout(logout -> logout.logoutUrl("/admin/logout").logoutSuccessUrl("/admin/mfa/login"))
-//                    .csrf(AbstractHttpConfigurer::disable)
+                    .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(authReq -> authReq
                             .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)

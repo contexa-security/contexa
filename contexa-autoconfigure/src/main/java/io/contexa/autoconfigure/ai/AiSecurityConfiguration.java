@@ -56,11 +56,12 @@ public class AiSecurityConfiguration {
                             .headers(AbstractHttpConfigurer::disable)
                             .securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository))
                             .addFilterAfter(bridgeFilter, SecurityContextHolderFilter.class))
-                    .mfa(mfa -> mfa
+                    .mfa(mfa -> mfa.requiredFactors(1)
                             .primaryAuthentication(auth -> auth
                                     .formLogin(form -> form
                                             .loginProcessingUrl("/" + UUID.randomUUID())
                                             .defaultSuccessUrl("/")))
+                            .passkey(Customizer.withDefaults())
                             .ott(Customizer.withDefaults())
                             .order(100))
                     .session(Customizer.withDefaults())
@@ -71,9 +72,10 @@ public class AiSecurityConfiguration {
         return registry
                 .global(http -> http
                         .securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository)))
-                .mfa(mfa -> mfa
+                .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth
                                 .formLogin(form -> form.defaultSuccessUrl("/")))
+                        .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
                         .order(100))
                 .session(Customizer.withDefaults())
