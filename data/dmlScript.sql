@@ -45,17 +45,14 @@ WHERE (g.group_name = 'Administrators' AND r.role_name IN ('ROLE_ADMIN', 'ROLE_M
 
 -- ============================================================
 -- 4. Users
---    Passwords are BCrypt encoded:
---      admin123   -> $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
---      manager123 -> $2a$10$dXJ3SW6G7P50lGmMQgel5uVf3JCDq1w3r4bXaECY5V5Q7Ggk3jYlC
---      user123    -> $2a$10$KkQZkYMGJPk7Xe1JhDcFGeYMM0E.VIiLvSdPqbMjPFHCdGo.ZsSXy
+--    All passwords: 1234 (BCrypt encoded)
 -- ============================================================
 
 INSERT INTO users (username, email, password, name, phone, department, position, enabled, mfa_enabled, created_at) VALUES
-    ('admin',       'admin@contexa.io',       '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'System Admin',   '010-0000-0001', 'IT',          'Administrator', TRUE, FALSE, CURRENT_TIMESTAMP),
-    ('kim_manager', 'kim.manager@contexa.io', '$2a$10$dXJ3SW6G7P50lGmMQgel5uVf3JCDq1w3r4bXaECY5V5Q7Ggk3jYlC', 'Kim Jihoon',     '010-0000-0002', 'Finance',     'Manager',       TRUE, FALSE, CURRENT_TIMESTAMP),
-    ('park_user',   'park.user@contexa.io',   '$2a$10$KkQZkYMGJPk7Xe1JhDcFGeYMM0E.VIiLvSdPqbMjPFHCdGo.ZsSXy', 'Park Minjun',    '010-0000-0003', 'Engineering', 'Developer',     TRUE, FALSE, CURRENT_TIMESTAMP),
-    ('dev_lead',    'dev.lead@contexa.io',    '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Lee Soyeon',     '010-0000-0004', 'Engineering', 'Tech Lead',     TRUE, FALSE, CURRENT_TIMESTAMP);
+    ('admin',       'admin@contexa.io',       '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'System Admin',   '010-0000-0001', 'IT',          'Administrator', TRUE, FALSE, CURRENT_TIMESTAMP),
+    ('kim_manager', 'kim.manager@contexa.io', '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'Kim Jihoon',     '010-0000-0002', 'Finance',     'Manager',       TRUE, FALSE, CURRENT_TIMESTAMP),
+    ('park_user',   'park.user@contexa.io',   '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'Park Minjun',    '010-0000-0003', 'Engineering', 'Developer',     TRUE, FALSE, CURRENT_TIMESTAMP),
+    ('dev_lead',    'dev.lead@contexa.io',    '$2a$10$EqKcp1WFKumxl9EtWnyKVeJgLGQDP5FPvMflDbVzxjFPqzJHPe3oO', 'Lee Soyeon',     '010-0000-0004', 'Engineering', 'Tech Lead',     TRUE, FALSE, CURRENT_TIMESTAMP);
 
 -- ============================================================
 -- 5. User-Group Assignments
