@@ -65,6 +65,9 @@ public class Policy implements Serializable {
     @Column(name = "ai_model", length = 255)
     private String aiModel;
 
+    @Column(name = "reasoning", length = 4096)
+    private String reasoning;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     @Builder.Default
     private LocalDateTime createdAt = LocalDateTime.now();

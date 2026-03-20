@@ -36,6 +36,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
             - The "conditions" field must be a map with numeric condition template IDs from the condition list as keys and string arrays as values
             - Never use descriptive strings like "time.hour" as condition keys. Use only numeric IDs provided in the condition list
             - If no applicable conditions exist in the condition list, set "conditions" to an empty object {}
+            - Always include a "reasoning" field explaining why you chose these specific roles, permissions, and conditions
             """;
     }
 
@@ -66,6 +67,7 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
                 "301": "Within Business Hours",
                 "302": "Internal Network"
               },
+              "reasoning": "Explain why these roles, permissions, and conditions were selected based on the requirements.",
               "generatedAt": "2023-10-27T10:00:00Z",
               "version": "1.0.0"
             }

@@ -95,6 +95,23 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policy.setEffect(dto.getEffect());
         policy.setPriority(100);
 
+        // AI metadata
+        if (dto.getSource() != null) {
+            policy.setSource(dto.getSource());
+        } else {
+            policy.setSource(Policy.PolicySource.AI_GENERATED);
+        }
+        if (dto.getConfidenceScore() != null) {
+            policy.setConfidenceScore(dto.getConfidenceScore());
+        }
+        if (dto.getAiModel() != null) {
+            policy.setAiModel(dto.getAiModel());
+        }
+        if (dto.getReasoning() != null) {
+            policy.setReasoning(dto.getReasoning());
+        }
+        policy.setIsActive(true);
+
         policy.getTargets().clear();
         policy.getRules().clear();
 

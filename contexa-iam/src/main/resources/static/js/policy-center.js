@@ -804,6 +804,10 @@ const PolicyCenter = {
                 }
             }
 
+            // Store reasoning from AI response
+            validatedData.reasoning = processed.policyData.reasoning || response.reasoning || '';
+            validatedData.source = 'AI_GENERATED';
+
             this.generatedPolicyData = validatedData;
             this._cachedMaps = {
                 roles: processed.roleIdToNameMap || {},
@@ -934,6 +938,17 @@ const PolicyCenter = {
                 document.getElementById('ai-card-spel').value = data.customConditionSpel;
             } else {
                 spelSection.classList.add('hidden');
+            }
+
+            // AI reasoning
+            const reasoningSection = document.getElementById('ai-card-reasoning-section');
+            if (reasoningSection) {
+                if (data.reasoning) {
+                    reasoningSection.classList.remove('hidden');
+                    document.getElementById('ai-card-reasoning').textContent = data.reasoning;
+                } else {
+                    reasoningSection.classList.add('hidden');
+                }
             }
         },
 

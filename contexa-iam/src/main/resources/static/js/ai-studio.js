@@ -2039,11 +2039,7 @@ class AIStudioLegacy {
                             <h5>상세 통계 분석</h5>
                         </div>
                         <div class="notice-content">
-                            <p class="notice-text">📊 ${Object.keys(analysisResult.statistics).length}개의 상세 통계가 분석되었습니다.</p>
-                            <button class="view-statistics-btn" onclick="aiStudio.showDetailedStatistics()">
-                                <i class="fas fa-chart-bar"></i>
-                                상세 통계 보기
-                            </button>
+                            <p class="notice-text">📊 ${Object.keys(analysisResult.statistics).length}개의 상세 통계가 분석되었습니다. 상세 리포트에서 확인할 수 있습니다.</p>
                         </div>
                     </div>
                 ` : ''}
@@ -2398,24 +2394,10 @@ class AIStudioLegacy {
                                 </div>
                             </div>
                             <div class="meta-card">
-                                <i class="fas fa-brain text-indigo-400"></i>
-                                <div>
-                                    <span class="meta-label">분석 타입</span>
-                                    <span class="meta-value">${analysisResult.analysisType || '권한 분석'}</span>
-                                </div>
-                            </div>
-                            <div class="meta-card">
                                 <i class="fas fa-gauge text-green-400"></i>
                                 <div>
                                     <span class="meta-label">신뢰도</span>
                                     <span class="meta-value">${Math.round((analysisResult.confidenceScore || 80))}%</span>
-                                </div>
-                            </div>
-                            <div class="meta-card">
-                                <i class="fas fa-stopwatch text-orange-400"></i>
-                                <div>
-                                    <span class="meta-label">처리 시간</span>
-                                    <span class="meta-value">${analysisResult.processingTime || 0}ms</span>
                                 </div>
                             </div>
                         </div>
@@ -2452,38 +2434,9 @@ class AIStudioLegacy {
                     <!-- 🚀 AI 최적화 제안 -->
                     ${this.generateOptimizationSuggestionsHTML(suggestions)}
                     
-                    <!-- 📈 성과 메트릭 -->
-                    <div class="report-section">
-                        <div class="section-header">
-                            <i class="fas fa-chart-bar text-purple-400"></i>
-                            <h4>성과 메트릭</h4>
-                        </div>
-                        <div class="section-content">
-                            <div class="metrics-grid">
-                                <div class="metric-card">
-                                    <i class="fas fa-shield-alt text-green-400"></i>
-                                    <div class="metric-info">
-                                        <span class="metric-value">${analysisResult.analysisResults?.length || 0}</span>
-                                        <span class="metric-label">분석 대상</span>
-                                    </div>
-                                </div>
-                                <div class="metric-card">
-                                    <i class="fas fa-rocket text-blue-400"></i>
-                                    <div class="metric-info">
-                                        <span class="metric-value">${suggestions?.length || 0}</span>
-                                        <span class="metric-label">최적화 제안</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
                 
                 <div class="report-modal-footer">
-                    <button class="export-report-btn">
-                        <i class="fas fa-download"></i>
-                        리포트 내보내기
-                    </button>
                     <button class="close-report-btn-secondary" onclick="aiStudio.closeDetailedReport()">
                         닫기
                     </button>

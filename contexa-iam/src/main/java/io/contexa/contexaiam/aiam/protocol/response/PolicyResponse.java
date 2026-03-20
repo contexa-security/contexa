@@ -16,4 +16,5 @@ public class PolicyResponse extends AIResponse {
     private Map<String, String> roleIdToNameMap;
     private Map<String, String> permissionIdToNameMap;
     private Map<String, String> conditionIdToNameMap;
+    private String reasoning;
 }

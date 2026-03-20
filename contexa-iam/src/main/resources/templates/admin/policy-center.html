@@ -76,7 +76,7 @@
                             <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">상태 (Status)</label>
                             <select id="status" th:field="*{status}" class="modern-select">
                                 <option value="">전체</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}">정책 미 완료 (Unset)</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}">정책 미 설정  (Unset)</option>
                                 <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}">정책 연결 대상 (Awaiting Policy)</option>
                                 <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}">정책 연결 완료 (Protected)</option>
                                 <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}">제외 (Excluded)</option>
@@ -121,7 +121,7 @@
                                                        res.status?.name() == 'PERMISSION_CREATED' ? 'fas fa-clock' :
                                                        res.status?.name() == 'POLICY_CONNECTED' ? 'fas fa-shield-alt' : 'fas fa-ban'}"></i>
                                         <span th:text="${res.status != null ?
-                                                        (res.status.name() == 'NEEDS_DEFINITION' ? '정책 미 완료' :
+                                                        (res.status.name() == 'NEEDS_DEFINITION' ? '정책 미 설정' :
                                                          res.status.name() == 'PERMISSION_CREATED' ? '정책 연결 대상' :
                                                          res.status.name() == 'POLICY_CONNECTED' ? '정책 연결 완료' : '제외')
                                                         : '상태 미지정'}"></span>
@@ -502,7 +502,7 @@
                             <div class="ai-stat-card">
                                 <i class="fas fa-exclamation-circle"></i>
                                 <div class="ai-stat-number" id="ai-stat-resource-needs-def">-</div>
-                                <div class="ai-stat-label">정책 미 완료 (Unset)</div>
+                                <div class="ai-stat-label">정책 미 설정 (Unset)</div>
                             </div>
                         </div>
                         <div class="ai-unprotected-warning hidden" id="ai-unprotected-warning">
@@ -616,6 +616,11 @@
                             <div class="ai-card-field hidden" id="ai-card-spel-section">
                                 <label>Custom SpEL</label>
                                 <input type="text" class="modern-input font-mono text-sm" id="ai-card-spel" />
+                            </div>
+
+                            <div class="ai-card-field hidden" id="ai-card-reasoning-section">
+                                <label>AI 판단 근거 (Reasoning)</label>
+                                <div class="ai-reasoning-content" id="ai-card-reasoning" style="background: rgba(15,23,42,0.6); border: 1px solid rgba(139,92,246,0.2); border-radius: 0.5rem; padding: 1rem; font-size: 0.8125rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap;"></div>
                             </div>
                         </div>
 

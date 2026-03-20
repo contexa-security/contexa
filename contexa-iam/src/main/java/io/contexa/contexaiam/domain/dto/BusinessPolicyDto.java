@@ -15,6 +15,12 @@ public class BusinessPolicyDto {
     private Map<Long, List<String>> conditions;
     private boolean aiActionEnabled;
     private List<String> allowedActions;
-    private String customConditionSpel; 
-    private Policy.Effect effect = Policy.Effect.ALLOW; 
+    private String customConditionSpel;
+    private Policy.Effect effect = Policy.Effect.ALLOW;
+
+    // AI metadata
+    private String reasoning;
+    private Double confidenceScore;
+    private String aiModel;
+    private Policy.PolicySource source;
 }
