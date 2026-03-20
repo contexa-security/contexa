@@ -38,12 +38,17 @@ public final class PasskeyOptions extends AuthenticationProcessingOptions {
     public static final class Builder extends AbstractAuthenticationProcessingOptionsBuilder<PasskeyOptions, Builder> {
         private String assertionOptionsEndpoint;
         private String rpName = "contexa-identity";
-        private String rpId = "localhost";
+        private String rpId;
         private Set<String> allowedOrigins;
         private PasskeyAsepAttributes asepAttributes;
 
         private Builder(ApplicationContext applicationContext, boolean isMfaMode) {
             Objects.requireNonNull(applicationContext, "ApplicationContext cannot be null for PasskeyOptions.Builder");
+
+            String configuredRpId = applicationContext.getEnvironment()
+                    .getProperty("contexa.security.passkey.rp-id");
+            this.rpId = (configuredRpId != null && !configuredRpId.isBlank())
+                    ? configuredRpId : "localhost";
 
             String configuredOrigins = applicationContext.getEnvironment()
                     .getProperty("contexa.security.passkey.allowed-origins");
