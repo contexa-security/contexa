@@ -10,7 +10,7 @@ import java.io.Serializable;
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class PolicyTarget implements Serializable {
-    @Id @GeneratedValue
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)

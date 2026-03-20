@@ -13,7 +13,7 @@ import java.util.Set;
 @Getter @Setter @Builder
 @NoArgsConstructor @AllArgsConstructor
 public class PolicyRule implements Serializable {
-    @Id @GeneratedValue
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
