@@ -216,7 +216,7 @@ const PolicyCenter = {
                 try {
                     const ctx = JSON.parse(aiCtx);
                     this.activateWithResource(ctx);
-                    const aiBtn = document.querySelector('.pc-subtab-btn[onclick*="ai"]');
+                    const aiBtn = document.querySelector('.pc-mode-card[onclick*="ai"]');
                     if (aiBtn) PolicyCenter.switchCreateMode('ai', aiBtn);
                     // Pre-fill AI query
                     setTimeout(() => {
@@ -237,7 +237,7 @@ const PolicyCenter = {
                 try {
                     const ctx = JSON.parse(quickCtx);
                     this.activateWithResource(ctx);
-                    const quickBtn = document.querySelector('.pc-subtab-btn[onclick*="quick"]');
+                    const quickBtn = document.querySelector('.pc-mode-card[onclick*="quick"]');
                     if (quickBtn) PolicyCenter.switchCreateMode('quick', quickBtn);
                 } catch (e) { console.error('Failed to parse quick context', e); }
             } else {
@@ -272,7 +272,7 @@ const PolicyCenter = {
     },
 
     switchCreateMode(mode, btn) {
-        document.querySelectorAll('.pc-subtab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.pc-mode-card').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.pc-subtab-content').forEach(c => c.classList.remove('active'));
         if (btn) btn.classList.add('active');
         const panel = document.getElementById('create-' + mode);

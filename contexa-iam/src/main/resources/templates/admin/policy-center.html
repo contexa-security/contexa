@@ -244,15 +244,15 @@
                 </div>
 
                 <!-- Sub-tab Navigation (hidden until resource is selected) -->
-                <div class="pc-subtab-nav hidden" id="create-mode-nav">
-                    <button type="button" class="pc-subtab-btn active" onclick="PolicyCenter.switchCreateMode('quick', this)">
-                        <i class="fas fa-magic"></i> 간편 모드 (Quick)
+                <div class="hidden" id="create-mode-nav" style="display: flex; gap: 0.5rem; margin-bottom: 2rem; background: rgba(15,23,42,0.5); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.75rem; padding: 0.375rem; max-width: 56rem;">
+                    <button type="button" class="pc-mode-card active" onclick="PolicyCenter.switchCreateMode('quick', this)">
+                        <i class="fas fa-bolt" style="color: #818cf8;"></i> <span>간편 모드</span>
                     </button>
-                    <button type="button" class="pc-subtab-btn" onclick="PolicyCenter.switchCreateMode('manual', this)">
-                        <i class="fas fa-edit"></i> 수동 모드 (Manual)
+                    <button type="button" class="pc-mode-card" onclick="PolicyCenter.switchCreateMode('manual', this)">
+                        <i class="fas fa-code" style="color: #38bdf8;"></i> <span>수동 모드</span>
                     </button>
-                    <button type="button" class="pc-subtab-btn" onclick="PolicyCenter.switchCreateMode('ai', this)">
-                        <i class="fas fa-brain"></i> AI 모드
+                    <button type="button" class="pc-mode-card" onclick="PolicyCenter.switchCreateMode('ai', this)">
+                        <i class="fas fa-brain" style="color: #a78bfa;"></i> <span>AI 모드</span>
                     </button>
                 </div>
 
@@ -457,189 +457,171 @@
                 <div id="create-ai" class="pc-subtab-content" style="max-width: 56rem;">
 
                     <!-- Section 1: System Context Dashboard -->
-                    <div class="ai-context-dashboard" id="ai-context-dashboard">
-                        <div class="ai-dashboard-grid">
-                            <div class="ai-stat-card">
-                                <i class="fas fa-users"></i>
-                                <div class="ai-stat-number" id="ai-stat-roles-count">-</div>
-                                <div class="ai-stat-label">Roles</div>
-                            </div>
-                            <div class="ai-stat-card">
-                                <i class="fas fa-key"></i>
-                                <div class="ai-stat-number" id="ai-stat-perms-count">-</div>
-                                <div class="ai-stat-label">Permissions</div>
-                            </div>
-                            <div class="ai-stat-card">
-                                <i class="fas fa-filter"></i>
-                                <div class="ai-stat-number" id="ai-stat-conditions-count">-</div>
-                                <div class="ai-stat-label">Conditions</div>
-                            </div>
-                            <div class="ai-stat-card">
-                                <i class="fas fa-shield-alt"></i>
-                                <div class="ai-stat-number" id="ai-stat-policies-count">-</div>
-                                <div class="ai-stat-label">Policies</div>
-                            </div>
+                    <!-- AI Query Input -->
+                    <div class="ai-input-section" style="padding: 2rem; margin-bottom: 2.5rem;">
+                        <div class="flex items-center gap-4 mb-4">
+                            <textarea class="ai-textarea" id="ai-query-input" style="min-height: 8rem; flex: 1;"
+                                      placeholder="자연어로 정책 요구사항을 입력하세요 (예: 개발팀에게 API GET 접근을 업무시간에만 허용)"></textarea>
+                            <button type="button" class="ai-generate-btn" id="ai-generate-btn" onclick="PolicyCenter.AI.generate()" style="white-space: nowrap; height: 4rem; padding: 0 2rem;">
+                                <i class="fas fa-brain"></i> AI 정책 생성
+                            </button>
+                            <button type="button" class="ai-cancel-btn hidden" id="ai-cancel-btn" onclick="PolicyCenter.AI.cancel()" style="height: 4rem;">
+                                <i class="fas fa-times"></i>
+                            </button>
                         </div>
-                        <div class="ai-dashboard-grid mt-3">
-                            <div class="ai-stat-card">
-                                <i class="fas fa-cube"></i>
-                                <div class="ai-stat-number" id="ai-stat-resource-total">-</div>
-                                <div class="ai-stat-label">전체 리소스 (Resources)</div>
-                            </div>
-                            <div class="ai-stat-card ai-stat-card-warn" id="ai-stat-unprotected-card">
-                                <i class="fas fa-exclamation-triangle"></i>
-                                <div class="ai-stat-number" id="ai-stat-resource-unprotected">-</div>
-                                <div class="ai-stat-label">정책 연결 대상 (Unprotected)</div>
-                            </div>
-                            <div class="ai-stat-card">
-                                <i class="fas fa-link"></i>
-                                <div class="ai-stat-number" id="ai-stat-resource-connected">-</div>
-                                <div class="ai-stat-label">정책 연결 완료 (Protected)</div>
-                            </div>
-                            <div class="ai-stat-card">
-                                <i class="fas fa-exclamation-circle"></i>
-                                <div class="ai-stat-number" id="ai-stat-resource-needs-def">-</div>
-                                <div class="ai-stat-label">정책 미 설정 (Unset)</div>
-                            </div>
-                        </div>
-                        <div class="ai-unprotected-warning hidden" id="ai-unprotected-warning">
-                            <i class="fas fa-shield-alt mr-2"></i>
-                            <span>정책 연결 대상 리소스 <strong id="ai-unprotected-count">0</strong>개가 발견되었습니다. 정책을 연결하세요.</span>
-                        </div>
-                    </div>
-
-                    <!-- Section 2: Smart Query Input -->
-                    <div class="ai-input-section mb-6">
-                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">
-                            <i class="fas fa-brain mr-2" style="color: #a78bfa;"></i>AI 정책 마법사 (Policy Wizard)
-                        </h3>
-                        <p class="text-sm mb-4" style="color: #94a3b8;">
-                            자연어로 정책 요구사항을 입력하면 AI가 현재 시스템의 모든 역할, 권한, 조건을 종합 분석하여 최적의 정책을 자동으로 구성합니다.
-                        </p>
-
-                        <div class="ai-example-chips" id="ai-example-chips">
-                            <span class="ai-example-label">예시 패턴:</span>
+                        <div class="ai-example-chips" id="ai-example-chips" style="margin: 0;">
                             <button type="button" class="ai-example-chip" data-query="개발팀에게 /api/** GET 접근을 업무시간에만 허용하는 정책을 만들어줘">개발팀 API GET 허용</button>
                             <button type="button" class="ai-example-chip" data-query="마케팅팀만 고객 데이터를 조회할 수 있도록 해줘">마케팅팀 고객 데이터 조회</button>
                             <button type="button" class="ai-example-chip" data-query="업무시간(9시~18시) 내에만 관리자 페이지에 접근할 수 있도록 제한해줘">업무 시간 내 관리자 접근</button>
                             <button type="button" class="ai-example-chip" data-query="외부 네트워크에서의 모든 수정(POST/PUT/DELETE) 작업을 차단하는 정책을 만들어줘">외부 네트워크 수정 차단</button>
-                            <button type="button" class="ai-example-chip" data-query="야간 시간대(18시~9시)에 모든 쓰기 권한을 차단하는 정책을 만들어줘">야간 시간대 쓰기 차단</button>
-                        </div>
-
-                        <textarea class="ai-textarea" id="ai-query-input"
-                                  placeholder="예: 개발팀에게 /api/** GET 접근을 업무시간에만 허용하는 정책을 만들어줘"></textarea>
-                        <div class="ai-input-actions">
-                            <button type="button" class="ai-generate-btn" id="ai-generate-btn" onclick="PolicyCenter.AI.generate()">
-                                <i class="fas fa-brain"></i> AI로 정책 생성
-                            </button>
-                            <button type="button" class="ai-cancel-btn hidden" id="ai-cancel-btn" onclick="PolicyCenter.AI.cancel()">
-                                <i class="fas fa-times"></i> 취소
-                            </button>
                         </div>
                     </div>
 
-                    <!-- Section 3: AI Progress -->
-                    <div class="ai-progress-section hidden" id="ai-progress-section">
-                        <div class="ai-progress-steps">
-                            <div class="ai-progress-step" data-step="collect">
-                                <div class="ai-step-icon"><i class="fas fa-database"></i></div>
-                                <span>데이터 수집 (Data Collection)</span>
-                            </div>
-                            <div class="ai-progress-step" data-step="analyze">
-                                <div class="ai-step-icon"><i class="fas fa-cogs"></i></div>
-                                <span>분석 (Analysis)</span>
-                            </div>
-                            <div class="ai-progress-step" data-step="generate">
-                                <div class="ai-step-icon"><i class="fas fa-magic"></i></div>
-                                <span>정책 생성 (Generation)</span>
-                            </div>
+                    <!-- System Stats (Badges) -->
+                    <div class="ai-context-dashboard" id="ai-context-dashboard" style="margin-bottom: 2.5rem;">
+                        <div class="flex flex-wrap items-center gap-3" style="padding: 0.5rem 0;">
+                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-users"></i> 역할 <strong id="ai-stat-roles-count">-</strong></span>
+                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-key"></i> 권한 <strong id="ai-stat-perms-count">-</strong></span>
+                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-filter"></i> 조건 <strong id="ai-stat-conditions-count">-</strong></span>
+                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-shield-alt"></i> 정책 <strong id="ai-stat-policies-count">-</strong></span>
+                            <span style="color: #334155; font-size: 1.25rem;">|</span>
+                            <span class="ai-stat-badge" style="background: rgba(71,85,105,0.15); border-color: rgba(71,85,105,0.3); color: #94a3b8;"><i class="fas fa-cube"></i> 리소스 <strong style="color: #e2e8f0;" id="ai-stat-resource-total">-</strong></span>
+                            <span class="ai-stat-badge" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fbbf24;"><i class="fas fa-exclamation-triangle"></i> 정책 연결 대상 <strong id="ai-stat-resource-unprotected">-</strong></span>
+                            <span class="ai-stat-badge" style="background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #4ade80;"><i class="fas fa-shield-alt"></i> 연결 완료 <strong id="ai-stat-resource-connected">-</strong></span>
+                            <span class="ai-stat-badge" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171;"><i class="fas fa-exclamation-circle"></i> 미완료 <strong id="ai-stat-resource-needs-def">-</strong></span>
                         </div>
-                        <div class="ai-progress-bar"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>
+                        <div class="ai-unprotected-warning hidden" id="ai-unprotected-warning" style="margin-top: 0.75rem;">
+                            <i class="fas fa-exclamation-triangle mr-1"></i>
+                            <span>정책 연결 대상 <strong id="ai-unprotected-count">0</strong>개 발견</span>
+                        </div>
+                    </div>
+
+                    <!-- Progress -->
+                    <div class="ai-progress-section hidden" id="ai-progress-section" style="padding: 1.5rem; margin-bottom: 2.5rem;">
+                        <div class="ai-progress-bar" style="margin-bottom: 0.75rem;"><div class="ai-progress-fill" id="ai-progress-fill"></div></div>
                         <div class="ai-progress-message" id="ai-progress-message">AI가 분석을 시작합니다...</div>
                     </div>
 
-                    <!-- Section 4: Interactive Policy Card Result -->
+                    <!-- ============ Result ============ -->
                     <div class="ai-result-section hidden" id="ai-result-section">
 
-                        <!-- 4a: Confidence Gauge -->
-                        <div class="ai-confidence-bar" id="ai-confidence-bar">
-                            <span class="ai-confidence-label">AI 신뢰도 (Confidence)</span>
-                            <div class="ai-confidence-gauge">
-                                <div class="ai-confidence-fill" id="ai-confidence-fill"></div>
-                            </div>
-                            <span class="ai-confidence-value" id="ai-confidence-value">-</span>
-                        </div>
-                        <div class="ai-confidence-deductions hidden" id="ai-confidence-deductions"></div>
-
-                        <!-- 4b: Editable Policy Card -->
-                        <div class="ai-policy-card" id="ai-policy-card">
-                            <div class="ai-card-header">
-                                <input type="text" class="ai-card-title-input" id="ai-card-name" placeholder="Policy Name" />
-                                <select class="ai-card-effect-select" id="ai-card-effect">
-                                    <option value="ALLOW">ALLOW</option>
-                                    <option value="DENY">DENY</option>
-                                </select>
-                            </div>
-
-                            <div class="ai-card-field">
-                                <label>설명 (Description)</label>
-                                <textarea class="ai-card-desc" id="ai-card-description" rows="2"></textarea>
-                            </div>
-
-                            <div class="ai-card-field">
-                                <div class="ai-card-field-header">
-                                    <label>역할 (Roles - WHO)</label>
-                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('role')"><i class="fas fa-plus"></i> 추가</button>
+                        <!-- Policy Header -->
+                        <div class="flex items-center gap-4 mb-6">
+                            <input type="text" class="ai-card-title-input" id="ai-card-name" placeholder="Policy Name" style="flex:1; font-size: 1.125rem;" />
+                            <select class="ai-card-effect-select" id="ai-card-effect">
+                                <option value="ALLOW">ALLOW</option>
+                                <option value="DENY">DENY</option>
+                            </select>
+                            <div class="flex items-center gap-2" style="min-width: 10rem;" id="ai-confidence-bar">
+                                <div class="ai-confidence-gauge" style="flex:1;">
+                                    <div class="ai-confidence-fill" id="ai-confidence-fill"></div>
                                 </div>
-                                <div class="ai-card-chips" id="ai-card-roles"></div>
-                            </div>
-
-                            <div class="ai-card-field">
-                                <div class="ai-card-field-header">
-                                    <label>권한 (Permissions - WHAT)</label>
-                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('permission')"><i class="fas fa-plus"></i> 추가</button>
-                                </div>
-                                <div class="ai-card-chips" id="ai-card-permissions"></div>
-                            </div>
-
-                            <div class="ai-card-field">
-                                <div class="ai-card-field-header">
-                                    <label>조건 (Conditions - WHEN)</label>
-                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('condition')"><i class="fas fa-plus"></i> 추가</button>
-                                </div>
-                                <div class="ai-card-chips" id="ai-card-conditions"></div>
-                            </div>
-
-                            <div class="ai-card-field hidden" id="ai-card-spel-section">
-                                <label>Custom SpEL</label>
-                                <input type="text" class="modern-input font-mono text-sm" id="ai-card-spel" />
-                            </div>
-
-                            <div class="ai-card-field hidden" id="ai-card-reasoning-section">
-                                <label>AI 판단 근거 (Reasoning)</label>
-                                <div class="ai-reasoning-content" id="ai-card-reasoning" style="background: rgba(15,23,42,0.6); border: 1px solid rgba(139,92,246,0.2); border-radius: 0.5rem; padding: 1rem; font-size: 0.8125rem; color: #cbd5e1; line-height: 1.6; white-space: pre-wrap;"></div>
+                                <span class="ai-confidence-value" id="ai-confidence-value" style="font-size: 0.8125rem;">-</span>
                             </div>
                         </div>
+                        <div class="ai-confidence-deductions hidden" id="ai-confidence-deductions" style="margin-bottom: 1rem;"></div>
 
-                        <!-- 4c: Conflict/Duplicate Warning -->
-                        <div class="ai-conflict-panel hidden" id="ai-conflict-panel">
-                            <h4><i class="fas fa-exclamation-triangle mr-2"></i>충돌/중복 분석 (Conflict Analysis)</h4>
+                        <!-- Description -->
+                        <textarea class="ai-card-desc" id="ai-card-description" rows="2" style="margin-bottom: 1.5rem;" placeholder="Description"></textarea>
+
+                        <!-- ===== Policy Flow Diagram: WHO -> WHAT -> WHEN ===== -->
+                        <div style="display: flex; align-items: stretch; margin-bottom: 2rem; gap: 0;">
+
+                            <!-- WHO -->
+                            <div style="flex: 1; background: linear-gradient(180deg, rgba(99,102,241,0.08) 0%, rgba(99,102,241,0.02) 100%); border: 1px solid rgba(99,102,241,0.2); border-radius: 1rem 0 0 1rem; padding: 1.5rem;">
+                                <div class="text-center mb-4">
+                                    <div style="width: 3rem; height: 3rem; margin: 0 auto 0.75rem; background: linear-gradient(135deg, #6366f1, #4f46e5); border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(99,102,241,0.3);">
+                                        <i class="fas fa-users text-white" style="font-size: 1.25rem;"></i>
+                                    </div>
+                                    <div style="color: #818cf8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">WHO</div>
+                                    <div style="color: #64748b; font-size: 0.6875rem; margin-top: 0.125rem;">역할</div>
+                                </div>
+                                <div class="ai-card-chips" id="ai-card-roles" style="min-height: 2rem; justify-content: center;"></div>
+                                <div class="text-center mt-3">
+                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('role')"><i class="fas fa-plus mr-1"></i>추가</button>
+                                </div>
+                            </div>
+
+                            <!-- Arrow 1 -->
+                            <div style="display: flex; align-items: center; padding: 0; background: linear-gradient(90deg, rgba(99,102,241,0.1), rgba(16,185,129,0.1)); width: 3rem; justify-content: center;">
+                                <div style="width: 2.5rem; height: 2.5rem; background: rgba(30,41,59,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(71,85,105,0.3);">
+                                    <i class="fas fa-arrow-right" style="color: #94a3b8;"></i>
+                                </div>
+                            </div>
+
+                            <!-- WHAT -->
+                            <div style="flex: 1; background: linear-gradient(180deg, rgba(16,185,129,0.08) 0%, rgba(16,185,129,0.02) 100%); border: 1px solid rgba(16,185,129,0.2); padding: 1.5rem;">
+                                <div class="text-center mb-4">
+                                    <div style="width: 3rem; height: 3rem; margin: 0 auto 0.75rem; background: linear-gradient(135deg, #10b981, #059669); border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(16,185,129,0.3);">
+                                        <i class="fas fa-key text-white" style="font-size: 1.25rem;"></i>
+                                    </div>
+                                    <div style="color: #10b981; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">WHAT</div>
+                                    <div style="color: #64748b; font-size: 0.6875rem; margin-top: 0.125rem;">권한</div>
+                                </div>
+                                <div class="ai-card-chips" id="ai-card-permissions" style="min-height: 2rem; justify-content: center;"></div>
+                                <div class="text-center mt-3">
+                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('permission')"><i class="fas fa-plus mr-1"></i>추가</button>
+                                </div>
+                            </div>
+
+                            <!-- Arrow 2 -->
+                            <div style="display: flex; align-items: center; padding: 0; background: linear-gradient(90deg, rgba(16,185,129,0.1), rgba(245,158,11,0.1)); width: 3rem; justify-content: center;">
+                                <div style="width: 2.5rem; height: 2.5rem; background: rgba(30,41,59,0.8); border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 1px solid rgba(71,85,105,0.3);">
+                                    <i class="fas fa-arrow-right" style="color: #94a3b8;"></i>
+                                </div>
+                            </div>
+
+                            <!-- WHEN -->
+                            <div style="flex: 1; background: linear-gradient(180deg, rgba(245,158,11,0.08) 0%, rgba(245,158,11,0.02) 100%); border: 1px solid rgba(245,158,11,0.2); border-radius: 0 1rem 1rem 0; padding: 1.5rem;">
+                                <div class="text-center mb-4">
+                                    <div style="width: 3rem; height: 3rem; margin: 0 auto 0.75rem; background: linear-gradient(135deg, #f59e0b, #d97706); border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 15px rgba(245,158,11,0.3);">
+                                        <i class="fas fa-clock text-white" style="font-size: 1.25rem;"></i>
+                                    </div>
+                                    <div style="color: #f59e0b; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;">WHEN</div>
+                                    <div style="color: #64748b; font-size: 0.6875rem; margin-top: 0.125rem;">조건</div>
+                                </div>
+                                <div class="ai-card-chips" id="ai-card-conditions" style="min-height: 2rem; justify-content: center;"></div>
+                                <div class="text-center mt-3">
+                                    <button type="button" class="ai-add-item-btn" onclick="PolicyCenter.AI.openItemPicker('condition')"><i class="fas fa-plus mr-1"></i>추가</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hidden fields -->
+                        <div class="hidden" id="ai-card-spel-section"><input type="text" id="ai-card-spel" /></div>
+                        <div class="hidden" id="ai-policy-card"></div>
+
+                        <!-- AI Reasoning -->
+                        <div class="hidden" id="ai-card-reasoning-section" style="margin-bottom: 1.5rem;">
+                            <div style="display: flex; align-items: flex-start; gap: 1rem; background: linear-gradient(135deg, rgba(139,92,246,0.06), rgba(99,102,241,0.03)); border: 1px solid rgba(139,92,246,0.15); border-radius: 0.75rem; padding: 1.25rem;">
+                                <div style="width: 2.5rem; height: 2.5rem; background: linear-gradient(135deg, #8b5cf6, #7c3aed); border-radius: 0.625rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                                    <i class="fas fa-lightbulb text-white"></i>
+                                </div>
+                                <div>
+                                    <div style="font-size: 0.75rem; font-weight: 600; color: #a78bfa; margin-bottom: 0.375rem;">AI 판단 근거</div>
+                                    <div id="ai-card-reasoning" style="font-size: 0.875rem; color: #cbd5e1; line-height: 1.7;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Conflict -->
+                        <div class="ai-conflict-panel hidden" id="ai-conflict-panel" style="margin-bottom: 1.25rem;">
+                            <h4><i class="fas fa-exclamation-triangle mr-2"></i>충돌 감지</h4>
                             <div id="ai-conflict-list"></div>
                         </div>
 
-                        <!-- 4d: Impact Simulation -->
-                        <div class="ai-simulation-panel" id="ai-simulation-panel">
-                            <h4><i class="fas fa-chart-bar mr-2"></i>영향 분석 (Impact Simulation)</h4>
+                        <!-- Impact -->
+                        <div id="ai-simulation-panel" style="margin-bottom: 1.5rem;">
                             <div id="ai-simulation-content"></div>
                         </div>
 
-                        <!-- Action Buttons -->
-                        <div class="ai-result-actions">
-                            <button type="button" class="modern-btn-primary" id="ai-save-btn" onclick="PolicyCenter.AI.confirmSave()">
-                                <i class="fas fa-save"></i> 정책 저장 (Save Policy)
+                        <!-- Actions -->
+                        <div class="flex gap-4" style="padding-top: 0.5rem;">
+                            <button type="button" class="modern-btn-primary" id="ai-save-btn" onclick="PolicyCenter.AI.confirmSave()" style="padding: 0.875rem 2rem;">
+                                <i class="fas fa-save"></i> 정책 저장
                             </button>
                             <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.AI.reset()">
-                                <i class="fas fa-redo"></i> 다시 생성 (Regenerate)
+                                <i class="fas fa-redo"></i> 다시 생성
                             </button>
                         </div>
                     </div>
