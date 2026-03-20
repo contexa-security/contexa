@@ -19,6 +19,8 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
@@ -46,6 +48,12 @@ public class DefaultPolicyService implements PolicyService {
     @Transactional(readOnly = true)
     public List<Policy> getAllPolicies() {
         return policyRepository.findAllWithDetails();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Policy> searchPolicies(String keyword, Pageable pageable) {
+        return policyRepository.searchByKeyword(keyword, pageable);
     }
 
     @Override

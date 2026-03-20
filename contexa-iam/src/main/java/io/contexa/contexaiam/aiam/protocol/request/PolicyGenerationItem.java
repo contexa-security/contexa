@@ -19,7 +19,10 @@ public record PolicyGenerationItem(
     public record PermissionItem(
         Long id,
         String name,
-        String description) {}
+        String description,
+        String targetType,
+        String resourceIdentifier,
+        String httpMethod) {}
     
     public record ConditionItem(
         Long id,

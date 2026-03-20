@@ -15,6 +15,8 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.CachePut;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
@@ -48,6 +50,12 @@ public class RoleServiceImpl implements RoleService {
     @Cacheable(value = "rolesWithoutExpression", key = "'allRolesWithoutExpression'")
     public List<Role> getRolesWithoutExpression() {
         return roleRepository.findAllRolesWithoutExpression();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<Role> searchRoles(String keyword, Pageable pageable) {
+        return roleRepository.searchByKeyword(keyword, pageable);
     }
 
     @Transactional

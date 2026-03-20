@@ -15,6 +15,11 @@ import java.util.Optional;
 
 public interface PolicyRepository extends JpaRepository<Policy, Long> {
 
+    @Query(value = "SELECT * FROM policy p " +
+            "WHERE CAST(:keyword AS TEXT) IS NULL OR LOWER(CAST(p.name AS TEXT)) LIKE LOWER(CONCAT('%', CAST(:keyword AS TEXT), '%'))",
+            nativeQuery = true)
+    Page<Policy> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+
     Optional<Policy> findByName(String name);
 
     @Query("SELECT DISTINCT p FROM Policy p " +

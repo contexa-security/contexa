@@ -4,11 +4,27 @@ import io.contexa.contexacommon.entity.Permission;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.repository.query.Param;
+
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
 public interface PermissionRepository extends JpaRepository<Permission, Long> {
+
+    @Query("SELECT p FROM Permission p LEFT JOIN p.managedResource mr " +
+            "WHERE mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.NEEDS_DEFINITION " +
+            "AND mr.status <> io.contexa.contexacommon.entity.ManagedResource.Status.EXCLUDED " +
+            "AND p.id NOT IN :excludeIds " +
+            "AND (:keyword IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
+            "OR LOWER(p.friendlyName) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<Permission> searchAvailablePermissions(
+            @Param("keyword") String keyword,
+            @Param("excludeIds") Collection<Long> excludeIds,
+            Pageable pageable);
     Optional<Permission> findByName(String name);
 
     

@@ -65,7 +65,9 @@ public class AiApiController {
         PolicyGenerationRequest policyGenerationRequest = new PolicyGenerationRequest(context, templateType, diagnosisType);
         policyGenerationRequest.setNaturalLanguageQuery(request.naturalLanguageQuery());
         policyGenerationRequest.setAvailableItems(request.availableItems());
-        policyGenerationRequest.withParameter("availableItems", request.availableItems());
+        if (request.availableItems() != null) {
+            policyGenerationRequest.withParameter("availableItems", request.availableItems());
+        }
 
         return policyGenerationRequest;
     }

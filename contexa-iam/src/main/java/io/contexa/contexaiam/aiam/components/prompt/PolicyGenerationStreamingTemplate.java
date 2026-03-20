@@ -146,8 +146,16 @@ public class PolicyGenerationStreamingTemplate extends AbstractStreamingPromptTe
         }
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
             info.append("\n**Permission List:**\n");
-            availableItems.permissions().forEach(permission ->
-                    info.append(String.format("- %s (ID: %d)\n", permission.name(), permission.id())));
+            availableItems.permissions().forEach(permission -> {
+                info.append(String.format("- %s (ID: %d)", permission.name(), permission.id()));
+                if (permission.targetType() != null && permission.resourceIdentifier() != null) {
+                    info.append(String.format(" [Protects: %s %s %s]",
+                            permission.targetType(),
+                            permission.httpMethod() != null ? permission.httpMethod() : "",
+                            permission.resourceIdentifier()));
+                }
+                info.append("\n");
+            });
         }
         if (availableItems.conditions() != null && !availableItems.conditions().isEmpty()) {
             info.append("\n**Condition List (You must use only these numeric IDs as keys for the \"conditions\" field):**\n");

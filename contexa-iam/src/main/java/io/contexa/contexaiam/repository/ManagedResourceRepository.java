@@ -20,4 +20,6 @@ public interface ManagedResourceRepository extends JpaRepository<ManagedResource
     @Query("SELECT r FROM ManagedResource r LEFT JOIN FETCH r.permission WHERE r.status IN :statuses")
     List<ManagedResource> findByStatusInWithPermission(List<ManagedResource.Status> statuses);
 
+    long countByStatus(ManagedResource.Status status);
+
 }

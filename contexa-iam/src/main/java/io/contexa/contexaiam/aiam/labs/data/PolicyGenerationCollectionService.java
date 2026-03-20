@@ -38,7 +38,13 @@ public class PolicyGenerationCollectionService {
 
         CompletableFuture<List<PolicyGenerationItem.PermissionItem>> permissions = CompletableFuture.supplyAsync(() -> {
             return permissionCatalogService.getAvailablePermissions().stream()
-                    .map(permission -> new PolicyGenerationItem.PermissionItem(permission.getId(),permission.getName(),permission.getDescription()))
+                    .map(permission -> new PolicyGenerationItem.PermissionItem(
+                            permission.getId(),
+                            permission.getName(),
+                            permission.getDescription(),
+                            permission.getTargetType(),
+                            permission.getManagedResourceIdentifier(),
+                            permission.getActionType()))
                     .toList();
         }, VIRTUAL_EXECUTOR);
 

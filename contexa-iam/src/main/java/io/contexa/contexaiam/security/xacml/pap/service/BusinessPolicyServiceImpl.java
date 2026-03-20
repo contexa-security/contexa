@@ -69,6 +69,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
 
         Policy savedPolicy = policyRepository.save(policy);
+        updateResourceStatusForPermissions(dto.getPermissionIds());
         authorizationManager.reload();
 
                 return savedPolicy;
@@ -406,6 +407,22 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             if (upper.contains(pattern)) {
                 throw new IllegalArgumentException("SpEL expression contains dangerous pattern: " + pattern);
             }
+        }
+    }
+
+    private void updateResourceStatusForPermissions(Set<Long> permissionIds) {
+        if (CollectionUtils.isEmpty(permissionIds)) return;
+        try {
+            for (Long permId : permissionIds) {
+                permissionRepository.findById(permId).ifPresent(perm -> {
+                    ManagedResource resource = perm.getManagedResource();
+                    if (resource != null && resource.getStatus() == ManagedResource.Status.PERMISSION_CREATED) {
+                        resource.setStatus(ManagedResource.Status.POLICY_CONNECTED);
+                    }
+                });
+            }
+        } catch (Exception e) {
+            log.error("Failed to update resource status after policy creation", e);
         }
     }
 }

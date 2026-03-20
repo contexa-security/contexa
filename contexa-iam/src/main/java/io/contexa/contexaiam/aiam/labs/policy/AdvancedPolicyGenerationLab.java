@@ -135,9 +135,17 @@ public class AdvancedPolicyGenerationLab extends AbstractIAMLab<PolicyGeneration
 
         if (availableItems.permissions() != null && !availableItems.permissions().isEmpty()) {
             metadata.append("\n[Available Permissions]\n");
-            availableItems.permissions().forEach(perm ->
-                    metadata.append(String.format("- ID: %d, Name: %s, Description: %s\n",
-                            perm.id(), perm.name(), perm.description() != null ? perm.description() : "")));
+            availableItems.permissions().forEach(perm -> {
+                metadata.append(String.format("- ID: %d, Name: %s, Description: %s",
+                        perm.id(), perm.name(), perm.description() != null ? perm.description() : ""));
+                if (perm.targetType() != null && perm.resourceIdentifier() != null) {
+                    metadata.append(String.format(", Protects: %s %s %s",
+                            perm.targetType(),
+                            perm.httpMethod() != null ? perm.httpMethod() : "",
+                            perm.resourceIdentifier()));
+                }
+                metadata.append("\n");
+            });
         } else {
             metadata.append("\n[Available Permissions] None\n");
         }

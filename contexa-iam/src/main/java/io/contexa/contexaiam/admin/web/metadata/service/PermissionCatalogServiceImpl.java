@@ -8,8 +8,12 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -55,6 +59,15 @@ public class PermissionCatalogServiceImpl implements PermissionCatalogService {
         return permissionRepository.findDefinedPermissionsWithDetails().stream()
                 .map(p -> modelMapper.map(p, PermissionDto.class))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PermissionDto> searchAvailablePermissions(String keyword, Collection<Long> excludeIds, Pageable pageable) {
+        Collection<Long> safeExcludeIds = (excludeIds == null || excludeIds.isEmpty())
+                ? Collections.singleton(-1L) : excludeIds;
+        return permissionRepository.searchAvailablePermissions(keyword, safeExcludeIds, pageable)
+                .map(p -> modelMapper.map(p, PermissionDto.class));
     }
 
     private String generatePermissionName(ManagedResource resource) {
