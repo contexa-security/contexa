@@ -16,8 +16,8 @@ services:
     container_name: contexa-postgres
     environment:
       POSTGRES_DB: contexa
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 1111
+      POSTGRES_USER: contexa
+      POSTGRES_PASSWORD: contexa1234!@#
       POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
     ports:
       - "5432:5432"
@@ -69,8 +69,8 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/contexa
-      SPRING_DATASOURCE_USERNAME: admin
-      SPRING_DATASOURCE_PASSWORD: 1111
+      SPRING_DATASOURCE_USERNAME: contexa
+      SPRING_DATASOURCE_PASSWORD: contexa1234!@#
       SPRING_AI_OLLAMA_BASE_URL: http://ollama:11434
       HCAD_GEOIP_ENABLED: "true"
       HCAD_GEOIP_DB_PATH: data/GeoLite2-City.mmdb
