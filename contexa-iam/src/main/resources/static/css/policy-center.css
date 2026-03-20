@@ -874,10 +874,11 @@
    AI MODE
    ============================================================ */
 .ai-input-section {
-    background: linear-gradient(135deg, rgba(30, 41, 59, 0.5), rgba(51, 65, 85, 0.3));
-    border: 1px solid rgba(71, 85, 105, 0.3);
-    border-radius: 0.75rem;
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(51, 65, 85, 0.5));
+    border: 2px solid rgba(139, 92, 246, 0.35);
+    border-radius: 1rem;
     padding: 1.5rem;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 20px rgba(139, 92, 246, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
 .ai-textarea {
@@ -997,6 +998,18 @@
 
 .ai-stat-badge i {
     font-size: 0.75rem;
+}
+
+.ai-stat-badge-link {
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.ai-stat-badge-link:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    filter: brightness(1.2);
 }
 
 /* AI Stat Card Warning */

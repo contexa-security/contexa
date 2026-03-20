@@ -477,19 +477,20 @@
                         </div>
                     </div>
 
-                    <!-- System Stats (Badges) -->
+                    <!-- System Stats (Badges - single line) -->
                     <div class="ai-context-dashboard" id="ai-context-dashboard" style="margin-bottom: 2.5rem;">
-                        <div class="flex flex-wrap items-center gap-3" style="padding: 0.5rem 0;">
-                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-users"></i> 역할 <strong id="ai-stat-roles-count">-</strong></span>
-                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-key"></i> 권한 <strong id="ai-stat-perms-count">-</strong></span>
-                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-filter"></i> 조건 <strong id="ai-stat-conditions-count">-</strong></span>
-                            <span class="ai-stat-badge" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-shield-alt"></i> 정책 <strong id="ai-stat-policies-count">-</strong></span>
+                        <div class="flex flex-wrap items-center justify-center gap-3" style="padding: 0.5rem 0;">
+                            <a th:href="@{/admin/roles}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-users"></i> 역할 <strong id="ai-stat-roles-count">-</strong></a>
+                            <a th:href="@{/admin/permissions}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-key"></i> 권한 <strong id="ai-stat-perms-count">-</strong></a>
+                            <a th:href="@{/admin/policy-center(tab='list')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc;"><i class="fas fa-shield-alt"></i> 정책 <strong id="ai-stat-policies-count">-</strong></a>
                             <span style="color: #334155; font-size: 1.25rem;">|</span>
-                            <span class="ai-stat-badge" style="background: rgba(71,85,105,0.15); border-color: rgba(71,85,105,0.3); color: #94a3b8;"><i class="fas fa-cube"></i> 리소스 <strong style="color: #e2e8f0;" id="ai-stat-resource-total">-</strong></span>
-                            <span class="ai-stat-badge" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fbbf24;"><i class="fas fa-exclamation-triangle"></i> 정책 연결 대상 <strong id="ai-stat-resource-unprotected">-</strong></span>
-                            <span class="ai-stat-badge" style="background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #4ade80;"><i class="fas fa-shield-alt"></i> 연결 완료 <strong id="ai-stat-resource-connected">-</strong></span>
-                            <span class="ai-stat-badge" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171;"><i class="fas fa-exclamation-circle"></i> 미완료 <strong id="ai-stat-resource-needs-def">-</strong></span>
+                            <a th:href="@{/admin/policy-center(tab='resources',status='PERMISSION_CREATED')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: #fbbf24;"><i class="fas fa-exclamation-triangle"></i> 정책 연결 대상 <strong id="ai-stat-resource-unprotected">-</strong></a>
+                            <a th:href="@{/admin/policy-center(tab='resources',status='POLICY_CONNECTED')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.3); color: #4ade80;"><i class="fas fa-shield-alt"></i> 연결 완료 <strong id="ai-stat-resource-connected">-</strong></a>
+                            <a th:href="@{/admin/policy-center(tab='resources',status='NEEDS_DEFINITION')}" class="ai-stat-badge ai-stat-badge-link" style="background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.3); color: #f87171;"><i class="fas fa-exclamation-circle"></i> 미완료 <strong id="ai-stat-resource-needs-def">-</strong></a>
                         </div>
+                        <!-- hidden elements for JS compatibility -->
+                        <span class="hidden" id="ai-stat-conditions-count">-</span>
+                        <span class="hidden" id="ai-stat-resource-total">-</span>
                         <div class="ai-unprotected-warning hidden" id="ai-unprotected-warning" style="margin-top: 0.75rem;">
                             <i class="fas fa-exclamation-triangle mr-1"></i>
                             <span>정책 연결 대상 <strong id="ai-unprotected-count">0</strong>개 발견</span>
