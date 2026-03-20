@@ -56,10 +56,11 @@ public class IamXacmlPapAutoConfiguration {
             CustomDynamicAuthorizationManager authorizationManager,
             PolicyEnrichmentService policyEnrichmentService,
             IntegrationEventBus eventBus,
-            PermissionRepository permissionRepository) {
+            PermissionRepository permissionRepository,
+            ManagedResourceRepository managedResourceRepository) {
         return new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
-                policyEnrichmentService, eventBus, permissionRepository);
+                policyEnrichmentService, eventBus, permissionRepository, managedResourceRepository);
     }
 
     @Bean

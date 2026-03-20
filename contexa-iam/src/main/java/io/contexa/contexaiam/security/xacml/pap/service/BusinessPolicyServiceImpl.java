@@ -61,8 +61,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             throw new IllegalArgumentException("At least one role and one permission must be selected to create a policy.");
         }
 
-        updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
-        
         Policy policy = new Policy();
         translateAndApplyDtoToPolicy(policy, dto);
 

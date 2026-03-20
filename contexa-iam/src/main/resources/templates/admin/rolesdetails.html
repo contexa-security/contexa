@@ -61,11 +61,11 @@
                 <div>
                     <label for="isExpression" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">표현식 여부:</label>
                     <div class="relative">
-                        <select id="isExpression" th:field="*{isExpression}"
+                        <select id="isExpression" th:field="*{expression}"
                                 class="mt-1 block w-full px-4 py-3 rounded-lg shadow-sm sm:text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-primary"
                                 style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
-                            <option value="N">아니오 (N)</option>
-                            <option value="Y">예 (Y)</option>
+                            <option value="false">아니오 (N)</option>
+                            <option value="true">예 (Y)</option>
                         </select>
                         <div class="absolute inset-y-0 right-0 flex items-center pr-3">
                             <svg class="h-5 w-5" style="color: #94a3b8;" fill="none" stroke="currentColor" viewBox="0 0 24 24">

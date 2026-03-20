@@ -16,6 +16,7 @@ import io.contexa.contexaiam.domain.dto.ResourceManagementDto;
 import io.contexa.contexaiam.domain.dto.ResourceMetadataDto;
 import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
+import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.resource.scanner.ResourceScanner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,6 +42,7 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
     private final PermissionCatalogService permissionCatalogService;
     private final AICoreOperations<ResourceNamingContext> aiNativeProcessor;
     private final AutoConditionTemplateService autoConditionTemplateService;
+    private final PolicyRepository policyRepository;
 
     @Async
     @Override
@@ -85,6 +87,27 @@ public class ResourceRegistryServiceImpl implements ResourceRegistryService {
             resourceBatches.forEach(this::processResourceBatch);
         }
         autoConditionTemplateService.generateConditionTemplates();
+        synchronizeResourcePolicyStatus();
+    }
+
+    private void synchronizeResourcePolicyStatus() {
+        List<ManagedResource> connectedResources = managedResourceRepository
+                .findByStatusInWithPermission(List.of(ManagedResource.Status.POLICY_CONNECTED));
+        if (connectedResources.isEmpty()) return;
+
+        Set<String> allPolicyTargets = policyRepository.findAllWithDetails().stream()
+                .flatMap(p -> p.getTargets().stream())
+                .map(t -> t.getTargetType() + ":" + t.getTargetIdentifier())
+                .collect(Collectors.toSet());
+
+        for (ManagedResource resource : connectedResources) {
+            String key = resource.getResourceType().name() + ":" + resource.getResourceIdentifier();
+            if (!allPolicyTargets.contains(key)) {
+                resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+                managedResourceRepository.save(resource);
+                log.error("Resource status reverted to PERMISSION_CREATED (no matching policy): {}", resource.getResourceIdentifier());
+            }
+        }
     }
 
     public void processResourceBatch(List<ManagedResource> batch) {

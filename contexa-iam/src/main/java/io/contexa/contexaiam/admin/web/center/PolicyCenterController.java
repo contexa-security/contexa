@@ -110,12 +110,34 @@ public class PolicyCenterController {
     public String refreshResources(RedirectAttributes ra) {
         try {
             resourceRegistryService.refreshAndSynchronizeResources();
+            synchronizeResourcePolicyStatus();
             ra.addFlashAttribute("message", "Resources refreshed successfully.");
         } catch (Exception e) {
             log.error("Failed to refresh resources", e);
             ra.addFlashAttribute("errorMessage", "Refresh failed: " + e.getMessage());
         }
         return "redirect:/admin/policy-center?tab=resources";
+    }
+
+    private void synchronizeResourcePolicyStatus() {
+        try {
+            Set<String> allPolicyTargets = policyService.getAllPolicies().stream()
+                    .flatMap(p -> p.getTargets().stream())
+                    .map(t -> t.getTargetType() + ":" + t.getTargetIdentifier())
+                    .collect(java.util.stream.Collectors.toSet());
+
+            managedResourceRepository.findByStatusInWithPermission(
+                    List.of(ManagedResource.Status.POLICY_CONNECTED)
+            ).forEach(resource -> {
+                String key = resource.getResourceType().name() + ":" + resource.getResourceIdentifier();
+                if (!allPolicyTargets.contains(key)) {
+                    resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+                    managedResourceRepository.save(resource);
+                }
+            });
+        } catch (Exception e) {
+            log.error("Failed to synchronize resource policy status", e);
+        }
     }
 
     // ==================== Quick Mode API ====================

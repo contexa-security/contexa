@@ -648,8 +648,22 @@ const PolicyCenter = {
 
         async generate() {
             const queryInput = document.getElementById('ai-query-input');
-            const query = queryInput.value.trim();
+            let query = queryInput.value.trim();
             if (!query) { showToast('정책 요구사항을 입력하세요.', 'error'); queryInput.focus(); return; }
+
+            // Inject selected resource context into query
+            const res = PolicyCenter.CreateFlow.selectedResource;
+            if (res) {
+                const ctx = '[Target Resource: ' +
+                    (res.resourceType || '') + ' ' +
+                    (res.httpMethod || '') + ' ' +
+                    (res.resourceIdentifier || '') +
+                    ', Name: "' + (res.friendlyName || '') + '"' +
+                    (res.description ? ', Description: ' + res.description : '') +
+                    (res.permissionId ? ', PermissionID: ' + res.permissionId : '') +
+                    ']';
+                query = ctx + '\n' + query;
+            }
 
             const btn = document.getElementById('ai-generate-btn');
             const cancelBtn = document.getElementById('ai-cancel-btn');
@@ -666,12 +680,27 @@ const PolicyCenter = {
 
             this.updateProgress('collect', 10, 'Collecting system data...');
 
+            // Collect available items (roles, permissions, conditions) for AI context
+            let availableItems = null;
+            try {
+                const items = await this.fetchAvailableItems();
+                availableItems = {
+                    roles: (items.roles || []).map(r => ({ id: r.id, name: r.roleName || r.name, description: r.roleDesc || r.description || '' })),
+                    permissions: (items.permissions || []).map(p => ({ id: p.id, name: p.friendlyName || p.name, targetType: p.targetType || '', description: p.description || '' })),
+                    conditions: (items.conditions || []).map(c => ({ id: c.id, name: c.name, description: c.description || '', isCompatible: c.isCompatible !== false }))
+                };
+            } catch (e) {
+                console.error('Failed to collect available items', e);
+            }
+
+            const requestPayload = { naturalLanguageQuery: query, availableItems: availableItems };
+
             try {
                 if (typeof ContexaLLM !== 'undefined' && ContexaLLM.analyzeStreaming) {
                     this.updateProgress('analyze', 40, 'AI analyzing policy requirements...');
                     await ContexaLLM.analyzeStreaming(
                         '/api/ai/policies/generate/stream',
-                        { naturalLanguageQuery: query },
+                        requestPayload,
                         {
                             modalTitle: 'AI 정책 분석 진행 중',
                             initialLoadingText: 'Analyzing policy requirements...',
@@ -697,7 +726,7 @@ const PolicyCenter = {
                             'Content-Type': 'application/json',
                             [PolicyCenter.getCsrfHeader()]: PolicyCenter.getCsrfToken()
                         },
-                        body: JSON.stringify({ naturalLanguageQuery: query })
+                        body: JSON.stringify(requestPayload)
                     });
                     const text = await response.text();
                     const jsonMatch = text.match(/###FINAL_RESPONSE###([\s\S]*)/);
@@ -761,6 +790,18 @@ const PolicyCenter = {
             if (!validatedData) {
                 showToast('AI 응답 검증에 실패했습니다.', 'error');
                 return;
+            }
+
+            // Auto-include selected resource's permission
+            const res = PolicyCenter.CreateFlow.selectedResource;
+            if (res && res.permissionId) {
+                const pid = Number(res.permissionId);
+                if (!validatedData.permissionIds.includes(pid)) {
+                    validatedData.permissionIds.push(pid);
+                }
+                if (!processed.permissionIdToNameMap[pid] && !processed.permissionIdToNameMap[String(pid)]) {
+                    processed.permissionIdToNameMap[pid] = res.friendlyName || 'Permission #' + pid;
+                }
             }
 
             this.generatedPolicyData = validatedData;

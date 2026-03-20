@@ -235,13 +235,12 @@
 
                 <!-- Guide (shown when no resource context) -->
                 <div id="create-no-resource-guide">
-                    <div class="pc-empty" style="padding: 4rem 2rem;">
-                        <i class="fas fa-cube" style="font-size: 3rem; color: #475569; margin-bottom: 1rem;"></i>
-                        <h3 class="text-lg font-bold mb-3" style="color: #e2e8f0;">리소스를 먼저 선택하세요</h3>
-                        <p class="text-sm mb-6" style="color: #94a3b8; max-width: 40rem; margin: 0 auto; white-space: nowrap;">
+                    <div class="pc-empty" style="padding: 6rem 2rem 7rem;">
+                        <i class="fas fa-cube" style="font-size: 3.5rem; color: #475569; margin-bottom: 2rem;"></i>
+                        <p class="text-base" style="color: #94a3b8; max-width: 40rem; margin: 0 auto 3.5rem; white-space: nowrap;">
                             Resources 탭에서 리소스를 선택하고 <strong style="color: #a78bfa;">"권한 생성 & 정책 생성"</strong> 버튼을 클릭하세요.
                         </p>
-                        <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-primary">
+                        <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-primary" style="padding: 0.875rem 2rem; font-size: 1rem;">
                             <i class="fas fa-arrow-left mr-2"></i>Resources 탭으로 이동
                         </a>
                     </div>
@@ -261,7 +260,7 @@
                 </div>
 
                 <!-- ===== Quick Mode: Role-Permission Mapping ===== -->
-                <div id="create-quick" class="pc-subtab-content active">
+                <div id="create-quick" class="pc-subtab-content active" style="max-width: 56rem;">
                     <div class="manual-form-section mb-4">
                         <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">간편 정책 생성 (역할-권한 매핑)</h3>
                         <p class="text-sm mb-4" style="color: #94a3b8;">역할에 권한을 부여하고 기본 ALLOW 정책을 자동 생성합니다. 복잡한 조건은 수동/AI 모드에서 설정하세요.</p>
@@ -458,7 +457,7 @@
                 </div>
 
                 <!-- ===== AI Mode ===== -->
-                <div id="create-ai" class="pc-subtab-content">
+                <div id="create-ai" class="pc-subtab-content" style="max-width: 56rem;">
 
                     <!-- Section 1: System Context Dashboard -->
                     <div class="ai-context-dashboard" id="ai-context-dashboard">
@@ -493,7 +492,7 @@
                             <div class="ai-stat-card ai-stat-card-warn" id="ai-stat-unprotected-card">
                                 <i class="fas fa-exclamation-triangle"></i>
                                 <div class="ai-stat-number" id="ai-stat-resource-unprotected">-</div>
-                                <div class="ai-stat-label">미보호 (Unprotected)</div>
+                                <div class="ai-stat-label">정책 연결 대상 (Unprotected)</div>
                             </div>
                             <div class="ai-stat-card">
                                 <i class="fas fa-link"></i>

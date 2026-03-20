@@ -10,6 +10,7 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
 import io.contexa.contexaiam.security.xacml.prp.PolicyRetrievalPoint;
@@ -41,6 +42,7 @@ public class DefaultPolicyService implements PolicyService {
     private final PolicyEnrichmentService policyEnrichmentService;
     private final IntegrationEventBus eventBus;
     private final PermissionRepository permissionRepository;
+    private final ManagedResourceRepository managedResourceRepository;
 
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
@@ -145,8 +147,29 @@ public class DefaultPolicyService implements PolicyService {
 
     @Override
     public void deletePolicy(Long id) {
+        // Revert connected resources to PERMISSION_CREATED before deleting
+        policyRepository.findByIdWithDetails(id).ifPresent(policy -> {
+            Set<String> permNames = new HashSet<>();
+            policy.getRules().stream()
+                    .flatMap(rule -> rule.getConditions().stream())
+                    .map(PolicyCondition::getExpression)
+                    .forEach(spel -> {
+                        Matcher matcher = AUTHORITY_PATTERN.matcher(spel);
+                        while (matcher.find()) permNames.add(matcher.group(1));
+                    });
+            if (!permNames.isEmpty()) {
+                permissionRepository.findAllByNameIn(permNames).forEach(perm -> {
+                    ManagedResource resource = perm.getManagedResource();
+                    if (resource != null && resource.getStatus() == ManagedResource.Status.POLICY_CONNECTED) {
+                        resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+                        managedResourceRepository.save(resource);
+                    }
+                });
+            }
+        });
+
         policyRepository.deleteById(id);
-        
+
         eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
         reloadAuthorizationSystem();
             }

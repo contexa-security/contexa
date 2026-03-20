@@ -35,10 +35,11 @@ public class IamResourceAutoConfiguration {
             ManagedResourceRepository managedResourceRepository,
             PermissionCatalogService permissionCatalogService,
             AICoreOperations aiNativeProcessor,
-            AutoConditionTemplateService autoConditionTemplateService) {
+            AutoConditionTemplateService autoConditionTemplateService,
+            PolicyRepository policyRepository) {
         return new ResourceRegistryServiceImpl(
                 scanners, managedResourceRepository, permissionCatalogService,
-                aiNativeProcessor, autoConditionTemplateService);
+                aiNativeProcessor, autoConditionTemplateService, policyRepository);
     }
 
     @Bean

@@ -64,6 +64,10 @@ public class ProtectableRapidReentryGuard {
         String methodKey = methodInvocation.getMethod().getDeclaringClass().getSimpleName()
                 + "."
                 + methodInvocation.getMethod().getName();
+        Object[] args = methodInvocation.getArguments();
+        if (args != null && args.length > 0 && args[0] != null) {
+            methodKey += "[" + args[0].hashCode() + "]";
+        }
         String requestKey = request.getMethod() + " " + request.getRequestURI();
         return methodKey + "|" + requestKey;
     }
