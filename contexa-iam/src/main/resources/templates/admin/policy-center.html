@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='Policy Center')}"></th:block>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <div class="pc-section">
+            <!-- Page Header -->
+            <div class="mb-6">
+                <h1 class="text-3xl font-bold pc-header-gradient">Policy Center</h1>
+                <p class="text-dark-muted mt-1">
+                    Unified policy management: resources, creation, monitoring, and analysis
+                </p>
+            </div>
+
+            <!-- Tab Navigation -->
+            <nav class="pc-tab-nav mb-6">
+                <a th:href="@{/admin/policy-center(tab='resources')}"
+                   class="pc-tab-btn"
+                   th:classappend="${activeTab == 'resources'} ? ' active' : ''">
+                    <i class="fas fa-cube"></i>
+                    <span>Resources</span>
+                    <span class="tab-count" th:text="${resourcePage?.totalElements} ?: '0'"></span>
+                </a>
+                <a th:href="@{/admin/policy-center(tab='create')}"
+                   class="pc-tab-btn"
+                   th:classappend="${activeTab == 'create'} ? ' active' : ''">
+                    <i class="fas fa-plus-circle"></i>
+                    <span>Create Policy</span>
+                </a>
+                <a th:href="@{/admin/policy-center(tab='list')}"
+                   class="pc-tab-btn"
+                   th:classappend="${activeTab == 'list'} ? ' active' : ''">
+                    <i class="fas fa-list-alt"></i>
+                    <span>Policy List</span>
+                    <span class="tab-count" th:text="${#lists.size(policies)} ?: '0'"></span>
+                </a>
+                <a th:href="@{/admin/policy-center(tab='studio')}"
+                   class="pc-tab-btn"
+                   th:classappend="${activeTab == 'studio'} ? ' active' : ''">
+                    <i class="fas fa-chart-network fa-project-diagram"></i>
+                    <span>Studio</span>
+                </a>
+            </nav>
+
+            <!-- ==================== TAB 1: Resources ==================== -->
+            <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources'} ? ' active' : ''">
+
+                <!-- Filter -->
+                <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="pc-filter-bar mb-6">
+                    <input type="hidden" name="tab" value="resources" />
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                        <div>
+                            <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Service Owner</label>
+                            <select id="serviceOwner" th:field="*{serviceOwner}" class="pc-select">
+                                <option value="">All</option>
+                                <option th:each="owner : ${serviceOwners}" th:value="${owner}" th:text="${owner}"></option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Status</label>
+                            <select id="status" th:field="*{status}" class="pc-select">
+                                <option value="">All</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}">Needs Definition</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}">Permission Created</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}">Policy Connected</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}">Excluded</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="keyword" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Keyword</label>
+                            <input type="text" id="keyword" th:field="*{keyword}" class="pc-input" placeholder="Identifier, description...">
+                        </div>
+                        <div class="flex gap-2">
+                            <button type="submit" class="pc-btn-primary flex-1">
+                                <i class="fas fa-search"></i>
+                                <span>Search</span>
+                            </button>
+                            <a th:href="@{/admin/policy-center(tab='resources')}" class="pc-btn-secondary flex-1 text-center">
+                                <i class="fas fa-redo"></i>
+                                <span>Reset</span>
+                            </a>
+                        </div>
+                    </div>
+                </form>
+
+                <!-- Resource Table -->
+                <div class="pc-table overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                        <tr>
+                            <th class="text-center">Status</th>
+                            <th>Friendly Name / Description</th>
+                            <th>Technical Identifier</th>
+                            <th>Metadata</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:if="${resourcePage == null or resourcePage.empty}">
+                            <td colspan="5" class="pc-empty">
+                                <i class="fas fa-inbox"></i>
+                                <p>No resources matching the criteria.</p>
+                            </td>
+                        </tr>
+                        <th:block th:if="${resourcePage != null}">
+                            <tr th:each="res : ${resourcePage.content}">
+                                <td class="text-center">
+                                    <span class="pc-badge"
+                                          th:classappend="${res.status?.name() == 'NEEDS_DEFINITION' ? 'pc-status-needs' :
+                                                           res.status?.name() == 'PERMISSION_CREATED' ? 'pc-status-created' :
+                                                           res.status?.name() == 'POLICY_CONNECTED' ? 'pc-status-connected' : 'pc-status-excluded'}">
+                                        <i th:class="${res.status?.name() == 'NEEDS_DEFINITION' ? 'fas fa-question-circle' :
+                                                       res.status?.name() == 'PERMISSION_CREATED' ? 'fas fa-check-circle' :
+                                                       res.status?.name() == 'POLICY_CONNECTED' ? 'fas fa-link' : 'fas fa-ban'}"></i>
+                                        <span th:text="${res.status != null ?
+                                                        (res.status.name() == 'NEEDS_DEFINITION' ? 'Needs Def.' :
+                                                         res.status.name() == 'PERMISSION_CREATED' ? 'Perm Created' :
+                                                         res.status.name() == 'POLICY_CONNECTED' ? 'Connected' : 'Excluded')
+                                                        : 'Unknown'}"></span>
+                                    </span>
+                                </td>
+                                <td>
+                                    <p class="font-semibold" style="color: #e2e8f0;"
+                                       th:text="${res.friendlyName} ?: 'Unnamed'"></p>
+                                    <p class="text-xs mt-1" style="color: #94a3b8;"
+                                       th:text="${res.description} ?: 'No description'"></p>
+                                </td>
+                                <td>
+                                    <span class="pc-badge text-xs mb-1"
+                                          th:text="${res.resourceType}"
+                                          th:classappend="${res.resourceType?.name() == 'URL' ? 'pc-type-url' : 'pc-type-method'}"></span>
+                                    <div class="pc-resource-id" th:text="${res.resourceIdentifier}"></div>
+                                </td>
+                                <td>
+                                    <span th:if="${res.serviceOwner}" class="pc-badge pc-badge-purple text-xs mb-1"
+                                          th:text="${res.serviceOwner}"></span>
+                                    <div class="pc-date mt-1">
+                                        <i class="fas fa-clock text-xs mr-1"></i>
+                                        <span th:text="${#temporals.format(res.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="space-y-2">
+                                        <div th:if="${res.status?.name() == 'NEEDS_DEFINITION' or res.status?.name() == 'PERMISSION_CREATED'}">
+                                            <button type="button" class="pc-action pc-action-define w-full text-center"
+                                                    th:attr="data-resource-id=${res.id}"
+                                                    onclick="PolicyCenter.defineResource(this)">
+                                                <i class="fas fa-magic"></i>
+                                                <span>Define & Setup</span>
+                                            </button>
+                                        </div>
+                                        <div th:if="${res.status?.name() == 'POLICY_CONNECTED'}"
+                                             class="text-xs text-center p-2 rounded-full" style="background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);">
+                                            <i class="fas fa-link mr-1"></i> Connected
+                                        </div>
+                                        <div th:if="${res.status?.name() != 'EXCLUDED'}">
+                                            <button type="button" class="pc-action pc-action-exclude w-full text-center"
+                                                    th:attr="data-resource-id=${res.id}"
+                                                    onclick="PolicyCenter.excludeResource(this)">
+                                                <i class="fas fa-ban"></i>
+                                                <span>Exclude</span>
+                                            </button>
+                                        </div>
+                                        <div th:if="${res.status?.name() == 'EXCLUDED'}">
+                                            <button type="button" class="pc-action pc-action-restore w-full text-center"
+                                                    th:attr="data-resource-id=${res.id}"
+                                                    onclick="PolicyCenter.restoreResource(this)">
+                                                <i class="fas fa-undo"></i>
+                                                <span>Restore</span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        </th:block>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <nav th:if="${resourcePage != null and resourcePage.totalPages > 1}" class="mt-6 flex justify-center">
+                    <ul class="pc-pagination">
+                        <li class="page-item" th:classappend="${resourcePage.first} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${resourcePage.number - 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}">
+                                <i class="fas fa-chevron-left"></i>
+                            </a>
+                        </li>
+                        <li th:each="pageNumber : ${#numbers.sequence(0, resourcePage.totalPages - 1)}"
+                            class="page-item" th:classappend="${pageNumber == resourcePage.number} ? 'active'">
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${pageNumber}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}" th:text="${pageNumber + 1}"></a>
+                        </li>
+                        <li class="page-item" th:classappend="${resourcePage.last} ? 'disabled'">
+                            <a class="page-link" th:href="@{/admin/policy-center(tab='resources', page=${resourcePage.number + 1}, keyword=${criteria.keyword}, serviceOwner=${criteria.serviceOwner}, status=${criteria.status})}">
+                                <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+
+            <!-- ==================== TAB 2: Create Policy ==================== -->
+            <div id="tab-create" class="pc-tab-content" th:classappend="${activeTab == 'create'} ? ' active' : ''">
+
+                <!-- Quick Mode: Role-Permission Mapping -->
+                <div class="mb-8">
+                    <h2 class="text-xl font-bold mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-magic mr-2" style="color: #818cf8;"></i>
+                        Quick Policy (Role-Permission Mapping)
+                    </h2>
+                    <p class="text-sm mb-6" style="color: #94a3b8;">
+                        Select a role and assign permissions to create a simple ALLOW policy instantly.
+                    </p>
+
+                    <!-- Role Selection -->
+                    <div class="pc-quick-form mb-6">
+                        <label class="block text-sm font-medium mb-3" style="color: #cbd5e1;">
+                            1. Select Target Role
+                        </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" id="role-selector">
+                            <div th:each="role : ${roles}" class="pc-role-card"
+                                 th:attr="data-role-id=${role.id}, data-role-name=${role.name}"
+                                 onclick="PolicyCenter.selectRole(this)">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg flex items-center justify-center"
+                                         style="background: linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2));">
+                                        <i class="fas fa-user-shield" style="color: #818cf8;"></i>
+                                    </div>
+                                    <div>
+                                        <p class="font-semibold text-sm" style="color: #e2e8f0;" th:text="${role.name}"></p>
+                                        <p class="text-xs" style="color: #64748b;" th:text="${role.description} ?: 'No description'"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div th:if="${#lists.isEmpty(roles)}" class="pc-empty">
+                            <i class="fas fa-user-shield"></i>
+                            <p>No roles available.</p>
+                        </div>
+                    </div>
+
+                    <!-- Navigate to Policy Wizard -->
+                    <div class="flex gap-4 mt-6">
+                        <a th:href="@{/admin/policies/register}" class="pc-btn-primary">
+                            <i class="fas fa-file-alt"></i>
+                            <span>Manual Policy Registration</span>
+                        </a>
+                        <a th:if="${contexaAdminEnterpriseEnabled}" th:href="@{/admin/policy-builder}" class="pc-btn-secondary">
+                            <i class="fas fa-brain"></i>
+                            <span>AI Policy Builder</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== TAB 3: Policy List ==================== -->
+            <div id="tab-list" class="pc-tab-content" th:classappend="${activeTab == 'list'} ? ' active' : ''">
+                <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
+                    <h2 class="text-xl font-bold" style="color: #e2e8f0;">
+                        <i class="fas fa-list-alt mr-2" style="color: #818cf8;"></i>
+                        All Policies
+                    </h2>
+                    <a th:href="@{/admin/policies/register}"
+                       class="pc-btn-primary mt-4 sm:mt-0">
+                        <i class="fas fa-plus"></i>
+                        <span>New Policy</span>
+                    </a>
+                </div>
+
+                <div class="pc-table overflow-x-auto">
+                    <table class="min-w-full text-sm">
+                        <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Policy Name</th>
+                            <th>Targets</th>
+                            <th>Effect</th>
+                            <th>Priority</th>
+                            <th>Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="policy : ${policies}">
+                            <td th:text="${policy.id}"></td>
+                            <td>
+                                <p class="font-semibold" th:text="${policy.name}"></p>
+                                <p class="text-xs mt-1" style="color: #94a3b8;" th:text="${policy.description}"></p>
+                            </td>
+                            <td>
+                                <div th:each="target : ${policy.targets}" class="mb-1">
+                                    <span th:text="${target.targetType}" class="pc-badge text-xs"
+                                          th:classappend="${target.targetType == 'URL' ? 'pc-type-url' : 'pc-type-method'}"></span>
+                                    <span th:if="${target.targetType == 'URL'}"
+                                          th:text="${target.httpMethod == null ? 'ALL' : target.httpMethod}"
+                                          class="pc-badge pc-badge-info text-xs"></span>
+                                    <span th:text="${target.targetIdentifier}" class="font-mono text-xs ml-1" style="color: #cbd5e1;"></span>
+                                </div>
+                            </td>
+                            <td>
+                                <span th:text="${policy.effect}"
+                                      class="pc-badge"
+                                      th:classappend="${policy.effect.name() == 'ALLOW' ? 'pc-badge-allow' : 'pc-badge-deny'}"></span>
+                            </td>
+                            <td th:text="${policy.priority}"></td>
+                            <td>
+                                <div class="flex gap-2">
+                                    <a th:href="@{/admin/policies/{id}(id=${policy.id})}"
+                                       class="pc-action pc-action-edit">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </a>
+                                    <a th:href="@{/admin/policies/delete/{id}(id=${policy.id})}"
+                                       class="pc-action pc-action-delete"
+                                       onclick="return confirm('Are you sure you want to delete this policy?');">
+                                        <i class="fas fa-trash"></i> Delete
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr th:if="${#lists.isEmpty(policies)}">
+                            <td colspan="6" class="pc-empty">
+                                <i class="fas fa-shield-alt"></i>
+                                <p>No policies defined yet.</p>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- ==================== TAB 4: Studio ==================== -->
+            <div id="tab-studio" class="pc-tab-content" th:classappend="${activeTab == 'studio'} ? ' active' : ''">
+                <div class="mb-6">
+                    <h2 class="text-xl font-bold" style="color: #e2e8f0;">
+                        <i class="fas fa-project-diagram mr-2" style="color: #818cf8;"></i>
+                        Authorization Studio
+                    </h2>
+                    <p class="text-sm mt-1" style="color: #94a3b8;">
+                        AI-powered authorization analysis with interactive visualization
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Full Studio Link -->
+                    <a th:href="@{/admin/studio}" class="pc-studio-card">
+                        <div class="w-14 h-14 mx-auto mb-4 rounded-xl flex items-center justify-center"
+                             style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
+                            <i class="fas fa-project-diagram text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Authorization Studio</h3>
+                        <p class="text-sm" style="color: #94a3b8;">
+                            3-panel explorer with AI-powered natural language queries and Cytoscape visualization
+                        </p>
+                    </a>
+
+                    <!-- Policy Wizard Link -->
+                    <a th:href="@{/admin/policy-wizard}" class="pc-studio-card">
+                        <div class="w-14 h-14 mx-auto mb-4 rounded-xl flex items-center justify-center"
+                             style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
+                            <i class="fas fa-hat-wizard text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Policy Wizard</h3>
+                        <p class="text-sm" style="color: #94a3b8;">
+                            Step-by-step guided wizard for permission setup and role-based policy creation
+                        </p>
+                    </a>
+
+                    <!-- Resource Workbench Link (Enterprise) -->
+                    <a th:if="${contexaAdminEnterpriseEnabled}" th:href="@{/admin/workbench/resources}" class="pc-studio-card">
+                        <div class="w-14 h-14 mx-auto mb-4 rounded-xl flex items-center justify-center"
+                             style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">
+                            <i class="fas fa-tools text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Resource Workbench</h3>
+                        <p class="text-sm" style="color: #94a3b8;">
+                            Full resource management workbench with inline editing and policy setup modal
+                        </p>
+                    </a>
+
+                    <!-- Summary Statistics -->
+                    <div class="pc-studio-card" style="cursor: default;">
+                        <div class="w-14 h-14 mx-auto mb-4 rounded-xl flex items-center justify-center"
+                             style="background: linear-gradient(135deg, #10b981, #059669);">
+                            <i class="fas fa-chart-bar text-2xl text-white"></i>
+                        </div>
+                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Summary</h3>
+                        <div class="grid grid-cols-2 gap-3 mt-4 text-left">
+                            <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
+                                <p class="text-xs" style="color: #64748b;">Total Policies</p>
+                                <p class="text-xl font-bold" style="color: #e2e8f0;" th:text="${#lists.size(policies)} ?: '0'"></p>
+                            </div>
+                            <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
+                                <p class="text-xs" style="color: #64748b;">Total Resources</p>
+                                <p class="text-xl font-bold" style="color: #e2e8f0;" th:text="${resourcePage?.totalElements} ?: '0'"></p>
+                            </div>
+                            <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
+                                <p class="text-xs" style="color: #64748b;">Roles</p>
+                                <p class="text-xl font-bold" style="color: #e2e8f0;" th:text="${#lists.size(roles)} ?: '0'"></p>
+                            </div>
+                            <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
+                                <p class="text-xs" style="color: #64748b;">Status</p>
+                                <p class="text-sm font-bold" style="color: #4ade80;">Active</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+<!-- Hidden forms for resource actions -->
+<form id="quickGrantForm" method="post" th:action="@{/admin/policy-wizard/start}" class="hidden">
+    <input type="hidden" name="permissionId" id="quickGrantPermissionId">
+</form>
+<form id="advancedPolicyForm" method="post" th:action="@{/admin/policy-builder/from-resource}" class="hidden">
+    <input type="hidden" name="resourceId" id="advancedPolicyResourceId">
+    <input type="hidden" name="permissionId" id="advancedPolicyPermissionId">
+</form>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<script th:src="@{/js/toast.js}"></script>
+<script th:src="@{/js/policy-center.js}"></script>
+<script th:inline="javascript">
+    document.addEventListener('DOMContentLoaded', () => {
+        const message = /*[[${message}]]*/ null;
+        if (message) {
+            showToast(message, 'success');
+        }
+        const errorMessage = /*[[${errorMessage}]]*/ null;
+        if (errorMessage) {
+            showToast(errorMessage, 'error');
+        }
+    });
+</script>
+</body>
+</html>

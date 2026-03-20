@@ -84,6 +84,7 @@ io.contexa.autoconfigure.iam.aiam.IamAiamLabsAutoConfiguration
 io.contexa.autoconfigure.iam.aiam.IamAiamComponentsAutoConfiguration
 
 # IAM Admin (Admin Web Console)
+io.contexa.autoconfigure.iam.admin.IamAdminCenterAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminAuthAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminMetadataAutoConfiguration
 io.contexa.autoconfigure.iam.admin.IamAdminMonitoringAutoConfiguration

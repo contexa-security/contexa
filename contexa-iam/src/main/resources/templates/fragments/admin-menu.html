@@ -66,18 +66,11 @@
         </div>
 
         <div>
-            <h3 class="section-title">AI 보안 어드바이저</h3>
+            <h3 class="section-title">Policy Center</h3>
             <ul class="space-y-1">
+                <li><a th:href="@{/admin/policy-center}" class="menu-link-sub" th:classappend="${activePage == 'policy-center'} ? ' active' : ''"><span class="menu-bullet"></span><strong>Policy Center</strong><span class="menu-glow"></span></a></li>
                 <li><a th:href="@{/admin/studio}" class="menu-link-sub" th:classappend="${activePage == 'studio'} ? ' active' : ''"><span class="menu-bullet"></span>Authorization Studio<span class="menu-glow"></span></a></li>
                 <li><a th:href="@{/admin/custom-llm}" class="menu-link-sub" th:classappend="${activePage == 'custom-llm'} ? ' active' : ''"><span class="menu-bullet"></span>Custom LLM Demo<span class="menu-glow"></span></a></li>
-            </ul>
-        </div>
-
-        <div>
-            <h3 class="section-title">인가 정책</h3>
-            <ul class="space-y-1">
-                <li><a th:href="@{/admin/policies}" class="menu-link-sub" th:classappend="${activePage == 'policies'} ? ' active' : ''"><span class="menu-bullet"></span>전체 정책 목록<span class="menu-glow"></span></a></li>
-                <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/policy-builder}" class="menu-link-sub" th:classappend="${activePage == 'policy-builder'} ? ' active' : ''"><span class="menu-bullet"></span>AI 정책 빌더<span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
@@ -99,12 +92,6 @@
             </ul>
         </div>
 
-        <div>
-            <h3 class="section-title">시스템 메타데이터</h3>
-            <ul class="space-y-1">
-                <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/workbench/resources}" class="menu-link-sub" th:classappend="${activePage == 'workbench-resources'} ? ' active' : ''"><span class="menu-bullet"></span><strong>리소스 워크벤치</strong><span class="menu-glow"></span></a></li>
-            </ul>
-        </div>
     </nav>
     <script th:src="@{/js/admin-menu.js}"></script>
 </div>
