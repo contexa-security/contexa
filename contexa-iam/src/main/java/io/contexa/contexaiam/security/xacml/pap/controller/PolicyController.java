@@ -29,6 +29,7 @@ public class PolicyController {
 
     @GetMapping
     public String listPolicies(Model model) {
+        model.addAttribute("activePage", "policy-center");
         List<Policy> policies = policyService.getAllPolicies();
         List<PolicyDto> dtoList = policies.stream()
                 .map(p -> modelMapper.map(p, PolicyDto.class))
@@ -39,6 +40,7 @@ public class PolicyController {
 
     @GetMapping("/register")
     public String registerForm(Model model, PolicyDto policyDto) {
+        model.addAttribute("activePage", "policy-center");
         policyDto.getTargets().add(new TargetDto());
         policyDto.getRules().add(new RuleDto());
         model.addAttribute("policy", policyDto);
@@ -54,6 +56,7 @@ public class PolicyController {
 
     @GetMapping("/{id}")
     public String detailForm(@PathVariable Long id, Model model) {
+        model.addAttribute("activePage", "policy-center");
         Policy policy = policyService.findById(id);
         PolicyDto dto = toDto(policy);
         if (dto.getRules().isEmpty()) {

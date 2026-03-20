@@ -3,6 +3,9 @@
  */
 const PolicyCenter = {
 
+    selectedRoleId: null,
+    selectedRoleName: null,
+
     /**
      * Set button loading state
      * @param {HTMLButtonElement} button
@@ -15,7 +18,7 @@ const PolicyCenter = {
                 button.dataset.originalHtml = button.innerHTML;
             }
             button.disabled = true;
-            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 처리 중...';
         } else {
             if (button.dataset.originalHtml) {
                 button.innerHTML = button.dataset.originalHtml;
@@ -33,7 +36,7 @@ const PolicyCenter = {
     },
 
     /**
-     * Define resource and setup policy - redirect to workbench modal flow
+     * Define resource - redirect to resource workbench for full modal flow
      * @param {HTMLButtonElement} button
      */
     defineResource(button) {
@@ -58,9 +61,9 @@ const PolicyCenter = {
             if (!response.ok) throw new Error(result.message);
 
             this.updateRowAfterExclude(button, resourceId);
-            showToast('Resource excluded from management.', 'success');
+            showToast('리소스가 관리 제외 처리되었습니다.', 'success');
         } catch (error) {
-            showToast('Exclude failed: ' + error.message, 'error');
+            showToast('관리 제외 실패: ' + error.message, 'error');
             this.setLoading(button, false);
         }
     },
@@ -81,9 +84,9 @@ const PolicyCenter = {
             if (!response.ok) throw new Error(result.message);
 
             this.updateRowAfterRestore(button, resourceId);
-            showToast('Resource restored to management.', 'success');
+            showToast('리소스가 관리 대상으로 복원되었습니다.', 'success');
         } catch (error) {
-            showToast('Restore failed: ' + error.message, 'error');
+            showToast('관리 복원 실패: ' + error.message, 'error');
             this.setLoading(button, false);
         }
     },
@@ -98,7 +101,7 @@ const PolicyCenter = {
         const badge = row.querySelector('.pc-badge');
         if (badge) {
             badge.className = 'pc-badge pc-status-excluded';
-            badge.innerHTML = '<i class="fas fa-ban"></i> <span>Excluded</span>';
+            badge.innerHTML = '<i class="fas fa-ban"></i> <span>관리 제외</span>';
         }
 
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineResource(this)"]');
@@ -108,7 +111,7 @@ const PolicyCenter = {
         actionDiv.innerHTML =
             '<button type="button" class="pc-action pc-action-restore w-full text-center" ' +
             'data-resource-id="' + resourceId + '" onclick="PolicyCenter.restoreResource(this)">' +
-            '<i class="fas fa-undo"></i> <span>Restore</span></button>';
+            '<i class="fas fa-undo"></i> <span>관리 복원</span></button>';
     },
 
     /**
@@ -121,7 +124,7 @@ const PolicyCenter = {
         const badge = row.querySelector('.pc-badge');
         if (badge) {
             badge.className = 'pc-badge pc-status-needs';
-            badge.innerHTML = '<i class="fas fa-question-circle"></i> <span>Needs Def.</span>';
+            badge.innerHTML = '<i class="fas fa-question-circle"></i> <span>정의 필요</span>';
         }
 
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineResource(this)"]');
@@ -131,7 +134,7 @@ const PolicyCenter = {
         actionDiv.innerHTML =
             '<button type="button" class="pc-action pc-action-exclude w-full text-center" ' +
             'data-resource-id="' + resourceId + '" onclick="PolicyCenter.excludeResource(this)">' +
-            '<i class="fas fa-ban"></i> <span>Exclude</span></button>';
+            '<i class="fas fa-ban"></i> <span>관리 제외</span></button>';
     },
 
     /**
@@ -142,11 +145,28 @@ const PolicyCenter = {
         document.querySelectorAll('.pc-role-card').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
 
-        const roleId = card.dataset.roleId;
-        const roleName = card.dataset.roleName;
+        this.selectedRoleId = card.dataset.roleId;
+        this.selectedRoleName = card.dataset.roleName;
 
-        if (typeof showToast === 'function') {
-            showToast('Role "' + roleName + '" selected. Use the buttons below to proceed.', 'info');
+        const wizardBtn = document.getElementById('btn-start-wizard');
+        if (wizardBtn) {
+            wizardBtn.disabled = false;
+            wizardBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    },
+
+    /**
+     * Start policy wizard with the selected role
+     */
+    startWizardWithRole() {
+        if (!this.selectedRoleId) {
+            showToast('역할을 먼저 선택해 주세요.', 'error');
+            return;
+        }
+        const form = document.getElementById('wizardRoleForm');
+        if (form) {
+            document.getElementById('wizardRoleId').value = this.selectedRoleId;
+            form.submit();
         }
     }
 };

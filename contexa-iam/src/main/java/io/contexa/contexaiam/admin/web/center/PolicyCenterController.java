@@ -1,13 +1,7 @@
 package io.contexa.contexaiam.admin.web.center;
 
-import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
-import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
-import io.contexa.contexaiam.admin.web.studio.service.StudioExplorerService;
-import io.contexa.contexaiam.admin.web.studio.service.StudioVisualizerService;
-import io.contexa.contexaiam.admin.web.studio.service.StudioActionService;
 import io.contexa.contexaiam.domain.dto.ResourceSearchCriteria;
-import io.contexa.contexaiam.resource.service.ConditionCompatibilityService;
 import io.contexa.contexaiam.resource.service.ResourceRegistryService;
 import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import io.contexa.contexacommon.entity.ManagedResource;
@@ -22,6 +16,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -39,12 +34,6 @@ public class PolicyCenterController {
     private final ResourceRegistryService resourceRegistryService;
     private final PolicyService policyService;
     private final RoleService roleService;
-    private final PermissionService permissionService;
-    private final PermissionCatalogService permissionCatalogService;
-    private final ConditionCompatibilityService conditionCompatibilityService;
-    private final StudioExplorerService explorerService;
-    private final StudioVisualizerService visualizerService;
-    private final StudioActionService actionService;
 
     @GetMapping
     public String policyCenter(
@@ -56,19 +45,28 @@ public class PolicyCenterController {
         model.addAttribute("activePage", "policy-center");
         model.addAttribute("activeTab", tab);
 
-        // Resources tab data
-        Page<ManagedResource> resourcePage = resourceRegistryService.findResources(criteria, pageable);
-        Set<String> serviceOwners = resourceRegistryService.getAllServiceOwners();
-        model.addAttribute("resourcePage", resourcePage);
-        model.addAttribute("serviceOwners", serviceOwners);
-        model.addAttribute("criteria", criteria);
+        try {
+            // Resources tab data
+            Page<ManagedResource> resourcePage = resourceRegistryService.findResources(criteria, pageable);
+            Set<String> serviceOwners = resourceRegistryService.getAllServiceOwners();
+            model.addAttribute("resourcePage", resourcePage);
+            model.addAttribute("serviceOwners", serviceOwners);
+            model.addAttribute("criteria", criteria);
 
-        // Policy creation tab data
-        List<Role> roles = roleService.getRolesWithoutExpression();
-        model.addAttribute("roles", roles);
+            // Policy creation tab data
+            List<Role> roles = roleService.getRolesWithoutExpression();
+            model.addAttribute("roles", roles);
 
-        // Policy list tab data
-        model.addAttribute("policies", policyService.getAllPolicies());
+            // Policy list tab data
+            model.addAttribute("policies", policyService.getAllPolicies());
+        } catch (Exception e) {
+            log.error("Failed to load policy center data", e);
+            model.addAttribute("resourcePage", Page.empty());
+            model.addAttribute("serviceOwners", Collections.emptySet());
+            model.addAttribute("roles", Collections.emptyList());
+            model.addAttribute("policies", Collections.emptyList());
+            model.addAttribute("errorMessage", "Failed to load data. Please try again.");
+        }
 
         return "admin/policy-center";
     }

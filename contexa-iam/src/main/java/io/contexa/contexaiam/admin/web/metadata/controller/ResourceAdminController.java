@@ -36,6 +36,7 @@ public class ResourceAdminController {
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             Model model) {
 
+        model.addAttribute("activePage", "policy-center");
         Page<ManagedResource> resourcePage = resourceRegistryService.findResources(criteria, pageable);
         Set<String> serviceOwners = resourceRegistryService.getAllServiceOwners();
 

@@ -19,7 +19,7 @@
             <div class="mb-6">
                 <h1 class="text-3xl font-bold pc-header-gradient">Policy Center</h1>
                 <p class="text-dark-muted mt-1">
-                    Unified policy management: resources, creation, monitoring, and analysis
+                    통합 정책 관리: 리소스, 생성, 모니터링, 분석
                 </p>
             </div>
 
@@ -29,66 +29,85 @@
                    class="pc-tab-btn"
                    th:classappend="${activeTab == 'resources'} ? ' active' : ''">
                     <i class="fas fa-cube"></i>
-                    <span>Resources</span>
+                    <span>리소스 (Resources)</span>
                     <span class="tab-count" th:text="${resourcePage?.totalElements} ?: '0'"></span>
                 </a>
                 <a th:href="@{/admin/policy-center(tab='create')}"
                    class="pc-tab-btn"
                    th:classappend="${activeTab == 'create'} ? ' active' : ''">
                     <i class="fas fa-plus-circle"></i>
-                    <span>Create Policy</span>
+                    <span>정책 생성 (Create)</span>
                 </a>
                 <a th:href="@{/admin/policy-center(tab='list')}"
                    class="pc-tab-btn"
                    th:classappend="${activeTab == 'list'} ? ' active' : ''">
                     <i class="fas fa-list-alt"></i>
-                    <span>Policy List</span>
+                    <span>정책 목록 (List)</span>
                     <span class="tab-count" th:text="${#lists.size(policies)} ?: '0'"></span>
                 </a>
                 <a th:href="@{/admin/policy-center(tab='studio')}"
                    class="pc-tab-btn"
                    th:classappend="${activeTab == 'studio'} ? ' active' : ''">
-                    <i class="fas fa-chart-network fa-project-diagram"></i>
-                    <span>Studio</span>
+                    <i class="fas fa-project-diagram"></i>
+                    <span>스튜디오 (Studio)</span>
                 </a>
             </nav>
 
             <!-- ==================== TAB 1: Resources ==================== -->
             <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources'} ? ' active' : ''">
 
+                <!-- Header with Refresh -->
+                <div class="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6">
+                    <div>
+                        <h2 class="text-xl font-bold" style="color: #e2e8f0;">
+                            <i class="fas fa-cube mr-2" style="color: #818cf8;"></i>
+                            리소스 관리
+                        </h2>
+                        <p class="text-sm mt-1" style="color: #94a3b8;">
+                            시스템에서 탐지된 리소스를 검토하고 정책을 설정합니다.
+                        </p>
+                    </div>
+                    <form th:action="@{/admin/workbench/resources/refresh}" method="post">
+                        <button type="submit" class="pc-btn-primary whitespace-nowrap">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>리소스 새로고침</span>
+                        </button>
+                    </form>
+                </div>
+
                 <!-- Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="pc-filter-bar mb-6">
                     <input type="hidden" name="tab" value="resources" />
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                         <div>
-                            <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Service Owner</label>
+                            <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">서비스 오너 (Service Owner)</label>
                             <select id="serviceOwner" th:field="*{serviceOwner}" class="pc-select">
-                                <option value="">All</option>
+                                <option value="">전체</option>
                                 <option th:each="owner : ${serviceOwners}" th:value="${owner}" th:text="${owner}"></option>
                             </select>
                         </div>
                         <div>
-                            <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Status</label>
+                            <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">상태 (Status)</label>
                             <select id="status" th:field="*{status}" class="pc-select">
-                                <option value="">All</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}">Needs Definition</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}">Permission Created</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}">Policy Connected</option>
-                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}">Excluded</option>
+                                <option value="">전체</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}">정의 필요</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}">권한 생성됨</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}">정책 연결됨</option>
+                                <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}">관리 제외</option>
                             </select>
                         </div>
                         <div>
-                            <label for="keyword" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">Keyword</label>
-                            <input type="text" id="keyword" th:field="*{keyword}" class="pc-input" placeholder="Identifier, description...">
+                            <label for="keyword" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">키워드 (Keyword)</label>
+                            <input type="text" id="keyword" th:field="*{keyword}" class="pc-input" placeholder="식별자, 설명 등...">
                         </div>
                         <div class="flex gap-2">
                             <button type="submit" class="pc-btn-primary flex-1">
                                 <i class="fas fa-search"></i>
-                                <span>Search</span>
+                                <span>검색</span>
                             </button>
                             <a th:href="@{/admin/policy-center(tab='resources')}" class="pc-btn-secondary flex-1 text-center">
                                 <i class="fas fa-redo"></i>
-                                <span>Reset</span>
+                                <span>초기화</span>
                             </a>
                         </div>
                     </div>
@@ -99,18 +118,18 @@
                     <table class="min-w-full text-sm">
                         <thead>
                         <tr>
-                            <th class="text-center">Status</th>
-                            <th>Friendly Name / Description</th>
-                            <th>Technical Identifier</th>
-                            <th>Metadata</th>
-                            <th>Actions</th>
+                            <th class="text-center">상태</th>
+                            <th>친화적 이름 / 설명</th>
+                            <th>기술 식별자</th>
+                            <th>메타데이터</th>
+                            <th>작업</th>
                         </tr>
                         </thead>
                         <tbody>
                         <tr th:if="${resourcePage == null or resourcePage.empty}">
                             <td colspan="5" class="pc-empty">
                                 <i class="fas fa-inbox"></i>
-                                <p>No resources matching the criteria.</p>
+                                <p>조건에 맞는 리소스가 없습니다.</p>
                             </td>
                         </tr>
                         <th:block th:if="${resourcePage != null}">
@@ -124,17 +143,17 @@
                                                        res.status?.name() == 'PERMISSION_CREATED' ? 'fas fa-check-circle' :
                                                        res.status?.name() == 'POLICY_CONNECTED' ? 'fas fa-link' : 'fas fa-ban'}"></i>
                                         <span th:text="${res.status != null ?
-                                                        (res.status.name() == 'NEEDS_DEFINITION' ? 'Needs Def.' :
-                                                         res.status.name() == 'PERMISSION_CREATED' ? 'Perm Created' :
-                                                         res.status.name() == 'POLICY_CONNECTED' ? 'Connected' : 'Excluded')
-                                                        : 'Unknown'}"></span>
+                                                        (res.status.name() == 'NEEDS_DEFINITION' ? '정의 필요' :
+                                                         res.status.name() == 'PERMISSION_CREATED' ? '권한 생성됨' :
+                                                         res.status.name() == 'POLICY_CONNECTED' ? '정책 연결됨' : '관리 제외')
+                                                        : '상태 미지정'}"></span>
                                     </span>
                                 </td>
                                 <td>
                                     <p class="font-semibold" style="color: #e2e8f0;"
-                                       th:text="${res.friendlyName} ?: 'Unnamed'"></p>
+                                       th:text="${res.friendlyName} ?: '이름 미지정'"></p>
                                     <p class="text-xs mt-1" style="color: #94a3b8;"
-                                       th:text="${res.description} ?: 'No description'"></p>
+                                       th:text="${res.description} ?: '설명 없음'"></p>
                                 </td>
                                 <td>
                                     <span class="pc-badge text-xs mb-1"
@@ -157,19 +176,19 @@
                                                     th:attr="data-resource-id=${res.id}"
                                                     onclick="PolicyCenter.defineResource(this)">
                                                 <i class="fas fa-magic"></i>
-                                                <span>Define & Setup</span>
+                                                <span>권한 정의 & 정책 설정</span>
                                             </button>
                                         </div>
                                         <div th:if="${res.status?.name() == 'POLICY_CONNECTED'}"
                                              class="text-xs text-center p-2 rounded-full" style="background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);">
-                                            <i class="fas fa-link mr-1"></i> Connected
+                                            <i class="fas fa-link mr-1"></i> 정책에 연결됨
                                         </div>
                                         <div th:if="${res.status?.name() != 'EXCLUDED'}">
                                             <button type="button" class="pc-action pc-action-exclude w-full text-center"
                                                     th:attr="data-resource-id=${res.id}"
                                                     onclick="PolicyCenter.excludeResource(this)">
                                                 <i class="fas fa-ban"></i>
-                                                <span>Exclude</span>
+                                                <span>관리 제외</span>
                                             </button>
                                         </div>
                                         <div th:if="${res.status?.name() == 'EXCLUDED'}">
@@ -177,7 +196,7 @@
                                                     th:attr="data-resource-id=${res.id}"
                                                     onclick="PolicyCenter.restoreResource(this)">
                                                 <i class="fas fa-undo"></i>
-                                                <span>Restore</span>
+                                                <span>관리 복원</span>
                                             </button>
                                         </div>
                                     </div>
@@ -212,20 +231,19 @@
             <!-- ==================== TAB 2: Create Policy ==================== -->
             <div id="tab-create" class="pc-tab-content" th:classappend="${activeTab == 'create'} ? ' active' : ''">
 
-                <!-- Quick Mode: Role-Permission Mapping -->
                 <div class="mb-8">
                     <h2 class="text-xl font-bold mb-4" style="color: #e2e8f0;">
                         <i class="fas fa-magic mr-2" style="color: #818cf8;"></i>
-                        Quick Policy (Role-Permission Mapping)
+                        간편 정책 생성 (역할-권한 매핑)
                     </h2>
                     <p class="text-sm mb-6" style="color: #94a3b8;">
-                        Select a role and assign permissions to create a simple ALLOW policy instantly.
+                        역할을 선택하고 권한을 부여하여 간편하게 ALLOW 정책을 생성합니다.
                     </p>
 
                     <!-- Role Selection -->
                     <div class="pc-quick-form mb-6">
                         <label class="block text-sm font-medium mb-3" style="color: #cbd5e1;">
-                            1. Select Target Role
+                            1. 대상 역할 선택
                         </label>
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" id="role-selector">
                             <div th:each="role : ${roles}" class="pc-role-card"
@@ -238,27 +256,37 @@
                                     </div>
                                     <div>
                                         <p class="font-semibold text-sm" style="color: #e2e8f0;" th:text="${role.name}"></p>
-                                        <p class="text-xs" style="color: #64748b;" th:text="${role.description} ?: 'No description'"></p>
+                                        <p class="text-xs" style="color: #64748b;" th:text="${role.description} ?: '설명 없음'"></p>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         <div th:if="${#lists.isEmpty(roles)}" class="pc-empty">
                             <i class="fas fa-user-shield"></i>
-                            <p>No roles available.</p>
+                            <p>사용 가능한 역할이 없습니다.</p>
                         </div>
                     </div>
 
-                    <!-- Navigate to Policy Wizard -->
-                    <div class="flex gap-4 mt-6">
-                        <a th:href="@{/admin/policies/register}" class="pc-btn-primary">
-                            <i class="fas fa-file-alt"></i>
-                            <span>Manual Policy Registration</span>
-                        </a>
-                        <a th:if="${contexaAdminEnterpriseEnabled}" th:href="@{/admin/policy-builder}" class="pc-btn-secondary">
-                            <i class="fas fa-brain"></i>
-                            <span>AI Policy Builder</span>
-                        </a>
+                    <!-- Action Buttons -->
+                    <div class="pc-quick-form">
+                        <label class="block text-sm font-medium mb-3" style="color: #cbd5e1;">
+                            2. 정책 생성 방식 선택
+                        </label>
+                        <div class="flex flex-wrap gap-4">
+                            <button type="button" id="btn-start-wizard" class="pc-btn-primary opacity-50 cursor-not-allowed" disabled
+                                    onclick="PolicyCenter.startWizardWithRole()">
+                                <i class="fas fa-hat-wizard"></i>
+                                <span>이 역할로 정책 마법사 시작</span>
+                            </button>
+                            <a th:href="@{/admin/policies/register}" class="pc-btn-secondary">
+                                <i class="fas fa-file-alt"></i>
+                                <span>수동 정책 등록</span>
+                            </a>
+                            <a th:if="${contexaAdminEnterpriseEnabled}" th:href="@{/admin/policy-builder}" class="pc-btn-secondary">
+                                <i class="fas fa-brain"></i>
+                                <span>AI 정책 빌더</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -268,13 +296,19 @@
                 <div class="flex flex-col sm:flex-row justify-between items-center mb-6">
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-list-alt mr-2" style="color: #818cf8;"></i>
-                        All Policies
+                        전체 정책 목록
                     </h2>
                     <a th:href="@{/admin/policies/register}"
                        class="pc-btn-primary mt-4 sm:mt-0">
                         <i class="fas fa-plus"></i>
-                        <span>New Policy</span>
+                        <span>새 정책 등록</span>
                     </a>
+                </div>
+
+                <!-- Pagination Warning -->
+                <div th:if="${#lists.size(policies) > 100}" class="mb-4 p-3 rounded-lg" style="background: rgba(234,179,8,0.15); border: 1px solid rgba(234,179,8,0.3); color: #facc15;">
+                    <i class="fas fa-exclamation-triangle mr-2"></i>
+                    정책이 <span th:text="${#lists.size(policies)}"></span>건 이상입니다. 향후 페이지네이션 기능이 추가될 예정입니다.
                 </div>
 
                 <div class="pc-table overflow-x-auto">
@@ -282,11 +316,11 @@
                         <thead>
                         <tr>
                             <th>ID</th>
-                            <th>Policy Name</th>
-                            <th>Targets</th>
-                            <th>Effect</th>
-                            <th>Priority</th>
-                            <th>Actions</th>
+                            <th>정책명 (Name)</th>
+                            <th>적용 대상 (Targets)</th>
+                            <th>효과 (Effect)</th>
+                            <th>우선순위</th>
+                            <th>관리</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -316,12 +350,12 @@
                                 <div class="flex gap-2">
                                     <a th:href="@{/admin/policies/{id}(id=${policy.id})}"
                                        class="pc-action pc-action-edit">
-                                        <i class="fas fa-edit"></i> Edit
+                                        <i class="fas fa-edit"></i> 수정
                                     </a>
                                     <a th:href="@{/admin/policies/delete/{id}(id=${policy.id})}"
                                        class="pc-action pc-action-delete"
-                                       onclick="return confirm('Are you sure you want to delete this policy?');">
-                                        <i class="fas fa-trash"></i> Delete
+                                       onclick="return confirm('정말로 이 정책을 삭제하시겠습니까?');">
+                                        <i class="fas fa-trash"></i> 삭제
                                     </a>
                                 </div>
                             </td>
@@ -329,7 +363,7 @@
                         <tr th:if="${#lists.isEmpty(policies)}">
                             <td colspan="6" class="pc-empty">
                                 <i class="fas fa-shield-alt"></i>
-                                <p>No policies defined yet.</p>
+                                <p>등록된 정책이 없습니다.</p>
                             </td>
                         </tr>
                         </tbody>
@@ -345,7 +379,7 @@
                         Authorization Studio
                     </h2>
                     <p class="text-sm mt-1" style="color: #94a3b8;">
-                        AI-powered authorization analysis with interactive visualization
+                        AI 기반 인가 분석 및 인터랙티브 시각화 도구
                     </p>
                 </div>
 
@@ -358,7 +392,7 @@
                         </div>
                         <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Authorization Studio</h3>
                         <p class="text-sm" style="color: #94a3b8;">
-                            3-panel explorer with AI-powered natural language queries and Cytoscape visualization
+                            3패널 탐색기, AI 자연어 질의, Cytoscape 시각화
                         </p>
                     </a>
 
@@ -368,9 +402,9 @@
                              style="background: linear-gradient(135deg, #8b5cf6, #7c3aed);">
                             <i class="fas fa-hat-wizard text-2xl text-white"></i>
                         </div>
-                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Policy Wizard</h3>
+                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">정책 마법사 (Policy Wizard)</h3>
                         <p class="text-sm" style="color: #94a3b8;">
-                            Step-by-step guided wizard for permission setup and role-based policy creation
+                            단계별 가이드 마법사로 권한 설정 및 역할 기반 정책 생성
                         </p>
                     </a>
 
@@ -380,9 +414,9 @@
                              style="background: linear-gradient(135deg, #0ea5e9, #0284c7);">
                             <i class="fas fa-tools text-2xl text-white"></i>
                         </div>
-                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Resource Workbench</h3>
+                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">리소스 워크벤치</h3>
                         <p class="text-sm" style="color: #94a3b8;">
-                            Full resource management workbench with inline editing and policy setup modal
+                            인라인 편집 및 정책 설정 모달을 포함한 전체 리소스 관리
                         </p>
                     </a>
 
@@ -392,23 +426,19 @@
                              style="background: linear-gradient(135deg, #10b981, #059669);">
                             <i class="fas fa-chart-bar text-2xl text-white"></i>
                         </div>
-                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">Summary</h3>
+                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">요약 통계</h3>
                         <div class="grid grid-cols-2 gap-3 mt-4 text-left">
                             <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
-                                <p class="text-xs" style="color: #64748b;">Total Policies</p>
+                                <p class="text-xs" style="color: #64748b;">전체 정책</p>
                                 <p class="text-xl font-bold" style="color: #e2e8f0;" th:text="${#lists.size(policies)} ?: '0'"></p>
                             </div>
                             <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
-                                <p class="text-xs" style="color: #64748b;">Total Resources</p>
+                                <p class="text-xs" style="color: #64748b;">전체 리소스</p>
                                 <p class="text-xl font-bold" style="color: #e2e8f0;" th:text="${resourcePage?.totalElements} ?: '0'"></p>
                             </div>
                             <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
-                                <p class="text-xs" style="color: #64748b;">Roles</p>
+                                <p class="text-xs" style="color: #64748b;">역할 수</p>
                                 <p class="text-xl font-bold" style="color: #e2e8f0;" th:text="${#lists.size(roles)} ?: '0'"></p>
-                            </div>
-                            <div class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6);">
-                                <p class="text-xs" style="color: #64748b;">Status</p>
-                                <p class="text-sm font-bold" style="color: #4ade80;">Active</p>
                             </div>
                         </div>
                     </div>
@@ -418,13 +448,9 @@
     </main>
 </div>
 
-<!-- Hidden forms for resource actions -->
-<form id="quickGrantForm" method="post" th:action="@{/admin/policy-wizard/start}" class="hidden">
-    <input type="hidden" name="permissionId" id="quickGrantPermissionId">
-</form>
-<form id="advancedPolicyForm" method="post" th:action="@{/admin/policy-builder/from-resource}" class="hidden">
-    <input type="hidden" name="resourceId" id="advancedPolicyResourceId">
-    <input type="hidden" name="permissionId" id="advancedPolicyPermissionId">
+<!-- Hidden forms for wizard flow -->
+<form id="wizardRoleForm" method="get" th:action="@{/admin/policy-wizard}" class="hidden">
+    <input type="hidden" name="roleId" id="wizardRoleId">
 </form>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
