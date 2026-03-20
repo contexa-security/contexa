@@ -4,32 +4,41 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
-@Table(name = "ROLE_PERMISSIONS") 
-@IdClass(RolePermissionId.class) 
+@Table(name = "role_permissions")
+@IdClass(RolePermissionId.class)
 @Getter
 @Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class RolePermission implements Serializable {
+
     @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id")
     @ToString.Exclude
-    private Role role; 
+    private Role role;
 
     @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "permission_id")
     @ToString.Exclude
-    private Permission permission; 
+    private Permission permission;
 
-    
-    
-    
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime assignedAt;
+
+    @Column(length = 100)
+    private String assignedBy;
+
+    @PrePersist
+    protected void onCreate() {
+        assignedAt = LocalDateTime.now();
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -50,8 +59,8 @@ public class RolePermission implements Serializable {
 @NoArgsConstructor
 @AllArgsConstructor
 class RolePermissionId implements Serializable {
-    private Long role;      
-    private Long permission; 
+    private Long role;
+    private Long permission;
 
     @Override
     public boolean equals(Object o) {

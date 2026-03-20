@@ -94,7 +94,7 @@ public class RoleServiceImpl implements RoleService {
 
         existingRole.setRoleName(role.getRoleName());
         existingRole.setRoleDesc(role.getRoleDesc());
-        existingRole.setIsExpression(role.getIsExpression());
+        existingRole.setExpression(role.isExpression());
 
         Set<Long> desiredPermissionIds = permissionIds != null ? new HashSet<>(permissionIds) : new HashSet<>();
         Set<RolePermission> currentRolePermissions = existingRole.getRolePermissions();

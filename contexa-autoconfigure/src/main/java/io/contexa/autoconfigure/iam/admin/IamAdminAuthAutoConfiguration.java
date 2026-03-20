@@ -12,7 +12,6 @@ import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexaiam.admin.web.auth.service.impl.*;
 import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
-import io.contexa.contexaiam.repository.DocumentRepository;
 import io.contexa.contexaiam.repository.FunctionCatalogRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
@@ -90,13 +89,6 @@ public class IamAdminAuthAutoConfiguration {
         return new PermissionController(permissionService, modelMapper, functionCatalogService);
     }
 
-    @Bean
-    @ConditionalOnMissingBean
-    public DocumentController documentController(DocumentService documentService) {
-        return new DocumentController(documentService);
-    }
-
-    
     @Bean("userManagementService")
     @ConditionalOnMissingBean
     public UserManagementService userManagementService(
@@ -142,11 +134,5 @@ public class IamAdminAuthAutoConfiguration {
             RoleHierarchyImpl roleHierarchy) {
         return new RoleHierarchyService(
                 roleHierarchyRepository, roleRepository, roleHierarchy);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public DocumentService documentService(DocumentRepository documentRepository) {
-        return new DocumentService(documentRepository);
     }
 }

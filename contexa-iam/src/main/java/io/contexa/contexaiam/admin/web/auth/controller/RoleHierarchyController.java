@@ -150,7 +150,7 @@ public class RoleHierarchyController {
 
                         List<RoleDetailDto> roleDetails = group.getGroupRoles().stream()
                                 .map(GroupRole::getRole)
-                                .filter(role -> role != null && !"Y".equals(role.getIsExpression())) 
+                                .filter(role -> role != null && !role.isExpression()) 
                                 .map(role -> {
                                     RoleDetailDto rdDto = new RoleDetailDto();
                                     rdDto.setRoleId(role.getId());

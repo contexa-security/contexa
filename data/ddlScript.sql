@@ -1,1211 +1,608 @@
-create table public.users
-(
-    id                     bigserial
-        primary key,
-    username               varchar(255)          not null
-        unique,
-    password               varchar(255)          not null,
-    name                   varchar(255)          not null,
-    mfa_enabled            boolean default false not null,
-    last_mfa_used_at       timestamp,
-    enabled                boolean default true  not null,
-    last_used_mfa_factor   varchar(255),
-    preferred_mfa_factor   varchar(255),
-    registered_mfa_factors varchar(255)[],
-    created_at             timestamp(6),
-    updated_at             timestamp(6),
-    roles                  varchar(255)
+-- ============================================================
+-- Contexa AI-Native Zero Trust Security Platform
+-- Database Schema (PostgreSQL 16+ with pgvector)
+-- Version: 0.1.0
+-- ============================================================
+
+-- Required extensions
+CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ============================================================
+-- Core Identity & Access Management
+-- ============================================================
+
+CREATE TABLE users (
+    id                      BIGSERIAL PRIMARY KEY,
+    username                VARCHAR(100) NOT NULL UNIQUE,
+    email                   VARCHAR(255) NOT NULL UNIQUE,
+    password                VARCHAR(255) NOT NULL,
+    name                    VARCHAR(100) NOT NULL,
+    phone                   VARCHAR(20),
+    department              VARCHAR(100),
+    position                VARCHAR(100),
+    profile_image_url       VARCHAR(500),
+    enabled                 BOOLEAN DEFAULT TRUE NOT NULL,
+    account_locked          BOOLEAN DEFAULT FALSE NOT NULL,
+    credentials_expired     BOOLEAN DEFAULT FALSE NOT NULL,
+    failed_login_attempts   INTEGER DEFAULT 0 NOT NULL,
+    lock_expires_at         TIMESTAMP(6),
+    mfa_enabled             BOOLEAN DEFAULT FALSE NOT NULL,
+    preferred_mfa_factor    VARCHAR(50),
+    last_used_mfa_factor    VARCHAR(50),
+    last_mfa_used_at        TIMESTAMP(6),
+    last_login_at           TIMESTAMP(6),
+    last_login_ip           VARCHAR(45),
+    password_changed_at     TIMESTAMP(6),
+    locale                  VARCHAR(10) DEFAULT 'ko',
+    timezone                VARCHAR(50) DEFAULT 'Asia/Seoul',
+    created_at              TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              TIMESTAMP(6)
 );
 
-alter table public.users
-    owner to admin;
+CREATE INDEX idx_users_email ON users (email);
+CREATE INDEX idx_users_department ON users (department);
+CREATE INDEX idx_users_enabled ON users (enabled);
 
-create table public.app_group
-(
-    group_id    bigserial
-        primary key,
-    group_name  varchar(255) not null
-        unique,
-    description varchar(255)
+CREATE TABLE app_group (
+    group_id    BIGSERIAL PRIMARY KEY,
+    group_name  VARCHAR(100) NOT NULL UNIQUE,
+    description VARCHAR(500),
+    enabled     BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at  TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  TIMESTAMP(6),
+    created_by  VARCHAR(100)
 );
 
-alter table public.app_group
-    owner to admin;
-
-create table public.role
-(
-    role_id       bigserial
-        primary key,
-    role_name     varchar(255) not null
-        unique,
-    role_desc     varchar(255),
-    is_expression varchar(255) default 'N'::character varying
+CREATE TABLE role (
+    role_id       BIGSERIAL PRIMARY KEY,
+    role_name     VARCHAR(100) NOT NULL UNIQUE,
+    role_desc     VARCHAR(500),
+    is_expression BOOLEAN DEFAULT FALSE NOT NULL,
+    enabled       BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at    TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at    TIMESTAMP(6),
+    created_by    VARCHAR(100)
 );
 
-alter table public.role
-    owner to admin;
-
-create table public.managed_resource
-(
-    id                          bigserial
-        primary key,
-    resource_identifier         varchar(512)                                               not null
-        unique,
-    resource_type               varchar(255)                                               not null,
-    http_method                 varchar(255),
-    friendly_name               varchar(255),
-    description                 varchar(1024),
-    service_owner               varchar(255),
-    parameter_types             varchar(255),
-    return_type                 varchar(255),
-    api_docs_url                varchar(255),
-    source_code_location        varchar(255),
-    status                      varchar(255) default 'NEEDS_DEFINITION'::character varying not null,
-    created_at                  timestamp    default CURRENT_TIMESTAMP                     not null,
-    updated_at                  timestamp    default CURRENT_TIMESTAMP                     not null,
-    available_context_variables varchar(1024)
+CREATE TABLE managed_resource (
+    id                          BIGSERIAL PRIMARY KEY,
+    resource_identifier         VARCHAR(512) NOT NULL UNIQUE,
+    resource_type               VARCHAR(100) NOT NULL,
+    http_method                 VARCHAR(10),
+    friendly_name               VARCHAR(255),
+    description                 VARCHAR(1024),
+    service_owner               VARCHAR(100),
+    parameter_types             VARCHAR(255),
+    return_type                 VARCHAR(255),
+    api_docs_url                VARCHAR(500),
+    source_code_location        VARCHAR(500),
+    status                      VARCHAR(50) DEFAULT 'NEEDS_DEFINITION' NOT NULL,
+    created_at                  TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    updated_at                  TIMESTAMP(6) DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    available_context_variables VARCHAR(1024)
 );
 
-alter table public.managed_resource
-    owner to admin;
-
-create table public.permission
-(
-    permission_id        bigserial
-        primary key,
-    permission_name      varchar(255) not null
-        unique,
-    friendly_name        varchar(255),
-    description          varchar(1024),
-    target_type          varchar(255),
-    action_type          varchar(255),
-    condition_expression varchar(2048),
-    managed_resource_id  bigint
-        unique
-                                      references public.managed_resource
-                                          on delete set null
+CREATE TABLE permission (
+    permission_id        BIGSERIAL PRIMARY KEY,
+    permission_name      VARCHAR(255) NOT NULL UNIQUE,
+    friendly_name        VARCHAR(255),
+    description          VARCHAR(1024),
+    target_type          VARCHAR(100),
+    action_type          VARCHAR(100),
+    condition_expression VARCHAR(2048),
+    managed_resource_id  BIGINT UNIQUE REFERENCES managed_resource ON DELETE SET NULL,
+    created_at           TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMP(6)
 );
 
-alter table public.permission
-    owner to admin;
+-- ============================================================
+-- Group / Role / Permission Relationships
+-- ============================================================
 
-create table public.user_groups
-(
-    user_id  bigint not null
-        references public.users
-            on delete cascade,
-    group_id bigint not null
-        references public.app_group
-            on delete cascade,
-    primary key (user_id, group_id)
+CREATE TABLE user_groups (
+    user_id     BIGINT NOT NULL REFERENCES users ON DELETE CASCADE,
+    group_id    BIGINT NOT NULL REFERENCES app_group ON DELETE CASCADE,
+    assigned_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_by VARCHAR(100),
+    PRIMARY KEY (user_id, group_id)
 );
 
-alter table public.user_groups
-    owner to admin;
-
-create table public.group_roles
-(
-    group_id bigint not null
-        references public.app_group
-            on delete cascade,
-    role_id  bigint not null
-        references public.role
-            on delete cascade,
-    primary key (group_id, role_id)
+CREATE TABLE group_roles (
+    group_id    BIGINT NOT NULL REFERENCES app_group ON DELETE CASCADE,
+    role_id     BIGINT NOT NULL REFERENCES role ON DELETE CASCADE,
+    assigned_at TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_by VARCHAR(100),
+    PRIMARY KEY (group_id, role_id)
 );
 
-alter table public.group_roles
-    owner to admin;
-
-create table public.role_permissions
-(
-    role_id       bigint not null
-        references public.role
-            on delete cascade,
-    permission_id bigint not null
-        references public.permission
-            on delete cascade,
-    primary key (role_id, permission_id)
+CREATE TABLE role_permissions (
+    role_id       BIGINT NOT NULL REFERENCES role ON DELETE CASCADE,
+    permission_id BIGINT NOT NULL REFERENCES permission ON DELETE CASCADE,
+    assigned_at   TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_by   VARCHAR(100),
+    PRIMARY KEY (role_id, permission_id)
 );
 
-alter table public.role_permissions
-    owner to admin;
+-- ============================================================
+-- Policy Engine (XACML-based)
+-- ============================================================
 
-create table public.policy
-(
-    id                   bigserial
-        primary key,
-    name                 varchar(255) not null
-        unique,
-    description          varchar(255),
-    effect               varchar(255) not null,
-    priority             integer      not null,
-    friendly_description varchar(2048),
-    ai_model             varchar(255),
-    approval_status      varchar(50)
-        constraint policy_approval_status_check
-            check ((approval_status)::text = ANY
-                   ((ARRAY ['PENDING'::character varying, 'APPROVED'::character varying, 'REJECTED'::character varying, 'NOT_REQUIRED'::character varying])::text[])),
-    approved_at          timestamp(6),
-    approved_by          varchar(255),
-    confidence_score     double precision,
-    source               varchar(50)
-        constraint policy_source_check
-            check ((source)::text = ANY
-                   ((ARRAY ['MANUAL'::character varying, 'AI_GENERATED'::character varying, 'AI_EVOLVED'::character varying, 'IMPORTED'::character varying])::text[])),
-    updated_at           timestamp(6),
-    created_at           timestamp    not null,
-    is_active            boolean
+CREATE TABLE policy (
+    id                   BIGSERIAL PRIMARY KEY,
+    name                 VARCHAR(255) NOT NULL UNIQUE,
+    description          VARCHAR(255),
+    effect               VARCHAR(255) NOT NULL,
+    priority             INTEGER NOT NULL,
+    friendly_description VARCHAR(2048),
+    ai_model             VARCHAR(255),
+    approval_status      VARCHAR(50) CHECK (approval_status IN ('PENDING','APPROVED','REJECTED','NOT_REQUIRED')),
+    approved_at          TIMESTAMP(6),
+    approved_by          VARCHAR(255),
+    confidence_score     DOUBLE PRECISION,
+    source               VARCHAR(50) CHECK (source IN ('MANUAL','AI_GENERATED','AI_EVOLVED','IMPORTED')),
+    updated_at           TIMESTAMP(6),
+    created_at           TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_active            BOOLEAN DEFAULT TRUE NOT NULL
 );
 
-alter table public.policy
-    owner to admin;
-
-create table public.policy_target
-(
-    id                bigserial
-        primary key,
-    policy_id         bigint       not null
-        references public.policy
-            on delete cascade,
-    target_type       varchar(255) not null,
-    target_identifier varchar(255) not null,
-    http_method       varchar(255)
+CREATE TABLE policy_target (
+    id                BIGSERIAL PRIMARY KEY,
+    policy_id         BIGINT NOT NULL REFERENCES policy ON DELETE CASCADE,
+    target_type       VARCHAR(255) NOT NULL,
+    target_identifier VARCHAR(255) NOT NULL,
+    http_method       VARCHAR(255)
 );
 
-alter table public.policy_target
-    owner to admin;
-
-create table public.policy_rule
-(
-    id          bigserial
-        primary key,
-    policy_id   bigint not null
-        references public.policy
-            on delete cascade,
-    description varchar(255)
+CREATE TABLE policy_rule (
+    id          BIGSERIAL PRIMARY KEY,
+    policy_id   BIGINT NOT NULL REFERENCES policy ON DELETE CASCADE,
+    description VARCHAR(255)
 );
 
-alter table public.policy_rule
-    owner to admin;
-
-create table public.policy_condition
-(
-    id                   bigserial
-        primary key,
-    rule_id              bigint                                                  not null
-        references public.policy_rule
-            on delete cascade,
-    condition_expression varchar(2048)                                           not null,
-    authorization_phase  varchar(255) default 'PRE_AUTHORIZE'::character varying not null,
-    description          varchar(255)
+CREATE TABLE policy_condition (
+    id                   BIGSERIAL PRIMARY KEY,
+    rule_id              BIGINT NOT NULL REFERENCES policy_rule ON DELETE CASCADE,
+    condition_expression VARCHAR(2048) NOT NULL,
+    authorization_phase  VARCHAR(255) DEFAULT 'PRE_AUTHORIZE' NOT NULL,
+    description          VARCHAR(255)
 );
 
-alter table public.policy_condition
-    owner to admin;
+-- ============================================================
+-- Role Hierarchy & Audit
+-- ============================================================
 
-create table public.role_hierarchy_config
-(
-    id               bigserial
-        primary key,
-    description      varchar(255),
-    hierarchy_string text                  not null,
-    is_active        boolean default false not null,
-    hierarchy_id     bigint generated by default as identity
+CREATE TABLE role_hierarchy_config (
+    id               BIGSERIAL PRIMARY KEY,
+    description      VARCHAR(500),
+    hierarchy_string TEXT NOT NULL,
+    is_active        BOOLEAN DEFAULT FALSE NOT NULL,
+    created_at       TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       TIMESTAMP(6),
+    created_by       VARCHAR(100)
 );
 
-alter table public.role_hierarchy_config
-    owner to admin;
-
-create table public.audit_log
-(
-    id                  bigserial
-        primary key,
-    timestamp           timestamp default CURRENT_TIMESTAMP not null,
-    principal_name      varchar(255)                        not null,
-    resource_identifier varchar(512)                        not null,
-    action              varchar(255),
-    decision            varchar(255)                        not null,
-    reason              varchar(1024),
-    client_ip           varchar(255),
-    details             text,
-    outcome             varchar(255),
-    resource_uri        varchar(1024),
-    parameters          varchar(255),
-    session_id          varchar(255),
-    status              varchar(255),
-    correlation_id      varchar(64),
-    event_category      varchar(50),
-    event_source        varchar(50),
-    http_method         varchar(10),
-    request_uri         varchar(2048),
-    risk_score          double precision,
-    user_agent          varchar(512)
+CREATE TABLE audit_log (
+    id                  BIGSERIAL PRIMARY KEY,
+    timestamp           TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    principal_name      VARCHAR(255) NOT NULL,
+    resource_identifier VARCHAR(512) NOT NULL,
+    action              VARCHAR(255),
+    decision            VARCHAR(255) NOT NULL,
+    reason              VARCHAR(1024),
+    client_ip           VARCHAR(45),
+    details             TEXT,
+    outcome             VARCHAR(255),
+    resource_uri        VARCHAR(1024),
+    parameters          VARCHAR(255),
+    session_id          VARCHAR(255),
+    status              VARCHAR(255),
+    correlation_id      VARCHAR(64),
+    event_category      VARCHAR(50),
+    event_source        VARCHAR(50),
+    http_method         VARCHAR(10),
+    request_uri         VARCHAR(2048),
+    risk_score          DOUBLE PRECISION,
+    user_agent          VARCHAR(512)
 );
 
-alter table public.audit_log
-    owner to admin;
+-- ============================================================
+-- Business Resource / Action Mapping
+-- ============================================================
 
-create table public.business_resource
-(
-    id            bigserial
-        primary key,
-    name          varchar(255) not null
-        unique,
-    resource_type varchar(255) not null,
-    description   varchar(1024)
+CREATE TABLE business_resource (
+    id            BIGSERIAL PRIMARY KEY,
+    name          VARCHAR(255) NOT NULL UNIQUE,
+    resource_type VARCHAR(255) NOT NULL,
+    description   VARCHAR(1024)
 );
 
-alter table public.business_resource
-    owner to admin;
-
-create table public.business_action
-(
-    id          bigserial
-        primary key,
-    name        varchar(255) not null
-        unique,
-    action_type varchar(255) not null,
-    description varchar(1024)
+CREATE TABLE business_action (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(255) NOT NULL UNIQUE,
+    action_type VARCHAR(255) NOT NULL,
+    description VARCHAR(1024)
 );
 
-alter table public.business_action
-    owner to admin;
-
-create table public.business_resource_action
-(
-    business_resource_id   bigint       not null
-        references public.business_resource
-            on delete cascade,
-    business_action_id     bigint       not null
-        references public.business_action
-            on delete cascade,
-    mapped_permission_name varchar(255) not null,
-    primary key (business_resource_id, business_action_id)
+CREATE TABLE business_resource_action (
+    business_resource_id   BIGINT NOT NULL REFERENCES business_resource ON DELETE CASCADE,
+    business_action_id     BIGINT NOT NULL REFERENCES business_action ON DELETE CASCADE,
+    mapped_permission_name VARCHAR(255) NOT NULL,
+    PRIMARY KEY (business_resource_id, business_action_id)
 );
 
-alter table public.business_resource_action
-    owner to admin;
+-- ============================================================
+-- Condition Template & Wizard
+-- ============================================================
 
-create table public.condition_template
-(
-    id                         bigserial
-        primary key,
-    name                       varchar(255)      not null
-        unique,
-    spel_template              varchar(2048)     not null,
-    category                   varchar(255),
-    parameter_count            integer default 0 not null,
-    description                varchar(1024),
-    required_context_variables varchar(1024),
-    parameter_metadata         jsonb,
-    required_target_type       varchar(1024),
-    created_at                 timestamp(6),
-    is_auto_generated          boolean,
-    is_universal               boolean,
-    source_method              varchar(255),
-    template_type              varchar(255),
-    updated_at                 timestamp(6),
-    approval_required          boolean,
-    classification             varchar(255)
-        constraint condition_template_classification_check
-            check ((classification)::text = ANY
-                   ((ARRAY ['UNIVERSAL'::character varying, 'CONTEXT_DEPENDENT'::character varying, 'CUSTOM_COMPLEX'::character varying])::text[])),
-    complexity_score           integer,
-    context_dependent          boolean,
-    risk_level                 varchar(255)
-        constraint condition_template_risk_level_check
-            check ((risk_level)::text = ANY
-                   ((ARRAY ['LOW'::character varying, 'MEDIUM'::character varying, 'HIGH'::character varying])::text[]))
+CREATE TABLE condition_template (
+    id                    BIGSERIAL PRIMARY KEY,
+    name                  VARCHAR(255) NOT NULL UNIQUE,
+    spel_template         VARCHAR(2048) NOT NULL,
+    category              VARCHAR(255),
+    parameter_count       INTEGER DEFAULT 0 NOT NULL,
+    description           VARCHAR(1024),
+    required_target_type  VARCHAR(1024),
+    created_at            TIMESTAMP(6),
+    is_auto_generated     BOOLEAN,
+    is_universal          BOOLEAN,
+    source_method         VARCHAR(255),
+    template_type         VARCHAR(255),
+    updated_at            TIMESTAMP(6),
+    approval_required     BOOLEAN,
+    classification        VARCHAR(255) CHECK (classification IN ('UNIVERSAL','CONTEXT_DEPENDENT','CUSTOM_COMPLEX')),
+    complexity_score      INTEGER,
+    context_dependent     BOOLEAN
 );
 
-alter table public.condition_template
-    owner to admin;
-
-create table public.wizard_session
-(
-    session_id    varchar(36)  not null
-        primary key,
-    context_data  text         not null,
-    owner_user_id varchar(255) not null,
-    created_at    timestamp    not null,
-    expires_at    timestamp    not null
+CREATE TABLE wizard_session (
+    session_id    VARCHAR(36) NOT NULL PRIMARY KEY,
+    context_data  TEXT NOT NULL,
+    owner_user_id VARCHAR(255) NOT NULL,
+    created_at    TIMESTAMP NOT NULL,
+    expires_at    TIMESTAMP NOT NULL
 );
 
-alter table public.wizard_session
-    owner to admin;
+-- ============================================================
+-- Document & Function Catalog
+-- ============================================================
 
-create table public.document
-(
-    document_id    bigserial
-        primary key,
-    title          varchar(255)                        not null,
-    content        text,
-    owner_username varchar(255)                        not null,
-    created_at     timestamp default CURRENT_TIMESTAMP not null,
-    updated_at     timestamp
+CREATE TABLE function_group (
+    id   BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE
 );
 
-alter table public.document
-    owner to admin;
-
-create table public.function_group
-(
-    id   bigint generated by default as identity
-        primary key,
-    name varchar(255) not null
-        constraint uk2g3eo8mfkcu5ejl7oa9l0xkgd
-            unique
+CREATE TABLE function_catalog (
+    id                  BIGSERIAL PRIMARY KEY,
+    description         VARCHAR(1024),
+    friendly_name       VARCHAR(255) NOT NULL,
+    status              VARCHAR(255) NOT NULL CHECK (status IN ('UNCONFIRMED','ACTIVE','INACTIVE')),
+    function_group_id   BIGINT REFERENCES function_group,
+    managed_resource_id BIGINT NOT NULL UNIQUE REFERENCES managed_resource
 );
 
-alter table public.function_group
-    owner to admin;
-
-create table public.function_catalog
-(
-    id                  bigint generated by default as identity
-        primary key,
-    description         varchar(1024),
-    friendly_name       varchar(255) not null,
-    status              varchar(255) not null
-        constraint function_catalog_status_check
-            check ((status)::text = ANY
-                   ((ARRAY ['UNCONFIRMED'::character varying, 'ACTIVE'::character varying, 'INACTIVE'::character varying])::text[])),
-    function_group_id   bigint
-        constraint fkq7oc3xf6h5751ujccfwra52de
-            references public.function_group,
-    managed_resource_id bigint       not null
-        constraint uk1gc7v1ph0re3caqe1rr6x2bqe
-            unique
-        constraint fklgnitp52iu5y28w8oslepyb1e
-            references public.managed_resource
+CREATE TABLE policy_template (
+    id                BIGSERIAL PRIMARY KEY,
+    category          VARCHAR(255),
+    description       VARCHAR(1024),
+    name              VARCHAR(255) NOT NULL,
+    policy_draft_json JSONB NOT NULL,
+    template_id       VARCHAR(255) NOT NULL UNIQUE
 );
 
-alter table public.function_catalog
-    owner to admin;
+-- ============================================================
+-- AI Vector Store (Spring AI pgvector)
+-- ============================================================
 
-create table public.policy_template
-(
-    id                bigint generated by default as identity
-        primary key,
-    category          varchar(255),
-    description       varchar(1024),
-    name              varchar(255) not null,
-    policy_draft_json jsonb        not null,
-    template_id       varchar(255) not null
-        constraint ukbudcfqmqypbf160uukp83no3d
-            unique
-);
-
-alter table public.policy_template
-    owner to admin;
-
-create table public.vector_store
-(
-    id        uuid default gen_random_uuid() not null
-        constraint iam_vectors_pkey
-            primary key,
-    content   text                           not null,
-    metadata  jsonb,
+CREATE TABLE vector_store (
+    id        UUID DEFAULT gen_random_uuid() NOT NULL PRIMARY KEY,
+    content   TEXT NOT NULL,
+    metadata  JSONB,
     embedding vector(1024)
 );
 
-alter table public.vector_store
-    owner to admin;
+CREATE INDEX vector_store_embedding_idx ON vector_store USING hnsw (embedding vector_cosine_ops);
 
-create index iam_vectors_embedding_idx
-    on public.vector_store using hnsw (embedding public.vector_cosine_ops);
+-- ============================================================
+-- User Behavior Profile
+-- ============================================================
 
-create index spring_ai_vector_index
-    on public.vector_store using hnsw (embedding public.vector_cosine_ops);
-
-create index embedding_hnsw_idx
-    on public.vector_store using hnsw (embedding public.vector_cosine_ops);
-
-create table public.behavior_anomaly_events
-(
-    id                 bigint generated by default as identity
-        primary key,
-    action_taken       varchar(100),
-    action_timestamp   timestamp(6),
-    activity           varchar(500),
-    admin_feedback     varchar(20),
-    ai_analysis_id     varchar(255),
-    ai_confidence      real,
-    ai_summary         text,
-    anomaly_factors    json,
-    anomaly_score      double precision not null,
-    event_timestamp    timestamp(6)     not null,
-    feedback_by        varchar(255),
-    feedback_comment   text,
-    feedback_timestamp timestamp(6),
-    remote_ip          varchar(45),
-    risk_level         varchar(20),
-    user_id            varchar(255)     not null
+CREATE TABLE user_behavior_profiles (
+    id                      BIGSERIAL PRIMARY KEY,
+    cluster_centroid_vector  TEXT,
+    cluster_size             INTEGER,
+    common_activities        JSON,
+    common_ip_ranges         JSON,
+    confidence_score         REAL,
+    last_updated             TIMESTAMP(6),
+    learning_count           INTEGER,
+    normal_range_metadata    JSON,
+    profile_type             VARCHAR(50) NOT NULL,
+    user_id                  VARCHAR(255) NOT NULL,
+    vector_cluster_id        VARCHAR(255)
 );
 
-alter table public.behavior_anomaly_events
-    owner to admin;
+-- ============================================================
+-- SOAR (Security Orchestration, Automation and Response)
+-- ============================================================
 
-create table public.behavior_based_permissions
-(
-    id                    bigint generated by default as identity
-        primary key,
-    is_active             boolean,
-    applicable_to         varchar(50),
-    condition_expression  text,
-    created_at            timestamp(6),
-    created_by            varchar(255),
-    description           text,
-    permission_adjustment varchar(50),
-    priority              integer
+CREATE TABLE soar_incidents (
+    id                  UUID NOT NULL PRIMARY KEY,
+    created_at          TIMESTAMP(6) NOT NULL,
+    history             TEXT,
+    severity            VARCHAR(255),
+    status              VARCHAR(255) NOT NULL CHECK (status IN ('NEW','TRIAGE','INVESTIGATION','PLANNING','PENDING_APPROVAL','EXECUTION','REPORTING','COMPLETED','AUTO_CLOSED','FAILED','CLOSED_BY_ADMIN')),
+    title               VARCHAR(255) NOT NULL,
+    updated_at          TIMESTAMP(6) NOT NULL,
+    description         TEXT,
+    incident_id         VARCHAR(255),
+    metadata            TEXT,
+    type                VARCHAR(255)
 );
 
-alter table public.behavior_based_permissions
-    owner to admin;
-
-create table public.behavior_realtime_cache
-(
-    user_id                 varchar(255) not null
-        primary key,
-    current_risk_score      real,
-    current_session_id      varchar(255),
-    expires_at              timestamp(6),
-    last_activity_timestamp timestamp(6),
-    recent_activities       json,
-    risk_factors            json,
-    session_ip              varchar(45),
-    session_start_time      timestamp(6)
+CREATE TABLE soar_approval_policies (
+    id                      BIGSERIAL PRIMARY KEY,
+    action_name             VARCHAR(255),
+    auto_approve_on_timeout BOOLEAN NOT NULL,
+    policy_name             VARCHAR(255) NOT NULL UNIQUE,
+    required_approvers      INTEGER NOT NULL,
+    required_roles          TEXT,
+    severity                VARCHAR(255),
+    timeout_minutes         INTEGER NOT NULL
 );
 
-alter table public.behavior_realtime_cache
-    owner to admin;
-
-create table public.user_behavior_profiles
-(
-    id                      bigint generated by default as identity
-        primary key,
-    cluster_centroid_vector text,
-    cluster_size            integer,
-    common_activities       json,
-    common_ip_ranges        json,
-    confidence_score        real,
-    last_updated            timestamp(6),
-    learning_count          integer,
-    normal_range_metadata   json,
-    profile_type            varchar(50)  not null,
-    user_id                 varchar(255) not null,
-    vector_cluster_id       varchar(255)
+CREATE TABLE soar_approval_requests (
+    id                   BIGSERIAL PRIMARY KEY,
+    action_name          VARCHAR(255) NOT NULL,
+    created_at           TIMESTAMP(6) NOT NULL,
+    description          TEXT,
+    organization_id      VARCHAR(255),
+    parameters           TEXT,
+    playbook_instance_id VARCHAR(255) NOT NULL,
+    required_approvers   INTEGER,
+    required_roles       TEXT,
+    reviewer_comment     TEXT,
+    reviewer_id          VARCHAR(255),
+    status               VARCHAR(255) NOT NULL,
+    updated_at           TIMESTAMP(6) NOT NULL,
+    request_id           VARCHAR(255) NOT NULL UNIQUE,
+    action_type          VARCHAR(255),
+    approval_comment     TEXT,
+    approval_timeout     INTEGER,
+    approval_type        VARCHAR(255),
+    approved_at          TIMESTAMP(6),
+    approved_by          VARCHAR(255),
+    incident_id          VARCHAR(255),
+    requested_by         VARCHAR(255),
+    risk_level           VARCHAR(255),
+    session_id           VARCHAR(255),
+    tool_name            VARCHAR(255)
 );
 
-alter table public.user_behavior_profiles
-    owner to admin;
-
-create table public.soar_execution_plans
-(
-    plan_id         varchar(255)  not null
-        primary key,
-    created_at      timestamp(6)  not null,
-    reason          varchar(1000) not null,
-    status          varchar(255)  not null
-        constraint soar_execution_plans_status_check
-            check ((status)::text = ANY
-                   ((ARRAY ['PENDING_APPROVAL'::character varying, 'APPROVED'::character varying, 'REJECTED'::character varying, 'EXECUTED_SUCCESS'::character varying, 'EXECUTED_PARTIAL_SUCCESS'::character varying, 'EXECUTED_FAILURE'::character varying])::text[])),
-    tool_calls_json text          not null,
-    updated_at      timestamp(6)
+CREATE TABLE soar_approval_steps (
+    id                  BIGSERIAL PRIMARY KEY,
+    request_id          BIGINT REFERENCES soar_approval_requests,
+    step_order          INTEGER NOT NULL,
+    required_role       VARCHAR(255),
+    status              VARCHAR(255) NOT NULL,
+    assigned_to         VARCHAR(255),
+    completed_at        TIMESTAMP(6),
+    created_at          TIMESTAMP(6) NOT NULL
 );
 
-alter table public.soar_execution_plans
-    owner to admin;
-
-create table public.soar_playbook_context
-(
-    instance_id        uuid         not null
-        primary key,
-    current_state_name varchar(255) not null,
-    data               text,
-    playbook_id        varchar(255) not null,
-    playbook_version   varchar(255) not null
+CREATE TABLE soar_approval_assignments (
+    id                  BIGSERIAL PRIMARY KEY,
+    step_id             BIGINT REFERENCES soar_approval_steps,
+    assignee_id         VARCHAR(255) NOT NULL,
+    assigned_at         TIMESTAMP(6) NOT NULL,
+    status              VARCHAR(255) NOT NULL,
+    responded_at        TIMESTAMP(6)
 );
 
-alter table public.soar_playbook_context
-    owner to admin;
-
-create table public.soar_incidents
-(
-    id                  uuid         not null
-        primary key,
-    created_at          timestamp(6) not null,
-    history             text,
-    severity            varchar(255),
-    status              varchar(255) not null
-        constraint soar_incidents_status_check
-            check ((status)::text = ANY
-                   ((ARRAY ['NEW'::character varying, 'TRIAGE'::character varying, 'INVESTIGATION'::character varying, 'PLANNING'::character varying, 'PENDING_APPROVAL'::character varying, 'EXECUTION'::character varying, 'REPORTING'::character varying, 'COMPLETED'::character varying, 'AUTO_CLOSED'::character varying, 'FAILED'::character varying, 'CLOSED_BY_ADMIN'::character varying])::text[])),
-    title               varchar(255) not null,
-    updated_at          timestamp(6) not null,
-    playbook_context_id uuid
-        constraint ukmsngu83d34nmqokotdvofotmf
-            unique
-        constraint fk594sfdey19u7lhb0xdqyidq9
-            references public.soar_playbook_context,
-    description         text,
-    incident_id         varchar(255),
-    metadata            text,
-    type                varchar(255)
+CREATE TABLE soar_approval_votes (
+    id                  BIGSERIAL PRIMARY KEY,
+    request_id          BIGINT REFERENCES soar_approval_requests,
+    voter_id            VARCHAR(255) NOT NULL,
+    decision            VARCHAR(255) NOT NULL,
+    comment             TEXT,
+    voted_at            TIMESTAMP(6) NOT NULL
 );
 
-alter table public.soar_incidents
-    owner to admin;
-
-create table public.soar_approval_policies
-(
-    id                      bigint generated by default as identity
-        primary key,
-    action_name             varchar(255),
-    auto_approve_on_timeout boolean      not null,
-    policy_name             varchar(255) not null
-        constraint uk9kpc008gu6g8pc1lr76iakhjl
-            unique,
-    required_approvers      integer      not null,
-    required_roles          text,
-    severity                varchar(255),
-    timeout_minutes         integer      not null
+CREATE TABLE approval_notifications (
+    id                BIGSERIAL PRIMARY KEY,
+    action_required   BOOLEAN NOT NULL,
+    action_url        VARCHAR(500),
+    created_at        TIMESTAMP(6) NOT NULL,
+    expires_at        TIMESTAMP(6),
+    group_id          VARCHAR(100),
+    is_read           BOOLEAN NOT NULL,
+    message           TEXT,
+    notification_data TEXT,
+    notification_type VARCHAR(50) NOT NULL,
+    priority          VARCHAR(20),
+    read_at           TIMESTAMP(6),
+    read_by           VARCHAR(100),
+    request_id        VARCHAR(100) NOT NULL,
+    target_role       VARCHAR(50),
+    title             VARCHAR(255) NOT NULL,
+    updated_at        TIMESTAMP(6) NOT NULL,
+    user_id           VARCHAR(100)
 );
 
-alter table public.soar_approval_policies
-    owner to admin;
+CREATE INDEX idx_notification_request_id ON approval_notifications (request_id);
+CREATE INDEX idx_notification_user_id ON approval_notifications (user_id);
+CREATE INDEX idx_notification_is_read ON approval_notifications (is_read);
+CREATE INDEX idx_notification_created_at ON approval_notifications (created_at);
 
-create table public.soar_approval_requests
-(
-    id                   bigint generated by default as identity
-        primary key,
-    action_name          varchar(255) not null,
-    created_at           timestamp(6) not null,
-    description          oid,
-    organization_id      varchar(255),
-    parameters           text,
-    playbook_instance_id varchar(255) not null,
-    required_approvers   integer,
-    required_roles       text,
-    reviewer_comment     oid,
-    reviewer_id          varchar(255),
-    status               varchar(255) not null,
-    updated_at           timestamp(6) not null,
-    request_id           varchar(255) not null
-        constraint ukpihdj0vlwd3ya4deserflnfm9
-            unique,
-    action_type          varchar(255),
-    approval_comment     oid,
-    approval_timeout     integer,
-    approval_type        varchar(255),
-    approved_at          timestamp(6),
-    approved_by          varchar(255),
-    incident_id          varchar(255),
-    requested_by         varchar(255),
-    risk_level           varchar(255),
-    session_id           varchar(255),
-    tool_name            varchar(255)
+-- ============================================================
+-- Threat Intelligence
+-- ============================================================
+
+CREATE TABLE threat_indicators (
+    indicator_id         VARCHAR(255) NOT NULL PRIMARY KEY,
+    active               BOOLEAN,
+    campaign             VARCHAR(255),
+    campaign_id          VARCHAR(255),
+    cis_control          VARCHAR(255),
+    confidence           DOUBLE PRECISION,
+    created_at           TIMESTAMP(6) NOT NULL,
+    description          TEXT,
+    detected_at          TIMESTAMP(6),
+    detection_count      INTEGER,
+    expires_at           TIMESTAMP(6),
+    false_positive_count INTEGER,
+    first_seen           TIMESTAMP(6),
+    last_seen            TIMESTAMP(6),
+    malware_family       VARCHAR(255),
+    mitre_attack_id      VARCHAR(255),
+    mitre_tactic         VARCHAR(255),
+    mitre_technique      VARCHAR(255),
+    nist_csf_category    VARCHAR(255),
+    severity             VARCHAR(255) NOT NULL CHECK (severity IN ('CRITICAL','HIGH','MEDIUM','LOW','INFO')),
+    source               VARCHAR(255),
+    status               VARCHAR(255) CHECK (status IN ('ACTIVE','INACTIVE','EXPIRED','FALSE_POSITIVE','UNDER_REVIEW')),
+    threat_actor         VARCHAR(255),
+    threat_actor_id      VARCHAR(255),
+    threat_score         DOUBLE PRECISION,
+    indicator_type       VARCHAR(255) NOT NULL CHECK (indicator_type IN ('IP_ADDRESS','DOMAIN','URL','FILE_HASH','FILE_PATH','REGISTRY_KEY','PROCESS_NAME','EMAIL_ADDRESS','USER_AGENT','CERTIFICATE','MUTEX','YARA_RULE','BEHAVIORAL','UNKNOWN','PATTERN','USER_ACCOUNT','COMPLIANCE','EVENT')),
+    updated_at           TIMESTAMP(6),
+    indicator_value      VARCHAR(255) NOT NULL
 );
 
-alter table public.soar_approval_requests
-    owner to admin;
-
-create table public.approval_notifications
-(
-    id                bigint generated by default as identity
-        primary key,
-    action_required   boolean      not null,
-    action_url        varchar(500),
-    created_at        timestamp(6) not null,
-    expires_at        timestamp(6),
-    group_id          varchar(100),
-    is_read           boolean      not null,
-    message           text,
-    notification_data text,
-    notification_type varchar(50)  not null,
-    priority          varchar(20),
-    read_at           timestamp(6),
-    read_by           varchar(100),
-    request_id        varchar(100) not null,
-    target_role       varchar(50),
-    title             varchar(255) not null,
-    updated_at        timestamp(6) not null,
-    user_id           varchar(100)
+CREATE TABLE indicator_metadata (
+    indicator_id VARCHAR(255) NOT NULL REFERENCES threat_indicators,
+    meta_value   VARCHAR(255),
+    meta_key     VARCHAR(255) NOT NULL,
+    PRIMARY KEY (indicator_id, meta_key)
 );
 
-alter table public.approval_notifications
-    owner to admin;
-
-create index idx_notification_request_id
-    on public.approval_notifications (request_id);
-
-create index idx_notification_user_id
-    on public.approval_notifications (user_id);
-
-create index idx_notification_is_read
-    on public.approval_notifications (is_read);
-
-create index idx_notification_created_at
-    on public.approval_notifications (created_at);
-
-create table public.tool_execution_contexts
-(
-    id                   bigint generated by default as identity
-        primary key,
-    available_tools      text,
-    chat_options         text,
-    chat_response        text,
-    created_at           timestamp(6) not null,
-    execution_end_time   timestamp(6),
-    execution_error      text,
-    execution_result     text,
-    execution_start_time timestamp(6),
-    expires_at           timestamp(6),
-    incident_id          varchar(100),
-    max_retries          integer,
-    metadata             text,
-    pipeline_context     text,
-    prompt_content       text         not null,
-    request_id           varchar(100) not null
-        constraint idx_tool_context_request_id
-            unique,
-    retry_count          integer,
-    risk_level           varchar(20),
-    session_id           varchar(100),
-    soar_context         text,
-    status               varchar(20)  not null,
-    tool_arguments       text,
-    tool_call_id         varchar(255),
-    tool_definitions     text,
-    tool_name            varchar(255) not null,
-    tool_type            varchar(50),
-    updated_at           timestamp(6) not null
+CREATE TABLE indicator_tags (
+    indicator_id VARCHAR(255) NOT NULL REFERENCES threat_indicators,
+    tag          VARCHAR(255)
 );
 
-alter table public.tool_execution_contexts
-    owner to admin;
-
-create index idx_tool_context_status
-    on public.tool_execution_contexts (status);
-
-create index idx_tool_context_created_at
-    on public.tool_execution_contexts (created_at);
-
-create table public.security_incidents
-(
-    incident_id           varchar(50)  not null
-        primary key,
-    affected_system       varchar(255),
-    affected_user         varchar(255),
-    approval_request_id   varchar(255),
-    auto_response_enabled boolean,
-    created_at            timestamp(6) not null,
-    description           text,
-    destination_ip        varchar(255),
-    detected_at           timestamp(6),
-    detected_by           varchar(255),
-    detection_source      varchar(255),
-    escalated_at          timestamp(6),
-    event_count           integer,
-    last_event_time       timestamp(6),
-    mitre_attack_mapping  varchar(255),
-    organization_id       varchar(255),
-    requires_approval     boolean,
-    resolved_at           timestamp(6),
-    risk_score            double precision,
-    source                varchar(255),
-    source_ip             varchar(255),
-    incident_status       varchar(255) not null
-        constraint security_incidents_incident_status_check
-            check ((incident_status)::text = ANY
-                   ((ARRAY ['NEW'::character varying, 'INVESTIGATING'::character varying, 'CONFIRMED'::character varying, 'CONTAINED'::character varying, 'ERADICATED'::character varying, 'RECOVERING'::character varying, 'RESOLVED'::character varying, 'CLOSED'::character varying, 'FALSE_POSITIVE'::character varying])::text[])),
-    target_ip             varchar(255),
-    threat_level          varchar(255) not null
-        constraint security_incidents_threat_level_check
-            check ((threat_level)::text = ANY
-                   ((ARRAY ['CRITICAL'::character varying, 'HIGH'::character varying, 'MEDIUM'::character varying, 'LOW'::character varying, 'INFO'::character varying])::text[])),
-    incident_type         varchar(255) not null
-        constraint security_incidents_incident_type_check
-            check ((incident_type)::text = ANY
-                   ((ARRAY ['INTRUSION_ATTEMPT'::character varying, 'MALWARE_DETECTION'::character varying, 'DATA_EXFILTRATION'::character varying, 'UNAUTHORIZED_ACCESS'::character varying, 'PRIVILEGE_ESCALATION'::character varying, 'PHISHING_ATTEMPT'::character varying, 'DOS_ATTACK'::character varying, 'SUSPICIOUS_ACTIVITY'::character varying, 'POLICY_VIOLATION'::character varying, 'CONFIGURATION_CHANGE'::character varying, 'MALWARE'::character varying, 'INTRUSION'::character varying, 'DATA_BREACH'::character varying, 'PHISHING'::character varying, 'OTHER'::character varying])::text[])),
-    updated_at            timestamp(6)
+CREATE TABLE related_indicators (
+    indicator_id         VARCHAR(255) NOT NULL REFERENCES threat_indicators,
+    related_indicator_id VARCHAR(255) NOT NULL REFERENCES threat_indicators,
+    PRIMARY KEY (indicator_id, related_indicator_id)
 );
 
-alter table public.security_incidents
-    owner to admin;
+-- ============================================================
+-- Zero Trust - Blocked Users
+-- ============================================================
 
-create table public.incident_affected_assets
-(
-    incident_id varchar(50) not null
-        constraint fk10jof249j9uoc6rat6qfi9jde
-            references public.security_incidents,
-    asset_id    varchar(255)
+CREATE TABLE blocked_user (
+    id                   BIGSERIAL PRIMARY KEY,
+    block_count          INTEGER NOT NULL,
+    blocked_at           TIMESTAMP(6) NOT NULL,
+    confidence           DOUBLE PRECISION,
+    reasoning            TEXT,
+    request_id           VARCHAR(255) NOT NULL UNIQUE,
+    resolve_reason       TEXT,
+    resolved_action      VARCHAR(255),
+    resolved_at          TIMESTAMP(6),
+    resolved_by          VARCHAR(255),
+    risk_score           DOUBLE PRECISION,
+    source_ip            VARCHAR(45),
+    status               VARCHAR(50) NOT NULL CHECK (status IN ('BLOCKED','UNBLOCK_REQUESTED','RESOLVED','TIMEOUT_RESPONDED','MFA_FAILED')),
+    user_agent           VARCHAR(512),
+    user_id              VARCHAR(100) NOT NULL,
+    username             VARCHAR(100),
+    unblock_requested_at TIMESTAMP,
+    unblock_reason       TEXT,
+    mfa_verified         BOOLEAN,
+    mfa_verified_at      TIMESTAMP(6)
 );
 
-alter table public.incident_affected_assets
-    owner to admin;
+-- ============================================================
+-- Spring Security OAuth2 (JDBC-managed, no JPA Entity)
+-- ============================================================
 
-create table public.incident_related_events
-(
-    incident_id varchar(50) not null
-        constraint fkh16gpnxq6c5nye841dhdfyfxc
-            references public.security_incidents,
-    event_id    varchar(255)
+CREATE TABLE oauth2_authorization (
+    id                            VARCHAR(100) NOT NULL PRIMARY KEY,
+    registered_client_id          VARCHAR(100) NOT NULL,
+    principal_name                VARCHAR(200) NOT NULL,
+    authorization_grant_type      VARCHAR(100) NOT NULL,
+    authorized_scopes             VARCHAR(1000),
+    attributes                    TEXT,
+    state                         VARCHAR(500),
+    authorization_code_value      TEXT,
+    authorization_code_issued_at  TIMESTAMP,
+    authorization_code_expires_at TIMESTAMP,
+    authorization_code_metadata   TEXT,
+    access_token_value            TEXT,
+    access_token_issued_at        TIMESTAMP,
+    access_token_expires_at       TIMESTAMP,
+    access_token_metadata         TEXT,
+    access_token_type             VARCHAR(100),
+    access_token_scopes           VARCHAR(1000),
+    oidc_id_token_value           TEXT,
+    oidc_id_token_issued_at       TIMESTAMP,
+    oidc_id_token_expires_at      TIMESTAMP,
+    oidc_id_token_metadata        TEXT,
+    refresh_token_value           TEXT,
+    refresh_token_issued_at       TIMESTAMP,
+    refresh_token_expires_at      TIMESTAMP,
+    refresh_token_metadata        TEXT,
+    user_code_value               TEXT,
+    user_code_issued_at           TIMESTAMP,
+    user_code_expires_at          TIMESTAMP,
+    user_code_metadata            TEXT,
+    device_code_value             TEXT,
+    device_code_issued_at         TIMESTAMP,
+    device_code_expires_at        TIMESTAMP,
+    device_code_metadata          TEXT
 );
 
-alter table public.incident_related_events
-    owner to admin;
-
-create table public.incident_tags
-(
-    incident_id varchar(50) not null
-        constraint fk4v2ne4qjw6h5yx9t3adr7e75d
-            references public.security_incidents,
-    tag         varchar(255)
+CREATE TABLE oauth2_registered_client (
+    id                            VARCHAR(100) NOT NULL PRIMARY KEY,
+    client_id                     VARCHAR(100) NOT NULL,
+    client_id_issued_at           TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    client_secret                 VARCHAR(200),
+    client_secret_expires_at      TIMESTAMP,
+    client_name                   VARCHAR(200) NOT NULL,
+    client_authentication_methods VARCHAR(1000) NOT NULL,
+    authorization_grant_types     VARCHAR(1000) NOT NULL,
+    redirect_uris                 VARCHAR(1000),
+    post_logout_redirect_uris     VARCHAR(1000),
+    scopes                        VARCHAR(1000) NOT NULL,
+    client_settings               VARCHAR(2000) NOT NULL,
+    token_settings                VARCHAR(2000) NOT NULL
 );
 
-alter table public.incident_tags
-    owner to admin;
+-- ============================================================
+-- Spring Security WebAuthn (JDBC-managed, no JPA Entity)
+-- ============================================================
 
-create table public.security_actions
-(
-    action_id                varchar(255) not null
-        primary key,
-    action_type              varchar(255) not null,
-    approval_comment         varchar(255),
-    approval_request_id      varchar(255),
-    approval_status          varchar(255)
-        constraint security_actions_approval_status_check
-            check ((approval_status)::text = ANY
-                   ((ARRAY ['NOT_REQUIRED'::character varying, 'PENDING'::character varying, 'APPROVED'::character varying, 'DENIED'::character varying, 'TIMEOUT'::character varying, 'AUTO_APPROVED'::character varying, 'AUTO_DENIED'::character varying])::text[])),
-    approved_at              timestamp(6),
-    approved_by              varchar(255),
-    approver_id              varchar(255),
-    auto_approved            boolean,
-    auto_execute             boolean,
-    compensation_action_id   varchar(255),
-    compensation_executed    boolean,
-    compensation_executed_at timestamp(6),
-    completed_at             timestamp(6),
-    created_at               timestamp(6) not null,
-    description              text,
-    error_message            text,
-    executed_at              timestamp(6),
-    execution_duration       bigint,
-    execution_duration_ms    bigint,
-    execution_order          integer,
-    execution_output         text,
-    execution_result         varchar(255),
-    expires_at               timestamp(6),
-    failed_at                timestamp(6),
-    is_compensatable         boolean,
-    last_retry_at            timestamp(6),
-    max_retries              integer,
-    parent_action_id         varchar(255),
-    priority                 integer,
-    requires_approval        boolean,
-    result                   text,
-    retry_count              integer,
-    risk_level               varchar(255) not null
-        constraint security_actions_risk_level_check
-            check ((risk_level)::text = ANY
-                   ((ARRAY ['LOW'::character varying, 'MEDIUM'::character varying, 'HIGH'::character varying, 'CRITICAL'::character varying])::text[])),
-    rollbackable             boolean,
-    scheduled_at             timestamp(6),
-    started_at               timestamp(6),
-    action_status            varchar(255) not null
-        constraint security_actions_action_status_check
-            check ((action_status)::text = ANY
-                   ((ARRAY ['PENDING'::character varying, 'AWAITING_APPROVAL'::character varying, 'APPROVED'::character varying, 'REJECTED'::character varying, 'SCHEDULED'::character varying, 'IN_PROGRESS'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying, 'CANCELLED'::character varying, 'COMPENSATED'::character varying, 'EXECUTING'::character varying, 'UNDONE'::character varying])::text[])),
-    updated_at               timestamp(6),
-    incident_id              varchar(50)
-        constraint fkd44tltp54cr7gb6km5wt6vgf1
-            references public.security_incidents
+CREATE TABLE user_credentials (
+    credential_id                VARCHAR(1000) NOT NULL PRIMARY KEY,
+    user_entity_user_id          VARCHAR(1000) NOT NULL,
+    public_key                   BYTEA NOT NULL,
+    signature_count              BIGINT,
+    uv_initialized               BOOLEAN,
+    backup_eligible              BOOLEAN NOT NULL,
+    authenticator_transports     VARCHAR(1000),
+    public_key_credential_type   VARCHAR(100),
+    backup_state                 BOOLEAN NOT NULL,
+    attestation_object           BYTEA,
+    attestation_client_data_json BYTEA,
+    created                      TIMESTAMP,
+    last_used                    TIMESTAMP,
+    label                        VARCHAR(1000) NOT NULL
 );
 
-alter table public.security_actions
-    owner to admin;
-
-create table public.action_audit_log
-(
-    action_id varchar(255) not null
-        constraint fksxh22v9cljn09qidtl5c9dejj
-            references public.security_actions,
-    log_entry varchar(255)
+CREATE TABLE user_entities (
+    id           VARCHAR(1000) NOT NULL PRIMARY KEY,
+    name         VARCHAR(100) NOT NULL,
+    display_name VARCHAR(200)
 );
 
-alter table public.action_audit_log
-    owner to admin;
+-- ============================================================
+-- Spring Security OTT (JDBC-managed, no JPA Entity)
+-- ============================================================
 
-create table public.action_parameters
-(
-    action_id   varchar(255) not null
-        constraint fkqfmghcguog6f6gsox7gitwfm0
-            references public.security_actions,
-    param_value text,
-    param_key   varchar(255) not null,
-    primary key (action_id, param_key)
+CREATE TABLE one_time_tokens (
+    token_value VARCHAR(36) NOT NULL PRIMARY KEY,
+    username    VARCHAR(50) NOT NULL,
+    expires_at  TIMESTAMP NOT NULL
 );
-
-alter table public.action_parameters
-    owner to admin;
-
-create table public.threat_indicators
-(
-    indicator_id         varchar(255) not null
-        primary key,
-    active               boolean,
-    campaign             varchar(255),
-    campaign_id          varchar(255),
-    cis_control          varchar(255),
-    confidence           double precision,
-    created_at           timestamp(6) not null,
-    description          text,
-    detected_at          timestamp(6),
-    detection_count      integer,
-    expires_at           timestamp(6),
-    false_positive_count integer,
-    first_seen           timestamp(6),
-    last_seen            timestamp(6),
-    malware_family       varchar(255),
-    mitre_attack_id      varchar(255),
-    mitre_tactic         varchar(255),
-    mitre_technique      varchar(255),
-    nist_csf_category    varchar(255),
-    severity             varchar(255) not null
-        constraint threat_indicators_severity_check
-            check ((severity)::text = ANY
-                   ((ARRAY ['CRITICAL'::character varying, 'HIGH'::character varying, 'MEDIUM'::character varying, 'LOW'::character varying, 'INFO'::character varying])::text[])),
-    source               varchar(255),
-    status               varchar(255)
-        constraint threat_indicators_status_check
-            check ((status)::text = ANY
-                   ((ARRAY ['ACTIVE'::character varying, 'INACTIVE'::character varying, 'EXPIRED'::character varying, 'FALSE_POSITIVE'::character varying, 'UNDER_REVIEW'::character varying])::text[])),
-    threat_actor         varchar(255),
-    threat_actor_id      varchar(255),
-    threat_score         double precision,
-    indicator_type       varchar(255) not null
-        constraint threat_indicators_indicator_type_check
-            check ((indicator_type)::text = ANY
-                   ((ARRAY ['IP_ADDRESS'::character varying, 'DOMAIN'::character varying, 'URL'::character varying, 'FILE_HASH'::character varying, 'FILE_PATH'::character varying, 'REGISTRY_KEY'::character varying, 'PROCESS_NAME'::character varying, 'EMAIL_ADDRESS'::character varying, 'USER_AGENT'::character varying, 'CERTIFICATE'::character varying, 'MUTEX'::character varying, 'YARA_RULE'::character varying, 'BEHAVIORAL'::character varying, 'UNKNOWN'::character varying, 'PATTERN'::character varying, 'USER_ACCOUNT'::character varying, 'COMPLIANCE'::character varying, 'EVENT'::character varying])::text[])),
-    updated_at           timestamp(6),
-    indicator_value      varchar(255) not null
-);
-
-alter table public.threat_indicators
-    owner to admin;
-
-create table public.indicator_incidents
-(
-    indicator_id varchar(255) not null
-        constraint fki28885hvl5vmyod9a9u8p59kt
-            references public.threat_indicators,
-    incident_id  varchar(50)  not null
-        constraint fk7dha3wyl562a8rloqvs7tjo3o
-            references public.security_incidents,
-    primary key (indicator_id, incident_id)
-);
-
-alter table public.indicator_incidents
-    owner to admin;
-
-create table public.indicator_metadata
-(
-    indicator_id varchar(255) not null
-        constraint fk8woobi3dw4qnun8tmc9ydeh3a
-            references public.threat_indicators,
-    meta_value   varchar(255),
-    meta_key     varchar(255) not null,
-    primary key (indicator_id, meta_key)
-);
-
-alter table public.indicator_metadata
-    owner to admin;
-
-create table public.indicator_tags
-(
-    indicator_id varchar(255) not null
-        constraint fk798h0bhyufds0oabwfaircn82
-            references public.threat_indicators,
-    tag          varchar(255)
-);
-
-alter table public.indicator_tags
-    owner to admin;
-
-create table public.related_indicators
-(
-    indicator_id         varchar(255) not null
-        constraint fke955l2l6jjmnhrqktg2xhhqik
-            references public.threat_indicators,
-    related_indicator_id varchar(255) not null
-        constraint fks2jii22s35fvojsokbmq9elij
-            references public.threat_indicators,
-    primary key (indicator_id, related_indicator_id)
-);
-
-alter table public.related_indicators
-    owner to admin;
-
-create table public.policy_evolution_proposals
-(
-    id                 bigint generated by default as identity
-        primary key,
-    action_payload     jsonb,
-    activated_at       timestamp(6),
-    activated_by       varchar(100),
-    actual_impact      double precision,
-    ai_reasoning       text,
-    analysis_lab_id    varchar(100),
-    approved_at        timestamp(6),
-    approved_by        varchar(100),
-    confidence_score   double precision,
-    created_at         timestamp(6) not null,
-    created_by         varchar(100),
-    deactivated_at     timestamp(6),
-    description        text,
-    evidence_context   jsonb,
-    expected_impact    double precision,
-    expires_at         timestamp(6),
-    learning_type      varchar(50)
-        constraint policy_evolution_proposals_learning_type_check
-            check ((learning_type)::text = ANY
-                   ((ARRAY ['THREAT_RESPONSE'::character varying, 'ACCESS_PATTERN'::character varying, 'POLICY_FEEDBACK'::character varying, 'FALSE_POSITIVE_LEARNING'::character varying, 'PERFORMANCE_OPTIMIZATION'::character varying, 'COMPLIANCE_LEARNING'::character varying])::text[])),
-    metadata           jsonb,
-    parent_proposal_id bigint,
-    policy_content     text,
-    policy_id          bigint,
-    proposal_type      varchar(50)  not null
-        constraint policy_evolution_proposals_proposal_type_check
-            check ((proposal_type)::text = ANY
-                   ((ARRAY ['CREATE_POLICY'::character varying, 'UPDATE_POLICY'::character varying, 'DELETE_POLICY'::character varying, 'REVOKE_ACCESS'::character varying, 'GRANT_ACCESS'::character varying, 'OPTIMIZE_RULE'::character varying, 'MODIFY_CONFIG'::character varying, 'CREATE_ALERT'::character varying, 'SUGGEST_TRAINING'::character varying, 'ADJUST_THRESHOLD'::character varying, 'ACCESS_CONTROL'::character varying, 'THREAT_RESPONSE'::character varying, 'INCIDENT_RESPONSE'::character varying, 'COMPLIANCE'::character varying, 'OPTIMIZATION'::character varying, 'USER_BEHAVIOR'::character varying, 'ANOMALY_RESPONSE'::character varying, 'DATA_PROTECTION'::character varying])::text[])),
-    rationale          text,
-    rejected_at        timestamp(6),
-    rejected_by        varchar(100),
-    rejection_reason   text,
-    reviewed_at        timestamp(6),
-    reviewed_by        varchar(100),
-    impact_level       varchar(20)
-        constraint policy_evolution_proposals_risk_level_check
-            check ((impact_level)::text = ANY
-                   ((ARRAY ['LOW'::character varying, 'MEDIUM'::character varying, 'HIGH'::character varying, 'CRITICAL'::character varying])::text[])),
-    source_event_id    varchar(100),
-    spel_expression    text,
-    status             varchar(50)  not null
-        constraint policy_evolution_proposals_status_check
-            check ((status)::text = ANY
-                   ((ARRAY ['DRAFT'::character varying, 'PENDING_APPROVAL'::character varying, 'PENDING'::character varying, 'UNDER_REVIEW'::character varying, 'APPROVED'::character varying, 'REJECTED'::character varying, 'ACTIVATED'::character varying, 'DEACTIVATED'::character varying, 'ON_HOLD'::character varying, 'EXPIRED'::character varying, 'ROLLED_BACK'::character varying])::text[])),
-    title              varchar(255) not null,
-    version_id         bigint
-);
-
-alter table public.policy_evolution_proposals
-    owner to admin;
-
-create table public.simulation_results
-(
-    event_id            varchar(50)  not null
-        primary key,
-    ai_analysis_time_ms bigint,
-    attack_id           varchar(50)  not null,
-    attack_type         varchar(50)  not null,
-    blocked             boolean      not null,
-    campaign_id         varchar(50),
-    confidence_score    double precision,
-    created_at          timestamp(6) not null,
-    detected            boolean      not null,
-    error_message       varchar(500),
-    metadata            jsonb,
-    processed_at        timestamp(6) not null,
-    processing_mode     varchar(30),
-    processing_success  boolean      not null,
-    processing_time_ms  bigint,
-    response_actions    jsonb,
-    risk_score          double precision,
-    session_id          varchar(50),
-    simulation_mode     varchar(20)  not null
-        constraint simulation_results_simulation_mode_check
-            check ((simulation_mode)::text = ANY
-                   ((ARRAY ['UNPROTECTED'::character varying, 'PROTECTED'::character varying])::text[])),
-    source_ip           varchar(45),
-    target_user         varchar(100)
-);
-
-alter table public.simulation_results
-    owner to admin;
-
-create index idx_simulation_attack_id
-    on public.simulation_results (attack_id);
-
-create index idx_simulation_processed_at
-    on public.simulation_results (processed_at);
-
-create index idx_simulation_mode
-    on public.simulation_results (simulation_mode);
-
-create table public.privilege_escalation_rules
-(
-    id                serial
-        primary key,
-    from_role         varchar(50),
-    to_role           varchar(50),
-    risk_score        numeric(3, 2),
-    detection_pattern varchar(255),
-    alert_level       varchar(20)
-);
-
-alter table public.privilege_escalation_rules
-    owner to admin;
-
-create table public.permission_levels
-(
-    role_name           varchar(50) not null
-        primary key,
-    level_value         integer     not null,
-    sensitive_resources text,
-    description         varchar(255)
-);
-
-alter table public.permission_levels
-    owner to admin;
-
-create table public.oauth2_authorization
-(
-    id                            varchar(100) not null
-        primary key,
-    registered_client_id          varchar(100) not null,
-    principal_name                varchar(200) not null,
-    authorization_grant_type      varchar(100) not null,
-    authorized_scopes             varchar(1000) default NULL::character varying,
-    attributes                    text,
-    state                         varchar(500)  default NULL::character varying,
-    authorization_code_value      text,
-    authorization_code_issued_at  timestamp,
-    authorization_code_expires_at timestamp,
-    authorization_code_metadata   text,
-    access_token_value            text,
-    access_token_issued_at        timestamp,
-    access_token_expires_at       timestamp,
-    access_token_metadata         text,
-    access_token_type             varchar(100)  default NULL::character varying,
-    access_token_scopes           varchar(1000) default NULL::character varying,
-    oidc_id_token_value           text,
-    oidc_id_token_issued_at       timestamp,
-    oidc_id_token_expires_at      timestamp,
-    oidc_id_token_metadata        text,
-    refresh_token_value           text,
-    refresh_token_issued_at       timestamp,
-    refresh_token_expires_at      timestamp,
-    refresh_token_metadata        text,
-    user_code_value               text,
-    user_code_issued_at           timestamp,
-    user_code_expires_at          timestamp,
-    user_code_metadata            text,
-    device_code_value             text,
-    device_code_issued_at         timestamp,
-    device_code_expires_at        timestamp,
-    device_code_metadata          text
-);
-
-alter table public.oauth2_authorization
-    owner to admin;
-
-create table public.oauth2_registered_client
-(
-    id                            varchar(100)                            not null
-        primary key,
-    client_id                     varchar(100)                            not null,
-    client_id_issued_at           timestamp     default CURRENT_TIMESTAMP not null,
-    client_secret                 varchar(200)  default NULL::character varying,
-    client_secret_expires_at      timestamp,
-    client_name                   varchar(200)                            not null,
-    client_authentication_methods varchar(1000)                           not null,
-    authorization_grant_types     varchar(1000)                           not null,
-    redirect_uris                 varchar(1000) default NULL::character varying,
-    post_logout_redirect_uris     varchar(1000) default NULL::character varying,
-    scopes                        varchar(1000)                           not null,
-    client_settings               varchar(2000)                           not null,
-    token_settings                varchar(2000)                           not null
-);
-
-alter table public.oauth2_registered_client
-    owner to admin;
-
-create table public.user_credentials
-(
-    credential_id                varchar(1000) not null
-        primary key,
-    user_entity_user_id          varchar(1000) not null,
-    public_key                   bytea         not null,
-    signature_count              bigint,
-    uv_initialized               boolean,
-    backup_eligible              boolean       not null,
-    authenticator_transports     varchar(1000),
-    public_key_credential_type   varchar(100),
-    backup_state                 boolean       not null,
-    attestation_object           bytea,
-    attestation_client_data_json bytea,
-    created                      timestamp,
-    last_used                    timestamp,
-    label                        varchar(1000) not null
-);
-
-alter table public.user_credentials
-    owner to admin;
-
-create table public.user_entities
-(
-    id           varchar(1000) not null
-        primary key,
-    name         varchar(100)  not null,
-    display_name varchar(200)
-);
-
-alter table public.user_entities
-    owner to admin;
-
-create table public.one_time_tokens
-(
-    token_value varchar(36) not null
-        primary key,
-    username    varchar(50) not null,
-    expires_at  timestamp   not null
-);
-
-alter table public.one_time_tokens
-    owner to admin;
-
-create table public.blocked_user
-(
-    id                   bigint generated by default as identity
-        primary key,
-    block_count          integer      not null,
-    blocked_at           timestamp(6) not null,
-    confidence           double precision,
-    reasoning            text,
-    request_id           varchar(255) not null
-        constraint ukj3qud4e063wflknx8qa0h7ym5
-            unique,
-    resolve_reason       text,
-    resolved_action      varchar(255),
-    resolved_at          timestamp(6),
-    resolved_by          varchar(255),
-    risk_score           double precision,
-    source_ip            varchar(255),
-    status               varchar(255) not null
-        constraint blocked_user_status_check
-            check ((status)::text = ANY
-                   (ARRAY [('BLOCKED'::character varying)::text, ('UNBLOCK_REQUESTED'::character varying)::text, ('RESOLVED'::character varying)::text, ('TIMEOUT_RESPONDED'::character varying)::text, ('MFA_FAILED'::character varying)::text])),
-    user_agent           varchar(255),
-    user_id              varchar(255) not null,
-    username             varchar(255),
-    unblock_requested_at timestamp,
-    unblock_reason       text,
-    mfa_verified         boolean,
-    mfa_verified_at      timestamp(6)
-);
-
-alter table public.blocked_user
-    owner to admin;
-

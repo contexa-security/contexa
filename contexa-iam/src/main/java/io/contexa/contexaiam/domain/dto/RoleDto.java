@@ -15,7 +15,7 @@ public class RoleDto{
     private Long id;
     private String roleName;
     private String roleDesc;
-    private String isExpression;
+    private boolean isExpression;
     private List<Long> permissionIds;
     private int permissionCount;
 }

@@ -4,32 +4,41 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Entity
-@Table(name = "GROUP_ROLES") 
-@IdClass(GroupRoleId.class) 
+@Table(name = "group_roles")
+@IdClass(GroupRoleId.class)
 @Getter
 @Setter
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
 public class GroupRole implements Serializable {
+
     @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id")
     @ToString.Exclude
-    private Group group; 
+    private Group group;
 
     @Id
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "role_id")
     @ToString.Exclude
-    private Role role; 
+    private Role role;
 
-    
-    
-    
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime assignedAt;
+
+    @Column(length = 100)
+    private String assignedBy;
+
+    @PrePersist
+    protected void onCreate() {
+        assignedAt = LocalDateTime.now();
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -50,7 +59,6 @@ public class GroupRole implements Serializable {
 @NoArgsConstructor
 @AllArgsConstructor
 class GroupRoleId implements Serializable {
-    private Long group; 
-    private Long role;  
-
+    private Long group;
+    private Long role;
 }

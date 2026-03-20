@@ -8,6 +8,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Entity
+@Table(name = "users")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -19,37 +20,105 @@ public class Users {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false)
-    private String username; 
+    @Column(length = 100, unique = true, nullable = false)
+    private String username;
 
-    @Column(nullable = false)
+    @Column(length = 255, unique = true, nullable = false)
+    private String email;
+
+    @Column(length = 255, nullable = false)
     private String password;
 
-    @Column(nullable = false)
+    @Column(length = 100, nullable = false)
     private String name;
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true) 
+    @Column(length = 20)
+    private String phone;
+
+    @Column(length = 100)
+    private String department;
+
+    @Column(length = 100)
+    private String position;
+
+    @Column(length = 500)
+    private String profileImageUrl;
+
+    // Account status
+    @Column(nullable = false)
     @Builder.Default
-    @ToString.Exclude
-    private Set<UserGroup> userGroups = new HashSet<>(); 
+    private boolean enabled = true;
 
     @Column(nullable = false)
-    private boolean mfaEnabled;
+    @Builder.Default
+    private boolean accountLocked = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean credentialsExpired = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private int failedLoginAttempts = 0;
 
     @Column
+    private LocalDateTime lockExpiresAt;
+
+    // MFA
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean mfaEnabled = false;
+
+    @Column(length = 50)
+    private String preferredMfaFactor;
+
+    @Column(length = 50)
+    private String lastUsedMfaFactor;
+
+    @Column
+    private LocalDateTime lastMfaUsedAt;
+
+    // Login history
+    @Column
+    private LocalDateTime lastLoginAt;
+
+    @Column(length = 45)
+    private String lastLoginIp;
+
+    @Column
+    private LocalDateTime passwordChangedAt;
+
+    // Locale
+    @Column(length = 10)
+    @Builder.Default
+    private String locale = "ko";
+
+    @Column(length = 50)
+    @Builder.Default
+    private String timezone = "Asia/Seoul";
+
+    // Audit
+    @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column
     private LocalDateTime updatedAt;
 
-    @Column
-    private LocalDateTime lastMfaUsedAt;
+    // Relationships
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    @ToString.Exclude
+    private Set<UserGroup> userGroups = new HashSet<>();
 
-    @Column
-    private String preferredMfaFactor;
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
 
-    @Column
-    private String lastUsedMfaFactor;
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
 
     public String getPreferredMfaFactor() {
         if (preferredMfaFactor != null && !preferredMfaFactor.isEmpty()) {
@@ -57,11 +126,6 @@ public class Users {
         }
         return lastUsedMfaFactor;
     }
-
-    public void setPreferredMfaFactor(String factor) {
-        this.preferredMfaFactor = factor;
-    }
-
 
     @Transient
     public List<String> getRoleNames() {
@@ -79,7 +143,7 @@ public class Users {
                 .sorted()
                 .collect(Collectors.toList());
     }
-    
+
     @Transient
     public List<String> getPermissionNames() {
         if (userGroups == null || userGroups.isEmpty()) {
@@ -103,16 +167,12 @@ public class Users {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        
         if (!(o instanceof Users users)) return false;
-        
         return id != null && Objects.equals(id, users.id);
     }
 
     @Override
     public int hashCode() {
-        
-        
         return getClass().hashCode();
     }
 }
