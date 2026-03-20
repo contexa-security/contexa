@@ -1,5 +1,6 @@
 package io.contexa.autoconfigure.core.llm;
 
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import io.contexa.contexacore.config.TieredLLMProperties;
 import io.contexa.contexacore.std.advisor.core.AdvisorRegistry;
 import io.contexa.contexacore.std.llm.config.LLMClient;
@@ -26,7 +27,6 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -56,11 +56,8 @@ import java.util.Map;
 public class CoreLLMTieredAutoConfiguration {
 
 
-    @Value("${spring.ai.chat.model.priority:ollama,anthropic,openai}")
-    private String chatModelPriority;
-
-    @Value("${spring.ai.embedding.model.priority:ollama,openai}")
-    private String embeddingModelPriority;
+    @Autowired
+    private ContexaProperties contexaProperties;
 
     @Autowired
     private TieredLLMProperties tieredLLMProperties;
@@ -89,7 +86,7 @@ public class CoreLLMTieredAutoConfiguration {
             availableModels.put("openai", openAiModel);
         }
 
-        List<String> priorities = List.of(chatModelPriority.split(","));
+        List<String> priorities = List.of(contexaProperties.getLlm().getChatModelPriority().split(","));
         for (String modelName : priorities) {
             String trimmedName = modelName.trim().toLowerCase();
             ChatModel model = availableModels.get(trimmedName);
@@ -169,7 +166,7 @@ public class CoreLLMTieredAutoConfiguration {
             availableModels.put("openai", openAiEmbedding);
         }
 
-        List<String> priorities = List.of(embeddingModelPriority.split(","));
+        List<String> priorities = List.of(contexaProperties.getLlm().getEmbeddingModelPriority().split(","));
         for (String modelName : priorities) {
             String trimmedName = modelName.trim().toLowerCase();
             EmbeddingModel model = availableModels.get(trimmedName);

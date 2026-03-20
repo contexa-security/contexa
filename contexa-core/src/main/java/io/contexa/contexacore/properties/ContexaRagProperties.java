@@ -12,6 +12,12 @@ public class ContexaRagProperties {
     private Defaults defaults = new Defaults();
 
     @NestedConfigurationProperty
+    private Behavior behavior = new Behavior();
+
+    @NestedConfigurationProperty
+    private Risk risk = new Risk();
+
+    @NestedConfigurationProperty
     private Lab lab = new Lab();
 
     @NestedConfigurationProperty
@@ -21,6 +27,17 @@ public class ContexaRagProperties {
     public static class Defaults {
         private double similarityThreshold = 0.7;
         private int topK = 10;
+    }
+
+    @Data
+    public static class Behavior {
+        private int lookbackDays = 30;
+    }
+
+    @Data
+    public static class Risk {
+        private double similarityThreshold = 0.8;
+        private int topK = 50;
     }
 
     @Data

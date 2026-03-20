@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.core.rag;
 
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.properties.ContexaRagProperties;
 import io.contexa.contexacommon.metrics.VectorStoreMetrics;
 import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.domain.VectorDocumentType;
@@ -26,7 +27,6 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -45,22 +45,10 @@ import java.time.format.DateTimeFormatter;
 @EnableConfigurationProperties({ ContexaProperties.class, PgVectorStoreProperties.class, io.contexa.contexacore.properties.ContexaRagProperties.class })
 public class CoreRAGAutoConfiguration {
 
-    @Value("${spring.ai.rag.similarity-threshold:0.75}")
-    private double defaultSimilarityThreshold;
+    private final ContexaRagProperties ragProps;
 
-    @Value("${spring.ai.rag.top-k:100}")
-    private int defaultTopK;
-
-    @Value("${spring.ai.rag.behavior.lookback-days:30}")
-    private int behaviorLookbackDays;
-
-    @Value("${spring.ai.rag.risk.similarity-threshold:0.8}")
-    private double riskSimilarityThreshold;
-
-    @Value("${spring.ai.rag.risk.top-k:50}")
-    private int riskTopK;
-
-    public CoreRAGAutoConfiguration() {
+    public CoreRAGAutoConfiguration(ContexaRagProperties ragProps) {
+        this.ragProps = ragProps;
     }
 
     @Bean
@@ -114,7 +102,7 @@ public class CoreRAGAutoConfiguration {
             @Qualifier("behaviorQueryTransformer") QueryTransformer behaviorQueryTransformer) {
 
         String thirtyDaysAgo = LocalDateTime.now()
-                .minusDays(behaviorLookbackDays)
+                .minusDays(ragProps.getBehavior().getLookbackDays())
                 .format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
 
         FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
@@ -124,8 +112,8 @@ public class CoreRAGAutoConfiguration {
 
         VectorStoreDocumentRetriever documentRetriever = VectorStoreDocumentRetriever.builder()
                 .vectorStore(vectorStore)
-                .similarityThreshold(defaultSimilarityThreshold)
-                .topK(defaultTopK)
+                .similarityThreshold(ragProps.getDefaults().getSimilarityThreshold())
+                .topK(ragProps.getDefaults().getTopK())
                 .filterExpression(filter)
                 .build();
 
@@ -149,8 +137,8 @@ public class CoreRAGAutoConfiguration {
 
         VectorStoreDocumentRetriever documentRetriever = VectorStoreDocumentRetriever.builder()
                 .vectorStore(vectorStore)
-                .similarityThreshold(riskSimilarityThreshold)
-                .topK(riskTopK)
+                .similarityThreshold(ragProps.getRisk().getSimilarityThreshold())
+                .topK(ragProps.getRisk().getTopK())
                 .filterExpression(filter)
                 .build();
 

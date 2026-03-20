@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.llm.model.provider;
 
+import io.contexa.contexacore.properties.LlmProviderProperties;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +9,6 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -21,14 +21,8 @@ import java.util.Map;
 @Slf4j
 public class OpenAIModelProvider extends BaseModelProvider {
 
-    @Value("${spring.ai.openai.api-key:}")
-    private String apiKey;
-
-    @Value("${spring.ai.openai.base-url:https://api.openai.com}")
-    private String openaiBaseUrl;
-
-    @Value("${spring.ai.openai.enabled:true}")
-    private boolean openaiEnabled;
+    @Autowired
+    private LlmProviderProperties llmProviderProperties;
 
     @Autowired(required = false)
     private OpenAiApi openAiApi;
@@ -47,24 +41,27 @@ public class OpenAIModelProvider extends BaseModelProvider {
 
     @Override
     protected String getProviderBaseUrl() {
-        return openaiBaseUrl;
+        return llmProviderProperties.getOpenai().getBaseUrl();
     }
 
     @Override
     protected boolean isProviderEnabled() {
-        return openaiEnabled && apiKey != null && !apiKey.isEmpty();
+        String key = llmProviderProperties.getOpenai().getApiKey();
+        return llmProviderProperties.getOpenai().isEnabled() && key != null && !key.isEmpty();
     }
 
     @Override
     protected void doInitialize(Map<String, Object> config) {
-        if (apiKey == null || apiKey.isEmpty()) {
+        String key = llmProviderProperties.getOpenai().getApiKey();
+        if (key == null || key.isEmpty()) {
             log.error("OpenAI API key is not set, but continuing");
         }
     }
 
     @Override
     public boolean isReady() {
-        return ready && apiKey != null && !apiKey.isEmpty();
+        String key = llmProviderProperties.getOpenai().getApiKey();
+        return ready && key != null && !key.isEmpty();
     }
 
     @Override
@@ -140,6 +137,7 @@ public class OpenAIModelProvider extends BaseModelProvider {
     @Override
     public HealthStatus checkHealth(String modelId) {
         try {
+            String apiKey = llmProviderProperties.getOpenai().getApiKey();
             if (apiKey == null || apiKey.isEmpty()) {
                 return HealthStatus.unhealthy("API key not configured");
             }
@@ -169,11 +167,13 @@ public class OpenAIModelProvider extends BaseModelProvider {
 
     @Override
     protected Map<String, Object> getAdditionalMetrics() {
+        String apiKey = llmProviderProperties.getOpenai().getApiKey();
         return Map.of("apiKeyConfigured", apiKey != null && !apiKey.isEmpty());
     }
 
     @Override
     protected ModelDescriptor.ModelStatus getModelStatus() {
+        String apiKey = llmProviderProperties.getOpenai().getApiKey();
         return apiKey != null && !apiKey.isEmpty() ? ModelDescriptor.ModelStatus.AVAILABLE
                 : ModelDescriptor.ModelStatus.UNAVAILABLE;
     }

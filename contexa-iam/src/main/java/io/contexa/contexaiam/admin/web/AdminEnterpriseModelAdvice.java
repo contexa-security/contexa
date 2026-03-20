@@ -1,7 +1,5 @@
 package io.contexa.contexaiam.admin.web;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ModelAttribute;
 
@@ -11,16 +9,9 @@ public class AdminEnterpriseModelAdvice {
     private final boolean enterpriseEnabled;
     private final boolean saasEnabled;
 
-    @Autowired
-    public AdminEnterpriseModelAdvice(
-            @Value("${contexa.enterprise.enabled:false}") boolean enterpriseEnabled,
-            @Value("${contexa.saas.enabled:false}") boolean saasEnabled) {
+    public AdminEnterpriseModelAdvice(boolean enterpriseEnabled, boolean saasEnabled) {
         this.enterpriseEnabled = enterpriseEnabled;
         this.saasEnabled = saasEnabled;
-    }
-
-    public AdminEnterpriseModelAdvice(boolean enterpriseEnabled) {
-        this(enterpriseEnabled, false);
     }
 
     @ModelAttribute("contexaAdminEnterpriseEnabled")

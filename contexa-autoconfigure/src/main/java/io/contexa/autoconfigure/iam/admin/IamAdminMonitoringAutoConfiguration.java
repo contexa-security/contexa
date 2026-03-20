@@ -8,7 +8,7 @@ import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController
 import io.contexa.contexaiam.admin.web.monitoring.service.*;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
-import org.springframework.beans.factory.annotation.Value;
+import io.contexa.autoconfigure.properties.ContexaProperties;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -73,7 +73,9 @@ public class IamAdminMonitoringAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public AdminEnterpriseModelAdvice adminEnterpriseModelAdvice(
-            @Value("${contexa.enterprise.enabled:false}") boolean enterpriseEnabled) {
-        return new AdminEnterpriseModelAdvice(enterpriseEnabled);
+            ContexaProperties contexaProperties) {
+        return new AdminEnterpriseModelAdvice(
+                contexaProperties.getEnterprise().isEnabled(),
+                contexaProperties.getSaas().isEnabled());
     }
 }

@@ -1,19 +1,140 @@
-contexa:
-  infrastructure:
-    mode: standalone
+# ============================================================
+# Contexa AI-Native Zero Trust Security Platform
+# Default Configuration
+# ============================================================
 
+# ── Contexa Platform ──
+contexa:
+  enabled: true
+  infrastructure:
+    mode: STANDALONE
+    redis:
+      enabled: true
+    kafka:
+      enabled: true
+    observability:
+      enabled: true
+      openTelemetryEnabled: true
+  llm:
+    enabled: true
+    tieredEnabled: true
+    advisorEnabled: true
+    pipelineEnabled: true
+    chatModelPriority: ollama,openai,anthropic
+    embeddingModelPriority: ollama,openai
+  rag:
+    enabled: true
+    vectorStore:
+      type: pgvector
+      defaultTopK: 5
+      defaultSimilarityThreshold: 0.7
+  autonomous:
+    enabled: true
+    strategyMode: dynamic
+    eventTimeout: 30000
+  simulation:
+    enabled: false
+  feedback:
+    enabled: true
+    collectionInterval: 60000
+  enterprise:
+    enabled: false
+  saas:
+    enabled: false
+  cache:
+    type: LOCAL
+    local:
+      maxSize: 1000
+      defaultTtlSeconds: 60
+    redis:
+      defaultTtlSeconds: 300
+      keyPrefix: "contexa:cache:"
+    pubsub:
+      enabled: true
+      channel: "contexa:cache:invalidation"
+  opentelemetry:
+    enabled: true
+    serviceName: contexa-core
+    exporterEndpoint: http://localhost:4317
+    samplingProbability: 1.0
+
+# ── Zero Trust Security ──
+security:
+  zerotrust:
+    enabled: true
+    mode: SHADOW
+    maxBlockMfaAttempts: 2
+    sampling:
+      rate: 1.0
+    hotpath:
+      enabled: true
+    thresholds:
+      skip: 0.3
+      optional: 0.5
+      required: 0.7
+      strict: 0.9
+    threat:
+      initial: 0.3
+    cache:
+      ttlHours: 24
+      sessionTtlMinutes: 30
+      invalidatedTtlMinutes: 60
+    session:
+      trackingEnabled: true
+  session:
+    create:
+      allowed: true
+    header:
+      name: X-Auth-Token
+    bearer:
+      enabled: true
+    cookie:
+      name: SESSION
+    hijack:
+      detection:
+        enabled: true
+  event:
+    publishing:
+      enabled: true
+      excludeUris: "/actuator,/health,/metrics"
+      anonymous:
+        enabled: true
+    deduplication:
+      enabled: true
+      windowMinutes: 5
+      cacheSize: 10000
+  router:
+    threshold:
+      soar: 0.9
+      block: 0.8
+      analysisConfidence: 0.6
+      passThrough: 0.6
+  coldpath:
+    confidence:
+      layer1Base: 0.5
+      layer2Base: 0.7
+  stepup:
+    maxAttempts: 3
+    lockoutDuration: 300
+
+# ── HCAD (Behavioral Analysis) ──
 hcad:
   enabled: true
   geoip:
     enabled: true
     dbPath: data/GeoLite2-City.mmdb
+  threshold:
+    base: 0.7
+    min: 0.3
+    max: 0.95
+  baseline:
+    minConfidence: 0.3
+    learning:
+      enabled: true
+  similarity:
+    hotPathThreshold: 0.7
 
-logging:
-  level:
-    io.contexa.contexacore.std.pipeline.streaming: DEBUG
-    io.contexa.contexacore.std.streaming: DEBUG
-    io.contexa.contexacore.std.llm: DEBUG
-
+# ── Spring Configuration ──
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/contexa
@@ -30,47 +151,28 @@ spring:
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:your-anthropic-api-key}
       chat:
-        options:
-          model: claude-3-sonnet-20240229
-
-    chat:
-      model:
-        priority: ollama,openai,anthropic
-
-      embedding:
-        model:
-          priority: ollama,openai
-
+        enabled: false
     ollama:
       base-url: http://127.0.0.1:11434
       embedding:
+        enabled: true
         model: mxbai-embed-large
       chat:
         options:
           model: qwen2.5:7b
           keep-alive: "24h"
-
     openai:
-      api-key: ${OPENAI_API_KEY}
+      api-key: ${OPENAI_API_KEY:}
       base-url: https://api.openai.com
       chat:
         options:
           model: gpt-4o-mini
           temperature: 0.3
+        enabled: true
       embedding:
+        enabled: false
         options:
           model: text-embedding-3-small
-#
-#    # TieredLLMProperties mapping (contexa-core/config/TieredLLMProperties.java)
-#    # AI Native v6.7 2-Tier LLM System (2026-01 Refactoring)
-#    # - Layer 1: Lightweight local model (llama3.1:8b, 95% traffic)
-#    # - Layer 2: High-performance model (exaone3.5:latest, 5% traffic, ESCALATE)
-#    security:
-#      layer1:
-#        model: qwen2.5:7b  # Layer 1: Lightweight local model
-#      layer2:
-#        model: qwen3:8b  # Layer 2: High-performance model
-
     security:
       tiered:
         security:
@@ -79,12 +181,11 @@ spring:
             - "127.0.0.1"
             - "::1"
             - "0:0:0:0:0:0:0:1"
-
     vectorstore:
       pgvector:
         table-name: vector_store
         index-type: HNSW
-        distance-type: COSINE_DISTANCE  # COSINE_DISTANCE, EUCLIDEAN_DISTANCE, NEGATIVE_INNER_PRODUCT
+        distance-type: COSINE_DISTANCE
         dimensions: 1024
         initialize-schema: true
         max-document-batch-size: 10000
@@ -109,7 +210,7 @@ spring:
     type: redis
     redis:
       cache-null-values: false
-      time-to-live: 3600000  # 1 hour (milliseconds)
+      time-to-live: 3600000
 
   data:
     redis:

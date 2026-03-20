@@ -4,6 +4,7 @@ import io.contexa.autoconfigure.core.advisor.CoreAdvisorAutoConfiguration;
 import io.contexa.autoconfigure.core.infra.CoreInfrastructureAutoConfiguration;
 import io.contexa.autoconfigure.core.std.CoreStdComponentsAutoConfiguration;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.properties.LlmProviderProperties;
 import io.contexa.contexacore.properties.SecurityMappingProperties;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -22,7 +23,8 @@ import org.springframework.context.annotation.Import;
 @ConditionalOnProperty(prefix = "contexa.llm", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties({
         ContexaProperties.class,
-        SecurityMappingProperties.class
+        SecurityMappingProperties.class,
+        LlmProviderProperties.class
 })
 @Import({
         PipelineConfiguration.class

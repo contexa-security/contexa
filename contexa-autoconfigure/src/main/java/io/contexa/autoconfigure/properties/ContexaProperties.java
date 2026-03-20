@@ -11,7 +11,10 @@ public class ContexaProperties {
     
     private boolean enabled = true;
 
-    
+    private Enterprise enterprise = new Enterprise();
+
+    private Saas saas = new Saas();
+
     private Hcad hcad = new Hcad();
 
     
@@ -31,10 +34,6 @@ public class ContexaProperties {
 
     
     private Infrastructure infrastructure = new Infrastructure();
-
-    
-    
-    
 
     
     @Data
@@ -82,17 +81,12 @@ public class ContexaProperties {
     
     @Data
     public static class Llm {
-        
         private boolean enabled = true;
-
-        
         private boolean tieredEnabled = true;
-
-        
         private boolean advisorEnabled = true;
-
-        
         private boolean pipelineEnabled = true;
+        private String chatModelPriority = "ollama,anthropic,openai";
+        private String embeddingModelPriority = "ollama,openai";
     }
 
     
@@ -160,6 +154,16 @@ public class ContexaProperties {
     }
 
     
+    @Data
+    public static class Enterprise {
+        private boolean enabled = false;
+    }
+
+    @Data
+    public static class Saas {
+        private boolean enabled = false;
+    }
+
     public enum InfrastructureMode {
         STANDALONE,
         DISTRIBUTED

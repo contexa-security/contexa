@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.llm.model.provider;
 
+import io.contexa.contexacore.properties.LlmProviderProperties;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ChatModel;
@@ -7,7 +8,6 @@ import org.springframework.ai.ollama.OllamaChatModel;
 import org.springframework.ai.ollama.api.OllamaApi;
 import org.springframework.ai.ollama.api.OllamaChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClientException;
@@ -23,11 +23,8 @@ import java.util.Map;
 @Slf4j
 public class OllamaModelProvider extends BaseModelProvider {
 
-    @Value("${spring.ai.ollama.base-url:http://localhost:11434}")
-    private String ollamaBaseUrl;
-
-    @Value("${spring.ai.ollama.enabled:true}")
-    private boolean ollamaEnabled;
+    @Autowired
+    private LlmProviderProperties llmProviderProperties;
 
     @Autowired(required = false)
     private OllamaApi ollamaApi;
@@ -46,12 +43,12 @@ public class OllamaModelProvider extends BaseModelProvider {
 
     @Override
     protected String getProviderBaseUrl() {
-        return ollamaBaseUrl;
+        return llmProviderProperties.getOllama().getBaseUrl();
     }
 
     @Override
     protected boolean isProviderEnabled() {
-        return ollamaEnabled && ollamaApi != null;
+        return llmProviderProperties.getOllama().isEnabled() && ollamaApi != null;
     }
 
     @Override

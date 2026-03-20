@@ -1,5 +1,6 @@
 package io.contexa.contexacore.std.llm.model.provider;
 
+import io.contexa.contexacore.properties.LlmProviderProperties;
 import io.contexa.contexacore.std.llm.exception.ModelSelectionException;
 import io.contexa.contexacore.std.llm.model.ModelDescriptor;
 import lombok.extern.slf4j.Slf4j;
@@ -8,7 +9,6 @@ import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.anthropic.api.AnthropicApi;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.util.HashMap;
 import java.util.List;
@@ -22,14 +22,8 @@ import java.util.Map;
 @Slf4j
 public class AnthropicModelProvider extends BaseModelProvider {
 
-    @Value("${spring.ai.anthropic.api-key:}")
-    private String apiKey;
-
-    @Value("${spring.ai.anthropic.base-url:https://api.anthropic.com}")
-    private String anthropicBaseUrl;
-
-    @Value("${spring.ai.anthropic.enabled:true}")
-    private boolean anthropicEnabled;
+    @Autowired
+    private LlmProviderProperties llmProviderProperties;
 
     @Autowired(required = false)
     private AnthropicApi anthropicApi;
@@ -48,24 +42,27 @@ public class AnthropicModelProvider extends BaseModelProvider {
 
     @Override
     protected String getProviderBaseUrl() {
-        return anthropicBaseUrl;
+        return llmProviderProperties.getAnthropic().getBaseUrl();
     }
 
     @Override
     protected boolean isProviderEnabled() {
-        return anthropicEnabled && apiKey != null && !apiKey.isEmpty();
+        String key = llmProviderProperties.getAnthropic().getApiKey();
+        return llmProviderProperties.getAnthropic().isEnabled() && key != null && !key.isEmpty();
     }
 
     @Override
     protected void doInitialize(Map<String, Object> config) {
-        if (apiKey == null || apiKey.isEmpty()) {
+        String key = llmProviderProperties.getAnthropic().getApiKey();
+        if (key == null || key.isEmpty()) {
             log.error("Anthropic API key is not set, but continuing");
         }
     }
 
     @Override
     public boolean isReady() {
-        return ready && apiKey != null && !apiKey.isEmpty();
+        String key = llmProviderProperties.getAnthropic().getApiKey();
+        return ready && key != null && !key.isEmpty();
     }
 
     @Override
@@ -141,6 +138,7 @@ public class AnthropicModelProvider extends BaseModelProvider {
     @Override
     public HealthStatus checkHealth(String modelId) {
         try {
+            String apiKey = llmProviderProperties.getAnthropic().getApiKey();
             if (apiKey == null || apiKey.isEmpty()) {
                 return HealthStatus.unhealthy("API key not configured");
             }
@@ -170,11 +168,13 @@ public class AnthropicModelProvider extends BaseModelProvider {
 
     @Override
     protected Map<String, Object> getAdditionalMetrics() {
+        String apiKey = llmProviderProperties.getAnthropic().getApiKey();
         return Map.of("apiKeyConfigured", apiKey != null && !apiKey.isEmpty());
     }
 
     @Override
     protected ModelDescriptor.ModelStatus getModelStatus() {
+        String apiKey = llmProviderProperties.getAnthropic().getApiKey();
         return apiKey != null && !apiKey.isEmpty() ? ModelDescriptor.ModelStatus.AVAILABLE
                 : ModelDescriptor.ModelStatus.UNAVAILABLE;
     }
