@@ -5,6 +5,7 @@ import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,4 +26,6 @@ public interface BlockedUserJpaRepository extends JpaRepository<BlockedUser, Lon
     long countByStatus(BlockedUserStatus status);
 
     List<BlockedUser> findTop5ByStatusOrderByBlockedAtDesc(BlockedUserStatus status);
+
+    List<BlockedUser> findTop5ByStatusInOrderByBlockedAtDesc(Collection<BlockedUserStatus> statuses);
 }

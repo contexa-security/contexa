@@ -7,9 +7,9 @@ contexa:
     chatModelPriority: ollama,openai,anthropic
     embeddingModelPriority: ollama,openai
 
-security:
-  zerotrust:
-    mode: SHADOW
+#security:
+#  zerotrust:
+#    mode: SHADOW
 
 hcad:
   geoip:

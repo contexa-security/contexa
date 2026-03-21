@@ -68,7 +68,7 @@ public class DashboardServiceImpl implements DashboardService {
                 blockedUserJpaRepository.countByStatus(BlockedUserStatus.TIMEOUT_RESPONDED),
                 blockedUserJpaRepository.countByStatus(BlockedUserStatus.MFA_FAILED),
                 blockedUserJpaRepository.countByStatus(BlockedUserStatus.RESOLVED),
-                blockedUserJpaRepository.findTop5ByStatusOrderByBlockedAtDesc(BlockedUserStatus.BLOCKED),
+                blockedUserJpaRepository.findTop5ByStatusInOrderByBlockedAtDesc(List.of(BlockedUserStatus.BLOCKED, BlockedUserStatus.UNBLOCK_REQUESTED)),
                 // 24h security activity from audit_log
                 auditLogRepository.countAllowedSince(since24h),
                 auditLogRepository.countDeniedAttemptsSince(since24h),

@@ -16,7 +16,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Security Monitor - real-time security event viewer based on audit_log.
@@ -32,6 +35,7 @@ public class SecurityMonitorController {
     @GetMapping
     public String monitor(
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) String filter,
             @RequestParam(required = false, defaultValue = "24") int hours,
             @RequestParam(required = false, defaultValue = "0") int page,
             Model model) {
@@ -41,9 +45,35 @@ public class SecurityMonitorController {
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         List<AuditLog> allLogs = auditLogRepository.findByCreatedAtAfter(since);
 
-        // Filter by category if specified
+        // Filter by dashboard drill-down filter or category
         List<AuditLog> filtered = allLogs;
-        if (category != null && !category.isBlank()) {
+        if (filter != null && !filter.isBlank()) {
+            model.addAttribute("filterType", filter);
+            filtered = switch (filter) {
+                case "AFTER_HOURS" -> allLogs.stream()
+                        .filter(log -> {
+                            if (log.getTimestamp() == null) return false;
+                            int hour = log.getTimestamp().getHour();
+                            int dow = log.getTimestamp().getDayOfWeek().getValue();
+                            return hour < 9 || hour >= 18 || dow >= 6;
+                        }).toList();
+                case "DISTINCT_IP" -> allLogs.stream()
+                        .filter(log -> log.getClientIp() != null && !log.getClientIp().isBlank())
+                        .toList();
+                case "HIGH_RISK" -> allLogs.stream()
+                        .filter(log -> log.getRiskScore() != null && log.getRiskScore() >= 0.4)
+                        .toList();
+                case "DECISION_ALLOW" -> allLogs.stream()
+                        .filter(log -> "ALLOW".equals(log.getDecision()))
+                        .toList();
+                case "DECISION_DENY" -> allLogs.stream()
+                        .filter(log -> "DENY".equals(log.getDecision()) || "BLOCK".equals(log.getDecision()))
+                        .toList();
+                default -> allLogs.stream()
+                        .filter(log -> filter.equals(log.getEventCategory()))
+                        .toList();
+            };
+        } else if (category != null && !category.isBlank()) {
             filtered = allLogs.stream()
                     .filter(log -> category.equals(log.getEventCategory()))
                     .toList();
@@ -66,9 +96,20 @@ public class SecurityMonitorController {
         long securityDecision = allLogs.stream().filter(l -> "SECURITY_DECISION".equals(l.getEventCategory())).count();
         long adminOverride = allLogs.stream().filter(l -> "ADMIN_OVERRIDE".equals(l.getEventCategory())).count();
 
+        // IP grouping for DISTINCT_IP filter
+        if ("DISTINCT_IP".equals(filter)) {
+            Map<String, List<AuditLog>> ipGroups = filtered.stream()
+                    .collect(Collectors.groupingBy(
+                            l -> l.getClientIp() != null ? l.getClientIp() : "unknown",
+                            LinkedHashMap::new,
+                            Collectors.toList()));
+            model.addAttribute("ipGroups", ipGroups);
+        }
+
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
         model.addAttribute("category", category);
+        model.addAttribute("filter", filter);
         model.addAttribute("allowCount", allowCount);
         model.addAttribute("denyCount", denyCount);
         model.addAttribute("authSuccess", authSuccess);
