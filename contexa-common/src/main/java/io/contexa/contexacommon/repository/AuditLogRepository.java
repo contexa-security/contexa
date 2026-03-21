@@ -1,6 +1,8 @@
 package io.contexa.contexacommon.repository;
 
 import io.contexa.contexacommon.entity.AuditLog;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -163,6 +165,49 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     // Recent blocked/challenged events
     @Query("SELECT a FROM AuditLog a WHERE a.eventCategory IN ('USER_BLOCKED', 'MFA_VERIFICATION_FAILED', 'SOAR_AUTO_RESPONSE', 'HTTP_ACCESS_BLOCKED') AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findRecentThreatEvents(@Param("since") LocalDateTime since);
+
+    // Paginated queries for security monitor
+    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByTimestampAfter(@Param("since") LocalDateTime since, Pageable pageable);
+
+    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory = :category ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByTimestampAfterAndCategory(@Param("since") LocalDateTime since, @Param("category") String category, Pageable pageable);
+
+    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.decision = :decision ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByTimestampAfterAndDecision(@Param("since") LocalDateTime since, @Param("decision") String decision, Pageable pageable);
+
+    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.riskScore IS NOT NULL AND a.riskScore >= :minRisk ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByTimestampAfterAndRiskScoreGte(@Param("since") LocalDateTime since, @Param("minRisk") Double minRisk, Pageable pageable);
+
+    @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.clientIp IS NOT NULL AND a.clientIp <> '' ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByTimestampAfterAndClientIpNotNull(@Param("since") LocalDateTime since, Pageable pageable);
+
+    @Query(value = "SELECT * FROM audit_log WHERE timestamp >= :since " +
+            "AND (EXTRACT(hour FROM timestamp) < 9 OR EXTRACT(hour FROM timestamp) >= 18 " +
+            "OR EXTRACT(isodow FROM timestamp) IN (6, 7)) ORDER BY timestamp DESC",
+            countQuery = "SELECT COUNT(*) FROM audit_log WHERE timestamp >= :since " +
+                    "AND (EXTRACT(hour FROM timestamp) < 9 OR EXTRACT(hour FROM timestamp) >= 18 " +
+                    "OR EXTRACT(isodow FROM timestamp) IN (6, 7))",
+            nativeQuery = true)
+    Page<AuditLog> findAfterHoursAccess(@Param("since") LocalDateTime since, Pageable pageable);
+
+    // IP grouping with count (for DISTINCT_IP drill-down)
+    @Query(value = "SELECT client_ip AS ip, COUNT(*) AS cnt, MAX(timestamp) AS last_access " +
+            "FROM audit_log WHERE timestamp >= :since AND client_ip IS NOT NULL AND client_ip <> '' " +
+            "GROUP BY client_ip ORDER BY cnt DESC LIMIT :limit OFFSET :offset",
+            nativeQuery = true)
+    List<Object[]> findIpGroupsSince(@Param("since") LocalDateTime since, @Param("limit") int limit, @Param("offset") int offset);
+
+    @Query(value = "SELECT COUNT(DISTINCT client_ip) FROM audit_log WHERE timestamp >= :since AND client_ip IS NOT NULL AND client_ip <> ''",
+            nativeQuery = true)
+    long countDistinctIpGroupsSince(@Param("since") LocalDateTime since);
+
+    // Count queries for summary (DB level, no full load)
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since")
+    long countByTimestampAfter(@Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND a.decision = 'DENY'")
+    long countDeniedSince(@Param("since") LocalDateTime since);
 
     // Policy change events
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('POLICY_CREATED', 'POLICY_UPDATED', 'POLICY_DELETED') AND a.timestamp >= :since")

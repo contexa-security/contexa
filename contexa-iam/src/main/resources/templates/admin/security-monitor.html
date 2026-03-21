@@ -84,27 +84,31 @@
 
             <!-- IP Grouping View (DISTINCT_IP filter only) -->
             <div th:if="${filterType == 'DISTINCT_IP' and ipGroups != null}" class="mb-6">
-                <h3 class="text-base font-bold mb-4" style="color: #22d3ee;"><i class="fas fa-network-wired mr-2"></i>IP 주소별 접근 현황</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div th:each="entry : ${ipGroups}" class="rounded-lg p-4" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(34,211,238,0.2);">
-                        <div class="flex items-center justify-between mb-3">
-                            <span class="text-sm font-bold font-mono" style="color: #22d3ee;" th:text="${entry.key}">0.0.0.0</span>
-                            <span class="text-xs px-2 py-1 rounded-full font-semibold" style="background: rgba(34,211,238,0.15); color: #22d3ee;" th:text="${#lists.size(entry.value) + '건'}">0건</span>
-                        </div>
-                        <div class="space-y-1">
-                            <div th:each="log, stat : ${entry.value}" th:if="${stat.index < 5}" class="flex items-center justify-between text-xs" style="padding: 0.25rem 0; border-bottom: 1px solid rgba(71,85,105,0.15);">
-                                <span style="color: #94a3b8;" th:text="${#temporals.format(log.timestamp, 'MM-dd HH:mm')}"></span>
-                                <span style="color: #cbd5e1;" th:text="${log.principalName ?: '-'}"></span>
-                                <span class="font-semibold"
-                                      th:style="${log.decision == 'ALLOW' ? 'color:#4ade80;' : log.decision == 'DENY' ? 'color:#f87171;' : 'color:#fbbf24;'}"
-                                      th:text="${log.decision}"></span>
-                            </div>
-                            <div th:if="${#lists.size(entry.value) > 5}" class="text-xs text-center pt-1" style="color: #64748b;">
-                                + <span th:text="${#lists.size(entry.value) - 5}"></span>건 더보기
-                            </div>
-                        </div>
-                    </div>
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-bold" style="color: #22d3ee;"><i class="fas fa-network-wired mr-2"></i>IP 주소별 접근 현황</h3>
+                    <span class="text-xs" style="color: #64748b;" th:text="'총 ' + ${totalIpGroups} + '개 IP'"></span>
                 </div>
+                <div class="modern-table overflow-x-auto mb-4">
+                    <table class="w-full">
+                        <thead>
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">IP 주소</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">접근 횟수</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">마지막 접근</th>
+                        </tr>
+                        </thead>
+                        <tbody style="background: rgba(15,23,42,0.6);">
+                        <tr th:each="group : ${ipGroups}" style="border-bottom: 1px solid rgba(71,85,105,0.2);">
+                            <td class="px-4 py-3 text-sm font-mono font-bold" style="color: #22d3ee;" th:text="${group.ip}"></td>
+                            <td class="px-4 py-3">
+                                <span class="text-sm font-bold" style="color: #e2e8f0;" th:text="${group.count + '건'}"></span>
+                            </td>
+                            <td class="px-4 py-3 text-xs" style="color: #94a3b8;" th:text="${group.lastAccess}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs mb-4" style="color: #64748b;">아래는 IP가 기록된 전체 이벤트 목록입니다.</p>
             </div>
 
             <!-- Event List -->

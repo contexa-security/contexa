@@ -5,9 +5,9 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,13 +16,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * Security Monitor - real-time security event viewer based on audit_log.
+ * All queries use DB-level pagination to handle millions of records.
  */
 @Controller
 @RequestMapping("/admin/security-monitor")
@@ -43,68 +44,54 @@ public class SecurityMonitorController {
         model.addAttribute("activePage", "security-monitor");
 
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
-        List<AuditLog> allLogs = auditLogRepository.findByCreatedAtAfter(since);
+        int pageSize = 20;
+        Pageable pageable = PageRequest.of(page, pageSize, Sort.by(Sort.Direction.DESC, "timestamp"));
 
-        // Filter by dashboard drill-down filter or category
-        List<AuditLog> filtered = allLogs;
+        // DB-level paginated query based on filter type
+        Page<AuditLog> logPage;
         if (filter != null && !filter.isBlank()) {
             model.addAttribute("filterType", filter);
-            filtered = switch (filter) {
-                case "AFTER_HOURS" -> allLogs.stream()
-                        .filter(log -> {
-                            if (log.getTimestamp() == null) return false;
-                            int hour = log.getTimestamp().getHour();
-                            int dow = log.getTimestamp().getDayOfWeek().getValue();
-                            return hour < 9 || hour >= 18 || dow >= 6;
-                        }).toList();
-                case "DISTINCT_IP" -> allLogs.stream()
-                        .filter(log -> log.getClientIp() != null && !log.getClientIp().isBlank())
-                        .toList();
-                case "HIGH_RISK" -> allLogs.stream()
-                        .filter(log -> log.getRiskScore() != null && log.getRiskScore() >= 0.4)
-                        .toList();
-                case "DECISION_ALLOW" -> allLogs.stream()
-                        .filter(log -> "ALLOW".equals(log.getDecision()))
-                        .toList();
-                case "DECISION_DENY" -> allLogs.stream()
-                        .filter(log -> "DENY".equals(log.getDecision()) || "BLOCK".equals(log.getDecision()))
-                        .toList();
-                default -> allLogs.stream()
-                        .filter(log -> filter.equals(log.getEventCategory()))
-                        .toList();
+            logPage = switch (filter) {
+                case "AFTER_HOURS" -> auditLogRepository.findAfterHoursAccess(since, PageRequest.of(page, pageSize));
+                case "DISTINCT_IP" -> auditLogRepository.findByTimestampAfterAndClientIpNotNull(since, pageable);
+                case "HIGH_RISK" -> auditLogRepository.findByTimestampAfterAndRiskScoreGte(since, 0.4, pageable);
+                case "DECISION_ALLOW" -> auditLogRepository.findByTimestampAfterAndDecision(since, "ALLOW", pageable);
+                case "DECISION_DENY" -> auditLogRepository.findByTimestampAfterAndDecision(since, "DENY", pageable);
+                default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
             };
+
+            // IP grouping for DISTINCT_IP filter (paginated, max 20 IPs per page)
+            if ("DISTINCT_IP".equals(filter)) {
+                int ipPage = page;
+                int ipSize = 20;
+                List<Object[]> ipRows = auditLogRepository.findIpGroupsSince(since, ipSize, ipPage * ipSize);
+                long totalIpGroups = auditLogRepository.countDistinctIpGroupsSince(since);
+
+                List<Map<String, Object>> ipGroups = new ArrayList<>();
+                for (Object[] row : ipRows) {
+                    Map<String, Object> group = new LinkedHashMap<>();
+                    group.put("ip", row[0]);
+                    group.put("count", ((Number) row[1]).longValue());
+                    group.put("lastAccess", row[2]);
+                    ipGroups.add(group);
+                }
+                model.addAttribute("ipGroups", ipGroups);
+                model.addAttribute("totalIpGroups", totalIpGroups);
+            }
         } else if (category != null && !category.isBlank()) {
-            filtered = allLogs.stream()
-                    .filter(log -> category.equals(log.getEventCategory()))
-                    .toList();
+            logPage = auditLogRepository.findByTimestampAfterAndCategory(since, category, pageable);
+        } else {
+            logPage = auditLogRepository.findByTimestampAfter(since, pageable);
         }
 
-        // Paginate
-        int pageSize = 20;
-        int start = Math.min(page * pageSize, filtered.size());
-        int end = Math.min(start + pageSize, filtered.size());
-        List<AuditLog> pageContent = filtered.subList(start, end);
-
-        Pageable pageable = PageRequest.of(page, pageSize);
-        Page<AuditLog> logPage = new PageImpl<>(pageContent, pageable, filtered.size());
-
-        // Summary counts
-        long allowCount = allLogs.stream().filter(l -> "ALLOW".equals(l.getDecision())).count();
-        long denyCount = allLogs.stream().filter(l -> "DENY".equals(l.getDecision())).count();
-        long authSuccess = allLogs.stream().filter(l -> "AUTHENTICATION_SUCCESS".equals(l.getEventCategory())).count();
-        long authFailure = allLogs.stream().filter(l -> "AUTHENTICATION_FAILURE".equals(l.getEventCategory())).count();
-        long securityDecision = allLogs.stream().filter(l -> "SECURITY_DECISION".equals(l.getEventCategory())).count();
-        long adminOverride = allLogs.stream().filter(l -> "ADMIN_OVERRIDE".equals(l.getEventCategory())).count();
-
-        // IP grouping for DISTINCT_IP filter
-        if ("DISTINCT_IP".equals(filter)) {
-            Map<String, List<AuditLog>> ipGroups = filtered.stream()
-                    .collect(Collectors.groupingBy(
-                            l -> l.getClientIp() != null ? l.getClientIp() : "unknown",
-                            LinkedHashMap::new,
-                            Collectors.toList()));
-            model.addAttribute("ipGroups", ipGroups);
-        }
+        // Summary counts (DB-level aggregate, no full load)
+        long totalCount = auditLogRepository.countByTimestampAfter(since);
+        long allowCount = auditLogRepository.countAllowedSince(since);
+        long denyCount = auditLogRepository.countDeniedSince(since);
+        long authSuccess = auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_SUCCESS", since);
+        long authFailure = auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_FAILURE", since);
+        long securityDecision = auditLogRepository.countByEventCategoryAndTimestampAfter("SECURITY_DECISION", since);
+        long adminOverride = auditLogRepository.countAdminOverridesSince(since);
 
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
@@ -116,7 +103,7 @@ public class SecurityMonitorController {
         model.addAttribute("authFailure", authFailure);
         model.addAttribute("securityDecision", securityDecision);
         model.addAttribute("adminOverride", adminOverride);
-        model.addAttribute("totalCount", (long) allLogs.size());
+        model.addAttribute("totalCount", totalCount);
 
         return "admin/security-monitor";
     }
