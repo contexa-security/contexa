@@ -461,7 +461,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
                     .resourceIdentifier(policy.getName() != null ? policy.getName() : "")
                     .eventSource("IAM")
                     .action(category.name())
-                    .decision(policy.getEffect() != null ? policy.getEffect().name() : "ALLOW")
+                    .decision("SUCCESS")
                     .outcome("SUCCESS")
                     .details(Map.of(
                             "policyId", policy.getId() != null ? policy.getId() : 0L,

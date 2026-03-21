@@ -57,6 +57,10 @@ public class SecurityMonitorController {
                 case "HIGH_RISK" -> auditLogRepository.findByTimestampAfterAndRiskScoreGte(since, 0.4, pageable);
                 case "DECISION_ALLOW" -> auditLogRepository.findByTimestampAfterAndDecision(since, "ALLOW", pageable);
                 case "DECISION_DENY" -> auditLogRepository.findByTimestampAfterAndDecision(since, "DENY", pageable);
+                case "ZT_ALLOW" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ALLOW", since, pageable);
+                case "ZT_BLOCK" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "BLOCK", since, pageable);
+                case "ZT_CHALLENGE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "CHALLENGE", since, pageable);
+                case "ZT_ESCALATE" -> auditLogRepository.findByCategoryAndDecision("SECURITY_DECISION", "ESCALATE", since, pageable);
                 default -> auditLogRepository.findByTimestampAfterAndCategory(since, filter, pageable);
             };
 
@@ -84,26 +88,26 @@ public class SecurityMonitorController {
             logPage = auditLogRepository.findByTimestampAfter(since, pageable);
         }
 
-        // Summary counts (DB-level aggregate, no full load)
+        // Summary counts (DB-level aggregate, eventCategory-based)
         long totalCount = auditLogRepository.countByTimestampAfter(since);
-        long allowCount = auditLogRepository.countAllowedSince(since);
-        long denyCount = auditLogRepository.countDeniedSince(since);
         long authSuccess = auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_SUCCESS", since);
         long authFailure = auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_FAILURE", since);
-        long securityDecision = auditLogRepository.countByEventCategoryAndTimestampAfter("SECURITY_DECISION", since);
+        long securityDecision = auditLogRepository.countZeroTrustTotalSince(since);
+        long userBlocked = auditLogRepository.countByEventCategoryAndTimestampAfter("USER_BLOCKED", since);
+        long mfaVerified = auditLogRepository.countByEventCategoryAndTimestampAfter("MFA_VERIFICATION_SUCCESS", since);
         long adminOverride = auditLogRepository.countAdminOverridesSince(since);
 
         model.addAttribute("logPage", logPage);
         model.addAttribute("hours", hours);
         model.addAttribute("category", category);
         model.addAttribute("filter", filter);
-        model.addAttribute("allowCount", allowCount);
-        model.addAttribute("denyCount", denyCount);
+        model.addAttribute("totalCount", totalCount);
         model.addAttribute("authSuccess", authSuccess);
         model.addAttribute("authFailure", authFailure);
         model.addAttribute("securityDecision", securityDecision);
+        model.addAttribute("userBlocked", userBlocked);
+        model.addAttribute("mfaVerified", mfaVerified);
         model.addAttribute("adminOverride", adminOverride);
-        model.addAttribute("totalCount", totalCount);
 
         return "admin/security-monitor";
     }

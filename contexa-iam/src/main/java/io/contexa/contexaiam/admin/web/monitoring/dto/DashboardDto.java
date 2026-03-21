@@ -33,7 +33,9 @@ public record DashboardDto(
         long afterHoursAccessCount24h,
         long distinctIpCount24h,
         Double avgRiskScore24h,
-        // Zero Trust decision breakdown
+        // Zero Trust decision breakdown (eventCategory=SECURITY_DECISION only)
+        long ztAllowCount24h,
+        long ztTotalCount24h,
         long challengeCount24h,
         long blockCount24h,
         long escalateCount24h,

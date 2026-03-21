@@ -430,7 +430,7 @@ public abstract class AbstractMfaAuthenticationSuccessHandler extends AbstractTo
                     .requestUri(request.getRequestURI())
                     .httpMethod(request.getMethod())
                     .action("AUTHENTICATION")
-                    .decision("ALLOW")
+                    .decision("SUCCESS")
                     .outcome("SUCCESS")
                     .reason("Authentication completed: " + authType)
                     .details(details)

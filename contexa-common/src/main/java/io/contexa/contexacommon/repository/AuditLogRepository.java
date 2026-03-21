@@ -38,7 +38,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     List<AuditLog> findRecentLogsByPrincipalName(@Param("userId") String userId);
 
     
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.decision = 'DENY' AND a.timestamp >= :since")
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE (a.decision = 'DENY' OR a.decision = 'BLOCK') AND a.timestamp >= :since")
     long countDeniedAttemptsSince(@Param("since") LocalDateTime since);
 
     
@@ -154,7 +154,17 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT COUNT(DISTINCT a.clientIp) FROM AuditLog a WHERE a.timestamp >= :since")
     long countDistinctIpsSince(@Param("since") LocalDateTime since);
 
-    // Zero Trust decision counts
+    // Zero Trust decision counts (SECURITY_DECISION category only)
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.decision = :decision AND a.timestamp >= :since")
+    long countZeroTrustDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.timestamp >= :since")
+    long countZeroTrustTotalSince(@Param("since") LocalDateTime since);
+
+    @Query("SELECT a FROM AuditLog a WHERE a.eventCategory = :category AND a.decision = :decision AND a.timestamp >= :since ORDER BY a.timestamp DESC")
+    Page<AuditLog> findByCategoryAndDecision(@Param("category") String category, @Param("decision") String decision, @Param("since") LocalDateTime since, Pageable pageable);
+
+    // Generic decision count (kept for backward compatibility)
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.decision = :decision AND a.timestamp >= :since")
     long countByDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);
 
@@ -206,7 +216,7 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since")
     long countByTimestampAfter(@Param("since") LocalDateTime since);
 
-    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND a.decision = 'DENY'")
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND (a.decision = 'DENY' OR a.decision = 'BLOCK')")
     long countDeniedSince(@Param("since") LocalDateTime since);
 
     // Policy change events

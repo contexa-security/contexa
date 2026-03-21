@@ -196,7 +196,7 @@ public class DefaultPolicyService implements PolicyService {
                     .resourceIdentifier(policy.getName() != null ? policy.getName() : "")
                     .eventSource("IAM")
                     .action(category.name())
-                    .decision(policy.getEffect() != null ? policy.getEffect().name() : "ALLOW")
+                    .decision("SUCCESS")
                     .outcome("SUCCESS")
                     .details(java.util.Map.of(
                             "policyId", policy.getId() != null ? policy.getId() : 0L,

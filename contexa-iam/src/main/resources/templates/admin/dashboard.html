@@ -110,15 +110,14 @@
                 </div>
 
                 <div class="flex items-start gap-8" style="flex-wrap: wrap;">
-                    <!-- 도넛 차트: 판정 분포 -->
-                    <div th:with="totalDecisions=${dashboardData.allowCount24h() + dashboardData.challengeCount24h() + dashboardData.blockCount24h() + dashboardData.escalateCount24h() + dashboardData.denyCount24h()}"
-                         style="display: flex; flex-direction: column; align-items: center;">
+                    <!-- 도넛 차트: AI 보안 판정 분포 (SECURITY_DECISION만) -->
+                    <div style="display: flex; flex-direction: column; align-items: center;">
                         <div class="zt-donut-wrap" id="ztDonutWrap"
-                             th:attr="data-allow=${dashboardData.allowCount24h()},
+                             th:attr="data-allow=${dashboardData.ztAllowCount24h()},
                                       data-challenge=${dashboardData.challengeCount24h()},
                                       data-block=${dashboardData.blockCount24h()},
                                       data-escalate=${dashboardData.escalateCount24h()},
-                                      data-deny=${dashboardData.denyCount24h()}">
+                                      data-deny=0">
                             <svg viewBox="0 0 100 100">
                                 <circle stroke-width="10" stroke="rgba(71,85,105,0.2)" fill="transparent" r="40" cx="50" cy="50" />
                                 <circle class="zt-donut-seg" id="ztSegAllow" stroke-width="10" stroke="#4ade80" fill="transparent" r="40" cx="50" cy="50" stroke-linecap="round" />
@@ -128,54 +127,46 @@
                                 <circle class="zt-donut-seg" id="ztSegDeny" stroke-width="10" stroke="#fb923c" fill="transparent" r="40" cx="50" cy="50" />
                             </svg>
                             <div class="zt-donut-center">
-                                <span class="text-3xl font-bold" style="color: #e2e8f0;" th:text="${totalDecisions}">0</span>
-                                <span class="text-xs" style="color: #94a3b8;">총 판정</span>
+                                <span class="text-3xl font-bold" style="color: #e2e8f0;" th:text="${dashboardData.ztTotalCount24h()}">0</span>
+                                <span class="text-xs" style="color: #94a3b8;">AI 판정</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Decision 타입 카드 -->
+                    <!-- Decision 타입 카드 (AI 보안 분석 판정만, 클릭 시 드릴다운) -->
                     <div style="flex: 1; min-width: 14rem; display: flex; flex-direction: column; gap: 0.625rem;">
-                        <div class="zt-decision-card">
+                        <a th:href="@{/admin/security-monitor(filter='ZT_ALLOW')}" class="zt-decision-card" style="text-decoration:none; cursor:pointer;">
                             <div class="zt-decision-dot" style="background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.5);"></div>
                             <div style="flex: 1;">
-                                <div class="text-xs" style="color: #94a3b8;">ALLOW - 접근 허용</div>
-                                <div class="text-lg font-bold" style="color: #4ade80;" th:text="${dashboardData.allowCount24h() + '건'}">0건</div>
+                                <div class="text-xs" style="color: #94a3b8;">ALLOW - AI 안전 판정</div>
+                                <div class="text-lg font-bold" style="color: #4ade80;" th:text="${dashboardData.ztAllowCount24h() + '건'}">0건</div>
                             </div>
                             <i class="fas fa-check-circle" style="color: #4ade80; font-size: 1.25rem;"></i>
-                        </div>
-                        <div class="zt-decision-card">
+                        </a>
+                        <a th:href="@{/admin/security-monitor(filter='ZT_CHALLENGE')}" class="zt-decision-card" style="text-decoration:none; cursor:pointer;">
                             <div class="zt-decision-dot" style="background: #fbbf24; box-shadow: 0 0 6px rgba(251,191,36,0.5);"></div>
                             <div style="flex: 1;">
                                 <div class="text-xs" style="color: #94a3b8;">CHALLENGE - 추가 인증 요구</div>
                                 <div class="text-lg font-bold" style="color: #fbbf24;" th:text="${dashboardData.challengeCount24h() + '건'}">0건</div>
                             </div>
                             <i class="fas fa-question-circle" style="color: #fbbf24; font-size: 1.25rem;"></i>
-                        </div>
-                        <div class="zt-decision-card">
+                        </a>
+                        <a th:href="@{/admin/security-monitor(filter='ZT_BLOCK')}" class="zt-decision-card" style="text-decoration:none; cursor:pointer;">
                             <div class="zt-decision-dot" style="background: #f87171; box-shadow: 0 0 6px rgba(248,113,113,0.5);"></div>
                             <div style="flex: 1;">
                                 <div class="text-xs" style="color: #94a3b8;">BLOCK - 접근 차단</div>
                                 <div class="text-lg font-bold" style="color: #f87171;" th:text="${dashboardData.blockCount24h() + '건'}">0건</div>
                             </div>
                             <i class="fas fa-ban" style="color: #f87171; font-size: 1.25rem;"></i>
-                        </div>
-                        <div class="zt-decision-card">
+                        </a>
+                        <a th:href="@{/admin/security-monitor(filter='ZT_ESCALATE')}" class="zt-decision-card" style="text-decoration:none; cursor:pointer;">
                             <div class="zt-decision-dot" style="background: #a78bfa; box-shadow: 0 0 6px rgba(167,139,250,0.5);"></div>
                             <div style="flex: 1;">
                                 <div class="text-xs" style="color: #94a3b8;">ESCALATE - 관리자 에스컬레이션</div>
                                 <div class="text-lg font-bold" style="color: #a78bfa;" th:text="${dashboardData.escalateCount24h() + '건'}">0건</div>
                             </div>
                             <i class="fas fa-arrow-up" style="color: #a78bfa; font-size: 1.25rem;"></i>
-                        </div>
-                        <div class="zt-decision-card">
-                            <div class="zt-decision-dot" style="background: #fb923c; box-shadow: 0 0 6px rgba(251,146,60,0.5);"></div>
-                            <div style="flex: 1;">
-                                <div class="text-xs" style="color: #94a3b8;">DENY - 권한 없음 거부</div>
-                                <div class="text-lg font-bold" style="color: #fb923c;" th:text="${dashboardData.denyCount24h() + '건'}">0건</div>
-                            </div>
-                            <i class="fas fa-times-circle" style="color: #fb923c; font-size: 1.25rem;"></i>
-                        </div>
+                        </a>
                     </div>
 
                     <!-- 인증 게이지 + 보안 지표 -->
