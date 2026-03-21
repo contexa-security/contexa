@@ -86,7 +86,8 @@
         <div>
             <h3 class="section-title">Zero Trust</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/blacklist}" class="menu-link-sub" th:classappend="${activePage == 'blacklist'} ? ' active' : ''"><span class="menu-bullet"></span>Blocked Users<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/security-monitor}" class="menu-link-sub" th:classappend="${activePage == 'security-monitor'} ? ' active' : ''"><span class="menu-bullet"></span>실시간 현황<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/blacklist}" class="menu-link-sub" th:classappend="${activePage == 'blacklist'} ? ' active' : ''"><span class="menu-bullet"></span>차단된 사용자<span class="menu-glow"></span></a></li>
             </ul>
         </div>
 

@@ -20,5 +20,16 @@ public record DashboardDto(
         long soarAutoResponseCount,
         long mfaFailedCount,
         long resolvedCount,
-        List<BlockedUser> recentBlockedUsers
+        List<BlockedUser> recentBlockedUsers,
+        // 24h security activity from audit_log
+        long allowCount24h,
+        long denyCount24h,
+        long authSuccessCount24h,
+        long authFailureCount24h,
+        long securityDecisionCount24h,
+        long adminOverrideCount24h,
+        long securityErrorCount24h,
+        long afterHoursAccessCount24h,
+        long distinctIpCount24h,
+        Double avgRiskScore24h
 ) {}

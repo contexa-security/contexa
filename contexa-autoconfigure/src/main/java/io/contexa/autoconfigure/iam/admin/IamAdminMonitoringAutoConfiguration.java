@@ -5,6 +5,7 @@ import io.contexa.contexaiam.admin.support.context.service.UserContextService;
 import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
+import io.contexa.contexaiam.admin.web.monitoring.controller.SecurityMonitorController;
 import io.contexa.contexaiam.admin.web.monitoring.service.*;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
@@ -22,6 +23,12 @@ public class IamAdminMonitoringAutoConfiguration {
     @ConditionalOnMissingBean
     public DashboardController dashboardController(DashboardService dashboardService) {
         return new DashboardController(dashboardService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityMonitorController securityMonitorController(AuditLogRepository auditLogRepository) {
+        return new SecurityMonitorController(auditLogRepository);
     }
 
     @Bean

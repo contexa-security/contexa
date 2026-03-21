@@ -73,21 +73,21 @@
                                     <i class="fas fa-users" style="color: #818cf8; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #e2e8f0;" th:text="${dashboardData.statistics.totalRoles()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">역할</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">역할</div>
                             </a>
                             <a th:href="@{/admin/permissions}" class="dash-stat" style="padding: 0.75rem; text-decoration: none;">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-key" style="color: #fbbf24; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #e2e8f0;" th:text="${dashboardData.statistics.totalPermissions()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">권한</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">권한</div>
                             </a>
                             <a th:href="@{/admin/policy-center(tab='list')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none;">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-shield-alt" style="color: #22d3ee; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #e2e8f0;" th:text="${dashboardData.statistics.totalPolicies()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">정책</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">정책</div>
                             </a>
                         </div>
 
@@ -98,21 +98,21 @@
                                     <i class="fas fa-exclamation-triangle" style="color: #fbbf24; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #fbbf24;" th:text="${dashboardData.resourceAwaiting()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">정책 연결 대상</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">정책 연결 대상</div>
                             </a>
                             <a th:href="@{/admin/policy-center(tab='resources',status='POLICY_CONNECTED')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(34,197,94,0.3);">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-check-circle" style="color: #4ade80; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #4ade80;" th:text="${dashboardData.resourceProtected()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">정책 연결 완료</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">정책 연결 완료</div>
                             </a>
                             <a th:href="@{/admin/policy-center(tab='resources',status='NEEDS_DEFINITION')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(239,68,68,0.3);">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-exclamation-circle" style="color: #f87171; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #f87171;" th:text="${dashboardData.resourceTotal() - dashboardData.resourceProtected() - dashboardData.resourceAwaiting()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">정책 미 설정</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">정책 미 설정</div>
                             </a>
                         </div>
 
@@ -125,13 +125,13 @@
                 </div>
             </div>
 
-            <!-- Zero Trust Status -->
-            <div class="dash-card" style="border-color: rgba(239,68,68,0.25);">
+            <!-- Real-time Security Status -->
+            <div class="dash-card" style="border-color: rgba(139,92,246,0.25);">
                 <div class="flex items-center justify-between mb-5">
                     <h2 class="text-lg font-bold" style="color: #e2e8f0;">
-                        <i class="fas fa-shield-alt mr-2" style="color: #f87171;"></i>제로트러스트 현황
+                        <i class="fas fa-bolt mr-2" style="color: #a78bfa;"></i>실시간 보안 현황
                     </h2>
-                    <a th:href="@{/admin/blacklist}" class="text-xs" style="color: #818cf8; text-decoration: none;">
+                    <a th:href="@{/admin/security-monitor}" class="text-xs" style="color: #818cf8; text-decoration: none;">
                         전체 보기 <i class="fas fa-arrow-right ml-1"></i>
                     </a>
                 </div>
@@ -162,44 +162,195 @@
                                     <i class="fas fa-ban" style="color: #f87171; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #f87171;" th:text="${dashboardData.blockedUserCount()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">차단 중</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">차단 중</div>
                             </a>
                             <a th:href="@{/admin/blacklist(filter='unblock_requested')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(245,158,11,0.3);">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-hand-paper" style="color: #fbbf24; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #fbbf24;" th:text="${dashboardData.unblockRequestedCount()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">해지 요청</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">해지 요청</div>
                             </a>
                             <a th:href="@{/admin/blacklist(filter='timeout_responded')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(139,92,246,0.3);">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-robot" style="color: #a78bfa; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #a78bfa;" th:text="${dashboardData.soarAutoResponseCount()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">SOAR 대응</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">SOAR 대응</div>
                             </a>
                             <a th:href="@{/admin/blacklist(filter='blocked')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(239,68,68,0.3);">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-fingerprint" style="color: #f87171; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #f87171;" th:text="${dashboardData.mfaFailedCount()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">MFA 실패</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">MFA 실패</div>
                             </a>
                             <a th:href="@{/admin/blacklist(filter='resolved')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(34,197,94,0.3);">
                                 <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
                                     <i class="fas fa-check-circle" style="color: #4ade80; font-size: 1rem;"></i>
                                     <span class="text-2xl font-bold" style="color: #4ade80;" th:text="${dashboardData.resolvedCount()}">0</span>
                                 </div>
-                                <div class="text-xs mt-1" style="color: #94a3b8;">해제 완료</div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">해제 완료</div>
                             </a>
                         </div>
 
-                        <!-- Recent blocked users -->
+                    </div>
+                </div>
+
+                <!-- 24h Security Activity -->
+                <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid rgba(71,85,105,0.3);">
+                    <div class="text-sm font-semibold mb-3" style="color: #94a3b8;">24시간 보안 활동</div>
+                    <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                        <div class="dash-stat" style="padding: 0.75rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                <i class="fas fa-check" style="color: #4ade80;"></i>
+                                <span class="text-2xl font-bold" style="color: #4ade80;" th:text="${dashboardData.allowCount24h()}">0</span>
+                            </div>
+                            <div class="text-sm mt-1" style="color: #94a3b8;">접근 허용</div>
+                        </div>
+                        <div class="dash-stat" style="padding: 0.75rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                <i class="fas fa-ban" style="color: #f87171;"></i>
+                                <span class="text-2xl font-bold" style="color: #f87171;" th:text="${dashboardData.denyCount24h()}">0</span>
+                            </div>
+                            <div class="text-sm mt-1" style="color: #94a3b8;">접근 거부</div>
+                        </div>
+                        <div class="dash-stat" style="padding: 0.75rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                <i class="fas fa-sign-in-alt" style="color: #60a5fa;"></i>
+                                <span class="text-lg font-bold" style="color: #e2e8f0;"
+                                      th:text="${dashboardData.authSuccessCount24h() + ' / ' + dashboardData.authFailureCount24h()}">0/0</span>
+                            </div>
+                            <div class="text-sm mt-1" style="color: #94a3b8;">인증 성공/실패</div>
+                        </div>
+                        <div class="dash-stat" style="padding: 0.75rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                <i class="fas fa-moon" style="color: #fbbf24;"></i>
+                                <span class="text-2xl font-bold"
+                                      th:style="${dashboardData.afterHoursAccessCount24h() > 0 ? 'color: #fbbf24;' : 'color: #4ade80;'}"
+                                      th:text="${dashboardData.afterHoursAccessCount24h()}">0</span>
+                            </div>
+                            <div class="text-sm mt-1" style="color: #94a3b8;">업무 외 접근</div>
+                        </div>
+                        <div class="dash-stat" style="padding: 0.75rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                <i class="fas fa-brain" style="color: #a78bfa;"></i>
+                                <span class="text-2xl font-bold" style="color: #a78bfa;" th:text="${dashboardData.securityDecisionCount24h()}">0</span>
+                            </div>
+                            <div class="text-sm mt-1" style="color: #94a3b8;">AI 보안 분석</div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+                        <div class="dash-stat" style="padding: 0.625rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.375rem;">
+                                <i class="fas fa-user-shield" style="color: #818cf8; font-size: 0.875rem;"></i>
+                                <span class="text-lg font-bold" style="color: #818cf8;" th:text="${dashboardData.adminOverrideCount24h()}">0</span>
+                            </div>
+                            <div class="text-xs mt-1" style="color: #64748b;">관리자 오버라이드</div>
+                        </div>
+                        <div class="dash-stat" style="padding: 0.625rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.375rem;">
+                                <i class="fas fa-exclamation-triangle" style="color: #f87171; font-size: 0.875rem;"></i>
+                                <span class="text-lg font-bold"
+                                      th:style="${dashboardData.securityErrorCount24h() > 0 ? 'color: #f87171;' : 'color: #4ade80;'}"
+                                      th:text="${dashboardData.securityErrorCount24h()}">0</span>
+                            </div>
+                            <div class="text-xs mt-1" style="color: #64748b;">보안 오류</div>
+                        </div>
+                        <div class="dash-stat" style="padding: 0.625rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.375rem;">
+                                <i class="fas fa-network-wired" style="color: #22d3ee; font-size: 0.875rem;"></i>
+                                <span class="text-lg font-bold" style="color: #22d3ee;" th:text="${dashboardData.distinctIpCount24h()}">0</span>
+                            </div>
+                            <div class="text-xs mt-1" style="color: #64748b;">고유 IP</div>
+                        </div>
+                        <div class="dash-stat" style="padding: 0.625rem;">
+                            <div style="display: flex; align-items: center; justify-content: center; gap: 0.375rem;">
+                                <i class="fas fa-gauge-high" style="color: #f59e0b; font-size: 0.875rem;"></i>
+                                <span class="text-lg font-bold"
+                                      th:style="${dashboardData.avgRiskScore24h() != null && dashboardData.avgRiskScore24h() >= 0.5 ? 'color: #f87171;' : 'color: #4ade80;'}"
+                                      th:text="${dashboardData.avgRiskScore24h() != null ? #numbers.formatDecimal(dashboardData.avgRiskScore24h() * 100, 1, 0) + '%' : '-'}">-</span>
+                            </div>
+                            <div class="text-xs mt-1" style="color: #64748b;">평균 위험도</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blocked Users -->
+            <div class="dash-card" style="border-color: rgba(239,68,68,0.25);">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold" style="color: #e2e8f0;">
+                        <i class="fas fa-ban mr-2" style="color: #f87171;"></i>차단된 사용자
+                    </h2>
+                    <a th:href="@{/admin/blacklist}" class="text-xs" style="color: #818cf8; text-decoration: none;">
+                        전체 보기 <i class="fas fa-arrow-right ml-1"></i>
+                    </a>
+                </div>
+
+                <div class="flex items-start gap-6">
+                    <!-- Gauge -->
+                    <div class="zt-gauge flex-shrink-0">
+                        <svg viewBox="0 0 100 100">
+                            <circle stroke-width="8" stroke="rgba(71,85,105,0.3)" fill="transparent" r="42" cx="50" cy="50" />
+                            <circle class="zt-gauge-circle" id="ztGaugeCircle"
+                                    stroke-width="8" stroke-linecap="round" fill="transparent" r="42" cx="50" cy="50"
+                                    th:attr="data-blocked=${dashboardData.blockedUserCount()}"
+                                    th:style="${dashboardData.blockedUserCount() > 0 ? 'stroke: #f87171; filter: drop-shadow(0 0 8px rgba(248,113,113,0.5));' : 'stroke: #4ade80; filter: drop-shadow(0 0 8px rgba(74,222,128,0.5));'}" />
+                        </svg>
+                        <div class="zt-gauge-value">
+                            <span class="text-5xl font-bold"
+                                  th:style="${dashboardData.blockedUserCount() > 0 ? 'color: #f87171;' : 'color: #4ade80;'}"
+                                  th:text="${dashboardData.blockedUserCount()}">0</span>
+                            <span class="text-sm font-medium" style="color: #94a3b8;">차단 중</span>
+                        </div>
+                    </div>
+
+                    <!-- Details -->
+                    <div class="flex-1">
+                        <div class="grid grid-cols-5 gap-3 mb-4">
+                            <a th:href="@{/admin/blacklist(filter='blocked')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(239,68,68,0.3);">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                    <i class="fas fa-ban" style="color: #f87171;"></i>
+                                    <span class="text-2xl font-bold" style="color: #f87171;" th:text="${dashboardData.blockedUserCount()}">0</span>
+                                </div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">차단 중</div>
+                            </a>
+                            <a th:href="@{/admin/blacklist(filter='unblock_requested')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(245,158,11,0.3);">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                    <i class="fas fa-hand-paper" style="color: #fbbf24;"></i>
+                                    <span class="text-2xl font-bold" style="color: #fbbf24;" th:text="${dashboardData.unblockRequestedCount()}">0</span>
+                                </div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">해지 요청</div>
+                            </a>
+                            <a th:href="@{/admin/blacklist(filter='timeout_responded')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(139,92,246,0.3);">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                    <i class="fas fa-robot" style="color: #a78bfa;"></i>
+                                    <span class="text-2xl font-bold" style="color: #a78bfa;" th:text="${dashboardData.soarAutoResponseCount()}">0</span>
+                                </div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">SOAR 대응</div>
+                            </a>
+                            <a th:href="@{/admin/blacklist(filter='blocked')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(239,68,68,0.3);">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                    <i class="fas fa-fingerprint" style="color: #f87171;"></i>
+                                    <span class="text-2xl font-bold" style="color: #f87171;" th:text="${dashboardData.mfaFailedCount()}">0</span>
+                                </div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">MFA 실패</div>
+                            </a>
+                            <a th:href="@{/admin/blacklist(filter='resolved')}" class="dash-stat" style="padding: 0.75rem; text-decoration: none; border-color: rgba(34,197,94,0.3);">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem;">
+                                    <i class="fas fa-check-circle" style="color: #4ade80;"></i>
+                                    <span class="text-2xl font-bold" style="color: #4ade80;" th:text="${dashboardData.resolvedCount()}">0</span>
+                                </div>
+                                <div class="text-sm mt-1" style="color: #94a3b8;">해제 완료</div>
+                            </a>
+                        </div>
+
+                        <!-- Recent blocked list -->
                         <div th:if="${#lists.isEmpty(dashboardData.recentBlockedUsers())}" class="text-center py-3" style="color: #64748b; font-size: 0.8125rem;">
-                            <i class="fas fa-check-circle mr-1" style="color: #4ade80;"></i> 현재 위협이 감지되지 않았습니다
+                            <i class="fas fa-check-circle mr-1" style="color: #4ade80;"></i> 현재 차단된 사용자가 없습니다
                         </div>
                         <div th:unless="${#lists.isEmpty(dashboardData.recentBlockedUsers())}">
-                            <div class="text-xs font-semibold mb-2" style="color: #94a3b8;">최근 차단 사용자</div>
                             <a th:each="user : ${dashboardData.recentBlockedUsers()}" th:href="@{/admin/blacklist/{id}(id=${user.id})}" class="zt-blocked-item">
                                 <div class="flex items-center gap-2">
                                     <div style="width: 1.75rem; height: 1.75rem; border-radius: 50%; background: rgba(239,68,68,0.15); display: flex; align-items: center; justify-content: center;">
@@ -234,29 +385,29 @@
             <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <a th:href="@{/admin/users}" class="dash-stat">
                     <div class="text-2xl font-bold" style="color: #60a5fa;" th:text="${dashboardData.statistics.totalUsers()}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">사용자</div>
+                    <div class="text-sm mt-1" style="color: #94a3b8;">사용자</div>
                 </a>
                 <a th:href="@{/admin/groups}" class="dash-stat">
                     <div class="text-2xl font-bold" style="color: #a78bfa;" th:text="${dashboardData.statistics.totalGroups()}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">그룹</div>
+                    <div class="text-sm mt-1" style="color: #94a3b8;">그룹</div>
                 </a>
                 <a th:href="@{/admin/roles}" class="dash-stat">
                     <div class="text-2xl font-bold" style="color: #34d399;" th:text="${dashboardData.statistics.totalRoles()}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">역할</div>
+                    <div class="text-sm mt-1" style="color: #94a3b8;">역할</div>
                 </a>
                 <a th:href="@{/admin/permissions}" class="dash-stat">
                     <div class="text-2xl font-bold" style="color: #fbbf24;" th:text="${dashboardData.statistics.totalPermissions()}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">권한</div>
+                    <div class="text-sm mt-1" style="color: #94a3b8;">권한</div>
                 </a>
                 <a th:href="@{/admin/policy-center(tab='list')}" class="dash-stat">
                     <div class="text-2xl font-bold" style="color: #22d3ee;" th:text="${dashboardData.statistics.totalPolicies()}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">정책</div>
+                    <div class="text-sm mt-1" style="color: #94a3b8;">정책</div>
                 </a>
                 <div class="dash-stat">
                     <div class="text-2xl font-bold"
                          th:style="${dashboardData.statistics.mfaEnabledUsers() > 0 ? 'color: #34d399;' : 'color: #f87171;'}"
                          th:text="${dashboardData.statistics.mfaEnabledUsers()}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">MFA 활성</div>
+                    <div class="text-sm mt-1" style="color: #94a3b8;">MFA 활성</div>
                 </div>
             </div>
         </div>
@@ -264,7 +415,7 @@
         <!-- ===== 3: Quick Actions ===== -->
         <div class="mb-8">
             <h2 class="text-lg font-bold mb-4" style="color: #e2e8f0;">바로가기</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
                 <a th:href="@{/admin/policy-center}" class="dash-action" style="background: linear-gradient(135deg, #6366f1, #4f46e5);">
                     <div style="background: rgba(255,255,255,0.1); width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">
                         <i class="fas fa-shield-alt text-lg"></i>
@@ -292,6 +443,13 @@
                     </div>
                     <div class="font-bold">리소스 관리</div>
                     <div class="text-xs mt-0.5" style="opacity: 0.8;">리소스 탐지 및 정책 연결</div>
+                </a>
+                <a th:href="@{/admin/blacklist}" class="dash-action" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                    <div style="background: rgba(255,255,255,0.1); width: 2.75rem; height: 2.75rem; border-radius: 0.75rem; display: flex; align-items: center; justify-content: center; margin-bottom: 0.75rem;">
+                        <i class="fas fa-ban text-lg"></i>
+                    </div>
+                    <div class="font-bold">제로트러스트</div>
+                    <div class="text-xs mt-0.5" style="opacity: 0.8;">차단 사용자 관리</div>
                 </a>
             </div>
         </div>

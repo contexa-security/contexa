@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='Security Event Detail')}"></th:block>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/policy-center.css}" />
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <div class="modern-card" style="max-width: 56rem;">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <h1 class="text-xl font-bold" style="color: #e2e8f0;">
+                        <i class="fas fa-search mr-2" style="color: #818cf8;"></i>보안 이벤트 상세
+                    </h1>
+                    <p class="text-xs mt-1" style="color: #64748b;">Event ID: <span th:text="${log.id}"></span></p>
+                </div>
+                <a th:href="@{/admin/security-monitor}" class="modern-btn-secondary" style="text-decoration: none;">
+                    <i class="fas fa-arrow-left mr-1"></i> 목록으로
+                </a>
+            </div>
+
+            <!-- Event Category Badge -->
+            <div class="mb-6">
+                <span class="px-4 py-2 rounded-full text-sm font-bold"
+                      th:style="${log.eventCategory == 'SECURITY_DECISION' ? 'background: rgba(139,92,246,0.2); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3);' :
+                                  log.eventCategory == 'AUTHENTICATION_SUCCESS' ? 'background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' :
+                                  log.eventCategory == 'AUTHENTICATION_FAILURE' ? 'background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.3);' :
+                                  log.eventCategory == 'ADMIN_OVERRIDE' ? 'background: rgba(99,102,241,0.2); color: #818cf8; border: 1px solid rgba(99,102,241,0.3);' :
+                                  'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
+                      th:text="${log.eventCategory ?: 'UNKNOWN'}"></span>
+                <span class="ml-3 text-lg font-bold"
+                      th:style="${log.decision == 'ALLOW' ? 'color: #4ade80;' : log.decision == 'DENY' ? 'color: #f87171;' : 'color: #fbbf24;'}"
+                      th:text="${log.decision}"></span>
+            </div>
+
+            <!-- Info Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <!-- Who -->
+                <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
+                    <div class="text-xs font-semibold mb-2" style="color: #818cf8;">
+                        <i class="fas fa-user mr-1"></i> WHO
+                    </div>
+                    <div class="text-sm font-bold" style="color: #e2e8f0;" th:text="${log.principalName}">-</div>
+                    <div class="text-xs mt-1" style="color: #64748b;">IP: <span th:text="${log.clientIp ?: '-'}"></span></div>
+                    <div class="text-xs mt-0.5" style="color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 20rem;"
+                         th:text="${'UA: ' + (log.userAgent ?: '-')}"></div>
+                </div>
+
+                <!-- When -->
+                <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
+                    <div class="text-xs font-semibold mb-2" style="color: #f59e0b;">
+                        <i class="fas fa-clock mr-1"></i> WHEN
+                    </div>
+                    <div class="text-sm font-bold" style="color: #e2e8f0;" th:text="${#temporals.format(log.timestamp, 'yyyy-MM-dd HH:mm:ss')}">-</div>
+                    <div th:if="${log.sessionId != null}" class="text-xs mt-1" style="color: #64748b;">Session: <span th:text="${log.sessionId}"></span></div>
+                    <div th:if="${log.correlationId != null}" class="text-xs mt-0.5" style="color: #64748b;">Correlation: <span th:text="${log.correlationId}"></span></div>
+                </div>
+
+                <!-- What -->
+                <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
+                    <div class="text-xs font-semibold mb-2" style="color: #10b981;">
+                        <i class="fas fa-crosshairs mr-1"></i> WHAT
+                    </div>
+                    <div class="text-sm" style="color: #e2e8f0;">
+                        <span th:if="${log.httpMethod != null}" class="font-bold mr-1" th:text="${log.httpMethod}"></span>
+                        <span th:text="${log.requestUri ?: log.resourceUri ?: log.resourceIdentifier ?: '-'}"></span>
+                    </div>
+                    <div th:if="${log.action != null}" class="text-xs mt-1" style="color: #64748b;">Action: <span th:text="${log.action}"></span></div>
+                </div>
+
+                <!-- Why -->
+                <div class="rounded-lg p-4" style="background: rgba(30,41,59,0.5); border: 1px solid rgba(71,85,105,0.3);">
+                    <div class="text-xs font-semibold mb-2" style="color: #f87171;">
+                        <i class="fas fa-gavel mr-1"></i> WHY
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div>
+                            <span class="text-lg font-bold"
+                                  th:style="${log.decision == 'ALLOW' ? 'color: #4ade80;' : log.decision == 'DENY' ? 'color: #f87171;' : 'color: #fbbf24;'}"
+                                  th:text="${log.decision}"></span>
+                            <span th:if="${log.outcome != null}" class="text-xs ml-2" style="color: #94a3b8;" th:text="${'(' + log.outcome + ')'}"></span>
+                        </div>
+                        <div th:if="${log.riskScore != null}" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <div style="width: 4rem; height: 0.375rem; background: rgba(71,85,105,0.3); border-radius: 0.1875rem; overflow: hidden;">
+                                <div th:style="${'width: ' + (log.riskScore * 100) + '%; height: 100%; border-radius: 0.1875rem; background: ' + (log.riskScore >= 0.8 ? '#f87171' : (log.riskScore >= 0.5 ? '#fbbf24' : '#4ade80')) + ';'}"></div>
+                            </div>
+                            <span class="text-xs font-bold"
+                                  th:style="${log.riskScore >= 0.8 ? 'color: #f87171;' : log.riskScore >= 0.5 ? 'color: #fbbf24;' : 'color: #4ade80;'}"
+                                  th:text="${#numbers.formatDecimal(log.riskScore * 100, 1, 0) + '%'}"></span>
+                        </div>
+                    </div>
+                    <div th:if="${log.reason != null}" class="text-xs mt-2" style="color: #cbd5e1; line-height: 1.5;" th:text="${log.reason}"></div>
+                </div>
+            </div>
+
+            <!-- Details (JSON) -->
+            <div th:if="${log.details != null && !log.details.isBlank()}" class="mb-6">
+                <div class="text-xs font-semibold mb-2" style="color: #94a3b8;">
+                    <i class="fas fa-code mr-1"></i> 상세 데이터 (Details)
+                </div>
+                <div style="background: rgba(15,23,42,0.7); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.5rem; padding: 1rem; overflow-x: auto;">
+                    <pre style="color: #cbd5e1; font-size: 0.75rem; font-family: 'Monaco', 'Consolas', monospace; white-space: pre-wrap; margin: 0;" th:text="${log.details}"></pre>
+                </div>
+            </div>
+
+            <!-- Source -->
+            <div class="flex items-center gap-4 text-xs" style="color: #64748b;">
+                <span th:if="${log.eventSource != null}"><i class="fas fa-server mr-1"></i> Source: <span th:text="${log.eventSource}"></span></span>
+            </div>
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+</body>
+</html>

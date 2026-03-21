@@ -127,4 +127,28 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
             "AND a.timestamp >= :since ORDER BY a.timestamp DESC")
     List<AuditLog> findByPrincipalNameAndCreatedAtAfter(@Param("userId") String userId,
                                                         @Param("since") LocalDateTime since);
+
+    // Dashboard aggregate queries
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.decision = 'ALLOW' AND a.timestamp >= :since")
+    long countAllowedSince(@Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = :category AND a.timestamp >= :since")
+    long countByEventCategoryAndTimestampAfter(@Param("category") String category, @Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'ADMIN_OVERRIDE' AND a.timestamp >= :since")
+    long countAdminOverridesSince(@Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_ERROR' AND a.timestamp >= :since")
+    long countSecurityErrorsSince(@Param("since") LocalDateTime since);
+
+    @Query("SELECT AVG(a.riskScore) FROM AuditLog a WHERE a.riskScore IS NOT NULL AND a.timestamp >= :since")
+    Double avgRiskScoreSince(@Param("since") LocalDateTime since);
+
+    @Query(value = "SELECT COUNT(*) FROM audit_log WHERE timestamp >= :since " +
+            "AND (EXTRACT(hour FROM timestamp) < 9 OR EXTRACT(hour FROM timestamp) >= 18 " +
+            "OR EXTRACT(isodow FROM timestamp) IN (6, 7))", nativeQuery = true)
+    long countAfterHoursAccessSince(@Param("since") LocalDateTime since);
+
+    @Query("SELECT COUNT(DISTINCT a.clientIp) FROM AuditLog a WHERE a.timestamp >= :since")
+    long countDistinctIpsSince(@Param("since") LocalDateTime since);
 }

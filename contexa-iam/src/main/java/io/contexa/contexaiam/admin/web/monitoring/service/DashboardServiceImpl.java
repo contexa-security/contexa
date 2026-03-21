@@ -50,6 +50,7 @@ public class DashboardServiceImpl implements DashboardService {
     @Transactional(readOnly = true)
     public DashboardDto getDashboardData() {
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
+        LocalDateTime since24h = LocalDateTime.now().minusHours(24);
 
         return new DashboardDto(
                 buildStatistics(),
@@ -67,7 +68,18 @@ public class DashboardServiceImpl implements DashboardService {
                 blockedUserJpaRepository.countByStatus(BlockedUserStatus.TIMEOUT_RESPONDED),
                 blockedUserJpaRepository.countByStatus(BlockedUserStatus.MFA_FAILED),
                 blockedUserJpaRepository.countByStatus(BlockedUserStatus.RESOLVED),
-                blockedUserJpaRepository.findTop5ByStatusOrderByBlockedAtDesc(BlockedUserStatus.BLOCKED)
+                blockedUserJpaRepository.findTop5ByStatusOrderByBlockedAtDesc(BlockedUserStatus.BLOCKED),
+                // 24h security activity from audit_log
+                auditLogRepository.countAllowedSince(since24h),
+                auditLogRepository.countDeniedAttemptsSince(since24h),
+                auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_SUCCESS", since24h),
+                auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_FAILURE", since24h),
+                auditLogRepository.countByEventCategoryAndTimestampAfter("SECURITY_DECISION", since24h),
+                auditLogRepository.countAdminOverridesSince(since24h),
+                auditLogRepository.countSecurityErrorsSince(since24h),
+                auditLogRepository.countAfterHoursAccessSince(since24h),
+                auditLogRepository.countDistinctIpsSince(since24h),
+                auditLogRepository.avgRiskScoreSince(since24h)
         );
     }
 
