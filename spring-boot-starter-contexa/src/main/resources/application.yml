@@ -71,3 +71,9 @@ spring:
           lob:
             non_contextual_creation: true
     show-sql: false
+
+logging:
+  level:
+    org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
+    org.hibernate.orm.connections.pooling: WARN
+    org.springframework.aop.framework.CglibAopProxy: ERROR

@@ -6,6 +6,8 @@ import io.contexa.contexaiam.admin.web.AdminEnterpriseModelAdvice;
 import io.contexa.contexaiam.admin.web.metadata.service.PermissionCatalogService;
 import io.contexa.contexaiam.admin.web.monitoring.controller.DashboardController;
 import io.contexa.contexaiam.admin.web.monitoring.service.*;
+import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import io.contexa.autoconfigure.properties.ContexaProperties;
@@ -34,7 +36,9 @@ public class IamAdminMonitoringAutoConfiguration {
             RoleHierarchyRepository roleHierarchyRepository,
             UserContextService userContextService,
             SecurityScoreCalculator securityScoreCalculator,
-            PermissionMatrixService permissionMatrixService) {
+            PermissionMatrixService permissionMatrixService,
+            ManagedResourceRepository managedResourceRepository,
+            BlockedUserJpaRepository blockedUserJpaRepository) {
         return new DashboardServiceImpl(
                 userRepository,
                 groupRepository,
@@ -45,7 +49,9 @@ public class IamAdminMonitoringAutoConfiguration {
                 roleHierarchyRepository,
                 userContextService,
                 securityScoreCalculator,
-                permissionMatrixService);
+                permissionMatrixService,
+                managedResourceRepository,
+                blockedUserJpaRepository);
     }
 
     @Bean

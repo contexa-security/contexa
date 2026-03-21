@@ -15,7 +15,11 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
+import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
+import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
+import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +43,8 @@ public class DashboardServiceImpl implements DashboardService {
     private final UserContextService userContextService;
     private final SecurityScoreCalculator securityScoreCalculator;
     private final PermissionMatrixService permissionMatrixService;
+    private final ManagedResourceRepository managedResourceRepository;
+    private final BlockedUserJpaRepository blockedUserJpaRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -52,7 +58,16 @@ public class DashboardServiceImpl implements DashboardService {
                 securityScoreCalculator.calculate(),
                 permissionMatrixService.getPermissionMatrix(null),
                 buildPolicyStatus(),
-                buildAccessTrends()
+                buildAccessTrends(),
+                managedResourceRepository.count(),
+                managedResourceRepository.countByStatus(ManagedResource.Status.POLICY_CONNECTED),
+                managedResourceRepository.countByStatus(ManagedResource.Status.PERMISSION_CREATED),
+                blockedUserJpaRepository.countByStatus(BlockedUserStatus.BLOCKED),
+                blockedUserJpaRepository.countByStatus(BlockedUserStatus.UNBLOCK_REQUESTED),
+                blockedUserJpaRepository.countByStatus(BlockedUserStatus.TIMEOUT_RESPONDED),
+                blockedUserJpaRepository.countByStatus(BlockedUserStatus.MFA_FAILED),
+                blockedUserJpaRepository.countByStatus(BlockedUserStatus.RESOLVED),
+                blockedUserJpaRepository.findTop5ByStatusOrderByBlockedAtDesc(BlockedUserStatus.BLOCKED)
         );
     }
 

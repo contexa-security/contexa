@@ -5,12 +5,7 @@
 <div th:fragment="header">
     <header class="shadow-2xl relative overflow-hidden" style="background: linear-gradient(135deg, #050810 0%, #0a0f1c 50%, #0f172a 100%); border-bottom: 2px solid #1e293b;">
         <div class="absolute inset-0 bg-gradient-to-r from-violet-600/5 via-transparent to-indigo-600/5"></div>
-        <div class="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16 relative z-10">
-            <h1 class="text-xl font-black tracking-tight">
-                <a th:href="@{/}" class="hover:text-indigo-400 transition-all duration-300 bg-gradient-to-r from-white to-indigo-200 bg-clip-text text-transparent hover:from-indigo-300 hover:to-purple-300">
-                    Security Auth Platform
-                </a>
-            </h1>
+        <div class="flex items-center justify-end h-16 relative z-10 px-6">
             <nav class="header-actions flex items-center space-x-2">
                 <a id="homeLink" th:href="@{/admin}" class="nav-link group">
                     <span class="nav-icon"><i class="fas fa-home"></i></span>

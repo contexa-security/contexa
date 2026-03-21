@@ -182,7 +182,7 @@ const PolicyCenter = {
         const badge = row.querySelector('.status-badge');
         if (badge) {
             badge.className = 'status-badge bg-yellow-500/20 text-yellow-400 border-yellow-500/30';
-            badge.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>정책 미완료</span>';
+            badge.innerHTML = '<i class="fas fa-exclamation-circle"></i> <span>정책 미 설정</span>';
         }
         const defineBtn = row.querySelector('[onclick="PolicyCenter.defineAndSetupPolicy(this)"]');
         if (defineBtn) defineBtn.closest('div').style.display = '';

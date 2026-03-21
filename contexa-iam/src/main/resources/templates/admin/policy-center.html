@@ -45,19 +45,6 @@
             <!-- ==================== TAB 1: RESOURCES ==================== -->
             <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources'} ? ' active' : ''">
 
-                <!-- Header + Refresh -->
-                <div class="page-header" style="padding: 1rem 2rem;">
-                    <div class="flex flex-col sm:flex-row justify-between items-center gap-2">
-                        <p class="text-dark-muted text-sm" style="margin: 0;">시스템에서 자동 탐지된 리소스를 검토합니다. AI가 각 리소스의 친화적 이름과 설명을 자동 생성하며, 리소스별로 정책을 생성할 수 있습니다.</p>
-                        <form th:action="@{/admin/policy-center/refresh-resources}" method="post">
-                            <button type="submit" class="modern-btn-refresh whitespace-nowrap">
-                                <i class="fas fa-sync-alt"></i>
-                                <span>리소스 새로고침</span>
-                            </button>
-                        </form>
-                    </div>
-                </div>
-
                 <!-- Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
                     <input type="hidden" name="tab" value="resources" />
@@ -83,9 +70,11 @@
                             <label for="keyword" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">키워드 (Keyword)</label>
                             <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" placeholder="식별자, 설명 등...">
                         </div>
-                        <div class="flex gap-2">
-                            <button type="submit" class="modern-btn-primary flex-1"><i class="fas fa-search"></i> 검색</button>
-                            <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-secondary flex-1 text-center"><i class="fas fa-redo"></i> 초기화</a>
+                        <div class="flex gap-2 items-end">
+                            <button type="submit" class="modern-btn-primary"><i class="fas fa-search"></i> 검색</button>
+                            <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-secondary text-center"><i class="fas fa-times"></i> 필터 해제</a>
+                            <div style="flex: 1;"></div>
+                            <button type="submit" class="modern-btn-refresh" formaction="/admin/policy-center/refresh-resources" formmethod="post"><i class="fas fa-sync-alt"></i> 리소스 새로고침</button>
                         </div>
                     </div>
                 </form>
