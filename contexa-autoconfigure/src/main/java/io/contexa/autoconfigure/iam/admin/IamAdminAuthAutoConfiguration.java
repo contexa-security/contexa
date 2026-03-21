@@ -95,9 +95,10 @@ public class IamAdminAuthAutoConfiguration {
             UserRepository userRepository,
             GroupRepository groupRepository,
             PasswordEncoder passwordEncoder,
-            ModelMapper modelMapper) {
+            ModelMapper modelMapper,
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
         return new UserManagementServiceImpl(
-                userRepository, groupRepository, passwordEncoder, modelMapper);
+                userRepository, groupRepository, passwordEncoder, modelMapper, centralAuditFacade);
     }
 
     @Bean
@@ -105,8 +106,9 @@ public class IamAdminAuthAutoConfiguration {
     public RoleService roleService(
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
-            IntegrationEventBus eventBus) {
-        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus);
+            IntegrationEventBus eventBus,
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
+        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade);
     }
 
     @Bean

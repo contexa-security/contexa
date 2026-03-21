@@ -1,6 +1,9 @@
 package io.contexa.contexaiam.security.xacml.pap.service;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.BusinessPolicyDto;
 import io.contexa.contexaiam.domain.entity.ConditionTemplate;
@@ -38,14 +41,16 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final PolicyEnrichmentService policyEnrichmentService;
     private final CustomDynamicAuthorizationManager authorizationManager;
+    private final CentralAuditFacade centralAuditFacade;
 
     public BusinessPolicyServiceImpl(PolicyRepository policyRepository,
-                                     @Lazy RoleService roleService, 
+                                     @Lazy RoleService roleService,
                                      RoleRepository roleRepository,
                                      PermissionRepository permissionRepository,
                                      ConditionTemplateRepository conditionTemplateRepository,
                                      PolicyEnrichmentService policyEnrichmentService,
-                                     CustomDynamicAuthorizationManager authorizationManager) {
+                                     CustomDynamicAuthorizationManager authorizationManager,
+                                     CentralAuditFacade centralAuditFacade) {
         this.policyRepository = policyRepository;
         this.roleService = roleService;
         this.roleRepository = roleRepository;
@@ -53,6 +58,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         this.conditionTemplateRepository = conditionTemplateRepository;
         this.policyEnrichmentService = policyEnrichmentService;
         this.authorizationManager = authorizationManager;
+        this.centralAuditFacade = centralAuditFacade;
     }
 
     @Override
@@ -68,6 +74,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
         Policy savedPolicy = policyRepository.save(policy);
         updateResourceStatusForPermissions(dto.getPermissionIds());
+        auditBusinessPolicyChange(AuditEventCategory.POLICY_CREATED, savedPolicy, dto);
         authorizationManager.reload();
 
                 return savedPolicy;
@@ -84,6 +91,7 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
 
         Policy updatedPolicy = policyRepository.save(existingPolicy);
+        auditBusinessPolicyChange(AuditEventCategory.POLICY_UPDATED, updatedPolicy, dto);
         authorizationManager.reload();
 
                 return updatedPolicy;
@@ -438,6 +446,30 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             }
         } catch (Exception e) {
             log.error("Failed to update resource status after policy creation", e);
+        }
+    }
+
+    private void auditBusinessPolicyChange(AuditEventCategory category, Policy policy, BusinessPolicyDto dto) {
+        try {
+            String principal = "SYSTEM";
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) principal = auth.getName();
+
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(category)
+                    .principalName(principal)
+                    .resourceIdentifier(policy.getName() != null ? policy.getName() : "")
+                    .eventSource("IAM")
+                    .action(category.name())
+                    .decision(policy.getEffect() != null ? policy.getEffect().name() : "ALLOW")
+                    .outcome("SUCCESS")
+                    .details(Map.of(
+                            "policyId", policy.getId() != null ? policy.getId() : 0L,
+                            "policyName", dto.getPolicyName() != null ? dto.getPolicyName() : "",
+                            "source", policy.getSource() != null ? policy.getSource().name() : "AI_GENERATED"))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit business policy change: {}", policy.getName(), e);
         }
     }
 }

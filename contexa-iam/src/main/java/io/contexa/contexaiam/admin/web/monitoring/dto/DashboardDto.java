@@ -2,6 +2,7 @@ package io.contexa.contexaiam.admin.web.monitoring.dto;
 
 import io.contexa.contexaiam.admin.support.context.dto.RecentActivityDto;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
+import io.contexa.contexacommon.entity.AuditLog;
 import java.util.List;
 
 public record DashboardDto(
@@ -31,5 +32,12 @@ public record DashboardDto(
         long securityErrorCount24h,
         long afterHoursAccessCount24h,
         long distinctIpCount24h,
-        Double avgRiskScore24h
+        Double avgRiskScore24h,
+        // Zero Trust decision breakdown
+        long challengeCount24h,
+        long blockCount24h,
+        long escalateCount24h,
+        long policyChangeCount24h,
+        long iamChangeCount24h,
+        List<AuditLog> recentThreatEvents
 ) {}

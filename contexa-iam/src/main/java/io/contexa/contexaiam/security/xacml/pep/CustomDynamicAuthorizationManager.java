@@ -50,10 +50,7 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
     private final ContextHandler contextHandler;
     private final ZeroTrustEventPublisher zeroTrustEventPublisher;
     private final AuthorizationMetrics metricsCollector;
-
-    @Setter
-    @Autowired(required = false)
-    private CentralAuditFacade centralAuditFacade;
+    private final CentralAuditFacade centralAuditFacade;
 
     @EventListener
     public void onApplicationEvent(ContextRefreshedEvent event) {
@@ -96,33 +93,21 @@ public class CustomDynamicAuthorizationManager implements AuthorizationManager<R
         final Authentication authentication = authenticationSupplier.get();
 
         AuthorizationContext authorizationContext = contextHandler.create(authentication, request);
-
+        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
         for (RequestMatcherEntry<AuthorizationManager<RequestAuthorizationContext>> mapping : this.mappings) {
             RequestMatcher.MatchResult matchResult = mapping.getRequestMatcher().matcher(context.getRequest());
             if (matchResult.isMatch()) {
                 AuthorizationManager<RequestAuthorizationContext> manager = mapping.getEntry();
                 RequestAuthorizationContext enrichedContext =
                         new RequestAuthorizationContext(context.getRequest(), matchResult.getVariables());
-                return manager.check(authenticationSupplier, enrichedContext);
+                authorizationDecision = manager.check(authenticationSupplier, enrichedContext);
+
+                if (!authorizationDecision.isGranted()) {
+                    logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision, request);
+                }
+                return authorizationDecision;
             }
         }
-        log.error("No matching URL policy found for request: {} {}", request.getMethod(), request.getRequestURI());
-        AuthorizationDecision authorizationDecision = new AuthorizationDecision(true);
-        logAuthorizationAttempt(authentication, authorizationContext, authorizationDecision, request);
-
-        /*if (zeroTrustEventPublisher != null && !authorizationDecision.isGranted()) {
-            long startTime = System.nanoTime();
-            zeroTrustEventPublisher.publishWebAuthorization(authentication, request, authorizationDecision);
-
-            long duration = System.nanoTime() - startTime;
-
-            if (metricsCollector != null) {
-                metricsCollector.recordUrlAuth(duration);
-                metricsCollector.recordAuthzDecision();
-            }
-
-        }*/
-
         return authorizationDecision;
     }
 

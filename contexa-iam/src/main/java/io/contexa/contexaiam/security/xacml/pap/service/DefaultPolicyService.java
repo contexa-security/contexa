@@ -10,6 +10,9 @@ import io.contexa.contexaiam.domain.entity.policy.Policy;
 import io.contexa.contexaiam.domain.entity.policy.PolicyCondition;
 import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.repository.ManagedResourceRepository;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.security.xacml.pep.CustomDynamicAuthorizationManager;
@@ -43,6 +46,7 @@ public class DefaultPolicyService implements PolicyService {
     private final IntegrationEventBus eventBus;
     private final PermissionRepository permissionRepository;
     private final ManagedResourceRepository managedResourceRepository;
+    private final CentralAuditFacade centralAuditFacade;
 
     private static final Pattern AUTHORITY_PATTERN = Pattern.compile("hasAuthority\\('([^']*)'\\)");
 
@@ -66,12 +70,13 @@ public class DefaultPolicyService implements PolicyService {
     }
 
     @Override
-    public Policy createPolicy(PolicyDto policyDto) { 
+    public Policy createPolicy(PolicyDto policyDto) {
         Policy policy = convertDtoToEntity(policyDto);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
         Policy savedPolicy = policyRepository.save(policy);
 
         publishPolicyChangedEvent(savedPolicy);
+        auditPolicyChange(AuditEventCategory.POLICY_CREATED, savedPolicy);
 
         reloadAuthorizationSystem();
                 return savedPolicy;
@@ -85,6 +90,7 @@ public class DefaultPolicyService implements PolicyService {
         Policy updatedPolicy = policyRepository.save(existingPolicy);
 
         publishPolicyChangedEvent(updatedPolicy);
+        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, updatedPolicy);
 
         reloadAuthorizationSystem();
             }
@@ -168,11 +174,40 @@ public class DefaultPolicyService implements PolicyService {
             }
         });
 
+        // Audit before delete
+        policyRepository.findById(id).ifPresent(p ->
+                auditPolicyChange(AuditEventCategory.POLICY_DELETED, p));
+
         policyRepository.deleteById(id);
 
         eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
         reloadAuthorizationSystem();
             }
+
+    private void auditPolicyChange(AuditEventCategory category, Policy policy) {
+        try {
+            String principal = "SYSTEM";
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) principal = auth.getName();
+
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(category)
+                    .principalName(principal)
+                    .resourceIdentifier(policy.getName() != null ? policy.getName() : "")
+                    .eventSource("IAM")
+                    .action(category.name())
+                    .decision(policy.getEffect() != null ? policy.getEffect().name() : "ALLOW")
+                    .outcome("SUCCESS")
+                    .details(java.util.Map.of(
+                            "policyId", policy.getId() != null ? policy.getId() : 0L,
+                            "policyName", policy.getName() != null ? policy.getName() : "",
+                            "effect", policy.getEffect() != null ? policy.getEffect().name() : "",
+                            "source", policy.getSource() != null ? policy.getSource().name() : ""))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit policy change: {}", policy.getName(), e);
+        }
+    }
 
     private void reloadAuthorizationSystem() {
         policyRetrievalPoint.clearUrlPoliciesCache();

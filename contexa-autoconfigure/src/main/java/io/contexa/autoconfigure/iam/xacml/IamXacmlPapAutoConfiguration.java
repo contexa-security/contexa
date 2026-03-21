@@ -57,10 +57,12 @@ public class IamXacmlPapAutoConfiguration {
             PolicyEnrichmentService policyEnrichmentService,
             IntegrationEventBus eventBus,
             PermissionRepository permissionRepository,
-            ManagedResourceRepository managedResourceRepository) {
+            ManagedResourceRepository managedResourceRepository,
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
         return new DefaultPolicyService(
                 policyRepository, policyRetrievalPoint, authorizationManager,
-                policyEnrichmentService, eventBus, permissionRepository, managedResourceRepository);
+                policyEnrichmentService, eventBus, permissionRepository, managedResourceRepository,
+                centralAuditFacade);
     }
 
     @Bean
@@ -87,10 +89,12 @@ public class IamXacmlPapAutoConfiguration {
             PermissionRepository permissionRepository,
             ConditionTemplateRepository conditionTemplateRepository,
             PolicyEnrichmentService policyEnrichmentService,
-            CustomDynamicAuthorizationManager authorizationManager) {
+            CustomDynamicAuthorizationManager authorizationManager,
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
         return new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository, permissionRepository,
-                conditionTemplateRepository, policyEnrichmentService, authorizationManager);
+                conditionTemplateRepository, policyEnrichmentService, authorizationManager,
+                centralAuditFacade);
     }
 
     @Bean

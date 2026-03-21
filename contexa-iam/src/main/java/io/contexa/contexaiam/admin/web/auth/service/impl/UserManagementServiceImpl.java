@@ -1,6 +1,9 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.enums.AuditEventCategory;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.admin.web.auth.service.UserManagementService;
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
@@ -31,6 +34,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final GroupRepository groupRepository;
     private final PasswordEncoder passwordEncoder;
     private final ModelMapper modelMapper;
+    private final CentralAuditFacade centralAuditFacade;
 
     @Transactional
     @Override
@@ -64,6 +68,27 @@ public class UserManagementServiceImpl implements UserManagementService {
 
         userRepository.save(users);
 
+        try {
+            String admin = "SYSTEM";
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) admin = auth.getName();
+
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.USER_MODIFIED)
+                    .principalName(admin)
+                    .resourceIdentifier(users.getUsername() != null ? users.getUsername() : "")
+                    .eventSource("IAM")
+                    .action("USER_MODIFIED")
+                    .decision("SUCCESS")
+                    .outcome("SUCCESS")
+                    .details(java.util.Map.of(
+                            "userId", users.getId() != null ? users.getId() : 0L,
+                            "username", users.getUsername() != null ? users.getUsername() : "",
+                            "passwordChanged", StringUtils.hasText(userDto.getPassword())))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit user modification: {}", users.getUsername(), e);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -107,6 +132,28 @@ public class UserManagementServiceImpl implements UserManagementService {
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
     @Protectable(ownerField = "username")
     public void deleteUser(Long id) {
+        try {
+            String admin = "SYSTEM";
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) admin = auth.getName();
+            final String auditAdmin = admin;
+
+            userRepository.findById(id).ifPresent(user ->
+                    centralAuditFacade.recordAsync(AuditRecord.builder()
+                            .eventCategory(AuditEventCategory.USER_DELETED)
+                            .principalName(auditAdmin)
+                            .resourceIdentifier(user.getUsername() != null ? user.getUsername() : "")
+                            .eventSource("IAM")
+                            .action("USER_DELETED")
+                            .decision("SUCCESS")
+                            .outcome("SUCCESS")
+                            .details(java.util.Map.of(
+                                    "userId", user.getId() != null ? user.getId() : 0L,
+                                    "username", user.getUsername() != null ? user.getUsername() : ""))
+                            .build()));
+        } catch (Exception e) {
+            log.error("Failed to audit user deletion: id={}", id, e);
+        }
         userRepository.deleteById(id);
     }
 }

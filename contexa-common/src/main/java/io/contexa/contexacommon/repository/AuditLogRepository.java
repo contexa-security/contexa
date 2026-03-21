@@ -151,4 +151,24 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     @Query("SELECT COUNT(DISTINCT a.clientIp) FROM AuditLog a WHERE a.timestamp >= :since")
     long countDistinctIpsSince(@Param("since") LocalDateTime since);
+
+    // Zero Trust decision counts
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.decision = :decision AND a.timestamp >= :since")
+    long countByDecisionSince(@Param("decision") String decision, @Param("since") LocalDateTime since);
+
+    // Recent security decisions (SECURITY_DECISION category)
+    @Query("SELECT a FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.timestamp >= :since ORDER BY a.timestamp DESC")
+    List<AuditLog> findRecentSecurityDecisions(@Param("since") LocalDateTime since);
+
+    // Recent blocked/challenged events
+    @Query("SELECT a FROM AuditLog a WHERE a.eventCategory IN ('USER_BLOCKED', 'MFA_VERIFICATION_FAILED', 'SOAR_AUTO_RESPONSE', 'HTTP_ACCESS_BLOCKED') AND a.timestamp >= :since ORDER BY a.timestamp DESC")
+    List<AuditLog> findRecentThreatEvents(@Param("since") LocalDateTime since);
+
+    // Policy change events
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('POLICY_CREATED', 'POLICY_UPDATED', 'POLICY_DELETED') AND a.timestamp >= :since")
+    long countPolicyChangesSince(@Param("since") LocalDateTime since);
+
+    // User/Role management events
+    @Query("SELECT COUNT(a) FROM AuditLog a WHERE a.eventCategory IN ('USER_MODIFIED', 'USER_DELETED', 'ROLE_CREATED', 'ROLE_UPDATED', 'ROLE_DELETED') AND a.timestamp >= :since")
+    long countIamChangesSince(@Param("since") LocalDateTime since);
 }

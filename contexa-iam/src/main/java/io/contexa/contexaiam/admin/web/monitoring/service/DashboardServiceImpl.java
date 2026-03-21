@@ -79,7 +79,14 @@ public class DashboardServiceImpl implements DashboardService {
                 auditLogRepository.countSecurityErrorsSince(since24h),
                 auditLogRepository.countAfterHoursAccessSince(since24h),
                 auditLogRepository.countDistinctIpsSince(since24h),
-                auditLogRepository.avgRiskScoreSince(since24h)
+                auditLogRepository.avgRiskScoreSince(since24h),
+                // Zero Trust decision breakdown
+                auditLogRepository.countByDecisionSince("CHALLENGE", since24h),
+                auditLogRepository.countByDecisionSince("BLOCK", since24h),
+                auditLogRepository.countByDecisionSince("ESCALATE", since24h),
+                auditLogRepository.countPolicyChangesSince(since24h),
+                auditLogRepository.countIamChangesSince(since24h),
+                auditLogRepository.findRecentThreatEvents(since24h).stream().limit(5).toList()
         );
     }
 

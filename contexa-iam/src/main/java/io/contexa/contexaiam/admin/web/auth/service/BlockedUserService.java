@@ -1,7 +1,10 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
@@ -28,7 +31,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final AdminOverrideService adminOverrideService;
     private final ZeroTrustActionRepository actionRedisRepository;
-    private final ApplicationEventPublisher eventPublisher;;
+    private final ApplicationEventPublisher eventPublisher;
+    private final CentralAuditFacade centralAuditFacade;
 
     @Setter
     @Autowired(required = false)
@@ -71,6 +75,24 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .build();
             blockedUserJpaRepository.save(blockedUser);
         }
+
+        // Audit: user blocked
+        centralAuditFacade.recordAsync(AuditRecord.builder()
+                .eventCategory(AuditEventCategory.USER_BLOCKED)
+                .principalName(userId)
+                .resourceIdentifier(requestId)
+                .eventSource("IAM")
+                .clientIp(sourceIp)
+                .userAgent(userAgent)
+                .action("USER_BLOCKED")
+                .decision("BLOCK")
+                .outcome("BLOCKED")
+                .reason(reasoning)
+                .riskScore(riskScore)
+                .details(Map.of("username", username != null ? username : "",
+                        "blockCount", blockedUserJpaRepository.countByUserId(userId),
+                        "confidence", Math.max(confidence, 0.0)))
+                .build());
     }
 
     @Override
@@ -85,6 +107,19 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
         BlockedUser blocked = blockedOpt.get();
         applyResolution(blocked, adminId, resolvedAction, reason);
+
+        // Audit: user unblocked
+        centralAuditFacade.recordAsync(AuditRecord.builder()
+                .eventCategory(AuditEventCategory.USER_UNBLOCKED)
+                .principalName(adminId)
+                .resourceIdentifier(userId)
+                .eventSource("IAM")
+                .action("USER_UNBLOCKED")
+                .decision(resolvedAction)
+                .outcome("RESOLVED")
+                .reason(reason)
+                .riskScore(blocked.getRiskScore())
+                .build());
     }
 
     @Transactional
@@ -142,6 +177,18 @@ public class BlockedUserService implements IBlockedUserRecorder {
         blocked.setUnblockRequestedAt(LocalDateTime.now());
         blocked.setUnblockReason(reason);
         blockedUserJpaRepository.save(blocked);
+
+        // Audit: unblock requested
+        centralAuditFacade.recordAsync(AuditRecord.builder()
+                .eventCategory(AuditEventCategory.UNBLOCK_REQUESTED)
+                .principalName(userId)
+                .resourceIdentifier(blocked.getRequestId())
+                .eventSource("IAM")
+                .action("UNBLOCK_REQUESTED")
+                .decision("PENDING")
+                .outcome("REQUESTED")
+                .reason(reason)
+                .build());
     }
 
     @Transactional
@@ -173,6 +220,17 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     b.setMfaVerified(true);
                     b.setMfaVerifiedAt(LocalDateTime.now());
                     blockedUserJpaRepository.save(b);
+
+                    centralAuditFacade.recordAsync(AuditRecord.builder()
+                            .eventCategory(AuditEventCategory.MFA_VERIFICATION_SUCCESS)
+                            .principalName(userId)
+                            .resourceIdentifier(b.getRequestId())
+                            .eventSource("IAM")
+                            .action("MFA_VERIFIED")
+                            .decision("ALLOW")
+                            .outcome("VERIFIED")
+                            .clientIp(b.getSourceIp())
+                            .build());
                 });
     }
 
@@ -186,6 +244,19 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     blockedUserJpaRepository.save(b);
 
                     log.error("[BlockedUserService] MFA failed - auto response triggered: userId={}", userId);
+
+                    centralAuditFacade.recordAsync(AuditRecord.builder()
+                            .eventCategory(AuditEventCategory.MFA_VERIFICATION_FAILED)
+                            .principalName(userId)
+                            .resourceIdentifier(b.getRequestId())
+                            .eventSource("IAM")
+                            .clientIp(b.getSourceIp())
+                            .action("MFA_FAILED")
+                            .decision("BLOCK")
+                            .outcome("MFA_FAILED")
+                            .reason("MFA authentication failed for blocked user")
+                            .riskScore(b.getRiskScore() != null ? b.getRiskScore() : 0.95)
+                            .build());
 
                     Map<String, Object> metadata = new HashMap<>();
                     metadata.put("severity", "HIGH");

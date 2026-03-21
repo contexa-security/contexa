@@ -1,6 +1,9 @@
 package io.contexa.contexaiam.admin.web.auth.service;
 
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
@@ -30,6 +33,7 @@ public class BlockedUserTimeoutScheduler {
 
     private final BlockedUserJpaRepository blockedUserJpaRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final CentralAuditFacade centralAuditFacade;
 
     @Scheduled(fixedDelay = 3600000)
     public void checkBlockedUserTimeout() {
@@ -66,6 +70,22 @@ public class BlockedUserTimeoutScheduler {
 
             user.setStatus(BlockedUserStatus.TIMEOUT_RESPONDED);
             blockedUserJpaRepository.save(user);
+
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.SOAR_AUTO_RESPONSE)
+                    .principalName(user.getUserId())
+                    .resourceIdentifier(user.getRequestId())
+                    .eventSource("IAM")
+                    .clientIp(user.getSourceIp())
+                    .action("SOAR_AUTO_RESPONSE")
+                    .decision("TIMEOUT_RESPONDED")
+                    .outcome("AUTO_BLOCKED")
+                    .reason("No unblock request within " + TIMEOUT_HOURS + " hours")
+                    .riskScore(user.getRiskScore())
+                    .details(Map.of("userId", user.getUserId() != null ? user.getUserId() : "",
+                            "blockedAt", user.getBlockedAt() != null ? user.getBlockedAt().toString() : "",
+                            "timeoutHours", TIMEOUT_HOURS))
+                    .build());
         }
     }
 }

@@ -1,8 +1,11 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
 import io.contexa.contexacommon.annotation.Protectable;
+import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacore.autonomous.audit.AuditRecord;
+import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.repository.PermissionRepository;
 import io.contexa.contexacommon.repository.RoleRepository;
@@ -32,6 +35,7 @@ public class RoleServiceImpl implements RoleService {
     private final RoleRepository roleRepository;
     private final PermissionRepository permissionRepository;
     private final IntegrationEventBus eventBus;
+    private final CentralAuditFacade centralAuditFacade;
 
     @Transactional(readOnly = true)
     @Cacheable(value = "roles", key = "#id")
@@ -83,7 +87,9 @@ public class RoleServiceImpl implements RoleService {
             role.setRolePermissions(rolePermissions);
         }
 
-        return roleRepository.save(role);
+        Role saved = roleRepository.save(role);
+        auditRoleChange(AuditEventCategory.ROLE_CREATED, saved);
+        return saved;
     }
 
     @Transactional
@@ -123,6 +129,7 @@ public class RoleServiceImpl implements RoleService {
 
         Role savedRole = roleRepository.save(existingRole);
         eventBus.publish(new RolePermissionsChangedEvent(savedRole.getId()));
+        auditRoleChange(AuditEventCategory.ROLE_UPDATED, savedRole);
 
         return savedRole;
     }
@@ -138,6 +145,30 @@ public class RoleServiceImpl implements RoleService {
     )
     @Protectable
     public void deleteRole(long id) {
+        roleRepository.findById(id).ifPresent(role -> auditRoleChange(AuditEventCategory.ROLE_DELETED, role));
         roleRepository.deleteById(id);
+    }
+
+    private void auditRoleChange(AuditEventCategory category, Role role) {
+        try {
+            String principal = "SYSTEM";
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) principal = auth.getName();
+
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(category)
+                    .principalName(principal)
+                    .resourceIdentifier(role.getRoleName() != null ? role.getRoleName() : "")
+                    .eventSource("IAM")
+                    .action(category.name())
+                    .decision("SUCCESS")
+                    .outcome("SUCCESS")
+                    .details(java.util.Map.of(
+                            "roleId", role.getId() != null ? role.getId() : 0L,
+                            "roleName", role.getRoleName() != null ? role.getRoleName() : ""))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit role change: {}", role.getRoleName(), e);
+        }
     }
 }
