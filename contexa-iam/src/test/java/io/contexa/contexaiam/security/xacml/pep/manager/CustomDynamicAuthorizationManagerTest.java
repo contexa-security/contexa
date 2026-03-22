@@ -77,8 +77,7 @@ class CustomDynamicAuthorizationManagerTest {
     void setUp() {
         authorizationManager = new CustomDynamicAuthorizationManager(
                 policyRetrievalPoint, managerResolver, objectMapper,
-                contextHandler, zeroTrustEventPublisher, metricsCollector);
-        authorizationManager.setCentralAuditFacade(centralAuditFacade);
+                contextHandler, zeroTrustEventPublisher, metricsCollector, centralAuditFacade);
     }
 
     @Nested

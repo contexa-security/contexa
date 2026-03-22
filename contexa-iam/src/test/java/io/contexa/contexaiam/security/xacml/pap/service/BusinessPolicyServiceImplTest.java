@@ -59,6 +59,9 @@ class BusinessPolicyServiceImplTest {
     @Mock
     private CustomDynamicAuthorizationManager authorizationManager;
 
+    @Mock
+    private io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade;
+
     private BusinessPolicyServiceImpl service;
 
     @BeforeEach
@@ -66,7 +69,7 @@ class BusinessPolicyServiceImplTest {
         service = new BusinessPolicyServiceImpl(
                 policyRepository, roleService, roleRepository,
                 permissionRepository, conditionTemplateRepository,
-                policyEnrichmentService, authorizationManager);
+                policyEnrichmentService, authorizationManager, centralAuditFacade);
     }
 
     @Nested
