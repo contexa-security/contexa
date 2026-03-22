@@ -208,7 +208,7 @@ public class DashboardServiceImpl implements DashboardService {
             ));
         }
 
-        boolean hasRoleHierarchy = roleHierarchyRepository.findByIsActiveTrue().isPresent();
+        boolean hasRoleHierarchy = roleHierarchyRepository.existsByIsActiveTrue();
         if (!hasRoleHierarchy) {
             risks.add(new RiskIndicatorDto(
                     "WARNING",

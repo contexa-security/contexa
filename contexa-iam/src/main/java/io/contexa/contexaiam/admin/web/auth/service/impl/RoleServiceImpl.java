@@ -12,6 +12,7 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.common.event.dto.RolePermissionsChangedEvent;
 import io.contexa.contexaiam.common.event.service.IntegrationEventBus;
+import io.contexa.contexaiam.repository.RoleHierarchyRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -36,6 +37,7 @@ public class RoleServiceImpl implements RoleService {
     private final PermissionRepository permissionRepository;
     private final IntegrationEventBus eventBus;
     private final CentralAuditFacade centralAuditFacade;
+    private final RoleHierarchyRepository roleHierarchyRepository;
 
     @Transactional(readOnly = true)
     @Cacheable(value = "roles", key = "#id")
@@ -71,7 +73,6 @@ public class RoleServiceImpl implements RoleService {
             },
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
-    @Protectable
     public Role createRole(Role role, List<Long> permissionIds) {
         if (roleRepository.findByRoleName(role.getRoleName()).isPresent()) {
             throw new IllegalArgumentException("Role with name " + role.getRoleName() + " already exists.");
@@ -101,7 +102,6 @@ public class RoleServiceImpl implements RoleService {
             },
             put = {@CachePut(value = "roles", key = "#result.id")}
     )
-    @Protectable
     public Role updateRole(Role role, List<Long> permissionIds) {
         Role existingRole = roleRepository.findByIdWithPermissions(role.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + role.getId()));
@@ -143,9 +143,31 @@ public class RoleServiceImpl implements RoleService {
                     @CacheEvict(value = "roles", key = "#id")
             }
     )
-    @Protectable
     public void deleteRole(long id) {
-        roleRepository.findById(id).ifPresent(role -> auditRoleChange(AuditEventCategory.ROLE_DELETED, role));
+        // Check if role is referenced in any active hierarchy (exact token matching)
+        Role role = roleRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Role not found with ID: " + id));
+        java.util.List<String> referencedIn = new java.util.ArrayList<>();
+        roleHierarchyRepository.findAllByIsActiveTrue().forEach(hierarchy -> {
+            String hs = hierarchy.getHierarchyString();
+            if (hs != null) {
+                String normalized = hs.replace("\\n", "\n");
+                boolean referenced = java.util.Arrays.stream(normalized.split("[\\r\\n]+"))
+                        .flatMap(line -> java.util.Arrays.stream(line.split("\\s*>\\s*")))
+                        .map(String::trim)
+                        .anyMatch(token -> token.equals(role.getRoleName()));
+                if (referenced) {
+                    referencedIn.add(hierarchy.getDescription() != null ? hierarchy.getDescription() : "ID:" + hierarchy.getId());
+                }
+            }
+        });
+        if (!referencedIn.isEmpty()) {
+            throw new IllegalStateException(
+                    "Cannot delete role '" + role.getRoleName() +
+                    "'. Referenced in active hierarchies: " + String.join(", ", referencedIn) +
+                    ". Remove it from the hierarchies first.");
+        }
+        auditRoleChange(AuditEventCategory.ROLE_DELETED, role);
         roleRepository.deleteById(id);
     }
 

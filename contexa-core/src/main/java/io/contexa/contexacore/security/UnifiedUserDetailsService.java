@@ -2,6 +2,7 @@ package io.contexa.contexacore.security;
 
 import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexacommon.entity.GroupRole;
+import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.entity.UserGroup;
 import io.contexa.contexacommon.entity.Users;
@@ -48,8 +49,8 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                         .orElse(Collections.emptySet()).stream())
                 .map(GroupRole::getRole)
                 .filter(Objects::nonNull)
+                .filter(Role::isEnabled)
                 .forEach(role -> {
-                    
                     authorities.add(new RoleAuthority(role));
 
                     Optional.ofNullable(role.getRolePermissions())

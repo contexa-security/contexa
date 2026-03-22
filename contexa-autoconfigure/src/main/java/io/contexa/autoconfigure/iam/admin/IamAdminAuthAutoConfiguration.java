@@ -107,16 +107,18 @@ public class IamAdminAuthAutoConfiguration {
             RoleRepository roleRepository,
             PermissionRepository permissionRepository,
             IntegrationEventBus eventBus,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
-        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade);
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
+            io.contexa.contexaiam.repository.RoleHierarchyRepository roleHierarchyRepository) {
+        return new RoleServiceImpl(roleRepository, permissionRepository, eventBus, centralAuditFacade, roleHierarchyRepository);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public GroupService groupService(
             GroupRepository groupRepository,
-            RoleRepository roleRepository) {
-        return new GroupServiceImpl(groupRepository, roleRepository);
+            RoleRepository roleRepository,
+            io.contexa.contexaiam.repository.RoleHierarchyRepository roleHierarchyRepository) {
+        return new GroupServiceImpl(groupRepository, roleRepository, roleHierarchyRepository);
     }
 
     @Bean

@@ -95,7 +95,7 @@ public class SecurityScoreCalculatorImpl implements SecurityScoreCalculator {
     }
 
     private int calculateRoleHierarchyScore() {
-        boolean hasRoleHierarchy = roleHierarchyRepository.findByIsActiveTrue().isPresent();
+        boolean hasRoleHierarchy = roleHierarchyRepository.existsByIsActiveTrue();
         return hasRoleHierarchy ? 100 : 0;
     }
 

@@ -29,7 +29,6 @@ public class PermissionServiceImpl implements PermissionService {
             put = {@CachePut(value = "permissions", key = "#result.id")}
     )
     @Override
-    @Protectable
     public Permission createPermission(Permission permission) {
 
         if (permissionRepository.findByName(permission.getName()).isPresent()) {
@@ -59,7 +58,6 @@ public class PermissionServiceImpl implements PermissionService {
             }
     )
     @Override
-    @Protectable
     public void deletePermission(Long id) {
         long roleCount = permissionRepository.countRoleAssignments(id);
         if (roleCount > 0) {
@@ -87,7 +85,6 @@ public class PermissionServiceImpl implements PermissionService {
     )
     @Transactional
     @Override
-    @Protectable
     public Permission updatePermission(Long id, PermissionDto permissionDto) {
         Permission permission = permissionRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Permission not found: " + id));

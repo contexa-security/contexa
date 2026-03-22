@@ -11,4 +11,5 @@ public interface GroupService {
     List<Group> getAllGroups();
     void deleteGroup(Long id);
     Group updateGroup(Group group, List<Long> selectedRoleIds);
+    List<String> checkHierarchyWarnings(List<Long> roleIds);
 }

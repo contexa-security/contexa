@@ -10,9 +10,11 @@ import io.contexa.contexaiam.domain.dto.*;
 import io.contexa.contexaiam.domain.entity.RoleHierarchyEntity;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
+import io.contexa.contexacommon.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +32,7 @@ public class RoleHierarchyController {
     private final RoleHierarchyService roleHierarchyService;
     private final ModelMapper modelMapper;
     private final RoleService roleService;
-    private final GroupService groupService; 
+    private final GroupService groupService;
 
     @GetMapping
     public String getRoleHierarchies(Model model) {
@@ -39,7 +41,7 @@ public class RoleHierarchyController {
             return modelMapper.map(roleHierarchy, RoleHierarchyDto.class);
         }).toList();
         model.addAttribute("hierarchies", roleHierarchyList);
-                return "admin/role-hierarchies";
+        return "admin/role-hierarchies";
     }
 
     @GetMapping("/register")
@@ -55,7 +57,7 @@ public class RoleHierarchyController {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.createRoleHierarchy(entity);
             ra.addFlashAttribute("message", "Role hierarchy has been successfully created!");
-                    } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/register";
         }
@@ -63,6 +65,7 @@ public class RoleHierarchyController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public String roleHierarchyDetails(@PathVariable Long id, Model model) {
         try {
             RoleHierarchyEntity entity = roleHierarchyService.getRoleHierarchy(id)
@@ -74,23 +77,23 @@ public class RoleHierarchyController {
 
             if (hierarchyString != null && hierarchyString.contains("\\n")) {
                 hierarchyString = hierarchyString.replace("\\n", "\n");
-                            }
+            }
 
             List<RoleHierarchyDto.HierarchyPair> pairs = new ArrayList<>();
             if (hierarchyString != null && !hierarchyString.trim().isEmpty()) {
-                
+
                 String[] lines = hierarchyString.split("\n");
 
                 for (String line : lines) {
                     line = line.trim();
                     if (line.contains(">")) {
-                        String[] parts = line.split("\\s*>\\s*"); 
+                        String[] parts = line.split("\\s*>\\s*");
                         if (parts.length == 2) {
                             String parent = parts[0].trim();
                             String child = parts[1].trim();
 
                             pairs.add(new RoleHierarchyDto.HierarchyPair(parent, child));
-                                                    }
+                        }
                     }
                 }
             }
@@ -115,7 +118,7 @@ public class RoleHierarchyController {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.updateRoleHierarchy(entity);
             ra.addFlashAttribute("message", "Role hierarchy has been successfully updated!");
-                    } catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/" + id;
         }
@@ -126,19 +129,24 @@ public class RoleHierarchyController {
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         roleHierarchyService.deleteRoleHierarchy(id);
         ra.addFlashAttribute("message", "Role hierarchy (ID: " + id + ") has been successfully deleted!");
-                return "redirect:/admin/role-hierarchies";
+        return "redirect:/admin/role-hierarchies";
     }
 
     @PostMapping("/{id}/activate")
     public String activateRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
-        roleHierarchyService.activateRoleHierarchy(id);
-        ra.addFlashAttribute("message", "Role hierarchy (ID: " + id + ") has been activated!");
-                return "redirect:/admin/role-hierarchies";
+        try {
+            boolean newState = roleHierarchyService.activateRoleHierarchy(id);
+            String status = newState ? "activated" : "deactivated";
+            ra.addFlashAttribute("message", "Role hierarchy (ID: " + id + ") has been " + status + "!");
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("error", e.getMessage());
+        }
+        return "redirect:/admin/role-hierarchies";
     }
 
     private void prepareHierarchyFormModel(Model model, List<RoleHierarchyDto.HierarchyPair> existingPairs) {
         try {
-            
+
             List<Group> allGroups = groupService.getAllGroups();
 
             List<GroupWithRolesDto> groupsWithRoles = allGroups.stream()
@@ -150,7 +158,7 @@ public class RoleHierarchyController {
 
                         List<RoleDetailDto> roleDetails = group.getGroupRoles().stream()
                                 .map(GroupRole::getRole)
-                                .filter(role -> role != null && !role.isExpression()) 
+                                .filter(role -> role != null && !role.isExpression())
                                 .map(role -> {
                                     RoleDetailDto rdDto = new RoleDetailDto();
                                     rdDto.setRoleId(role.getId());
@@ -172,7 +180,7 @@ public class RoleHierarchyController {
                         gwrDto.setRoles(roleDetails);
                         return gwrDto;
                     })
-                    .filter(gwrDto -> !gwrDto.getRoles().isEmpty()) 
+                    .filter(gwrDto -> !gwrDto.getRoles().isEmpty())
                     .collect(Collectors.toList());
 
             List<RoleMetadataDto> ungroupedRoles = roleService.getRolesWithoutExpression().stream()
@@ -187,15 +195,30 @@ public class RoleHierarchyController {
             model.addAttribute("hierarchyPairs", existingPairs);
 
             List<RoleMetadataDto> allRoles = roleService.getRolesWithoutExpression().stream()
+                    .filter(Role::isEnabled)
                     .map(role -> modelMapper.map(role, RoleMetadataDto.class))
                     .collect(Collectors.toList());
             model.addAttribute("allRoles", allRoles);
+
+            // Active hierarchies for client-side cross-validation
+            List<Map<String, Object>> activeHierarchies = roleHierarchyService.getAllRoleHierarchies().stream()
+                    .filter(h -> Boolean.TRUE.equals(h.getIsActive()))
+                    .map(h -> {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("id", h.getId());
+                        map.put("description", h.getDescription() != null ? h.getDescription() : "");
+                        map.put("hierarchyString", h.getHierarchyString());
+                        return map;
+                    })
+                    .collect(Collectors.toList());
+            model.addAttribute("activeHierarchies", activeHierarchies);
 
         } catch (Exception e) {
             log.error("Error preparing hierarchy form model", e);
             model.addAttribute("groupsWithRoles", new ArrayList<>());
             model.addAttribute("ungroupedRoles", new ArrayList<>());
             model.addAttribute("allRoles", new ArrayList<>());
+            model.addAttribute("activeHierarchies", new ArrayList<>());
         }
     }
 }

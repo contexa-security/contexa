@@ -48,42 +48,28 @@
                     <!-- 왼쪽: 역할 팔레트 -->
                     <div class="col-span-3">
                         <h3 class="text-lg font-bold text-slate-200 mb-3">역할 목록</h3>
+                        <!-- 검색 입력창 -->
+                        <div class="palette-search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="palette-search" class="dark-input" placeholder="역할 검색..." oninput="filterPalette(this.value)">
+                        </div>
+                        <p class="text-xs mb-2" style="color: #64748b;">드래그하여 시각화에 드롭하거나 클릭하여 관계를 추가합니다</p>
                         <div class="role-palette">
-                            <!-- 그룹별 역할 표시 -->
-                            <div th:each="group : ${groupsWithRoles}" class="group-section">
-                                <div class="group-header">
-                                    <i class="fas fa-users mr-2"></i>
-                                    <span th:text="${group.groupName}"></span>
-                                </div>
-                                <div th:each="role : ${group.roles}"
-                                     class="role-item"
-                                     th:data-role="${role.roleName}"
-                                     th:data-desc="${role.roleDesc}"
-                                     onmouseover="showTooltip(event, this)"
-                                     onmouseout="hideTooltip()">
-                                    <div class="role-item-name" th:text="${role.roleName}"></div>
-                                    <div class="role-item-desc" th:text="${role.roleDesc}"></div>
-                                    <div class="mt-1">
-                                        <span th:each="perm : ${role.permissions}"
-                                              class="permission-tag"
-                                              th:text="${perm}"></span>
-                                    </div>
-                                </div>
+                            <!-- 순수 역할 목록 (그룹 무관, 중복 제거) -->
+                            <div th:each="role : ${allRoles}"
+                                 class="role-item"
+                                 draggable="true"
+                                 th:data-role="${role.roleName}"
+                                 th:data-desc="${role.roleDesc}"
+                                 ondragstart="onRoleDragStart(event, this)"
+                                 onclick="onRoleClick(this)"
+                                 onmouseover="showTooltip(event, this)"
+                                 onmouseout="hideTooltip()">
+                                <div class="role-item-name" th:text="${role.roleName}"></div>
+                                <div class="role-item-desc" th:text="${role.roleDesc}"></div>
                             </div>
-
-                            <!-- 그룹 미지정 역할 -->
-                            <div th:if="${!#lists.isEmpty(ungroupedRoles)}" class="group-section">
-                                <div class="group-header">
-                                    <i class="fas fa-user mr-2"></i>
-                                    <span>그룹 미지정</span>
-                                </div>
-                                <div th:each="role : ${ungroupedRoles}"
-                                     class="role-item"
-                                     th:data-role="${role.roleName}"
-                                     th:data-desc="${role.roleDesc}">
-                                    <div class="role-item-name" th:text="${role.roleName}"></div>
-                                    <div class="role-item-desc" th:text="${role.roleDesc}"></div>
-                                </div>
+                            <div th:if="${#lists.isEmpty(allRoles)}" class="text-center py-4" style="color: #64748b; font-size: 0.8125rem;">
+                                등록된 역할이 없습니다.
                             </div>
                         </div>
                     </div>
@@ -92,8 +78,11 @@
                     <!-- 시각화 영역 수정 - 확대 버튼 추가 -->
                     <div class="col-span-5">
                         <h3 class="text-lg font-bold text-slate-200 mb-3">계층 구조 시각화</h3>
-                        <div class="hierarchy-visualization">
-                            <!-- 확대 버튼 추가 -->
+                        <div class="hierarchy-visualization"
+                             id="viz-drop-zone"
+                             ondragover="onVizDragOver(event)"
+                             ondragleave="onVizDragLeave(event)"
+                             ondrop="onVizDrop(event)">
                             <button type="button"
                                     class="expand-button"
                                     onclick="showFullscreenModal('fullscreen-mermaid')"
@@ -101,6 +90,9 @@
                                 <i class="fas fa-expand"></i>
                                 <span>확대</span>
                             </button>
+                            <div id="drop-hint" class="drop-hint" style="display:none;">
+                                <i class="fas fa-arrow-down"></i> 여기에 드롭하여 하위 역할 추가
+                            </div>
                             <div id="mermaid-container" style="width: 100%; height: 100%;">
                                 <div id="mermaid-diagram" class="mermaid">
                                     graph TD
@@ -122,27 +114,17 @@
                             <div th:each="pair, stat : ${hierarchyPairs}" class="relation-row">
                                 <div class="grid grid-cols-12 gap-3 items-center">
                                     <div class="col-span-5">
-                                        <div class="modern-select-wrapper">
-                                            <select class="parent-role modern-select" onchange="validateAndUpdate()">
-                                                <option value="">상위 역할 선택</option>
-                                                <optgroup th:each="group : ${groupsWithRoles}" th:label="${group.groupName}">
-                                                    <option th:each="role : ${group.roles}"
+                                        <div class="searchable-select-wrapper">
+                                            <input type="text" class="select-search-input dark-input" placeholder="역할 검색..." oninput="filterSelectOptions(this)">
+                                            <div class="modern-select-wrapper">
+                                                <select class="parent-role modern-select" onchange="validateAndUpdate()">
+                                                    <option value="">상위 역할 선택</option>
+                                                    <option th:each="role : ${allRoles}"
                                                             th:value="${role.roleName}"
-                                                            th:text="${role.roleDesc}"
-                                                            th:data-subtext="${role.roleName}"
+                                                            th:text="${role.roleName + ' (' + role.roleDesc + ')'}"
                                                             th:selected="${role.roleName == pair.parentRole}"></option>
-                                                </optgroup>
-                                                <optgroup th:if="${!#lists.isEmpty(ungroupedRoles)}" label="그룹 미지정">
-                                                    <option th:each="role : ${ungroupedRoles}"
-                                                            th:value="${role.roleName}"
-                                                            th:text="${role.roleDesc}"
-                                                            th:data-subtext="${role.roleName}"
-                                                            th:selected="${role.roleName == pair.parentRole}"
-                                                            disabled></option>
-                                                </optgroup>
-                                            </select>
-                                            <div class="select-arrow">
-                                                <i class="fas fa-chevron-down"></i>
+                                                </select>
+                                                <div class="select-arrow"><i class="fas fa-chevron-down"></i></div>
                                             </div>
                                         </div>
                                     </div>
@@ -153,27 +135,17 @@
                                         </div>
                                     </div>
                                     <div class="col-span-5">
-                                        <div class="modern-select-wrapper">
-                                            <select class="child-role modern-select" onchange="validateAndUpdate()">
-                                                <option value="">하위 역할 선택</option>
-                                                <optgroup th:each="group : ${groupsWithRoles}" th:label="${group.groupName}">
-                                                    <option th:each="role : ${group.roles}"
+                                        <div class="searchable-select-wrapper">
+                                            <input type="text" class="select-search-input dark-input" placeholder="역할 검색..." oninput="filterSelectOptions(this)">
+                                            <div class="modern-select-wrapper">
+                                                <select class="child-role modern-select" onchange="validateAndUpdate()">
+                                                    <option value="">하위 역할 선택</option>
+                                                    <option th:each="role : ${allRoles}"
                                                             th:value="${role.roleName}"
-                                                            th:text="${role.roleDesc}"
-                                                            th:data-subtext="${role.roleName}"
+                                                            th:text="${role.roleName + ' (' + role.roleDesc + ')'}"
                                                             th:selected="${role.roleName == pair.childRole}"></option>
-                                                </optgroup>
-                                                <optgroup th:if="${!#lists.isEmpty(ungroupedRoles)}" label="그룹 미지정">
-                                                    <option th:each="role : ${ungroupedRoles}"
-                                                            th:value="${role.roleName}"
-                                                            th:text="${role.roleDesc}"
-                                                            th:data-subtext="${role.roleName}"
-                                                            th:selected="${role.roleName == pair.childRole}"
-                                                            disabled></option>
-                                                </optgroup>
-                                            </select>
-                                            <div class="select-arrow">
-                                                <i class="fas fa-chevron-down"></i>
+                                                </select>
+                                                <div class="select-arrow"><i class="fas fa-chevron-down"></i></div>
                                             </div>
                                         </div>
                                     </div>
@@ -200,13 +172,11 @@
                     </div>
                 </div>
 
-                <!-- 활성화 옵션 -->
-                <div class="flex items-center">
-                    <input type="checkbox" id="isActive" th:field="*{isActive}" class="dark-checkbox" />
-                    <label for="isActive" class="ml-2 block text-sm text-slate-200">
-                        이 계층을 활성화합니다 (기존 활성 계층은 자동으로 비활성화됩니다)
-                    </label>
-                </div>
+                <!-- 활성화는 목록 화면에서 토글 -->
+                <input type="hidden" th:field="*{isActive}" th:value="${hierarchy.id != null ? hierarchy.isActive : false}" />
+                <p th:if="${hierarchy.id == null}" class="text-xs" style="color: #64748b;">
+                    <i class="fas fa-info-circle mr-1"></i>등록 후 목록에서 활성화할 수 있습니다. 여러 계층을 동시에 활성화하면 자동 병합됩니다.
+                </p>
 
                 <!-- 제출 버튼 -->
                 <div class="pt-4 flex gap-4">
@@ -289,7 +259,34 @@
     // Thymeleaf에서 전달된 데이터
     const groupsWithRoles = /*[[${groupsWithRoles}]]*/ [];
     const ungroupedRoles = /*[[${ungroupedRoles}]]*/ [];
+    const allRolesFromServer = /*[[${allRoles}]]*/ [];
+    const activeHierarchiesData = /*[[${activeHierarchies}]]*/ [];
     let hierarchyPairs = /*[[${hierarchyPairs}]]*/ [];
+
+    // Build existing active hierarchy graph for cross-validation
+    const existingGraph = new Map();
+    const existingRelations = [];
+    (activeHierarchiesData || []).forEach(h => {
+        const hs = (h.hierarchyString || '').replace(/\\n/g, '\n');
+        hs.split(/[\r\n]+/).forEach(line => {
+            const parts = line.split(/\s*>\s*/);
+            if (parts.length === 2) {
+                const parent = parts[0].trim();
+                const child = parts[1].trim();
+                if (parent && child) {
+                    if (!existingGraph.has(parent)) existingGraph.set(parent, new Set());
+                    existingGraph.get(parent).add(child);
+                    existingRelations.push({ parent, child, source: h.description || 'ID:' + h.id });
+                }
+            }
+        });
+    });
+
+    // Show server-side flash messages
+    const _serverMessage = /*[[${message}]]*/ null;
+    const _serverError = /*[[${error}]]*/ null;
+    if (_serverMessage) setTimeout(() => showToast(_serverMessage, 'success'), 500);
+    if (_serverError) setTimeout(() => showToast(_serverError, 'error'), 500);
 
     // 데이터 정제
     if (hierarchyPairs && hierarchyPairs.length > 0) {
@@ -369,61 +366,72 @@
     }
 
     // 옵션 HTML 생성
-    function generateOptionsHtml() {
+    // Build all roles flat list for searchable select (no group, no duplicates)
+    function getAllRolesFlat() {
+        const seen = new Set();
+        const roles = [];
+        (allRolesFromServer || []).forEach(role => {
+            if (!seen.has(role.roleName)) {
+                seen.add(role.roleName);
+                roles.push({ roleName: role.roleName, roleDesc: role.roleDesc || role.roleName, disabled: false });
+            }
+        });
+        return roles;
+    }
+
+    function generateOptionsHtml(filterKeyword) {
+        const roles = getAllRolesFlat();
+        const lower = (filterKeyword || '').toLowerCase();
         let optionsHtml = '';
 
-        if (groupsWithRoles && groupsWithRoles.length > 0) {
-            groupsWithRoles.forEach(group => {
-                optionsHtml += `<optgroup label="${group.groupName}">`;
-                if (group.roles && group.roles.length > 0) {
-                    group.roles.forEach(role => {
-                        const desc = role.roleDesc || role.roleName;
-                        optionsHtml += `<option value="${role.roleName}" data-subtext="${role.roleName}">${desc}</option>`;
-                    });
-                }
-                optionsHtml += '</optgroup>';
-            });
-        }
-
-        if (ungroupedRoles && ungroupedRoles.length > 0) {
-            optionsHtml += '<optgroup label="그룹 미지정">';
-            ungroupedRoles.forEach(role => {
-                const desc = role.roleDesc || role.roleName;
-                optionsHtml += `<option value="${role.roleName}" data-subtext="${role.roleName}" disabled>${desc}</option>`;
-            });
-            optionsHtml += '</optgroup>';
-        }
+        roles.forEach(role => {
+            if (lower && !role.roleName.toLowerCase().includes(lower) && !role.roleDesc.toLowerCase().includes(lower)) return;
+            const displayText = role.roleName + ' (' + role.roleDesc + ')';
+            optionsHtml += '<option value="' + role.roleName + '">' + displayText + '</option>';
+        });
 
         return optionsHtml;
     }
 
+    function createSearchableSelect(className, placeholder) {
+        return `
+            <div class="searchable-select-wrapper">
+                <input type="text" class="select-search-input dark-input" placeholder="역할 검색..." oninput="filterSelectOptions(this)">
+                <div class="modern-select-wrapper">
+                    <select class="${className} modern-select" onchange="validateAndUpdate()">
+                        <option value="">${placeholder}</option>
+                        ${generateOptionsHtml()}
+                    </select>
+                    <div class="select-arrow"><i class="fas fa-chevron-down"></i></div>
+                </div>
+            </div>
+        `;
+    }
+
+    function filterSelectOptions(searchInput) {
+        const keyword = searchInput.value;
+        const wrapper = searchInput.closest('.searchable-select-wrapper');
+        const select = wrapper.querySelector('select');
+        const currentValue = select.value;
+
+        const isParent = select.classList.contains('parent-role');
+        const firstOptionText = isParent ? '상위 역할 선택' : '하위 역할 선택';
+        select.innerHTML = '<option value="">' + firstOptionText + '</option>' + generateOptionsHtml(keyword);
+
+        if (currentValue) select.value = currentValue;
+    }
+
     // 관계 행 추가
     function addRow() {
-        console.log('Adding new row...');
         const container = document.getElementById('hierarchy-rows-container');
-        if (!container) {
-            console.error('Container not found!');
-            return;
-        }
-
-        const targetBlocks = container.getElementsByClassName('relation-row');
-        const newIndex = targetBlocks.length;
-        const optionsHtml = generateOptionsHtml();
+        if (!container) return;
 
         const newRow = document.createElement('div');
         newRow.className = 'relation-row';
         newRow.innerHTML = `
             <div class="grid grid-cols-12 gap-2 items-center">
                 <div class="col-span-5">
-                    <div class="modern-select-wrapper">
-                        <select class="parent-role modern-select" onchange="validateAndUpdate()">
-                            <option value="">상위 역할 선택</option>
-                            ${optionsHtml}
-                        </select>
-                        <div class="select-arrow">
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                    </div>
+                    ${createSearchableSelect('parent-role', '상위 역할 선택')}
                 </div>
                 <div class="col-span-2 text-center">
                     <div class="relation-arrow-container">
@@ -432,15 +440,7 @@
                     </div>
                 </div>
                 <div class="col-span-5">
-                    <div class="modern-select-wrapper">
-                        <select class="child-role modern-select" onchange="validateAndUpdate()">
-                            <option value="">하위 역할 선택</option>
-                            ${optionsHtml}
-                        </select>
-                        <div class="select-arrow">
-                            <i class="fas fa-chevron-down"></i>
-                        </div>
-                    </div>
+                    ${createSearchableSelect('child-role', '하위 역할 선택')}
                 </div>
             </div>
             <button type="button" onclick="removeRow(this)"
@@ -450,15 +450,11 @@
         `;
 
         container.appendChild(newRow);
-
-        // 애니메이션 효과
         newRow.style.opacity = '0';
         setTimeout(() => {
             newRow.style.transition = 'opacity 0.3s ease';
             newRow.style.opacity = '1';
         }, 10);
-
-        console.log('New row added');
     }
 
     // 관계 행 삭제
@@ -474,8 +470,14 @@
         }, CONFIG.ANIMATION.FADE_DURATION);
     }
 
-    // 유효성 검증 및 업데이트
+    // 유효성 검증 및 업데이트 (debounced)
+    let _validateTimeout = null;
     function validateAndUpdate() {
+        clearTimeout(_validateTimeout);
+        _validateTimeout = setTimeout(_doValidateAndUpdate, 300);
+    }
+
+    function _doValidateAndUpdate() {
         const rows = document.querySelectorAll('.relation-row');
         const relations = [];
         const graph = new Map();
@@ -506,47 +508,91 @@
             }
         });
 
-        // 중복 검사
+        // 중복 검사 (신규 내부)
         const seen = new Set();
         for (const rel of relations) {
             const key = `${rel.parent}>${rel.child}`;
             if (seen.has(key)) {
                 hasError = true;
-                errorMessage = `중복된 관계가 있습니다: ${key}`;
+                errorMessage = `중복된 관계가 있습니다.\n${rel.parent} > ${rel.child} 관계가 두 번 정의되어 있습니다.`;
                 break;
             }
             seen.add(key);
         }
 
-        // 역방향 관계 검사
+        // 역방향 관계 검사 (신규 내부)
         if (!hasError) {
             for (const rel of relations) {
                 const reverseKey = `${rel.child}>${rel.parent}`;
                 if (seen.has(reverseKey)) {
                     hasError = true;
-                    errorMessage = `역방향 관계가 발견되었습니다: ${rel.parent} ↔ ${rel.child}`;
+                    errorMessage = `역방향 관계가 발견되었습니다.\n${rel.parent} > ${rel.child}와 ${rel.child} > ${rel.parent}이 동시에 존재합니다.`;
                     break;
                 }
             }
         }
 
-        // 전이적 중복 검사
+        // 기존 활성 계층과의 교차 검증
+        if (!hasError && existingRelations.length > 0) {
+            // 역방향 교차 검사
+            for (const rel of relations) {
+                for (const existing of existingRelations) {
+                    if (rel.parent === existing.child && rel.child === existing.parent) {
+                        hasError = true;
+                        errorMessage = `기존 활성 계층과 충돌합니다.\n\n` +
+                            `기존 계층 "${existing.source}":\n  ${existing.parent} > ${existing.child} (${existing.parent}이 상위)\n\n` +
+                            `현재 설정:\n  ${rel.parent} > ${rel.child} (${rel.parent}이 상위)\n\n` +
+                            `동일한 두 역할의 상하 관계가 뒤집힐 수 없습니다.`;
+                        break;
+                    }
+                }
+                if (hasError) break;
+            }
+
+            // 순환 참조 교차 검사 (기존+신규 합산 그래프)
+            if (!hasError) {
+                const mergedGraph = new Map();
+                // 기존 활성 계층 엣지
+                for (const [key, children] of existingGraph) {
+                    mergedGraph.set(key, new Set(children));
+                }
+                // 신규 엣지 추가
+                for (const rel of relations) {
+                    if (!mergedGraph.has(rel.parent)) mergedGraph.set(rel.parent, new Set());
+                    mergedGraph.get(rel.parent).add(rel.child);
+                }
+                // 순환 검사
+                const allMergedNodes = new Set([...mergedGraph.keys()]);
+                mergedGraph.forEach((children) => children.forEach(c => allMergedNodes.add(c)));
+                for (const node of allMergedNodes) {
+                    if (hasCycle(mergedGraph, node, new Set(), new Set())) {
+                        hasError = true;
+                        errorMessage = `기존 활성 계층과 합산 시 순환 참조가 발생합니다.\n\n` +
+                            `${node}이 직간접적으로 자기 자신을 참조하게 됩니다.\n` +
+                            `시각화 패널에서 충돌 경로를 확인하세요.`;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 전이적 중복 검사 (신규 내부)
         if (!hasError) {
             for (const rel of relations) {
                 if (isTransitivelyConnected(graph, rel.parent, rel.child)) {
                     hasError = true;
-                    errorMessage = `불필요한 관계입니다: ${rel.parent} > ${rel.child} (이미 다른 경로로 연결되어 있습니다)`;
+                    errorMessage = `불필요한 관계입니다.\n${rel.parent} > ${rel.child}는 이미 다른 경로로 연결되어 있습니다.\n직접 연결을 제거하세요.`;
                     break;
                 }
             }
         }
 
-        // 순환 참조 검사
+        // 순환 참조 검사 (신규 내부)
         if (!hasError && graph.size > 0) {
             for (const [node, ] of graph) {
                 if (hasCycle(graph, node, new Set(), new Set())) {
                     hasError = true;
-                    errorMessage = `순환 참조가 발견되었습니다. ${node}부터 시작하는 경로를 확인하세요.`;
+                    errorMessage = `순환 참조가 발견되었습니다.\n${node}이 직간접적으로 자기 자신을 참조합니다.`;
                     break;
                 }
             }
@@ -555,14 +601,14 @@
         // 에러/경고 표시
         displayValidationMessages(hasError, errorMessage, warningMessage);
 
-        // 시각화 업데이트
-        if (!hasError) {
-            if (relations.length > 0) {
-                updateVisualization(relations);
+        // 시각화 업데이트 (에러 시에도 충돌 관계를 보여줌)
+        if (relations.length > 0) {
+            updateVisualization(relations);
+            if (!hasError) {
                 updateResultPreview(relations);
-            } else {
-                showInitialState();
             }
+        } else {
+            showInitialState();
         }
 
         relationshipGraph = graph;
@@ -678,24 +724,71 @@
         let nodeIndex = 0;
         let mermaidCode = 'graph TD\n';
 
-        relations.forEach(rel => {
-            // 노드 ID 생성
-            if (!nodeMap.has(rel.parent)) {
-                nodeMap.set(rel.parent, `N${nodeIndex++}`);
-            }
-            if (!nodeMap.has(rel.child)) {
-                nodeMap.set(rel.child, `N${nodeIndex++}`);
-            }
+        function getNodeId(role) {
+            if (!nodeMap.has(role)) nodeMap.set(role, `N${nodeIndex++}`);
+            return nodeMap.get(role);
+        }
 
-            const parentId = nodeMap.get(rel.parent);
-            const childId = nodeMap.get(rel.child);
+        // Detect conflicts: direct reverse + indirect cycle via merged graph
+        const existingKeys = new Set(existingRelations.map(r => r.parent + '>' + r.child));
+        const conflictNodes = new Set();
 
-            // 친화적 이름 찾기
-            const parentLabel = findFriendlyName(rel.parent);
-            const childLabel = findFriendlyName(rel.child);
-
-            mermaidCode += `    ${parentId}["${parentLabel}"] --> ${childId}["${childLabel}"]\n`;
+        // Build merged graph to detect cycles
+        const mergedG = new Map();
+        existingRelations.forEach(r => {
+            if (!mergedG.has(r.parent)) mergedG.set(r.parent, new Set());
+            mergedG.get(r.parent).add(r.child);
         });
+        relations.forEach(r => {
+            if (!mergedG.has(r.parent)) mergedG.set(r.parent, new Set());
+            mergedG.get(r.parent).add(r.child);
+        });
+
+        // Find all nodes involved in cycles
+        const allMergedNodes = new Set([...mergedG.keys()]);
+        mergedG.forEach(children => children.forEach(c => allMergedNodes.add(c)));
+        for (const node of allMergedNodes) {
+            if (hasCycle(mergedG, node, new Set(), new Set())) {
+                conflictNodes.add(node);
+            }
+        }
+
+        // Existing active hierarchy edges (blue/dimmed)
+        if (existingRelations.length > 0) {
+            existingRelations.forEach(rel => {
+                const pid = getNodeId(rel.parent);
+                const cid = getNodeId(rel.child);
+                const parentLabel = rel.parent;
+                const childLabel = rel.child;
+                const isConflict = conflictNodes.has(rel.parent) && conflictNodes.has(rel.child);
+
+                if (isConflict) {
+                    mermaidCode += `    ${pid}["${parentLabel}"]:::conflict -->|"기존"| ${cid}["${childLabel}"]:::conflict\n`;
+                } else {
+                    mermaidCode += `    ${pid}["${parentLabel}"]:::existing -.->|"기존"| ${cid}["${childLabel}"]:::existing\n`;
+                }
+            });
+        }
+
+        // New relations (green, or red if conflict)
+        relations.forEach(rel => {
+            const pid = getNodeId(rel.parent);
+            const cid = getNodeId(rel.child);
+            const parentLabel = rel.parent;
+            const childLabel = rel.child;
+            const isConflict = conflictNodes.has(rel.parent) || conflictNodes.has(rel.child);
+
+            if (isConflict) {
+                mermaidCode += `    ${pid}["${parentLabel}"]:::conflict ==>|"충돌!"| ${cid}["${childLabel}"]:::conflict\n`;
+            } else {
+                mermaidCode += `    ${pid}["${parentLabel}"]:::newrel ==>|"신규"| ${cid}["${childLabel}"]:::newrel\n`;
+            }
+        });
+
+        // Style classes
+        mermaidCode += '    classDef existing fill:#1e3a5f,stroke:#3b82f6,color:#93c5fd\n';
+        mermaidCode += '    classDef newrel fill:#064e3b,stroke:#10b981,color:#6ee7b7\n';
+        mermaidCode += '    classDef conflict fill:#7f1d1d,stroke:#ef4444,color:#fca5a5\n';
 
         return mermaidCode;
     }
@@ -705,6 +798,24 @@
         if (!relations || relations.length === 0) {
             showInitialState();
             return;
+        }
+
+        // Count unique nodes for large-scale warning
+        const uniqueNodes = new Set();
+        relations.forEach(r => { uniqueNodes.add(r.parent); uniqueNodes.add(r.child); });
+        if (uniqueNodes.size > 50) {
+            showToast('노드 수가 50개를 초과합니다 (' + uniqueNodes.size + '개). 시각화가 느려질 수 있습니다.', 'warning');
+        }
+
+        // Check hierarchy depth
+        const depthGraph = new Map();
+        relations.forEach(r => {
+            if (!depthGraph.has(r.parent)) depthGraph.set(r.parent, []);
+            depthGraph.get(r.parent).push(r.child);
+        });
+        const maxDepth = calculateGraphDepth(depthGraph);
+        if (maxDepth > 10) {
+            showToast('계층 깊이가 ' + maxDepth + '단계입니다. 구조 단순화를 검토하세요.', 'warning');
         }
 
         initializeMermaid();
@@ -937,8 +1048,8 @@
             const childId = rel.child.replace(/[^a-zA-Z0-9]/g, '_');
 
             // 친화적 이름 찾기
-            const parentLabel = findFriendlyName(rel.parent);
-            const childLabel = findFriendlyName(rel.child);
+            const parentLabel = rel.parent;
+            const childLabel = rel.child;
 
             mermaidCode += `    ${parentId}["${parentLabel}"] --> ${childId}["${childLabel}"]\n`;
         });
@@ -1018,8 +1129,6 @@
                     <div class="text-sm text-slate-400 mt-1">계층 깊이</div>
                 </div>
             </div>
-            ${document.getElementById('isActive').checked ?
-            '<div class="mt-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg p-4"><p class="text-yellow-400"><i class="fas fa-exclamation-triangle mr-2"></i>이 계층이 활성화되면 기존 활성 계층은 비활성화됩니다.</p></div>' : ''}
             ${relations.length > 20 ?
             '<div class="mt-4 bg-blue-900/30 border border-blue-600/50 rounded-lg p-4"><p class="text-blue-400"><i class="fas fa-info-circle mr-2"></i>대규모 계층 구조입니다. 다이어그램을 스크롤하여 전체를 확인하세요.</p></div>' : ''}
         `;
@@ -1349,6 +1458,227 @@
             document.head.appendChild(styles);
         }
     });
+
+    // ================================================================
+    // Accordion toggle
+    // ================================================================
+    function toggleAccordion(header) {
+        const body = header.nextElementSibling;
+        const icon = header.querySelector('.accordion-icon');
+        if (body.classList.contains('collapsed')) {
+            body.classList.remove('collapsed');
+            body.classList.add('expanded');
+            icon.classList.add('open');
+        } else {
+            body.classList.remove('expanded');
+            body.classList.add('collapsed');
+            icon.classList.remove('open');
+        }
+    }
+
+    // ================================================================
+    // Palette search filter
+    // ================================================================
+    let paletteSearchTimeout = null;
+    function filterPalette(keyword) {
+        clearTimeout(paletteSearchTimeout);
+        paletteSearchTimeout = setTimeout(() => {
+            const lower = (keyword || '').toLowerCase();
+            document.querySelectorAll('.role-palette .group-section').forEach(section => {
+                const items = section.querySelectorAll('.role-item');
+                let visibleCount = 0;
+                items.forEach(item => {
+                    const roleName = (item.dataset.role || '').toLowerCase();
+                    const roleDesc = (item.dataset.desc || '').toLowerCase();
+                    const match = !lower || roleName.includes(lower) || roleDesc.includes(lower);
+                    item.style.display = match ? '' : 'none';
+                    if (match) visibleCount++;
+                });
+                // Auto-expand groups with matches
+                const body = section.querySelector('.accordion-body');
+                const icon = section.querySelector('.accordion-icon');
+                if (lower && visibleCount > 0) {
+                    body.classList.remove('collapsed');
+                    body.classList.add('expanded');
+                    if (icon) icon.classList.add('open');
+                }
+                // Hide empty groups
+                section.style.display = visibleCount > 0 || !lower ? '' : 'none';
+                // Update count
+                const countBadge = section.querySelector('.group-count');
+                if (countBadge) countBadge.textContent = visibleCount;
+            });
+        }, 300);
+    }
+
+    // ================================================================
+    // Role click -> auto-fill relation editor
+    // ================================================================
+    let selectedRoleForRelation = null;
+
+    function removePopover() {
+        document.querySelectorAll('.role-select-popover').forEach(el => el.remove());
+    }
+
+    function showPopoverAt(roleItem) {
+        removePopover();
+        const rect = roleItem.getBoundingClientRect();
+        const popover = document.createElement('div');
+        popover.className = 'role-select-popover';
+        popover.innerHTML =
+            '<div class="popover-title">상위 역할 선택됨</div>' +
+            '<div class="popover-hint">하위 역할을 클릭하세요</div>';
+        document.body.appendChild(popover);
+        popover.style.left = (rect.right + 8) + 'px';
+        popover.style.top = (rect.top + rect.height / 2 - popover.offsetHeight / 2) + 'px';
+    }
+
+    function onRoleClick(roleItem) {
+        const roleName = roleItem.dataset.role;
+
+        // Toggle selection (same role clicked again)
+        if (selectedRoleForRelation === roleName) {
+            selectedRoleForRelation = null;
+            document.querySelectorAll('.role-item').forEach(el => el.classList.remove('selected-role'));
+            removePopover();
+            return;
+        }
+
+        // First click: select as parent
+        if (!selectedRoleForRelation) {
+            selectedRoleForRelation = roleName;
+            document.querySelectorAll('.role-item').forEach(el => el.classList.remove('selected-role'));
+            roleItem.classList.add('selected-role');
+            showPopoverAt(roleItem);
+            return;
+        }
+
+        // Second click: create relation (first=parent, second=child)
+        const parentRole = selectedRoleForRelation;
+        const childRole = roleName;
+        selectedRoleForRelation = null;
+        document.querySelectorAll('.role-item').forEach(el => el.classList.remove('selected-role'));
+        removePopover();
+
+        addRelationFromDrag(parentRole, childRole);
+    }
+
+    // ================================================================
+    // Drag & Drop
+    // ================================================================
+    let draggedRoleName = null;
+
+    function onRoleDragStart(event, roleItem) {
+        draggedRoleName = roleItem.dataset.role;
+        event.dataTransfer.setData('text/plain', draggedRoleName);
+        event.dataTransfer.effectAllowed = 'copy';
+        roleItem.classList.add('drag-active');
+        roleItem.addEventListener('dragend', () => roleItem.classList.remove('drag-active'), { once: true });
+    }
+
+    function onVizDragOver(event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+        const viz = document.getElementById('viz-drop-zone');
+        viz.classList.add('drag-over');
+        document.getElementById('drop-hint').style.display = 'block';
+    }
+
+    function onVizDragLeave(event) {
+        const viz = document.getElementById('viz-drop-zone');
+        viz.classList.remove('drag-over');
+        document.getElementById('drop-hint').style.display = 'none';
+    }
+
+    function onVizDrop(event) {
+        event.preventDefault();
+        const viz = document.getElementById('viz-drop-zone');
+        viz.classList.remove('drag-over');
+        document.getElementById('drop-hint').style.display = 'none';
+
+        const childRole = event.dataTransfer.getData('text/plain');
+        if (!childRole) return;
+
+        // Find the closest SVG node to determine parent
+        const svgTarget = event.target.closest('.node');
+        let parentRole = null;
+
+        if (svgTarget) {
+            // Dropped on an existing node -> use that as parent
+            const nodeText = (svgTarget.querySelector('.label')?.textContent || svgTarget.textContent || '').trim();
+            parentRole = findRoleNameByDesc(nodeText);
+        }
+
+        if (parentRole && parentRole !== childRole) {
+            addRelationFromDrag(parentRole, childRole);
+        } else if (!parentRole) {
+            // Dropped on empty area -> add row with child pre-filled, user selects parent manually
+            document.getElementById('add-row-btn').click();
+            setTimeout(() => {
+                const rows = document.querySelectorAll('.relation-row');
+                const lastRow = rows[rows.length - 1];
+                if (lastRow) {
+                    const childSelect = lastRow.querySelector('.child-role');
+                    if (childSelect) childSelect.value = childRole;
+                    validateAndUpdate();
+                }
+                showToast('하위 역할이 설정되었습니다. 상위 역할을 선택하세요.', 'info');
+            }, 100);
+        }
+    }
+
+    function findRoleNameByDesc(desc) {
+        const found = (allRolesFromServer || []).find(r => r.roleDesc === desc || r.roleName === desc);
+        return found ? found.roleName : null;
+    }
+
+    function calculateGraphDepth(graph) {
+        let maxDepth = 0;
+        const visited = new Set();
+        function dfs(node, depth) {
+            if (visited.has(node)) return;
+            visited.add(node);
+            maxDepth = Math.max(maxDepth, depth);
+            (graph.get(node) || []).forEach(child => dfs(child, depth + 1));
+            visited.delete(node);
+        }
+        for (const [node] of graph) { dfs(node, 1); }
+        return maxDepth;
+    }
+
+    function addRelationFromDrag(parentRole, childRole) {
+        if (parentRole === childRole) {
+            showToast('동일한 역할은 상위/하위로 설정할 수 없습니다.', 'error');
+            return;
+        }
+
+        // Check if relation already exists
+        const existingRows = document.querySelectorAll('.relation-row');
+        for (const row of existingRows) {
+            const p = row.querySelector('.parent-role')?.value;
+            const c = row.querySelector('.child-role')?.value;
+            if (p === parentRole && c === childRole) {
+                showToast('이미 존재하는 관계입니다.', 'warning');
+                return;
+            }
+        }
+
+        // Add new row with pre-selected values
+        document.getElementById('add-row-btn').click();
+
+        // Set values in the newly added row
+        setTimeout(() => {
+            const rows = document.querySelectorAll('.relation-row');
+            const lastRow = rows[rows.length - 1];
+            if (lastRow) {
+                const parentSelect = lastRow.querySelector('.parent-role');
+                const childSelect = lastRow.querySelector('.child-role');
+                if (parentSelect) parentSelect.value = parentRole;
+                if (childSelect) childSelect.value = childRole;
+                validateAndUpdate();
+            }
+        }, 100);
+    }
 </script>
 </body>
 </html>

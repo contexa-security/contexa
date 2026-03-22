@@ -38,14 +38,23 @@ public class RoleHierarchyService {
     }
 
     public String getActiveRoleHierarchyString() {
-        return roleHierarchyRepository.findByIsActiveTrue()
+        return getMergedActiveHierarchyString();
+    }
+
+    /**
+     * Merge all active hierarchy strings into one.
+     * Multiple hierarchies can be active simultaneously.
+     */
+    public String getMergedActiveHierarchyString() {
+        List<RoleHierarchyEntity> activeList = roleHierarchyRepository.findAllByIsActiveTrue();
+        if (activeList.isEmpty()) return "";
+        return activeList.stream()
                 .map(RoleHierarchyEntity::getHierarchyString)
-                .orElse("");
+                .collect(Collectors.joining("\n"));
     }
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
     public RoleHierarchyEntity createRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
 
@@ -57,10 +66,16 @@ public class RoleHierarchyService {
 
             validateHierarchyLogic(roleHierarchyEntity.getHierarchyString());
 
+            // Validate against existing active hierarchies (even if registering as inactive)
+            String currentMerged = getMergedActiveHierarchyString();
+            if (!currentMerged.isEmpty()) {
+                String candidateMerged = currentMerged + "\n" + roleHierarchyEntity.getHierarchyString();
+                validateMergedHierarchy(candidateMerged);
+            }
+
             RoleHierarchyEntity savedEntity = roleHierarchyRepository.save(roleHierarchyEntity);
 
             if (savedEntity.getIsActive()) {
-                deactivateAllOtherHierarchies(savedEntity.getId());
                 reloadRoleHierarchyBean();
             }
             return savedEntity;
@@ -73,7 +88,6 @@ public class RoleHierarchyService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
     public RoleHierarchyEntity updateRoleHierarchy(RoleHierarchyEntity roleHierarchyEntity) {
         try {
 
@@ -90,8 +104,10 @@ public class RoleHierarchyService {
 
             RoleHierarchyEntity updatedEntity = roleHierarchyRepository.save(existingEntity);
 
-            if (updatedEntity.getIsActive()) {
-                deactivateAllOtherHierarchies(updatedEntity.getId());
+            // Always validate merged hierarchy if any hierarchy is active
+            String merged = getMergedActiveHierarchyString();
+            if (!merged.isEmpty()) {
+                validateMergedHierarchy(merged);
             }
 
             reloadRoleHierarchyBean();
@@ -106,7 +122,6 @@ public class RoleHierarchyService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
     public void deleteRoleHierarchy(Long id) {
         roleHierarchyRepository.deleteById(id);
         reloadRoleHierarchyBean();
@@ -114,14 +129,36 @@ public class RoleHierarchyService {
 
     @Transactional
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
-    public void activateRoleHierarchy(Long activeId) {
-        List<RoleHierarchyEntity> all = roleHierarchyRepository.findAll();
-        for (RoleHierarchyEntity entity : all) {
-            entity.setIsActive(Objects.equals(entity.getId(), activeId));
-            roleHierarchyRepository.save(entity);
+    public boolean activateRoleHierarchy(Long activeId) {
+        RoleHierarchyEntity target = roleHierarchyRepository.findById(activeId)
+                .orElseThrow(() -> new IllegalArgumentException("RoleHierarchy not found with ID: " + activeId));
+
+        // Toggle activation
+        boolean newState = !Boolean.TRUE.equals(target.getIsActive());
+
+        if (newState) {
+            // Validate merged hierarchy with this one added
+            String currentMerged = getMergedActiveHierarchyString();
+            String candidateMerged = currentMerged.isEmpty()
+                    ? target.getHierarchyString()
+                    : currentMerged + "\n" + target.getHierarchyString();
+            validateMergedHierarchy(candidateMerged);
         }
+
+        target.setIsActive(newState);
+        roleHierarchyRepository.save(target);
         reloadRoleHierarchyBean();
+        return newState;
+    }
+
+    /**
+     * Validate merged hierarchy string for conflicts across multiple active hierarchies.
+     * Checks: circular references, reverse relations, duplicate relations.
+     */
+    public void validateMergedHierarchy(String mergedString) {
+        if (mergedString == null || mergedString.trim().isEmpty()) return;
+        String normalized = mergedString.replace("\\n", "\n");
+        validateHierarchyLogic(normalized);
     }
 
     public void reloadRoleHierarchyBean() {
@@ -274,12 +311,4 @@ public class RoleHierarchyService {
         return false;
     }
 
-    private void deactivateAllOtherHierarchies(Long currentActiveId) {
-        roleHierarchyRepository.findByIsActiveTrue()
-                .filter(e -> !e.getId().equals(currentActiveId))
-                .ifPresent(e -> {
-                    e.setIsActive(false);
-                    roleHierarchyRepository.save(e);
-                });
-    }
 }
