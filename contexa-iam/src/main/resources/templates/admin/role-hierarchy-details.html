@@ -53,7 +53,14 @@
                             <i class="fas fa-search"></i>
                             <input type="text" id="palette-search" class="dark-input" placeholder="역할 검색..." oninput="filterPalette(this.value)">
                         </div>
-                        <p class="text-xs mb-2" style="color: #64748b;">드래그하여 시각화에 드롭하거나 클릭하여 관계를 추가합니다</p>
+                        <div class="mb-3 p-3 rounded-lg" style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.2);">
+                            <p class="text-sm font-semibold mb-1" style="color: #a5b4fc;">관계 설정 방법</p>
+                            <div class="text-xs" style="color: #94a3b8; line-height: 1.6;">
+                                <p><span style="color: #818cf8;">1. 클릭 모드:</span> 상위 역할 클릭 -> 하위 역할 클릭</p>
+                                <p><span style="color: #818cf8;">2. 드래그 모드:</span> 상위 역할을 시각화 패널로 드래그&드롭</p>
+                                <p><span style="color: #818cf8;">3. 직접 입력:</span> 오른쪽 편집기에서 상위/하위 역할 선택</p>
+                            </div>
+                        </div>
                         <div class="role-palette">
                             <!-- 순수 역할 목록 (그룹 무관, 중복 제거) -->
                             <div th:each="role : ${allRoles}"
@@ -91,7 +98,7 @@
                                 <span>확대</span>
                             </button>
                             <div id="drop-hint" class="drop-hint" style="display:none;">
-                                <i class="fas fa-arrow-down"></i> 여기에 드롭하여 하위 역할 추가
+                                <i class="fas fa-arrow-down"></i> 여기에 드롭하여 상위 역할로 추가
                             </div>
                             <div id="mermaid-container" style="width: 100%; height: 100%;">
                                 <div id="mermaid-diagram" class="mermaid">
@@ -753,20 +760,12 @@
             }
         }
 
-        // Existing active hierarchy edges (blue/dimmed)
+        // Existing active hierarchy edges (always blue)
         if (existingRelations.length > 0) {
             existingRelations.forEach(rel => {
                 const pid = getNodeId(rel.parent);
                 const cid = getNodeId(rel.child);
-                const parentLabel = rel.parent;
-                const childLabel = rel.child;
-                const isConflict = conflictNodes.has(rel.parent) && conflictNodes.has(rel.child);
-
-                if (isConflict) {
-                    mermaidCode += `    ${pid}["${parentLabel}"]:::conflict -->|"기존"| ${cid}["${childLabel}"]:::conflict\n`;
-                } else {
-                    mermaidCode += `    ${pid}["${parentLabel}"]:::existing -.->|"기존"| ${cid}["${childLabel}"]:::existing\n`;
-                }
+                mermaidCode += `    ${pid}["${rel.parent}"]:::existing -.->|"기존"| ${cid}["${rel.child}"]:::existing\n`;
             });
         }
 
@@ -1596,33 +1595,32 @@
         viz.classList.remove('drag-over');
         document.getElementById('drop-hint').style.display = 'none';
 
-        const childRole = event.dataTransfer.getData('text/plain');
-        if (!childRole) return;
+        const draggedRole = event.dataTransfer.getData('text/plain');
+        if (!draggedRole) return;
 
-        // Find the closest SVG node to determine parent
+        // Find the closest SVG node
         const svgTarget = event.target.closest('.node');
-        let parentRole = null;
+        let targetNodeRole = null;
 
         if (svgTarget) {
-            // Dropped on an existing node -> use that as parent
             const nodeText = (svgTarget.querySelector('.label')?.textContent || svgTarget.textContent || '').trim();
-            parentRole = findRoleNameByDesc(nodeText);
+            targetNodeRole = findRoleNameByDesc(nodeText);
         }
 
-        if (parentRole && parentRole !== childRole) {
-            addRelationFromDrag(parentRole, childRole);
-        } else if (!parentRole) {
-            // Dropped on empty area -> add row with child pre-filled, user selects parent manually
+        if (targetNodeRole && targetNodeRole !== draggedRole) {
+            // Dropped on existing node: dragged = parent (upper), target node = child (lower)
+            addRelationFromDrag(draggedRole, targetNodeRole);
+        } else if (!targetNodeRole) {
+            // Dropped on empty area: dragged = parent, user selects child
             document.getElementById('add-row-btn').click();
             setTimeout(() => {
                 const rows = document.querySelectorAll('.relation-row');
                 const lastRow = rows[rows.length - 1];
                 if (lastRow) {
-                    const childSelect = lastRow.querySelector('.child-role');
-                    if (childSelect) childSelect.value = childRole;
+                    const parentSelect = lastRow.querySelector('.parent-role');
+                    if (parentSelect) parentSelect.value = draggedRole;
                     validateAndUpdate();
                 }
-                showToast('하위 역할이 설정되었습니다. 상위 역할을 선택하세요.', 'info');
             }, 100);
         }
     }
