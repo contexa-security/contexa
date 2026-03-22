@@ -47,7 +47,7 @@ public class RoleHierarchyController {
     @GetMapping("/register")
     public String registerRoleHierarchyForm(Model model) {
         model.addAttribute("hierarchy", new RoleHierarchyDto());
-        prepareHierarchyFormModel(model, new ArrayList<>());
+        prepareHierarchyFormModel(model, new ArrayList<>(), null);
         return "admin/role-hierarchy-details";
     }
 
@@ -100,7 +100,7 @@ public class RoleHierarchyController {
 
             dto.setHierarchyPairs(pairs);
             model.addAttribute("hierarchy", dto);
-            prepareHierarchyFormModel(model, pairs);
+            prepareHierarchyFormModel(model, pairs, id);
 
         } catch (Exception e) {
             log.error("Error loading role hierarchy details for ID: {}", id, e);
@@ -144,7 +144,7 @@ public class RoleHierarchyController {
         return "redirect:/admin/role-hierarchies";
     }
 
-    private void prepareHierarchyFormModel(Model model, List<RoleHierarchyDto.HierarchyPair> existingPairs) {
+    private void prepareHierarchyFormModel(Model model, List<RoleHierarchyDto.HierarchyPair> existingPairs, Long excludeId) {
         try {
 
             List<Group> allGroups = groupService.getAllGroups();
@@ -200,9 +200,10 @@ public class RoleHierarchyController {
                     .collect(Collectors.toList());
             model.addAttribute("allRoles", allRoles);
 
-            // Active hierarchies for client-side cross-validation
+            // Active hierarchies for client-side cross-validation (exclude current editing hierarchy)
             List<Map<String, Object>> activeHierarchies = roleHierarchyService.getAllRoleHierarchies().stream()
                     .filter(h -> Boolean.TRUE.equals(h.getIsActive()))
+                    .filter(h -> excludeId == null || !excludeId.equals(h.getId()))
                     .map(h -> {
                         Map<String, Object> map = new HashMap<>();
                         map.put("id", h.getId());

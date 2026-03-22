@@ -16,7 +16,8 @@ public class RoleHierarchyDto {
     private Long id;
     private String hierarchyString;
     private String description;
-    private Boolean isActive;
+    @Builder.Default
+    private Boolean isActive = false;
     @Builder.Default
     private List<HierarchyPair> hierarchyPairs = new ArrayList<>();
 

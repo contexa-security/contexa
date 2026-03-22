@@ -244,8 +244,8 @@ public class RoleHierarchyService {
 
         for (String[] relation : relations) {
             if (isTransitivelyConnected(graph, relation[0], relation[1])) {
-                throw new IllegalArgumentException("Redundant relationship: " + relation[0] + " > " + relation[1] +
-                        " (already connected via another path)");
+                throw new IllegalArgumentException(
+                        relation[0] + " > " + relation[1] + " is already connected via another path. Redundant relationship.");
             }
         }
 

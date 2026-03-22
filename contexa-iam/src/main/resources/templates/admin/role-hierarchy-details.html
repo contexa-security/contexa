@@ -180,7 +180,7 @@
                 </div>
 
                 <!-- 활성화는 목록 화면에서 토글 -->
-                <input type="hidden" th:field="*{isActive}" th:value="${hierarchy.id != null ? hierarchy.isActive : false}" />
+                <input type="hidden" th:field="*{isActive}" />
                 <p th:if="${hierarchy.id == null}" class="text-xs" style="color: #64748b;">
                     <i class="fas fa-info-circle mr-1"></i>등록 후 목록에서 활성화할 수 있습니다. 여러 계층을 동시에 활성화하면 자동 병합됩니다.
                 </p>
@@ -517,14 +517,21 @@
 
         // 중복 검사 (신규 내부)
         const seen = new Set();
-        for (const rel of relations) {
-            const key = `${rel.parent}>${rel.child}`;
-            if (seen.has(key)) {
-                hasError = true;
-                errorMessage = `중복된 관계가 있습니다.\n${rel.parent} > ${rel.child} 관계가 두 번 정의되어 있습니다.`;
-                break;
+        if (!hasError) {
+            for (const rel of relations) {
+                const key = `${rel.parent}>${rel.child}`;
+                if (seen.has(key)) {
+                    hasError = true;
+                    errorMessage = `중복된 관계가 있습니다.\n${rel.parent} > ${rel.child} 관계가 두 번 정의되어 있습니다.`;
+                    rel._redundant = true;
+                    break;
+                }
+                seen.add(key);
             }
-            seen.add(key);
+        }
+        // seen이 비어있으면 역방향 검사를 위해 채움
+        if (seen.size === 0) {
+            relations.forEach(r => seen.add(`${r.parent}>${r.child}`));
         }
 
         // 역방향 관계 검사 (신규 내부)
@@ -539,80 +546,132 @@
             }
         }
 
-        // 기존 활성 계층과의 교차 검증
-        if (!hasError && existingRelations.length > 0) {
-            // 역방향 교차 검사
-            for (const rel of relations) {
-                for (const existing of existingRelations) {
-                    if (rel.parent === existing.child && rel.child === existing.parent) {
-                        hasError = true;
-                        errorMessage = `기존 활성 계층과 충돌합니다.\n\n` +
-                            `기존 계층 "${existing.source}":\n  ${existing.parent} > ${existing.child} (${existing.parent}이 상위)\n\n` +
-                            `현재 설정:\n  ${rel.parent} > ${rel.child} (${rel.parent}이 상위)\n\n` +
-                            `동일한 두 역할의 상하 관계가 뒤집힐 수 없습니다.`;
-                        break;
-                    }
-                }
-                if (hasError) break;
-            }
-
-            // 순환 참조 교차 검사 (기존+신규 합산 그래프)
-            if (!hasError) {
-                const mergedGraph = new Map();
-                // 기존 활성 계층 엣지
-                for (const [key, children] of existingGraph) {
-                    mergedGraph.set(key, new Set(children));
-                }
-                // 신규 엣지 추가
-                for (const rel of relations) {
-                    if (!mergedGraph.has(rel.parent)) mergedGraph.set(rel.parent, new Set());
-                    mergedGraph.get(rel.parent).add(rel.child);
-                }
-                // 순환 검사
-                const allMergedNodes = new Set([...mergedGraph.keys()]);
-                mergedGraph.forEach((children) => children.forEach(c => allMergedNodes.add(c)));
-                for (const node of allMergedNodes) {
-                    if (hasCycle(mergedGraph, node, new Set(), new Set())) {
-                        hasError = true;
-                        errorMessage = `기존 활성 계층과 합산 시 순환 참조가 발생합니다.\n\n` +
-                            `${node}이 직간접적으로 자기 자신을 참조하게 됩니다.\n` +
-                            `시각화 패널에서 충돌 경로를 확인하세요.`;
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 전이적 중복 검사 (신규 내부)
+        // ============================================================
+        // 1단계 (d): 전이적 중복 검사 (신규 내부)
+        // ============================================================
         if (!hasError) {
             for (const rel of relations) {
                 if (isTransitivelyConnected(graph, rel.parent, rel.child)) {
                     hasError = true;
-                    errorMessage = `불필요한 관계입니다.\n${rel.parent} > ${rel.child}는 이미 다른 경로로 연결되어 있습니다.\n직접 연결을 제거하세요.`;
-                    break;
-                }
-            }
-        }
-
-        // 기존 활성 계층과의 전이적 중복 검사 (이미 포함됨 -> 차단)
-        if (!hasError && existingGraph.size > 0) {
-            for (const rel of relations) {
-                if (isTransitivelyConnected(existingGraph, rel.parent, rel.child)) {
-                    hasError = true;
-                    errorMessage = `${rel.parent}은 기존 활성 계층에서 이미 ${rel.child}를 포함하고 있습니다.\n이 관계는 불필요한 중복이므로 등록할 수 없습니다.`;
+                    errorMessage = `불필요한 관계입니다.\n${rel.parent} > ${rel.child}는 신규 설정 내에서 이미 다른 경로로 연결되어 있습니다.`;
                     rel._redundant = true;
                     break;
                 }
             }
         }
 
-        // 순환 참조 검사 (신규 내부)
+        // ============================================================
+        // 1단계 (e): 순환 참조 검사 (신규 내부 - 모든 노드 포함)
+        // ============================================================
         if (!hasError && graph.size > 0) {
-            for (const [node, ] of graph) {
+            const allNewNodes = new Set();
+            relations.forEach(r => { allNewNodes.add(r.parent); allNewNodes.add(r.child); });
+            for (const node of allNewNodes) {
                 if (hasCycle(graph, node, new Set(), new Set())) {
                     hasError = true;
                     errorMessage = `순환 참조가 발견되었습니다.\n${node}이 직간접적으로 자기 자신을 참조합니다.`;
                     break;
+                }
+            }
+        }
+
+        // ============================================================
+        // 2단계: 기존 활성 계층과 교차 검증
+        // ============================================================
+        if (!hasError && existingRelations.length > 0) {
+            const existingKeySet = new Set(existingRelations.map(r => r.parent + '>' + r.child));
+
+            for (const rel of relations) {
+                const relKey = rel.parent + '>' + rel.child;
+
+                // (f) 직접 역방향: 기존 A>B + 신규 B>A -> 빨강 충돌
+                for (const existing of existingRelations) {
+                    if (rel.parent === existing.child && rel.child === existing.parent) {
+                        hasError = true;
+                        errorMessage = `기존 활성 계층과 직접 충돌합니다.\n\n` +
+                            `기존 계층 "${existing.source}":\n  ${existing.parent} > ${existing.child}\n\n` +
+                            `현재 설정:\n  ${rel.parent} > ${rel.child}\n\n` +
+                            `동일한 두 역할의 상하 관계가 뒤집힐 수 없습니다.`;
+                        break;
+                    }
+                }
+                if (hasError) break;
+
+                // (g) 직접 중복: 기존 A>B + 신규 A>B -> 주황 중복
+                if (existingKeySet.has(relKey)) {
+                    hasError = true;
+                    errorMessage = `${rel.parent} > ${rel.child} 관계가 기존 활성 계층에 이미 존재합니다.\n동일한 관계를 중복 등록할 수 없습니다.`;
+                    rel._redundant = true;
+                    break;
+                }
+            }
+        }
+
+        // ============================================================
+        // 3단계: 합산 그래프 검증 (기존 + 신규 전체)
+        // ============================================================
+        if (!hasError && existingRelations.length > 0) {
+            // Verify existing hierarchies are consistent first
+            const allExistingNodes = new Set();
+            existingRelations.forEach(r => { allExistingNodes.add(r.parent); allExistingNodes.add(r.child); });
+            let existingCorrupted = false;
+            for (const node of allExistingNodes) {
+                if (hasCycle(existingGraph, node, new Set(), new Set())) {
+                    existingCorrupted = true;
+                    break;
+                }
+            }
+            if (existingCorrupted) {
+                hasError = true;
+                errorMessage = `기존 활성 계층 데이터에 순환 참조가 존재합니다.\n기존 계층을 먼저 수정한 후 새 계층을 등록해주세요.`;
+            }
+
+            // Build merged graph (existing + new)
+            if (!hasError) {
+                const mergedGraph = new Map();
+                for (const [key, children] of existingGraph) {
+                    mergedGraph.set(key, new Set(children));
+                }
+                for (const rel of relations) {
+                    if (!mergedGraph.has(rel.parent)) mergedGraph.set(rel.parent, new Set());
+                    mergedGraph.get(rel.parent).add(rel.child);
+                }
+
+                // (h) Merged cycle detection
+                const allMergedNodes = new Set([...mergedGraph.keys()]);
+                mergedGraph.forEach(children => children.forEach(c => allMergedNodes.add(c)));
+
+                const mergedCycleNodes = new Set();
+                for (const node of allMergedNodes) {
+                    if (hasCycle(mergedGraph, node, new Set(), new Set())) {
+                        mergedCycleNodes.add(node);
+                    }
+                }
+
+                if (mergedCycleNodes.size > 0) {
+                    hasError = true;
+                    const involvedNode = [...mergedCycleNodes][0];
+                    errorMessage = `기존 활성 계층과 합산 시 순환이 발생합니다.\n\n` +
+                        `${involvedNode}이 직간접적으로 자기 자신을 참조하게 됩니다.\n` +
+                        `이미 기존 계층에 포함된 관계입니다.`;
+                    // Mark only new relations whose nodes are involved in the cycle
+                    relations.forEach(r => {
+                        if (mergedCycleNodes.has(r.parent) || mergedCycleNodes.has(r.child)) {
+                            r._redundant = true;
+                        }
+                    });
+                }
+
+                // (i) Merged transitive redundancy check
+                if (!hasError) {
+                    for (const rel of relations) {
+                        if (isTransitivelyConnected(mergedGraph, rel.parent, rel.child)) {
+                            hasError = true;
+                            errorMessage = `${rel.parent} > ${rel.child}는 기존 활성 계층과 합산 시 이미 다른 경로로 연결되어 있습니다.\n불필요한 중복이므로 등록할 수 없습니다.`;
+                            rel._redundant = true;
+                            break;
+                        }
+                    }
                 }
             }
         }
@@ -748,50 +807,139 @@
             return nodeMap.get(role);
         }
 
-        // Detect conflicts: direct reverse + indirect cycle via merged graph
+        // Edge classification: conflict (red), cycle (orange), redundant (orange), normal (green)
         const existingKeys = new Set(existingRelations.map(r => r.parent + '>' + r.child));
-        const conflictNodes = new Set();
+        const directConflictEdges = new Set();  // red: direct reverse
+        const cycleEdges = new Set();            // orange: cycle involvement
+        const redundantEdges = new Set();        // orange: duplicate or transitive
 
-        // Build merged graph to detect cycles
-        const mergedG = new Map();
+        // Build new-only graph for internal transitive check
+        const newOnlyGraph = new Map();
+        relations.forEach(r => {
+            if (!newOnlyGraph.has(r.parent)) newOnlyGraph.set(r.parent, new Set());
+            newOnlyGraph.get(r.parent).add(r.child);
+        });
+
+        // Build merged graph (existing + new) for cross-validation
+        const mergedDiagGraph = new Map();
         existingRelations.forEach(r => {
-            if (!mergedG.has(r.parent)) mergedG.set(r.parent, new Set());
-            mergedG.get(r.parent).add(r.child);
+            if (!mergedDiagGraph.has(r.parent)) mergedDiagGraph.set(r.parent, new Set());
+            mergedDiagGraph.get(r.parent).add(r.child);
         });
         relations.forEach(r => {
-            if (!mergedG.has(r.parent)) mergedG.set(r.parent, new Set());
-            mergedG.get(r.parent).add(r.child);
+            if (!mergedDiagGraph.has(r.parent)) mergedDiagGraph.set(r.parent, new Set());
+            mergedDiagGraph.get(r.parent).add(r.child);
         });
 
-        // Find all nodes involved in cycles
-        const allMergedNodes = new Set([...mergedG.keys()]);
-        mergedG.forEach(children => children.forEach(c => allMergedNodes.add(c)));
-        for (const node of allMergedNodes) {
-            if (hasCycle(mergedG, node, new Set(), new Set())) {
-                conflictNodes.add(node);
+        // Detect merged cycle nodes
+        const allDiagNodes = new Set([...mergedDiagGraph.keys()]);
+        mergedDiagGraph.forEach(children => children.forEach(c => allDiagNodes.add(c)));
+        const cycleNodes = new Set();
+        for (const node of allDiagNodes) {
+            if (hasCycle(mergedDiagGraph, node, new Set(), new Set())) {
+                cycleNodes.add(node);
             }
         }
 
-        // Existing active hierarchy edges (always blue)
+        // Detect new-internal cycle nodes
+        const newCycleNodes = new Set();
+        const allNewDiagNodes = new Set();
+        relations.forEach(r => { allNewDiagNodes.add(r.parent); allNewDiagNodes.add(r.child); });
+        for (const node of allNewDiagNodes) {
+            if (hasCycle(newOnlyGraph, node, new Set(), new Set())) {
+                newCycleNodes.add(node);
+            }
+        }
+
+        // Detect new-internal duplicate edges
+        const newDuplicateEdges = new Set();
+        const seenNewEdges = new Set();
+        relations.forEach(rel => {
+            const edgeKey = rel.parent + '>' + rel.child;
+            if (seenNewEdges.has(edgeKey)) {
+                newDuplicateEdges.add(edgeKey);
+            }
+            seenNewEdges.add(edgeKey);
+        });
+
+        relations.forEach(rel => {
+            const edgeKey = rel.parent + '>' + rel.child;
+            const reverseKey = rel.child + '>' + rel.parent;
+
+            if (existingKeys.has(reverseKey)) {
+                // (f) direct reverse against existing = conflict red
+                directConflictEdges.add(edgeKey);
+            } else if (existingKeys.has(edgeKey)) {
+                // (g) direct duplicate against existing = redundant orange
+                redundantEdges.add(edgeKey);
+            } else if (newDuplicateEdges.has(edgeKey)) {
+                // (b) new-internal duplicate = redundant orange
+                redundantEdges.add(edgeKey);
+            } else if (newCycleNodes.has(rel.parent) && newCycleNodes.has(rel.child)) {
+                // (e) new-internal cycle = cycle orange
+                cycleEdges.add(edgeKey);
+            } else if (isTransitivelyConnected(newOnlyGraph, rel.parent, rel.child)) {
+                // (d) new-internal transitive redundancy = redundant orange
+                redundantEdges.add(edgeKey);
+            } else if (cycleNodes.has(rel.parent) && cycleNodes.has(rel.child)) {
+                // (h) merged cycle = cycle orange
+                cycleEdges.add(edgeKey);
+            } else if (existingRelations.length > 0 && isTransitivelyConnected(mergedDiagGraph, rel.parent, rel.child)) {
+                // (i) merged transitive redundancy = redundant orange
+                redundantEdges.add(edgeKey);
+            }
+        });
+
+        // Detect existing-only cycle nodes for corrupted data display
+        const existingCycleNodes = new Set();
+        if (existingRelations.length > 0) {
+            const existingOnlyGraph = new Map();
+            existingRelations.forEach(r => {
+                if (!existingOnlyGraph.has(r.parent)) existingOnlyGraph.set(r.parent, new Set());
+                existingOnlyGraph.get(r.parent).add(r.child);
+            });
+            const allExDiagNodes = new Set();
+            existingRelations.forEach(r => { allExDiagNodes.add(r.parent); allExDiagNodes.add(r.child); });
+            for (const node of allExDiagNodes) {
+                if (hasCycle(existingOnlyGraph, node, new Set(), new Set())) {
+                    existingCycleNodes.add(node);
+                }
+            }
+        }
+
+        // Existing active hierarchy edges (blue, or red if corrupted cycle) - deduplicated
+        const renderedExistingEdges = new Set();
         if (existingRelations.length > 0) {
             existingRelations.forEach(rel => {
+                const edgeKey = rel.parent + '>' + rel.child;
+                if (renderedExistingEdges.has(edgeKey)) return;
+                renderedExistingEdges.add(edgeKey);
                 const pid = getNodeId(rel.parent);
                 const cid = getNodeId(rel.child);
-                mermaidCode += `    ${pid}["${rel.parent}"]:::existing -.->|"기존"| ${cid}["${rel.child}"]:::existing\n`;
+                if (existingCycleNodes.has(rel.parent) && existingCycleNodes.has(rel.child)) {
+                    mermaidCode += `    ${pid}["${rel.parent}"]:::conflict -.->|"기존 순환!"| ${cid}["${rel.child}"]:::conflict\n`;
+                } else {
+                    mermaidCode += `    ${pid}["${rel.parent}"]:::existing -.->|"기존"| ${cid}["${rel.child}"]:::existing\n`;
+                }
             });
         }
 
-        // New relations (green, or red if conflict)
+        // New relations: green (normal), red (conflict), orange (cycle/redundant)
         relations.forEach(rel => {
             const pid = getNodeId(rel.parent);
             const cid = getNodeId(rel.child);
             const parentLabel = rel.parent;
             const childLabel = rel.child;
-            const isConflict = conflictNodes.has(rel.parent) || conflictNodes.has(rel.child);
+            const edgeKey = rel.parent + '>' + rel.child;
+            const isDirectConflict = directConflictEdges.has(edgeKey);
+            const isCycle = cycleEdges.has(edgeKey);
+            const isRedundant = redundantEdges.has(edgeKey) || rel._redundant;
 
-            if (isConflict) {
+            if (isDirectConflict) {
                 mermaidCode += `    ${pid}["${parentLabel}"]:::conflict ==>|"충돌!"| ${cid}["${childLabel}"]:::conflict\n`;
-            } else if (rel._redundant) {
+            } else if (isCycle) {
+                mermaidCode += `    ${pid}["${parentLabel}"]:::redundant ==>|"순환 감지"| ${cid}["${childLabel}"]:::redundant\n`;
+            } else if (isRedundant) {
                 mermaidCode += `    ${pid}["${parentLabel}"]:::redundant ==>|"이미 포함됨"| ${cid}["${childLabel}"]:::redundant\n`;
             } else {
                 mermaidCode += `    ${pid}["${parentLabel}"]:::newrel ==>|"신규"| ${cid}["${childLabel}"]:::newrel\n`;
@@ -1274,6 +1422,13 @@
 
                 if (relations.length === 0) {
                     showToast('최소 하나 이상의 관계를 설정해야 합니다.', 'error');
+                    return;
+                }
+
+                // Check for client-side validation errors before submitting
+                const errorDiv = document.getElementById('validation-error');
+                if (errorDiv && errorDiv.style.display !== 'none' && errorDiv.textContent) {
+                    showToast('검증 오류가 있습니다. 오류를 해결한 후 다시 시도해주세요.', 'error');
                     return;
                 }
 
