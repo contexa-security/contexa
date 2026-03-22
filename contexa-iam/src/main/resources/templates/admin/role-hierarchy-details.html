@@ -594,6 +594,18 @@
             }
         }
 
+        // 기존 활성 계층과의 전이적 중복 검사 (이미 포함됨 -> 차단)
+        if (!hasError && existingGraph.size > 0) {
+            for (const rel of relations) {
+                if (isTransitivelyConnected(existingGraph, rel.parent, rel.child)) {
+                    hasError = true;
+                    errorMessage = `${rel.parent}은 기존 활성 계층에서 이미 ${rel.child}를 포함하고 있습니다.\n이 관계는 불필요한 중복이므로 등록할 수 없습니다.`;
+                    rel._redundant = true;
+                    break;
+                }
+            }
+        }
+
         // 순환 참조 검사 (신규 내부)
         if (!hasError && graph.size > 0) {
             for (const [node, ] of graph) {
@@ -779,6 +791,8 @@
 
             if (isConflict) {
                 mermaidCode += `    ${pid}["${parentLabel}"]:::conflict ==>|"충돌!"| ${cid}["${childLabel}"]:::conflict\n`;
+            } else if (rel._redundant) {
+                mermaidCode += `    ${pid}["${parentLabel}"]:::redundant ==>|"이미 포함됨"| ${cid}["${childLabel}"]:::redundant\n`;
             } else {
                 mermaidCode += `    ${pid}["${parentLabel}"]:::newrel ==>|"신규"| ${cid}["${childLabel}"]:::newrel\n`;
             }
@@ -788,6 +802,7 @@
         mermaidCode += '    classDef existing fill:#1e3a5f,stroke:#3b82f6,color:#93c5fd\n';
         mermaidCode += '    classDef newrel fill:#064e3b,stroke:#10b981,color:#6ee7b7\n';
         mermaidCode += '    classDef conflict fill:#7f1d1d,stroke:#ef4444,color:#fca5a5\n';
+        mermaidCode += '    classDef redundant fill:#78350f,stroke:#f59e0b,color:#fcd34d\n';
 
         return mermaidCode;
     }
