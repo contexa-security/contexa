@@ -73,6 +73,13 @@
         </div>
 
         <div>
+            <h3 class="section-title">권한 센터</h3>
+            <ul class="space-y-1">
+                <li><a th:href="@{/admin/access-center}" class="menu-link-sub" th:classappend="${activePage == 'access-center'} ? ' active' : ''"><span class="menu-bullet"></span><strong>권한 센터</strong><span class="menu-glow"></span></a></li>
+            </ul>
+        </div>
+
+        <div>
             <h3 class="section-title">ID 및 접근 관리</h3>
             <ul class="space-y-1">
                 <li><a th:href="@{/admin/users}" class="menu-link-sub" th:classappend="${activePage == 'users'} ? ' active' : ''"><span class="menu-bullet"></span>사용자 관리<span class="menu-glow"></span></a></li>

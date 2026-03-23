@@ -5,6 +5,7 @@ import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
 import io.contexa.contexacommon.entity.UserGroup;
+import io.contexa.contexacommon.entity.UserRole;
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
@@ -48,6 +49,26 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                 .flatMap(group -> Optional.ofNullable(group.getGroupRoles())
                         .orElse(Collections.emptySet()).stream())
                 .map(GroupRole::getRole)
+                .filter(Objects::nonNull)
+                .filter(Role::isEnabled)
+                .forEach(role -> {
+                    authorities.add(new RoleAuthority(role));
+
+                    Optional.ofNullable(role.getRolePermissions())
+                            .orElse(Collections.emptySet())
+                            .stream()
+                            .map(RolePermission::getPermission)
+                            .filter(Objects::nonNull)
+                            .forEach(permission -> {
+                                authorities.add(new PermissionAuthority(permission));
+                            });
+                });
+
+        // Direct user-role assignments
+        Optional.ofNullable(user.getUserRoles())
+                .orElse(Collections.emptySet())
+                .stream()
+                .map(UserRole::getRole)
                 .filter(Objects::nonNull)
                 .filter(Role::isEnabled)
                 .forEach(role -> {

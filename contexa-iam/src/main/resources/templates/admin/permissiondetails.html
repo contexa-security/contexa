@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=${permission.id != null ? '권한 수정' : '권한 등록'})}"></th:block>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${permission.id != null ? '권한 수정' : '권한 등록'})}">
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -12,54 +11,125 @@
     <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
 
     <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
-        <div class="w-full max-w-lg p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
+        <div class="w-full max-w-2xl p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
             <div class="text-center mb-8">
-                <h2 class="mt-4 text-3xl font-bold text-gradient" th:text="${permission.id != null ? '권한 수정' : '새 권한 등록'}"></h2>
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
+                    <i class="fas fa-key text-2xl text-white"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-gradient" th:text="${permission.id != null ? '권한 수정' : '새 권한 등록'}"></h2>
             </div>
 
-            <form th:action="${permission.id != null ? '/admin/permissions/' + permission.id + '/edit' : '/admin/permissions'}" method="post" th:object="${permission}" class="space-y-5">
+            <form th:action="${permission.id != null ? '/admin/permissions/' + permission.id + '/edit' : '/admin/permissions'}" method="post" th:object="${permission}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${permission.id != null}" />
-                <div>
-                    <label for="name" class="block text-sm font-medium" style="color: #cbd5e1;">권한명 (고유값):</label>
-                    <input type="text" id="name" th:field="*{name}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm font-mono" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required />
-                </div>
-                <div>
-                    <label for="friendlyName" class="block text-sm font-medium" style="color: #cbd5e1;">친화적 이름:</label>
-                    <input type="text" id="friendlyName" th:field="*{friendlyName}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
-                </div>
-                <div>
-                    <label for="description" class="block text-sm font-medium" style="color: #cbd5e1;">설명:</label>
-                    <input type="text" id="description" th:field="*{description}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
-                </div>
-                <div>
-                    <label for="targetType" class="block text-sm font-medium" style="color: #cbd5e1;">대상 타입:</label>
-                    <input type="text" id="targetType" th:field="*{targetType}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
-                </div>
-                <div>
-                    <label for="actionType" class="block text-sm font-medium" style="color: #cbd5e1;">행동 타입:</label>
-                    <input type="text" id="actionType" th:field="*{actionType}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
-                </div>
-                <div>
-                    <label for="conditionExpression" class="block text-sm font-medium" style="color: #cbd5e1;">조건 표현식 (SpEL):</label>
-                    <textarea id="conditionExpression" th:field="*{conditionExpression}" rows="3" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm font-mono" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"></textarea>
+
+                <!-- Basic Information Section -->
+                <div class="space-y-4">
+                    <h3 class="text-lg font-semibold flex items-center gap-2" style="color: #e2e8f0;">
+                        <i class="fas fa-info-circle" style="color: #818cf8;"></i>
+                        기본 정보
+                    </h3>
+
+                    <!-- Permission Name -->
+                    <div>
+                        <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> 권한명 (고유값, 대문자)
+                        </label>
+                        <input type="text" id="name" th:field="*{name}"
+                               class="detail-input font-mono"
+                               placeholder="READ_USERS" required />
+                    </div>
+
+                    <!-- Friendly Name -->
+                    <div>
+                        <label for="friendlyName" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-smile mr-1" style="color: #94a3b8;"></i> 친화적 이름
+                        </label>
+                        <input type="text" id="friendlyName" th:field="*{friendlyName}"
+                               class="detail-input"
+                               placeholder="사용자 조회" />
+                    </div>
+
+                    <!-- Description -->
+                    <div>
+                        <label for="description" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> 설명
+                        </label>
+                        <input type="text" id="description" th:field="*{description}"
+                               class="detail-input"
+                               placeholder="권한에 대한 설명을 입력하세요" />
+                    </div>
                 </div>
 
-                <!-- [최종 수정] 기능 선택 UI를 완전히 제거하고, 연결된 리소스 정보만 표시 -->
-                <div th:if="${permission.id != null and permission.managedResourceId != null}">
-                    <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;">연결된 리소스:</label>
+                <!-- Access Control Section -->
+                <div class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
+                    <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-crosshairs" style="color: #818cf8;"></i>
+                        접근 제어
+                    </h3>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <!-- Target Type -->
+                        <div>
+                            <label for="targetType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                                <i class="fas fa-bullseye mr-1" style="color: #94a3b8;"></i> 대상 타입
+                            </label>
+                            <input type="text" id="targetType" th:field="*{targetType}"
+                                   class="detail-input"
+                                   placeholder="URL, METHOD, ..." />
+                        </div>
+
+                        <!-- Action Type -->
+                        <div>
+                            <label for="actionType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                                <i class="fas fa-bolt mr-1" style="color: #94a3b8;"></i> 행동 타입
+                            </label>
+                            <input type="text" id="actionType" th:field="*{actionType}"
+                                   class="detail-input"
+                                   placeholder="READ, WRITE, ..." />
+                        </div>
+                    </div>
+
+                    <!-- Condition Expression -->
+                    <div class="mt-4">
+                        <label for="conditionExpression" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-code mr-1" style="color: #94a3b8;"></i> 조건 표현식 (SpEL)
+                        </label>
+                        <textarea id="conditionExpression" th:field="*{conditionExpression}" rows="3"
+                                  class="detail-input font-mono"
+                                  placeholder="hasAuthority('ADMIN') or #userId == authentication.principal.id"></textarea>
+                    </div>
+                </div>
+
+                <!-- Managed Resource Section (edit mode, if linked) -->
+                <div th:if="${permission.id != null and permission.managedResourceId != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
+                    <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-link" style="color: #818cf8;"></i>
+                        연결된 리소스
+                    </h3>
                     <div class="p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
                         <p class="text-sm font-mono" style="color: #94a3b8;" th:text="${permission.managedResourceIdentifier}"></p>
-                        <a th:href="@{/admin/workbench/resources(keyword=${permission.managedResourceIdentifier})}" class="text-xs hover:underline mt-1 inline-block" style="color: #818cf8;">워크벤치에서 보기 →</a>
+                        <a th:href="@{/admin/workbench/resources(keyword=${permission.managedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
+                            <i class="fas fa-external-link-alt mr-1"></i> 워크벤치에서 보기
+                        </a>
                     </div>
-                    <p class="text-xs mt-1" style="color: #64748b;">권한과 리소스의 연결은 '리소스 워크벤치'에서 관리됩니다.</p>
+                    <p class="text-xs mt-2" style="color: #64748b;">권한과 리소스의 연결은 '리소스 워크벤치'에서 관리됩니다.</p>
                 </div>
 
-                <div class="pt-2">
-                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105" style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);" th:text="${permission.id != null ? '권한 저장' : '권한 등록'}"></button>
+                <!-- Submit Button -->
+                <div class="pt-4">
+                    <button type="submit"
+                            class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
+                            style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
+                        <i class="fas fa-check mr-2"></i>
+                        <span th:text="${permission.id != null ? '권한 저장' : '권한 등록'}"></span>
+                    </button>
                 </div>
             </form>
+
+            <!-- Back Link -->
             <div class="mt-6 text-center">
-                <a th:href="@{/admin/permissions}" class="text-sm font-medium hover:underline" style="color: #818cf8;">
+                <a th:href="@{/admin/permissions}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
+                    <i class="fas fa-arrow-left mr-2"></i>
                     권한 목록으로 돌아가기
                 </a>
             </div>
@@ -69,18 +139,68 @@
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 
+<style>
+    .text-gradient {
+        background: linear-gradient(135deg, #6366f1, #818cf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+
+    .detail-input {
+        display: block;
+        width: 100%;
+        padding: 0.625rem 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        transition: all 0.3s;
+        background: rgba(30, 41, 59, 0.6);
+        border: 2px solid rgba(71, 85, 105, 0.5);
+        color: #e2e8f0;
+    }
+
+    .detail-input:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .detail-input:disabled,
+    .detail-input[readonly] {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background: rgba(15, 23, 42, 0.4);
+    }
+</style>
 
 <script th:inline="javascript">
     /*<![CDATA[*/
-    document.addEventListener('DOMContentLoaded', () => {
+    function showToast(message, type) {
+        var toastContainer = document.getElementById('toast-container');
+        if (!toastContainer) return;
+        var toast = document.createElement('div');
+        toast.className = 'toast-message toast-' + type;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+        setTimeout(function() {
+            toast.classList.add('fade-out');
+            setTimeout(function() {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
+            }, 500);
+        }, 3000);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
         if (typeof initAuth === 'function') {
             initAuth();
         }
-        const message = /*[[${message}]]*/ null;
+        var message = /*[[${message}]]*/ null;
         if (message) {
             showToast(message, 'success');
         }
-        const errorMessage = /*[[${errorMessage}]]*/ null;
+        var errorMessage = /*[[${errorMessage}]]*/ null;
         if (errorMessage) {
             showToast(errorMessage, 'error');
         }

@@ -40,9 +40,11 @@ public class RoleController {
 
 	@GetMapping("/register")
 	public String registerRoleForm(Model model) {
-		model.addAttribute("role", new RoleDto());
-		model.addAttribute("permissionList", permissionService.getAllPermissions()); 
-		model.addAttribute("selectedPermissionIds", new ArrayList<Long>()); 
+		RoleDto roleDto = new RoleDto();
+		roleDto.setEnabled(true);
+		model.addAttribute("role", roleDto);
+		model.addAttribute("permissionList", permissionService.getAllPermissions());
+		model.addAttribute("selectedPermissionIds", new ArrayList<Long>());
 		return "admin/rolesdetails";
 	}
 

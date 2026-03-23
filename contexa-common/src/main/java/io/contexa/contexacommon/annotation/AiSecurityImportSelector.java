@@ -1,8 +1,7 @@
 package io.contexa.contexacommon.annotation;
 
-import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacommon.security.bridge.old.SecurityMode;
 import org.springframework.context.annotation.ImportSelector;
-import org.springframework.core.annotation.AnnotationAttributes;
 import org.springframework.core.type.AnnotationMetadata;
 
 import java.util.Map;

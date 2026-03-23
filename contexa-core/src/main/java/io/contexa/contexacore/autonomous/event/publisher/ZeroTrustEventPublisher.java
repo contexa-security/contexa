@@ -1,6 +1,11 @@
 package io.contexa.contexacore.autonomous.event.publisher;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext;
+import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustEventCategory;
 import io.contexa.contexacore.autonomous.event.domain.ZeroTrustSpringEvent;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;

@@ -1,4 +1,4 @@
-package io.contexa.contexacommon.security.bridge;
+package io.contexa.contexacommon.security.bridge.old;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

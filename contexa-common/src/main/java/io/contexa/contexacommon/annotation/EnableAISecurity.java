@@ -6,9 +6,9 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
-import io.contexa.contexacommon.security.bridge.AuthBridge;
-import io.contexa.contexacommon.security.bridge.NoOpAuthBridge;
-import io.contexa.contexacommon.security.bridge.SecurityMode;
+import io.contexa.contexacommon.security.bridge.old.AuthBridge;
+import io.contexa.contexacommon.security.bridge.old.NoOpAuthBridge;
+import io.contexa.contexacommon.security.bridge.old.SecurityMode;
 import org.springframework.context.annotation.Import;
 
 /**

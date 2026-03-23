@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head th:replace="~{fragments/common-head :: head-elements(pageTitle=${user.id != null ? '사용자 수정' : '사용자 등록'})}">
-    <link rel="stylesheet" th:href="@{/css/modern-checkbox.css}">
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -15,9 +14,7 @@
         <div class="w-full max-w-2xl p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
             <div class="text-center mb-8">
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
-                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                    </svg>
+                    <i class="fas fa-user text-2xl text-white"></i>
                 </div>
                 <h2 class="text-3xl font-bold text-gradient" th:text="${user.id != null ? '사용자 수정' : '새 사용자 등록'}"></h2>
             </div>
@@ -25,139 +22,158 @@
             <form th:action="${user.id != null ? '/admin/users/' + user.id : '/admin/users'}" method="post" th:object="${user}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${user.id != null}" />
 
-                <!-- 아이디 필드 -->
-                <div>
-                    <label for="username" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">아이디 (이메일)</label>
-                    <div class="relative">
+                <!-- Basic Information Section -->
+                <div class="space-y-4">
+                    <h3 class="text-lg font-semibold flex items-center gap-2" style="color: #e2e8f0;">
+                        <i class="fas fa-id-card" style="color: #818cf8;"></i>
+                        기본 정보
+                    </h3>
+
+                    <!-- Username (Email) -->
+                    <div>
+                        <label for="username" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-envelope mr-1" style="color: #94a3b8;"></i> 아이디 (이메일)
+                        </label>
                         <input type="email" id="username" th:field="*{username}"
-                               class="mt-1 block w-full px-4 py-3 rounded-lg shadow-sm sm:text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-primary"
-                               style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                               class="detail-input"
                                th:readonly="${user.id != null}"
                                placeholder="user@example.com" />
-                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                            <svg class="h-5 w-5" style="color: #94a3b8;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
-                            </svg>
-                        </div>
                     </div>
-                </div>
 
-                <!-- 이름 필드 -->
-                <div>
-                    <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">이름</label>
-                    <div class="relative">
+                    <!-- Name -->
+                    <div>
+                        <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-user mr-1" style="color: #94a3b8;"></i> 이름
+                        </label>
                         <input type="text" id="name" th:field="*{name}"
-                               class="mt-1 block w-full px-4 py-3 rounded-lg shadow-sm sm:text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-primary"
-                               style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                               class="detail-input"
                                required
                                placeholder="사용자 이름" />
-                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                            <svg class="h-5 w-5" style="color: #94a3b8;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                            </svg>
-                        </div>
                     </div>
-                </div>
 
-                <!-- 비밀번호 필드 -->
-                <div>
-                    <label for="password" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">비밀번호</label>
-                    <div class="relative">
+                    <!-- Password -->
+                    <div>
+                        <label for="password" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
+                            <i class="fas fa-lock mr-1" style="color: #94a3b8;"></i> 비밀번호
+                        </label>
                         <input type="password" id="password" name="password"
-                               class="mt-1 block w-full px-4 py-3 rounded-lg shadow-sm sm:text-sm transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-primary"
-                               style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
+                               class="detail-input"
                                autocomplete="new-password"
                                th:placeholder="${user.id != null ? '비밀번호 변경 시에만 입력' : '비밀번호를 입력하세요'}" />
-                        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
-                            <svg class="h-5 w-5" style="color: #94a3b8;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                            </svg>
-                        </div>
                     </div>
                 </div>
 
-                <!-- 그룹 할당 섹션 -->
-                <div>
+                <!-- Group Assignment Section (Read-Only) -->
+                <div class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <div class="flex items-center justify-between mb-4">
                         <label class="block text-sm font-medium" style="color: #cbd5e1;">
-                            <svg class="inline-block w-5 h-5 mr-2 text-app-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                            </svg>
-                            할당할 그룹
+                            <i class="fas fa-users mr-2" style="color: #818cf8;"></i>
+                            할당된 그룹
                         </label>
-                        <div class="flex items-center gap-4">
-                            <span id="selected-count" class="text-sm font-medium px-3 py-1 rounded-full" style="color: #e2e8f0; background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.3);">
-                                0개 선택됨
-                            </span>
-                            <button type="button" id="select-all-btn" class="text-xs font-medium px-2 py-1 rounded border transition-all duration-200" style="color: #818cf8; border-color: #818cf8;" onclick="toggleAllGroups()">
-                                전체 선택
-                            </button>
+                        <a th:href="@{/admin/access-center(tab='users')}" class="text-xs font-medium px-3 py-1 rounded border transition-all duration-200"
+                           style="color: #818cf8; border-color: rgba(99,102,241,0.3); text-decoration: none;">
+                            <i class="fas fa-external-link-alt mr-1"></i>권한 센터에서 관리
+                        </a>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2">
+                        <div th:each="group : ${groupList}" th:if="${#lists.contains(selectedGroupIds, group.id)}">
+                            <span class="px-3 py-1 rounded-full text-sm font-semibold"
+                                  style="background: rgba(99,102,241,0.15); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3);"
+                                  th:text="${group.name}"></span>
+                        </div>
+                        <div th:if="${#lists.isEmpty(selectedGroupIds)}">
+                            <span class="text-sm" style="color: #64748b;">할당된 그룹이 없습니다.</span>
                         </div>
                     </div>
 
-                    <div class="checkbox-grid">
-                        <div th:each="group : ${groupList}"
-                             class="checkbox-item"
-                             th:classappend="${#lists.contains(selectedGroupIds, group.id)} ? 'selected' : ''">
-                            <label class="custom-checkbox">
-                                <input type="checkbox"
-                                       th:id="'group_' + ${group.id}"
-                                       name="selectedGroupIds"
-                                       th:value="${group.id}"
-                                       th:checked="${#lists.contains(selectedGroupIds, group.id)}"
-                                       onchange="toggleItemSelection(this)" />
-                                <span class="checkbox-mark"></span>
-                                <div class="checkbox-label">
-                                    <span class="checkbox-label-title" th:text="${group.name}"></span>
-                                    <span class="checkbox-label-description" th:text="${group.description ?: '설명 없음'}"></span>
-                                </div>
-                            </label>
-                        </div>
-
-                        <!-- 빈 상태 처리 -->
-                        <div th:if="${#lists.isEmpty(groupList)}" class="checkbox-empty">
-                            <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path>
-                            </svg>
-                            <p class="text-lg font-medium mb-2">등록된 그룹이 없습니다</p>
-                            <p class="text-sm opacity-75">그룹을 먼저 등록해주세요.</p>
-                        </div>
+                    <!-- Hidden inputs for form submission -->
+                    <div th:each="gid : ${selectedGroupIds}">
+                        <input type="hidden" name="selectedGroupIds" th:value="${gid}" />
                     </div>
                 </div>
 
-                <!-- MFA 설정 섹션 -->
+                <!-- MFA Section -->
                 <div class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
-                    <div class="flex items-center justify-between">
+                    <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-shield-alt" style="color: #818cf8;"></i>
+                        MFA 설정
+                    </h3>
+
+                    <div class="flex items-center justify-between mb-4">
                         <div>
-                            <h3 class="text-lg font-semibold" style="color: #e2e8f0;">MFA 설정</h3>
-                            <p class="text-sm mt-1" style="color: #94a3b8;">추가 보안을 위한 다중 인증 설정</p>
+                            <p class="text-sm" style="color: #94a3b8;">다중 인증(MFA) 활성화</p>
                         </div>
                         <label class="switch">
                             <input type="checkbox" id="mfaEnabled" th:field="*{mfaEnabled}" />
                             <span class="slider"></span>
                         </label>
                     </div>
+
+                    <!-- MFA Detail Fields (edit mode only) -->
+                    <div th:if="${user.id != null}" class="space-y-3">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">선호 MFA 방식</label>
+                                <input type="text" th:field="*{preferredMfaFactor}"
+                                       class="detail-input text-sm" placeholder="TOTP, SMS, EMAIL..." />
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">최근 사용 MFA 방식</label>
+                                <input type="text" th:field="*{lastUsedMfaFactor}"
+                                       class="detail-input text-sm" readonly />
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">
+                                <i class="fas fa-clock mr-1"></i> 최근 MFA 사용 시각
+                            </label>
+                            <input type="text" th:value="${user.lastMfaUsedAt != null ? #temporals.format(user.lastMfaUsedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"
+                                   class="detail-input text-sm" disabled />
+                        </div>
+                    </div>
                 </div>
 
-                <!-- 제출 버튼 -->
+                <!-- Audit Information (edit mode only) -->
+                <div th:if="${user.id != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
+                    <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
+                        <i class="fas fa-history" style="color: #818cf8;"></i>
+                        감사 정보
+                    </h3>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">
+                                <i class="fas fa-calendar-plus mr-1"></i> 생성일시
+                            </label>
+                            <input type="text" th:value="${user.createdAt != null ? #temporals.format(user.createdAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"
+                                   class="detail-input text-sm" disabled />
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium mb-1" style="color: #94a3b8;">
+                                <i class="fas fa-calendar-check mr-1"></i> 수정일시
+                            </label>
+                            <input type="text" th:value="${user.updatedAt != null ? #temporals.format(user.updatedAt, 'yyyy-MM-dd HH:mm:ss') : '-'}"
+                                   class="detail-input text-sm" disabled />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
                 <div class="pt-4">
                     <button type="submit"
                             class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
                             style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                        </svg>
+                        <i class="fas fa-check mr-2"></i>
                         <span th:text="${user.id != null ? '변경사항 저장' : '사용자 등록'}"></span>
                     </button>
                 </div>
             </form>
 
-            <!-- 돌아가기 링크 -->
+            <!-- Back Link -->
             <div class="mt-6 text-center">
                 <a th:href="@{/admin/users}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                    </svg>
+                    <i class="fas fa-arrow-left mr-2"></i>
                     사용자 목록으로 돌아가기
                 </a>
             </div>
@@ -168,7 +184,6 @@
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 
 <style>
-    /* 텍스트 그라디언트 */
     .text-gradient {
         background: linear-gradient(135deg, #6366f1, #818cf8);
         -webkit-background-clip: text;
@@ -176,7 +191,33 @@
         background-clip: text;
     }
 
-    /* MFA 스위치 스타일 */
+    .detail-input {
+        display: block;
+        width: 100%;
+        padding: 0.625rem 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        transition: all 0.3s;
+        background: rgba(30, 41, 59, 0.6);
+        border: 2px solid rgba(71, 85, 105, 0.5);
+        color: #e2e8f0;
+    }
+
+    .detail-input:focus {
+        outline: none;
+        border-color: #6366f1;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+
+    .detail-input:disabled,
+    .detail-input[readonly] {
+        opacity: 0.6;
+        cursor: not-allowed;
+        background: rgba(15, 23, 42, 0.4);
+    }
+
     .switch {
         position: relative;
         display: inline-block;
@@ -236,168 +277,43 @@
 </style>
 
 <script>
-    // 전역 변수
-    let allGroupsSelected = false;
-
-    // 체크박스 선택 시 시각적 피드백과 리플 효과
-    function toggleItemSelection(checkbox) {
-        const item = checkbox.closest('.checkbox-item');
-        const checkboxMark = checkbox.nextElementSibling;
-
-        // 리플 효과 추가
-        const ripple = document.createElement('span');
-        ripple.className = 'ripple';
-        ripple.style.left = '50%';
-        ripple.style.top = '50%';
-        ripple.style.width = '20px';
-        ripple.style.height = '20px';
-        ripple.style.marginLeft = '-10px';
-        ripple.style.marginTop = '-10px';
-        checkboxMark.appendChild(ripple);
-
-        setTimeout(() => ripple.remove(), 600);
-
-        // 선택 상태 토글
-        if (checkbox.checked) {
-            item.classList.add('selected');
-            // 진동 효과 (지원하는 경우)
-            if (navigator.vibrate) {
-                navigator.vibrate(10);
-            }
-        } else {
-            item.classList.remove('selected');
-        }
-
-        // 선택된 그룹 수 업데이트
-        updateSelectedCount();
-        updateSelectAllButton();
-    }
-
-    // 선택된 그룹 수 표시
-    function updateSelectedCount() {
-        const selectedCount = document.querySelectorAll('input[name="selectedGroupIds"]:checked').length;
-        const totalCount = document.querySelectorAll('input[name="selectedGroupIds"]').length;
-
-        const countDisplay = document.getElementById('selected-count');
-        if (countDisplay) {
-            countDisplay.textContent = `${selectedCount}/${totalCount} 선택됨`;
-
-            // 선택 상태에 따른 스타일 업데이트
-            if (selectedCount === 0) {
-                countDisplay.style.background = 'rgba(71, 85, 105, 0.3)';
-                countDisplay.style.borderColor = 'rgba(71, 85, 105, 0.5)';
-                countDisplay.style.color = '#94a3b8';
-            } else if (selectedCount === totalCount) {
-                countDisplay.style.background = 'rgba(34, 197, 94, 0.2)';
-                countDisplay.style.borderColor = 'rgba(34, 197, 94, 0.3)';
-                countDisplay.style.color = '#4ade80';
-            } else {
-                countDisplay.style.background = 'rgba(99, 102, 241, 0.2)';
-                countDisplay.style.borderColor = 'rgba(99, 102, 241, 0.3)';
-                countDisplay.style.color = '#e2e8f0';
-            }
-        }
-    }
-
-    // 전체 선택/해제 버튼 상태 업데이트
-    function updateSelectAllButton() {
-        const selectedCount = document.querySelectorAll('input[name="selectedGroupIds"]:checked').length;
-        const totalCount = document.querySelectorAll('input[name="selectedGroupIds"]').length;
-        const selectAllBtn = document.getElementById('select-all-btn');
-
-        if (selectAllBtn) {
-            if (selectedCount === totalCount && totalCount > 0) {
-                selectAllBtn.textContent = '전체 해제';
-                selectAllBtn.style.color = '#f87171';
-                selectAllBtn.style.borderColor = '#f87171';
-                allGroupsSelected = true;
-            } else {
-                selectAllBtn.textContent = '전체 선택';
-                selectAllBtn.style.color = '#818cf8';
-                selectAllBtn.style.borderColor = '#818cf8';
-                allGroupsSelected = false;
-            }
-        }
-    }
-
-    // 전체 선택/해제 토글
-    function toggleAllGroups() {
-        const checkboxes = document.querySelectorAll('input[name="selectedGroupIds"]');
-        const shouldCheck = !allGroupsSelected;
-
-        checkboxes.forEach(checkbox => {
-            if (checkbox.checked !== shouldCheck) {
-                checkbox.checked = shouldCheck;
-                toggleItemSelection(checkbox);
-            }
-        });
-    }
-
-    // 토스트 메시지 표시 함수
-    function showToast(message, type = 'info') {
-        const toastContainer = document.getElementById('toast-container');
+    function showToast(message, type) {
+        var toastContainer = document.getElementById('toast-container');
         if (!toastContainer) return;
-
-        const toast = document.createElement('div');
-        toast.className = `toast-message toast-${type}`;
+        var toast = document.createElement('div');
+        toast.className = 'toast-message toast-' + type;
         toast.textContent = message;
-
         toastContainer.appendChild(toast);
-
-        // 3초 후 자동 제거
-        setTimeout(() => {
+        setTimeout(function() {
             toast.classList.add('fade-out');
-            setTimeout(() => {
-                if (toast.parentNode) {
-                    toast.parentNode.removeChild(toast);
-                }
+            setTimeout(function() {
+                if (toast.parentNode) toast.parentNode.removeChild(toast);
             }, 500);
         }, 3000);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    document.addEventListener('DOMContentLoaded', function() {
         if (typeof initAuth === 'function') {
             initAuth();
         }
 
-        // 초기 선택 개수 및 버튼 상태 표시
-        updateSelectedCount();
-        updateSelectAllButton();
-
-        // 토스트 메시지 표시
-        const message = /*[[${message}]]*/ null;
+        var message = /*[[${message}]]*/ null;
         if (message) {
             showToast(message, 'success');
         }
-        const errorMessage = /*[[${errorMessage}]]*/ null;
+        var errorMessage = /*[[${errorMessage}]]*/ null;
         if (errorMessage) {
             showToast(errorMessage, 'error');
         }
 
-        // 폼 유효성 검사
-        const form = document.querySelector('form');
-        form.addEventListener('submit', (e) => {
-            const username = document.getElementById('username').value;
-            const name = document.getElementById('name').value;
-
+        var form = document.querySelector('form');
+        form.addEventListener('submit', function(e) {
+            var username = document.getElementById('username').value;
+            var name = document.getElementById('name').value;
             if (!username || !name) {
                 e.preventDefault();
                 showToast('필수 필드를 모두 입력해주세요.', 'error');
             }
-        });
-
-        // Input 포커스 효과
-        const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"]');
-        inputs.forEach(input => {
-            input.addEventListener('focus', function() {
-                this.style.borderColor = '#6366f1';
-                this.style.boxShadow = '0 0 0 3px rgba(99, 102, 241, 0.2)';
-            });
-
-            input.addEventListener('blur', function() {
-                this.style.borderColor = 'rgba(71, 85, 105, 0.5)';
-                this.style.boxShadow = 'none';
-            });
         });
     });
 </script>

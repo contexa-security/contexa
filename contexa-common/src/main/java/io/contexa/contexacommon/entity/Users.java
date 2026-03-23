@@ -110,6 +110,11 @@ public class Users {
     @ToString.Exclude
     private Set<UserGroup> userGroups = new HashSet<>();
 
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    @ToString.Exclude
+    private Set<UserRole> userRoles = new HashSet<>();
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

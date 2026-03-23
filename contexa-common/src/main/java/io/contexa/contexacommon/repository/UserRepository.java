@@ -2,6 +2,8 @@ package io.contexa.contexacommon.repository;
 
 import io.contexa.contexacommon.entity.Users;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -20,6 +22,10 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             "LEFT JOIN FETCH gr.role r " +
             "LEFT JOIN FETCH r.rolePermissions rp " +
             "LEFT JOIN FETCH rp.permission p " +
+            "LEFT JOIN FETCH u.userRoles ur " +
+            "LEFT JOIN FETCH ur.role dr " +
+            "LEFT JOIN FETCH dr.rolePermissions drp " +
+            "LEFT JOIN FETCH drp.permission dp " +
             "WHERE u.username = :username")
     Optional<Users> findByUsernameWithGroupsRolesAndPermissions(@Param("username") String username);
 
@@ -31,6 +37,10 @@ public interface UserRepository extends JpaRepository<Users, Long> {
             "LEFT JOIN FETCH gr.role r " +
             "LEFT JOIN FETCH r.rolePermissions rp " +
             "LEFT JOIN FETCH rp.permission p " +
+            "LEFT JOIN FETCH u.userRoles ur " +
+            "LEFT JOIN FETCH ur.role dr " +
+            "LEFT JOIN FETCH dr.rolePermissions drp " +
+            "LEFT JOIN FETCH drp.permission dp " +
             "WHERE u.id = :id")
     Optional<Users> findByIdWithGroupsRolesAndPermissions(@Param("id") Long id);
 
@@ -63,4 +73,7 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     @Query("SELECT DISTINCT u FROM Users u LEFT JOIN FETCH u.userGroups ug LEFT JOIN FETCH ug.group g LEFT JOIN FETCH g.groupRoles gr LEFT JOIN FETCH gr.role r LEFT JOIN FETCH r.rolePermissions rp LEFT JOIN FETCH rp.permission")
     List<Users> findAllWithGroups();
+
+    Page<Users> findByUsernameContainingIgnoreCaseOrNameContainingIgnoreCase(
+            String username, String name, Pageable pageable);
 }

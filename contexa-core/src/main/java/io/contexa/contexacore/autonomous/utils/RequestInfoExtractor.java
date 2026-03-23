@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.utils;
 
+import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
@@ -196,6 +197,7 @@ public final class RequestInfoExtractor {
         private final Boolean isSensitiveResource;
         private final Boolean mfaVerified;
         private final String userRoles;
+        private final BridgeResolutionResult bridgeResolutionResult;
 
         private final String geoCountry;
         private final String geoCity;
