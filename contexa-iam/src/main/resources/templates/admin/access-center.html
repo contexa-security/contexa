@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ko">
+<head>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='Access Center')}"></th:block>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/access-center.css}" />
+</head>
+<body class="flex flex-col min-h-screen font-sans">
+
+<div th:insert="~{fragments/header :: header}"></div>
+<div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs sm:max-w-sm"></div>
+
+<div class="flex flex-1 overflow-hidden">
+    <aside th:insert="~{fragments/admin-menu :: menu}"></aside>
+
+    <main class="flex-1 p-6 lg:p-8 overflow-y-auto">
+        <div class="modern-card">
+            <!-- Page Header -->
+            <div class="mb-6">
+                <h1 class="text-3xl font-bold ac-header-gradient">권한 센터</h1>
+                <p class="text-dark-muted mt-1">통합 권한 관리: 사용자, 그룹, 역할, 현황 분석</p>
+            </div>
+
+            <!-- Tab Navigation -->
+            <nav class="ac-tab-nav mb-6">
+                <button type="button" class="ac-tab-btn"
+                        th:classappend="${activeTab == 'users' or activeTab == null} ? ' active' : ''"
+                        onclick="AccessCenter.switchTab('users')">
+                    <i class="fas fa-users"></i>
+                    <span>사용자 (Users)</span>
+                    <span class="tab-count" th:text="${userCount} ?: '0'"></span>
+                </button>
+                <button type="button" class="ac-tab-btn"
+                        th:classappend="${activeTab == 'groups'} ? ' active' : ''"
+                        onclick="AccessCenter.switchTab('groups')">
+                    <i class="fas fa-layer-group"></i>
+                    <span>그룹 (Groups)</span>
+                    <span class="tab-count" th:text="${groupCount} ?: '0'"></span>
+                </button>
+                <button type="button" class="ac-tab-btn"
+                        th:classappend="${activeTab == 'roles'} ? ' active' : ''"
+                        onclick="AccessCenter.switchTab('roles')">
+                    <i class="fas fa-user-shield"></i>
+                    <span>역할 (Roles)</span>
+                    <span class="tab-count" th:text="${roleCount} ?: '0'"></span>
+                </button>
+                <button type="button" class="ac-tab-btn"
+                        th:classappend="${activeTab == 'overview'} ? ' active' : ''"
+                        onclick="AccessCenter.switchTab('overview')">
+                    <i class="fas fa-chart-pie"></i>
+                    <span>현황 (Overview)</span>
+                </button>
+            </nav>
+
+            <!-- ==================== TAB 1: USERS ==================== -->
+            <div id="ac-tab-users" class="ac-tab-content"
+                 th:classappend="${activeTab == 'users' or activeTab == null} ? ' active' : ''">
+                <div class="ac-master-detail">
+                    <!-- Left: User List -->
+                    <div class="ac-list-panel">
+                        <div class="ac-search-box">
+                            <i class="fas fa-search ac-search-icon"></i>
+                            <input type="text" id="ac-user-search" class="ac-search-input"
+                                   placeholder="사용자 검색 (이름, 아이디, 이메일)"
+                                   oninput="AccessCenter.Users.onSearch(this.value); AccessCenter.toggleClearBtn(this)">
+                            <i class="fas fa-times ac-search-clear" onclick="AccessCenter.clearSearch(this)" style="display:none;"></i>
+                        </div>
+                        <div id="ac-user-list" class="ac-list-items">
+                            <div class="ac-empty">
+                                <i class="fas fa-users"></i>
+                                <p>사용자를 검색하세요</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: User Detail -->
+                    <div id="ac-user-detail" class="ac-detail-panel">
+                        <div class="ac-empty">
+                            <i class="fas fa-user-circle"></i>
+                            <p>좌측에서 사용자를 선택하세요</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== TAB 2: GROUPS ==================== -->
+            <div id="ac-tab-groups" class="ac-tab-content"
+                 th:classappend="${activeTab == 'groups'} ? ' active' : ''">
+                <div class="ac-master-detail">
+                    <!-- Left: Group List -->
+                    <div class="ac-list-panel">
+                        <div class="ac-search-box">
+                            <i class="fas fa-search ac-search-icon"></i>
+                            <input type="text" id="ac-group-search" class="ac-search-input"
+                                   placeholder="그룹 검색"
+                                   oninput="AccessCenter.Groups.onSearch(this.value); AccessCenter.toggleClearBtn(this)">
+                            <i class="fas fa-times ac-search-clear" onclick="AccessCenter.clearSearch(this)" style="display:none;"></i>
+                        </div>
+                        <div id="ac-group-list" class="ac-list-items">
+                            <div class="ac-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>그룹 목록을 불러오는 중...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Group Detail -->
+                    <div id="ac-group-detail" class="ac-detail-panel">
+                        <div class="ac-empty">
+                            <i class="fas fa-layer-group"></i>
+                            <p>좌측에서 그룹을 선택하세요</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== TAB 3: ROLES ==================== -->
+            <div id="ac-tab-roles" class="ac-tab-content"
+                 th:classappend="${activeTab == 'roles'} ? ' active' : ''">
+                <div class="ac-master-detail">
+                    <!-- Left: Role List -->
+                    <div class="ac-list-panel">
+                        <div class="ac-search-box">
+                            <i class="fas fa-search ac-search-icon"></i>
+                            <input type="text" id="ac-role-search" class="ac-search-input"
+                                   placeholder="역할 검색"
+                                   oninput="AccessCenter.Roles.onSearch(this.value); AccessCenter.toggleClearBtn(this)">
+                            <i class="fas fa-times ac-search-clear" onclick="AccessCenter.clearSearch(this)" style="display:none;"></i>
+                        </div>
+                        <div id="ac-role-list" class="ac-list-items">
+                            <div class="ac-loading">
+                                <i class="fas fa-spinner fa-spin"></i>
+                                <p>역할 목록을 불러오는 중...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Role Detail -->
+                    <div id="ac-role-detail" class="ac-detail-panel">
+                        <div class="ac-empty">
+                            <i class="fas fa-user-shield"></i>
+                            <p>좌측에서 역할을 선택하세요</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ==================== TAB 4: OVERVIEW ==================== -->
+            <div id="ac-tab-overview" class="ac-tab-content"
+                 th:classappend="${activeTab == 'overview'} ? ' active' : ''">
+
+                <!-- Stats Cards -->
+                <div class="ac-stats-grid">
+                    <div class="ac-stat-card">
+                        <div class="ac-stat-icon ac-stat-icon-users">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="ac-stat-info">
+                            <span class="ac-stat-value" id="ac-stat-users" th:text="${userCount} ?: '0'">0</span>
+                            <span class="ac-stat-label">전체 사용자</span>
+                        </div>
+                    </div>
+                    <div class="ac-stat-card">
+                        <div class="ac-stat-icon ac-stat-icon-groups">
+                            <i class="fas fa-layer-group"></i>
+                        </div>
+                        <div class="ac-stat-info">
+                            <span class="ac-stat-value" id="ac-stat-groups" th:text="${groupCount} ?: '0'">0</span>
+                            <span class="ac-stat-label">전체 그룹</span>
+                        </div>
+                    </div>
+                    <div class="ac-stat-card">
+                        <div class="ac-stat-icon ac-stat-icon-roles">
+                            <i class="fas fa-user-shield"></i>
+                        </div>
+                        <div class="ac-stat-info">
+                            <span class="ac-stat-value" id="ac-stat-roles" th:text="${roleCount} ?: '0'">0</span>
+                            <span class="ac-stat-label">전체 역할</span>
+                        </div>
+                    </div>
+                    <div class="ac-stat-card">
+                        <div class="ac-stat-icon ac-stat-icon-perms">
+                            <i class="fas fa-key"></i>
+                        </div>
+                        <div class="ac-stat-info">
+                            <span class="ac-stat-value" id="ac-stat-perms" th:text="${permissionCount} ?: '0'">0</span>
+                            <span class="ac-stat-label">전체 권한</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Overview Summary -->
+                <div class="ac-overview-section mt-6">
+                    <h3 class="ac-section-title">권한 구조 요약</h3>
+                    <div class="ac-overview-grid">
+                        <div class="ac-overview-card">
+                            <div class="ac-overview-card-header">
+                                <i class="fas fa-sitemap"></i>
+                                <span>할당 구조</span>
+                            </div>
+                            <div class="ac-overview-card-body">
+                                <div class="ac-flow-diagram">
+                                    <div class="ac-flow-node ac-flow-user">
+                                        <i class="fas fa-user"></i>
+                                        <span>사용자</span>
+                                    </div>
+                                    <div class="ac-flow-arrow">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </div>
+                                    <div class="ac-flow-node ac-flow-group">
+                                        <i class="fas fa-layer-group"></i>
+                                        <span>그룹</span>
+                                    </div>
+                                    <div class="ac-flow-arrow">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </div>
+                                    <div class="ac-flow-node ac-flow-role">
+                                        <i class="fas fa-user-shield"></i>
+                                        <span>역할</span>
+                                    </div>
+                                    <div class="ac-flow-arrow">
+                                        <i class="fas fa-arrow-right"></i>
+                                    </div>
+                                    <div class="ac-flow-node ac-flow-perm">
+                                        <i class="fas fa-key"></i>
+                                        <span>권한</span>
+                                    </div>
+                                </div>
+                                <p class="ac-flow-desc">
+                                    사용자는 그룹에 소속되고, 그룹 또는 직접 역할을 부여받으며, 역할을 통해 최종 권한이 결정됩니다.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="ac-overview-card">
+                            <div class="ac-overview-card-header">
+                                <i class="fas fa-info-circle"></i>
+                                <span>권한 센터 안내</span>
+                            </div>
+                            <div class="ac-overview-card-body">
+                                <ul class="ac-guide-list">
+                                    <li>
+                                        <i class="fas fa-check-circle"></i>
+                                        <span><strong>사용자 탭</strong>: 개별 사용자의 그룹, 역할, 유효 권한을 조회/수정합니다.</span>
+                                    </li>
+                                    <li>
+                                        <i class="fas fa-check-circle"></i>
+                                        <span><strong>그룹 탭</strong>: 그룹에 역할을 할당하여 소속 사용자의 권한을 일괄 관리합니다.</span>
+                                    </li>
+                                    <li>
+                                        <i class="fas fa-check-circle"></i>
+                                        <span><strong>역할 탭</strong>: 역할에 포함된 세부 권한을 관리하고, 할당된 사용자를 확인합니다.</span>
+                                    </li>
+                                    <li>
+                                        <i class="fas fa-check-circle"></i>
+                                        <span><strong>현황 탭</strong>: 전체 권한 구조의 통계와 요약 정보를 확인합니다.</span>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+</div>
+
+<div th:insert="~{fragments/footer :: footer}"></div>
+<script th:src="@{/js/access-center.js}"></script>
+</body>
+</html>
