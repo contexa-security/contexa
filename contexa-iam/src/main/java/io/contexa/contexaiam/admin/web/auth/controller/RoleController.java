@@ -5,9 +5,14 @@ import io.contexa.contexaiam.admin.web.auth.service.RoleService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexaiam.domain.dto.RoleDto;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -25,16 +30,26 @@ public class RoleController {
 	private final RoleService roleService;
 	private final PermissionService permissionService;
 	private final ModelMapper modelMapper;
+	private final RoleRepository roleRepository;
 
 	@GetMapping
-	public String getRoles(Model model) {
-		List<Role> roles = roleService.getRoles();
-		List<RoleDto> dtoList = roles.stream().map(role -> {
+	public String getRoles(@RequestParam(required = false) String keyword,
+						   @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+						   Model model) {
+		Page<Role> rolePage;
+		if (keyword != null && !keyword.isBlank()) {
+			rolePage = roleRepository.findByRoleNameContainingIgnoreCaseOrRoleDescContainingIgnoreCase(keyword, keyword, pageable);
+		} else {
+			rolePage = roleRepository.findAll(pageable);
+		}
+		Page<RoleDto> dtoPage = rolePage.map(role -> {
 			RoleDto dto = modelMapper.map(role, RoleDto.class);
 			dto.setPermissionCount(role.getRolePermissions() != null ? role.getRolePermissions().size() : 0);
 			return dto;
-		}).toList();
-		model.addAttribute("roles", dtoList);
+		});
+		model.addAttribute("roles", dtoPage.getContent());
+		model.addAttribute("page", dtoPage);
+		model.addAttribute("keyword", keyword);
 		return "admin/roles";
 	}
 

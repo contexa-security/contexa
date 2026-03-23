@@ -7,8 +7,14 @@ import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -25,11 +31,31 @@ public class UserManagementController {
 	private final UserManagementService userManagementService;
 	private final RoleService roleService;
 	private final GroupService groupService;
+	private final UserRepository userRepository;
 
 	@GetMapping
-	public String getUsers(Model model) {
-		List<UserListDto> users = userManagementService.getUsers();
-		model.addAttribute("users", users);
+	public String getUsers(@RequestParam(required = false) String keyword,
+						   @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+						   Model model) {
+		Page<Users> page;
+		if (keyword != null && !keyword.isBlank()) {
+			page = userRepository.findByUsernameContainingIgnoreCaseOrNameContainingIgnoreCase(keyword, keyword, pageable);
+		} else {
+			page = userRepository.findAll(pageable);
+		}
+		Page<UserListDto> dtoPage = page.map(user -> {
+			UserListDto dto = new UserListDto();
+			dto.setId(user.getId());
+			dto.setUsername(user.getUsername());
+			dto.setName(user.getName());
+			dto.setMfaEnabled(user.isMfaEnabled());
+			dto.setGroupCount(user.getUserGroups() != null ? user.getUserGroups().size() : 0);
+			dto.setRoleCount(user.getUserRoles() != null ? user.getUserRoles().size() : 0);
+			return dto;
+		});
+		model.addAttribute("users", dtoPage.getContent());
+		model.addAttribute("page", dtoPage);
+		model.addAttribute("keyword", keyword);
 		return "admin/users";
 	}
 

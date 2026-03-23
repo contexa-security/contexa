@@ -16,6 +16,24 @@
                 <p class="text-dark-muted mt-1">플랫폼에 등록된 사용자 계정을 관리합니다.</p>
             </div>
 
+            <form th:action="@{/admin/users}" method="get" class="mb-6 flex gap-3">
+                <div class="relative flex-1">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2" style="color:#64748b;"></i>
+                    <input type="text" name="keyword" th:value="${keyword}"
+                           class="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm"
+                           style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;"
+                           placeholder="검색...">
+                </div>
+                <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-medium text-white"
+                        style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
+                    <i class="fas fa-search mr-1"></i> 검색
+                </button>
+                <a th:href="@{/admin/users}" class="px-4 py-2.5 rounded-lg text-sm font-medium"
+                   style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
+                    초기화
+                </a>
+            </form>
+
             <div class="overflow-x-auto shadow-md rounded-lg">
                 <table id="usersTable" class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
@@ -47,9 +65,11 @@
                             <a th:href="@{/admin/users/{id}(id=${user.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
                                style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">수정</a>
-                            <a th:href="@{/admin/users/delete/{id}(id=${user.id})}"
-                               class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
-                               style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">삭제</a>
+                            <form th:action="@{/admin/users/delete/{id}(id=${user.id})}" method="post" style="display:inline;"
+                                  onsubmit="return confirm('정말 삭제하시겠습니까?');">
+                                <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;">삭제</button>
+                            </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(users)}">
@@ -60,6 +80,24 @@
                     </tbody>
                 </table>
             </div>
+
+            <nav th:if="${page != null and page.totalPages > 1}" class="flex justify-center mt-6 gap-2">
+                <a th:if="${!page.first}" th:href="@{/admin/users(keyword=${keyword},page=${page.number - 1},size=${page.size})}"
+                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+                <th:block th:each="i : ${#numbers.sequence(0, page.totalPages - 1)}">
+                    <a th:href="@{/admin/users(keyword=${keyword},page=${i},size=${page.size})}"
+                       th:text="${i + 1}"
+                       class="px-3 py-2 rounded text-sm"
+                       th:style="${i == page.number} ? 'background:linear-gradient(135deg,#6366f1,#4f46e5);color:white;' : 'color:#94a3b8;border:1px solid rgba(71,85,105,0.3);'">
+                    </a>
+                </th:block>
+                <a th:if="${!page.last}" th:href="@{/admin/users(keyword=${keyword},page=${page.number + 1},size=${page.size})}"
+                   class="px-3 py-2 rounded text-sm" style="color:#94a3b8;border:1px solid rgba(71,85,105,0.3);">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </nav>
 
             <div th:if="${message}" class="mt-6 text-center" style="color: #4ade80;">
                 <p th:text="${message}"></p>

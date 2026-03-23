@@ -47,8 +47,9 @@ public class IamAdminAuthAutoConfiguration {
     public UserManagementController userManagementController(
             UserManagementService userManagementService,
             RoleService roleService,
-            GroupService groupService) {
-        return new UserManagementController(userManagementService, roleService, groupService);
+            GroupService groupService,
+            UserRepository userRepository) {
+        return new UserManagementController(userManagementService, roleService, groupService, userRepository);
     }
 
     @Bean
@@ -56,8 +57,9 @@ public class IamAdminAuthAutoConfiguration {
     public RoleController roleController(
             RoleService roleService,
             PermissionService permissionService,
-            ModelMapper modelMapper) {
-        return new RoleController(roleService, permissionService, modelMapper);
+            ModelMapper modelMapper,
+            RoleRepository roleRepository) {
+        return new RoleController(roleService, permissionService, modelMapper, roleRepository);
     }
 
     @Bean
@@ -76,8 +78,9 @@ public class IamAdminAuthAutoConfiguration {
     public GroupController groupController(
             GroupService groupService,
             RoleService roleService,
-            ModelMapper modelMapper) {
-        return new GroupController(groupService, roleService, modelMapper);
+            ModelMapper modelMapper,
+            GroupRepository groupRepository) {
+        return new GroupController(groupService, roleService, modelMapper, groupRepository);
     }
 
     @Bean
@@ -85,8 +88,9 @@ public class IamAdminAuthAutoConfiguration {
     public PermissionController permissionController(
             PermissionService permissionService,
             ModelMapper modelMapper,
-            FunctionCatalogService functionCatalogService) {
-        return new PermissionController(permissionService, modelMapper, functionCatalogService);
+            FunctionCatalogService functionCatalogService,
+            PermissionRepository permissionRepository) {
+        return new PermissionController(permissionService, modelMapper, functionCatalogService, permissionRepository);
     }
 
     @Bean("userManagementService")
@@ -96,9 +100,10 @@ public class IamAdminAuthAutoConfiguration {
             GroupRepository groupRepository,
             PasswordEncoder passwordEncoder,
             ModelMapper modelMapper,
-            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade) {
+            io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade,
+            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService) {
         return new UserManagementServiceImpl(
-                userRepository, groupRepository, passwordEncoder, modelMapper, centralAuditFacade);
+                userRepository, groupRepository, passwordEncoder, modelMapper, centralAuditFacade, passwordPolicyService);
     }
 
     @Bean

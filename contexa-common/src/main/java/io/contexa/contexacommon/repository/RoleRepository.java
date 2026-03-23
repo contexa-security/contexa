@@ -18,6 +18,8 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
             "AND (:keyword IS NULL OR LOWER(r.roleName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
             "OR LOWER(r.roleDesc) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Role> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
+    Page<Role> findByRoleNameContainingIgnoreCaseOrRoleDescContainingIgnoreCase(String roleName, String roleDesc, Pageable pageable);
+
     Optional<Role> findByRoleName(String name);
 
     @Override

@@ -6,9 +6,14 @@ import io.contexa.contexaiam.domain.dto.GroupDto;
 import io.contexa.contexaiam.domain.dto.RoleMetadataDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.repository.GroupRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -24,21 +29,29 @@ import java.util.stream.Collectors;
 public class GroupController {
 
     private final GroupService groupService;
-    private final RoleService roleService; 
+    private final RoleService roleService;
     private final ModelMapper modelMapper;
+    private final GroupRepository groupRepository;
 
     @GetMapping
-    public String getGroups(Model model) {
-        
-        List<Group> groups = groupService.getAllGroups();
-        
-        List<GroupDto> groupListDtos = groups.stream().map(group -> {
+    public String getGroups(@RequestParam(required = false) String keyword,
+                            @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+                            Model model) {
+        Page<Group> groupPage;
+        if (keyword != null && !keyword.isBlank()) {
+            groupPage = groupRepository.findByNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(keyword, keyword, pageable);
+        } else {
+            groupPage = groupRepository.findAll(pageable);
+        }
+        Page<GroupDto> dtoPage = groupPage.map(group -> {
             GroupDto dto = modelMapper.map(group, GroupDto.class);
             dto.setRoleCount(group.getGroupRoles() != null ? group.getGroupRoles().size() : 0);
             dto.setUserCount(group.getUserGroups() != null ? group.getUserGroups().size() : 0);
             return dto;
-        }).toList();
-        model.addAttribute("groups", groupListDtos);
+        });
+        model.addAttribute("groups", dtoPage.getContent());
+        model.addAttribute("page", dtoPage);
+        model.addAttribute("keyword", keyword);
         return "admin/groups";
     }
     @GetMapping("/register")

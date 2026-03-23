@@ -35,6 +35,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final PasswordEncoder passwordEncoder;
     private final ModelMapper modelMapper;
     private final CentralAuditFacade centralAuditFacade;
+    private final io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService;
 
     @Transactional
     @Override
@@ -45,8 +46,20 @@ public class UserManagementServiceImpl implements UserManagementService {
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userDto.getId()));
 
         users.setName(userDto.getName());
+        users.setEmail(userDto.getEmail());
+        users.setPhone(userDto.getPhone());
+        users.setDepartment(userDto.getDepartment());
+        users.setPosition(userDto.getPosition());
+        users.setEnabled(userDto.isEnabled());
         users.setMfaEnabled(userDto.isMfaEnabled());
+        users.setPreferredMfaFactor(userDto.getPreferredMfaFactor());
+        users.setLocale(userDto.getLocale());
+        users.setTimezone(userDto.getTimezone());
         if (StringUtils.hasText(userDto.getPassword())) {
+            java.util.List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
+            if (!violations.isEmpty()) {
+                throw new IllegalArgumentException("Password policy violation: " + String.join(", ", violations));
+            }
             users.setPassword(passwordEncoder.encode(userDto.getPassword()));
         }
 

@@ -2,12 +2,17 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 
 import io.contexa.contexaiam.admin.web.auth.service.PermissionService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
-import io.contexa.contexaiam.domain.entity.FunctionCatalog; 
-import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService; 
+import io.contexa.contexaiam.domain.entity.FunctionCatalog;
+import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -24,14 +29,23 @@ public class PermissionController {
     private final PermissionService permissionService;
     private final ModelMapper modelMapper;
     private final FunctionCatalogService functionCatalogService;
+    private final PermissionRepository permissionRepository;
 
     @GetMapping
-    public String getPermissions(Model model) {
-        List<Permission> permissions = permissionService.getAllPermissions();
-        List<PermissionDto> dtoList = permissions.stream()
-                .map(this::convertToDto)
-                .toList();
-        model.addAttribute("permissions", dtoList);
+    public String getPermissions(@RequestParam(required = false) String keyword,
+                                 @PageableDefault(size = 15, sort = "id", direction = Sort.Direction.DESC) Pageable pageable,
+                                 Model model) {
+        Page<Permission> permissionPage;
+        if (keyword != null && !keyword.isBlank()) {
+            permissionPage = permissionRepository.findByNameContainingIgnoreCaseOrFriendlyNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
+                    keyword, keyword, keyword, pageable);
+        } else {
+            permissionPage = permissionRepository.findAll(pageable);
+        }
+        Page<PermissionDto> dtoPage = permissionPage.map(this::convertToDto);
+        model.addAttribute("permissions", dtoPage.getContent());
+        model.addAttribute("page", dtoPage);
+        model.addAttribute("keyword", keyword);
         return "admin/permissions";
     }
 

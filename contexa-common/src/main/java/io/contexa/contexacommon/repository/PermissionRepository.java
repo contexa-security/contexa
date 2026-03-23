@@ -27,6 +27,9 @@ public interface PermissionRepository extends JpaRepository<Permission, Long> {
             Pageable pageable);
     Optional<Permission> findByName(String name);
 
+    Page<Permission> findByNameContainingIgnoreCaseOrFriendlyNameContainingIgnoreCaseOrDescriptionContainingIgnoreCase(
+            String name, String friendlyName, String description, Pageable pageable);
+
     
     List<Permission> findAllByNameIn(Set<String> names);
 

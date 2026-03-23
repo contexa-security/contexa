@@ -30,12 +30,26 @@ public class UserDto implements Serializable {
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
     private String name;
+    private String email;
+    private String phone;
+    private String department;
+    private String position;
+    private boolean enabled;
+    private boolean accountLocked;
+    private boolean credentialsExpired;
+    private int failedLoginAttempts;
+    private LocalDateTime lockExpiresAt;
     private boolean mfaEnabled;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
     private LocalDateTime lastMfaUsedAt;
     private String preferredMfaFactor;
     private String lastUsedMfaFactor;
+    private LocalDateTime lastLoginAt;
+    private String lastLoginIp;
+    private LocalDateTime passwordChangedAt;
+    private String locale;
+    private String timezone;
     private Collection<? extends GrantedAuthority> authorities;
     private java.util.List<String> roles;
     private java.util.List<String> permissions;
