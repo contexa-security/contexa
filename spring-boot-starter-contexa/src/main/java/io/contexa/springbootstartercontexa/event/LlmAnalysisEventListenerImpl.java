@@ -51,6 +51,21 @@ public class LlmAnalysisEventListenerImpl implements LlmAnalysisEventListener {
         eventPublisher.publishError(userId, message);
     }
 
+    @Override
+    public void onLayer2Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs) {
+
+    }
+
+    @Override
+    public void onEscalateProtectionTriggered(String userId, String requestPath, int escalateCount, int totalAnalysisCount) {
+
+    }
+
+    @Override
+    public void onLayer1Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs) {
+
+    }
+
     // Detailed pipeline events
 
     @Override

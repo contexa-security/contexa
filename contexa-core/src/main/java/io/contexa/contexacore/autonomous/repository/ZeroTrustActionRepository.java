@@ -76,7 +76,7 @@ public interface ZeroTrustActionRepository {
         public static ZeroTrustAnalysisData pending() {
             return new ZeroTrustAnalysisData(
                     ZeroTrustAction.PENDING_ANALYSIS.name(),
-                    null, null, null, null, null
+                    null,  null, null, null, null
             );
         }
     }

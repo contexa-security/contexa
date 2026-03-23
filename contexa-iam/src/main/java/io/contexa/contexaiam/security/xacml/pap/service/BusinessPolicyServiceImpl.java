@@ -63,8 +63,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
     @Override
     public Policy createPolicyFromBusinessRule(BusinessPolicyDto dto) {
-        if (CollectionUtils.isEmpty(dto.getRoleIds()) || CollectionUtils.isEmpty(dto.getPermissionIds())) {
-            throw new IllegalArgumentException("At least one role and one permission must be selected to create a policy.");
+        if (CollectionUtils.isEmpty(dto.getRoleIds()) && CollectionUtils.isEmpty(dto.getPermissionIds())) {
+            throw new IllegalArgumentException("At least one role or one permission must be selected to create a policy.");
         }
 
         Policy policy = new Policy();
@@ -73,11 +73,19 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(policy);
 
         Policy savedPolicy = policyRepository.save(policy);
-        updateResourceStatusForPermissions(dto.getPermissionIds());
+
+        if (!CollectionUtils.isEmpty(dto.getRoleIds()) && !CollectionUtils.isEmpty(dto.getPermissionIds())) {
+            updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
+        }
+
+        if (!CollectionUtils.isEmpty(dto.getPermissionIds())) {
+            updateResourceStatusForPermissions(dto.getPermissionIds());
+        }
+
         auditBusinessPolicyChange(AuditEventCategory.POLICY_CREATED, savedPolicy, dto);
         authorizationManager.reload();
 
-                return savedPolicy;
+        return savedPolicy;
     }
 
     @Override
@@ -85,7 +93,9 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         Policy existingPolicy = policyRepository.findByIdWithDetails(policyId)
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found with id: " + policyId));
 
-        updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
+        if (!CollectionUtils.isEmpty(dto.getRoleIds()) && !CollectionUtils.isEmpty(dto.getPermissionIds())) {
+            updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
+        }
 
         translateAndApplyDtoToPolicy(existingPolicy, dto);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);
@@ -103,11 +113,16 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policy.setEffect(dto.getEffect());
         policy.setPriority(100);
 
-        // AI metadata
+        // Source: use DTO value if provided, otherwise default to MANUAL
         if (dto.getSource() != null) {
             policy.setSource(dto.getSource());
         } else {
-            policy.setSource(Policy.PolicySource.AI_GENERATED);
+            policy.setSource(Policy.PolicySource.MANUAL);
+        }
+
+        // AI-generated policies require admin approval
+        if (policy.isAIGenerated()) {
+            policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
         }
         if (dto.getConfidenceScore() != null) {
             policy.setConfidenceScore(dto.getConfidenceScore());
@@ -123,7 +138,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
         policy.getTargets().clear();
         policy.getRules().clear();
 
-        Set<Permission> permissions = new HashSet<>(permissionRepository.findAllById(dto.getPermissionIds()));
+        Set<Long> permIds = dto.getPermissionIds() != null ? dto.getPermissionIds() : Collections.emptySet();
+        Set<Permission> permissions = new HashSet<>(permissionRepository.findAllById(permIds));
         Set<PolicyTarget> targets = permissions.stream()
                 .map(Permission::getManagedResource)
                 .filter(Objects::nonNull)
@@ -170,7 +186,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     private String buildSpelCondition(BusinessPolicyDto dto) {
         List<String> allConditions = new ArrayList<>();
 
-        List<Role> roles = roleRepository.findAllById(dto.getRoleIds());
+        Set<Long> roleIds = dto.getRoleIds() != null ? dto.getRoleIds() : Collections.emptySet();
+        List<Role> roles = roleIds.isEmpty() ? Collections.emptyList() : roleRepository.findAllById(roleIds);
         String roleCondition = roles.stream()
                 .map(Role::getRoleName)
                 .map(name -> String.format("hasAuthority('%s')", name))
@@ -179,7 +196,8 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
             allConditions.add("(" + roleCondition + ")");
         }
 
-        List<Permission> permissions = new ArrayList<>(permissionRepository.findAllById(dto.getPermissionIds()));
+        Set<Long> permissionIds = dto.getPermissionIds() != null ? dto.getPermissionIds() : Collections.emptySet();
+        List<Permission> permissions = permissionIds.isEmpty() ? Collections.emptyList() : new ArrayList<>(permissionRepository.findAllById(permissionIds));
         String permissionCondition = permissions.stream()
                 .map(Permission::getName)
                 .map(name -> String.format("hasAuthority('%s')", name))

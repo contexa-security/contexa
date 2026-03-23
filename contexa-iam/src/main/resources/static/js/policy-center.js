@@ -371,9 +371,14 @@ const PolicyCenter = {
                 const checked = this.selectedPerms.has(pid) ? 'checked' : '';
                 const selectedClass = this.selectedPerms.has(pid) ? ' selected' : '';
                 const safeName = this.escapeHtml(p.name || p.friendlyName || '').replace(/'/g, "\\'");
+                const typeBadge = p.targetType === 'URL'
+                    ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;margin-left:6px;background:rgba(59,130,246,0.2);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);">URL</span>'
+                    : p.targetType === 'METHOD'
+                    ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;margin-left:6px;background:rgba(168,85,247,0.2);color:#c084fc;border:1px solid rgba(168,85,247,0.3);">METHOD</span>'
+                    : '';
                 return '<div class="wizard-item' + selectedClass + '" onclick="PolicyCenter.Wizard.togglePerm(' + pid + ', \'' + safeName + '\')">' +
                     '<input type="checkbox" ' + checked + ' onclick="PolicyCenter.Wizard.togglePerm(' + pid + ', \'' + safeName + '\'); event.stopPropagation();">' +
-                    '<div class="wizard-item-info"><div class="wizard-item-name">' + this.escapeHtml(p.friendlyName || p.name) + '</div>' +
+                    '<div class="wizard-item-info"><div class="wizard-item-name">' + this.escapeHtml(p.friendlyName || p.name) + typeBadge + '</div>' +
                     '<div class="wizard-item-desc">' + this.escapeHtml(p.description || '') + '</div></div></div>';
             }).join('');
         },
@@ -400,11 +405,13 @@ const PolicyCenter = {
 
         nextStep() {
             if (this.currentStep === 1) {
-                if (this.selectedRoles.size === 0) { showToast('하나 이상의 역할을 선택하세요.', 'error'); return; }
                 this.currentStep = 2;
                 this.loadPermissions('');
             } else if (this.currentStep === 2) {
-                if (this.selectedPerms.size === 0) { showToast('하나 이상의 권한을 선택하세요.', 'error'); return; }
+                if (this.selectedRoles.size === 0 && this.selectedPerms.size === 0) {
+                    showToast('역할 또는 권한 중 하나 이상을 선택하세요.', 'error');
+                    return;
+                }
                 this.currentStep = 3;
                 this.renderReviewSummary();
             }
@@ -434,12 +441,16 @@ const PolicyCenter = {
 
         renderReviewSummary() {
             const summary = document.getElementById('quick-review-summary');
-            const roleNames = Array.from(this.selectedRoles.values()).map(n => '<span class="wizard-chip">' + this.escapeHtml(n) + '</span>').join(' ');
-            const permNames = Array.from(this.selectedPerms.values()).map(n => '<span class="wizard-chip">' + this.escapeHtml(n) + '</span>').join(' ');
+            const roleNames = this.selectedRoles.size > 0
+                ? Array.from(this.selectedRoles.values()).map(n => '<span class="wizard-chip">' + this.escapeHtml(n) + '</span>').join(' ')
+                : '<span style="color:#64748b;font-style:italic;">(선택 안함)</span>';
+            const permNames = this.selectedPerms.size > 0
+                ? Array.from(this.selectedPerms.values()).map(n => '<span class="wizard-chip">' + this.escapeHtml(n) + '</span>').join(' ')
+                : '<span style="color:#64748b;font-style:italic;">(선택 안함)</span>';
             summary.innerHTML = '<div class="mb-3"><p class="text-xs font-semibold mb-1" style="color:#94a3b8;">역할 (' + this.selectedRoles.size + '개)</p><div class="flex flex-wrap gap-1">' + roleNames + '</div></div>' +
                 '<div><p class="text-xs font-semibold mb-1" style="color:#94a3b8;">권한 (' + this.selectedPerms.size + '개)</p><div class="flex flex-wrap gap-1">' + permNames + '</div></div>';
             const nameInput = document.getElementById('quick-policy-name');
-            if (!nameInput.value) nameInput.value = 'Permission Assignment - ' + new Date().toISOString().slice(0, 16);
+            if (!nameInput.value) nameInput.value = 'Policy - ' + new Date().toISOString().slice(0, 16);
         },
 
         async createPolicy() {
@@ -461,8 +472,16 @@ const PolicyCenter = {
                 });
                 const result = await resp.json();
                 if (!resp.ok) throw new Error(result.message);
-                showToast('정책이 성공적으로 생성되었습니다.', 'success');
-                setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
+                if (result.warning) {
+                    showToast(result.warning, 'warning');
+                    setTimeout(() => {
+                        showToast('정책이 성공적으로 생성되었습니다.', 'success');
+                        setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
+                    }, 2000);
+                } else {
+                    showToast('정책이 성공적으로 생성되었습니다.', 'success');
+                    setTimeout(() => window.location.href = '/admin/policy-center?tab=list', 1500);
+                }
             } catch (e) {
                 showToast('정책 생성 실패: ' + e.message, 'error');
                 PolicyCenter.setLoading(btn, false);

@@ -11,4 +11,8 @@ public interface BaselineDataStore {
     BaselineVector getOrganizationBaseline(String organizationId);
 
     void saveOrganizationBaseline(String organizationId, BaselineVector baseline);
+
+    Iterable<BaselineVector> listOrganizationBaselines();
+
+    long countUserBaselines();
 }

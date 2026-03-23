@@ -160,7 +160,7 @@ class AuthorizationManagerMethodInterceptorTest {
         @DisplayName("Should not publish event for ZeroTrustAccessDeniedException")
         void shouldNotPublishEventForZeroTrustDenied() throws Throwable {
             ZeroTrustAccessDeniedException ztDenied =
-                    ZeroTrustAccessDeniedException.blocked("SampleService.sampleMethod", 0.9);
+                    ZeroTrustAccessDeniedException.blocked("SampleService.sampleMethod");
             doThrow(ztDenied).when(authorizationManager).protectable(any(), eq(methodInvocation));
 
             assertThatThrownBy(() -> interceptor.invoke(methodInvocation))

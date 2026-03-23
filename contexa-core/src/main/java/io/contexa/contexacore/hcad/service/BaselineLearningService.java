@@ -10,11 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -27,6 +23,12 @@ public class BaselineLearningService {
     private static final String FREQ_PREFIX_UA = "ua:";
     private static final String FREQ_PREFIX_OS = "os:";
     private static final String FREQ_PREFIX_PATH = "path:";
+    private static final String FREQ_PREFIX_HOUR = "hour:";
+    private static final String FREQ_PREFIX_DAY = "day:";
+    private static final List<String> COHORT_SUPPORT_DIMENSIONS = List.of(
+            "ACCESS_HOURS",
+            "ACCESS_DAYS",
+            "OPERATING_SYSTEMS");
 
     public boolean learnIfNormal(String userId, SecurityDecision decision, SecurityEvent event) {
         if (!hcadProperties.getBaseline().getLearning().isEnabled()) {
@@ -56,25 +58,24 @@ public class BaselineLearningService {
     private BaselineVector updateWithEMAFromSecurityEvent(BaselineVector current, String userId,
                                                           SecurityDecision decision, SecurityEvent event) {
 
-        double rawTrustScore = 1.0 - decision.getRiskScore();
-        double currentTrustScore = Math.max(0.0, Math.min(1.0, rawTrustScore));
+        double currentTrustScore = resolveVerifiedTrustSignal(decision);
 
         String currentIp = event != null ? event.getSourceIp() : null;
         Integer currentHour = extractHourFromSecurityEvent(event);
+        Integer currentDay = extractDayFromSecurityEvent(event);
         String currentPath = extractPath(event);
         String currentUserAgent = event != null ? event.getUserAgent() : null;
 
-        boolean uaValid = true;
         if (currentUserAgent == null || currentUserAgent.isEmpty()) {
-            uaValid = false;
-        } else {
-            String uaSignatureForValidation = extractUASignature(currentUserAgent);
-            if ("Browser".equals(uaSignatureForValidation) || "unknown".equals(uaSignatureForValidation)) {
-                uaValid = false;
-            }
+            log.error("[Baseline] UA missing - learning blocked: userId={}", userId);
+            return current;
         }
-
-        Integer currentDay = extractDayOfWeekFromSecurityEvent(event);
+        String uaSignatureForValidation = extractUASignature(currentUserAgent);
+        if ("Browser".equals(uaSignatureForValidation) || "unknown".equals(uaSignatureForValidation)) {
+            log.error("[Baseline] UA parsing failed - learning blocked: userId={}, ua={}",
+                    userId, currentUserAgent.length() > 50 ? currentUserAgent.substring(0, 50) + "..." : currentUserAgent);
+            return current;
+        }
 
         if (current == null) {
 
@@ -95,25 +96,35 @@ public class BaselineLearningService {
             }
             if (currentHour != null) {
                 builder.normalAccessHours(new Integer[]{currentHour});
+                frequencies.put(FREQ_PREFIX_HOUR + currentHour, 1L);
             }
             if (currentDay != null) {
                 builder.normalAccessDays(new Integer[]{currentDay});
+                frequencies.put(FREQ_PREFIX_DAY + currentDay, 1L);
             }
             if (currentPath != null) {
                 builder.frequentPaths(new String[]{currentPath});
                 frequencies.put(FREQ_PREFIX_PATH + currentPath, 1L);
             }
 
-            if (uaValid) {
-                String uaSignature = extractUASignature(currentUserAgent);
+            String uaSignature = extractUASignature(currentUserAgent);
+            if (uaSignature != null && !uaSignature.equals("unknown") &&
+                    !uaSignature.equals("unknown (unknown)")) {
                 builder.normalUserAgents(new String[]{uaSignature});
                 frequencies.put(FREQ_PREFIX_UA + uaSignature, 1L);
+            } else {
 
-                String os = extractOS(currentUserAgent);
-                if (!os.equals("Unknown")) {
-                    builder.normalOperatingSystems(new String[]{os});
-                    frequencies.put(FREQ_PREFIX_OS + os, 1L);
-                }
+                String truncatedUA = currentUserAgent.length() > 100
+                        ? currentUserAgent.substring(0, 100) : currentUserAgent;
+                builder.normalUserAgents(new String[]{truncatedUA});
+                frequencies.put(FREQ_PREFIX_UA + truncatedUA, 1L);
+                log.error("[Baseline] SecurityEvent first learning - UA parsing failed, storing raw: {}", truncatedUA);
+            }
+
+            String os = extractOS(currentUserAgent);
+            if (!os.equals("Unknown")) {
+                builder.normalOperatingSystems(new String[]{os});
+                frequencies.put(FREQ_PREFIX_OS + os, 1L);
             }
 
             builder.elementFrequencies(frequencies);
@@ -122,9 +133,7 @@ public class BaselineLearningService {
 
         double oldTrustScore = current.getAvgTrustScore() != null ? current.getAvgTrustScore() : 0.5;
         double alpha = hcadProperties.getBaseline().getLearning().getAlpha();
-        double confidenceWeight = Math.max(0.1, decision.getConfidence());
-        double weightedAlpha = alpha * confidenceWeight;
-        double newTrustScore = weightedAlpha * currentTrustScore + (1 - weightedAlpha) * oldTrustScore;
+        double newTrustScore = alpha * currentTrustScore + (1 - alpha) * oldTrustScore;
 
         long oldUpdateCount = current.getUpdateCount() != null ? current.getUpdateCount() : 0L;
         long oldRequestCount = current.getAvgRequestCount() != null ? current.getAvgRequestCount() : 0L;
@@ -134,21 +143,19 @@ public class BaselineLearningService {
                 : new HashMap<>();
 
         String[] normalIpRanges = updateNormalIpRanges(current.getNormalIpRanges(), currentIp, frequencies);
-        Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour);
-        Integer[] normalAccessDays = updateNormalAccessDays(current.getNormalAccessDays(), currentDay);
+        Integer[] normalAccessHours = updateNormalAccessHours(current.getNormalAccessHours(), currentHour, frequencies);
+        Integer[] normalAccessDays = updateNormalAccessDays(current.getNormalAccessDays(), currentDay, frequencies);
         String[] frequentPaths = updateFrequentPaths(current.getFrequentPaths(), currentPath, frequencies);
 
-        String[] normalUserAgents = current.getNormalUserAgents();
-        String[] normalOperatingSystems = current.getNormalOperatingSystems();
+        String normalizedUA = extractUASignature(currentUserAgent);
+        String uaForUpdate = (normalizedUA != null && !normalizedUA.equals("unknown") &&
+                !normalizedUA.equals("unknown (unknown)"))
+                ? normalizedUA : currentUserAgent;
+        String[] normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), uaForUpdate, frequencies);
 
-        if (uaValid) {
-            String normalizedUA = extractUASignature(currentUserAgent);
-            normalUserAgents = updateNormalUserAgents(current.getNormalUserAgents(), normalizedUA, frequencies);
-
-            String currentOS = extractOS(currentUserAgent);
-            normalOperatingSystems = updateNormalOperatingSystems(
-                    current.getNormalOperatingSystems(), currentOS, frequencies);
-        }
+        String currentOS = extractOS(currentUserAgent);
+        String[] normalOperatingSystems = updateNormalOperatingSystems(
+                current.getNormalOperatingSystems(), currentOS, frequencies);
 
         return BaselineVector.builder()
                 .userId(userId)
@@ -174,36 +181,23 @@ public class BaselineLearningService {
         return event.getTimestamp().getHour();
     }
 
-    private Integer extractDayOfWeekFromSecurityEvent(SecurityEvent event) {
+    private double resolveVerifiedTrustSignal(SecurityDecision decision) {
+        if (decision == null || decision.getAction() == null) {
+            return 0.5d;
+        }
+        return switch (decision.getAction()) {
+            case ALLOW -> 1.0d;
+            case CHALLENGE -> 0.5d;
+            case ESCALATE, PENDING_ANALYSIS -> 0.25d;
+            case BLOCK -> 0.0d;
+        };
+    }
+
+    private Integer extractDayFromSecurityEvent(SecurityEvent event) {
         if (event == null || event.getTimestamp() == null) {
             return null;
         }
         return event.getTimestamp().getDayOfWeek().getValue();
-    }
-
-    private Integer[] updateNormalAccessDays(Integer[] current, Integer newDay) {
-        if (newDay == null || newDay < 1 || newDay > 7) {
-            return current;
-        }
-
-        if (current == null || current.length == 0) {
-            return new Integer[]{newDay};
-        }
-
-        for (Integer existing : current) {
-            if (newDay.equals(existing)) {
-                return current;
-            }
-        }
-
-        if (current.length >= 7) {
-            return current;
-        }
-
-        Integer[] updated = new Integer[current.length + 1];
-        System.arraycopy(current, 0, updated, 0, current.length);
-        updated[current.length] = newDay;
-        return updated;
     }
 
     private String extractIpRange(String ip) {
@@ -331,28 +325,44 @@ public class BaselineLearningService {
         return updated;
     }
 
-    private Integer[] updateNormalAccessHours(Integer[] current, Integer newHour) {
+    private Integer[] updateNormalAccessHours(Integer[] current, Integer newHour, Map<String, Long> frequencies) {
         if (newHour == null || newHour < 0 || newHour > 23) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_HOUR + newHour, 1L, Long::sum);
+        return mergeAccessDimension(current, newHour, 24);
+    }
+
+    private Integer[] updateNormalAccessDays(Integer[] current, Integer newDay, Map<String, Long> frequencies) {
+        if (newDay == null || newDay < 1 || newDay > 7) {
+            return current;
+        }
+        frequencies.merge(FREQ_PREFIX_DAY + newDay, 1L, Long::sum);
+        return mergeAccessDimension(current, newDay, 7);
+    }
+
+    private Integer[] mergeAccessDimension(Integer[] current, Integer newValue, int maxSize) {
+        if (newValue == null) {
             return current;
         }
 
         if (current == null || current.length == 0) {
-            return new Integer[]{newHour};
+            return new Integer[]{newValue};
         }
 
         for (Integer existing : current) {
-            if (newHour.equals(existing)) {
+            if (newValue.equals(existing)) {
                 return current;
             }
         }
 
-        if (current.length >= 24) {
+        if (current.length >= maxSize) {
             return current;
         }
 
         Integer[] updated = new Integer[current.length + 1];
         System.arraycopy(current, 0, updated, 0, current.length);
-        updated[current.length] = newHour;
+        updated[current.length] = newValue;
         return updated;
     }
 
@@ -471,36 +481,79 @@ public class BaselineLearningService {
             return null;
         }
 
-        BaselineVector userBaseline = baselineDataStore.getUserBaseline(userId);
+        BaselineVector userBaseline = getPersonalBaseline(userId);
         if (userBaseline != null) {
             return userBaseline;
         }
 
-        String organizationId = extractOrganizationId(userId);
-        if (organizationId != null) {
-            BaselineVector orgBaseline = baselineDataStore.getOrganizationBaseline(organizationId);
-            if (orgBaseline != null) {
+        BaselineVector orgBaseline = getOrganizationBaselineForUser(userId);
+        if (orgBaseline != null) {
 
-                return BaselineVector.builder()
-                        .userId(userId)
-                        .avgTrustScore(orgBaseline.getAvgTrustScore())
-                        .avgRequestCount(orgBaseline.getAvgRequestCount())
-                        .updateCount(0L)
-                        .lastUpdated(orgBaseline.getLastUpdated())
-                        .normalIpRanges(orgBaseline.getNormalIpRanges())
-                        .normalAccessHours(orgBaseline.getNormalAccessHours())
-                        .normalAccessDays(orgBaseline.getNormalAccessDays())
-                        .frequentPaths(orgBaseline.getFrequentPaths())
-                        .normalUserAgents(orgBaseline.getNormalUserAgents())
-                        .normalOperatingSystems(orgBaseline.getNormalOperatingSystems())
-                        .elementFrequencies(orgBaseline.getElementFrequencies() != null
-                                ? new HashMap<>(orgBaseline.getElementFrequencies())
-                                : new HashMap<>())
-                        .build();
-            }
+            return BaselineVector.builder()
+                    .userId(userId)
+                    .avgTrustScore(orgBaseline.getAvgTrustScore())
+                    .avgRequestCount(orgBaseline.getAvgRequestCount())
+                    .updateCount(0L)
+                    .lastUpdated(orgBaseline.getLastUpdated())
+                    .normalIpRanges(orgBaseline.getNormalIpRanges())
+                    .normalAccessHours(orgBaseline.getNormalAccessHours())
+                    .normalAccessDays(orgBaseline.getNormalAccessDays())
+                    .frequentPaths(orgBaseline.getFrequentPaths())
+                    .normalUserAgents(orgBaseline.getNormalUserAgents())
+                    .normalOperatingSystems(orgBaseline.getNormalOperatingSystems())
+                    .elementFrequencies(orgBaseline.getElementFrequencies() != null
+                            ? new HashMap<>(orgBaseline.getElementFrequencies())
+                            : new HashMap<>())
+                    .build();
         }
 
         return null;
+    }
+
+    public BaselineVector getPersonalBaseline(String userId) {
+        if (baselineDataStore == null || userId == null) {
+            return null;
+        }
+        return baselineDataStore.getUserBaseline(userId);
+    }
+
+    public BaselineVector getOrganizationBaselineForUser(String userId) {
+        if (baselineDataStore == null || userId == null) {
+            return null;
+        }
+        String organizationId = extractOrganizationId(userId);
+        if (organizationId == null) {
+            return null;
+        }
+        return baselineDataStore.getOrganizationBaseline(organizationId);
+    }
+
+    public BaselineMaturitySnapshot describeBaselineMaturity(String userId) {
+        BaselineVector personalBaseline = getPersonalBaseline(userId);
+        BaselineVector organizationBaseline = getOrganizationBaselineForUser(userId);
+        boolean personalAvailable = personalBaseline != null;
+        boolean organizationAvailable = organizationBaseline != null;
+        boolean personalEstablished = isPersonalBaselineEstablished(personalBaseline);
+        boolean organizationEstablished = isOrganizationBaselineEstablished(organizationBaseline);
+
+        if (personalEstablished) {
+            return new BaselineMaturitySnapshot(
+                    personalAvailable,
+                    true,
+                    organizationAvailable,
+                    organizationEstablished,
+                    false,
+                    List.of());
+        }
+
+        List<String> supportingDimensions = determineSupportingDimensions(organizationBaseline, organizationEstablished);
+        return new BaselineMaturitySnapshot(
+                personalAvailable,
+                false,
+                organizationAvailable,
+                organizationEstablished,
+                !supportingDimensions.isEmpty(),
+                supportingDimensions);
     }
 
     private static final int ORG_BASELINE_MAX_ARRAY_SIZE = 50;
@@ -624,13 +677,60 @@ public class BaselineLearningService {
             return null;
         }
 
+        int underscoreIndex = userId.indexOf('_');
+        if (underscoreIndex > 0) {
+            return userId.substring(0, underscoreIndex);
+        }
+
         int atIndex = userId.indexOf('@');
         if (atIndex > 0) {
-            String domain = userId.substring(atIndex + 1);
-            return domain.isEmpty() ? null : domain;
+            return userId.substring(0, atIndex);
         }
 
         return null;
+    }
+
+    private boolean isPersonalBaselineEstablished(BaselineVector baseline) {
+        if (baseline == null) {
+            return false;
+        }
+        return value(baseline.getUpdateCount()) >= minimumSampleCount();
+    }
+
+    private boolean isOrganizationBaselineEstablished(BaselineVector baseline) {
+        if (baseline == null) {
+            return false;
+        }
+        return value(baseline.getUpdateCount()) >= minimumSampleCount();
+    }
+
+    private int minimumSampleCount() {
+        int configured = hcadProperties.getBaseline().getStatistical().getMinSamples();
+        return Math.max(1, configured);
+    }
+
+    private long value(Long input) {
+        return input != null ? input : 0L;
+    }
+
+    private List<String> determineSupportingDimensions(BaselineVector organizationBaseline, boolean organizationEstablished) {
+        if (organizationBaseline == null) {
+            return COHORT_SUPPORT_DIMENSIONS;
+        }
+        List<String> missingDimensions = new ArrayList<>();
+        if (organizationBaseline.getNormalAccessHours() == null || organizationBaseline.getNormalAccessHours().length == 0) {
+            missingDimensions.add("ACCESS_HOURS");
+        }
+        if (organizationBaseline.getNormalAccessDays() == null || organizationBaseline.getNormalAccessDays().length == 0) {
+            missingDimensions.add("ACCESS_DAYS");
+        }
+        if (organizationBaseline.getNormalOperatingSystems() == null || organizationBaseline.getNormalOperatingSystems().length == 0) {
+            missingDimensions.add("OPERATING_SYSTEMS");
+        }
+        if (!organizationEstablished && missingDimensions.isEmpty()) {
+            return COHORT_SUPPORT_DIMENSIONS;
+        }
+        return List.copyOf(missingDimensions);
     }
 
     public String buildBaselinePromptContext(String userId, SecurityEvent currentEvent) {
@@ -693,21 +793,14 @@ public class BaselineLearningService {
             StringBuilder days = new StringBuilder();
             for (int i = 0; i < normalDays.length; i++) {
                 if (i > 0) days.append(", ");
-                days.append(dayOfWeekLabel(normalDays[i]));
+                days.append(normalDays[i]);
             }
             sb.append("Known Days: ").append(days).append("\n");
         }
 
-        if (normalUserAgents != null && normalUserAgents.length > 0) {
-            StringBuilder uas = new StringBuilder();
-            for (int i = 0; i < normalUserAgents.length; i++) {
-                if (i > 0) uas.append(", ");
-                uas.append(extractUASignature(normalUserAgents[i]));
-            }
-            sb.append("Known UA: ").append(uas).append("\n");
-        } else {
-            sb.append("Known UA: none\n");
-        }
+        String uaSignature = normalUserAgents != null && normalUserAgents.length > 0
+                ? extractUASignature(normalUserAgents[0]) : "none";
+        sb.append("Known UA: ").append(uaSignature).append("\n");
 
         if (normalOS != null && normalOS.length > 0) {
             sb.append("Known OS: ").append(String.join(", ", normalOS)).append("\n");
@@ -716,31 +809,6 @@ public class BaselineLearningService {
         if (frequentPaths != null && frequentPaths.length > 0) {
             sb.append("Frequent Paths: ").append(String.join(", ", frequentPaths)).append("\n");
         }
-
-        if (baseline.getUpdateCount() != null) {
-            sb.append("Observations: ").append(baseline.getUpdateCount()).append("\n");
-        }
-
-        if (baseline.getAvgTrustScore() != null) {
-            sb.append("AvgTrustScore: ").append(String.format("%.2f", baseline.getAvgTrustScore())).append("\n");
-        }
-
-        if (baseline.getLastUpdated() != null) {
-            sb.append("LastUpdated: ").append(baseline.getLastUpdated()).append("\n");
-        }
-    }
-
-    private static String dayOfWeekLabel(int dow) {
-        return switch (dow) {
-            case 1 -> "Mon";
-            case 2 -> "Tue";
-            case 3 -> "Wed";
-            case 4 -> "Thu";
-            case 5 -> "Fri";
-            case 6 -> "Sat";
-            case 7 -> "Sun";
-            default -> "?";
-        };
     }
 
     private String buildNewUserWarning(String userId, SecurityEvent currentEvent) {
@@ -879,5 +947,18 @@ public class BaselineLearningService {
         String version = userAgent.substring(start, end);
         String browserName = prefix.replace("/", "");
         return browserName + "/" + version;
+    }
+
+    public record BaselineMaturitySnapshot(
+            boolean personalBaselineAvailable,
+            boolean personalBaselineEstablished,
+            boolean organizationBaselineAvailable,
+            boolean organizationBaselineEstablished,
+            boolean cohortSeedRecommended,
+            List<String> supportingDimensions) {
+
+        public BaselineMaturitySnapshot {
+            supportingDimensions = supportingDimensions == null ? List.of() : List.copyOf(supportingDimensions);
+        }
     }
 }

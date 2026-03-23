@@ -82,6 +82,10 @@ public class PolicyController {
         dto.setEffect(policy.getEffect());
         dto.setPriority(policy.getPriority());
 
+        dto.setSource(policy.getSource());
+        dto.setApprovalStatus(policy.getApprovalStatus());
+        dto.setIsActive(policy.getIsActive());
+
         dto.setTargets(policy.getTargets().stream().map(t ->
                 new TargetDto(t.getTargetType(), t.getTargetIdentifier(), t.getHttpMethod() == null ? "ALL" : t.getHttpMethod())
         ).collect(Collectors.toList()));
@@ -111,5 +115,36 @@ public class PolicyController {
             log.error("Error deleting policy", e);
         }
         return "redirect:/admin/policies";
+    }
+
+    @PostMapping("/{id}/approve")
+    public String approvePolicy(@PathVariable Long id, RedirectAttributes ra) {
+        try {
+            String approver = extractCurrentUsername();
+            policyService.approvePolicy(id, approver);
+            ra.addFlashAttribute("message", "Policy (ID: " + id + ") has been approved.");
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMessage", e.getMessage());
+            log.error("Error approving policy", e);
+        }
+        return "redirect:/admin/policies";
+    }
+
+    @PostMapping("/{id}/reject")
+    public String rejectPolicy(@PathVariable Long id, RedirectAttributes ra) {
+        try {
+            String rejector = extractCurrentUsername();
+            policyService.rejectPolicy(id, rejector);
+            ra.addFlashAttribute("message", "Policy (ID: " + id + ") has been rejected and deactivated.");
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMessage", e.getMessage());
+            log.error("Error rejecting policy", e);
+        }
+        return "redirect:/admin/policies";
+    }
+
+    private String extractCurrentUsername() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return (auth != null && auth.getName() != null) ? auth.getName() : "SYSTEM";
     }
 }

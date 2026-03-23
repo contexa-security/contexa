@@ -5,7 +5,6 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
 import io.contexa.contexacore.autonomous.exception.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.exception.ZeroTrustAccessDeniedException;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import lombok.extern.slf4j.Slf4j;
@@ -162,22 +161,14 @@ public class AuthorizationManagerMethodInterceptor implements MethodInterceptor,
             SynchronousProtectableDecisionService.SyncDecisionResult decision,
             String resourceId) {
         ZeroTrustAction action = decision.action() != null ? decision.action() : ZeroTrustAction.PENDING_ANALYSIS;
-        double riskScore = extractRiskScore(decision.analysisData());
 
         return switch (action) {
-            case BLOCK -> ZeroTrustAccessDeniedException.blocked(resourceId, riskScore);
-            case CHALLENGE -> ZeroTrustAccessDeniedException.challengeRequired(resourceId, riskScore);
-            case ESCALATE -> ZeroTrustAccessDeniedException.pendingReview(resourceId, riskScore);
+            case BLOCK -> ZeroTrustAccessDeniedException.blocked(resourceId);
+            case CHALLENGE -> ZeroTrustAccessDeniedException.challengeRequired(resourceId);
+            case ESCALATE -> ZeroTrustAccessDeniedException.pendingReview(resourceId);
             case PENDING_ANALYSIS -> ZeroTrustAccessDeniedException.analysisRequired(resourceId);
             case ALLOW -> ZeroTrustAccessDeniedException.analysisRequired(resourceId);
         };
-    }
-
-    private double extractRiskScore(ZeroTrustActionRepository.ZeroTrustAnalysisData analysisData) {
-        if (analysisData == null || analysisData.riskScore() == null) {
-            return 0.5d;
-        }
-        return analysisData.riskScore();
     }
 
     private String buildResourceId(MethodInvocation mi) {

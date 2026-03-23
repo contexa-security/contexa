@@ -7,6 +7,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.VectorStore;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -14,7 +15,7 @@ import java.util.stream.Collectors;
 public class ContextRetriever {
 
     protected final VectorStore vectorStore;
-    private final ContexaRagProperties ragProperties;
+    protected final ContexaRagProperties ragProperties;
 
     public ContextRetriever(VectorStore vectorStore, ContexaRagProperties ragProperties) {
         this.vectorStore = vectorStore;
@@ -36,10 +37,9 @@ public class ContextRetriever {
                 .map(doc -> "- " + doc.getText())
                 .collect(Collectors.joining("\n"));
 
-        Map<String, Object> metadata = Map.of(
-                "documentsFound", contextDocs.size(),
-                "searchQuery", query
-        );
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("documentsFound", contextDocs.size());
+        metadata.put("searchQuery", query);
 
         return new ContextRetrievalResult(contextInfo, contextDocs, metadata);
     }

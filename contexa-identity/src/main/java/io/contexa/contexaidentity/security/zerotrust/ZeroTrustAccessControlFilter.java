@@ -356,7 +356,7 @@ public class ZeroTrustAccessControlFilter extends OncePerRequestFilter {
             if (blockedUserRecorder != null) {
                 blockedUserRecorder.recordBlock(
                         requestId, userId, username,
-                        1.0, 0.0,
+                        ZeroTrustAction.BLOCK.name(),
                         "Auto-promoted from ESCALATE: TTL expired without resolution",
                         request.getRemoteAddr(),
                         request.getHeader("User-Agent"));

@@ -145,7 +145,7 @@ class SecurityScoreCalculatorImplTest {
         void shouldScore100WhenHierarchyExists() {
             // given
             stubAllFactorsDefault();
-            when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.of(mock(RoleHierarchyEntity.class)));
+            when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
 
             // when
             SecurityScoreDto result = calculator.calculate();
@@ -161,7 +161,7 @@ class SecurityScoreCalculatorImplTest {
         void shouldScore0WhenNoHierarchy() {
             // given
             stubAllFactorsDefault();
-            when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.empty());
+            when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(false);
 
             // when
             SecurityScoreDto result = calculator.calculate();
@@ -291,7 +291,7 @@ class SecurityScoreCalculatorImplTest {
             when(userRepository.countByRoles("ADMIN")).thenReturn(0L);
             when(userRepository.count()).thenReturn(0L);
             when(userRepository.countByMfaEnabled(true)).thenReturn(0L);
-            when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.of(mock(RoleHierarchyEntity.class)));
+            when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
             when(policyRepository.countBySourceIn(anyList())).thenReturn(0L);
             when(policyRepository.countBySourceInAndApprovalStatus(anyList(), any())).thenReturn(0L);
             when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(Collections.emptyList());
@@ -325,7 +325,7 @@ class SecurityScoreCalculatorImplTest {
             when(userRepository.countByMfaEnabledAndRoles(false, "ADMIN")).thenReturn(3L);
             when(userRepository.count()).thenReturn(100L);
             when(userRepository.countByMfaEnabled(true)).thenReturn(80L);
-            when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.of(mock(RoleHierarchyEntity.class)));
+            when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
             when(policyRepository.countBySourceIn(anyList())).thenReturn(0L);
             when(policyRepository.countBySourceInAndApprovalStatus(anyList(), any())).thenReturn(0L);
             when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(Collections.emptyList());
@@ -347,7 +347,7 @@ class SecurityScoreCalculatorImplTest {
             when(userRepository.countByMfaEnabledAndRoles(false, "ADMIN")).thenReturn(10L);
             when(userRepository.count()).thenReturn(100L);
             when(userRepository.countByMfaEnabled(true)).thenReturn(80L);
-            when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.of(mock(RoleHierarchyEntity.class)));
+            when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
             when(policyRepository.countBySourceIn(anyList())).thenReturn(0L);
             when(policyRepository.countBySourceInAndApprovalStatus(anyList(), any())).thenReturn(0L);
             when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(Collections.emptyList());
@@ -370,7 +370,7 @@ class SecurityScoreCalculatorImplTest {
             when(userRepository.countByMfaEnabledAndRoles(false, "ADMIN")).thenReturn(10L);
             when(userRepository.count()).thenReturn(100L);
             when(userRepository.countByMfaEnabled(true)).thenReturn(0L);
-            when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.empty());
+            when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(false);
             when(policyRepository.countBySourceIn(anyList())).thenReturn(10L);
             when(policyRepository.countBySourceInAndApprovalStatus(anyList(), eq(Policy.ApprovalStatus.APPROVED)))
                     .thenReturn(0L);
@@ -408,7 +408,7 @@ class SecurityScoreCalculatorImplTest {
         when(userRepository.countByRoles("ADMIN")).thenReturn(0L);
         when(userRepository.count()).thenReturn(0L);
         when(userRepository.countByMfaEnabled(true)).thenReturn(0L);
-        when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.of(mock(RoleHierarchyEntity.class)));
+        when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
         when(policyRepository.countBySourceIn(anyList())).thenReturn(0L);
         when(policyRepository.countBySourceInAndApprovalStatus(anyList(), any())).thenReturn(0L);
         when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(Collections.emptyList());
@@ -418,7 +418,7 @@ class SecurityScoreCalculatorImplTest {
         when(userRepository.countByRoles("ADMIN")).thenReturn(0L);
         when(userRepository.count()).thenReturn(0L);
         when(userRepository.countByMfaEnabled(true)).thenReturn(0L);
-        when(roleHierarchyRepository.findByIsActiveTrue()).thenReturn(Optional.of(mock(RoleHierarchyEntity.class)));
+        when(roleHierarchyRepository.existsByIsActiveTrue()).thenReturn(true);
         when(policyRepository.countBySourceIn(anyList())).thenReturn(0L);
         when(policyRepository.countBySourceInAndApprovalStatus(anyList(), any())).thenReturn(0L);
         when(auditLogRepository.findByCreatedAtAfter(any())).thenReturn(Collections.emptyList());

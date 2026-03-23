@@ -160,15 +160,51 @@ class BusinessPolicyServiceImplTest {
         }
 
         @Test
-        @DisplayName("Should throw when no roles or permissions provided")
-        void shouldThrowWhenNoRolesOrPermissions() {
+        @DisplayName("Should throw when both roles and permissions are empty")
+        void shouldThrowWhenBothRolesAndPermissionsEmpty() {
             BusinessPolicyDto dto = new BusinessPolicyDto();
             dto.setRoleIds(Collections.emptySet());
-            dto.setPermissionIds(Set.of(1L));
+            dto.setPermissionIds(Collections.emptySet());
 
             assertThatThrownBy(() -> service.createPolicyFromBusinessRule(dto))
                     .isInstanceOf(IllegalArgumentException.class)
-                    .hasMessageContaining("At least one role");
+                    .hasMessageContaining("At least one role or one permission");
+        }
+
+        @Test
+        @DisplayName("Should create policy with roles only")
+        void shouldCreatePolicyWithRolesOnly() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setPermissionIds(Collections.emptySet());
+
+            Role role = Role.builder().id(1L).roleName("ROLE_ADMIN").build();
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Policy result = service.createPolicyFromBusinessRule(dto);
+
+            assertThat(result).isNotNull();
+            PolicyCondition condition = result.getRules().iterator().next().getConditions().iterator().next();
+            assertThat(condition.getExpression()).contains("hasAuthority('ROLE_ADMIN')");
+            assertThat(condition.getExpression()).doesNotContain("METHOD_");
+        }
+
+        @Test
+        @DisplayName("Should create policy with permissions only")
+        void shouldCreatePolicyWithPermissionsOnly() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setRoleIds(Collections.emptySet());
+
+            Permission perm = Permission.builder().id(1L).name("METHOD_GET_USERS").build();
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            Policy result = service.createPolicyFromBusinessRule(dto);
+
+            assertThat(result).isNotNull();
+            PolicyCondition condition = result.getRules().iterator().next().getConditions().iterator().next();
+            assertThat(condition.getExpression()).contains("hasAuthority('METHOD_GET_USERS')");
+            assertThat(condition.getExpression()).doesNotContain("ROLE_");
         }
     }
 
@@ -287,18 +323,22 @@ class BusinessPolicyServiceImplTest {
     class RolePermissionMappingTests {
 
         @Test
-        @DisplayName("Should update role-permission mappings on create")
+        @DisplayName("Should update role-permission mappings on update")
         void shouldUpdateRolePermissionMappings() {
             BusinessPolicyDto dto = createBasicDto();
+            Policy existingPolicy = Policy.builder()
+                    .id(10L).name("existing").effect(Policy.Effect.ALLOW).priority(100)
+                    .targets(new HashSet<>()).rules(new HashSet<>()).build();
 
             Role role = createRole("ROLE_USER");
             Permission perm = createPermission();
+            when(policyRepository.findByIdWithDetails(10L)).thenReturn(Optional.of(existingPolicy));
             when(roleService.getRole(1L)).thenReturn(role);
             when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
             when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
             when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-            service.createPolicyFromBusinessRule(dto);
+            service.updatePolicyFromBusinessRule(10L, dto);
 
             verify(roleService).getRole(1L);
             verify(roleService).updateRole(eq(role), any());
@@ -346,6 +386,91 @@ class BusinessPolicyServiceImplTest {
             service.updatePolicyFromBusinessRule(10L, dto);
 
             verify(authorizationManager).reload();
+        }
+    }
+
+    // =========================================================================
+    // Source and ApprovalStatus tests
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Source and ApprovalStatus field setting")
+    class SourceAndApprovalStatus {
+
+        @Test
+        @DisplayName("should default to MANUAL source when dto.source is null")
+        void shouldDefaultToManual() {
+            BusinessPolicyDto dto = createBasicDto();
+            // dto.source is null by default
+            Permission perm = createPermission();
+            Role role = createRole("ROLE_USER");
+
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            Policy result = service.createPolicyFromBusinessRule(dto);
+
+            assertThat(result.getSource()).isEqualTo(Policy.PolicySource.MANUAL);
+            assertThat(result.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.NOT_REQUIRED);
+        }
+
+        @Test
+        @DisplayName("should set PENDING when source is AI_GENERATED")
+        void shouldSetPendingForAiGenerated() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setSource(Policy.PolicySource.AI_GENERATED);
+            Permission perm = createPermission();
+            Role role = createRole("ROLE_USER");
+
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            Policy result = service.createPolicyFromBusinessRule(dto);
+
+            assertThat(result.getSource()).isEqualTo(Policy.PolicySource.AI_GENERATED);
+            assertThat(result.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("should set PENDING when source is AI_EVOLVED")
+        void shouldSetPendingForAiEvolved() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setSource(Policy.PolicySource.AI_EVOLVED);
+            Permission perm = createPermission();
+            Role role = createRole("ROLE_USER");
+
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            Policy result = service.createPolicyFromBusinessRule(dto);
+
+            assertThat(result.getSource()).isEqualTo(Policy.PolicySource.AI_EVOLVED);
+            assertThat(result.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("should keep NOT_REQUIRED when source is MANUAL explicitly")
+        void shouldKeepNotRequiredForManual() {
+            BusinessPolicyDto dto = createBasicDto();
+            dto.setSource(Policy.PolicySource.MANUAL);
+            Permission perm = createPermission();
+            Role role = createRole("ROLE_USER");
+
+            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
+            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            setupRoleServiceMock(dto.getRoleIds());
+
+            Policy result = service.createPolicyFromBusinessRule(dto);
+
+            assertThat(result.getSource()).isEqualTo(Policy.PolicySource.MANUAL);
+            assertThat(result.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.NOT_REQUIRED);
         }
     }
 

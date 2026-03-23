@@ -11,14 +11,14 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
 
     private final String resourceId;
 
-    private final double riskScore;
+    private final Double riskScore;
 
     private final String reason;
 
     private final boolean analysisTimeout;
 
     public ZeroTrustAccessDeniedException(String action, String resourceId,
-                                          double riskScore, String reason) {
+                                          Double riskScore, String reason) {
         super(formatMessage(action, reason));
         this.action = ZeroTrustAction.fromString(action);
         this.resourceId = resourceId;
@@ -28,7 +28,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
     }
 
     public ZeroTrustAccessDeniedException(String action, String resourceId,
-                                          double riskScore, String reason,
+                                          Double riskScore, String reason,
                                           boolean analysisTimeout) {
         super(formatMessage(action, reason));
         this.action = ZeroTrustAction.fromString(action);
@@ -42,7 +42,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
         return new ZeroTrustAccessDeniedException(
             ZeroTrustAction.PENDING_ANALYSIS.name(),
             resourceId,
-            0.5,
+            null,
             String.format("Security analysis timeout after %dms", timeoutMs),
             true
         );
@@ -52,34 +52,34 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
         return new ZeroTrustAccessDeniedException(
             ZeroTrustAction.PENDING_ANALYSIS.name(),
             resourceId,
-            0.5,
+            null,
             "Security analysis required but not completed"
         );
     }
 
-    public static ZeroTrustAccessDeniedException blocked(String resourceId, double riskScore) {
+    public static ZeroTrustAccessDeniedException blocked(String resourceId) {
         return new ZeroTrustAccessDeniedException(
             ZeroTrustAction.BLOCK.name(),
             resourceId,
-            riskScore,
+            null,
             "Access blocked by AI security analysis"
         );
     }
 
-    public static ZeroTrustAccessDeniedException challengeRequired(String resourceId, double riskScore) {
+    public static ZeroTrustAccessDeniedException challengeRequired(String resourceId) {
         return new ZeroTrustAccessDeniedException(
             ZeroTrustAction.CHALLENGE.name(),
             resourceId,
-            riskScore,
+            null,
             "Additional authentication required"
         );
     }
 
-    public static ZeroTrustAccessDeniedException pendingReview(String resourceId, double riskScore) {
+    public static ZeroTrustAccessDeniedException pendingReview(String resourceId) {
         return new ZeroTrustAccessDeniedException(
             ZeroTrustAction.ESCALATE.name(),
             resourceId,
-            riskScore,
+            null,
             "Access pending security review"
         );
     }
@@ -110,7 +110,7 @@ public class ZeroTrustAccessDeniedException extends AuthorizationDeniedException
         return resourceId;
     }
 
-    public double getRiskScore() {
+    public Double getRiskScore() {
         return riskScore;
     }
 

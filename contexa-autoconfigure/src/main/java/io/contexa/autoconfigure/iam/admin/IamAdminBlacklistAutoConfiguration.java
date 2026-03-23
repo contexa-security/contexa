@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.iam.admin;
 
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
@@ -24,10 +25,11 @@ public class IamAdminBlacklistAutoConfiguration {
             AdminOverrideService adminOverrideService,
             ZeroTrustActionRepository actionRedisRepository,
             ApplicationEventPublisher eventPublisher,
-            CentralAuditFacade centralAuditFacade) {
+            CentralAuditFacade centralAuditFacade,
+            BlockingSignalBroadcaster blockingDecisionRegistry) {
         return new BlockedUserService(
                 blockedUserJpaRepository, adminOverrideService, actionRedisRepository,
-                eventPublisher, centralAuditFacade);
+                eventPublisher, centralAuditFacade, blockingDecisionRegistry);
     }
 
     @Bean

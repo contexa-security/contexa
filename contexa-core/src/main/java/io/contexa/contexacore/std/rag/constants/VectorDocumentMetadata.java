@@ -3,75 +3,69 @@ package io.contexa.contexacore.std.rag.constants;
 public final class VectorDocumentMetadata {
 
     public static final String ID = "id";
-
     public static final String TIMESTAMP = "timestamp";
-
     public static final String DOCUMENT_TYPE = "documentType";
-
     public static final String VERSION = "version";
-
     public static final String CHUNK_ID = "chunkId";
-
     public static final String ORIGINAL_DOCUMENT_ID = "originalDocumentId";
-
     public static final String CHUNK_INDEX = "chunkIndex";
-
     public static final String TOTAL_CHUNKS = "totalChunks";
-
     public static final String SIMILARITY_SCORE = "similarityScore";
-
     public static final String SEARCH_RANK = "searchRank";
-
     public static final String KEYWORDS = "keywords";
-
     public static final String SUMMARY = "summary";
+    public static final String SOURCE_TYPE = "sourceType";
+    public static final String ACCESS_SCOPE = "accessScope";
+    public static final String SHARE_SCOPE = "shareScope";
+    public static final String TENANT_BOUND = "tenantBound";
+    public static final String TENANT_ID = "tenantId";
+    public static final String ORGANIZATION_ID = "organizationId";
+    public static final String AUTHORIZATION_DECISION = "authorizationDecision";
+    public static final String PURPOSE_MATCH = "purposeMatch";
+    public static final String RETRIEVAL_PURPOSE = "retrievalPurpose";
+    public static final String PROVENANCE_SUMMARY = "provenanceSummary";
+    public static final String PROVENANCE_SOURCE_TYPE = "provenanceSourceType";
+    public static final String PROVENANCE_ACCESS_SCOPE = "provenanceAccessScope";
+    public static final String PROVENANCE_ARTIFACT_ID = "provenanceArtifactId";
+    public static final String PROVENANCE_ARTIFACT_VERSION = "provenanceArtifactVersion";
+    public static final String PROVENANCE_RETRIEVAL_PURPOSE = "provenanceRetrievalPurpose";
+    public static final String PROVENANCE_PURPOSE_MATCH = "provenancePurposeMatch";
+    public static final String PROVENANCE_TENANT_BOUND = "provenanceTenantBound";
+    public static final String RETRIEVAL_POLICY_SUMMARY = "retrievalPolicySummary";
+    public static final String ARTIFACT_ID = "artifactId";
+    public static final String ARTIFACT_VERSION = "artifactVersion";
+    public static final String PROMPT_SAFETY_DECISION = "promptSafetyDecision";
+    public static final String PROMPT_SAFETY_FLAGS = "promptSafetyFlags";
+    public static final String PROMPT_QUARANTINE_STATE = "promptQuarantineState";
+    public static final String MEMORY_READ_DECISION = "memoryReadDecision";
+    public static final String KNOWLEDGE_QUARANTINE_STATE = "knowledgeQuarantineState";
+    public static final String KNOWLEDGE_INCIDENT_SUMMARY = "knowledgeIncidentSummary";
+    public static final String KNOWLEDGE_INCIDENT_FACTS = "knowledgeIncidentFacts";
 
     public static final String TYPE_STANDARD = "standard";
-
     public static final String TYPE_BEHAVIOR_ANALYSIS = "behavior_analysis";
-
     public static final String TYPE_RISK_ASSESSMENT = "risk_assessment";
-
     public static final String TYPE_HCAD_PATTERN = "hcad_pattern";
-
     public static final String TYPE_LAYER1_FEEDBACK = "layer1_feedback";
-
     public static final String TYPE_LAYER2_FEEDBACK = "layer2_feedback";
 
     public static final String USER_ID = "userId";
-
     public static final String CURRENT_ACTIVITY = "currentActivity";
-
     public static final String ACTIVITY_SEQUENCE = "activitySequence";
-
     public static final String THREAT_TYPE = "threatType";
-
     public static final String MITRE_TACTIC = "mitreTactic";
-
     public static final String MITRE_TECHNIQUE = "mitreTechnique";
-
     public static final String ZERO_TRUST_COMPLIANCE = "zeroTrustCompliance";
-
     public static final String RISK_CATEGORIES = "riskCategories";
-
     public static final String RISK_LEVEL = "riskLevel";
-
     public static final String COMPLIANCE_FRAMEWORK = "complianceFramework";
-
     public static final String IS_COLD_PATH = "isColdPath";
-
     public static final String IS_HOT_PATH = "isHotPath";
-
     public static final String BASELINE_VERSION = "baselineVersion";
-
     public static final String LAYER_NUMBER = "layerNumber";
-
     public static final String DECISION_TYPE = "decisionType";
-
     public static final String EVENT_ID = "eventId";
-
     public static final String CONFIDENCE_LEVEL = "confidenceLevel";
-
     public static final String IS_FALSE_POSITIVE = "isFalsePositive";
 
     private VectorDocumentMetadata() {
@@ -95,7 +89,6 @@ public final class VectorDocumentMetadata {
     }
 
     public static boolean isLayerFeedbackType(String documentType) {
-        
         return TYPE_LAYER1_FEEDBACK.equals(documentType) ||
                TYPE_LAYER2_FEEDBACK.equals(documentType);
     }

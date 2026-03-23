@@ -56,6 +56,12 @@ class DefaultPolicyServiceTest {
     @Mock
     private PermissionRepository permissionRepository;
 
+    @Mock
+    private io.contexa.contexaiam.repository.ManagedResourceRepository managedResourceRepository;
+
+    @Mock
+    private io.contexa.contexacore.autonomous.audit.CentralAuditFacade centralAuditFacade;
+
     @InjectMocks
     private DefaultPolicyService policyService;
 
@@ -485,6 +491,91 @@ class DefaultPolicyServiceTest {
                 .build();
         return policy;
     }
+
+    // =========================================================================
+    // Policy approval / rejection
+    // =========================================================================
+
+    @Nested
+    @DisplayName("Policy approval")
+    class PolicyApproval {
+
+        @Test
+        @DisplayName("should approve AI-generated policy in PENDING status")
+        void shouldApproveAiPolicy() {
+            Policy policy = createPolicyEntity(1L, "ai-policy");
+            policy.setSource(Policy.PolicySource.AI_GENERATED);
+            policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
+            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            policyService.approvePolicy(1L, "admin");
+
+            assertThat(policy.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.APPROVED);
+            assertThat(policy.getApprovedBy()).isEqualTo("admin");
+            verify(policyRepository).save(policy);
+        }
+
+        @Test
+        @DisplayName("should approve manual policy too")
+        void shouldApproveManualPolicy() {
+            Policy policy = createPolicyEntity(1L, "manual-policy");
+            policy.setSource(Policy.PolicySource.MANUAL);
+            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            policyService.approvePolicy(1L, "admin");
+
+            assertThat(policy.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.APPROVED);
+        }
+
+        @Test
+        @DisplayName("should throw when already approved")
+        void shouldThrowWhenAlreadyApproved() {
+            Policy policy = createPolicyEntity(1L, "policy");
+            policy.setApprovalStatus(Policy.ApprovalStatus.APPROVED);
+            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+
+            assertThatThrownBy(() -> policyService.approvePolicy(1L, "admin"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("already approved");
+        }
+    }
+
+    @Nested
+    @DisplayName("Policy rejection")
+    class PolicyRejection {
+
+        @Test
+        @DisplayName("should reject AI-generated policy and deactivate")
+        void shouldRejectAndDeactivate() {
+            Policy policy = createPolicyEntity(1L, "ai-policy");
+            policy.setSource(Policy.PolicySource.AI_GENERATED);
+            policy.setApprovalStatus(Policy.ApprovalStatus.PENDING);
+            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            policyService.rejectPolicy(1L, "admin");
+
+            assertThat(policy.getApprovalStatus()).isEqualTo(Policy.ApprovalStatus.REJECTED);
+            assertThat(policy.getIsActive()).isFalse();
+            verify(policyRepository).save(policy);
+        }
+
+        @Test
+        @DisplayName("should throw when already rejected")
+        void shouldThrowWhenAlreadyRejected() {
+            Policy policy = createPolicyEntity(1L, "policy");
+            policy.setApprovalStatus(Policy.ApprovalStatus.REJECTED);
+            when(policyRepository.findByIdWithDetails(1L)).thenReturn(Optional.of(policy));
+
+            assertThatThrownBy(() -> policyService.rejectPolicy(1L, "admin"))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("already rejected");
+        }
+    }
+
+    // =========================================================================
 
     private Policy createPolicyWithCondition(Long id, String name, String expression) {
         Policy policy = Policy.builder()

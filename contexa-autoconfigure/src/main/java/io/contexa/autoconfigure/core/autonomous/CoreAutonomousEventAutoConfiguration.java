@@ -2,14 +2,12 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
-import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
+import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.blocking.BlockingDecisionRegistry;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.blocking.InMemoryBlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.domain.RiskAssessment;
-import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
-import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
-import io.contexa.contexacore.autonomous.event.SecurityEventPublisher;
+import io.contexa.contexacore.autonomous.event.*;
 import io.contexa.contexacore.autonomous.event.listener.InMemorySecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.KafkaSecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
@@ -29,8 +27,8 @@ import io.contexa.contexacore.properties.SecurityKafkaProperties;
 import io.contexa.contexacore.properties.SecurityPlaneProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
-import io.contexa.contexacore.soar.event.NoOpSecurityActionEventPublisher;
 import org.redisson.api.RedissonClient;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -50,6 +48,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(KafkaTemplate.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public KafkaSecurityEventCollector kafkaSecurityEventCollector(
             ObjectMapper objectMapper,
@@ -60,6 +59,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(KafkaTemplate.class)
     @ConditionalOnProperty(name = "contexa.infrastructure.mode", havingValue = "distributed")
     public KafkaSecurityEventPublisher kafkaSecurityEventPublisher(
             KafkaTemplate<String, Object> kafkaTemplate,
@@ -98,16 +98,9 @@ public class CoreAutonomousEventAutoConfiguration {
         public InMemoryBlockingSignalBroadcaster inMemoryBlockingSignalBroadcaster() {
             return new InMemoryBlockingSignalBroadcaster();
         }
-
     }
 
     // === Common beans (mode-independent) ===
-
-    @Bean
-    @ConditionalOnMissingBean(SecurityActionEventPublisher.class)
-    public NoOpSecurityActionEventPublisher noOpSecurityActionEventPublisher() {
-        return new NoOpSecurityActionEventPublisher();
-    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -128,6 +121,7 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ProcessingStrategy.class)
     public ProcessingExecutionHandler processingExecutionHandler(
             List<ProcessingStrategy> processingStrategies) {
         return new ProcessingExecutionHandler(processingStrategies);
@@ -135,26 +129,20 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ColdPathEventProcessor.class)
     public ColdPathStrategy coldPathStrategy(ColdPathEventProcessor coldPathEventProcessor) {
         return new ColdPathStrategy(coldPathEventProcessor);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public LlmAnalysisEventListener llmAnalysisEventListener() {
-        return new LlmAnalysisEventListener() {
-            @Override public void onContextCollected(String userId, String requestPath, String analysisRequirement) {}
-            @Override public void onLayer1Start(String userId, String requestPath) {}
-            @Override public void onLayer1Complete(String userId, String action, Double riskScore, Double confidence, String reasoning, String mitre, Long elapsedMs) {}
-            @Override public void onLayer2Start(String userId, String requestPath, String reason) {}
-            @Override public void onLayer2Complete(String userId, String action, Double riskScore, Double confidence, String reasoning, String mitre, Long elapsedMs) {}
-            @Override public void onDecisionApplied(String userId, String action, String layer, String requestPath) {}
-            @Override public void onError(String userId, String message) {}
-        };
+    public LlmAnalysisEventListener llmAnalysisEventListener(ObjectProvider<List<LlmAnalysisEventObserver>> observersProvider) {
+        return new CompositeLlmAnalysisEventListener(observersProvider.getIfAvailable(List::of));
     }
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({Layer1ContextualStrategy.class, Layer2ExpertStrategy.class})
     public ColdPathEventProcessor coldPathEventProcessor(
             Layer1ContextualStrategy contextualStrategy,
             Layer2ExpertStrategy expertStrategy,
@@ -164,12 +152,12 @@ public class CoreAutonomousEventAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(SecurityLearningService.class)
     public SecurityDecisionEnforcementHandler securityDecisionEnforcementHandler(
             ZeroTrustActionRepository actionRepository,
-            SecurityLearningService securityLearningService,
-            SecurityZeroTrustProperties securityZeroTrustProperties) {
+            SecurityLearningService securityLearningService) {
         return new SecurityDecisionEnforcementHandler(
-                actionRepository, securityLearningService, securityZeroTrustProperties);
+                actionRepository, securityLearningService);
     }
 
     @Bean
@@ -178,3 +166,4 @@ public class CoreAutonomousEventAutoConfiguration {
         return new RiskAssessment();
     }
 }
+

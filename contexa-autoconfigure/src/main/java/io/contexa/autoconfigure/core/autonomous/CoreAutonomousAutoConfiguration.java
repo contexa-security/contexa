@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -16,7 +17,9 @@ import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.repository.*;
+import io.contexa.contexacore.autonomous.saas.*;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.autonomous.service.impl.SecurityMonitoringService;
@@ -41,6 +44,7 @@ import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,7 +78,9 @@ import java.util.concurrent.Executor;
         SecurityRedisProperties.class,
         SecurityRouterProperties.class,
         SecurityPipelineProperties.class,
-        TieredStrategyProperties.class
+        TieredStrategyProperties.class,
+        TieredStrategyProperties.class,
+        ContexaRagProperties.class
 })
 public class CoreAutonomousAutoConfiguration {
 
@@ -85,6 +91,12 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityEventEnricher securityEventEnricher() {
         return new SecurityEventEnricher();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PromptContextAuthorizationService promptContextAuthorizationService() {
+        return new PromptContextAuthorizationService();
     }
 
     @Bean
@@ -115,8 +127,19 @@ public class CoreAutonomousAutoConfiguration {
             SecurityLearningService securityLearningService,
             ZeroTrustActionRepository actionRedisRepository,
             DistributedLockService lockService,
-            CentralAuditFacade centralAuditFacade) {
-        return new AdminOverrideService(securityLearningService, actionRedisRepository, lockService, centralAuditFacade);
+            CentralAuditFacade centralAuditFacade,
+            @Nullable DecisionFeedbackForwardingService decisionFeedbackForwardingService,
+            @Nullable ThreatOutcomeForwardingService threatOutcomeForwardingService,
+            BlockingSignalBroadcaster blockingSignalBroadcaster) {
+        return new AdminOverrideService(
+                securityLearningService,
+                actionRedisRepository,
+                lockService,
+                centralAuditFacade,
+                decisionFeedbackForwardingService,
+                threatOutcomeForwardingService,
+                blockingSignalBroadcaster
+                );
     }
 
     @Bean
@@ -172,6 +195,7 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer1ContextualStrategy contextualStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
             UnifiedVectorService unifiedVectorService,
@@ -181,14 +205,32 @@ public class CoreAutonomousAutoConfiguration {
             BehaviorVectorService behaviorVectorService,
             BaselineLearningService baselineLearningService,
             SecurityLearningService securityLearningService,
+            ObjectProvider<SaasBaselineSeedService> baselineSeedService,
+            ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
+            ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
+            ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
+            PromptContextAuthorizationService promptContextAuthorizationService,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
-                llmOrchestrator, unifiedVectorService, dataStore, securityEventEnricher, securityPromptTemplate, behaviorVectorService,
-                baselineLearningService, securityLearningService, tieredStrategyProperties);
+                llmOrchestrator,
+                unifiedVectorService,
+                dataStore,
+                securityEventEnricher,
+                securityPromptTemplate,
+                behaviorVectorService,
+                baselineLearningService,
+                securityLearningService,
+                baselineSeedService.getIfAvailable(),
+                threatIntelligenceService.getIfAvailable(),
+                threatKnowledgePackService.getIfAvailable(),
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService.getIfAvailable(),
+                tieredStrategyProperties);
     }
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({UnifiedLLMOrchestrator.class, UnifiedVectorService.class, BehaviorVectorService.class, BaselineLearningService.class})
     public Layer2ExpertStrategy expertStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
             @Autowired(required = false) ApprovalService approvalService,
@@ -199,12 +241,28 @@ public class CoreAutonomousAutoConfiguration {
             BehaviorVectorService behaviorVectorService,
             BaselineLearningService baselineLearningService,
             TieredStrategyProperties tieredStrategyProperties,
-            SecurityLearningService securityLearningService) {
+            SecurityLearningService securityLearningService,
+            ObjectProvider<SaasBaselineSeedService> baselineSeedService,
+            ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
+            ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
+            ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
+            PromptContextAuthorizationService promptContextAuthorizationService) {
         return new Layer2ExpertStrategy(
-                llmOrchestrator, approvalService, dataStore,
-                securityEventEnricher, securityPromptTemplate, unifiedVectorService,
-                behaviorVectorService, baselineLearningService,
-                tieredStrategyProperties, securityLearningService);
+                llmOrchestrator,
+                approvalService,
+                dataStore,
+                securityEventEnricher,
+                securityPromptTemplate,
+                unifiedVectorService,
+                behaviorVectorService,
+                baselineLearningService,
+                tieredStrategyProperties,
+                securityLearningService,
+                baselineSeedService.getIfAvailable(),
+                threatIntelligenceService.getIfAvailable(),
+                threatKnowledgePackService.getIfAvailable(),
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService.getIfAvailable());
     }
 
     @Bean
@@ -224,7 +282,7 @@ public class CoreAutonomousAutoConfiguration {
             SecurityEventProcessor processingOrchestrator,
             SecurityPlaneProperties securityPlaneProperties,
             @Qualifier("llmAnalysisExecutor") Executor llmAnalysisExecutor
-            ) {
+    ) {
         return new SecurityPlaneAgent(
                 securityMonitor, dataStore, centralAuditFacade,
                 processingOrchestrator, securityPlaneProperties, llmAnalysisExecutor);

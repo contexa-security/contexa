@@ -245,12 +245,6 @@ public class ZeroTrustPolicyEvaluator extends AbstractMfaPolicyEvaluator {
         metadata.put("source", "ZeroTrust");
         metadata.put("action", action);
 
-        if (analysis.riskScore() != null) {
-            metadata.put("riskScore", analysis.riskScore());
-        }
-        if (analysis.confidence() != null) {
-            metadata.put("confidence", analysis.confidence());
-        }
         if (analysis.threatEvidence() != null) {
             metadata.put("threatEvidence", analysis.threatEvidence());
         }

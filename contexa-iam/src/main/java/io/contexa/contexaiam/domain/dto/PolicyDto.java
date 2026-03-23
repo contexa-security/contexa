@@ -26,4 +26,7 @@ public class PolicyDto {
     @Builder.Default
     private List<RuleDto> rules = new ArrayList<>();
 
+    private Policy.PolicySource source;
+    private Policy.ApprovalStatus approvalStatus;
+    private Boolean isActive;
 }

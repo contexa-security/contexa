@@ -39,7 +39,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     @Transactional
     @Override
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)
-    @Protectable
+//    @Protectable
     public void modifyUser(@ModelAttribute UserDto userDto) {
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(userDto.getId())
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userDto.getId()));
@@ -92,7 +92,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Transactional(readOnly = true)
-    @Protectable
+//    @Protectable
     public UserDto getUser(Long id) {
         Users users = userRepository.findByIdWithGroupsRolesAndPermissions(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + id));
@@ -114,7 +114,7 @@ public class UserManagementServiceImpl implements UserManagementService {
     }
 
     @Transactional(readOnly = true)
-    @Protectable
+//    @Protectable
     public List<UserListDto> getUsers() {
         return userRepository.findAllWithDetails().stream()
                 .map(user -> {

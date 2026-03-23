@@ -25,11 +25,11 @@ public class BaselineVector implements Serializable {
     private String userId;
 
     
-    private String[] normalIpRanges;
+    private String[] normalIpRanges;      
     private Integer[] normalAccessHours;
     private Integer[] normalAccessDays;
-    private String[] frequentPaths;
-    private String[] normalUserAgents;
+    private String[] frequentPaths;       
+    private String[] normalUserAgents;    
     private String[] normalOperatingSystems;  
 
     

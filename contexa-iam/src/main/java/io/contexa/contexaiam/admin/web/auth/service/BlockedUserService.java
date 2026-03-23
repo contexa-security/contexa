@@ -5,10 +5,10 @@ import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacommon.soar.event.SecurityActionEvent;
 import io.contexa.contexacore.autonomous.audit.AuditRecord;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
-import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.service.AdminOverrideService;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.service.AdminOverrideService;
 import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
@@ -17,7 +17,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,15 +32,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
     private final ZeroTrustActionRepository actionRedisRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final CentralAuditFacade centralAuditFacade;
-
-    @Setter
-    @Autowired(required = false)
-    private BlockingSignalBroadcaster blockingDecisionRegistry;
+    private final BlockingSignalBroadcaster blockingDecisionRegistry;
 
     @Override
     @Transactional
     public void recordBlock(String requestId, String userId, String username,
-                            double riskScore, double confidence, String reasoning,
+                            String action, String reasoning,
                             String sourceIp, String userAgent) {
         int blockCount = blockedUserJpaRepository.countByUserId(userId) + 1;
 
@@ -51,8 +47,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
         if (existingOpt.isPresent()) {
             BlockedUser existing = existingOpt.get();
             existing.setRequestId(requestId);
-            existing.setRiskScore(riskScore);
-            existing.setConfidence(confidence);
+            existing.setRiskScore(null);
+            existing.setConfidence(null);
             existing.setReasoning(reasoning);
             existing.setBlockedAt(LocalDateTime.now());
             existing.setBlockCount(blockCount);
@@ -64,8 +60,8 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .userId(userId)
                     .username(username)
                     .requestId(requestId)
-                    .riskScore(riskScore)
-                    .confidence(confidence)
+                    .riskScore(null)
+                    .confidence(null)
                     .reasoning(reasoning)
                     .blockedAt(LocalDateTime.now())
                     .blockCount(blockCount)
@@ -75,7 +71,6 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     .build();
             blockedUserJpaRepository.save(blockedUser);
         }
-
         // Audit: user blocked
         centralAuditFacade.recordAsync(AuditRecord.builder()
                 .eventCategory(AuditEventCategory.USER_BLOCKED)
@@ -88,12 +83,12 @@ public class BlockedUserService implements IBlockedUserRecorder {
                 .decision("BLOCK")
                 .outcome("BLOCKED")
                 .reason(reasoning)
-                .riskScore(riskScore)
                 .details(Map.of("username", username != null ? username : "",
-                        "blockCount", blockedUserJpaRepository.countByUserId(userId),
-                        "confidence", Math.max(confidence, 0.0)))
+                        "blockCount", blockedUserJpaRepository.countByUserId(userId)))
                 .build());
     }
+
+
 
     @Override
     @Transactional
@@ -107,19 +102,6 @@ public class BlockedUserService implements IBlockedUserRecorder {
 
         BlockedUser blocked = blockedOpt.get();
         applyResolution(blocked, adminId, resolvedAction, reason);
-
-        // Audit: user unblocked
-        centralAuditFacade.recordAsync(AuditRecord.builder()
-                .eventCategory(AuditEventCategory.USER_UNBLOCKED)
-                .principalName(adminId)
-                .resourceIdentifier(userId)
-                .eventSource("IAM")
-                .action("USER_UNBLOCKED")
-                .decision(resolvedAction)
-                .outcome("RESOLVED")
-                .reason(reason)
-                .riskScore(blocked.getRiskScore())
-                .build());
     }
 
     @Transactional
@@ -150,8 +132,6 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     blocked.getUserId(),
                     adminId,
                     ZeroTrustAction.BLOCK.name(),
-                    blocked.getRiskScore() != null ? blocked.getRiskScore() : 0.0,
-                    blocked.getConfidence() != null ? blocked.getConfidence() : 0.0,
                     resolvedAction,
                     reason,
                     blockEvent
@@ -263,8 +243,6 @@ public class BlockedUserService implements IBlockedUserRecorder {
                     metadata.put("threatType", "ACCOUNT_TAKEOVER_CONTAINMENT");
                     metadata.put("zeroTrustAction", ZeroTrustAction.BLOCK.name());
                     metadata.put("securityEventType", "BLOCKED_USER_MFA_FAILED");
-                    metadata.put("riskScore", b.getRiskScore() != null ? b.getRiskScore() : 0.95d);
-                    metadata.put("confidence", b.getConfidence() != null ? b.getConfidence() : 0.90d);
                     metadata.put("allowedTools", List.of("session_termination", "ip_blocking"));
                     metadata.put("incidentId", b.getRequestId());
                     metadata.put("sessionId", b.getRequestId());
@@ -338,3 +316,5 @@ public class BlockedUserService implements IBlockedUserRecorder {
         }
     }
 }
+
+

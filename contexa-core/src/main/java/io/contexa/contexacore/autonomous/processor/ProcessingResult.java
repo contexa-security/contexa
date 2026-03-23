@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -17,7 +18,7 @@ public class ProcessingResult {
 
     private boolean success;
 
-    private double riskScore;
+    private Double riskScore;
 
     private double currentRiskLevel;
 
@@ -25,18 +26,22 @@ public class ProcessingResult {
 
     private String action;
 
-    private double confidence;
+    private Double confidence;
 
     private String reasoning;
 
     @Builder.Default
     private Map<String, Object> analysisData = new HashMap<>();
 
+    private List<String> threatIndicators;
+
     private long processingTimeMs;
 
     private LocalDateTime processedAt;
 
     private int aiAnalysisLevel;
+
+    private List<String> recommendedActions;
 
     private ProcessingStatus status;
 
@@ -77,7 +82,7 @@ public class ProcessingResult {
         }
     }
 
-    public static ProcessingResult success(ProcessingPath path, double riskScore) {
+    public static ProcessingResult success(ProcessingPath path, Double riskScore) {
         return ProcessingResult.builder()
                 .processingPath(path)
                 .riskScore(riskScore)

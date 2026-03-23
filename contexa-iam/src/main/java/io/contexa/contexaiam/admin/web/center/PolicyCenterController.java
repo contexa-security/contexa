@@ -202,13 +202,34 @@ public class PolicyCenterController {
             dto.setRoleIds(request.getRoleIds());
             dto.setPermissionIds(request.getPermissionIds());
             dto.setConditions(Collections.emptyMap());
+            dto.setSource(Policy.PolicySource.MANUAL);
+
+            List<String> duplicateAutoRoles = new ArrayList<>();
+            if (request.getRoleIds() != null) {
+                for (Long roleId : request.getRoleIds()) {
+                    try {
+                        Role role = roleService.getRole(roleId);
+                        String autoPolicyName = "AUTO_POLICY_FOR_" + role.getRoleName();
+                        if (policyRepository.findByName(autoPolicyName).isPresent()) {
+                            duplicateAutoRoles.add(role.getRoleName());
+                        }
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
 
             Policy saved = businessPolicyService.createPolicyFromBusinessRule(dto);
 
-            return ResponseEntity.ok(Map.of(
-                    "success", true,
-                    "policyId", saved.getId(),
-                    "message", "Policy created successfully."));
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("policyId", saved.getId());
+            response.put("message", "Policy created successfully.");
+            if (!duplicateAutoRoles.isEmpty()) {
+                response.put("warning",
+                        "Auto-policies already exist for roles: " + String.join(", ", duplicateAutoRoles)
+                        + ". Consider reviewing for potential duplicates.");
+            }
+            return ResponseEntity.ok(response);
         } catch (Exception e) {
             log.error("Failed to create quick policy", e);
             return ResponseEntity.badRequest().body(Map.of(

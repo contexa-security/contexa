@@ -9,7 +9,6 @@ import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import io.contexa.contexaiam.repository.BlockedUserJpaRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -50,8 +49,6 @@ public class BlockedUserTimeoutScheduler {
             metadata.put("threatType", "BLOCKED_USER_TIMEOUT_CONTAINMENT");
             metadata.put("zeroTrustAction", "BLOCK");
             metadata.put("securityEventType", "BLOCKED_USER_TIMEOUT");
-            metadata.put("riskScore", user.getRiskScore() != null ? user.getRiskScore() : 0.85d);
-            metadata.put("confidence", user.getConfidence() != null ? user.getConfidence() : 0.88d);
             metadata.put("allowedTools", List.of("session_termination", "ip_blocking"));
             metadata.put("incidentId", user.getRequestId());
             metadata.put("sessionId", user.getRequestId());
@@ -89,3 +86,6 @@ public class BlockedUserTimeoutScheduler {
         }
     }
 }
+
+
+

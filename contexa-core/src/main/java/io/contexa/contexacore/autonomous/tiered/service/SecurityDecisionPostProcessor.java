@@ -6,6 +6,7 @@ import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -36,7 +37,9 @@ public class SecurityDecisionPostProcessor {
         }
 
         try {
-            if (decision.getAction() == ZeroTrustAction.BLOCK) {
+            dataStore.addSessionAction(sessionId, buildBehaviorSentence(event, decision));
+
+            if (decision.getAction() == ZeroTrustAction.BLOCK && decision.getRiskScore() != null) {
                 dataStore.setSessionRisk(sessionId, decision.getRiskScore());
             }
         } catch (Exception e) {
@@ -83,6 +86,49 @@ public class SecurityDecisionPostProcessor {
             log.error("[SecurityDecisionPostProcessor] Failed to store behavior document: eventId={}",
                     event.getEventId(), e);
         }
+    }
+
+    private String buildBehaviorSentence(SecurityEvent event, SecurityDecision decision) {
+        StringBuilder sentence = new StringBuilder();
+
+        String method = null;
+        String path = extractPath(event);
+        if (event.getMetadata() != null) {
+            Object m = event.getMetadata().get("httpMethod");
+            if (m != null) method = m.toString();
+        }
+
+        sentence.append("User accessed ");
+        if (path != null) {
+            sentence.append(path);
+        } else if (event.getDescription() != null) {
+            sentence.append(event.getDescription());
+        }
+        if (method != null) {
+            sentence.append(" via ").append(method);
+        }
+        if (event.getSourceIp() != null) {
+            sentence.append(" from ").append(event.getSourceIp());
+        }
+
+        String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
+        String os = SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent());
+        if (browser != null) {
+            sentence.append(" using ").append(browser);
+        }
+        if (os != null) {
+            sentence.append(" on ").append(os);
+        }
+
+        if (event.getTimestamp() != null) {
+            sentence.append(String.format(" at %02d:%02d",
+                    event.getTimestamp().getHour(),
+                    event.getTimestamp().getMinute()));
+        }
+
+        sentence.append(", observed ").append(decision.getAction().name().toLowerCase());
+
+        return sentence.toString();
     }
 
     private String buildBehaviorContent(SecurityEvent event, SecurityDecision decision) {
@@ -280,6 +326,13 @@ public class SecurityDecisionPostProcessor {
         Map<String, Object> metadata = new HashMap<>();
 
         metadata.put("documentType", documentType);
+
+        metadata.put(VectorDocumentMetadata.SOURCE_TYPE, documentType);
+        metadata.put(VectorDocumentMetadata.ACCESS_SCOPE, event.getUserId() != null ? "USER" : "GLOBAL");
+        metadata.put(VectorDocumentMetadata.ARTIFACT_ID, event.getEventId() != null ? event.getEventId() : java.util.UUID.randomUUID().toString());
+        metadata.put(VectorDocumentMetadata.ARTIFACT_VERSION, "1.0");
+        metadata.put(VectorDocumentMetadata.RETRIEVAL_PURPOSE, "security_investigation");
+        metadata.put(VectorDocumentMetadata.PROVENANCE_SUMMARY, "Security decision memory from runtime event");
 
         String eventTimestamp = event.getTimestamp() != null
                 ? event.getTimestamp().toString()

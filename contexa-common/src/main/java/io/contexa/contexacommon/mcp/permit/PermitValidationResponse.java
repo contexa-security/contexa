@@ -20,7 +20,13 @@ public record PermitValidationResponse(
         String contextBindingHashDigest,
         String actorType,
         String executionMode,
-        String riskLevel) {
+        String riskLevel,
+        String executionId,
+        String delegationId,
+        String taskPurpose,
+        String approvedScopes,
+        String actionApprovalCategory,
+        String executionContinuityFingerprint) {
 
     public static PermitValidationResponse allowed(
             String permitId,
@@ -40,7 +46,13 @@ public record PermitValidationResponse(
             String contextBindingHashDigest,
             String actorType,
             String executionMode,
-            String riskLevel) {
+            String riskLevel,
+            String executionId,
+            String delegationId,
+            String taskPurpose,
+            String approvedScopes,
+            String actionApprovalCategory,
+            String executionContinuityFingerprint) {
         return new PermitValidationResponse(
                 true,
                 permitId,
@@ -61,7 +73,64 @@ public record PermitValidationResponse(
                 contextBindingHashDigest,
                 actorType,
                 executionMode,
-                riskLevel
+                riskLevel,
+                executionId,
+                delegationId,
+                taskPurpose,
+                approvedScopes,
+                actionApprovalCategory,
+                executionContinuityFingerprint
+        );
+    }
+
+    public static PermitValidationResponse allowed(
+            String permitId,
+            String toolName,
+            String requiredScope,
+            String requestId,
+            String approvalId,
+            String incidentId,
+            String sessionId,
+            String executionClass,
+            String argumentsHash,
+            String tenantId,
+            String userId,
+            String zeroTrustAction,
+            Double riskScore,
+            Double confidence,
+            String contextBindingHashDigest,
+            String actorType,
+            String executionMode,
+            String riskLevel,
+            String executionId,
+            String delegationId,
+            String taskPurpose,
+            String approvedScopes) {
+        return allowed(
+                permitId,
+                toolName,
+                requiredScope,
+                requestId,
+                approvalId,
+                incidentId,
+                sessionId,
+                executionClass,
+                argumentsHash,
+                tenantId,
+                userId,
+                zeroTrustAction,
+                riskScore,
+                confidence,
+                contextBindingHashDigest,
+                actorType,
+                executionMode,
+                riskLevel,
+                executionId,
+                delegationId,
+                taskPurpose,
+                approvedScopes,
+                null,
+                null
         );
     }
 
@@ -70,6 +139,12 @@ public record PermitValidationResponse(
                 false,
                 null,
                 reason,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
                 null,
                 null,
                 null,

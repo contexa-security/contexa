@@ -281,14 +281,15 @@
                         <div class="wizard-item-list" id="role-list">
                             <div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>역할을 로딩 중...</p></div>
                         </div>
-                        <div class="flex justify-end mt-4">
+                        <div class="flex justify-between mt-4">
+                            <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.Wizard.nextStep()" style="opacity:0.7;">건너뛰기 <i class="fas fa-forward ml-1"></i></button>
                             <button type="button" class="modern-btn-primary" onclick="PolicyCenter.Wizard.nextStep()">다음 <i class="fas fa-arrow-right ml-1"></i></button>
                         </div>
                     </div>
 
                     <!-- Step 2: Permission Selection -->
                     <div class="wizard-panel" id="wizard-step-2">
-                        <h4 class="text-base font-semibold mb-3" style="color: #e2e8f0;">권한 선택 (선택된 역할에 아직 없는 권한)</h4>
+                        <h4 class="text-base font-semibold mb-3" style="color: #e2e8f0;">권한 선택 (선택 사항)</h4>
                         <div class="wizard-search-box">
                             <i class="fas fa-search"></i>
                             <input type="text" class="modern-input" id="perm-search" placeholder="권한 검색..." oninput="PolicyCenter.Wizard.searchPermissions(this.value)">
@@ -299,7 +300,10 @@
                         </div>
                         <div class="flex justify-between mt-4">
                             <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.Wizard.prevStep()"><i class="fas fa-arrow-left mr-1"></i> 이전</button>
-                            <button type="button" class="modern-btn-primary" onclick="PolicyCenter.Wizard.nextStep()">다음 <i class="fas fa-arrow-right ml-1"></i></button>
+                            <div class="flex gap-2">
+                                <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.Wizard.nextStep()" style="opacity:0.7;">건너뛰기 <i class="fas fa-forward ml-1"></i></button>
+                                <button type="button" class="modern-btn-primary" onclick="PolicyCenter.Wizard.nextStep()">다음 <i class="fas fa-arrow-right ml-1"></i></button>
+                            </div>
                         </div>
                     </div>
 
@@ -688,6 +692,8 @@
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold">정책명 (Name)</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold">적용 대상</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold">효과</th>
+                            <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold">출처</th>
+                            <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold">승인 상태</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold">우선순위</th>
                             <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold">관리</th>
                         </tr>
@@ -713,10 +719,35 @@
                                     <span th:text="${policy.effect}" class="status-badge"
                                           th:classappend="${policy.effect.name() == 'ALLOW' ? 'bg-green-500/20 text-green-400 border-green-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'}"></span>
                                 </td>
+                                <!-- Source -->
+                                <td class="table-cell-top">
+                                    <span th:if="${policy.source.name() == 'AI_GENERATED'}" class="status-badge bg-purple-500/20 text-purple-400 border-purple-500/30">AI</span>
+                                    <span th:if="${policy.source.name() == 'AI_EVOLVED'}" class="status-badge bg-purple-500/20 text-purple-400 border-purple-500/30">AI Evolved</span>
+                                    <span th:if="${policy.source.name() == 'MANUAL'}" class="status-badge bg-slate-500/20 text-slate-400 border-slate-500/30">Manual</span>
+                                    <span th:if="${policy.source.name() == 'IMPORTED'}" class="status-badge bg-blue-500/20 text-blue-400 border-blue-500/30">Import</span>
+                                </td>
+                                <!-- Approval Status -->
+                                <td class="table-cell-top">
+                                    <span th:if="${policy.approvalStatus.name() == 'PENDING'}" class="status-badge bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Pending</span>
+                                    <span th:if="${policy.approvalStatus.name() == 'APPROVED'}" class="status-badge bg-green-500/20 text-green-400 border-green-500/30">Approved</span>
+                                    <span th:if="${policy.approvalStatus.name() == 'REJECTED'}" class="status-badge bg-red-500/20 text-red-400 border-red-500/30">Rejected</span>
+                                    <span th:if="${policy.approvalStatus.name() == 'NOT_REQUIRED'}" class="text-xs" style="color: #64748b;">-</span>
+                                </td>
                                 <td class="table-cell-top" th:text="${policy.priority}"></td>
                                 <td class="table-cell-top">
                                     <div class="flex gap-2">
                                         <a th:href="@{/admin/policies/{id}(id=${policy.id})}" class="action-badge-primary"><i class="fas fa-edit"></i> 수정</a>
+                                        <!-- Approve button (not shown if already APPROVED) -->
+                                        <form th:if="${policy.approvalStatus.name() != 'APPROVED'}"
+                                              th:action="@{/admin/policies/{id}/approve(id=${policy.id})}" method="post" style="display:inline;">
+                                            <button type="submit" class="action-badge-primary" style="background: rgba(34,197,94,0.15); color: #4ade80; border-color: rgba(34,197,94,0.3);"><i class="fas fa-check"></i> 승인</button>
+                                        </form>
+                                        <!-- Reject button (not shown if already REJECTED) -->
+                                        <form th:if="${policy.approvalStatus.name() != 'REJECTED'}"
+                                              th:action="@{/admin/policies/{id}/reject(id=${policy.id})}" method="post" style="display:inline;"
+                                              onsubmit="return confirm('이 정책을 거절하시겠습니까? 거절 시 비활성화됩니다.');">
+                                            <button type="submit" class="action-badge-secondary"><i class="fas fa-times"></i> 거절</button>
+                                        </form>
                                         <form th:action="@{/admin/policies/delete/{id}(id=${policy.id})}" method="post" style="display:inline;"
                                               onsubmit="return confirm('정말로 이 정책을 삭제하시겠습니까?');">
                                             <button type="submit" class="action-badge-secondary"><i class="fas fa-trash"></i> 삭제</button>
@@ -726,7 +757,7 @@
                             </tr>
                         </th:block>
                         <tr th:if="${policyPage == null or policyPage.empty}">
-                            <td colspan="6" class="pc-empty"><i class="fas fa-shield-alt"></i><p>등록된 정책이 없습니다.</p></td>
+                            <td colspan="8" class="pc-empty"><i class="fas fa-shield-alt"></i><p>등록된 정책이 없습니다.</p></td>
                         </tr>
                         </tbody>
                     </table>

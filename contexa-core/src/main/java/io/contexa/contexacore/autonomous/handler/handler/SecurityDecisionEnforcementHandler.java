@@ -1,26 +1,22 @@
 package io.contexa.contexacore.autonomous.handler.handler;
 
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
-import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
-import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
-import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
-import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.service.IBlockedUserRecorder;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
-import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
-import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 @Slf4j
@@ -29,7 +25,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
     private final ZeroTrustActionRepository actionRedisRepository;
     private final SecurityLearningService securityLearningService;
-    private final SecurityZeroTrustProperties securityZeroTrustProperties;
 
     @Setter
     @Autowired(required = false)
@@ -38,24 +33,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     @Setter
     @Autowired(required = false)
     private BlockingSignalBroadcaster blockingDecisionRegistry;
-
-    @Setter
-    @Autowired(required = false)
-    private ZeroTrustSecurityService zeroTrustSecurityService;
-
-    @Override
-    public boolean canHandle(SecurityEventContext context) {
-        if (!SecurityEventHandler.super.canHandle(context)) {
-            return false;
-        }
-        if (!securityZeroTrustProperties.isEnforcementEnabled()) {
-            SecurityZeroTrustProperties.SecurityMode currentMode = securityZeroTrustProperties.getMode();
-            log.error("[SecurityDecisionEnforcementHandler] Enforcement skipped in {} mode: userId={}",
-                    currentMode, context.getSecurityEvent().getUserId());
-            return false;
-        }
-        return true;
-    }
 
     @Override
     public boolean handle(SecurityEventContext context) {
@@ -100,8 +77,9 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         Map<String, Object> additionalFields = new HashMap<>();
-        additionalFields.put("riskScore", result.getRiskScore());
-        additionalFields.put("confidence", result.getConfidence());
+        additionalFields.put("reasoningSummary", summarizeReasoning(result.getReasoning()));
+        additionalFields.put("threatEvidence", result.getThreatIndicators() != null
+                ? String.join(", ", result.getThreatIndicators()) : "");
         additionalFields.put("analysisDepth", result.getAiAnalysisLevel());
 
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
@@ -111,19 +89,6 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         }
 
         actionRedisRepository.saveAction(userId, ztAction, additionalFields);
-
-        // Invalidate decision cache so next request picks up the new action immediately
-        if (zeroTrustSecurityService != null) {
-            zeroTrustSecurityService.invalidateDecisionCache(userId);
-        }
-
-        // Register block signal for in-flight response termination (BLOCK, CHALLENGE, ESCALATE)
-        // The signal will be cleared immediately after response termination in handlePendingAnalysis()
-        if (ztAction == ZeroTrustAction.BLOCK || ztAction == ZeroTrustAction.CHALLENGE || ztAction == ZeroTrustAction.ESCALATE) {
-            if (blockingDecisionRegistry != null) {
-                blockingDecisionRegistry.registerBlock(userId, ztAction.name());
-            }
-        }
 
         if (ztAction == ZeroTrustAction.BLOCK) {
             handleBlockDecision(userId, event, result);
@@ -136,26 +101,21 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
 
         actionRedisRepository.setBlockedFlag(userId);
 
+        if (blockingDecisionRegistry != null) {
+            blockingDecisionRegistry.registerBlock(userId);
+        }
+
         if (blockedUserRecorder != null) {
-            boolean recorded = false;
-            for (int attempt = 0; attempt < 2 && !recorded; attempt++) {
-                try {
-                    blockedUserRecorder.recordBlock(
-                            requestId, userId, event.getUserName(),
-                            result.getRiskScore(),
-                            result.getConfidence(),
-                            reasoning,
-                            event.getSourceIp(),
-                            event.getUserAgent()
-                    );
-                    recorded = true;
-                } catch (Exception ex) {
-                    log.error("[SecurityDecisionEnforcementHandler] Failed to record block to DB (attempt {}): userId={}",
-                            attempt + 1, userId, ex);
-                }
-            }
-            if (!recorded) {
-                log.error("[SecurityDecisionEnforcementHandler] All DB record attempts failed, BLOCK exists only in Redis: userId={}, requestId={}", userId, requestId);
+            try {
+                blockedUserRecorder.recordBlock(
+                        requestId, userId, event.getUserName(),
+                        result.getAction(),
+                        reasoning,
+                        event.getSourceIp(),
+                        event.getUserAgent()
+                );
+            } catch (Exception ex) {
+                log.error("[SecurityDecisionEnforcementHandler] Failed to record block to DB: userId={}", userId, ex);
             }
         }
     }
@@ -189,12 +149,32 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
             reasoningPrefix = "AI Analysis Incomplete: ";
         }
 
+        List<String> indicators = result.getThreatIndicators() != null
+                ? new ArrayList<>(result.getThreatIndicators()) : new ArrayList<>();
+        List<String> mitigationActions = result.getRecommendedActions() != null
+                ? new ArrayList<>(result.getRecommendedActions()) : new ArrayList<>();
+
         return SecurityDecision.builder()
                 .action(decisionAction)
-                .riskScore(result.getRiskScore())
-                .confidence(result.getConfidence())
-                .reasoning(reasoningPrefix)
+                .iocIndicators(indicators)
+                .mitigationActions(mitigationActions)
+                .reasoning(reasoningPrefix + firstNonBlank(result.getReasoning(), "No additional reasoning"))
                 .build();
+    }
+
+    private String summarizeReasoning(String reasoning) {
+        if (reasoning == null) {
+            return null;
+        }
+        String normalized = reasoning.replaceAll("\\s+", " ").trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        return normalized.length() > 280 ? normalized.substring(0, 280) : normalized;
+    }
+
+    private String firstNonBlank(String value, String fallback) {
+        return value != null && !value.isBlank() ? value : fallback;
     }
 
     @Override

@@ -7,7 +7,7 @@ package io.contexa.contexacore.autonomous.service;
 public interface IBlockedUserRecorder {
 
     void recordBlock(String requestId, String userId, String username,
-                     double riskScore, double confidence, String reasoning,
+                     String action, String reasoning,
                      String sourceIp, String userAgent);
 
     void resolveBlock(String userId, String adminId, String resolvedAction, String reason);

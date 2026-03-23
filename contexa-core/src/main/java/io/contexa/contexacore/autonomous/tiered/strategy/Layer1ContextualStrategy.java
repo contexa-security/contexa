@@ -3,11 +3,13 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
-import io.contexa.contexacore.autonomous.event.LlmAnalysisEventListener;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
+import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
@@ -19,6 +21,7 @@ import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -39,8 +42,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
+    private final SaasBaselineSeedService baselineSeedService;
+    private final SaasThreatIntelligenceService threatIntelligenceService;
+    private final SaasThreatKnowledgePackService threatKnowledgePackService;
     private final Cache<String, SessionContext> sessionContextCache;
-    private volatile LlmAnalysisEventListener llmEventListener;
 
     public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
                                     UnifiedVectorService unifiedVectorService,
@@ -50,13 +55,20 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     BehaviorVectorService behaviorVectorService,
                                     BaselineLearningService baselineLearningService,
                                     SecurityLearningService securityLearningService,
+                                    SaasBaselineSeedService baselineSeedService,
+                                    SaasThreatIntelligenceService threatIntelligenceService,
+                                    SaasThreatKnowledgePackService threatKnowledgePackService,
+                                    PromptContextAuthorizationService promptContextAuthorizationService,
+                                    PromptContextAuditForwardingService promptContextAuditForwardingService,
                                     TieredStrategyProperties tieredStrategyProperties) {
         super(llmOrchestrator, eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
-                tieredStrategyProperties);
+                promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
         this.dataStore = dataStore;
-
         this.securityLearningService = securityLearningService;
+        this.baselineSeedService = baselineSeedService;
+        this.threatIntelligenceService = threatIntelligenceService;
+        this.threatKnowledgePackService = threatKnowledgePackService;
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
@@ -65,11 +77,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .recordStats()
                 .build();
     }
-
-    public void setLlmEventListener(LlmAnalysisEventListener listener) {
-        this.llmEventListener = listener;
-    }
-
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
 
@@ -82,6 +89,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 .assessedAt(LocalDateTime.now())
                 .riskScore(decision.getRiskScore())
                 .confidence(decision.getConfidence())
+                .indicators(new ArrayList<>())
+                .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
                 .strategyName("Layer1-Contextual")
                 .shouldEscalate(shouldEscalate)
                 .action(action)
@@ -104,50 +113,19 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             SessionContext sessionContext = buildSessionContext(event);
             sessionContextMs = System.currentTimeMillis() - sessionContextStart;
 
-            // SSE: session context loaded
-            if (llmEventListener != null) {
-                Map<String, Object> sessionData = new HashMap<>();
-                sessionData.put("sessionId", sessionContext.getSessionId());
-                sessionData.put("authMethod", sessionContext.getAuthMethod());
-                sessionData.put("accessFrequency", sessionContext.getAccessFrequency());
-                sessionData.put("recentActionsCount", sessionContext.getRecentActions() != null ? sessionContext.getRecentActions().size() : 0);
-                sessionData.put("sessionContextMs", sessionContextMs);
-                llmEventListener.onSessionContextLoaded(event.getUserId(), sessionData);
-            }
-
             long ragSearchStart = System.currentTimeMillis();
             List<Document> relatedDocuments = searchRelatedContext(event);
             List<String> similarEvents = extractSimilarEventsSummary(relatedDocuments);
             ragSearchMs = System.currentTimeMillis() - ragSearchStart;
 
-            // SSE: RAG search complete
-            if (llmEventListener != null) {
-                llmEventListener.onRagSearchComplete(event.getUserId(), relatedDocuments != null ? relatedDocuments.size() : 0, ragSearchMs);
-            }
-
             long behaviorAnalysisStart = System.currentTimeMillis();
             BaseBehaviorAnalysis behaviorAnalysis = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
             behaviorAnalysisMs = System.currentTimeMillis() - behaviorAnalysisStart;
 
-            // SSE: behavior analysis complete
-            if (llmEventListener != null) {
-                Map<String, Object> behaviorData = new HashMap<>();
-                behaviorData.put("baselineEstablished", behaviorAnalysis.isBaselineEstablished());
-                behaviorData.put("similarEventsCount", behaviorAnalysis.getSimilarEvents() != null ? behaviorAnalysis.getSimilarEvents().size() : 0);
-                behaviorData.put("behaviorAnalysisMs", behaviorAnalysisMs);
-                // isNewSession/isNewDevice from event metadata (set by HCADFilter)
-                if (event.getMetadata() != null) {
-                    Object newSession = event.getMetadata().get("isNewSession");
-                    Object newDevice = event.getMetadata().get("isNewDevice");
-                    if (newSession != null) behaviorData.put("isNewSession", newSession);
-                    if (newDevice != null) behaviorData.put("isNewDevice", newDevice);
-                }
-                llmEventListener.onBehaviorAnalysisComplete(event.getUserId(), behaviorData);
-            }
-
             long promptBuildStart = System.currentTimeMillis();
             SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
+            annotateThreatKnowledgeContext(event, behaviorCtx);
 
             cacheEscalationContext(event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
 
@@ -155,11 +133,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                     promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
             promptBuildMs = System.currentTimeMillis() - promptBuildStart;
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
-
-            // SSE: LLM execution start
-            if (llmEventListener != null) {
-                llmEventListener.onLlmExecutionStart(event.getUserId(), "1차 AI (모델: Qwen 2.5 7B)", promptBuildMs);
-            }
 
             SecurityResponse response = null;
             if (llmOrchestrator != null) {
@@ -182,7 +155,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                         .timeout(Duration.ofMillis(llmTimeoutMs))
                         .onErrorResume(Exception.class, e -> {
                             log.error("[Layer1] LLM execution failed, escalating to Layer 2: {}", event.getEventId(), e);
-                            return Mono.just("{\"riskScore\":0.7,\"confidence\":0.3,\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\",\"threatCategory\":\"UNKNOWN\"}");
+                            return Mono.just("{\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\",\"mitre\":\"UNKNOWN\"}");
                         })
                         .block();
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
@@ -190,11 +163,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                 long responseParseStart = System.currentTimeMillis();
                 response = parseJsonResponse(jsonResponse);
                 responseParseMs = System.currentTimeMillis() - responseParseStart;
-
-                // SSE: LLM execution complete
-                if (llmEventListener != null) {
-                    llmEventListener.onLlmExecutionComplete(event.getUserId(), llmExecutionMs, responseParseMs);
-                }
             } else {
                 log.error("[Layer1] UnifiedLLMOrchestrator not available");
                 response = createDefaultResponse();
@@ -320,17 +288,11 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
-
-        if (event != null && event.getMetadata() != null) {
-            Map<String, Object> meta = event.getMetadata();
-            Object isNewSession = meta.get("isNewSession");
-            Object isNewDevice = meta.get("isNewDevice");
-            if (isNewSession instanceof Boolean) {
-                ctx.setIsNewSession((Boolean) isNewSession);
-            }
-            if (isNewDevice instanceof Boolean) {
-                ctx.setIsNewDevice((Boolean) isNewDevice);
-            }
+        if (threatIntelligenceService != null) {
+            ctx.setActiveThreatSignals(threatIntelligenceService.getPromptSignals());
+        }
+        if (threatKnowledgePackService != null) {
+            ctx.setThreatKnowledgePack(threatKnowledgePackService.currentSnapshot());
         }
 
         if (event != null && event.getUserAgent() != null) {
@@ -345,31 +307,17 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             ctx.setPreviousUserAgentOS(baselineOS);
         }
 
-        if (event != null && event.getUserId() != null && baselineLearningService != null) {
-            try {
-                BaselineVector baseline = baselineLearningService.getBaseline(event.getUserId());
-                if (baseline != null) {
-                    ctx.setBaselineIpRanges(baseline.getNormalIpRanges());
-                    ctx.setBaselineOperatingSystems(baseline.getNormalOperatingSystems());
-                    ctx.setBaselineUserAgents(baseline.getNormalUserAgents());
-                    ctx.setBaselineFrequentPaths(baseline.getFrequentPaths());
-                    ctx.setBaselineAccessHours(baseline.getNormalAccessHours());
-                    ctx.setBaselineAccessDays(baseline.getNormalAccessDays());
-                    ctx.setBaselineUpdateCount(baseline.getUpdateCount());
-                    ctx.setBaselineAvgTrustScore(baseline.getAvgTrustScore());
-                    if (baseline.getNormalUserAgents() != null
-                            && baseline.getNormalUserAgents().length > 0) {
-                        ctx.setPreviousUserAgentBrowser(
-                                baseline.getNormalUserAgents()[0]);
-                    }
-                }
-            } catch (Exception e) {
-                log.error("[Layer1] Failed to load baseline patterns for user {}: {}",
-                        event.getUserId(), e.getMessage());
-            }
-        }
+        enrichBehaviorAnalysisWithBaselineSupport(ctx, event, baselineSeedService);
 
         enrichWithActivityContext(ctx, event);
+
+        if (threatIntelligenceService != null) {
+            ctx.setThreatIntelligenceMatchContext(threatIntelligenceService.buildThreatContext(event, ctx));
+        }
+        if (threatKnowledgePackService != null) {
+            ctx.setThreatKnowledgePackMatchContext(
+                    threatKnowledgePackService.buildThreatKnowledgeContext(event, ctx));
+        }
 
         return ctx;
     }
@@ -474,8 +422,6 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     private SecurityDecision createFallbackDecision(long startTime) {
         return SecurityDecision.builder()
                 .action(ZeroTrustAction.ESCALATE)
-                .riskScore(0.7)
-                .confidence(0.3)
                 .analysisTime(startTime)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .processingLayer(1)
@@ -486,6 +432,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     @Override
     protected String getLayerName() {
         return "Layer1";
+    }
+
+    private String mapActionToRecommendation(ZeroTrustAction action) {
+        return switch (action) {
+            case ALLOW -> "ALLOW";
+            case BLOCK -> "BLOCK_IMMEDIATELY";
+            case CHALLENGE -> "REQUIRE_MFA";
+            case ESCALATE, PENDING_ANALYSIS -> "ESCALATE_TO_EXPERT";
+        };
     }
 
     private class SessionContext extends BaseSessionContext {
@@ -536,3 +491,5 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     }
 
 }
+
+

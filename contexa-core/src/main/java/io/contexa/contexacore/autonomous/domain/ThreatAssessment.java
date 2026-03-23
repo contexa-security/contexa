@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -14,17 +15,19 @@ import java.time.LocalDateTime;
 public class ThreatAssessment {
 
     private String eventId;
-    private double riskScore;
+    private Double riskScore;
     private LocalDateTime assessedAt;
+    private List<String> indicators;
+    private List<String> recommendedActions;
     private String strategyName;
-    private double confidence;
+    private Double confidence;
     private String action;
     private String reasoning;
 
     @Builder.Default
     private boolean shouldEscalate = false;
 
-    public double getConfidenceScore() {
+    public Double getConfidenceScore() {
         return confidence;
     }
 

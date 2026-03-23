@@ -16,17 +16,22 @@ import java.util.Map;
 public class SecurityDecision {
 
     private ZeroTrustAction action;
-    private double riskScore;                 
-    private double confidence;                
+    private Double riskScore;
+    private Double confidence;
     private long analysisTime;                
     private long processingTimeMs;            
     private int processingLayer;              
 
-    private Map<String, Object> sessionContext;
-    private List<String> behaviorPatterns;
-    private String threatCategory;
-    private String reasoning;
+    private String llmModel;                  
 
+    private Map<String, Object> sessionContext;    
+    private List<String> behaviorPatterns;        
+    private String threatCategory;                 
+    private List<String> mitigationActions;       
+    private String reasoning;                      
+
+    private List<String> iocIndicators;            
+    private Map<String, String> mitreMapping;      
     private String soarPlaybook;                   
     private boolean requiresApproval;              
     private String expertRecommendation;           

@@ -28,4 +28,14 @@ public class InMemoryBaselineDataStore implements BaselineDataStore {
     public void saveOrganizationBaseline(String organizationId, BaselineVector baseline) {
         orgBaselines.put(organizationId, baseline);
     }
+
+    @Override
+    public Iterable<BaselineVector> listOrganizationBaselines() {
+        return orgBaselines.values();
+    }
+
+    @Override
+    public long countUserBaselines() {
+        return userBaselines.size();
+    }
 }

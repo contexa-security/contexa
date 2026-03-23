@@ -20,6 +20,10 @@ public interface LlmAnalysisEventListener {
 
     void onError(String userId, String message);
 
+    public void onLayer2Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs);
+    public void onEscalateProtectionTriggered(String userId, String requestPath, int escalateCount, int totalAnalysisCount);
+    public void onLayer1Complete(String userId, String action, String reasoning, String mitre, Long elapsedMs);
+
     // Detailed pipeline events (default methods for backward compatibility)
     default void onHcadAnalysis(String userId, Map<String, Object> hcadData) {}
     default void onSessionContextLoaded(String userId, Map<String, Object> sessionData) {}

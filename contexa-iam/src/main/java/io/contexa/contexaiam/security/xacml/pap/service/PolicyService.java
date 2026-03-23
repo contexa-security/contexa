@@ -16,4 +16,6 @@ public interface PolicyService {
     void updatePolicy(PolicyDto policyDto);
     void deletePolicy(Long id);
     void synchronizePolicyForPermission(Permission permission);
+    void approvePolicy(Long id, String approver);
+    void rejectPolicy(Long id, String rejector);
 }

@@ -133,4 +133,12 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
     long countByIsActiveTrue();
 
     List<Policy> findTop5ByOrderByCreatedAtDesc();
+
+    @Query("SELECT COUNT(p) FROM Policy p JOIN p.targets t " +
+           "WHERE t.targetType = :targetType AND t.targetIdentifier = :targetIdentifier " +
+           "AND p.id <> :excludePolicyId")
+    long countOtherPoliciesForTarget(
+            @Param("targetType") String targetType,
+            @Param("targetIdentifier") String targetIdentifier,
+            @Param("excludePolicyId") Long excludePolicyId);
 }

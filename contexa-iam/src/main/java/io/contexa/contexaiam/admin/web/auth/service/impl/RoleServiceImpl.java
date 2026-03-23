@@ -90,6 +90,11 @@ public class RoleServiceImpl implements RoleService {
 
         Role saved = roleRepository.save(role);
         auditRoleChange(AuditEventCategory.ROLE_CREATED, saved);
+
+        if (permissionIds != null && !permissionIds.isEmpty()) {
+            eventBus.publish(new RolePermissionsChangedEvent(saved.getId()));
+        }
+
         return saved;
     }
 

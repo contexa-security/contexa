@@ -42,6 +42,7 @@ public class CustomMethodSecurityExpressionHandler extends DefaultMethodSecurity
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
             ZeroTrustActionRepository actionRedisRepository) {
+
         Assert.notNull(policyRetrievalPoint, "PolicyRetrievalPoint cannot be null");
         Assert.notNull(securityZeroTrustProperties, "SecurityZeroTrustProperties cannot be null");
 

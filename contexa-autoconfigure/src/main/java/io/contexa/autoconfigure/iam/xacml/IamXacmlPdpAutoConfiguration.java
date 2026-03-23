@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
 
 import java.util.List;
 
@@ -85,8 +86,9 @@ public class IamXacmlPdpAutoConfiguration {
     public CustomWebSecurityExpressionHandler customWebSecurityExpressionHandler(
             ContextHandler contextHandler,
             AuditLogRepository auditLogRepository,
-            ZeroTrustActionRepository actionRedisRepository) {
-        return new CustomWebSecurityExpressionHandler(contextHandler, auditLogRepository, actionRedisRepository);
+            ZeroTrustActionRepository actionRedisRepository,
+            RoleHierarchy roleHierarchy) {
+        return new CustomWebSecurityExpressionHandler(contextHandler, auditLogRepository, actionRedisRepository, roleHierarchy);
     }
 
 

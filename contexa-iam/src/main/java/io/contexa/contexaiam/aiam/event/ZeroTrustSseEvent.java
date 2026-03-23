@@ -36,12 +36,6 @@ public class ZeroTrustSseEvent {
     @JsonProperty("action")
     private String action;
 
-    @JsonProperty("riskScore")
-    private Double riskScore;
-
-    @JsonProperty("confidence")
-    private Double confidence;
-
     @JsonProperty("reasoning")
     private String reasoning;
 
@@ -73,14 +67,14 @@ public class ZeroTrustSseEvent {
      * Create an analysis progress event for layer completion.
      */
     public static ZeroTrustSseEvent analysisProgress(String userId, String layer,
-            String action, Double riskScore, Double confidence) {
+            String action, String reasoning, String mitre) {
         return ZeroTrustSseEvent.builder()
                 .type(ANALYSIS_PROGRESS)
                 .userId(userId)
                 .layer(layer)
                 .action(action)
-                .riskScore(riskScore)
-                .confidence(confidence)
+                .reasoning(reasoning)
+                .mitre(mitre)
                 .timestamp(System.currentTimeMillis())
                 .build();
     }
@@ -90,7 +84,6 @@ public class ZeroTrustSseEvent {
      */
     public static ZeroTrustSseEvent decisionComplete(String userId, String action,
             String layer, String requestPath,
-            Double riskScore, Double confidence,
             String reasoning, String mitre) {
         return ZeroTrustSseEvent.builder()
                 .type(DECISION_COMPLETE)
@@ -98,8 +91,6 @@ public class ZeroTrustSseEvent {
                 .action(action)
                 .layer(layer)
                 .requestPath(requestPath)
-                .riskScore(riskScore)
-                .confidence(confidence)
                 .reasoning(reasoning)
                 .mitre(mitre)
                 .timestamp(System.currentTimeMillis())

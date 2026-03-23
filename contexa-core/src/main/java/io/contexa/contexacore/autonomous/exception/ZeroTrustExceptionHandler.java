@@ -49,7 +49,7 @@ public class ZeroTrustExceptionHandler {
             .message(ex.getMessage())
             .action(ZeroTrustAction.BLOCK.name())
             .resourceId("unknown")
-            .riskScore(1.0)
+            .riskScore(null)
             .analysisTimeout(false)
             .timestamp(Instant.now())
             .build();
@@ -73,7 +73,7 @@ public class ZeroTrustExceptionHandler {
             .message(ex.getMessage())
             .action(ZeroTrustAction.CHALLENGE.name())
             .resourceId(ex.getResourceId())
-            .riskScore(1.0)
+            .riskScore(null)
             .analysisTimeout(false)
             .timestamp(Instant.now())
             .build();
@@ -96,11 +96,10 @@ public class ZeroTrustExceptionHandler {
 
         private final String resourceId;
 
-        private final double riskScore;
+        private final Double riskScore;
 
         private final boolean analysisTimeout;
 
         private final Instant timestamp;
     }
 }
-

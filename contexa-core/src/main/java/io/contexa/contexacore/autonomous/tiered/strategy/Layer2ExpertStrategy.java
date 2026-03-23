@@ -1,24 +1,28 @@
 package io.contexa.contexacore.autonomous.tiered.strategy;
 
-import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.SaasThreatIntelligenceService;
+import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
+import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
+import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
-import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.domain.SoarContext;
-import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
+import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
@@ -29,7 +33,10 @@ import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 @Slf4j
 public class Layer2ExpertStrategy extends AbstractTieredStrategy {
@@ -37,6 +44,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private final ApprovalService approvalService;
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
+    private final SaasBaselineSeedService baselineSeedService;
+    private final SaasThreatIntelligenceService threatIntelligenceService;
+    private final SaasThreatKnowledgePackService threatKnowledgePackService;
 
     @Autowired
     public Layer2ExpertStrategy(UnifiedLLMOrchestrator llmOrchestrator,
@@ -48,16 +58,23 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 BehaviorVectorService behaviorVectorService,
                                 BaselineLearningService baselineLearningService,
                                 TieredStrategyProperties tieredStrategyProperties,
-                                SecurityLearningService securityLearningService) {
+                                SecurityLearningService securityLearningService,
+                                SaasBaselineSeedService baselineSeedService,
+                                SaasThreatIntelligenceService threatIntelligenceService,
+                                SaasThreatKnowledgePackService threatKnowledgePackService,
+                                PromptContextAuthorizationService promptContextAuthorizationService,
+                                PromptContextAuditForwardingService promptContextAuditForwardingService) {
         super(llmOrchestrator, eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
-              tieredStrategyProperties);
+              promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
 
         this.approvalService = approvalService;
         this.dataStore = dataStore;
         this.securityLearningService = securityLearningService;
+        this.baselineSeedService = baselineSeedService;
+        this.threatIntelligenceService = threatIntelligenceService;
+        this.threatKnowledgePackService = threatKnowledgePackService;
     }
-
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
         SecurityDecision expertDecision = performDeepAnalysis(event);
@@ -66,6 +83,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return ThreatAssessment.builder()
                 .riskScore(expertDecision.getRiskScore())
                 .confidence(expertDecision.getConfidence())
+                .indicators(new ArrayList<>())
+                .recommendedActions(List.of(mapActionToRecommendation(expertDecision.getAction())))
                 .strategyName("Layer2-Expert")
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(false)
@@ -85,6 +104,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
             SecurityPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
             SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event, relatedDocuments);
+            annotateThreatKnowledgeContext(event, behaviorCtx);
             SecurityPromptTemplate.StructuredPrompt structured =
                     promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
@@ -108,7 +128,7 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                         .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .onErrorResume(Exception.class, e -> {
                             log.error("[Layer2] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
-                            return Mono.just("{\"riskScore\":0.9,\"confidence\":0.3,\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\",\"threatCategory\":\"UNKNOWN\"}");
+                            return Mono.just("{\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\",\"mitre\":\"UNKNOWN\"}");
                         })
                         .block();
 
@@ -200,30 +220,26 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         ctx.setSimilarEvents(base.getSimilarEvents());
         ctx.setBaselineContext(base.getBaselineContext());
         ctx.setBaselineEstablished(base.isBaselineEstablished());
+        if (threatIntelligenceService != null) {
+            ctx.setActiveThreatSignals(threatIntelligenceService.getPromptSignals());
+        }
+        if (threatKnowledgePackService != null) {
+            ctx.setThreatKnowledgePack(threatKnowledgePackService.currentSnapshot());
+        }
 
         if (event.getUserAgent() != null) {
             ctx.setCurrentUserAgentOS(SecurityEventEnricher.extractOSFromUserAgent(event.getUserAgent()));
             ctx.setCurrentUserAgentBrowser(SecurityEventEnricher.extractBrowserSignature(event.getUserAgent()));
         }
 
-        if (event.getUserId() != null && baselineLearningService != null) {
-            try {
-                BaselineVector baseline = baselineLearningService.getBaseline(event.getUserId());
-                if (baseline != null) {
-                    ctx.setBaselineUpdateCount(baseline.getUpdateCount());
-                    ctx.setBaselineAvgTrustScore(baseline.getAvgTrustScore());
-                    ctx.setBaselineIpRanges(baseline.getNormalIpRanges());
-                    ctx.setBaselineOperatingSystems(baseline.getNormalOperatingSystems());
-                    ctx.setBaselineUserAgents(baseline.getNormalUserAgents());
-                    ctx.setBaselineFrequentPaths(baseline.getFrequentPaths());
-                    ctx.setBaselineAccessHours(baseline.getNormalAccessHours());
-                    if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
-                        ctx.setPreviousUserAgentBrowser(baseline.getNormalUserAgents()[0]);
-                    }
-                }
-            } catch (Exception e) {
-                log.error("[Layer2] Failed to load baseline for user {}: {}", event.getUserId(), e.getMessage());
-            }
+        enrichBehaviorAnalysisWithBaselineSupport(ctx, event, baselineSeedService);
+
+        if (threatIntelligenceService != null) {
+            ctx.setThreatIntelligenceMatchContext(threatIntelligenceService.buildThreatContext(event, ctx));
+        }
+        if (threatKnowledgePackService != null) {
+            ctx.setThreatKnowledgePackMatchContext(
+                    threatKnowledgePackService.buildThreatKnowledgeContext(event, ctx));
         }
 
         return ctx;
@@ -240,6 +256,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private SecurityDecision convertToSecurityDecision(SecurityResponse response, SecurityEvent event) {
         SecurityDecision decision = convertToSecurityDecisionBase(response, event);
         decision.setProcessingLayer(2);
+        decision.setLlmModel("tier-2-auto-selected");
+        if (response != null && response.getMitre() != null && !response.getMitre().isEmpty()) {
+            Map<String, String> mitreMapping = new HashMap<>();
+            mitreMapping.put(response.getMitre(), response.getMitre());
+            decision.setMitreMapping(mitreMapping);
+        }
         return decision;
     }
 
@@ -258,12 +280,19 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 actions.add(blockAction);
             }
 
+            if (decision.getIocIndicators() != null && !decision.getIocIndicators().isEmpty()) {
+                Map<String, Object> investigateAction = Map.of(
+                        "actionType", "INVESTIGATE_IOC",
+                        "parameters", Map.of("iocs", decision.getIocIndicators())
+                );
+                actions.add(investigateAction);
+            }
+
             Map<String, Object> notifyAction = Map.of(
                     "actionType", "NOTIFY_SOC",
                     "parameters", Map.of(
                             "severity", "CRITICAL",
-                            "event", event.getEventId(),
-                            "risk", decision.getRiskScore()
+                            "event", event.getEventId()
                     )
             );
             actions.add(notifyAction);
@@ -289,7 +318,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
             soarContext.setCreatedAt(LocalDateTime.now());
 
             Map<String, Object> metadata = Map.of(
-                    "riskScore", decision.getRiskScore(),
                     "threatCategory", decision.getThreatCategory() != null ? decision.getThreatCategory() : "UNKNOWN",
                     "action", decision.getAction()
             );
@@ -311,8 +339,6 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private SecurityDecision createFailsafeDecision(SecurityEvent event, long startTime) {
         return SecurityDecision.builder()
                 .action(ZeroTrustAction.BLOCK)
-                .riskScore(0.9)
-                .confidence(0.3)
                 .analysisTime(startTime)
                 .processingTimeMs(System.currentTimeMillis() - startTime)
                 .processingLayer(2)
@@ -333,4 +359,14 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return "Layer2-Expert-Strategy";
     }
 
+    private String mapActionToRecommendation(ZeroTrustAction action) {
+        return switch (action) {
+            case ALLOW -> "ALLOW_WITH_MONITORING";
+            case BLOCK -> "BLOCK_WITH_INCIDENT_RESPONSE";
+            case CHALLENGE -> "REQUIRE_REAUTHENTICATION";
+            case ESCALATE, PENDING_ANALYSIS -> "ESCALATE_TO_SOC";
+        };
+    }
 }
+
+

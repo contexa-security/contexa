@@ -7,9 +7,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -19,6 +17,8 @@ public class RedisBaselineDataStore implements BaselineDataStore {
     private final RedisTemplate<String, Object> redisTemplate;
 
     private static final String BASELINE_KEY_PREFIX = "security:hcad:baseline:";
+    private static final String USER_BASELINE_INDEX_KEY = BASELINE_KEY_PREFIX + "user:index";
+    private static final String ORG_BASELINE_INDEX_KEY = BASELINE_KEY_PREFIX + "org:index";
     private static final Duration BASELINE_TTL = Duration.ofDays(30);
 
     @Override
@@ -95,6 +95,7 @@ public class RedisBaselineDataStore implements BaselineDataStore {
 
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, BASELINE_TTL);
+            redisTemplate.opsForSet().add(USER_BASELINE_INDEX_KEY, userId);
 
         } catch (Exception e) {
             log.error("[BaselineDataStore] Baseline save failed: userId={}", userId, e);
@@ -174,9 +175,68 @@ public class RedisBaselineDataStore implements BaselineDataStore {
 
             redisTemplate.opsForHash().putAll(key, data);
             redisTemplate.expire(key, BASELINE_TTL);
+            redisTemplate.opsForSet().add(ORG_BASELINE_INDEX_KEY, organizationId);
 
         } catch (Exception e) {
             log.error("[BaselineDataStore] Organization baseline save failed: organizationId={}", organizationId, e);
+        }
+    }
+
+    @Override
+    public Iterable<BaselineVector> listOrganizationBaselines() {
+        LinkedHashMap<String, BaselineVector> baselines = new LinkedHashMap<>();
+        try {
+            Set<Object> organizationIds = redisTemplate.opsForSet().members(ORG_BASELINE_INDEX_KEY);
+            if (organizationIds != null && !organizationIds.isEmpty()) {
+                for (Object organizationId : organizationIds) {
+                    if (organizationId != null) {
+                        BaselineVector baseline = getOrganizationBaseline(String.valueOf(organizationId));
+                        if (baseline != null) {
+                            baselines.put(String.valueOf(organizationId), baseline);
+                        }
+                    }
+                }
+                return baselines.values();
+            }
+            Set<String> keys = redisTemplate.keys(BASELINE_KEY_PREFIX + "org:*");
+            if (keys == null || keys.isEmpty()) {
+                return List.of();
+            }
+            for (String key : keys) {
+                if (key.endsWith(":index")) {
+                    continue;
+                }
+                String organizationId = key.substring((BASELINE_KEY_PREFIX + "org:").length());
+                BaselineVector baseline = getOrganizationBaseline(organizationId);
+                if (baseline != null) {
+                    baselines.put(organizationId, baseline);
+                }
+            }
+            return baselines.values();
+        } catch (Exception e) {
+            log.error("[BaselineDataStore] Organization baseline listing failed", e);
+            return List.of();
+        }
+    }
+
+    @Override
+    public long countUserBaselines() {
+        try {
+            Long size = redisTemplate.opsForSet().size(USER_BASELINE_INDEX_KEY);
+            if (size != null && size > 0) {
+                return size;
+            }
+            Set<String> keys = redisTemplate.keys(BASELINE_KEY_PREFIX + "*");
+            if (keys == null || keys.isEmpty()) {
+                return 0L;
+            }
+            return keys.stream()
+                    .filter(key -> !key.contains("org:"))
+                    .filter(key -> !key.endsWith(":index"))
+                    .count();
+        } catch (Exception e) {
+            log.error("[BaselineDataStore] User baseline count failed", e);
+            return 0L;
         }
     }
 

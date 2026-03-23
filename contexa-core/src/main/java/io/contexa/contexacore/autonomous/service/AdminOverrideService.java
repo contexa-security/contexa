@@ -8,6 +8,8 @@ import io.contexa.contexacore.autonomous.domain.AdminOverride;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
 import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.saas.DecisionFeedbackForwardingService;
+import io.contexa.contexacore.autonomous.saas.ThreatOutcomeForwardingService;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.infra.lock.DistributedLockService;
 import lombok.Setter;
@@ -27,21 +29,42 @@ public class AdminOverrideService {
     private final ZeroTrustActionRepository actionRedisRepository;
     private final DistributedLockService lockService;
     private final CentralAuditFacade centralAuditFacade;
-
-    @Setter
-    @Autowired(required = false)
-    private BlockingSignalBroadcaster blockingSignalBroadcaster;
+    private final DecisionFeedbackForwardingService decisionFeedbackForwardingService;
+    private final ThreatOutcomeForwardingService threatOutcomeForwardingService;
+    private final BlockingSignalBroadcaster blockingSignalBroadcaster;
 
     private static final String BASELINE_LOCK_PREFIX = "baseline:update:";
     private static final Duration BASELINE_LOCK_TIMEOUT = Duration.ofSeconds(10);
 
     public AdminOverrideService(SecurityLearningService securityLearningService,
                                 ZeroTrustActionRepository actionRedisRepository,
-                                DistributedLockService lockService, CentralAuditFacade centralAuditFacade) {
+                                DistributedLockService lockService, CentralAuditFacade centralAuditFacade,
+                                DecisionFeedbackForwardingService decisionFeedbackForwardingService,
+                                ThreatOutcomeForwardingService threatOutcomeForwardingService, BlockingSignalBroadcaster blockingSignalBroadcaster) {
         this.securityLearningService = securityLearningService;
         this.actionRedisRepository = actionRedisRepository;
         this.lockService = lockService;
         this.centralAuditFacade = centralAuditFacade;
+        this.decisionFeedbackForwardingService = decisionFeedbackForwardingService;
+        this.threatOutcomeForwardingService = threatOutcomeForwardingService;
+        this.blockingSignalBroadcaster = blockingSignalBroadcaster;
+    }
+
+    public AdminOverride approve(String requestId, String userId, String adminId,
+                                 String originalAction,
+                                 String overriddenAction, String reason,
+                                 SecurityEvent originalEvent) {
+        return approve(
+                requestId,
+                userId,
+                adminId,
+                originalAction,
+                Double.NaN,
+                Double.NaN,
+                overriddenAction,
+                reason,
+                originalEvent
+        );
     }
 
     public AdminOverride approve(String requestId, String userId, String adminId,
@@ -88,7 +111,35 @@ public class AdminOverrideService {
         }
 
         auditAdminOverride(override, originalEvent);
+        captureDecisionFeedback(override, originalEvent);
+        captureThreatOutcome(override, originalEvent);
         return override;
+    }
+
+    private void captureDecisionFeedback(AdminOverride override, SecurityEvent originalEvent) {
+        if (decisionFeedbackForwardingService == null) {
+            return;
+        }
+        try {
+            decisionFeedbackForwardingService.capture(override, originalEvent);
+        }
+        catch (Exception e) {
+            log.error("[AdminOverrideService] Decision feedback forwarding failed: requestId={}, overrideId={}",
+                    override.getRequestId(), override.getOverrideId(), e);
+        }
+    }
+
+    private void captureThreatOutcome(AdminOverride override, SecurityEvent originalEvent) {
+        if (threatOutcomeForwardingService == null) {
+            return;
+        }
+        try {
+            threatOutcomeForwardingService.capture(override, originalEvent);
+        }
+        catch (Exception e) {
+            log.error("[AdminOverrideService] Threat outcome forwarding failed: requestId={}, overrideId={}",
+                    override.getRequestId(), override.getOverrideId(), e);
+        }
     }
 
     private void triggerBaselineUpdate(String userId, SecurityEvent event, AdminOverride override) {

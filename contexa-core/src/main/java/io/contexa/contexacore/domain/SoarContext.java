@@ -1,8 +1,8 @@
 package io.contexa.contexacore.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import io.contexa.contexacommon.domain.context.DomainContext;
+import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -33,12 +33,12 @@ public class SoarContext extends DomainContext {
     private LocalDateTime createdAt;
     private String originalQuery;
     private ThreatLevel threatLevel;
-    private double riskScore;
+    private Double riskScore;
     private String threatAssessment;
     private LocalDateTime detectedAt;
     private Map<String, Object> additionalInfo;
 
-    private List<io.contexa.contexacore.domain.Message> conversationHistory; 
+    private List<Message> conversationHistory;
     private AssistantMessage.ToolCall requiredToolCall; 
     private boolean humanApprovalNeeded; 
     private String humanApprovalMessage; 
@@ -111,17 +111,17 @@ public class SoarContext extends DomainContext {
         }
     }
 
-    private List<io.contexa.contexacore.domain.ApprovalRequest> approvalRequests = new ArrayList<>();
+    private List<ApprovalRequest> approvalRequests = new ArrayList<>();
     private java.util.Set<String> approvedTools = new java.util.HashSet<>();
     
-    public void addApprovalRequest(io.contexa.contexacore.domain.ApprovalRequest request) {
+    public void addApprovalRequest(ApprovalRequest request) {
         if (this.approvalRequests == null) {
             this.approvalRequests = new ArrayList<>();
         }
         this.approvalRequests.add(request);
     }
     
-    public List<io.contexa.contexacore.domain.ApprovalRequest> getApprovalRequests() {
+    public List<ApprovalRequest> getApprovalRequests() {
         if (this.approvalRequests == null) {
             this.approvalRequests = new ArrayList<>();
         }
@@ -156,8 +156,8 @@ public class SoarContext extends DomainContext {
         if (this.conversationHistory == null) {
             this.conversationHistory = new ArrayList<>();
         }
-        io.contexa.contexacore.domain.Message entry = 
-            new io.contexa.contexacore.domain.Message(role, message);
+        Message entry =
+            new Message(role, message);
         this.conversationHistory.add(entry);
     }
 
@@ -274,3 +274,4 @@ public class SoarContext extends DomainContext {
         return lastActivity != null ? lastActivity : createdAt;
     }
 }
+

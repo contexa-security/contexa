@@ -1,10 +1,10 @@
 package io.contexa.contexacore.autonomous.domain;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import lombok.Data;
-import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -44,13 +44,13 @@ public class SecurityResponse {
             if (riskScore == null) {
                 riskScore = extractDouble(json, "\"riskScore\"");
             }
-            response.setRiskScore(riskScore);
+            response.setRiskScore(sanitizeScore(riskScore));
 
             Double confidence = extractDouble(json, "\"c\"");
             if (confidence == null) {
                 confidence = extractDouble(json, "\"confidence\"");
             }
-            response.setConfidence(confidence);
+            response.setConfidence(sanitizeScore(confidence));
 
             String action = extractString(json, "\"a\"");
             if (action != null) {
@@ -184,10 +184,15 @@ public class SecurityResponse {
     }
 
     public boolean isValid() {
-        return riskScore != null
-            && confidence != null
-            && action != null
+        return action != null
             && !action.isBlank();
+    }
+
+    private static Double sanitizeScore(Double value) {
+        if (value == null || !Double.isFinite(value)) {
+            return null;
+        }
+        return Math.max(0.0, Math.min(1.0, value));
     }
 
 }

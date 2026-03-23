@@ -11,6 +11,7 @@ import io.contexa.contexacore.repository.ApprovalPolicyRepository;
 import io.contexa.contexacore.std.advisor.security.SecurityContextAdvisor;
 import io.contexa.contexacore.std.components.event.AuditLogger;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
+import io.contexa.contexacore.std.components.retriever.AuthorizedContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.components.retriever.ContextRetrieverRegistry;
 import io.contexa.contexacore.std.labs.DefaultAILabFactory;
@@ -30,6 +31,7 @@ import io.contexa.contexacore.std.pipeline.processor.DomainResponseProcessor;
 import io.contexa.contexacore.std.pipeline.step.*;
 import io.contexa.contexacore.std.pipeline.streaming.JsonStreamingProcessor;
 import io.contexa.contexacore.std.pipeline.streaming.StreamingProperties;
+import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import io.contexa.contexacore.std.strategy.AIStrategy;
 import io.contexa.contexacore.std.strategy.AIStrategyRegistry;
 import org.springframework.ai.chat.model.ChatModel;
@@ -44,6 +46,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.Optional;
@@ -66,10 +69,18 @@ public class CoreStdComponentsAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnMissingBean
+    public PromptContextAuthorizationService promptContextAuthorizationService() {
+        return new PromptContextAuthorizationService();
+    }
+
+    @Bean
     @Primary
-    @ConditionalOnMissingBean(ContextRetriever.class)
-    public ContextRetriever contextRetriever(VectorStore vectorStore, ContexaRagProperties ragProperties) {
-        return new ContextRetriever(vectorStore, ragProperties);
+    public ContextRetriever contextRetriever(
+            VectorStore vectorStore,
+            ContexaRagProperties ragProperties,
+            PromptContextAuthorizationService promptContextAuthorizationService) {
+        return new AuthorizedContextRetriever(vectorStore, ragProperties, promptContextAuthorizationService);
     }
 
     @Bean
@@ -112,6 +123,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ChatModel.class)
     public DynamicModelSelectionStrategy dynamicModelSelectionStrategy(
             DynamicModelRegistry dynamicModelRegistry,
             TieredLLMProperties tieredLLMProperties,
@@ -121,6 +133,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(name = {"llmExecutionStep", "streamingLLMExecutionStep", "contextRetrievalStep"})
     public StreamingUniversalPipelineExecutor streamingUniversalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -138,6 +151,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(name = {"llmExecutionStep", "contextRetrievalStep"})
     public UniversalPipelineExecutor universalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
@@ -151,6 +165,7 @@ public class CoreStdComponentsAutoConfiguration {
     }
 
     @Bean
+    @ConditionalOnBean(ContextRetrieverRegistry.class)
     @ConditionalOnMissingBean
     public ContextRetrievalStep contextRetrievalStep(ContextRetrieverRegistry contextRetrieverRegistry) {
         return new ContextRetrievalStep(contextRetrieverRegistry);
@@ -158,7 +173,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @Qualifier("llmExecutionStep")
-    @ConditionalOnMissingBean(LLMExecutionStep.class)
+    @ConditionalOnBean(LLMClient.class)
     public LLMExecutionStep llmExecutionStep(LLMClient llmClient) {
         return new LLMExecutionStep(llmClient);
     }
@@ -190,6 +205,7 @@ public class CoreStdComponentsAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean(ToolCapableLLMClient.class)
     public StreamingLLMExecutionStep streamingLLMExecutionStep(ToolCapableLLMClient toolCapableLLMClient) {
         return new StreamingLLMExecutionStep(toolCapableLLMClient);
     }
@@ -223,7 +239,8 @@ public class CoreStdComponentsAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public PipelineOrchestrator pipelineOrchestrator(
-            List<PipelineExecutor> executors) {
+            List<PipelineExecutor> executors,
+            List<AIStrategy<?, ?>> strategies) {
         return new PipelineOrchestrator(executors);
     }
 
@@ -234,3 +251,12 @@ public class CoreStdComponentsAutoConfiguration {
         return new ApprovalPolicyRepository(jpaRepository);
     }
 }
+
+
+
+
+
+
+
+
+

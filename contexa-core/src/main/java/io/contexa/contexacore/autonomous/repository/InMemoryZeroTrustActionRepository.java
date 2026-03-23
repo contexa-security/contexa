@@ -219,14 +219,6 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         entry.updatedAt = Instant.now().toString();
 
         if (additionalFields != null) {
-            Object riskScore = additionalFields.get("riskScore");
-            if (riskScore instanceof Number num) {
-                entry.riskScore = num.doubleValue();
-            }
-            Object confidence = additionalFields.get("confidence");
-            if (confidence instanceof Number num) {
-                entry.confidence = num.doubleValue();
-            }
             Object threatEvidence = additionalFields.get("threatEvidence");
             if (threatEvidence != null) {
                 entry.threatEvidence = threatEvidence.toString();
@@ -268,8 +260,6 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         entry.contextBindingHash = null;
 
         if (existing != null) {
-            entry.riskScore = existing.riskScore;
-            entry.confidence = existing.confidence;
             entry.threatEvidence = existing.threatEvidence;
             entry.analysisDepth = existing.analysisDepth;
         }
@@ -295,8 +285,6 @@ public class InMemoryZeroTrustActionRepository implements ZeroTrustActionReposit
         entry.contextBindingHash = contextBindingHash;
 
         if (existing != null) {
-            entry.riskScore = existing.riskScore;
-            entry.confidence = existing.confidence;
             entry.threatEvidence = existing.threatEvidence;
             entry.analysisDepth = existing.analysisDepth;
         }

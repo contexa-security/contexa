@@ -2,25 +2,31 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
-import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
+import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
+import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
-import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
+import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.security.AuthorizedPromptContext;
+import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
-import org.springframework.data.redis.core.RedisTemplate;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -38,7 +44,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected final UnifiedVectorService unifiedVectorService;
     protected final BaselineLearningService baselineLearningService;
     protected final TieredStrategyProperties tieredStrategyProperties;
-
+    protected final PromptContextAuthorizationService promptContextAuthorizationService;
+    protected final PromptContextAuditForwardingService promptContextAuditForwardingService;
     private static final Cache<String, SecurityPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             Caffeine.newBuilder()
                     .maximumSize(1000)
@@ -64,6 +71,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             BehaviorVectorService behaviorVectorService,
             UnifiedVectorService unifiedVectorService,
             BaselineLearningService baselineLearningService,
+            PromptContextAuthorizationService promptContextAuthorizationService,
+            PromptContextAuditForwardingService promptContextAuditForwardingService,
             TieredStrategyProperties tieredStrategyProperties) {
         this.llmOrchestrator = llmOrchestrator;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
@@ -73,6 +82,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
         this.tieredStrategyProperties = tieredStrategyProperties;
+        this.promptContextAuthorizationService = promptContextAuthorizationService != null
+                ? promptContextAuthorizationService
+                : new PromptContextAuthorizationService();
+        this.promptContextAuditForwardingService = promptContextAuditForwardingService;
     }
 
     protected abstract String getLayerName();
@@ -80,6 +93,10 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     @Override
     public String getStrategyName() {
         return getLayerName();
+    }
+
+    protected String getContextRetrievalPurpose() {
+        return getLayerName().toLowerCase(Locale.ROOT) + "_security_investigation";
     }
 
     protected static void cacheEscalationContext(String eventId,
@@ -121,9 +138,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     protected SecurityResponse validateAndFixResponse(SecurityResponse response) {
         if (response == null) return createDefaultResponse();
-        double[] validated = validateResponseBase(response.getRiskScore(), response.getConfidence());
-        response.setRiskScore(validated[0]);
-        response.setConfidence(validated[1]);
+        response.setRiskScore(normalizeOptionalScore(response.getRiskScore()));
+        response.setConfidence(normalizeOptionalScore(response.getConfidence()));
         if (response.getAction() != null && !response.getAction().isBlank()) {
             ZeroTrustAction mapped = ZeroTrustAction.fromString(response.getAction());
             response.setAction(mapped.name());
@@ -148,8 +164,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         ZeroTrustAction action = mapStringToAction(response.getAction());
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
-                .riskScore(response.getRiskScore() != null ? response.getRiskScore() : Double.NaN)
-                .confidence(response.getConfidence() != null ? response.getConfidence() : Double.NaN)
+                .riskScore(normalizeOptionalScore(response.getRiskScore()))
+                .confidence(normalizeOptionalScore(response.getConfidence()))
                 .reasoning(response.getReasoning())
                 .eventId(event != null ? event.getEventId() : "unknown")
                 .analysisTime(System.currentTimeMillis())
@@ -178,35 +194,27 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 .limit(5)
                 .map(doc -> {
                     Map<String, Object> meta = doc.getMetadata();
-                    double score = extractSimilarityScore(doc);
-                    int similarityPct = (int) (score * 100);
 
                     StringBuilder summary = new StringBuilder();
-                    String docType = String.valueOf(meta.get("documentType"));
-                    summary.append(String.format("Similarity:%d%%", similarityPct));
+                    Object docType = meta.get("documentType");
+                    if ("threat".equals(String.valueOf(docType))) {
+                        summary.append("[BLOCKED] ");
+                    } else {
+                        summary.append("[HISTORICAL] ");
+                    }
 
                     appendMetaIfPresent(summary, meta, "sourceIp", "IP");
                     appendMetaIfPresent(summary, meta, "requestPath", "Path");
                     appendMetaIfPresent(summary, meta, "hour", "Hour");
-                    appendMetaIfPresent(summary, meta, "dayOfWeek", "Day");
                     appendMetaIfPresent(summary, meta, "userAgentOS", "OS");
                     appendMetaIfPresent(summary, meta, "userAgentBrowser", "UA");
-                    appendMetaIfPresent(summary, meta, "geoCity", "City");
-                    appendMetaIfPresent(summary, meta, "geoCountry", "Country");
-                    if (Boolean.TRUE.equals(meta.get("impossibleTravel"))) {
-                        summary.append(", IMPOSSIBLE_TRAVEL");
-                    }
-                    if (Boolean.TRUE.equals(meta.get("isSensitiveResource"))) {
-                        summary.append(", SENSITIVE");
-                    }
 
                     String content = doc.getText();
                     if (content != null && !content.isBlank()) {
-                        int maxPreview = "threat".equals(docType) ? 400 : 300;
-                        String truncated = content.length() > maxPreview
-                                ? content.substring(0, maxPreview) + "..."
+                        String truncated = content.length() > 120
+                                ? content.substring(0, 120) + "..."
                                 : content;
-                        summary.append("\n  ").append(truncated);
+                        summary.append(" -> ").append(truncated);
                     }
 
                     return summary.toString();
@@ -249,25 +257,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return zta;
     }
 
-    protected double[] validateResponseBase(Double riskScore, Double confidence) {
-        double validatedRiskScore;
-        double validatedConfidence;
-
-        if (riskScore == null) {
-            log.error("[{}] LLM returned no riskScore, using NaN", getLayerName());
-            validatedRiskScore = Double.NaN;
-        } else {
-            validatedRiskScore = Math.max(0.0, Math.min(1.0, riskScore));
+    protected Double normalizeOptionalScore(Double value) {
+        if (value == null || !Double.isFinite(value)) {
+            return null;
         }
-
-        if (confidence == null) {
-            log.error("[{}] LLM returned no confidence, using NaN", getLayerName());
-            validatedConfidence = Double.NaN;
-        } else {
-            validatedConfidence = Math.max(0.0, Math.min(1.0, confidence));
-        }
-
-        return new double[]{validatedRiskScore, validatedConfidence};
+        return Math.max(0.0, Math.min(1.0, value));
     }
 
     protected BaseBehaviorAnalysis analyzeBehaviorPatternsBase(SecurityEvent event,
@@ -305,6 +299,123 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return analysis;
     }
 
+    protected void annotateThreatKnowledgeContext(
+            SecurityEvent event,
+            SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
+        if (event == null || behaviorAnalysis == null) {
+            return;
+        }
+        ThreatKnowledgePackMatchContext matchContext = behaviorAnalysis.getThreatKnowledgePackMatchContext();
+        if (matchContext == null || !matchContext.hasMatches()) {
+            event.addMetadata("threatKnowledgeApplied", false);
+            event.addMetadata("reasoningMemoryApplied", false);
+            event.addMetadata("threatKnowledgeExperimentGroup", "BASELINE_ONLY");
+            return;
+        }
+
+        List<String> knowledgeKeys = matchContext.matchedCases().stream()
+                .map(ThreatKnowledgePackMatchContext.MatchedKnowledgeCase::knowledgeCase)
+                .filter(Objects::nonNull)
+                .map(item -> item.knowledgeKey() != null ? item.knowledgeKey() : item.signalKey())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<String> signalKeys = matchContext.matchedCases().stream()
+                .map(ThreatKnowledgePackMatchContext.MatchedKnowledgeCase::knowledgeCase)
+                .filter(Objects::nonNull)
+                .map(item -> item.signalKey())
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        List<String> matchedFacts = matchContext.matchedCases().stream()
+                .flatMap(item -> item.matchedFacts().stream())
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(text -> !text.isBlank())
+                .distinct()
+                .limit(8)
+                .toList();
+        boolean reasoningMemoryApplied = matchContext.matchedCases().stream()
+                .map(ThreatKnowledgePackMatchContext.MatchedKnowledgeCase::knowledgeCase)
+                .filter(Objects::nonNull)
+                .anyMatch(item -> item.reasoningMemoryFacts() != null && !item.reasoningMemoryFacts().isEmpty()
+                        || item.reasoningMemoryStatus() != null && !"COLLECTING".equalsIgnoreCase(item.reasoningMemoryStatus()));
+
+        event.addMetadata("threatKnowledgeApplied", true);
+        event.addMetadata("reasoningMemoryApplied", reasoningMemoryApplied);
+        event.addMetadata("threatKnowledgeExperimentGroup", "KNOWLEDGE_ASSISTED");
+        event.addMetadata("threatKnowledgeCaseCount", knowledgeKeys.size());
+        if (!knowledgeKeys.isEmpty()) {
+            event.addMetadata("threatKnowledgePrimaryKey", knowledgeKeys.get(0));
+            event.addMetadata("threatKnowledgeKeys", knowledgeKeys);
+        }
+        if (!signalKeys.isEmpty()) {
+            event.addMetadata("threatKnowledgeSignalKeys", signalKeys);
+        }
+        if (!matchedFacts.isEmpty()) {
+            event.addMetadata("threatKnowledgeMatchedFacts", matchedFacts);
+        }
+    }
+    protected void enrichBehaviorAnalysisWithBaselineSupport(
+            SecurityPromptTemplate.BehaviorAnalysis context,
+            SecurityEvent event,
+            SaasBaselineSeedService baselineSeedService) {
+        if (context == null || event == null || event.getUserId() == null || baselineLearningService == null) {
+            return;
+        }
+        event.addMetadata("baselineSeedApplied", false);
+        event.addMetadata("personalBaselineEstablished", false);
+        event.addMetadata("organizationBaselineEstablished", false);
+
+        try {
+            BaselineVector baseline = baselineLearningService.getBaseline(event.getUserId());
+            if (baseline != null) {
+                context.setBaselineIpRanges(baseline.getNormalIpRanges());
+                context.setBaselineOperatingSystems(baseline.getNormalOperatingSystems());
+                context.setBaselineUserAgents(baseline.getNormalUserAgents());
+                context.setBaselineFrequentPaths(baseline.getFrequentPaths());
+                context.setBaselineAccessHours(baseline.getNormalAccessHours());
+                context.setBaselineAccessDays(baseline.getNormalAccessDays());
+                context.setBaselineUpdateCount(baseline.getUpdateCount());
+                context.setBaselineAvgTrustScore(baseline.getAvgTrustScore());
+                if (baseline.getNormalUserAgents() != null && baseline.getNormalUserAgents().length > 0) {
+                    context.setPreviousUserAgentBrowser(baseline.getNormalUserAgents()[0]);
+                }
+            }
+
+            BaselineLearningService.BaselineMaturitySnapshot maturity =
+                    baselineLearningService.describeBaselineMaturity(event.getUserId());
+            if (maturity == null) {
+                return;
+            }
+
+            context.setPersonalBaselineAvailable(maturity.personalBaselineAvailable());
+            context.setPersonalBaselineEstablished(maturity.personalBaselineEstablished());
+            context.setOrganizationBaselineAvailable(maturity.organizationBaselineAvailable());
+            context.setOrganizationBaselineEstablished(maturity.organizationBaselineEstablished());
+            event.addMetadata("personalBaselineEstablished", maturity.personalBaselineEstablished());
+            event.addMetadata("organizationBaselineEstablished", maturity.organizationBaselineEstablished());
+            context.setCohortSeedRecommended(maturity.cohortSeedRecommended());
+            context.setCohortSeedSupportingDimensions(maturity.supportingDimensions());
+
+            if (!maturity.cohortSeedRecommended() || baselineSeedService == null) {
+                return;
+            }
+
+            BaselineSeedSnapshot baselineSeed = baselineSeedService.getPromptSeed();
+            if (baselineSeed == null || !baselineSeed.featureEnabled() || !baselineSeed.seedAvailable()) {
+                return;
+            }
+
+            context.setCohortBaselineSeed(baselineSeed);
+            context.setCohortSeedApplied(true);
+            event.addMetadata("baselineSeedApplied", true);
+        } catch (Exception ex) {
+            log.error("[{}] Failed to enrich baseline support context for user {}",
+                    getLayerName(), event.getUserId(), ex);
+        }
+    }
+
     protected List<Document> searchRelatedContextBase(SecurityEvent event,
                                                        int topK,
                                                        double similarityThreshold) {
@@ -330,37 +441,6 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 queryBuilder.append("OS: ").append(currentOS);
             }
 
-            String browser = SecurityEventEnricher.extractBrowserSignature(event.getUserAgent());
-            if (browser != null) {
-                if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
-                queryBuilder.append("UA: ").append(browser);
-            }
-
-            if (event.getTimestamp() != null) {
-                int hour = event.getTimestamp().getHour();
-                if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
-                queryBuilder.append("Hour: ").append(hour);
-            }
-
-            Map<String, Object> meta = event.getMetadata();
-            if (meta != null) {
-                Object httpMethod = meta.get("httpMethod");
-                if (httpMethod != null) {
-                    if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
-                    queryBuilder.append("Method: ").append(httpMethod);
-                }
-
-                if (Boolean.TRUE.equals(meta.get("isNewDevice"))) {
-                    if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
-                    queryBuilder.append("NewDevice: true");
-                }
-
-                if (Boolean.TRUE.equals(meta.get("isSensitiveResource"))) {
-                    if (!queryBuilder.isEmpty()) queryBuilder.append(", ");
-                    queryBuilder.append("SensitiveResource: true");
-                }
-            }
-
             String query = queryBuilder.toString().trim();
             if (query.isEmpty()) {
                 return Collections.emptyList();
@@ -376,14 +456,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             FilterExpressionBuilder filterBuilder = new FilterExpressionBuilder();
             Filter.Expression filter = filterBuilder.and(
                 filterBuilder.or(
-                    filterBuilder.or(
-                        filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
-                        filterBuilder.eq("documentType", VectorDocumentType.THREAT.getValue())
-                    ),
-                    filterBuilder.or(
-                        filterBuilder.eq("documentType", VectorDocumentType.SUSPICIOUS.getValue()),
-                        filterBuilder.eq("documentType", VectorDocumentType.AMBIGUOUS.getValue())
-                    )
+                    filterBuilder.eq("documentType", VectorDocumentType.BEHAVIOR.getValue()),
+                    filterBuilder.eq("documentType", VectorDocumentType.THREAT.getValue())
                 ),
                 filterBuilder.eq("userId", userId)
             ).build();
@@ -396,8 +470,19 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                     .build();
 
             List<Document> documents = unifiedVectorService.searchSimilar(searchRequest);
+            if (documents == null || documents.isEmpty()) {
+                return Collections.emptyList();
+            }
 
-            return documents != null ? documents : Collections.emptyList();
+            AuthorizedPromptContext authorizedPromptContext = promptContextAuthorizationService
+                    .authorize(event, getContextRetrievalPurpose(), documents);
+            if (promptContextAuditForwardingService != null) {
+                promptContextAuditForwardingService.capture(
+                        event,
+                        getContextRetrievalPurpose(),
+                        authorizedPromptContext);
+            }
+            return authorizedPromptContext.documents();
 
         } catch (Exception e) {
             log.error("[{}] Vector store context search failed", getLayerName(), e);
@@ -536,3 +621,12 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return context;
     }
 }
+
+
+
+
+
+
+
+
+

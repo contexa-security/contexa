@@ -167,8 +167,14 @@ public class DefaultPolicyService implements PolicyService {
                 permissionRepository.findAllByNameIn(permNames).forEach(perm -> {
                     ManagedResource resource = perm.getManagedResource();
                     if (resource != null && resource.getStatus() == ManagedResource.Status.POLICY_CONNECTED) {
-                        resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
-                        managedResourceRepository.save(resource);
+                        long otherPolicyCount = policyRepository.countOtherPoliciesForTarget(
+                                resource.getResourceType().name(),
+                                resource.getResourceIdentifier(),
+                                id);
+                        if (otherPolicyCount == 0) {
+                            resource.setStatus(ManagedResource.Status.PERMISSION_CREATED);
+                            managedResourceRepository.save(resource);
+                        }
                     }
                 });
             }
@@ -183,6 +189,30 @@ public class DefaultPolicyService implements PolicyService {
         eventBus.publish(new PolicyChangedEvent(id, new HashSet<>()));
         reloadAuthorizationSystem();
             }
+
+    @Override
+    public void approvePolicy(Long id, String approver) {
+        Policy policy = findById(id);
+        if (policy.getApprovalStatus() == Policy.ApprovalStatus.APPROVED) {
+            throw new IllegalStateException("Policy is already approved.");
+        }
+        policy.approve(approver);
+        policyRepository.save(policy);
+        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, policy);
+        reloadAuthorizationSystem();
+    }
+
+    @Override
+    public void rejectPolicy(Long id, String rejector) {
+        Policy policy = findById(id);
+        if (policy.getApprovalStatus() == Policy.ApprovalStatus.REJECTED) {
+            throw new IllegalStateException("Policy is already rejected.");
+        }
+        policy.reject(rejector);
+        policyRepository.save(policy);
+        auditPolicyChange(AuditEventCategory.POLICY_UPDATED, policy);
+        reloadAuthorizationSystem();
+    }
 
     private void auditPolicyChange(AuditEventCategory category, Policy policy) {
         try {
