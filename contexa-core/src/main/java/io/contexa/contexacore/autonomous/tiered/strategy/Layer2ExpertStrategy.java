@@ -81,8 +81,10 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "ESCALATE";
 
         return ThreatAssessment.builder()
-                .riskScore(expertDecision.getRiskScore())
-                .confidence(expertDecision.getConfidence())
+                .riskScore(null)
+                .confidence(null)
+                .llmAuditRiskScore(expertDecision.resolveAuditRiskScore())
+                .llmAuditConfidence(expertDecision.resolveAuditConfidence())
                 .indicators(new ArrayList<>())
                 .recommendedActions(List.of(mapActionToRecommendation(expertDecision.getAction())))
                 .strategyName("Layer2-Expert")

@@ -59,14 +59,16 @@ public class ColdPathEventProcessor implements IPathProcessor {
             result.addAnalysisData("analysisRequirement", analysisRequirement);
 
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore);
-            result.setRiskScore(analysisResult.getFinalScore());
             result.setAction(analysisResult.getAction());
-            result.setConfidence(analysisResult.getConfidence());
+            result.setLlmAuditRiskScore(analysisResult.getFinalScore());
+            result.setLlmAuditConfidence(analysisResult.getConfidence());
             result.setReasoning(analysisResult.getReasoning());
             result.setThreatIndicators(analysisResult.getIndicators());
             result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
             result.addAnalysisData("aiAssessment", analysisResult);
+            result.addAnalysisData("llmAuditRiskScore", analysisResult.getFinalScore());
+            result.addAnalysisData("llmAuditConfidence", analysisResult.getConfidence());
 
             long processingTime = System.currentTimeMillis() - startTime;
             result.setProcessingTimeMs(processingTime);
@@ -100,8 +102,8 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 long layer1ElapsedMs = System.currentTimeMillis() - layer1StartTime;
 
                 if (!layer1Assessment.isShouldEscalate()) {
-                    result.setFinalScore(layer1Assessment.getRiskScore());
-                    result.setConfidence(layer1Assessment.getConfidence());
+                    result.setFinalScore(layer1Assessment.resolveAuditRiskScore());
+                    result.setConfidence(layer1Assessment.resolveAuditConfidence());
                     result.addIndicators(layer1Assessment.getIndicators());
                     result.addRecommendedActions(layer1Assessment.getRecommendedActions());
                     result.setAnalysisDepth(1);
@@ -157,8 +159,8 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 ThreatAssessment layer2Assessment = expertStrategy.evaluate(event);
                 long layer2ElapsedMs = System.currentTimeMillis() - layer2StartTime;
 
-                result.setFinalScore(layer2Assessment.getRiskScore());
-                result.setConfidence(layer2Assessment.getConfidence());
+                result.setFinalScore(layer2Assessment.resolveAuditRiskScore());
+                result.setConfidence(layer2Assessment.resolveAuditConfidence());
                 result.addIndicators(layer2Assessment.getIndicators());
                 result.addRecommendedActions(layer2Assessment.getRecommendedActions());
                 result.setAnalysisDepth(2);
@@ -237,8 +239,10 @@ public class ColdPathEventProcessor implements IPathProcessor {
             }
             return SecurityDecision.builder()
                     .action(decisionAction)
-                    .riskScore(finalScore)
-                    .confidence(confidence)
+                    .riskScore(null)
+                    .confidence(null)
+                    .llmAuditRiskScore(finalScore)
+                    .llmAuditConfidence(confidence)
                     .iocIndicators(new ArrayList<>(indicators))
                     .mitigationActions(new ArrayList<>(recommendedActions))
                     .reasoning(reasoningPrefix + (reasoning != null ? reasoning : "No additional reasoning"))

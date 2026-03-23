@@ -93,6 +93,7 @@ public class CoreAutonomousAutoConfiguration {
         return new SecurityEventEnricher();
     }
 
+
     @Bean
     @ConditionalOnMissingBean
     public PromptContextAuthorizationService promptContextAuthorizationService() {

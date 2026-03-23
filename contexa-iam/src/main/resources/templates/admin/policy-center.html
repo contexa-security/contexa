@@ -205,17 +205,10 @@
 
                 <!-- Resource Context Banner (shown when resource is selected) -->
                 <div id="create-resource-banner" class="hidden mb-4">
-                    <div class="ai-policy-card" style="padding: 1rem;">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <i class="fas fa-cube mr-2" style="color: #818cf8;"></i>
-                                <span class="text-sm font-bold" style="color: #a78bfa;" id="create-selected-name"></span>
-                                <span class="text-xs ml-2" style="color: #64748b;" id="create-selected-identifier"></span>
-                            </div>
-                            <a th:href="@{/admin/policy-center(tab='resources')}" class="modern-btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.75rem;">
-                                <i class="fas fa-exchange-alt mr-1"></i>다른 리소스 선택
-                            </a>
-                        </div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;padding:0.625rem 1rem;background:rgba(99,102,241,0.06);border:1px solid rgba(99,102,241,0.2);border-radius:0.5rem;">
+                        <i class="fas fa-cube" style="color:#818cf8;"></i>
+                        <span class="text-sm font-semibold" style="color:#a78bfa;" id="create-selected-name"></span>
+                        <span class="text-xs" style="color:#64748b;" id="create-selected-identifier"></span>
                     </div>
                 </div>
 
@@ -246,97 +239,80 @@
                 </div>
 
                 <!-- ===== Quick Mode: Role-Permission Mapping ===== -->
-                <div id="create-quick" class="pc-subtab-content active" style="max-width: 56rem;">
-                    <div class="manual-form-section mb-4">
-                        <h3 class="text-lg font-bold mb-2" style="color: #e2e8f0;">간편 정책 생성 (역할-권한 매핑)</h3>
-                        <p class="text-sm mb-4" style="color: #94a3b8;">역할에 권한을 부여하고 기본 ALLOW 정책을 자동 생성합니다. 복잡한 조건은 수동/AI 모드에서 설정하세요.</p>
+                <div id="create-quick" class="pc-subtab-content active">
+                    <div class="flex items-center justify-between mb-4" style="padding:0.75rem 1rem;background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.25);border-radius:0.5rem;">
+                        <div>
+                            <h3 style="font-size:1rem;font-weight:700;color:#e2e8f0;margin:0 0 0.25rem 0;">간편 정책 생성</h3>
+                            <div class="qp-flow-steps">
+                                <span><i class="fas fa-user-shield"></i> 역할 선택</span>
+                                <i class="fas fa-chevron-right"></i>
+                                <span><i class="fas fa-key"></i> 권한 선택</span>
+                                <i class="fas fa-chevron-right"></i>
+                                <span><i class="fas fa-cog"></i> 정책 설정</span>
+                                <i class="fas fa-chevron-right"></i>
+                                <span><i class="fas fa-check-circle"></i> 생성</span>
+                            </div>
+                        </div>
+                        <button type="button" class="modern-btn-secondary" style="padding:0.375rem 0.875rem;font-size:0.8125rem;white-space:nowrap;" onclick="PolicyCenter.switchToResourcesTab()">
+                            <i class="fas fa-exchange-alt mr-1"></i>다른 리소스 선택
+                        </button>
                     </div>
 
-                    <!-- Step Indicator -->
-                    <div class="wizard-steps" id="wizard-steps">
-                        <div class="wizard-step active" data-step="1">
-                            <div class="wizard-step-circle">1</div>
-                            <span class="wizard-step-label">역할 선택</span>
+                    <!-- 2-Panel Layout -->
+                    <div class="qp-dual-panel" id="qp-dual-panel">
+                        <!-- Left: Role Selection -->
+                        <div class="qp-panel">
+                            <div class="qp-panel-header">
+                                <h4 class="qp-panel-title"><i class="fas fa-user-shield"></i> 역할</h4>
+                                <span class="qp-panel-count" id="qp-role-count">0개 선택</span>
+                            </div>
+                            <div class="qp-search-box">
+                                <i class="fas fa-search"></i>
+                                <input type="text" class="modern-input" id="qp-role-search" placeholder="역할 검색..." oninput="PolicyCenter.QuickPanel.searchRoles(this.value)">
+                            </div>
+                            <div class="qp-item-list" id="qp-role-list">
+                                <div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>역할을 로딩 중...</p></div>
+                            </div>
                         </div>
-                        <div class="wizard-step-line"></div>
-                        <div class="wizard-step" data-step="2">
-                            <div class="wizard-step-circle">2</div>
-                            <span class="wizard-step-label">권한 선택</span>
-                        </div>
-                        <div class="wizard-step-line"></div>
-                        <div class="wizard-step" data-step="3">
-                            <div class="wizard-step-circle">3</div>
-                            <span class="wizard-step-label">검토 및 생성</span>
-                        </div>
-                    </div>
 
-                    <!-- Step 1: Role Selection -->
-                    <div class="wizard-panel active" id="wizard-step-1">
-                        <h4 class="text-base font-semibold mb-3" style="color: #e2e8f0;">대상 역할 선택</h4>
-                        <div class="wizard-search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" class="modern-input" id="role-search" placeholder="역할 검색..." oninput="PolicyCenter.Wizard.searchRoles(this.value)">
-                        </div>
-                        <div class="wizard-chips" id="role-chips"></div>
-                        <div class="wizard-item-list" id="role-list">
-                            <div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>역할을 로딩 중...</p></div>
-                        </div>
-                        <div class="flex justify-between mt-4">
-                            <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.Wizard.nextStep()" style="opacity:0.7;">건너뛰기 <i class="fas fa-forward ml-1"></i></button>
-                            <button type="button" class="modern-btn-primary" onclick="PolicyCenter.Wizard.nextStep()">다음 <i class="fas fa-arrow-right ml-1"></i></button>
-                        </div>
-                    </div>
-
-                    <!-- Step 2: Permission Selection -->
-                    <div class="wizard-panel" id="wizard-step-2">
-                        <h4 class="text-base font-semibold mb-3" style="color: #e2e8f0;">권한 선택 (선택 사항)</h4>
-                        <div class="wizard-search-box">
-                            <i class="fas fa-search"></i>
-                            <input type="text" class="modern-input" id="perm-search" placeholder="권한 검색..." oninput="PolicyCenter.Wizard.searchPermissions(this.value)">
-                        </div>
-                        <div class="wizard-chips" id="perm-chips"></div>
-                        <div class="wizard-item-list" id="perm-list">
-                            <div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>권한을 로딩 중...</p></div>
-                        </div>
-                        <div class="flex justify-between mt-4">
-                            <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.Wizard.prevStep()"><i class="fas fa-arrow-left mr-1"></i> 이전</button>
-                            <div class="flex gap-2">
-                                <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.Wizard.nextStep()" style="opacity:0.7;">건너뛰기 <i class="fas fa-forward ml-1"></i></button>
-                                <button type="button" class="modern-btn-primary" onclick="PolicyCenter.Wizard.nextStep()">다음 <i class="fas fa-arrow-right ml-1"></i></button>
+                        <!-- Right: Permission Selection -->
+                        <div class="qp-panel">
+                            <div class="qp-panel-header">
+                                <h4 class="qp-panel-title"><i class="fas fa-key"></i> 권한</h4>
+                                <span class="qp-panel-count" id="qp-perm-count">0개 선택</span>
+                            </div>
+                            <div class="qp-search-box">
+                                <i class="fas fa-search"></i>
+                                <input type="text" class="modern-input" id="qp-perm-search" placeholder="권한 검색..." oninput="PolicyCenter.QuickPanel.searchPermissions(this.value)">
+                            </div>
+                            <div class="qp-item-list" id="qp-perm-list">
+                                <div class="pc-empty"><i class="fas fa-info-circle"></i><p>역할을 선택하면 매핑된 권한이 표시됩니다.</p></div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Step 3: Review & Create -->
-                    <div class="wizard-panel" id="wizard-step-3">
-                        <h4 class="text-base font-semibold mb-3" style="color: #e2e8f0;">검토 및 생성</h4>
-                        <div class="manual-form-section">
-                            <div class="mb-4">
+                    <!-- Bottom: Policy Settings -->
+                    <div class="manual-form-section">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
                                 <label class="manual-form-label">정책명</label>
-                                <input type="text" class="modern-input" id="quick-policy-name" placeholder="정책명 입력 (자동 생성 가능)">
+                                <input type="text" class="modern-input" id="qp-policy-name" placeholder="정책명 (자동 생성 가능)">
                             </div>
-                            <div class="mb-4">
+                            <div>
                                 <label class="manual-form-label">설명</label>
-                                <input type="text" class="modern-input" id="quick-policy-desc" placeholder="정책 설명">
+                                <input type="text" class="modern-input" id="qp-policy-desc" placeholder="정책 설명">
                             </div>
-                            <div class="mb-4">
-                                <label class="manual-form-label">효과 (Effect)</label>
-                                <select class="modern-select" id="quick-policy-effect">
+                            <div>
+                                <label class="manual-form-label">효과</label>
+                                <select class="modern-select" id="qp-policy-effect">
                                     <option value="ALLOW">ALLOW</option>
                                     <option value="DENY">DENY</option>
                                 </select>
                             </div>
-                            <div class="mb-4">
-                                <label class="manual-form-label">선택 요약</label>
-                                <div id="quick-review-summary" class="p-3 rounded-lg" style="background: rgba(15,23,42,0.6); border: 1px solid rgba(71,85,105,0.3);">
-                                    <p style="color: #64748b;">역할과 권한을 선택하면 여기에 요약이 표시됩니다.</p>
-                                </div>
-                            </div>
                         </div>
-                        <div class="flex justify-between mt-4">
-                            <button type="button" class="modern-btn-secondary" onclick="PolicyCenter.Wizard.prevStep()"><i class="fas fa-arrow-left mr-1"></i> 이전</button>
-                            <button type="button" class="modern-btn-primary" id="quick-create-btn" onclick="PolicyCenter.Wizard.createPolicy()">
-                                <i class="fas fa-check"></i> 정책 생성
+                        <div class="flex justify-end">
+                            <button type="button" class="modern-btn-primary" id="qp-create-btn" onclick="PolicyCenter.QuickPanel.createPolicy()" disabled>
+                                <i class="fas fa-check mr-1"></i> 정책 생성
                             </button>
                         </div>
                     </div>
@@ -877,10 +853,7 @@
         const errorMessage = /*[[${errorMessage}]]*/ null;
         if (errorMessage) showToast(errorMessage, 'error');
 
-        // Initialize wizard on create tab
-        if (/*[[${activeTab}]]*/ 'resources' === 'create') {
-            PolicyCenter.Wizard.init();
-        }
+        // CreateFlow.init() is called by policy-center.js DOMContentLoaded
     });
 </script>
 </body>

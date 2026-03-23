@@ -164,23 +164,16 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         ZeroTrustAction action = mapStringToAction(response.getAction());
         SecurityDecision decision = SecurityDecision.builder()
                 .action(action)
-                .riskScore(normalizeOptionalScore(response.getRiskScore()))
-                .confidence(normalizeOptionalScore(response.getConfidence()))
+                .riskScore(null)
+                .confidence(null)
+                .llmAuditRiskScore(normalizeOptionalScore(response.getRiskScore()))
+                .llmAuditConfidence(normalizeOptionalScore(response.getConfidence()))
                 .reasoning(response.getReasoning())
                 .eventId(event != null ? event.getEventId() : "unknown")
                 .analysisTime(System.currentTimeMillis())
                 .build();
         if (response.getMitre() != null && !response.getMitre().isBlank()) {
             decision.setThreatCategory(response.getMitre());
-        }
-        if (response.getEvidence() != null) {
-            decision.setEvidence(response.getEvidence());
-        }
-        if (response.getLegitimateHypothesis() != null) {
-            decision.setLegitimateHypothesis(response.getLegitimateHypothesis());
-        }
-        if (response.getSuspiciousHypothesis() != null) {
-            decision.setSuspiciousHypothesis(response.getSuspiciousHypothesis());
         }
         return decision;
     }

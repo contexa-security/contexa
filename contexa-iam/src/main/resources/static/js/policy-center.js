@@ -95,7 +95,7 @@ const PolicyCenter = {
 
         this.closePolicySetupModal();
 
-        sessionStorage.setItem('quickModeContext', JSON.stringify({
+        const ctx = {
             resourceId: modal.dataset.resourceId,
             friendlyName: modal.dataset.friendlyName,
             permissionId: result.permissionId,
@@ -103,9 +103,9 @@ const PolicyCenter = {
             resourceType: modal.dataset.resourceType || '',
             resourceIdentifier: modal.dataset.resourceIdentifier || '',
             httpMethod: modal.dataset.httpMethod || ''
-        }));
+        };
 
-        window.location.href = '/admin/policy-center?tab=create';
+        this.switchToCreateTab(ctx, 'quick');
     },
 
     async selectAIWizard() {
@@ -115,7 +115,7 @@ const PolicyCenter = {
 
         this.closePolicySetupModal();
 
-        sessionStorage.setItem('aiWizardContext', JSON.stringify({
+        const ctx = {
             resourceId: modal.dataset.resourceId,
             friendlyName: modal.dataset.friendlyName,
             description: modal.dataset.description || '',
@@ -123,9 +123,53 @@ const PolicyCenter = {
             resourceType: modal.dataset.resourceType || '',
             resourceIdentifier: modal.dataset.resourceIdentifier || '',
             httpMethod: modal.dataset.httpMethod || ''
-        }));
+        };
 
-        window.location.href = '/admin/policy-center?tab=create';
+        this.switchToCreateTab(ctx, 'ai');
+    },
+
+    switchToCreateTab(ctx, mode) {
+        // Switch tab without page reload
+        document.querySelectorAll('.pc-tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.pc-tab-btn').forEach(b => b.classList.remove('active'));
+        const createTab = document.getElementById('tab-create');
+        if (createTab) createTab.classList.add('active');
+        const createBtn = document.querySelector('.pc-tab-btn[href*="tab=create"]');
+        if (createBtn) createBtn.classList.add('active');
+
+        // Activate resource context and mode
+        PolicyCenter.CreateFlow.activateWithResource(ctx);
+        const modeBtn = document.querySelector('.pc-mode-card[onclick*="' + mode + '"]');
+        PolicyCenter.switchCreateMode(mode, modeBtn);
+
+        // Pre-fill AI query if AI mode
+        if (mode === 'ai') {
+            setTimeout(() => {
+                const textarea = document.getElementById('ai-query-input');
+                if (textarea) {
+                    const parts = [];
+                    if (ctx.resourceType && ctx.resourceIdentifier) {
+                        parts.push(ctx.resourceType + ' ' + (ctx.httpMethod || '') + ' ' + ctx.resourceIdentifier);
+                    }
+                    parts.push('"' + (ctx.friendlyName || '') + '"');
+                    if (ctx.description) parts.push('(' + ctx.description + ')');
+                    textarea.value = parts.join(' ') + ' 리소스에 대한 최적의 접근 정책을 생성해줘';
+                }
+            }, 100);
+        }
+
+        // Update URL without reload
+        history.pushState(null, '', '/admin/policy-center?tab=create');
+    },
+
+    switchToResourcesTab() {
+        document.querySelectorAll('.pc-tab-content').forEach(c => c.classList.remove('active'));
+        document.querySelectorAll('.pc-tab-btn').forEach(b => b.classList.remove('active'));
+        const resTab = document.getElementById('tab-resources');
+        if (resTab) resTab.classList.add('active');
+        const resBtn = document.querySelector('.pc-tab-btn[href*="tab=resources"]');
+        if (resBtn) resBtn.classList.add('active');
+        history.pushState(null, '', '/admin/policy-center?tab=resources');
     },
 
     async excludeResource(button) {
@@ -263,10 +307,12 @@ const PolicyCenter = {
             document.getElementById('create-selected-identifier').textContent =
                 (ctx.resourceType || '') + ' ' + (ctx.httpMethod || '') + ' ' + (ctx.resourceIdentifier || '');
 
-            // Pre-select permission in Wizard
+            // Store pre-selected permission for QuickPanel (applied after init)
             if (ctx.permissionId) {
-                PolicyCenter.Wizard.selectedPerms.clear();
-                PolicyCenter.Wizard.selectedPerms.set(Number(ctx.permissionId), ctx.friendlyName || 'Permission');
+                PolicyCenter.QuickPanel._preSelectedPerm = {
+                    id: Number(ctx.permissionId),
+                    name: ctx.friendlyName || 'Permission'
+                };
             }
         }
     },
@@ -277,71 +323,114 @@ const PolicyCenter = {
         if (btn) btn.classList.add('active');
         const panel = document.getElementById('create-' + mode);
         if (panel) panel.classList.add('active');
-        if (mode === 'quick') this.Wizard.init();
+        if (mode === 'quick') this.QuickPanel.init();
         if (mode === 'ai') this.AI.init();
     },
 
     // ================================================================
-    // TAB 2: QUICK MODE - Inline Wizard (server-side search)
+    // TAB 2: QUICK MODE - 2-Panel Layout (Role + Permission)
     // ================================================================
 
-    Wizard: {
-        currentStep: 1,
+    QuickPanel: {
         selectedRoles: new Map(),
         selectedPerms: new Map(),
+        rolePermissionMap: {},
+        userManualPerms: new Set(),
+        allPermissions: [],
+        roleColors: ['#818cf8','#f472b6','#34d399','#fbbf24','#60a5fa','#a78bfa','#fb923c','#2dd4bf','#f87171','#e879f9'],
         roleSearchTimeout: null,
         permSearchTimeout: null,
+        initialMappingDone: false,
 
         init() {
-            this.currentStep = 1;
             this.selectedRoles.clear();
-            // Keep pre-selected permissions from CreateFlow (resource context)
-            // selectedPerms is set by CreateFlow.selectResource() before Wizard.init() is called
-            this.updateStepUI();
+            this.selectedPerms.clear();
+            this.rolePermissionMap = {};
+            this.userManualPerms.clear();
+            this.allPermissions = [];
+            this.initialMappingDone = false;
+
+            if (this._preSelectedPerm) {
+                this.selectedPerms.set(this._preSelectedPerm.id, this._preSelectedPerm.name);
+                this.userManualPerms.add(this._preSelectedPerm.id);
+                this._preSelectedPerm = null;
+            }
+
+            const roleCount = document.getElementById('qp-role-count');
+            const permCount = document.getElementById('qp-perm-count');
+            if (roleCount) roleCount.textContent = '0개 선택';
+            if (permCount) permCount.textContent = this.selectedPerms.size + '개 선택';
+
             this.loadRoles('');
+            this.loadPermissions('');
+            this.updateSummary();
+            this.updateCreateButtonState();
         },
 
+        getRoleColor(roleId) {
+            const keys = Array.from(this.selectedRoles.keys());
+            const idx = keys.indexOf(Number(roleId));
+            return this.roleColors[(idx >= 0 ? idx : keys.length) % this.roleColors.length];
+        },
+
+        // === Role Panel ===
+
         async loadRoles(keyword) {
-            const list = document.getElementById('role-list');
-            list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>로딩 중...</p></div>';
+            const list = document.getElementById('qp-role-list');
+            list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
             try {
                 const resp = await fetch('/admin/policy-center/api/roles?keyword=' + encodeURIComponent(keyword || '') + '&size=50');
                 const page = await resp.json();
                 this.renderRoleList(page.content || []);
             } catch (e) {
-                console.error('Failed to load roles', e);
-                list.innerHTML = '<div class="pc-empty"><p>로딩 실패</p></div>';
+                list.innerHTML = '<div class="pc-empty"><p>Loading failed</p></div>';
             }
         },
 
         renderRoleList(roles) {
-            const list = document.getElementById('role-list');
-            if (!roles.length) { list.innerHTML = '<div class="pc-empty"><p>역할이 없습니다.</p></div>'; return; }
+            const list = document.getElementById('qp-role-list');
+            if (!roles.length) { list.innerHTML = '<div class="pc-empty"><p>No roles found.</p></div>'; return; }
+            roles.sort((a, b) => {
+                const aS = this.selectedRoles.has(Number(a.id)) ? 0 : 1;
+                const bS = this.selectedRoles.has(Number(b.id)) ? 0 : 1;
+                return aS - bS;
+            });
             list.innerHTML = roles.map(r => {
                 const rid = Number(r.id);
-                const checked = this.selectedRoles.has(rid) ? 'checked' : '';
-                const selectedClass = this.selectedRoles.has(rid) ? ' selected' : '';
+                const sel = this.selectedRoles.has(rid);
+                const color = sel ? this.getRoleColor(rid) : '';
+                const colorDot = sel ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + color + ';margin-right:6px;flex-shrink:0;"></span>' : '';
                 const safeName = this.escapeHtml(r.roleName).replace(/'/g, "\\'");
-                return '<div class="wizard-item' + selectedClass + '" onclick="PolicyCenter.Wizard.toggleRole(' + rid + ', \'' + safeName + '\')">' +
-                    '<input type="checkbox" ' + checked + ' onclick="PolicyCenter.Wizard.toggleRole(' + rid + ', \'' + safeName + '\'); event.stopPropagation();">' +
-                    '<div class="wizard-item-info"><div class="wizard-item-name">' + this.escapeHtml(r.roleName) + '</div>' +
-                    '<div class="wizard-item-desc">' + this.escapeHtml(r.roleDesc || '') + '</div></div></div>';
+                return '<div class="qp-item' + (sel ? ' selected' : '') + '" onclick="PolicyCenter.QuickPanel.toggleRole(' + rid + ',\'' + safeName + '\')"' +
+                    ' onmouseenter="PolicyCenter.QuickPanel.showRoleTooltip(event,' + rid + ')" onmouseleave="PolicyCenter.QuickPanel.hideRoleTooltip()">' +
+                    '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onclick="PolicyCenter.QuickPanel.toggleRole(' + rid + ',\'' + safeName + '\');event.stopPropagation();">' +
+                    '<div class="qp-item-info"><div class="qp-item-name">' + colorDot + this.escapeHtml(r.roleName) + '</div>' +
+                    '<div class="qp-item-desc">' + this.escapeHtml(r.roleDesc || '') + '</div></div></div>';
             }).join('');
         },
 
         toggleRole(id, name) {
             id = Number(id);
-            if (this.selectedRoles.has(id)) this.selectedRoles.delete(id);
-            else this.selectedRoles.set(id, name);
+            if (this.selectedRoles.has(id)) {
+                this.selectedRoles.delete(id);
+                const roleMapped = (this.rolePermissionMap[id] || []).map(Number);
+                roleMapped.forEach(pid => {
+                    if (this.userManualPerms.has(pid)) return;
+                    const stillMapped = Array.from(this.selectedRoles.keys()).some(
+                        rid => (this.rolePermissionMap[rid] || []).map(Number).includes(pid)
+                    );
+                    if (!stillMapped) this.selectedPerms.delete(pid);
+                });
+            } else {
+                this.selectedRoles.set(id, name);
+            }
             this.renderRoleChips();
-            this.loadRoles(document.getElementById('role-search')?.value || '');
+            this.loadRoles(document.getElementById('qp-role-search')?.value || '');
+            this.onRoleSelectionChanged();
         },
 
         renderRoleChips() {
-            const container = document.getElementById('role-chips');
-            container.innerHTML = Array.from(this.selectedRoles.entries()).map(([id, name]) =>
-                '<span class="wizard-chip">' + this.escapeHtml(name) + ' <span class="chip-remove" onclick="event.stopPropagation(); PolicyCenter.Wizard.toggleRole(' + id + ', \'' + this.escapeHtml(name) + '\')">&times;</span></span>'
-            ).join('');
+            document.getElementById('qp-role-count').textContent = this.selectedRoles.size + '개 선택';
         },
 
         searchRoles(keyword) {
@@ -349,53 +438,111 @@ const PolicyCenter = {
             this.roleSearchTimeout = setTimeout(() => this.loadRoles(keyword), 400);
         },
 
+        onRoleSelectionChanged() {
+            this.initialMappingDone = false;
+            this.loadPermissions(document.getElementById('qp-perm-search')?.value || '');
+            this.updateSummary();
+            this.updateCreateButtonState();
+        },
+
+        // === Permission Panel ===
+
         async loadPermissions(keyword) {
-            const list = document.getElementById('perm-list');
-            list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>로딩 중...</p></div>';
-            const roleIds = Array.from(this.selectedRoles.keys()).join(',');
+            const list = document.getElementById('qp-perm-list');
+            list.innerHTML = '<div class="pc-empty"><i class="fas fa-spinner fa-spin"></i><p>Loading...</p></div>';
+            const roleIdArr = Array.from(this.selectedRoles.keys());
+            const roleParam = roleIdArr.length > 0 ? '&roleIds=' + roleIdArr.join(',') : '';
             try {
-                const resp = await fetch('/admin/policy-center/api/available-permissions?roleIds=' + roleIds + '&keyword=' + encodeURIComponent(keyword || '') + '&size=50');
+                const resp = await fetch('/admin/policy-center/api/available-permissions?keyword=' + encodeURIComponent(keyword || '') + roleParam + '&size=50');
                 const page = await resp.json();
-                this.renderPermList(page.content || []);
+                this.rolePermissionMap = page.rolePermissionMap || {};
+                this.allPermissions = page.content || [];
+
+                if (!this.initialMappingDone) {
+                    this.initialMappingDone = true;
+                    const allMapped = new Set();
+                    Object.values(this.rolePermissionMap).forEach(ids => ids.forEach(id => allMapped.add(Number(id))));
+                    this.allPermissions.forEach(p => {
+                        const pid = Number(p.id);
+                        if (allMapped.has(pid) && !this.selectedPerms.has(pid) && !this.userManualPerms.has(pid)) {
+                            this.selectedPerms.set(pid, p.name || p.friendlyName || '');
+                        }
+                    });
+                }
+
+                this.renderPermChips();
+                this.renderPermList(this.allPermissions);
+                this.updateSummary();
+                this.updateCreateButtonState();
             } catch (e) {
-                console.error('Failed to load permissions', e);
-                list.innerHTML = '<div class="pc-empty"><p>로딩 실패</p></div>';
+                list.innerHTML = '<div class="pc-empty"><p>Loading failed</p></div>';
             }
         },
 
         renderPermList(perms) {
-            const list = document.getElementById('perm-list');
-            if (!perms.length) { list.innerHTML = '<div class="pc-empty"><p>추가 가능한 권한이 없습니다.</p></div>'; return; }
+            const list = document.getElementById('qp-perm-list');
+            if (!perms.length) { list.innerHTML = '<div class="pc-empty"><p>No permissions found.</p></div>'; return; }
+
+            const roleMap = this.rolePermissionMap;
+            const permRoleMap = {};
+            for (const [rid, pids] of Object.entries(roleMap)) {
+                pids.forEach(pid => {
+                    if (!permRoleMap[pid]) permRoleMap[pid] = [];
+                    const roleName = this.selectedRoles.get(Number(rid));
+                    if (roleName) permRoleMap[pid].push({ id: Number(rid), name: roleName, color: this.getRoleColor(Number(rid)) });
+                });
+            }
+
+            perms.sort((a, b) => {
+                const aS = this.selectedPerms.has(Number(a.id)) ? 0 : 1;
+                const bS = this.selectedPerms.has(Number(b.id)) ? 0 : 1;
+                return aS - bS;
+            });
+
             list.innerHTML = perms.map(p => {
                 const pid = Number(p.id);
-                const checked = this.selectedPerms.has(pid) ? 'checked' : '';
-                const selectedClass = this.selectedPerms.has(pid) ? ' selected' : '';
+                const sel = this.selectedPerms.has(pid);
                 const safeName = this.escapeHtml(p.name || p.friendlyName || '').replace(/'/g, "\\'");
-                const typeBadge = p.targetType === 'URL'
-                    ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;margin-left:6px;background:rgba(59,130,246,0.2);color:#60a5fa;border:1px solid rgba(59,130,246,0.3);">URL</span>'
-                    : p.targetType === 'METHOD'
-                    ? '<span style="display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;margin-left:6px;background:rgba(168,85,247,0.2);color:#c084fc;border:1px solid rgba(168,85,247,0.3);">METHOD</span>'
+                const displayName = this.escapeHtml(p.friendlyName || p.name);
+                const roles = permRoleMap[pid] || [];
+                const rolesToggle = (sel && roles.length > 0)
+                    ? '<span class="qp-roles-toggle" onclick="event.stopPropagation();PolicyCenter.QuickPanel.togglePermRoles(' + pid + ')"><i class="fas fa-users"></i> ' + roles.length + '</span>'
                     : '';
-                return '<div class="wizard-item' + selectedClass + '" onclick="PolicyCenter.Wizard.togglePerm(' + pid + ', \'' + safeName + '\')">' +
-                    '<input type="checkbox" ' + checked + ' onclick="PolicyCenter.Wizard.togglePerm(' + pid + ', \'' + safeName + '\'); event.stopPropagation();">' +
-                    '<div class="wizard-item-info"><div class="wizard-item-name">' + this.escapeHtml(p.friendlyName || p.name) + typeBadge + '</div>' +
-                    '<div class="wizard-item-desc">' + this.escapeHtml(p.description || '') + '</div></div></div>';
+                const rolesDiv = (sel && roles.length > 0)
+                    ? '<div class="qp-perm-roles" id="qp-perm-roles-' + pid + '" style="display:none;">' +
+                      roles.map(r => '<span class="qp-perm-role-badge" style="--role-color:' + r.color + ';">' + this.escapeHtml(r.name) + '</span>').join('') + '</div>'
+                    : '';
+
+                return '<div class="qp-item' + (sel ? ' selected' : '') + '" onclick="PolicyCenter.QuickPanel.togglePerm(' + pid + ',\'' + safeName + '\')">' +
+                    '<input type="checkbox" ' + (sel ? 'checked' : '') + ' onclick="PolicyCenter.QuickPanel.togglePerm(' + pid + ',\'' + safeName + '\');event.stopPropagation();">' +
+                    '<div class="qp-item-info"><div class="qp-item-name">' + displayName + rolesToggle + '</div>' +
+                    '<div class="qp-item-desc">' + this.escapeHtml(p.description || '') + '</div>' +
+                    rolesDiv + '</div></div>';
             }).join('');
+        },
+
+        togglePermRoles(pid) {
+            const el = document.getElementById('qp-perm-roles-' + pid);
+            if (el) el.style.display = el.style.display === 'none' ? 'flex' : 'none';
         },
 
         togglePerm(id, name) {
             id = Number(id);
-            if (this.selectedPerms.has(id)) this.selectedPerms.delete(id);
-            else this.selectedPerms.set(id, name);
+            if (this.selectedPerms.has(id)) {
+                this.selectedPerms.delete(id);
+                this.userManualPerms.delete(id);
+            } else {
+                this.selectedPerms.set(id, name);
+                this.userManualPerms.add(id);
+            }
             this.renderPermChips();
-            this.loadPermissions(document.getElementById('perm-search')?.value || '');
+            this.renderPermList(this.allPermissions);
+            this.updateSummary();
+            this.updateCreateButtonState();
         },
 
         renderPermChips() {
-            const container = document.getElementById('perm-chips');
-            container.innerHTML = Array.from(this.selectedPerms.entries()).map(([id, name]) =>
-                '<span class="wizard-chip">' + this.escapeHtml(name) + ' <span class="chip-remove" onclick="event.stopPropagation(); PolicyCenter.Wizard.togglePerm(' + id + ', \'' + this.escapeHtml(name) + '\')">&times;</span></span>'
-            ).join('');
+            document.getElementById('qp-perm-count').textContent = this.selectedPerms.size + '개 선택';
         },
 
         searchPermissions(keyword) {
@@ -403,60 +550,27 @@ const PolicyCenter = {
             this.permSearchTimeout = setTimeout(() => this.loadPermissions(keyword), 400);
         },
 
-        nextStep() {
-            if (this.currentStep === 1) {
-                this.currentStep = 2;
-                this.loadPermissions('');
-            } else if (this.currentStep === 2) {
-                if (this.selectedRoles.size === 0 && this.selectedPerms.size === 0) {
-                    showToast('역할 또는 권한 중 하나 이상을 선택하세요.', 'error');
-                    return;
-                }
-                this.currentStep = 3;
-                this.renderReviewSummary();
+        // === Summary & Create ===
+
+        updateSummary() {
+            const nameInput = document.getElementById('qp-policy-name');
+            if (nameInput && !nameInput.value && (this.selectedRoles.size > 0 || this.selectedPerms.size > 0)) {
+                nameInput.value = 'Policy - ' + new Date().toISOString().slice(0, 16);
             }
-            this.updateStepUI();
         },
 
-        prevStep() {
-            if (this.currentStep > 1) { this.currentStep--; this.updateStepUI(); }
-        },
-
-        updateStepUI() {
-            for (let i = 1; i <= 3; i++) {
-                const panel = document.getElementById('wizard-step-' + i);
-                const stepEl = document.querySelector('.wizard-step[data-step="' + i + '"]');
-                if (panel) { panel.classList.remove('active'); if (i === this.currentStep) panel.classList.add('active'); }
-                if (stepEl) {
-                    stepEl.classList.remove('active', 'completed');
-                    if (i === this.currentStep) stepEl.classList.add('active');
-                    else if (i < this.currentStep) stepEl.classList.add('completed');
-                }
-            }
-            document.querySelectorAll('.wizard-step-line').forEach((line, idx) => {
-                line.classList.remove('completed');
-                if (idx + 1 < this.currentStep) line.classList.add('completed');
-            });
-        },
-
-        renderReviewSummary() {
-            const summary = document.getElementById('quick-review-summary');
-            const roleNames = this.selectedRoles.size > 0
-                ? Array.from(this.selectedRoles.values()).map(n => '<span class="wizard-chip">' + this.escapeHtml(n) + '</span>').join(' ')
-                : '<span style="color:#64748b;font-style:italic;">(선택 안함)</span>';
-            const permNames = this.selectedPerms.size > 0
-                ? Array.from(this.selectedPerms.values()).map(n => '<span class="wizard-chip">' + this.escapeHtml(n) + '</span>').join(' ')
-                : '<span style="color:#64748b;font-style:italic;">(선택 안함)</span>';
-            summary.innerHTML = '<div class="mb-3"><p class="text-xs font-semibold mb-1" style="color:#94a3b8;">역할 (' + this.selectedRoles.size + '개)</p><div class="flex flex-wrap gap-1">' + roleNames + '</div></div>' +
-                '<div><p class="text-xs font-semibold mb-1" style="color:#94a3b8;">권한 (' + this.selectedPerms.size + '개)</p><div class="flex flex-wrap gap-1">' + permNames + '</div></div>';
-            const nameInput = document.getElementById('quick-policy-name');
-            if (!nameInput.value) nameInput.value = 'Policy - ' + new Date().toISOString().slice(0, 16);
+        updateCreateButtonState() {
+            const btn = document.getElementById('qp-create-btn');
+            if (btn) btn.disabled = !(this.selectedRoles.size > 0 || this.selectedPerms.size > 0);
         },
 
         async createPolicy() {
-            const name = document.getElementById('quick-policy-name').value.trim();
+            const name = document.getElementById('qp-policy-name').value.trim();
             if (!name) { showToast('정책명을 입력하세요.', 'error'); return; }
-            const btn = document.getElementById('quick-create-btn');
+            if (this.selectedRoles.size === 0 && this.selectedPerms.size === 0) {
+                showToast('역할 또는 권한을 하나 이상 선택하세요.', 'error'); return;
+            }
+            const btn = document.getElementById('qp-create-btn');
             PolicyCenter.setLoading(btn, true);
             try {
                 const resp = await fetch('/admin/policy-center/api/quick-create', {
@@ -464,10 +578,10 @@ const PolicyCenter = {
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': PolicyCenter.getCsrfToken() },
                     body: JSON.stringify({
                         policyName: name,
-                        description: document.getElementById('quick-policy-desc').value,
+                        description: document.getElementById('qp-policy-desc').value,
                         roleIds: Array.from(this.selectedRoles.keys()),
                         permissionIds: Array.from(this.selectedPerms.keys()),
-                        effect: document.getElementById('quick-policy-effect').value
+                        effect: document.getElementById('qp-policy-effect').value
                     })
                 });
                 const result = await resp.json();
@@ -488,11 +602,46 @@ const PolicyCenter = {
             }
         },
 
+        showRoleTooltip(event, roleId) {
+            this.hideRoleTooltip();
+            const permIds = (this.rolePermissionMap[roleId] || []).map(Number);
+            if (permIds.length === 0) return;
+            const permNames = this.allPermissions
+                .filter(p => permIds.includes(Number(p.id)))
+                .map(p => p.friendlyName || p.name);
+            if (permNames.length === 0) return;
+
+            const roleName = this.selectedRoles.get(Number(roleId)) || '';
+            const color = this.getRoleColor(roleId);
+            const tip = document.createElement('div');
+            tip.className = 'qp-role-tooltip';
+            tip.id = 'qp-role-tooltip-active';
+            tip.innerHTML = '<div class="qp-role-tooltip-title"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:' + color + ';"></span>' + this.escapeHtml(roleName) + ' (' + permNames.length + ')</div>' +
+                '<div class="qp-role-tooltip-list">' + permNames.slice(0, 10).map(n => '<span>' + this.escapeHtml(n) + '</span>').join('') +
+                (permNames.length > 10 ? '<span style="color:#64748b;">+' + (permNames.length - 10) + ' more</span>' : '') + '</div>';
+
+            document.body.appendChild(tip);
+            const rect = event.currentTarget.getBoundingClientRect();
+            tip.style.left = (rect.right + 8) + 'px';
+            tip.style.top = rect.top + 'px';
+            const tipRect = tip.getBoundingClientRect();
+            if (tipRect.right > window.innerWidth) tip.style.left = (rect.left - tipRect.width - 8) + 'px';
+            if (tipRect.bottom > window.innerHeight) tip.style.top = (window.innerHeight - tipRect.height - 8) + 'px';
+        },
+
+        hideRoleTooltip() {
+            const existing = document.getElementById('qp-role-tooltip-active');
+            if (existing) existing.remove();
+        },
+
         escapeHtml(str) {
             if (!str) return '';
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
     },
+
+    // Backward compatibility
+    Wizard: { init() { PolicyCenter.QuickPanel.init(); } },
 
     // ================================================================
     // TAB 2: MANUAL MODE - Dynamic form (from policydetails.html)

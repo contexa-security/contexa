@@ -23,8 +23,6 @@ public class ColdPathStrategy implements ProcessingStrategy {
                 .success(false)
                 .processingPath(ProcessingResult.ProcessingPath.COLD_PATH)
                 .message("AI analysis processing failed")
-                .action("ESCALATE")
-                .riskScore(0.7)
                 .build();
         }
     }

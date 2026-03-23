@@ -74,10 +74,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
 
         Policy savedPolicy = policyRepository.save(policy);
 
-        if (!CollectionUtils.isEmpty(dto.getRoleIds()) && !CollectionUtils.isEmpty(dto.getPermissionIds())) {
-            updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
-        }
-
         if (!CollectionUtils.isEmpty(dto.getPermissionIds())) {
             updateResourceStatusForPermissions(dto.getPermissionIds());
         }
@@ -92,10 +88,6 @@ public class BusinessPolicyServiceImpl implements BusinessPolicyService {
     public Policy updatePolicyFromBusinessRule(Long policyId, BusinessPolicyDto dto) {
         Policy existingPolicy = policyRepository.findByIdWithDetails(policyId)
                 .orElseThrow(() -> new IllegalArgumentException("Policy not found with id: " + policyId));
-
-        if (!CollectionUtils.isEmpty(dto.getRoleIds()) && !CollectionUtils.isEmpty(dto.getPermissionIds())) {
-            updateRolePermissionMappings(dto.getRoleIds(), dto.getPermissionIds());
-        }
 
         translateAndApplyDtoToPolicy(existingPolicy, dto);
         policyEnrichmentService.enrichPolicyWithFriendlyDescription(existingPolicy);

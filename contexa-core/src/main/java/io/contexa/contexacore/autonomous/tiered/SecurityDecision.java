@@ -18,6 +18,8 @@ public class SecurityDecision {
     private ZeroTrustAction action;
     private Double riskScore;
     private Double confidence;
+    private Double llmAuditRiskScore;
+    private Double llmAuditConfidence;
     private long analysisTime;                
     private long processingTimeMs;            
     private int processingLayer;              
@@ -35,11 +37,14 @@ public class SecurityDecision {
     private String soarPlaybook;                   
     private boolean requiresApproval;              
     private String expertRecommendation;           
-
     private String eventId;
 
-    private List<String> evidence;
-    private String legitimateHypothesis;
-    private String suspiciousHypothesis;
+    public Double resolveAuditRiskScore() {
+        return llmAuditRiskScore;
+    }
+
+    public Double resolveAuditConfidence() {
+        return llmAuditConfidence;
+    }
 
 }

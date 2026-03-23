@@ -319,33 +319,6 @@ class BusinessPolicyServiceImplTest {
     }
 
     @Nested
-    @DisplayName("Role-permission mapping updates")
-    class RolePermissionMappingTests {
-
-        @Test
-        @DisplayName("Should update role-permission mappings on update")
-        void shouldUpdateRolePermissionMappings() {
-            BusinessPolicyDto dto = createBasicDto();
-            Policy existingPolicy = Policy.builder()
-                    .id(10L).name("existing").effect(Policy.Effect.ALLOW).priority(100)
-                    .targets(new HashSet<>()).rules(new HashSet<>()).build();
-
-            Role role = createRole("ROLE_USER");
-            Permission perm = createPermission();
-            when(policyRepository.findByIdWithDetails(10L)).thenReturn(Optional.of(existingPolicy));
-            when(roleService.getRole(1L)).thenReturn(role);
-            when(roleRepository.findAllById(dto.getRoleIds())).thenReturn(List.of(role));
-            when(permissionRepository.findAllById(dto.getPermissionIds())).thenReturn(List.of(perm));
-            when(policyRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
-
-            service.updatePolicyFromBusinessRule(10L, dto);
-
-            verify(roleService).getRole(1L);
-            verify(roleService).updateRole(eq(role), any());
-        }
-    }
-
-    @Nested
     @DisplayName("authorizationManager.reload() called")
     class ReloadTests {
 

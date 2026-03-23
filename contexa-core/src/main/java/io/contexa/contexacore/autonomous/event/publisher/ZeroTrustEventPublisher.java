@@ -19,6 +19,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class ZeroTrustEventPublisher {
@@ -122,6 +123,8 @@ public class ZeroTrustEventPublisher {
             payload.put("isSensitiveResource", requestInfo.getIsSensitiveResource());
             payload.put("mfaVerified", requestInfo.getMfaVerified());
             payload.put("userRoles", requestInfo.getUserRoles());
+            populateBridgePayload(requestInfo, payload);
+
             if (requestInfo.getGeoCountry() != null) {
                 payload.put("geoCountry", requestInfo.getGeoCountry());
             }
@@ -230,5 +233,71 @@ public class ZeroTrustEventPublisher {
             log.error("Failed to extract request info from context", e);
         }
         return null;
+    }
+
+    private void populateBridgePayload(RequestInfo requestInfo, Map<String, Object> payload) {
+        BridgeResolutionResult bridgeResolutionResult = requestInfo.getBridgeResolutionResult();
+        if (bridgeResolutionResult == null) {
+            return;
+        }
+
+        payload.put("bridgeCoverageLevel", bridgeResolutionResult.coverageReport().level().name());
+        payload.put("bridgeCoverageScore", bridgeResolutionResult.coverageReport().score());
+        payload.put("bridgeMissingContexts", bridgeResolutionResult.coverageReport().missingContexts().stream()
+                .map(MissingBridgeContext::name)
+                .collect(Collectors.toList()));
+
+        AuthenticationStamp authenticationStamp = bridgeResolutionResult.authenticationStamp();
+        if (authenticationStamp != null) {
+            putIfPresent(payload, "principalType", authenticationStamp.principalType());
+            putIfPresent(payload, "authenticationType", authenticationStamp.authenticationType());
+            putIfPresent(payload, "authenticationAssurance", authenticationStamp.authenticationAssurance());
+            putIfPresent(payload, "mfaVerified", authenticationStamp.mfaCompleted());
+            if (!authenticationStamp.authorities().isEmpty()) {
+                payload.put("authorities", authenticationStamp.authorities());
+            }
+            putIfPresent(payload, "organizationId", authenticationStamp.attributes().get("organizationId"));
+            putIfPresent(payload, "orgId", authenticationStamp.attributes().get("orgId"));
+            putIfPresent(payload, "department", authenticationStamp.attributes().get("department"));
+        }
+
+        AuthorizationStamp authorizationStamp = bridgeResolutionResult.authorizationStamp();
+        if (authorizationStamp != null) {
+            payload.put("authorizationEffect", authorizationStamp.effect().name());
+            putIfPresent(payload, "privileged", authorizationStamp.privileged());
+            putIfPresent(payload, "policyId", authorizationStamp.policyId());
+            if (!authorizationStamp.scopeTags().isEmpty()) {
+                payload.put("scopeTags", authorizationStamp.scopeTags());
+            }
+            if (!authorizationStamp.effectiveRoles().isEmpty()) {
+                payload.put("effectiveRoles", authorizationStamp.effectiveRoles());
+            }
+            if (!authorizationStamp.effectiveAuthorities().isEmpty()) {
+                payload.put("effectivePermissions", authorizationStamp.effectiveAuthorities());
+                payload.put("authorities", authorizationStamp.effectiveAuthorities());
+            }
+        }
+
+        DelegationStamp delegationStamp = bridgeResolutionResult.delegationStamp();
+        if (delegationStamp != null && delegationStamp.delegated()) {
+            payload.put("delegated", true);
+            putIfPresent(payload, "agentId", delegationStamp.agentId());
+            putIfPresent(payload, "objectiveId", delegationStamp.objectiveId());
+            putIfPresent(payload, "objectiveSummary", delegationStamp.objectiveSummary());
+            putIfPresent(payload, "approvalRequired", delegationStamp.approvalRequired());
+            putIfPresent(payload, "containmentOnly", delegationStamp.containmentOnly());
+            if (!delegationStamp.allowedOperations().isEmpty()) {
+                payload.put("allowedOperations", delegationStamp.allowedOperations());
+            }
+            if (!delegationStamp.allowedResources().isEmpty()) {
+                payload.put("allowedResources", delegationStamp.allowedResources());
+            }
+        }
+    }
+
+    private void putIfPresent(Map<String, Object> payload, String key, Object value) {
+        if (value != null) {
+            payload.put(key, value);
+        }
     }
 }

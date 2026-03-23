@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class SecurityDecisionForwardingPayloadMapperTest {
 
     @Test
@@ -46,7 +48,10 @@ class SecurityDecisionForwardingPayloadMapperTest {
                 .containsEntry("reasoningMemoryApplied", true)
                 .containsEntry("baselineSeedApplied", true)
                 .containsEntry("personalBaselineEstablished", true)
-                .containsEntry("organizationBaselineEstablished", true);
+                                .containsEntry("organizationBaselineEstablished", true)
+                .containsEntry("operationalEvidenceSource", "THREAT_INDICATORS")
+                .containsEntry("llmAuditRiskScore", 0.93)
+                .containsEntry("llmAuditConfidence", 0.88);
     }
 
     @Test
@@ -113,8 +118,10 @@ class SecurityDecisionForwardingPayloadMapperTest {
         ProcessingResult result = ProcessingResult.builder()
                 .success(true)
                 .action("BLOCK")
-                .riskScore(0.93)
-                .confidence(0.88)
+                .riskScore(null)
+                .confidence(null)
+                .llmAuditRiskScore(0.93)
+                .llmAuditConfidence(0.88)
                 .aiAnalysisLevel(2)
                 .processingTimeMs(1820L)
                 .reasoning("Suspicious impossible-travel pattern detected")
@@ -131,3 +138,5 @@ class SecurityDecisionForwardingPayloadMapperTest {
         return context;
     }
 }
+
+

@@ -27,10 +27,6 @@ public class SecurityResponse {
 
     private String mitre;
 
-    private List<String> evidence;
-    private String legitimateHypothesis;
-    private String suspiciousHypothesis;
-
     public static SecurityResponse fromJson(String json) {
         if (json == null || json.isBlank()) {
             return null;
@@ -74,15 +70,6 @@ public class SecurityResponse {
                 mitre = extractString(json, "\"mitre\"");
             }
             response.setMitre(mitre);
-
-            List<String> evidence = extractStringArray(json, "\"evidence\"");
-            response.setEvidence(evidence);
-
-            String legitimateHypothesis = extractString(json, "\"legitimateHypothesis\"");
-            response.setLegitimateHypothesis(legitimateHypothesis);
-
-            String suspiciousHypothesis = extractString(json, "\"suspiciousHypothesis\"");
-            response.setSuspiciousHypothesis(suspiciousHypothesis);
 
         } catch (Exception e) {
             log.error("[SecurityResponse] Failed to parse JSON response", e);

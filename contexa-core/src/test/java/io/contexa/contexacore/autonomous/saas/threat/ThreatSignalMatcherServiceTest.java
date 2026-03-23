@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class ThreatSignalMatcherServiceTest {
 
     private final ThreatSignalMatcherService service = new ThreatSignalMatcherService();

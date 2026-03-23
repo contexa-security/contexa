@@ -13,6 +13,8 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class ThreatOutcomePayloadMapperTest {
 
     @Test

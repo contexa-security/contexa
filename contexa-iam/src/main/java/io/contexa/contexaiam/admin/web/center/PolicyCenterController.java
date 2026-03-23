@@ -162,22 +162,31 @@ public class PolicyCenterController {
             @RequestParam(required = false) List<Long> roleIds,
             @RequestParam(required = false) String keyword,
             @PageableDefault(size = 20) Pageable pageable) {
-        Set<Long> existingPermIds = new HashSet<>();
+        Set<Long> allMappedPermIds = new HashSet<>();
+        Map<String, List<Long>> rolePermissionMap = new HashMap<>();
         if (roleIds != null) {
             for (Long roleId : roleIds) {
                 if (roleId == null || roleId <= 0) continue;
                 try {
                     Role role = roleService.getRole(roleId);
-                    role.getRolePermissions().forEach(rp ->
-                            existingPermIds.add(rp.getPermission().getId()));
+                    List<Long> permIds = new ArrayList<>();
+                    role.getRolePermissions().forEach(rp -> {
+                        Long pid = rp.getPermission().getId();
+                        allMappedPermIds.add(pid);
+                        permIds.add(pid);
+                    });
+                    rolePermissionMap.put(String.valueOf(roleId), permIds);
                 } catch (Exception e) {
                     log.error("Failed to load role {}", roleId, e);
                 }
             }
         }
-        Page<PermissionDto> filtered = permissionCatalogService
-                .searchAvailablePermissions(keyword, existingPermIds, pageable);
-        return ResponseEntity.ok(toPageResponse(filtered));
+        Page<PermissionDto> allPermissions = permissionCatalogService
+                .searchAvailablePermissions(keyword, Collections.emptySet(), pageable);
+        Map<String, Object> response = toPageResponse(allPermissions);
+        response.put("alreadyMappedIds", allMappedPermIds);
+        response.put("rolePermissionMap", rolePermissionMap);
+        return ResponseEntity.ok(response);
     }
 
     private <T> Map<String, Object> toPageResponse(Page<T> page) {

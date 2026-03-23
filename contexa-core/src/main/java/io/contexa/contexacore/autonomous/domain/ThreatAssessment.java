@@ -16,11 +16,13 @@ public class ThreatAssessment {
 
     private String eventId;
     private Double riskScore;
+    private Double llmAuditRiskScore;
     private LocalDateTime assessedAt;
     private List<String> indicators;
     private List<String> recommendedActions;
     private String strategyName;
     private Double confidence;
+    private Double llmAuditConfidence;
     private String action;
     private String reasoning;
 
@@ -28,7 +30,17 @@ public class ThreatAssessment {
     private boolean shouldEscalate = false;
 
     public Double getConfidenceScore() {
-        return confidence;
+        return resolveAuditConfidence();
+    }
+
+    public Double resolveAuditRiskScore() {
+        return llmAuditRiskScore;
+    }
+
+    public Double resolveAuditConfidence() {
+        return llmAuditConfidence;
     }
 
 }
+
+

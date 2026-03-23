@@ -14,6 +14,10 @@ import java.util.*;
 public class SecurityDecisionForwardingPayloadMapper {
 
     private static final String DEFAULT_TENANT_SCOPE = "default";
+    private static final String OPERATIONAL_EVIDENCE_SOURCE = "operationalEvidenceSource";
+    private static final String OPERATIONAL_EVIDENCE_SOURCE_ANALYSIS_DATA = "ANALYSIS_DATA";
+    private static final String OPERATIONAL_EVIDENCE_SOURCE_THREAT_INDICATORS = "THREAT_INDICATORS";
+    private static final String OPERATIONAL_EVIDENCE_SOURCE_NONE = "NONE";
 
     private final TenantScopedPseudonymizationService pseudonymizationService;
     private final ThreatSignalNormalizationService threatSignalNormalizationService;
@@ -53,12 +57,10 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .behaviorPatterns(extractStringList(analysisData.get("behaviorPatterns")))
                 .threatCategory(threatSignal.rawThreatCategory())
                 .canonicalThreatClass(threatSignal.canonicalThreatClass())
-                .evidenceList(extractEvidence(result, analysisData))
+                .evidenceList(extractOperationalEvidence(result, analysisData))
                 .mitreTacticHints(threatSignal.mitreTacticHints())
                 .targetSurfaceCategory(threatSignal.targetSurfaceCategory())
                 .signalTags(threatSignal.signalTags())
-                .legitimateHypothesis(extractText(analysisData, "legitimateHypothesis"))
-                .suspiciousHypothesis(extractText(analysisData, "suspiciousHypothesis"))
                 .requestPath(extractRequestPath(eventMetadata))
                 .geoCountry(extractText(eventMetadata, "geoCountry"))
                 .geoCity(extractText(eventMetadata, "geoCity"))
@@ -67,7 +69,7 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .travelDistanceKm(extractDouble(eventMetadata, "travelDistanceKm"))
                 .layer1Assessment(extractMap(analysisData.get("layer1Assessment")))
                 .layer2Assessment(extractMap(analysisData.get("layer2Assessment")))
-                .attributes(extractAttributes(eventMetadata, analysisData))
+                .attributes(extractAttributes(eventMetadata, analysisData, result))
                 .forwardedAt(LocalDateTime.now())
                 .build();
     }
@@ -103,7 +105,7 @@ public class SecurityDecisionForwardingPayloadMapper {
         return DEFAULT_TENANT_SCOPE;
     }
 
-    private List<String> extractEvidence(ProcessingResult result, Map<String, Object> analysisData) {
+    private List<String> extractOperationalEvidence(ProcessingResult result, Map<String, Object> analysisData) {
         List<String> fromAnalysis = extractStringList(analysisData.get("evidenceList"));
         if (!fromAnalysis.isEmpty()) {
             return fromAnalysis;
@@ -119,12 +121,66 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .toList();
     }
 
+    private String resolveOperationalEvidenceSource(ProcessingResult result, Map<String, Object> analysisData) {
+        if (!extractStringList(analysisData.get("evidenceList")).isEmpty()) {
+            return OPERATIONAL_EVIDENCE_SOURCE_ANALYSIS_DATA;
+        }
+        if (result.getThreatIndicators() != null && !result.getThreatIndicators().isEmpty()) {
+            return OPERATIONAL_EVIDENCE_SOURCE_THREAT_INDICATORS;
+        }
+        return OPERATIONAL_EVIDENCE_SOURCE_NONE;
+    }
+
     private String extractRequestPath(Map<String, Object> eventMetadata) {
         String direct = extractText(eventMetadata, "requestPath");
         if (direct != null && !direct.isBlank()) {
             return direct;
         }
         return extractText(eventMetadata, "requestUri");
+    }
+
+    private Map<String, Object> extractAttributes(Map<String, Object> eventMetadata, Map<String, Object> analysisData, ProcessingResult result) {
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        if (properties.isIncludeRawAnalysisData()) {
+            attributes.putAll(analysisData);
+        }
+        copyIfPresent(eventMetadata, attributes, "geoCountry");
+        copyIfPresent(eventMetadata, attributes, "geoCity");
+        copyIfPresent(eventMetadata, attributes, "isNewDevice");
+        copyIfPresent(eventMetadata, attributes, "isImpossibleTravel");
+        copyIfPresent(eventMetadata, attributes, "travelDistanceKm");
+        copyIfPresent(eventMetadata, attributes, "failedLoginAttempts");
+        copyIfPresent(eventMetadata, attributes, "auth.failure_count");
+        copyIfPresent(eventMetadata, attributes, "isSensitiveResource");
+        copyIfPresent(eventMetadata, attributes, "userRoles");
+        copyIfPresent(eventMetadata, attributes, "threatKnowledgeApplied");
+        copyIfPresent(eventMetadata, attributes, "reasoningMemoryApplied");
+        copyIfPresent(eventMetadata, attributes, "baselineSeedApplied");
+        copyIfPresent(eventMetadata, attributes, "personalBaselineEstablished");
+        copyIfPresent(eventMetadata, attributes, "organizationBaselineEstablished");
+        copyIfPresent(eventMetadata, attributes, "threatKnowledgeExperimentGroup");
+        copyIfPresent(eventMetadata, attributes, "threatKnowledgeCaseCount");
+        copyIfPresent(eventMetadata, attributes, "threatKnowledgePrimaryKey");
+        copyIfPresent(eventMetadata, attributes, "threatKnowledgeKeys");
+        copyIfPresent(eventMetadata, attributes, "threatKnowledgeSignalKeys");
+        copyIfPresent(eventMetadata, attributes, "threatKnowledgeMatchedFacts");
+        copyIfPresent(eventMetadata, attributes, "parameterRiskFlags");
+        copyIfPresent(eventMetadata, attributes, "promptRiskFlags");
+        copyIfPresent(eventMetadata, attributes, "toolArgumentsSummary");
+        if (result.resolveAuditRiskScore() != null) {
+            attributes.put("llmAuditRiskScore", result.resolveAuditRiskScore());
+        }
+        if (result.resolveAuditConfidence() != null) {
+            attributes.put("llmAuditConfidence", result.resolveAuditConfidence());
+        }
+        attributes.put(OPERATIONAL_EVIDENCE_SOURCE, resolveOperationalEvidenceSource(result, analysisData));
+        copyIfPresent(eventMetadata, attributes, "parameter_risk_flags");
+        copyIfPresent(eventMetadata, attributes, "prompt_risk_flags");
+        copyIfPresent(eventMetadata, attributes, "tool_arguments_summary");
+        copyIfPresent(analysisData, attributes, "parameterRiskFlags");
+        copyIfPresent(analysisData, attributes, "promptRiskFlags");
+        copyIfPresent(analysisData, attributes, "toolArgumentsSummary");
+        return attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
     }
 
     private Map<String, Object> extractAttributes(Map<String, Object> eventMetadata, Map<String, Object> analysisData) {

@@ -60,7 +60,6 @@ public class SessionAuthBridge implements AuthBridge {
         return extractFromObject(sessionUser);
     }
 
-    @SuppressWarnings("unchecked")
     private BridgedUser extractFromMap(Map<?, ?> map) {
         String username = extractStringFromMap(map, "username", "userId", "id", "loginId", "email");
         if (username == null) {

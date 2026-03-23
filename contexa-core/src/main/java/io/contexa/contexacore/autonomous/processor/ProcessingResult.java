@@ -22,11 +22,15 @@ public class ProcessingResult {
 
     private double currentRiskLevel;
 
+    private Double llmAuditRiskScore;
+
     private ProcessingPath processingPath;
 
     private String action;
 
     private Double confidence;
+
+    private Double llmAuditConfidence;
 
     private String reasoning;
 
@@ -85,6 +89,8 @@ public class ProcessingResult {
     public static ProcessingResult success(ProcessingPath path, Double riskScore) {
         return ProcessingResult.builder()
                 .processingPath(path)
+                .riskScore(null)
+                .llmAuditRiskScore(riskScore)
                 .riskScore(riskScore)
                 .success(true)
                 .status(ProcessingStatus.SUCCESS)
@@ -112,5 +118,13 @@ public class ProcessingResult {
     public void setProcessingComplete(long startTimeMs) {
         this.processingTimeMs = System.currentTimeMillis() - startTimeMs;
         this.processedAt = LocalDateTime.now();
+    }
+
+    public Double resolveAuditRiskScore() {
+        return llmAuditRiskScore;
+    }
+
+    public Double resolveAuditConfidence() {
+        return llmAuditConfidence;
     }
 }

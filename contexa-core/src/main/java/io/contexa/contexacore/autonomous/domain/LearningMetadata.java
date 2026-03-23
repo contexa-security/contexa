@@ -93,7 +93,6 @@ public class LearningMetadata {
 
     public boolean canLearn() {
         return isLearnable && 
-               confidenceScore >= 0.7 && 
                status == LearningStatus.PENDING;
     }
 

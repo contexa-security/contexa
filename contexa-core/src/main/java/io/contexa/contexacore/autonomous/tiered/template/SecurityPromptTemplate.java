@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.tiered.template;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
+import io.contexa.contexacore.autonomous.context.PromptContextComposer;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.saas.dto.*;
@@ -25,20 +27,33 @@ public class SecurityPromptTemplate {
     private final SecurityEventEnricher eventEnricher;
     private final TieredStrategyProperties tieredStrategyProperties;
     private final McpSecurityContextProvider mcpSecurityContextProvider;
+    private final CanonicalSecurityContextProvider canonicalSecurityContextProvider;
+    private final PromptContextComposer promptContextComposer;
 
     public SecurityPromptTemplate(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            McpSecurityContextProvider mcpSecurityContextProvider) {
+            McpSecurityContextProvider mcpSecurityContextProvider,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
+            PromptContextComposer promptContextComposer) {
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.tieredStrategyProperties = tieredStrategyProperties != null ? tieredStrategyProperties : new TieredStrategyProperties();
         this.mcpSecurityContextProvider = mcpSecurityContextProvider;
+        this.canonicalSecurityContextProvider = canonicalSecurityContextProvider;
+        this.promptContextComposer = promptContextComposer;
     }
 
     public SecurityPromptTemplate(
             SecurityEventEnricher eventEnricher,
             TieredStrategyProperties tieredStrategyProperties) {
-        this(eventEnricher, tieredStrategyProperties, null);
+        this(eventEnricher, tieredStrategyProperties, null, null, null);
+    }
+
+    public SecurityPromptTemplate(
+            SecurityEventEnricher eventEnricher,
+            TieredStrategyProperties tieredStrategyProperties,
+            McpSecurityContextProvider mcpSecurityContextProvider) {
+        this(eventEnricher, tieredStrategyProperties, mcpSecurityContextProvider, null, null);
     }
 
     /**
@@ -80,6 +95,7 @@ public class SecurityPromptTemplate {
         appendIfPresent(userPart, buildCohortBaselineSeedSection(behaviorAnalysis));
         userPart.append(buildNetworkPromptSection(event));
         appendIfPresent(userPart, buildPayloadSection(event));
+        appendIfPresent(userPart, buildCanonicalSecurityContextSection(event));
         userPart.append(buildSessionTimelineSection(sessionContext, behaviorAnalysis));
         appendIfPresent(userPart, buildSessionDeviceChangeSection(behaviorAnalysis));
         userPart.append(buildSimilarEventsSection(behaviorAnalysis, patterns));
@@ -804,21 +820,18 @@ public class SecurityPromptTemplate {
                 and baseline to make a concise decision.
                 Keep reasoning short and focused.
                 Do not generate extra hypotheses or evidence lists unless explicitly requested.
-                Do not return numeric risk or confidence scores.
+                Do not return legacy fields such as evidence, legitimateHypothesis, or suspiciousHypothesis.
+                Return riskScore and confidence as audit metadata between 0.0 and 1.0.
+                Use action and reasoning as the primary decision output.
 
                 RESPOND WITH JSON ONLY:
                 {
                   "action":"ALLOW|CHALLENGE|BLOCK|ESCALATE",
                   "reasoning":"<1-2 sentence explanation of key factors>",
+                  "riskScore":"<0.0-1.0 audit risk estimate>",
+                  "confidence":"<0.0-1.0 audit confidence estimate>",
                   "mitre":"<optional MITRE tactic, technique, or UNKNOWN>"
                 }
-
-                CONFIDENCE CALIBRATION:
-                - 0.1-0.3: Very low - insufficient data or conflicting signals, prefer ESCALATE
-                - 0.3-0.5: Low - some signals present but ambiguous
-                - 0.5-0.7: Moderate - clear primary signal with minor ambiguity
-                - 0.7-0.85: High - multiple consistent signals confirming judgment
-                - 0.85-0.95: Very high - overwhelming evidence, baseline match/mismatch clear
 
                 ACTION SEMANTICS:
 
@@ -1107,6 +1120,15 @@ public class SecurityPromptTemplate {
 
         meta.append("]");
         return meta.toString();
+    }
+
+    private String buildCanonicalSecurityContextSection(SecurityEvent event) {
+        if (event == null || canonicalSecurityContextProvider == null || promptContextComposer == null) {
+            return null;
+        }
+        return canonicalSecurityContextProvider.resolve(event)
+                .map(promptContextComposer::compose)
+                .orElse(null);
     }
 
     private void appendDocumentTrace(StringBuilder meta, Map<String, Object> metadata, String key, String label, int maxLength) {

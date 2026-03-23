@@ -38,10 +38,6 @@ public class SecurityDecisionPostProcessor {
 
         try {
             dataStore.addSessionAction(sessionId, buildBehaviorSentence(event, decision));
-
-            if (decision.getAction() == ZeroTrustAction.BLOCK && decision.getRiskScore() != null) {
-                dataStore.setSessionRisk(sessionId, decision.getRiskScore());
-            }
         } catch (Exception e) {
             log.error(e.getMessage(), e);
         }
