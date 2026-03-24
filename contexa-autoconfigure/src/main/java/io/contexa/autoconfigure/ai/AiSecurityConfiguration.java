@@ -1,5 +1,7 @@
 package io.contexa.autoconfigure.ai;
 
+import io.contexa.contexacommon.annotation.AiSecurityImportSelector;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacore.security.AISessionSecurityContextRepository;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
@@ -13,8 +15,11 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
+
+import java.util.UUID;
 
 /**
  * Core configuration for {@code @EnableAISecurity} legacy integration.
@@ -53,19 +58,57 @@ public class AiSecurityConfiguration {
             ObjectProvider<BridgeResolutionFilter> bridgeResolutionFilterProvider) throws Exception {
         IdentityDslRegistry<HttpSecurity> registry = new IdentityDslRegistry<>(applicationContext);
         BridgeResolutionFilter bridgeResolutionFilter = bridgeResolutionFilterProvider.getIfAvailable();
+        SecurityMode securityMode = resolveSecurityMode();
+
+        if (securityMode == SecurityMode.SANDBOX) {
+            return registry
+                    .global(http -> {
+                        http.csrf(AbstractHttpConfigurer::disable);
+                        http.cors(AbstractHttpConfigurer::disable);
+                        http.headers(AbstractHttpConfigurer::disable);
+                        http.securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository));
+                        if (bridgeResolutionFilter != null) {
+                            http.addFilterAfter(bridgeResolutionFilter, SecurityContextHolderFilter.class);
+                        }
+                    })
+                    .mfa(mfa -> mfa
+                            .primaryAuthentication(auth -> auth
+                                    .formLogin(form -> form
+                                            .loginProcessingUrl("/" + UUID.randomUUID())
+                                            .defaultSuccessUrl("/")))
+                            .passkey(Customizer.withDefaults())
+                            .ott(Customizer.withDefaults())
+                            .order(100))
+                    .session(Customizer.withDefaults())
+                    .build();
+        }
+
         return registry
                 .global(http -> {
                     http.securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository));
                     if (bridgeResolutionFilter != null) {
-                        http.addFilterBefore(bridgeResolutionFilter, UsernamePasswordAuthenticationFilter.class);
+                        http.addFilterAfter(bridgeResolutionFilter, SecurityContextHolderFilter.class);
                     }
                 })
                 .mfa(mfa -> mfa
                         .primaryAuthentication(auth -> auth
                                 .formLogin(form -> form.defaultSuccessUrl("/")))
+                        .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
                         .order(100))
                 .session(Customizer.withDefaults())
                 .build();
+    }
+
+    private SecurityMode resolveSecurityMode() {
+        String configuredMode = System.getProperty(AiSecurityImportSelector.PROP_MODE);
+        if (configuredMode == null || configuredMode.isBlank()) {
+            return SecurityMode.SANDBOX;
+        }
+        try {
+            return SecurityMode.valueOf(configuredMode.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return SecurityMode.SANDBOX;
+        }
     }
 }

@@ -34,7 +34,7 @@ public class SessionStateAdapter implements StateAdapter {
         String logoutUrl = urlPrefix != null ? urlPrefix + "/logout" : "/logout";
 
         String logoutSuccessUrl;
-        if (urlPrefix != null && flowConfig != null && MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
+        if (urlPrefix != null && MfaFlowTypeUtils.isMfaFlow(flowConfig.getTypeName())) {
             AuthContextProperties authProps = appContext.getBean(AuthContextProperties.class);
             String primaryLoginPage = authProps.getUrls().getPrimary().getFormLoginPage();
             logoutSuccessUrl = urlPrefix + primaryLoginPage;
