@@ -28,6 +28,9 @@ public class BridgeProperties {
         private boolean preferSecurityContext = true;
 
         @NestedConfigurationProperty
+        private SecurityContext securityContext = new SecurityContext();
+
+        @NestedConfigurationProperty
         private Session session = new Session();
 
         @NestedConfigurationProperty
@@ -35,24 +38,99 @@ public class BridgeProperties {
 
         @NestedConfigurationProperty
         private Headers headers = new Headers();
+
+        @Data
+        public static class SecurityContext {
+            private boolean enabled = true;
+            private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName", "username");
+            private List<String> principalTypeKeys = List.of("principalType", "userType", "actorType");
+            private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod", "method", "factorType");
+            private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa", "acr");
+            private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfaCompleted", "secondFactorVerified");
+            private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime", "issuedAt");
+            private List<String> attributeKeys = List.of(
+                    "organizationId", "orgId", "tenantId", "department", "team", "email", "loginIp",
+                    "authenticationType", "authenticationAssurance", "mfaVerified", "mfaCompleted", "authenticatedAt", "loginTime");
+        }
     }
 
     @Data
     public static class Authorization {
         @NestedConfigurationProperty
+        private SecurityContext securityContext = new SecurityContext();
+
+        @NestedConfigurationProperty
+        private Session session = new Session();
+
+        @NestedConfigurationProperty
         private RequestAttributes requestAttributes = new RequestAttributes();
 
         @NestedConfigurationProperty
         private Headers headers = new Headers();
+
+        @Data
+        public static class SecurityContext {
+            private boolean enabled = true;
+            private List<String> authorizationEffectKeys = List.of("authorizationEffect", "effect", "decision", "decisionEffect");
+            private List<String> privilegedKeys = List.of("privileged", "isPrivileged", "privilegedFlow");
+            private List<String> policyIdKeys = List.of("policyId", "policy", "decisionPolicy");
+            private List<String> policyVersionKeys = List.of("policyVersion", "version");
+            private List<String> scopeTagKeys = List.of("scopeTags", "scopes", "scope", "permissionScopes");
+            private List<String> roleKeys = List.of("effectiveRoles", "roles", "roleSet");
+            private List<String> authorityKeys = List.of("effectiveAuthorities", "authorities", "permissions", "grantedAuthorities");
+            private List<String> attributeKeys = List.of(
+                    "authorizationEffect", "effect", "privileged", "policyId", "policyVersion",
+                    "scopeTags", "scopes", "roles", "effectiveRoles", "permissions", "effectiveAuthorities");
+        }
+
+        @Data
+        public static class Session {
+            private boolean enabled = true;
+            private String attribute = "LOGIN_USER";
+            private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
+            private List<String> authorizationEffectKeys = List.of("authorizationEffect", "effect", "decision", "decisionEffect");
+            private List<String> privilegedKeys = List.of("privileged", "isPrivileged", "privilegedFlow");
+            private List<String> policyIdKeys = List.of("policyId", "policy", "decisionPolicy");
+            private List<String> policyVersionKeys = List.of("policyVersion", "version");
+            private List<String> scopeTagKeys = List.of("scopeTags", "scopes", "scope", "permissionScopes");
+            private List<String> roleKeys = List.of("effectiveRoles", "roles", "roleSet");
+            private List<String> authorityKeys = List.of("effectiveAuthorities", "authorities", "permissions", "grantedAuthorities");
+            private List<String> attributeKeys = List.of(
+                    "authorizationEffect", "effect", "privileged", "policyId", "policyVersion",
+                    "scopeTags", "scopes", "roles", "effectiveRoles", "permissions", "effectiveAuthorities",
+                    "organizationId", "orgId", "tenantId", "department", "team");
+        }
     }
 
     @Data
     public static class Delegation {
         @NestedConfigurationProperty
+        private Session session = new Session();
+
+        @NestedConfigurationProperty
         private RequestAttributes requestAttributes = new RequestAttributes();
 
         @NestedConfigurationProperty
         private Headers headers = new Headers();
+
+        @Data
+        public static class Session {
+            private boolean enabled = true;
+            private String attribute = "LOGIN_USER";
+            private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
+            private List<String> delegatedKeys = List.of("delegated", "delegationEnabled", "agentDelegated");
+            private List<String> agentIdKeys = List.of("agentId", "delegateAgentId");
+            private List<String> objectiveIdKeys = List.of("objectiveId", "taskPurpose", "delegationObjectiveId");
+            private List<String> objectiveSummaryKeys = List.of("objectiveSummary", "taskSummary", "delegationObjectiveSummary");
+            private List<String> allowedOperationsKeys = List.of("allowedOperations", "delegatedOperations", "permittedOperations");
+            private List<String> allowedResourcesKeys = List.of("allowedResources", "delegatedResources", "permittedResources");
+            private List<String> approvalRequiredKeys = List.of("approvalRequired", "requiresApproval");
+            private List<String> containmentOnlyKeys = List.of("containmentOnly", "restrictedContainment");
+            private List<String> expiresAtKeys = List.of("expiresAt", "delegationExpiresAt");
+            private List<String> attributeKeys = List.of(
+                    "delegated", "agentId", "objectiveId", "objectiveSummary", "allowedOperations", "allowedResources",
+                    "approvalRequired", "containmentOnly", "expiresAt", "organizationId", "orgId", "tenantId", "department", "team");
+        }
     }
 
     @Data
@@ -84,6 +162,7 @@ public class BridgeProperties {
         private String authorizationEffect = "ctxa.authz.effect";
         private String privileged = "ctxa.authz.privileged";
         private String policyId = "ctxa.authz.policyId";
+        private String policyVersion = "ctxa.authz.policyVersion";
         private String scopeTags = "ctxa.authz.scopeTags";
         private String effectiveRoles = "ctxa.authz.roles";
         private String effectiveAuthorities = "ctxa.authz.authorities";
@@ -96,6 +175,7 @@ public class BridgeProperties {
         private String allowedResources = "ctxa.delegation.allowedResources";
         private String approvalRequired = "ctxa.delegation.approvalRequired";
         private String containmentOnly = "ctxa.delegation.containmentOnly";
+        private String expiresAt = "ctxa.delegation.expiresAt";
     }
 
     @Data
@@ -113,6 +193,7 @@ public class BridgeProperties {
         private String authorizationEffect = "X-Contexa-Authz-Effect";
         private String privileged = "X-Contexa-Authz-Privileged";
         private String policyId = "X-Contexa-Authz-Policy";
+        private String policyVersion = "X-Contexa-Authz-Policy-Version";
         private String scopeTags = "X-Contexa-Authz-Scope";
         private String effectiveRoles = "X-Contexa-Authz-Roles";
         private String effectiveAuthorities = "X-Contexa-Authz-Authorities";
@@ -125,5 +206,6 @@ public class BridgeProperties {
         private String allowedResources = "X-Contexa-Allowed-Resources";
         private String approvalRequired = "X-Contexa-Approval-Required";
         private String containmentOnly = "X-Contexa-Containment-Only";
+        private String expiresAt = "X-Contexa-Delegation-Expires-At";
     }
 }

@@ -49,6 +49,16 @@ class PromptContextComposerTest {
                         .allowedOperations(List.of("READ"))
                         .containmentOnly(true)
                         .build())
+                .bridge(CanonicalSecurityContext.Bridge.builder()
+                        .coverageLevel("AUTHORIZATION_CONTEXT")
+                        .coverageScore(80)
+                        .summary("Bridge resolved authentication and authorization context for the current request.")
+                        .remediationHints(List.of("If delegated agents are used, propagate delegation metadata for the current request. Otherwise this gap can be ignored."))
+                        .authenticationSource("SECURITY_CONTEXT")
+                        .authorizationSource("HEADER")
+                        .delegationSource("REQUEST_ATTRIBUTE")
+                        .missingContexts(List.of("ORGANIZATION_CONTEXT"))
+                        .build())
                 .coverage(new ContextCoverageReport(
                         ContextCoverageLevel.BUSINESS_AWARE,
                         List.of("Actor identity is available."),
@@ -59,10 +69,15 @@ class PromptContextComposerTest {
         String promptSection = new PromptContextComposer().compose(context);
 
         assertThat(promptSection).contains("=== CONTEXT COVERAGE ===");
+        assertThat(promptSection).contains("=== BRIDGE RESOLUTION CONTEXT ===");
         assertThat(promptSection).contains("=== IDENTITY AND ROLE CONTEXT ===");
         assertThat(promptSection).contains("=== RESOURCE AND ACTION CONTEXT ===");
         assertThat(promptSection).contains("=== OBSERVED WORK PATTERN CONTEXT ===");
         assertThat(promptSection).contains("=== DELEGATED OBJECTIVE CONTEXT ===");
+        assertThat(promptSection).contains("BridgeAuthenticationSource: SECURITY_CONTEXT");
+        assertThat(promptSection).contains("BridgeAuthorizationSource: HEADER");
+        assertThat(promptSection).contains("BridgeCoverageSummary: Bridge resolved authentication and authorization context for the current request.");
+        assertThat(promptSection).contains("BridgeRemediationHints: If delegated agents are used, propagate delegation metadata for the current request. Otherwise this gap can be ignored.");
         assertThat(promptSection).contains("Customer Export Report");
         assertThat(promptSection).contains("CoverageLevel: BUSINESS_AWARE");
     }

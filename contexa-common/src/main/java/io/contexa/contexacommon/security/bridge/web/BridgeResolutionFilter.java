@@ -2,6 +2,9 @@ package io.contexa.contexacommon.security.bridge.web;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationDetails;
+import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
+import io.contexa.contexacommon.security.bridge.authentication.BridgePrincipal;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.resolver.AuthenticationStampResolver;
 import io.contexa.contexacommon.security.bridge.resolver.AuthorizationStampResolver;
@@ -9,6 +12,7 @@ import io.contexa.contexacommon.security.bridge.resolver.DelegationStampResolver
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
+import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import jakarta.servlet.FilterChain;
@@ -16,14 +20,15 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,7 +66,9 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         RequestContextSnapshot requestContext = requestContextCollector.collect(request);
         AuthenticationStamp authenticationStamp = resolveAuthenticationStamp(request, requestContext).orElse(null);
-        AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request, requestContext).orElse(null);
+        AuthorizationStamp authorizationStamp = resolveAuthorizationStamp(request, requestContext)
+                .or(() -> deriveAuthorizationStamp(authenticationStamp, requestContext))
+                .orElse(null);
         DelegationStamp delegationStamp = resolveDelegationStamp(request, requestContext).orElse(null);
 
         BridgeResolutionResult result = new BridgeResolutionResult(
@@ -112,6 +119,47 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         return Optional.empty();
     }
 
+    private Optional<AuthorizationStamp> deriveAuthorizationStamp(AuthenticationStamp authenticationStamp, RequestContextSnapshot requestContext) {
+        if (authenticationStamp == null || authenticationStamp.authorities().isEmpty()) {
+            return Optional.empty();
+        }
+
+        LinkedHashSet<String> effectiveRoles = new LinkedHashSet<>();
+        LinkedHashSet<String> effectiveAuthorities = new LinkedHashSet<>();
+        for (String authority : authenticationStamp.authorities()) {
+            if (authority == null || authority.isBlank()) {
+                continue;
+            }
+            effectiveAuthorities.add(authority);
+            if (authority.startsWith("ROLE_")) {
+                effectiveRoles.add(authority);
+            }
+        }
+        if (effectiveRoles.isEmpty() && effectiveAuthorities.isEmpty()) {
+            return Optional.empty();
+        }
+
+        LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("authorizationResolver", "AUTHENTICATION_DERIVED");
+        attributes.put("derivedFromAuthenticationSource", authenticationStamp.authenticationSource());
+
+        return Optional.of(new AuthorizationStamp(
+                authenticationStamp.principalId(),
+                requestContext.requestUri(),
+                requestContext.method(),
+                AuthorizationEffect.UNKNOWN,
+                effectiveAuthorities.stream().anyMatch(this::isPrivilegedAuthority),
+                List.of(),
+                null,
+                null,
+                "AUTHENTICATION_DERIVED",
+                Instant.now(),
+                List.copyOf(effectiveRoles),
+                List.copyOf(effectiveAuthorities),
+                attributes
+        ));
+    }
+
     private void populateSecurityContext(AuthenticationStamp authenticationStamp, BridgeResolutionResult result) {
         if (!properties.isPopulateSecurityContext()) {
             return;
@@ -123,18 +171,63 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         if (currentAuthentication != null && !(currentAuthentication instanceof AnonymousAuthenticationToken)) {
             return;
         }
-        UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-                authenticationStamp.principalId(),
-                null,
-                authenticationStamp.authorities().stream().map(SimpleGrantedAuthority::new).toList()
+        BridgeAuthenticationDetails details = new BridgeAuthenticationDetails(
+                authenticationStamp.authenticationSource(),
+                result.authorizationStamp() != null ? result.authorizationStamp().decisionSource() : null,
+                result.delegationStamp() != null ? text(result.delegationStamp().attributes().get("delegationResolver")) : null,
+                result.coverageReport().level().name(),
+                result.coverageReport().score(),
+                result.coverageReport().missingContexts().stream().map(Enum::name).toList(),
+                result.coverageReport().summary(),
+                result.coverageReport().remediationHints(),
+                authenticationStamp.authenticationType(),
+                authenticationStamp.authenticationAssurance(),
+                authenticationStamp.mfaCompleted(),
+                text(authenticationStamp.attributes().get("organizationId")),
+                text(authenticationStamp.attributes().get("orgId")),
+                text(authenticationStamp.attributes().get("department")),
+                result.authorizationStamp() != null ? result.authorizationStamp().effect().name() : null,
+                result.authorizationStamp() != null ? result.authorizationStamp().privileged() : null,
+                result.authorizationStamp() != null ? result.authorizationStamp().policyId() : null,
+                result.authorizationStamp() != null ? result.authorizationStamp().policyVersion() : null,
+                result.authorizationStamp() != null ? result.authorizationStamp().scopeTags() : List.of(),
+                result.authorizationStamp() != null ? result.authorizationStamp().effectiveRoles() : List.of(),
+                result.authorizationStamp() != null ? result.authorizationStamp().effectiveAuthorities() : List.of(),
+                result.delegationStamp() != null ? result.delegationStamp().delegated() : null,
+                result.delegationStamp() != null ? result.delegationStamp().agentId() : null,
+                result.delegationStamp() != null ? result.delegationStamp().objectiveId() : null,
+                result.delegationStamp() != null ? result.delegationStamp().objectiveSummary() : null,
+                result.delegationStamp() != null ? result.delegationStamp().allowedOperations() : List.of(),
+                result.delegationStamp() != null ? result.delegationStamp().allowedResources() : List.of(),
+                result.delegationStamp() != null ? result.delegationStamp().approvalRequired() : null,
+                result.delegationStamp() != null ? result.delegationStamp().containmentOnly() : null
         );
-        LinkedHashMap<String, Object> details = new LinkedHashMap<>();
-        details.put("bridgeSource", authenticationStamp.authenticationSource());
-        details.put("bridgeCoverageLevel", result.coverageReport().level().name());
-        details.put("bridgeCoverageScore", result.coverageReport().score());
-        details.put("bridgeAuthenticationType", authenticationStamp.authenticationType());
-        details.put("bridgeAuthenticationAssurance", authenticationStamp.authenticationAssurance());
-        authenticationToken.setDetails(details);
+        BridgePrincipal principal = new BridgePrincipal(
+                authenticationStamp.principalId(),
+                authenticationStamp.displayName(),
+                authenticationStamp.principalType(),
+                text(authenticationStamp.attributes().get("organizationId")),
+                text(authenticationStamp.attributes().get("orgId")),
+                text(authenticationStamp.attributes().get("department"))
+        );
+        BridgeAuthenticationToken authenticationToken = new BridgeAuthenticationToken(
+                principal,
+                authenticationStamp.authorities().stream().map(SimpleGrantedAuthority::new).toList(),
+                details
+        );
         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+    }
+
+    private boolean isPrivilegedAuthority(String authority) {
+        String normalized = authority != null ? authority.toUpperCase() : "";
+        return normalized.contains("ADMIN") || normalized.contains("ROOT") || normalized.contains("SUPER") || normalized.contains("PRIVILEGED");
+    }
+
+    private String text(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = value.toString().trim();
+        return text.isBlank() ? null : text;
     }
 }

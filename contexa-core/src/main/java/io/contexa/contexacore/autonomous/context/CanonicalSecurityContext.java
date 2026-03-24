@@ -27,6 +27,8 @@ public class CanonicalSecurityContext {
 
     private Delegation delegation;
 
+    private Bridge bridge;
+
     private ObservedScope observedScope;
 
     private ContextCoverageReport coverage;
@@ -113,6 +115,23 @@ public class CanonicalSecurityContext {
         private List<String> allowedResources = new ArrayList<>();
         private Boolean privilegedExportAllowed;
         private Boolean containmentOnly;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Bridge {
+        private String coverageLevel;
+        private Integer coverageScore;
+        @Builder.Default
+        private List<String> missingContexts = new ArrayList<>();
+        private String summary;
+        @Builder.Default
+        private List<String> remediationHints = new ArrayList<>();
+        private String authenticationSource;
+        private String authorizationSource;
+        private String delegationSource;
     }
 
     @Data

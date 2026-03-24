@@ -13,6 +13,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import io.contexa.contexaidentity.security.core.config.PlatformConfig;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
@@ -41,16 +42,18 @@ public class IdentityHandlerAutoConfiguration {
     @ConditionalOnMissingBean
     public SessionSingleAuthFailureHandler sessionSingleAuthFailureHandler(
             AuthResponseWriter responseWriter,
-            AuthContextProperties authContextProperties) {
-        return new SessionSingleAuthFailureHandler(responseWriter, authContextProperties);
+            AuthContextProperties authContextProperties,
+            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
+        return new SessionSingleAuthFailureHandler(responseWriter, authContextProperties, loginPolicyHandler);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public SessionSingleAuthSuccessHandler sessionSingleAuthSuccessHandler(
             AuthResponseWriter responseWriter,
-            AuthContextProperties authContextProperties) {
-        return new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties);
+            AuthContextProperties authContextProperties,
+            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
+        return new SessionSingleAuthSuccessHandler(responseWriter, authContextProperties, loginPolicyHandler);
     }
 
     @Bean
@@ -58,14 +61,16 @@ public class IdentityHandlerAutoConfiguration {
     public OAuth2SingleAuthSuccessHandler oauth2SingleAuthSuccessHandler(
             TokenService tokenService,
             AuthResponseWriter responseWriter,
-            AuthContextProperties authContextProperties) {
-        return new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter, authContextProperties);
+            AuthContextProperties authContextProperties,
+            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
+        return new OAuth2SingleAuthSuccessHandler(tokenService, responseWriter, authContextProperties, loginPolicyHandler);
     }
 
     @Bean
     @ConditionalOnMissingBean
     public OAuth2SingleAuthFailureHandler oauth2SingleAuthFailureHandler(
-            AuthResponseWriter responseWriter) {
-        return new OAuth2SingleAuthFailureHandler(responseWriter);
+            AuthResponseWriter responseWriter,
+            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
+        return new OAuth2SingleAuthFailureHandler(responseWriter, loginPolicyHandler);
     }
 }

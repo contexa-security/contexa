@@ -67,6 +67,13 @@ public class AiBridgeConfiguration {
     }
 
     @Bean
+    @Order(5)
+    @ConditionalOnMissingBean(SessionAuthorizationStampResolver.class)
+    public AuthorizationStampResolver sessionAuthorizationStampResolver() {
+        return new SessionAuthorizationStampResolver();
+    }
+
+    @Bean
     @Order(10)
     @ConditionalOnMissingBean(RequestAttributeAuthorizationStampResolver.class)
     public AuthorizationStampResolver requestAttributeAuthorizationStampResolver() {
@@ -78,6 +85,13 @@ public class AiBridgeConfiguration {
     @ConditionalOnMissingBean(HeaderAuthorizationStampResolver.class)
     public AuthorizationStampResolver headerAuthorizationStampResolver() {
         return new HeaderAuthorizationStampResolver();
+    }
+
+    @Bean
+    @Order(5)
+    @ConditionalOnMissingBean(SessionDelegationStampResolver.class)
+    public DelegationStampResolver sessionDelegationStampResolver() {
+        return new SessionDelegationStampResolver();
     }
 
     @Bean

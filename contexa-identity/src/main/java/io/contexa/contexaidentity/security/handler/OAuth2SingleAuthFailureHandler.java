@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,8 +17,12 @@ import java.util.Map;
 @Slf4j
 public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHandler {
 
-    public OAuth2SingleAuthFailureHandler(AuthResponseWriter responseWriter) {
+    private final LoginPolicyHandler loginPolicyHandler;
+
+    public OAuth2SingleAuthFailureHandler(AuthResponseWriter responseWriter,
+                                          @Nullable LoginPolicyHandler loginPolicyHandler) {
         super(responseWriter);
+        this.loginPolicyHandler = loginPolicyHandler;
     }
 
     @Override
@@ -36,6 +41,9 @@ public class OAuth2SingleAuthFailureHandler extends AbstractTokenBasedFailureHan
             log.error("Response already committed for authentication failure");
             return;
         }
+
+        // OAuth2 failures are from external IdP - username is not available via request parameter.
+        // Login failure tracking is handled by form-based authentication handlers only.
 
         String errorCode = "AUTHENTICATION_FAILED";
         String errorMessage = "Authentication failed. Please check your username or password.";

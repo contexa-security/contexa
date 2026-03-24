@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.token.dto.TokenPair;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
@@ -21,11 +22,14 @@ import java.util.Map;
 public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHandler {
 
     private RedirectStrategy redirectStrategy = new DefaultRedirectStrategy();
+    private final LoginPolicyHandler loginPolicyHandler;
 
     public OAuth2SingleAuthSuccessHandler(TokenService tokenService,
                                           AuthResponseWriter responseWriter,
-                                          AuthContextProperties authContextProperties) {
+                                          AuthContextProperties authContextProperties,
+                                          @Nullable LoginPolicyHandler loginPolicyHandler) {
         super(tokenService, responseWriter, authContextProperties);
+        this.loginPolicyHandler = loginPolicyHandler;
     }
 
     @Override
@@ -42,6 +46,14 @@ public class OAuth2SingleAuthSuccessHandler extends AbstractTokenBasedSuccessHan
         if (response.isCommitted()) {
             log.error("Response already committed for user: {}", authentication.getName());
             return;
+        }
+
+        if (loginPolicyHandler != null) {
+            try {
+                loginPolicyHandler.onLoginSuccess(authentication.getName(), request.getRemoteAddr());
+            } catch (Exception e) {
+                log.error("Failed to record login success for user: {}", authentication.getName(), e);
+            }
         }
 
         TokenPair tokenPair = createTokenPair(authentication, null, request, response);

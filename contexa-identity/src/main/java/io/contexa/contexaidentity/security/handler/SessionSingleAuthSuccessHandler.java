@@ -1,6 +1,7 @@
 package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportResult;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,9 +17,13 @@ import java.util.Map;
 @Slf4j
 public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler {
 
+    private final LoginPolicyHandler loginPolicyHandler;
+
     public SessionSingleAuthSuccessHandler(AuthResponseWriter responseWriter,
-                                           AuthContextProperties authContextProperties) {
+                                           AuthContextProperties authContextProperties,
+                                           @Nullable LoginPolicyHandler loginPolicyHandler) {
         super(responseWriter, authContextProperties);
+        this.loginPolicyHandler = loginPolicyHandler;
     }
 
     @Override
@@ -35,6 +40,14 @@ public class SessionSingleAuthSuccessHandler extends SessionBasedSuccessHandler 
         if (response.isCommitted()) {
             log.error("Response already committed for user: {}", authentication.getName());
             return;
+        }
+
+        if (loginPolicyHandler != null) {
+            try {
+                loginPolicyHandler.onLoginSuccess(authentication.getName(), request.getRemoteAddr());
+            } catch (Exception e) {
+                log.error("Failed to record login success for user: {}", authentication.getName(), e);
+            }
         }
 
         String targetUrl = determineTargetUrl(request, response);

@@ -13,7 +13,7 @@ public class PasswordPolicyService {
 
     private final PasswordPolicyRepository repository;
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PasswordPolicy getCurrentPolicy() {
         return repository.findAll().stream()
                 .findFirst()

@@ -24,20 +24,21 @@ public class HeaderAuthorizationStampResolver implements AuthorizationStampResol
         String authorities = request.getHeader(config.getEffectiveAuthorities());
         String privileged = request.getHeader(config.getPrivileged());
         String scopeTags = request.getHeader(config.getScopeTags());
-        if (effect == null && roles == null && authorities == null && privileged == null && scopeTags == null) {
+        String policyVersion = request.getHeader(config.getPolicyVersion());
+        if (effect == null && roles == null && authorities == null && privileged == null && scopeTags == null && policyVersion == null) {
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("authorizationResolver", "HEADER");
         return Optional.of(new AuthorizationStamp(
-                request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : null,
+                SecurityContextStampSupport.resolveSubjectIdFromHeaders(request, properties),
                 requestContext.requestUri(),
                 requestContext.method(),
                 AuthorizationEffect.from(effect),
                 privileged != null ? Boolean.parseBoolean(privileged) : null,
                 split(scopeTags),
                 request.getHeader(config.getPolicyId()),
-                null,
+                policyVersion,
                 "HEADER",
                 Instant.now(),
                 split(roles),

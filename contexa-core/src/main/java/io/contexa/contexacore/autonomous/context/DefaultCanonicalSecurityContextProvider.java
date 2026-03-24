@@ -67,6 +67,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .resource(resolveResource(event, metadata))
                 .authorization(resolveAuthorization(metadata))
                 .delegation(resolveDelegation(metadata))
+                .bridge(resolveBridge(metadata))
                 .attributes(new LinkedHashMap<>(metadata))
                 .build();
 
@@ -138,6 +139,37 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .allowedResources(normalizeStrings(metadata.get("allowedResources"), metadata.get("allowed_resources"), metadata.get("allowedResourceFamilies")))
                 .privilegedExportAllowed(resolveBoolean(metadata.get("privilegedExportAllowed"), metadata.get("privileged_export_allowed")))
                 .containmentOnly(resolveBoolean(metadata.get("containmentOnly"), metadata.get("containment_only")))
+                .build();
+    }
+
+    private CanonicalSecurityContext.Bridge resolveBridge(Map<String, Object> metadata) {
+        String coverageLevel = firstText(metadata.get("bridgeCoverageLevel"));
+        Integer coverageScore = resolveInteger(metadata.get("bridgeCoverageScore"));
+        List<String> missingContexts = normalizeStrings(metadata.get("bridgeMissingContexts"));
+        String summary = firstText(metadata.get("bridgeCoverageSummary"));
+        List<String> remediationHints = normalizeStrings(metadata.get("bridgeRemediationHints"));
+        String authenticationSource = firstText(metadata.get("bridgeAuthenticationSource"));
+        String authorizationSource = firstText(metadata.get("bridgeAuthorizationSource"));
+        String delegationSource = firstText(metadata.get("bridgeDelegationSource"));
+        if (!StringUtils.hasText(coverageLevel)
+                && coverageScore == null
+                && missingContexts.isEmpty()
+                && !StringUtils.hasText(summary)
+                && remediationHints.isEmpty()
+                && !StringUtils.hasText(authenticationSource)
+                && !StringUtils.hasText(authorizationSource)
+                && !StringUtils.hasText(delegationSource)) {
+            return null;
+        }
+        return CanonicalSecurityContext.Bridge.builder()
+                .coverageLevel(coverageLevel)
+                .coverageScore(coverageScore)
+                .missingContexts(missingContexts)
+                .summary(summary)
+                .remediationHints(remediationHints)
+                .authenticationSource(authenticationSource)
+                .authorizationSource(authorizationSource)
+                .delegationSource(delegationSource)
                 .build();
     }
 
@@ -292,3 +324,4 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         return new ArrayList<>(values);
     }
 }
+

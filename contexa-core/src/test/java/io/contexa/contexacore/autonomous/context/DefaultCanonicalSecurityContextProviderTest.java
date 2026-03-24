@@ -43,6 +43,13 @@ class DefaultCanonicalSecurityContextProviderTest {
         event.addMetadata("mfaVerified", true);
         event.addMetadata("failedLoginAttempts", 1);
         event.addMetadata("recentRequestCount", 7);
+        event.addMetadata("bridgeCoverageLevel", "AUTHORIZATION_CONTEXT");
+        event.addMetadata("bridgeCoverageScore", 80);
+        event.addMetadata("bridgeCoverageSummary", "Bridge resolved authentication and authorization context for the current request.");
+        event.addMetadata("bridgeRemediationHints", List.of("If delegated agents are used, propagate delegation metadata for the current request. Otherwise this gap can be ignored."));
+        event.addMetadata("bridgeMissingContexts", List.of("DELEGATION"));
+        event.addMetadata("bridgeAuthenticationSource", "SECURITY_CONTEXT");
+        event.addMetadata("bridgeAuthorizationSource", "HEADER");
 
         CanonicalSecurityContext context = provider.resolve(event).orElseThrow();
 
@@ -52,6 +59,13 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getAuthorization().getEffectivePermissions()).contains("report.read", "report.export");
         assertThat(context.getResource().getBusinessLabel()).isEqualTo("Customer Export Report");
         assertThat(context.getResource().getSensitivity()).isEqualTo("HIGH");
+        assertThat(context.getBridge()).isNotNull();
+        assertThat(context.getBridge().getCoverageLevel()).isEqualTo("AUTHORIZATION_CONTEXT");
+        assertThat(context.getBridge().getSummary()).contains("authentication and authorization context");
+        assertThat(context.getBridge().getRemediationHints()).hasSize(1);
+        assertThat(context.getBridge().getAuthenticationSource()).isEqualTo("SECURITY_CONTEXT");
+        assertThat(context.getBridge().getAuthorizationSource()).isEqualTo("HEADER");
+        assertThat(context.getBridge().getMissingContexts()).contains("DELEGATION");
         assertThat(context.getCoverage().level()).isEqualTo(ContextCoverageLevel.BUSINESS_AWARE);
     }
 

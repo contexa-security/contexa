@@ -51,6 +51,12 @@ class SecurityDecisionForwardingPayloadMapperTest {
                                 .containsEntry("organizationBaselineEstablished", true)
                 .containsEntry("operationalEvidenceSource", "THREAT_INDICATORS")
                 .containsEntry("llmAuditRiskScore", 0.93)
+                .containsEntry("bridgeCoverageLevel", "AUTHORIZATION_CONTEXT")
+                .containsEntry("bridgeCoverageScore", 75)
+                .containsEntry("bridgeCoverageSummary", "Bridge resolved authentication and authorization context for the current request.")
+                .containsEntry("bridgeAuthenticationSource", "SECURITY_CONTEXT")
+                .containsEntry("bridgeAuthorizationSource", "HEADER")
+                .containsEntry("bridgeDelegationSource", "NONE")
                 .containsEntry("llmAuditConfidence", 0.88);
     }
 
@@ -108,6 +114,14 @@ class SecurityDecisionForwardingPayloadMapperTest {
                         Map.entry("threatKnowledgeCaseCount", 2),
                         Map.entry("threatKnowledgePrimaryKey", "case-primary-1"),
                         Map.entry("threatKnowledgeKeys", List.of("case-primary-1", "case-secondary-2")),
+                        Map.entry("bridgeCoverageLevel", "AUTHORIZATION_CONTEXT"),
+                        Map.entry("bridgeCoverageScore", 75),
+                        Map.entry("bridgeCoverageSummary", "Bridge resolved authentication and authorization context for the current request."),
+                        Map.entry("bridgeMissingContexts", List.of("DELEGATION")),
+                        Map.entry("bridgeRemediationHints", List.of("If delegated agents are used, propagate delegation metadata for the current request. Otherwise this gap can be ignored.")),
+                        Map.entry("bridgeAuthenticationSource", "SECURITY_CONTEXT"),
+                        Map.entry("bridgeAuthorizationSource", "HEADER"),
+                        Map.entry("bridgeDelegationSource", "NONE"),
                         Map.entry("threatKnowledgeSignalKeys", List.of("signal-1")),
                         Map.entry("threatKnowledgeMatchedFacts", List.of("shared_geo_country", "shared_surface")),
                         Map.entry("reasoningMemoryApplied", true),

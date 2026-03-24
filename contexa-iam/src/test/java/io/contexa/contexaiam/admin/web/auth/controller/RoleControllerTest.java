@@ -7,6 +7,7 @@ import io.contexa.contexaiam.domain.dto.RoleDto;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.RolePermission;
+import io.contexa.contexacommon.repository.RoleRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,6 +18,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -45,6 +49,9 @@ class RoleControllerTest {
     @Mock
     private ModelMapper modelMapper;
 
+    @Mock
+    private RoleRepository roleRepository;
+
     @InjectMocks
     private RoleController controller;
 
@@ -56,14 +63,15 @@ class RoleControllerTest {
         @DisplayName("should return roles view with mapped role list")
         void success() {
             Model model = new ConcurrentModel();
+            Pageable pageable = PageRequest.of(0, 15);
             Role role = new Role();
             role.setRolePermissions(Set.of(new RolePermission()));
 
             RoleDto dto = RoleDto.builder().roleName("ADMIN").build();
-            when(roleService.getRoles()).thenReturn(List.of(role));
+            when(roleRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(role)));
             when(modelMapper.map(role, RoleDto.class)).thenReturn(dto);
 
-            String view = controller.getRoles(model);
+            String view = controller.getRoles(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/roles");
             assertThat(model.getAttribute("roles")).isNotNull();
@@ -73,14 +81,15 @@ class RoleControllerTest {
         @DisplayName("should handle roles with null permissions")
         void nullPermissions() {
             Model model = new ConcurrentModel();
+            Pageable pageable = PageRequest.of(0, 15);
             Role role = new Role();
             role.setRolePermissions(null);
 
             RoleDto dto = RoleDto.builder().build();
-            when(roleService.getRoles()).thenReturn(List.of(role));
+            when(roleRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(role)));
             when(modelMapper.map(role, RoleDto.class)).thenReturn(dto);
 
-            String view = controller.getRoles(model);
+            String view = controller.getRoles(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/roles");
             assertThat(dto.getPermissionCount()).isZero();

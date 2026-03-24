@@ -41,4 +41,24 @@ public class UnifiedCustomUserDetails implements UserDetails {
     public String getUsername() {
         return user.getUsername();
     }
+
+    @Override
+    public boolean isEnabled() {
+        return user.isEnabled();
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return !user.isAccountLocked();
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return !user.isCredentialsExpired();
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
 }

@@ -7,6 +7,8 @@ import io.contexa.contexacommon.domain.UserDto;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.Role;
+import io.contexa.contexacommon.entity.Users;
+import io.contexa.contexacommon.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -16,6 +18,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -40,6 +45,9 @@ class UserManagementControllerTest {
     @Mock
     private GroupService groupService;
 
+    @Mock
+    private UserRepository userRepository;
+
     @InjectMocks
     private UserManagementController controller;
 
@@ -51,14 +59,18 @@ class UserManagementControllerTest {
         @DisplayName("should return users view with user list")
         void success() {
             Model model = new ConcurrentModel();
-            List<UserListDto> users = List.of(new UserListDto());
-            when(userManagementService.getUsers()).thenReturn(users);
+            Pageable pageable = PageRequest.of(0, 15);
+            Users user = new Users();
+            user.setId(1L);
+            user.setUsername("testuser");
+            user.setName("Test User");
+            when(userRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(user)));
 
-            String view = controller.getUsers(model);
+            String view = controller.getUsers(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/users");
-            assertThat(model.getAttribute("users")).isEqualTo(users);
-            verify(userManagementService).getUsers();
+            assertThat(model.getAttribute("users")).isNotNull();
+            verify(userRepository).findAll(pageable);
         }
     }
 

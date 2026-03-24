@@ -248,12 +248,16 @@ public class ZeroTrustEventPublisher {
 
         payload.put("bridgeCoverageLevel", bridgeResolutionResult.coverageReport().level().name());
         payload.put("bridgeCoverageScore", bridgeResolutionResult.coverageReport().score());
+        putIfPresent(payload, "bridgeCoverageSummary", bridgeResolutionResult.coverageReport().summary());
         payload.put("bridgeMissingContexts", bridgeResolutionResult.coverageReport().missingContexts().stream()
                 .map(MissingBridgeContext::name)
                 .collect(Collectors.toList()));
-
+        if (!bridgeResolutionResult.coverageReport().remediationHints().isEmpty()) {
+            payload.put("bridgeRemediationHints", bridgeResolutionResult.coverageReport().remediationHints());
+        }
         AuthenticationStamp authenticationStamp = bridgeResolutionResult.authenticationStamp();
         if (authenticationStamp != null) {
+            putIfPresent(payload, "bridgeAuthenticationSource", authenticationStamp.authenticationSource());
             putIfPresent(payload, "principalType", authenticationStamp.principalType());
             putIfPresent(payload, "authenticationType", authenticationStamp.authenticationType());
             putIfPresent(payload, "authenticationAssurance", authenticationStamp.authenticationAssurance());
@@ -268,6 +272,7 @@ public class ZeroTrustEventPublisher {
 
         AuthorizationStamp authorizationStamp = bridgeResolutionResult.authorizationStamp();
         if (authorizationStamp != null) {
+            putIfPresent(payload, "bridgeAuthorizationSource", authorizationStamp.decisionSource());
             payload.put("authorizationEffect", authorizationStamp.effect().name());
             putIfPresent(payload, "privileged", authorizationStamp.privileged());
             putIfPresent(payload, "policyId", authorizationStamp.policyId());
@@ -285,6 +290,7 @@ public class ZeroTrustEventPublisher {
 
         DelegationStamp delegationStamp = bridgeResolutionResult.delegationStamp();
         if (delegationStamp != null && delegationStamp.delegated()) {
+            putIfPresent(payload, "bridgeDelegationSource", delegationStamp.attributes().get("delegationResolver"));
             payload.put("delegated", true);
             putIfPresent(payload, "agentId", delegationStamp.agentId());
             putIfPresent(payload, "objectiveId", delegationStamp.objectiveId());

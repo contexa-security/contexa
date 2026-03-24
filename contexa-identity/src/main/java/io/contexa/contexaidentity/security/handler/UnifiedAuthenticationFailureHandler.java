@@ -17,6 +17,7 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import io.contexa.contexaidentity.security.zerotrust.ZeroTrustAccessControlFilter;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -42,6 +43,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
     private final MfaSettings mfaSettings;
     private final IBlockedUserRecorder blockedUserRecorder;
     private final CentralAuditFacade centralAuditFacade;
+    private final LoginPolicyHandler loginPolicyService;
 
     public UnifiedAuthenticationFailureHandler(AuthResponseWriter responseWriter,
                                                MfaStateMachineIntegrator stateMachineIntegrator,
@@ -50,7 +52,8 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
                                                ZeroTrustActionRepository actionRedisRepository,
                                                MfaSettings mfaSettings,
                                                IBlockedUserRecorder blockedUserRecorder,
-                                               CentralAuditFacade centralAuditFacade) {
+                                               CentralAuditFacade centralAuditFacade,
+                                               @Nullable LoginPolicyHandler loginPolicyService) {
         super(responseWriter);
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.sessionRepository = sessionRepository;
@@ -59,6 +62,7 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
         this.mfaSettings = mfaSettings;
         this.blockedUserRecorder = blockedUserRecorder;
         this.centralAuditFacade = centralAuditFacade;
+        this.loginPolicyService = loginPolicyService;
     }
 
     @Override
@@ -149,6 +153,15 @@ public final class UnifiedAuthenticationFailureHandler extends AbstractTokenBase
 
         log.error("Primary Authentication or Global MFA Failure using {} repository for user '{}' (MFA Session ID: '{}'). Reason: {}",
                 sessionRepository.getRepositoryType(), usernameForLog, sessionIdForLog, exception.getMessage());
+
+        // Record login failure: increment failedLoginAttempts, lock if exceeded
+        if (loginPolicyService != null && StringUtils.hasText(usernameForLog) && !"UnknownUser".equals(usernameForLog)) {
+            try {
+                loginPolicyService.onLoginFailure(usernameForLog);
+            } catch (Exception e) {
+                log.error("Failed to record login failure for user: {}", usernameForLog, e);
+            }
+        }
 
         if (factorContext != null && StringUtils.hasText(factorContext.getMfaSessionId())) {
             try {

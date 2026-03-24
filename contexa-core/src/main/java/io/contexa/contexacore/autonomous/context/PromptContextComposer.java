@@ -12,6 +12,7 @@ public class PromptContextComposer {
         }
 
         StringBuilder section = new StringBuilder();
+        appendBridgeSection(section, context.getBridge());
         appendCoverageSection(section, context.getCoverage());
         appendIdentitySection(section, context);
         appendResourceSection(section, context);
@@ -19,6 +20,21 @@ public class PromptContextComposer {
         appendDelegationSection(section, context);
 
         return section.isEmpty() ? null : section.toString();
+    }
+
+    private void appendBridgeSection(StringBuilder section, CanonicalSecurityContext.Bridge bridge) {
+        if (bridge == null) {
+            return;
+        }
+        section.append("\n=== BRIDGE RESOLUTION CONTEXT ===\n");
+        appendLine(section, "BridgeCoverageLevel", bridge.getCoverageLevel());
+        appendLine(section, "BridgeCoverageScore", bridge.getCoverageScore());
+        appendLine(section, "BridgeCoverageSummary", bridge.getSummary());
+        appendLine(section, "BridgeAuthenticationSource", bridge.getAuthenticationSource());
+        appendLine(section, "BridgeAuthorizationSource", bridge.getAuthorizationSource());
+        appendLine(section, "BridgeDelegationSource", bridge.getDelegationSource());
+        appendList(section, "BridgeMissingContexts", bridge.getMissingContexts());
+        appendList(section, "BridgeRemediationHints", bridge.getRemediationHints());
     }
 
     private void appendCoverageSection(StringBuilder section, ContextCoverageReport coverage) {
@@ -162,3 +178,4 @@ public class PromptContextComposer {
                 .append("\n");
     }
 }
+

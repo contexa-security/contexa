@@ -264,11 +264,12 @@ public class IdentitySecurityCoreAutoConfiguration {
             IBlockedUserRecorder blockedUserRecorder,
             BlockMfaStateStore blockMfaStateStore,
             CentralAuditFacade centralAuditFacade,
-            BlockingSignalBroadcaster blockingSignalBroadcaster) {
+            BlockingSignalBroadcaster blockingSignalBroadcaster,
+            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
         return new PrimaryAuthenticationSuccessHandler(mfaPolicyProvider, tokenService, authResponseWriter,
                 authContextProperties, applicationContext, mfaStateMachineIntegrator, mfaSessionRepository,
                 authUrlProvider, mfaFlowUrlRegistry, zeroTrustEventPublisher, actionRedisRepository, securityLearningService,
-                blockedUserRecorder, blockMfaStateStore, centralAuditFacade, blockingSignalBroadcaster);
+                blockedUserRecorder, blockMfaStateStore, centralAuditFacade, blockingSignalBroadcaster, loginPolicyHandler);
     }
 
     @Bean
@@ -281,10 +282,11 @@ public class IdentitySecurityCoreAutoConfiguration {
             ZeroTrustActionRepository actionRedisRepository,
             AuthContextProperties authContextProperties,
             IBlockedUserRecorder blockedUserRecorder,
-            @Autowired(required = false) CentralAuditFacade centralAuditFacade) {
+            @Autowired(required = false) CentralAuditFacade centralAuditFacade,
+            @Autowired(required = false) io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyHandler) {
         return new UnifiedAuthenticationFailureHandler(authResponseWriter, mfaStateMachineIntegrator,
                 mfaSessionRepository, zeroTrustEventPublisher, actionRedisRepository,
-                authContextProperties.getMfa(), blockedUserRecorder, centralAuditFacade);
+                authContextProperties.getMfa(), blockedUserRecorder, centralAuditFacade, loginPolicyHandler);
     }
 
     @Bean

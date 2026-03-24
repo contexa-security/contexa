@@ -36,6 +36,7 @@ public class SessionAuthBridge implements AuthBridge {
         String displayName = BridgeObjectExtractor.extractString(sessionUser, properties.getDisplayNameKeys());
         Set<String> authorities = BridgeObjectExtractor.extractStringSet(sessionUser, properties.getAuthoritiesKeys());
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(BridgeObjectExtractor.extractAttributes(sessionUser, properties.getAttributeKeys()));
+        attributes.put("bridgeAuthenticationSource", "SESSION");
 
         String authenticationType = BridgeObjectExtractor.extractString(sessionUser, properties.getAuthenticationTypeKeys());
         if (authenticationType != null) {

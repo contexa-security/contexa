@@ -9,6 +9,7 @@ import io.contexa.contexacommon.repository.AuditLogRepository;
 import io.contexa.contexacore.autonomous.audit.AuditPersistenceListener;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
 import io.contexa.contexacore.autonomous.blocking.BlockingSignalBroadcaster;
+import io.contexa.contexacore.autonomous.context.*;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
@@ -91,6 +92,50 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityEventEnricher securityEventEnricher() {
         return new SecurityEventEnricher();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ResourceContextRegistry resourceContextRegistry() {
+        return new InMemoryResourceContextRegistry();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ContextCoverageEvaluator contextCoverageEvaluator() {
+        return new ContextCoverageEvaluator();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public CanonicalSecurityContextProvider canonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator contextCoverageEvaluator,
+            ObjectProvider<AuthenticationContextProvider> authenticationContextProviders,
+            ObjectProvider<AuthorizationSnapshotProvider> authorizationSnapshotProviders,
+            ObjectProvider<OrganizationContextProvider> organizationContextProviders,
+            ObjectProvider<DelegationContextProvider> delegationContextProviders,
+            ObjectProvider<ObservedScopeInferenceService> observedScopeInferenceService) {
+        return new DefaultCanonicalSecurityContextProvider(
+                resourceContextRegistry,
+                contextCoverageEvaluator,
+                authenticationContextProviders.orderedStream().toList(),
+                authorizationSnapshotProviders.orderedStream().toList(),
+                organizationContextProviders.orderedStream().toList(),
+                delegationContextProviders.orderedStream().toList(),
+                observedScopeInferenceService.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public PromptContextComposer promptContextComposer() {
+        return new PromptContextComposer();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ObservedScopeInferenceService observedScopeInferenceService() {
+        return new MetadataObservedScopeInferenceService();
     }
 
 

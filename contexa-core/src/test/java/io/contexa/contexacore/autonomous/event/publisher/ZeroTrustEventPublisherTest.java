@@ -65,9 +65,14 @@ class ZeroTrustEventPublisherTest {
                 .containsEntry("authenticationAssurance", "HIGH")
                 .containsEntry("bridgeCoverageLevel", BridgeCoverageLevel.DELEGATION_CONTEXT.name())
                 .containsEntry("bridgeCoverageScore", 90)
+                .containsEntry("bridgeCoverageSummary", "Bridge resolved authentication, authorization, and delegated execution context for the current request.")
+                .containsEntry("bridgeAuthenticationSource", "HEADER")
+                .containsEntry("bridgeAuthorizationSource", "HEADER")
+                .containsEntry("bridgeDelegationSource", "HEADER")
                 .containsEntry("privileged", true)
                 .containsEntry("agentId", "agent-1")
                 .containsEntry("objectiveId", "objective-1");
+        assertThat((List<String>) event.getPayload().get("bridgeRemediationHints")).contains("Populate an explicit authorization effect such as ALLOW or DENY for the current request.");
         assertThat((List<String>) event.getPayload().get("effectivePermissions")).contains("REPORT_EXPORT");
         assertThat((List<String>) event.getPayload().get("allowedOperations")).contains("EXPORT");
     }
@@ -77,8 +82,14 @@ class ZeroTrustEventPublisherTest {
                 new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
                 new AuthenticationStamp("alice", "Alice", "USER", true, "JWT", "HEADER", "HIGH", true, Instant.now(), "session-1", List.of("ROLE_USER"), Map.of("organizationId", "tenant-a")),
                 new AuthorizationStamp("alice", "/reports/export", "POST", AuthorizationEffect.ALLOW, true, List.of("report:export"), "policy-1", null, "HEADER", Instant.now(), List.of("ROLE_USER"), List.of("REPORT_EXPORT"), Map.of()),
-                new DelegationStamp("alice", "agent-1", true, "objective-1", "Export monthly report", List.of("EXPORT"), List.of("report:monthly"), true, false, null, Map.of()),
-                new BridgeCoverageReport(BridgeCoverageLevel.DELEGATION_CONTEXT, 90, Set.of(MissingBridgeContext.AUTHORIZATION_EFFECT))
+                new DelegationStamp("alice", "agent-1", true, "objective-1", "Export monthly report", List.of("EXPORT"), List.of("report:monthly"), true, false, null, Map.of("delegationResolver", "HEADER")),
+                new BridgeCoverageReport(
+                        BridgeCoverageLevel.DELEGATION_CONTEXT,
+                        90,
+                        Set.of(MissingBridgeContext.AUTHORIZATION_EFFECT),
+                        "Bridge resolved authentication, authorization, and delegated execution context for the current request.",
+                        List.of("Populate an explicit authorization effect such as ALLOW or DENY for the current request.")
+                )
         );
     }
 

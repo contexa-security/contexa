@@ -77,6 +77,8 @@ public class ContextCoverageEvaluator {
             availableFacts.add("Observed work pattern is available.");
         }
 
+        appendBridgeFacts(context, availableFacts, missingCriticalFacts);
+
         ContextCoverageLevel level = CanonicalContextFieldPolicy.determineCoverageLevel(context);
         String summary = switch (level) {
             case BUSINESS_AWARE -> "Business-aware context is available for role, resource, and session reasoning.";
@@ -85,6 +87,39 @@ public class ContextCoverageEvaluator {
             case ENVIRONMENT_ONLY -> "Only environment or minimal request context is available.";
         };
 
+        if (context.getBridge() != null && context.getBridge().getCoverageLevel() != null) {
+            summary = summary + " Bridge coverage: " + context.getBridge().getCoverageLevel() + ".";
+        }
+
         return new ContextCoverageReport(level, List.copyOf(availableFacts), List.copyOf(missingCriticalFacts), summary);
     }
+
+    private void appendBridgeFacts(CanonicalSecurityContext context, List<String> availableFacts, List<String> missingCriticalFacts) {
+        CanonicalSecurityContext.Bridge bridge = context.getBridge();
+        if (bridge == null) {
+            return;
+        }
+        if (bridge.getCoverageLevel() != null) {
+            availableFacts.add("Bridge coverage metadata is available.");
+        }
+        if (bridge.getAuthenticationSource() != null) {
+            availableFacts.add("Bridge authentication source is available.");
+        }
+        if (bridge.getAuthorizationSource() != null) {
+            availableFacts.add("Bridge authorization source is available.");
+        }
+        if (bridge.getDelegationSource() != null) {
+            availableFacts.add("Bridge delegation source is available.");
+        }
+        if (bridge.getSummary() != null && !bridge.getSummary().isBlank()) {
+            availableFacts.add("Bridge summary: " + bridge.getSummary());
+        }
+        for (String missingContext : bridge.getMissingContexts()) {
+            missingCriticalFacts.add("Bridge missing context: " + missingContext + ".");
+        }
+        for (String remediationHint : bridge.getRemediationHints()) {
+            availableFacts.add("Bridge remediation hint: " + remediationHint);
+        }
+    }
 }
+

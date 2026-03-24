@@ -5,6 +5,8 @@ import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -20,13 +22,14 @@ public class RequestAttributeDelegationStampResolver implements DelegationStampR
         Object delegated = request.getAttribute(config.getDelegated());
         Object agentId = request.getAttribute(config.getAgentId());
         Object objectiveId = request.getAttribute(config.getObjectiveId());
-        if (delegated == null && agentId == null && objectiveId == null) {
+        Object expiresAt = request.getAttribute(config.getExpiresAt());
+        if (delegated == null && agentId == null && objectiveId == null && expiresAt == null) {
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("delegationResolver", "REQUEST_ATTRIBUTE");
         return Optional.of(new DelegationStamp(
-                request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : null,
+                SecurityContextStampSupport.resolveSubjectIdFromRequestAttributes(request, properties),
                 text(agentId),
                 delegated instanceof Boolean booleanValue ? booleanValue : Boolean.parseBoolean(text(delegated)),
                 text(objectiveId),
@@ -35,7 +38,7 @@ public class RequestAttributeDelegationStampResolver implements DelegationStampR
                 split(request.getAttribute(config.getAllowedResources())),
                 parseBoolean(request.getAttribute(config.getApprovalRequired())),
                 parseBoolean(request.getAttribute(config.getContainmentOnly())),
-                null,
+                parseInstant(expiresAt),
                 attributes
         ));
     }
@@ -61,7 +64,25 @@ public class RequestAttributeDelegationStampResolver implements DelegationStampR
         return null;
     }
 
+    private Instant parseInstant(Object raw) {
+        if (raw instanceof Instant instant) {
+            return instant;
+        }
+        if (raw instanceof Number number) {
+            return Instant.ofEpochMilli(number.longValue());
+        }
+        if (raw instanceof String text && !text.isBlank()) {
+            try {
+                return Instant.parse(text.trim());
+            }
+            catch (DateTimeParseException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private String text(Object raw) {
-        return raw != null ? raw.toString() : null;
+        return SecurityContextStampSupport.text(raw);
     }
 }

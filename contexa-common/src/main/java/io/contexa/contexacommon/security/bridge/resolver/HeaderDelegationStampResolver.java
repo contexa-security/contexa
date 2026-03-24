@@ -5,6 +5,8 @@ import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import jakarta.servlet.http.HttpServletRequest;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Optional;
@@ -20,13 +22,14 @@ public class HeaderDelegationStampResolver implements DelegationStampResolver {
         String delegated = request.getHeader(config.getDelegated());
         String agentId = request.getHeader(config.getAgentId());
         String objectiveId = request.getHeader(config.getObjectiveId());
-        if (delegated == null && agentId == null && objectiveId == null) {
+        String expiresAt = request.getHeader(config.getExpiresAt());
+        if (delegated == null && agentId == null && objectiveId == null && expiresAt == null) {
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("delegationResolver", "HEADER");
         return Optional.of(new DelegationStamp(
-                request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : null,
+                SecurityContextStampSupport.resolveSubjectIdFromHeaders(request, properties),
                 agentId,
                 Boolean.parseBoolean(delegated),
                 objectiveId,
@@ -35,7 +38,7 @@ public class HeaderDelegationStampResolver implements DelegationStampResolver {
                 split(request.getHeader(config.getAllowedResources())),
                 parseBoolean(request.getHeader(config.getApprovalRequired())),
                 parseBoolean(request.getHeader(config.getContainmentOnly())),
-                null,
+                parseInstant(expiresAt),
                 attributes
         ));
     }
@@ -52,5 +55,17 @@ public class HeaderDelegationStampResolver implements DelegationStampResolver {
             return null;
         }
         return Boolean.parseBoolean(raw);
+    }
+
+    private Instant parseInstant(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        try {
+            return Instant.parse(raw.trim());
+        }
+        catch (DateTimeParseException ignored) {
+            return null;
+        }
     }
 }

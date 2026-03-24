@@ -3,6 +3,8 @@ package io.contexa.contexacore.std.security;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class PromptInjectionDefenseServiceTest {
 
     private final PromptInjectionDefenseService service = new PromptInjectionDefenseService(

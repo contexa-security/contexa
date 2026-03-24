@@ -1,16 +1,17 @@
 package io.contexa.contexacommon.security.bridge;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
-final class BridgeObjectExtractor {
+public final class BridgeObjectExtractor {
 
     private BridgeObjectExtractor() {
     }
 
-    static String extractString(Object source, List<String> keys) {
+    public static String extractString(Object source, List<String> keys) {
         Object raw = extractRawValue(source, keys);
         if (raw == null) {
             return null;
@@ -19,7 +20,7 @@ final class BridgeObjectExtractor {
         return text.isBlank() ? null : text;
     }
 
-    static Set<String> extractStringSet(Object source, List<String> keys) {
+    public static Set<String> extractStringSet(Object source, List<String> keys) {
         Object raw = extractRawValue(source, keys);
         if (raw == null) {
             return Set.of();
@@ -33,7 +34,7 @@ final class BridgeObjectExtractor {
         }
         String text = raw.toString();
         if (text.contains(",")) {
-            for (String token : text.split(",")) {
+            for (String token : text.split("\\s*,\\s*")) {
                 addNormalized(values, token);
             }
             return Set.copyOf(values);
@@ -42,7 +43,7 @@ final class BridgeObjectExtractor {
         return Set.copyOf(values);
     }
 
-    static Instant extractInstant(Object source, List<String> keys) {
+    public static Instant extractInstant(Object source, List<String> keys) {
         Object raw = extractRawValue(source, keys);
         if (raw instanceof Instant instant) {
             return instant;
@@ -53,14 +54,15 @@ final class BridgeObjectExtractor {
         if (raw instanceof String text && !text.isBlank()) {
             try {
                 return Instant.parse(text.trim());
-            } catch (DateTimeParseException ignored) {
+            }
+            catch (DateTimeParseException ignored) {
                 return null;
             }
         }
         return null;
     }
 
-    static Boolean extractBoolean(Object source, List<String> keys) {
+    public static Boolean extractBoolean(Object source, List<String> keys) {
         Object raw = extractRawValue(source, keys);
         if (raw instanceof Boolean booleanValue) {
             return booleanValue;
@@ -71,7 +73,7 @@ final class BridgeObjectExtractor {
         return null;
     }
 
-    static Map<String, Object> extractAttributes(Object source, List<String> preferredKeys) {
+    public static Map<String, Object> extractAttributes(Object source, List<String> preferredKeys) {
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         if (source instanceof Map<?, ?> map) {
             for (Map.Entry<?, ?> entry : map.entrySet()) {
@@ -81,28 +83,22 @@ final class BridgeObjectExtractor {
             }
             return Map.copyOf(attributes);
         }
-        if (source == null || preferredKeys == null) {
+        if (source == null || preferredKeys == null || preferredKeys.isEmpty()) {
             return Map.of();
         }
-        Class<?> type = source.getClass();
         for (String key : preferredKeys) {
-            try {
-                Method method = findAccessor(type, key);
-                if (method == null) {
-                    continue;
-                }
-                Object value = method.invoke(source);
-                if (value != null) {
-                    attributes.put(key, value);
-                }
-            } catch (Exception ignored) {
-                return Map.copyOf(attributes);
+            if (key == null || key.isBlank()) {
+                continue;
+            }
+            Object value = extractMemberValue(source, key);
+            if (value != null) {
+                attributes.put(key, value);
             }
         }
         return Map.copyOf(attributes);
     }
 
-    private static Object extractRawValue(Object source, List<String> keys) {
+    public static Object extractRawValue(Object source, List<String> keys) {
         if (source == null || keys == null || keys.isEmpty()) {
             return null;
         }
@@ -115,34 +111,91 @@ final class BridgeObjectExtractor {
             }
             return null;
         }
-        Class<?> type = source.getClass();
         for (String key : keys) {
+            if (key == null || key.isBlank()) {
+                continue;
+            }
+            Object value = extractMemberValue(source, key);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static Object extractMemberValue(Object source, String key) {
+        Method accessor = findAccessor(source.getClass(), key);
+        if (accessor != null) {
             try {
-                Method method = findAccessor(type, key);
-                if (method == null) {
-                    continue;
-                }
-                Object value = method.invoke(source);
-                if (value != null) {
-                    return value;
-                }
-            } catch (Exception ignored) {
-                return null;
+                return accessor.invoke(source);
+            }
+            catch (Exception ignored) {
+            }
+        }
+        Field field = findField(source.getClass(), key);
+        if (field != null) {
+            try {
+                return field.get(source);
+            }
+            catch (Exception ignored) {
             }
         }
         return null;
     }
 
     private static Method findAccessor(Class<?> type, String key) {
-        try {
-            return type.getMethod(toGetterName(key));
-        } catch (NoSuchMethodException ignored) {
+        for (String candidate : List.of(key, toGetterName(key), toBooleanGetterName(key))) {
+            Method method = findPublicAccessor(type, candidate);
+            if (method != null) {
+                return method;
+            }
+            method = findDeclaredAccessor(type, candidate);
+            if (method != null) {
+                return method;
+            }
         }
+        return null;
+    }
+
+    private static Method findPublicAccessor(Class<?> type, String candidate) {
         try {
-            return type.getMethod(toBooleanGetterName(key));
-        } catch (NoSuchMethodException ignored) {
+            return type.getMethod(candidate);
+        }
+        catch (NoSuchMethodException ignored) {
             return null;
         }
+    }
+
+    private static Method findDeclaredAccessor(Class<?> type, String candidate) {
+        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
+            try {
+                Method method = current.getDeclaredMethod(candidate);
+                method.setAccessible(true);
+                return method;
+            }
+            catch (NoSuchMethodException ignored) {
+            }
+            catch (RuntimeException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static Field findField(Class<?> type, String key) {
+        for (Class<?> current = type; current != null && current != Object.class; current = current.getSuperclass()) {
+            try {
+                Field field = current.getDeclaredField(key);
+                field.setAccessible(true);
+                return field;
+            }
+            catch (NoSuchFieldException ignored) {
+            }
+            catch (RuntimeException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     private static String toGetterName(String key) {

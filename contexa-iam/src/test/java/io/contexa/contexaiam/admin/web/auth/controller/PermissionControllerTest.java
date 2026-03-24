@@ -5,6 +5,7 @@ import io.contexa.contexaiam.admin.web.metadata.service.FunctionCatalogService;
 import io.contexa.contexaiam.domain.dto.PermissionDto;
 import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
+import io.contexa.contexacommon.repository.PermissionRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -15,6 +16,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -42,6 +46,9 @@ class PermissionControllerTest {
     @Mock
     private FunctionCatalogService functionCatalogService;
 
+    @Mock
+    private PermissionRepository permissionRepository;
+
     @InjectMocks
     private PermissionController controller;
 
@@ -53,14 +60,15 @@ class PermissionControllerTest {
         @DisplayName("should return permissions view with mapped list")
         void success() {
             Model model = new ConcurrentModel();
+            Pageable pageable = PageRequest.of(0, 15);
             Permission permission = new Permission();
             permission.setName("READ_USER");
             PermissionDto dto = PermissionDto.builder().name("READ_USER").build();
 
-            when(permissionService.getAllPermissions()).thenReturn(List.of(permission));
+            when(permissionRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(permission)));
             when(modelMapper.map(permission, PermissionDto.class)).thenReturn(dto);
 
-            String view = controller.getPermissions(model);
+            String view = controller.getPermissions(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/permissions");
             assertThat(model.getAttribute("permissions")).isNotNull();
@@ -70,6 +78,7 @@ class PermissionControllerTest {
         @DisplayName("should map managed resource fields when present")
         void withManagedResource() {
             Model model = new ConcurrentModel();
+            Pageable pageable = PageRequest.of(0, 15);
             ManagedResource resource = new ManagedResource();
             resource.setId(10L);
             resource.setResourceIdentifier("api/users");
@@ -77,10 +86,10 @@ class PermissionControllerTest {
             permission.setManagedResource(resource);
 
             PermissionDto dto = PermissionDto.builder().build();
-            when(permissionService.getAllPermissions()).thenReturn(List.of(permission));
+            when(permissionRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(permission)));
             when(modelMapper.map(permission, PermissionDto.class)).thenReturn(dto);
 
-            String view = controller.getPermissions(model);
+            String view = controller.getPermissions(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/permissions");
             assertThat(dto.getManagedResourceId()).isEqualTo(10L);

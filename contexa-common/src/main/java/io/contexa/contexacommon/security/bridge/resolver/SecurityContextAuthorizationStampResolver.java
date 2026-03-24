@@ -12,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,34 +20,77 @@ public class SecurityContextAuthorizationStampResolver implements AuthorizationS
 
     @Override
     public Optional<AuthorizationStamp> resolve(HttpServletRequest request, RequestContextSnapshot requestContext, BridgeProperties properties) {
+        BridgeProperties.Authorization.SecurityContext config = resolveConfig(properties);
+        if (!config.isEnabled()) {
+            return Optional.empty();
+        }
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || authentication instanceof AnonymousAuthenticationToken) {
             return Optional.empty();
         }
-        List<String> authorities = authentication.getAuthorities().stream()
+        String principalId = SecurityContextStampSupport.extractPrincipalId(authentication);
+        if (principalId == null) {
+            return Optional.empty();
+        }
+        List<String> authenticationAuthorities = authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .toList();
-        List<String> roles = authorities.stream()
+        LinkedHashSet<String> roles = new LinkedHashSet<>();
+        roles.addAll(SecurityContextStampSupport.extractStringList(authentication, config.getRoleKeys()));
+        authenticationAuthorities.stream()
                 .filter(value -> value.startsWith("ROLE_"))
-                .toList();
-        boolean privileged = authorities.stream().anyMatch(this::isPrivilegedAuthority);
-        LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
+                .forEach(roles::add);
+
+        LinkedHashSet<String> effectiveAuthorities = new LinkedHashSet<>();
+        effectiveAuthorities.addAll(SecurityContextStampSupport.extractStringList(authentication, config.getAuthorityKeys()));
+        effectiveAuthorities.addAll(authenticationAuthorities);
+
+        LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(SecurityContextStampSupport.mergeAttributes(
+                authentication.getDetails(),
+                authentication.getPrincipal(),
+                config.getAttributeKeys()));
         attributes.put("authorizationResolver", "SECURITY_CONTEXT");
+
+        Boolean privileged = SecurityContextStampSupport.extractBoolean(authentication, config.getPrivilegedKeys());
+        if (privileged == null) {
+            privileged = effectiveAuthorities.stream().anyMatch(this::isPrivilegedAuthority);
+        }
+
         return Optional.of(new AuthorizationStamp(
-                authentication.getName(),
+                principalId,
                 requestContext.requestUri(),
                 requestContext.method(),
-                AuthorizationEffect.UNKNOWN,
+                resolveEffect(authentication, config),
                 privileged,
-                List.of(),
-                null,
-                null,
+                SecurityContextStampSupport.extractStringList(authentication, config.getScopeTagKeys()),
+                SecurityContextStampSupport.extractString(authentication, config.getPolicyIdKeys()),
+                SecurityContextStampSupport.extractString(authentication, config.getPolicyVersionKeys()),
                 "SECURITY_CONTEXT",
                 Instant.now(),
-                roles,
-                authorities,
+                List.copyOf(roles),
+                List.copyOf(effectiveAuthorities),
                 attributes
         ));
+    }
+
+    private BridgeProperties.Authorization.SecurityContext resolveConfig(BridgeProperties properties) {
+        if (properties == null || properties.getAuthorization() == null || properties.getAuthorization().getSecurityContext() == null) {
+            return new BridgeProperties.Authorization.SecurityContext();
+        }
+        return properties.getAuthorization().getSecurityContext();
+    }
+
+    private AuthorizationEffect resolveEffect(Authentication authentication, BridgeProperties.Authorization.SecurityContext config) {
+        String value = SecurityContextStampSupport.extractString(authentication, config.getAuthorizationEffectKeys());
+        if (value == null) {
+            return AuthorizationEffect.UNKNOWN;
+        }
+        try {
+            return AuthorizationEffect.valueOf(value.trim().toUpperCase());
+        }
+        catch (IllegalArgumentException ignored) {
+            return AuthorizationEffect.UNKNOWN;
+        }
     }
 
     private boolean isPrivilegedAuthority(String value) {

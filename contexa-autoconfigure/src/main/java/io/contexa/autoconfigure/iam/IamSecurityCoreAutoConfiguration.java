@@ -18,6 +18,10 @@ import io.contexa.contexacore.security.zerotrust.ZeroTrustSecurityService;
 import io.contexa.contexacore.properties.SecuritySessionProperties;
 import io.contexa.contexacore.properties.SecurityZeroTrustProperties;
 import io.contexa.contexaiam.security.core.CustomAuthenticationProvider;
+import io.contexa.contexaiam.security.core.LoginPolicyService;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
+import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import org.springframework.lang.Nullable;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -36,9 +40,17 @@ public class IamSecurityCoreAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public LoginPolicyHandler loginPolicyHandler(UserRepository userRepository,
+                                                  PasswordPolicyService passwordPolicyService) {
+        return new LoginPolicyService(userRepository, passwordPolicyService);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public CustomAuthenticationProvider customAuthenticationProvider(UserDetailsService userDetailsService,
-                                                                    PasswordEncoder passwordEncoder) {
-        return new CustomAuthenticationProvider(userDetailsService, passwordEncoder);
+                                                                    PasswordEncoder passwordEncoder,
+                                                                    LoginPolicyHandler loginPolicyHandler) {
+        return new CustomAuthenticationProvider(userDetailsService, passwordEncoder, loginPolicyHandler);
     }
 
     @Bean

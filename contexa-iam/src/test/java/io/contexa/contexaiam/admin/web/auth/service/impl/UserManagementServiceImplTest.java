@@ -7,6 +7,7 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.GroupRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacore.autonomous.audit.CentralAuditFacade;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import io.contexa.contexaiam.domain.dto.UserListDto;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -46,6 +47,9 @@ class UserManagementServiceImplTest {
 
     @Mock
     private CentralAuditFacade centralAuditFacade;
+
+    @Mock
+    private PasswordPolicyService passwordPolicyService;
 
     @InjectMocks
     private UserManagementServiceImpl service;

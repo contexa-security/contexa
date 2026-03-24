@@ -23,6 +23,7 @@ import io.contexa.contexaidentity.security.statemachine.enums.MfaEvent;
 import io.contexa.contexaidentity.security.statemachine.enums.MfaState;
 import io.contexa.contexaidentity.security.token.service.TokenService;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +46,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
     private final AuthUrlProvider authUrlProvider;
     private final MfaFlowUrlRegistry mfaFlowUrlRegistry;
     private final ApplicationContext applicationContext;
+    private final LoginPolicyHandler loginPolicyService;
 
     public PrimaryAuthenticationSuccessHandler(MfaPolicyProvider mfaPolicyProvider, @Nullable TokenService tokenService,
                                                AuthResponseWriter responseWriter, AuthContextProperties authContextProperties,
@@ -57,7 +59,8 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                                IBlockedUserRecorder blockedUserRecorder,
                                                BlockMfaStateStore blockMfaStateStore,
                                                CentralAuditFacade centralAuditFacade,
-                                               BlockingSignalBroadcaster blockingSignalBroadcaster) {
+                                               BlockingSignalBroadcaster blockingSignalBroadcaster,
+                                               @Nullable LoginPolicyHandler loginPolicyService) {
         super(tokenService, responseWriter, sessionRepository, stateMachineIntegrator, authContextProperties,
                 zeroTrustEventPublisher, actionRedisRepository, securityLearningService, applicationContext, authUrlProvider,
                 mfaFlowUrlRegistry, blockedUserRecorder, blockMfaStateStore, centralAuditFacade, blockingSignalBroadcaster);
@@ -68,6 +71,7 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
         this.authUrlProvider = authUrlProvider;
         this.mfaFlowUrlRegistry = mfaFlowUrlRegistry;
         this.applicationContext = applicationContext;
+        this.loginPolicyService = loginPolicyService;
     }
 
     @Override
@@ -75,6 +79,16 @@ public final class PrimaryAuthenticationSuccessHandler extends AbstractMfaAuthen
                                         Authentication authentication) throws IOException {
 
         String username = authentication.getName();
+
+        // Record login success: reset failedLoginAttempts, update lastLoginAt/lastLoginIp
+        if (loginPolicyService != null) {
+            try {
+                loginPolicyService.onLoginSuccess(username, request.getRemoteAddr());
+            } catch (Exception e) {
+                log.error("Failed to record login success for user: {}", username, e);
+            }
+        }
+
         String mfaSessionId = sessionRepository.getSessionId(request);
         if (mfaSessionId == null) {
             handleInvalidContext(response, request, "SESSION_ID_NOT_FOUND", "MFA session ID not found.", authentication);

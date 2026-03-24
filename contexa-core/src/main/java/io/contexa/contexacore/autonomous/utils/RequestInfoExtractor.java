@@ -1,5 +1,6 @@
 package io.contexa.contexacore.autonomous.utils;
 
+import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,6 +53,7 @@ public final class RequestInfoExtractor {
                 .travelDistanceKm(castToInteger(request.getAttribute("hcad.travelDistanceKm")))
                 .travelElapsedMinutes(castToInteger(request.getAttribute("hcad.travelElapsedMinutes")))
                 .previousLocation((String) request.getAttribute("hcad.previousLocation"))
+                .bridgeResolutionResult((BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT))
                 .build();
     }
 

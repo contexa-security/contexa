@@ -8,6 +8,7 @@ import io.contexa.contexacommon.entity.Group;
 import io.contexa.contexacommon.entity.GroupRole;
 import io.contexa.contexacommon.entity.Role;
 import io.contexa.contexacommon.entity.UserGroup;
+import io.contexa.contexacommon.repository.GroupRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.ui.ConcurrentModel;
 import org.springframework.ui.Model;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
@@ -47,6 +51,9 @@ class GroupControllerTest {
     @Mock
     private ModelMapper modelMapper;
 
+    @Mock
+    private GroupRepository groupRepository;
+
     @InjectMocks
     private GroupController controller;
 
@@ -58,35 +65,37 @@ class GroupControllerTest {
         @DisplayName("should return groups view with mapped group list")
         void success() {
             Model model = new ConcurrentModel();
+            Pageable pageable = PageRequest.of(0, 15);
             Group group = new Group();
             group.setName("TestGroup");
             group.setGroupRoles(Set.of(new GroupRole()));
             group.setUserGroups(Set.of(new UserGroup()));
 
             GroupDto dto = GroupDto.builder().name("TestGroup").build();
-            when(groupService.getAllGroups()).thenReturn(List.of(group));
+            when(groupRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(group)));
             when(modelMapper.map(group, GroupDto.class)).thenReturn(dto);
 
-            String view = controller.getGroups(model);
+            String view = controller.getGroups(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/groups");
             assertThat(model.getAttribute("groups")).isNotNull();
-            verify(groupService).getAllGroups();
+            verify(groupRepository).findAll(pageable);
         }
 
         @Test
         @DisplayName("should handle groups with null roles and userGroups")
         void nullCollections() {
             Model model = new ConcurrentModel();
+            Pageable pageable = PageRequest.of(0, 15);
             Group group = new Group();
             group.setGroupRoles(null);
             group.setUserGroups(null);
 
             GroupDto dto = GroupDto.builder().build();
-            when(groupService.getAllGroups()).thenReturn(List.of(group));
+            when(groupRepository.findAll(pageable)).thenReturn(new PageImpl<>(List.of(group)));
             when(modelMapper.map(group, GroupDto.class)).thenReturn(dto);
 
-            String view = controller.getGroups(model);
+            String view = controller.getGroups(null, pageable, model);
 
             assertThat(view).isEqualTo("admin/groups");
             assertThat(dto.getRoleCount()).isZero();

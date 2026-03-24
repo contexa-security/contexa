@@ -5,6 +5,8 @@ import org.springframework.ai.document.Document;
 
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 class MemoryReadPolicyTest {
 
     private final MemoryReadPolicy policy = new MemoryReadPolicy();

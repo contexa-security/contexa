@@ -2,10 +2,10 @@ package io.contexa.contexacore.autonomous.saas.mapper;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
-import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayload;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
+import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 
 import java.time.LocalDateTime;
@@ -153,6 +153,14 @@ public class SecurityDecisionForwardingPayloadMapper {
         copyIfPresent(eventMetadata, attributes, "auth.failure_count");
         copyIfPresent(eventMetadata, attributes, "isSensitiveResource");
         copyIfPresent(eventMetadata, attributes, "userRoles");
+        copyIfPresent(eventMetadata, attributes, "bridgeCoverageLevel");
+        copyIfPresent(eventMetadata, attributes, "bridgeCoverageScore");
+        copyIfPresent(eventMetadata, attributes, "bridgeCoverageSummary");
+        copyIfPresent(eventMetadata, attributes, "bridgeMissingContexts");
+        copyIfPresent(eventMetadata, attributes, "bridgeRemediationHints");
+        copyIfPresent(eventMetadata, attributes, "bridgeAuthenticationSource");
+        copyIfPresent(eventMetadata, attributes, "bridgeAuthorizationSource");
+        copyIfPresent(eventMetadata, attributes, "bridgeDelegationSource");
         copyIfPresent(eventMetadata, attributes, "threatKnowledgeApplied");
         copyIfPresent(eventMetadata, attributes, "reasoningMemoryApplied");
         copyIfPresent(eventMetadata, attributes, "baselineSeedApplied");
@@ -174,43 +182,6 @@ public class SecurityDecisionForwardingPayloadMapper {
             attributes.put("llmAuditConfidence", result.resolveAuditConfidence());
         }
         attributes.put(OPERATIONAL_EVIDENCE_SOURCE, resolveOperationalEvidenceSource(result, analysisData));
-        copyIfPresent(eventMetadata, attributes, "parameter_risk_flags");
-        copyIfPresent(eventMetadata, attributes, "prompt_risk_flags");
-        copyIfPresent(eventMetadata, attributes, "tool_arguments_summary");
-        copyIfPresent(analysisData, attributes, "parameterRiskFlags");
-        copyIfPresent(analysisData, attributes, "promptRiskFlags");
-        copyIfPresent(analysisData, attributes, "toolArgumentsSummary");
-        return attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
-    }
-
-    private Map<String, Object> extractAttributes(Map<String, Object> eventMetadata, Map<String, Object> analysisData) {
-        Map<String, Object> attributes = new LinkedHashMap<>();
-        if (properties.isIncludeRawAnalysisData()) {
-            attributes.putAll(analysisData);
-        }
-        copyIfPresent(eventMetadata, attributes, "geoCountry");
-        copyIfPresent(eventMetadata, attributes, "geoCity");
-        copyIfPresent(eventMetadata, attributes, "isNewDevice");
-        copyIfPresent(eventMetadata, attributes, "isImpossibleTravel");
-        copyIfPresent(eventMetadata, attributes, "travelDistanceKm");
-        copyIfPresent(eventMetadata, attributes, "failedLoginAttempts");
-        copyIfPresent(eventMetadata, attributes, "auth.failure_count");
-        copyIfPresent(eventMetadata, attributes, "isSensitiveResource");
-        copyIfPresent(eventMetadata, attributes, "userRoles");
-        copyIfPresent(eventMetadata, attributes, "threatKnowledgeApplied");
-        copyIfPresent(eventMetadata, attributes, "reasoningMemoryApplied");
-        copyIfPresent(eventMetadata, attributes, "baselineSeedApplied");
-        copyIfPresent(eventMetadata, attributes, "personalBaselineEstablished");
-        copyIfPresent(eventMetadata, attributes, "organizationBaselineEstablished");
-        copyIfPresent(eventMetadata, attributes, "threatKnowledgeExperimentGroup");
-        copyIfPresent(eventMetadata, attributes, "threatKnowledgeCaseCount");
-        copyIfPresent(eventMetadata, attributes, "threatKnowledgePrimaryKey");
-        copyIfPresent(eventMetadata, attributes, "threatKnowledgeKeys");
-        copyIfPresent(eventMetadata, attributes, "threatKnowledgeSignalKeys");
-        copyIfPresent(eventMetadata, attributes, "threatKnowledgeMatchedFacts");
-        copyIfPresent(eventMetadata, attributes, "parameterRiskFlags");
-        copyIfPresent(eventMetadata, attributes, "promptRiskFlags");
-        copyIfPresent(eventMetadata, attributes, "toolArgumentsSummary");
         copyIfPresent(eventMetadata, attributes, "parameter_risk_flags");
         copyIfPresent(eventMetadata, attributes, "prompt_risk_flags");
         copyIfPresent(eventMetadata, attributes, "tool_arguments_summary");
@@ -287,3 +258,5 @@ public class SecurityDecisionForwardingPayloadMapper {
         return List.of();
     }
 }
+
+

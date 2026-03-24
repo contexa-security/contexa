@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.handler;
 
 import io.contexa.contexaidentity.security.core.mfa.context.FactorContext;
 import io.contexa.contexacommon.properties.AuthContextProperties;
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexaidentity.security.utils.AuthResponseWriter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,11 +19,14 @@ import java.util.Map;
 public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler {
 
     private final AuthContextProperties authContextProperties;
+    private final LoginPolicyHandler loginPolicyHandler;
 
     public SessionSingleAuthFailureHandler(AuthResponseWriter responseWriter,
-                                           AuthContextProperties authContextProperties) {
+                                           AuthContextProperties authContextProperties,
+                                           @Nullable LoginPolicyHandler loginPolicyHandler) {
         super(responseWriter);
         this.authContextProperties = authContextProperties;
+        this.loginPolicyHandler = loginPolicyHandler;
     }
 
     @Override
@@ -40,6 +44,18 @@ public class SessionSingleAuthFailureHandler extends SessionBasedFailureHandler 
         if (response.isCommitted()) {
             log.error("Response already committed for authentication failure");
             return;
+        }
+
+        // Record login failure
+        if (loginPolicyHandler != null) {
+            try {
+                String username = request.getParameter("username");
+                if (username != null && !username.isBlank()) {
+                    loginPolicyHandler.onLoginFailure(username);
+                }
+            } catch (Exception e) {
+                log.error("Failed to record login failure", e);
+            }
         }
 
         String errorCode = "PRIMARY_AUTH_FAILED";

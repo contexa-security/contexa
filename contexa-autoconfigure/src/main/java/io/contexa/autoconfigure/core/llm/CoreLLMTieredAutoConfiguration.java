@@ -146,9 +146,9 @@ public class CoreLLMTieredAutoConfiguration {
         return unifiedLLMOrchestrator;
     }
 
-    @Bean(name = "primaryEmbeddingModel")
+    @Bean(name = {"primaryEmbeddingModel", "embeddingModel"})
     @Primary
-    @ConditionalOnMissingBean(name = "primaryEmbeddingModel")
+    @ConditionalOnMissingBean(name = {"primaryEmbeddingModel", "embeddingModel"})
     @Conditional(AnyEmbeddingModelAvailableCondition.class)
     public EmbeddingModel primaryEmbeddingModel(
             ObjectProvider<OllamaEmbeddingModel> ollamaEmbeddingModelProvider,

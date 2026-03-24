@@ -45,7 +45,7 @@ public class AuthBridgeAuthenticationStampResolver implements AuthenticationStam
                 "BRIDGED_USER",
                 true,
                 String.valueOf(attributes.getOrDefault("authenticationType", "BRIDGE")),
-                authBridge.getClass().getSimpleName(),
+                String.valueOf(attributes.getOrDefault("bridgeAuthenticationSource", authBridge.getClass().getSimpleName())),
                 String.valueOf(attributes.getOrDefault("authenticationAssurance", "STANDARD")),
                 mfaCompleted,
                 authenticationTime,
@@ -55,3 +55,4 @@ public class AuthBridgeAuthenticationStampResolver implements AuthenticationStam
         ));
     }
 }
+

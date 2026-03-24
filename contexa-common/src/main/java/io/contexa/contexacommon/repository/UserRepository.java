@@ -14,6 +14,8 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<Users, Long> {
 
+    Optional<Users> findByUsername(String username);
+
     @Cacheable(value = "usersWithAuthorities", key = "#username")
     @Query("SELECT u FROM Users u " +
             "LEFT JOIN FETCH u.userGroups ug " +

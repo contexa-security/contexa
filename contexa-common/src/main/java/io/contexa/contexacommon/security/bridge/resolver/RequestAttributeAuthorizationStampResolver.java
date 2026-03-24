@@ -24,30 +24,27 @@ public class RequestAttributeAuthorizationStampResolver implements Authorization
         Object authorities = request.getAttribute(config.getEffectiveAuthorities());
         Object privileged = request.getAttribute(config.getPrivileged());
         Object scopeTags = request.getAttribute(config.getScopeTags());
-        if (effect == null && roles == null && authorities == null && privileged == null && scopeTags == null) {
+        Object policyVersion = request.getAttribute(config.getPolicyVersion());
+        if (effect == null && roles == null && authorities == null && privileged == null && scopeTags == null && policyVersion == null) {
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("authorizationResolver", "REQUEST_ATTRIBUTE");
         return Optional.of(new AuthorizationStamp(
-                resolveSubjectId(request),
+                SecurityContextStampSupport.resolveSubjectIdFromRequestAttributes(request, properties),
                 requestContext.requestUri(),
                 requestContext.method(),
                 AuthorizationEffect.from(effect),
                 privileged instanceof Boolean booleanValue ? booleanValue : null,
                 split(scopeTags),
                 text(request.getAttribute(config.getPolicyId())),
-                null,
+                text(policyVersion),
                 "REQUEST_ATTRIBUTE",
                 Instant.now(),
                 split(roles),
                 split(authorities),
                 attributes
         ));
-    }
-
-    private String resolveSubjectId(HttpServletRequest request) {
-        return request.getUserPrincipal() != null ? request.getUserPrincipal().getName() : null;
     }
 
     private List<String> split(Object raw) {
@@ -62,6 +59,6 @@ public class RequestAttributeAuthorizationStampResolver implements Authorization
     }
 
     private String text(Object raw) {
-        return raw != null ? raw.toString() : null;
+        return SecurityContextStampSupport.text(raw);
     }
 }
