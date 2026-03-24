@@ -12,7 +12,7 @@ import java.util.*;
 
 final class SecurityContextStampSupport {
 
-    private static final List<String> PRINCIPAL_ID_KEYS = List.of("principalId", "userId", "username", "loginId", "email", "sub", "subject", "id");
+    private static final List<String> PRINCIPAL_ID_KEYS = List.of("principalId", "externalSubjectId", "subjectId", "userId", "username", "loginId", "email", "sub", "subject", "id");
 
     private SecurityContextStampSupport() {
     }
@@ -132,3 +132,4 @@ final class SecurityContextStampSupport {
         return text.isBlank() ? null : text;
     }
 }
+

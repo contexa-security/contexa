@@ -1,34 +1,35 @@
 package io.contexa.contexacommon.annotation;
 
-import io.contexa.contexacommon.security.bridge.old.SecurityMode;
+import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.springframework.context.annotation.ImportSelector;
 import org.springframework.core.type.AnnotationMetadata;
 
 import java.util.Map;
 
 /**
- * Import selector that loads {@code AiSecurityConfiguration} and passes
- * {@code @EnableAISecurity} attribute values as system properties so they
- * can be read during bean creation phase (before the annotated class becomes a bean).
+ * Import selector that loads {@code AiSecurityConfiguration} by class name.
+ * <p>
+ * This selector exists in contexa-common because {@code @EnableAISecurity} resides here,
+ * but the actual configuration class is in contexa-autoconfigure module.
+ * Using string-based class name avoids a compile-time dependency on contexa-autoconfigure.
+ * </p>
  */
 public class AiSecurityImportSelector implements ImportSelector {
 
+    public static final String PROP_MODE = "contexa.ai.security.mode";
     private static final String AI_SECURITY_CONFIGURATION = "io.contexa.autoconfigure.ai.AiSecurityConfiguration";
-
-    public static final String PROP_MODE = "contexa.security.mode";
 
     @Override
     public String[] selectImports(AnnotationMetadata importingClassMetadata) {
-        Map<String, Object> attrs = importingClassMetadata
-                .getAnnotationAttributes(EnableAISecurity.class.getName());
-
-        if (attrs != null) {
-            Object modeObj = attrs.get("mode");
-            if (modeObj instanceof SecurityMode mode) {
-                System.setProperty(PROP_MODE, mode.name());
+        Map<String, Object> attributes = importingClassMetadata.getAnnotationAttributes(EnableAISecurity.class.getName(), false);
+        SecurityMode mode = SecurityMode.SANDBOX;
+        if (attributes != null) {
+            Object declaredMode = attributes.get("mode");
+            if (declaredMode instanceof SecurityMode securityMode) {
+                mode = securityMode;
             }
         }
-
+        System.setProperty(PROP_MODE, mode.name());
         return new String[]{ AI_SECURITY_CONFIGURATION };
     }
 }

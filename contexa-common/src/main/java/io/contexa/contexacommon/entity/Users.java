@@ -23,7 +23,7 @@ public class Users {
     @Column(length = 100, unique = true, nullable = false)
     private String username;
 
-    @Column(length = 255, unique = true, nullable = false)
+    @Column(length = 255, unique = true)
     private String email;
 
     @Column(length = 255, nullable = false)
@@ -44,7 +44,6 @@ public class Users {
     @Column(length = 500)
     private String profileImageUrl;
 
-    // Account status
     @Column(nullable = false)
     @Builder.Default
     private boolean enabled = true;
@@ -64,7 +63,6 @@ public class Users {
     @Column
     private LocalDateTime lockExpiresAt;
 
-    // MFA
     @Column(nullable = false)
     @Builder.Default
     private boolean mfaEnabled = false;
@@ -78,7 +76,6 @@ public class Users {
     @Column
     private LocalDateTime lastMfaUsedAt;
 
-    // Login history
     @Column
     private LocalDateTime lastLoginAt;
 
@@ -88,7 +85,6 @@ public class Users {
     @Column
     private LocalDateTime passwordChangedAt;
 
-    // Locale
     @Column(length = 10)
     @Builder.Default
     private String locale = "ko";
@@ -97,14 +93,38 @@ public class Users {
     @Builder.Default
     private String timezone = "Asia/Seoul";
 
-    // Audit
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean bridgeManaged = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean externalAuthOnly = false;
+
+    @Column(length = 255)
+    private String externalSubjectId;
+
+    @Column(length = 100)
+    private String authenticationSource;
+
+    @Column(length = 50)
+    private String principalType;
+
+    @Column(length = 255)
+    private String organizationId;
+
+    @Column(length = 120, unique = true)
+    private String bridgeSubjectKey;
+
+    @Column
+    private LocalDateTime lastBridgedAt;
+
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @Column
     private LocalDateTime updatedAt;
 
-    // Relationships
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     @ToString.Exclude
@@ -117,7 +137,9 @@ public class Users {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
     }
 
     @PreUpdate
@@ -181,3 +203,4 @@ public class Users {
         return getClass().hashCode();
     }
 }
+

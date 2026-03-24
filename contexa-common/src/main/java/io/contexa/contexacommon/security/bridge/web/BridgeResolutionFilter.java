@@ -15,10 +15,14 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserShadowSyncResult;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserShadowSyncService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -32,6 +36,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 public class BridgeResolutionFilter extends OncePerRequestFilter {
 
     private final BridgeProperties properties;
@@ -40,6 +45,8 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
     private final List<AuthorizationStampResolver> authorizationStampResolvers;
     private final List<DelegationStampResolver> delegationStampResolvers;
     private final BridgeCoverageEvaluator bridgeCoverageEvaluator;
+    @Nullable
+    private final BridgeUserShadowSyncService bridgeUserShadowSyncService;
 
     public BridgeResolutionFilter(
             BridgeProperties properties,
@@ -48,12 +55,32 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             List<AuthorizationStampResolver> authorizationStampResolvers,
             List<DelegationStampResolver> delegationStampResolvers,
             BridgeCoverageEvaluator bridgeCoverageEvaluator) {
+        this(
+                properties,
+                requestContextCollector,
+                authenticationStampResolvers,
+                authorizationStampResolvers,
+                delegationStampResolvers,
+                bridgeCoverageEvaluator,
+                null
+        );
+    }
+
+    public BridgeResolutionFilter(
+            BridgeProperties properties,
+            RequestContextCollector requestContextCollector,
+            List<AuthenticationStampResolver> authenticationStampResolvers,
+            List<AuthorizationStampResolver> authorizationStampResolvers,
+            List<DelegationStampResolver> delegationStampResolvers,
+            BridgeCoverageEvaluator bridgeCoverageEvaluator,
+            @Nullable BridgeUserShadowSyncService bridgeUserShadowSyncService) {
         this.properties = properties != null ? properties : new BridgeProperties();
         this.requestContextCollector = requestContextCollector;
         this.authenticationStampResolvers = authenticationStampResolvers != null ? List.copyOf(authenticationStampResolvers) : List.of();
         this.authorizationStampResolvers = authorizationStampResolvers != null ? List.copyOf(authorizationStampResolvers) : List.of();
         this.delegationStampResolvers = delegationStampResolvers != null ? List.copyOf(delegationStampResolvers) : List.of();
         this.bridgeCoverageEvaluator = bridgeCoverageEvaluator;
+        this.bridgeUserShadowSyncService = bridgeUserShadowSyncService;
     }
 
     @Override
@@ -70,6 +97,7 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
                 .or(() -> deriveAuthorizationStamp(authenticationStamp, requestContext))
                 .orElse(null);
         DelegationStamp delegationStamp = resolveDelegationStamp(request, requestContext).orElse(null);
+        BridgeUserShadowSyncResult userSyncResult = synchronizeUser(authenticationStamp, authorizationStamp, requestContext);
 
         BridgeResolutionResult result = new BridgeResolutionResult(
                 requestContext,
@@ -84,8 +112,9 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         request.setAttribute(BridgeRequestAttributes.AUTHORIZATION_STAMP, authorizationStamp);
         request.setAttribute(BridgeRequestAttributes.DELEGATION_STAMP, delegationStamp);
         request.setAttribute(BridgeRequestAttributes.COVERAGE_REPORT, result.coverageReport());
+        request.setAttribute(BridgeRequestAttributes.USER_SYNC_RESULT, userSyncResult);
 
-        populateSecurityContext(authenticationStamp, result);
+        populateSecurityContext(authenticationStamp, result, userSyncResult);
         filterChain.doFilter(request, response);
     }
 
@@ -160,7 +189,28 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         ));
     }
 
-    private void populateSecurityContext(AuthenticationStamp authenticationStamp, BridgeResolutionResult result) {
+    private BridgeUserShadowSyncResult synchronizeUser(
+            AuthenticationStamp authenticationStamp,
+            AuthorizationStamp authorizationStamp,
+            RequestContextSnapshot requestContext
+    ) {
+        if (bridgeUserShadowSyncService == null || authenticationStamp == null || !authenticationStamp.authenticated()) {
+            return null;
+        }
+        try {
+            return bridgeUserShadowSyncService.sync(authenticationStamp, authorizationStamp, requestContext);
+        } catch (Exception ex) {
+            String principalId = authenticationStamp.principalId() != null ? authenticationStamp.principalId() : "unknown";
+            log.error("[Bridge] Failed to synchronize bridge user shadow for principalId: {}", principalId, ex);
+            return null;
+        }
+    }
+
+    private void populateSecurityContext(
+            AuthenticationStamp authenticationStamp,
+            BridgeResolutionResult result,
+            BridgeUserShadowSyncResult userSyncResult
+    ) {
         if (!properties.isPopulateSecurityContext()) {
             return;
         }
@@ -171,6 +221,14 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         if (currentAuthentication != null && !(currentAuthentication instanceof AnonymousAuthenticationToken)) {
             return;
         }
+
+        String internalUsername = userSyncResult != null && text(userSyncResult.internalUsername()) != null
+                ? text(userSyncResult.internalUsername())
+                : authenticationStamp.principalId();
+        String bridgeSubjectKey = userSyncResult != null ? text(userSyncResult.bridgeSubjectKey()) : null;
+        Long internalUserId = userSyncResult != null ? userSyncResult.internalUserId() : null;
+        String externalSubjectId = authenticationStamp.principalId();
+
         BridgeAuthenticationDetails details = new BridgeAuthenticationDetails(
                 authenticationStamp.authenticationSource(),
                 result.authorizationStamp() != null ? result.authorizationStamp().decisionSource() : null,
@@ -200,15 +258,26 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
                 result.delegationStamp() != null ? result.delegationStamp().allowedOperations() : List.of(),
                 result.delegationStamp() != null ? result.delegationStamp().allowedResources() : List.of(),
                 result.delegationStamp() != null ? result.delegationStamp().approvalRequired() : null,
-                result.delegationStamp() != null ? result.delegationStamp().containmentOnly() : null
+                result.delegationStamp() != null ? result.delegationStamp().containmentOnly() : null,
+                internalUserId,
+                internalUsername,
+                bridgeSubjectKey,
+                externalSubjectId,
+                userSyncResult != null ? userSyncResult.bridgeManaged() : null,
+                userSyncResult != null ? userSyncResult.externalAuthOnly() : null
         );
         BridgePrincipal principal = new BridgePrincipal(
-                authenticationStamp.principalId(),
+                internalUsername,
+                externalSubjectId,
                 authenticationStamp.displayName(),
                 authenticationStamp.principalType(),
                 text(authenticationStamp.attributes().get("organizationId")),
                 text(authenticationStamp.attributes().get("orgId")),
-                text(authenticationStamp.attributes().get("department"))
+                text(authenticationStamp.attributes().get("department")),
+                internalUserId,
+                bridgeSubjectKey,
+                userSyncResult != null && userSyncResult.bridgeManaged(),
+                userSyncResult != null && userSyncResult.externalAuthOnly()
         );
         BridgeAuthenticationToken authenticationToken = new BridgeAuthenticationToken(
                 principal,

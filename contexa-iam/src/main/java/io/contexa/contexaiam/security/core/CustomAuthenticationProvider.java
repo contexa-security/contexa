@@ -45,6 +45,9 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         }
 
         UnifiedCustomUserDetails customUserDetails = (UnifiedCustomUserDetails) userDetails;
+        if (customUserDetails.getAccount().isExternalAuthOnly()) {
+            throw new BadCredentialsException("External authentication only account");
+        }
         return UsernamePasswordAuthenticationToken.authenticated(customUserDetails, null, customUserDetails.getAuthorities());
     }
 

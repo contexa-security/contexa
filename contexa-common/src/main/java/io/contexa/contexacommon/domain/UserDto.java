@@ -37,6 +37,7 @@ public class UserDto implements Serializable {
     private boolean enabled;
     private boolean accountLocked;
     private boolean credentialsExpired;
+    private boolean externalAuthOnly;
     private int failedLoginAttempts;
     private LocalDateTime lockExpiresAt;
     private boolean mfaEnabled;

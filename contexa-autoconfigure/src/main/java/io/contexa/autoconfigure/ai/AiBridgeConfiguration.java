@@ -1,15 +1,22 @@
 package io.contexa.autoconfigure.ai;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
+import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.*;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserShadowSyncService;
+import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserShadowSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -110,20 +117,40 @@ public class AiBridgeConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnBean({UserRepository.class, BridgeUserProfileRepository.class})
+    public BridgeUserShadowSyncService bridgeUserShadowSyncService(
+            UserRepository userRepository,
+            BridgeUserProfileRepository bridgeUserProfileRepository,
+            BridgeProperties properties,
+            ObjectProvider<ObjectMapper> objectMapperProvider,
+            ObjectProvider<CacheManager> cacheManagerProvider) {
+        return new DefaultBridgeUserShadowSyncService(
+                userRepository,
+                bridgeUserProfileRepository,
+                properties,
+                objectMapperProvider.getIfAvailable(ObjectMapper::new),
+                cacheManagerProvider.getIfAvailable()
+        );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public BridgeResolutionFilter bridgeResolutionFilter(
             BridgeProperties properties,
             RequestContextCollector requestContextCollector,
             ObjectProvider<AuthenticationStampResolver> authenticationStampResolvers,
             ObjectProvider<AuthorizationStampResolver> authorizationStampResolvers,
             ObjectProvider<DelegationStampResolver> delegationStampResolvers,
-            BridgeCoverageEvaluator bridgeCoverageEvaluator) {
+            BridgeCoverageEvaluator bridgeCoverageEvaluator,
+            ObjectProvider<BridgeUserShadowSyncService> bridgeUserShadowSyncService) {
         return new BridgeResolutionFilter(
                 properties,
                 requestContextCollector,
                 authenticationStampResolvers.orderedStream().toList(),
                 authorizationStampResolvers.orderedStream().toList(),
                 delegationStampResolvers.orderedStream().toList(),
-                bridgeCoverageEvaluator
+                bridgeCoverageEvaluator,
+                bridgeUserShadowSyncService.getIfAvailable()
         );
     }
 }

@@ -16,6 +16,19 @@ public interface UserRepository extends JpaRepository<Users, Long> {
 
     Optional<Users> findByUsername(String username);
 
+    Optional<Users> findByBridgeSubjectKey(String bridgeSubjectKey);
+
+    Optional<Users> findByExternalSubjectIdAndAuthenticationSourceAndOrganizationId(
+            String externalSubjectId,
+            String authenticationSource,
+            String organizationId
+    );
+
+    Optional<Users> findByExternalSubjectIdAndAuthenticationSourceAndOrganizationIdIsNull(
+            String externalSubjectId,
+            String authenticationSource
+    );
+
     @Cacheable(value = "usersWithAuthorities", key = "#username")
     @Query("SELECT u FROM Users u " +
             "LEFT JOIN FETCH u.userGroups ug " +

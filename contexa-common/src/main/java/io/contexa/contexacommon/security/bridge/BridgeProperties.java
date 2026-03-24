@@ -23,6 +23,9 @@ public class BridgeProperties {
     @NestedConfigurationProperty
     private Delegation delegation = new Delegation();
 
+    @NestedConfigurationProperty
+    private Sync sync = new Sync();
+
     @Data
     public static class Authentication {
         private boolean preferSecurityContext = true;
@@ -214,4 +217,12 @@ public class BridgeProperties {
         private String containmentOnly = "X-Contexa-Containment-Only";
         private String expiresAt = "X-Contexa-Delegation-Expires-At";
     }
+
+    @Data
+    public static class Sync {
+        private boolean enabled = true;
+        private long minRefreshIntervalSeconds = 60;
+        private String syntheticEmailDomain = "shadow.contexa.local";
+    }
 }
+

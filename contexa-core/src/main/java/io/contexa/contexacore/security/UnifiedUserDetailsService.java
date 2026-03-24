@@ -97,6 +97,7 @@ public class UnifiedUserDetailsService implements UserDetailsService {
                 .enabled(user.isEnabled())
                 .accountLocked(user.isAccountLocked())
                 .credentialsExpired(user.isCredentialsExpired())
+                .externalAuthOnly(user.isExternalAuthOnly())
                 .failedLoginAttempts(user.getFailedLoginAttempts())
                 .lockExpiresAt(user.getLockExpiresAt())
                 .lastLoginAt(user.getLastLoginAt())

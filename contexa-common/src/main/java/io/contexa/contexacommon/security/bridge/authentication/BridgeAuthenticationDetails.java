@@ -33,7 +33,13 @@ public record BridgeAuthenticationDetails(
         List<String> allowedOperations,
         List<String> allowedResources,
         Boolean approvalRequired,
-        Boolean containmentOnly
+        Boolean containmentOnly,
+        Long internalUserId,
+        String internalUsername,
+        String bridgeSubjectKey,
+        String externalSubjectId,
+        Boolean bridgeManaged,
+        Boolean externalAuthOnly
 ) implements Serializable {
 
     public BridgeAuthenticationDetails {

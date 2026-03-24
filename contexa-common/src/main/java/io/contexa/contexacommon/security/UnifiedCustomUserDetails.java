@@ -43,8 +43,8 @@ public class UnifiedCustomUserDetails implements UserDetails {
     }
 
     @Override
-    public boolean isEnabled() {
-        return user.isEnabled();
+    public boolean isAccountNonExpired() {
+        return !user.isCredentialsExpired();
     }
 
     @Override
@@ -58,7 +58,7 @@ public class UnifiedCustomUserDetails implements UserDetails {
     }
 
     @Override
-    public boolean isAccountNonExpired() {
-        return true;
+    public boolean isEnabled() {
+        return user.isEnabled();
     }
 }
