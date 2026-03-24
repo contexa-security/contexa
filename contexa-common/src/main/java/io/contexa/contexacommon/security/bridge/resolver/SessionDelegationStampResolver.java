@@ -2,6 +2,7 @@ package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.SessionBridgeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,11 +26,19 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
         if (session == null) {
             return Optional.empty();
         }
-        Object sessionDelegation = session.getAttribute(config.getAttribute());
-        if (sessionDelegation == null) {
+
+        Optional<SessionBridgeSupport.ResolvedSessionAttribute> resolvedSessionAttribute = SessionBridgeSupport.resolveBest(
+                session,
+                config.getAttribute(),
+                config.getAttributeCandidates(),
+                config.isAutoDiscover(),
+                candidate -> scoreDelegationCandidate(candidate, config)
+        );
+        if (resolvedSessionAttribute.isEmpty()) {
             return Optional.empty();
         }
 
+        Object sessionDelegation = resolvedSessionAttribute.get().attributeValue();
         String agentId = BridgeObjectExtractor.extractString(sessionDelegation, config.getAgentIdKeys());
         String objectiveId = BridgeObjectExtractor.extractString(sessionDelegation, config.getObjectiveIdKeys());
         Boolean delegated = BridgeObjectExtractor.extractBoolean(sessionDelegation, config.getDelegatedKeys());
@@ -39,12 +48,10 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
         Boolean containmentOnly = BridgeObjectExtractor.extractBoolean(sessionDelegation, config.getContainmentOnlyKeys());
         Instant expiresAt = BridgeObjectExtractor.extractInstant(sessionDelegation, config.getExpiresAtKeys());
 
-        if (delegated == null && agentId == null && objectiveId == null && allowedOperations.isEmpty() && allowedResources.isEmpty()) {
-            return Optional.empty();
-        }
-
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(BridgeObjectExtractor.extractAttributes(sessionDelegation, config.getAttributeKeys()));
         attributes.put("delegationResolver", "SESSION");
+        attributes.put("bridgeSessionAttribute", resolvedSessionAttribute.get().attributeName());
+        attributes.put("bridgeSessionDetectionScore", resolvedSessionAttribute.get().score());
 
         return Optional.of(new DelegationStamp(
                 resolveSubjectId(request, sessionDelegation, config),
@@ -68,6 +75,41 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
         return properties.getDelegation().getSession();
     }
 
+    private int scoreDelegationCandidate(Object candidate, BridgeProperties.Delegation.Session config) {
+        int score = 0;
+        if (BridgeObjectExtractor.extractBoolean(candidate, config.getDelegatedKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractString(candidate, config.getAgentIdKeys()) != null) {
+            score += 3;
+        }
+        if (BridgeObjectExtractor.extractString(candidate, config.getObjectiveIdKeys()) != null) {
+            score += 3;
+        }
+        if (BridgeObjectExtractor.extractString(candidate, config.getObjectiveSummaryKeys()) != null) {
+            score += 1;
+        }
+        if (!BridgeObjectExtractor.extractStringSet(candidate, config.getAllowedOperationsKeys()).isEmpty()) {
+            score += 2;
+        }
+        if (!BridgeObjectExtractor.extractStringSet(candidate, config.getAllowedResourcesKeys()).isEmpty()) {
+            score += 2;
+        }
+        if (BridgeObjectExtractor.extractBoolean(candidate, config.getApprovalRequiredKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractBoolean(candidate, config.getContainmentOnlyKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractInstant(candidate, config.getExpiresAtKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractString(candidate, config.getPrincipalIdKeys()) != null) {
+            score += 1;
+        }
+        return score;
+    }
+
     private String resolveSubjectId(HttpServletRequest request, Object sessionDelegation, BridgeProperties.Delegation.Session config) {
         String subjectId = BridgeObjectExtractor.extractString(sessionDelegation, config.getPrincipalIdKeys());
         if (subjectId != null && !subjectId.isBlank()) {
@@ -76,4 +118,3 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
         return SecurityContextStampSupport.resolveCurrentPrincipalId(request);
     }
 }
-

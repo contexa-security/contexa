@@ -37,6 +37,75 @@ public class UserManagementServiceImpl implements UserManagementService {
     private final CentralAuditFacade centralAuditFacade;
     private final io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService;
 
+    @Override
+    @Transactional
+    @CacheEvict(value = "usersWithAuthorities", allEntries = true)
+    public void createUser(UserDto userDto) {
+        if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
+            throw new IllegalArgumentException("Username already exists: " + userDto.getUsername());
+        }
+
+        if (!StringUtils.hasText(userDto.getPassword())) {
+            throw new IllegalArgumentException("Password is required for new user");
+        }
+
+        java.util.List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
+        if (!violations.isEmpty()) {
+            throw new IllegalArgumentException("Password policy violation: " + String.join(", ", violations));
+        }
+
+        Users users = new Users();
+        users.setUsername(userDto.getUsername());
+        users.setPassword(passwordEncoder.encode(userDto.getPassword()));
+        users.setName(userDto.getName());
+        users.setEmail(userDto.getEmail());
+        users.setPhone(userDto.getPhone());
+        users.setDepartment(userDto.getDepartment());
+        users.setPosition(userDto.getPosition());
+        users.setEnabled(userDto.isEnabled());
+        users.setMfaEnabled(userDto.isMfaEnabled());
+        users.setLocale(userDto.getLocale());
+        users.setTimezone(userDto.getTimezone());
+        users.setPasswordChangedAt(java.time.LocalDateTime.now());
+
+        Set<Long> desiredGroupIds = userDto.getSelectedGroupIds() != null
+                ? new HashSet<>(userDto.getSelectedGroupIds())
+                : new HashSet<>();
+
+        for (Long groupId : desiredGroupIds) {
+            Group group = groupRepository.findById(groupId)
+                    .orElseThrow(() -> new IllegalArgumentException("Group not found with ID: " + groupId));
+            UserGroup userGroup = UserGroup.builder()
+                    .user(users)
+                    .group(group)
+                    .build();
+            users.getUserGroups().add(userGroup);
+        }
+
+        userRepository.save(users);
+
+        try {
+            String admin = "SYSTEM";
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            if (auth != null && auth.getName() != null) admin = auth.getName();
+
+            centralAuditFacade.recordAsync(AuditRecord.builder()
+                    .eventCategory(AuditEventCategory.USER_CREATED)
+                    .principalName(admin)
+                    .resourceIdentifier(users.getUsername() != null ? users.getUsername() : "")
+                    .eventSource("IAM")
+                    .action("USER_CREATED")
+                    .decision("SUCCESS")
+                    .outcome("SUCCESS")
+                    .details(java.util.Map.of(
+                            "userId", users.getId() != null ? users.getId() : 0L,
+                            "username", users.getUsername() != null ? users.getUsername() : ""))
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to audit user creation: {}", users.getUsername(), e);
+        }
+    }
+
     @Transactional
     @Override
     @CacheEvict(value = "usersWithAuthorities", allEntries = true)

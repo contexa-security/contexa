@@ -38,8 +38,9 @@ public class IamAdminAuthAutoConfiguration {
     public UserController userController(
             UserRepository userRepository,
             ModelMapper modelMapper,
-            PasswordEncoder passwordEncoder) {
-        return new UserController(userRepository, modelMapper, passwordEncoder);
+            PasswordEncoder passwordEncoder,
+            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService) {
+        return new UserController(userRepository, modelMapper, passwordEncoder, passwordPolicyService);
     }
 
     @Bean

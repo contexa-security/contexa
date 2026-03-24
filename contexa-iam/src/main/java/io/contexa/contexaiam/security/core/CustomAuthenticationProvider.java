@@ -1,5 +1,6 @@
 package io.contexa.contexaiam.security.core;
 
+import io.contexa.contexacommon.security.LoginPolicyHandler;
 import io.contexa.contexacommon.security.UnifiedCustomUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.*;
@@ -14,7 +15,7 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
 
     private final UserDetailsService userDetailsService;
     private final PasswordEncoder passwordEncoder;
-    private final io.contexa.contexacommon.security.LoginPolicyHandler loginPolicyService;
+    private final LoginPolicyHandler loginPolicyService;
 
     @Override
     public Authentication authenticate(Authentication authentication) throws AuthenticationException {
@@ -22,12 +23,9 @@ public class CustomAuthenticationProvider implements AuthenticationProvider {
         String loginId = authentication.getName();
         String password = (String) authentication.getCredentials();
 
-        // Auto-unlock if lock duration has expired
         loginPolicyService.checkAndUnlockIfExpired(loginId);
-
         UserDetails userDetails = userDetailsService.loadUserByUsername(loginId);
 
-        // Check account status before password verification
         if (!userDetails.isEnabled()) {
             throw new DisabledException("Account is disabled");
         }

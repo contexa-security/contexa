@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface UserManagementService {
 
+    void createUser(UserDto userDto);
     void modifyUser(UserDto userDto);
     List<UserListDto> getUsers();
     UserDto getUser(Long id);

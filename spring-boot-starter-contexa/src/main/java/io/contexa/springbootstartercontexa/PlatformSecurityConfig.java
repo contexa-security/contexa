@@ -34,7 +34,7 @@ public class PlatformSecurityConfig {
 //                    .logout(logout -> logout.logoutUrl("/admin/logout").logoutSuccessUrl("/admin/mfa/login"))
                     .csrf(AbstractHttpConfigurer::disable)
                     .authorizeHttpRequests(authReq -> authReq
-                            .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                            .requestMatchers("/css/**", "/js/**", "/images/**", "/favicon.ico", "/password-change").permitAll()
                             .anyRequest().access(customDynamicAuthorizationManager)
                     )
                     .securityContext(sc -> sc.securityContextRepository(aiSessionSecurityContextRepository))

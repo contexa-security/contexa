@@ -46,6 +46,7 @@ public enum AuditEventCategory {
     ROLE_DELETED("Role deleted"),
 
     // User management
+    USER_CREATED("User account created"),
     USER_MODIFIED("User information modified"),
     USER_DELETED("User account deleted"),
 

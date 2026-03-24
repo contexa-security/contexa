@@ -86,7 +86,9 @@ public class BridgeProperties {
         @Data
         public static class Session {
             private boolean enabled = true;
-            private String attribute = "LOGIN_USER";
+            private String attribute = "";
+            private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
+            private boolean autoDiscover = true;
             private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
             private List<String> authorizationEffectKeys = List.of("authorizationEffect", "effect", "decision", "decisionEffect");
             private List<String> privilegedKeys = List.of("privileged", "isPrivileged", "privilegedFlow");
@@ -116,7 +118,9 @@ public class BridgeProperties {
         @Data
         public static class Session {
             private boolean enabled = true;
-            private String attribute = "LOGIN_USER";
+            private String attribute = "";
+            private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
+            private boolean autoDiscover = true;
             private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
             private List<String> delegatedKeys = List.of("delegated", "delegationEnabled", "agentDelegated");
             private List<String> agentIdKeys = List.of("agentId", "delegateAgentId");
@@ -136,7 +140,9 @@ public class BridgeProperties {
     @Data
     public static class Session {
         private boolean enabled = true;
-        private String attribute = "LOGIN_USER";
+        private String attribute = "";
+        private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
+        private boolean autoDiscover = true;
         private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
         private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName");
         private List<String> authoritiesKeys = List.of("roles", "authorities", "permissions", "scopes");

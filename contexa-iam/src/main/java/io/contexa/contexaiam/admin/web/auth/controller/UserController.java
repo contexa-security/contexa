@@ -4,6 +4,7 @@ import io.contexa.contexacommon.domain.UserDto;
 
 import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,7 @@ public class UserController {
     private final UserRepository userRepository;
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
+    private final PasswordPolicyService passwordPolicyService;
 
     @GetMapping("/register")
     public String registerPage(Model model) {
@@ -33,11 +35,25 @@ public class UserController {
 
     @PostMapping("/api/register")
     @ResponseBody
-    public ResponseEntity<String> processRegister(@RequestBody UserDto userDto) {
+    public ResponseEntity<?> processRegister(@RequestBody UserDto userDto) {
+
+        if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "error", "Username already exists"));
+        }
+
+        java.util.List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
+        if (!violations.isEmpty()) {
+            return ResponseEntity.badRequest().body(java.util.Map.of(
+                    "error", "Password policy violation",
+                    "violations", violations));
+        }
 
         Users users = modelMapper.map(userDto, Users.class);
         users.setPassword(passwordEncoder.encode(users.getPassword()));
         users.setMfaEnabled(true);
+        users.setEnabled(true);
+        users.setPasswordChangedAt(java.time.LocalDateTime.now());
         userRepository.save(users);
 
         return ResponseEntity.ok().body("success");

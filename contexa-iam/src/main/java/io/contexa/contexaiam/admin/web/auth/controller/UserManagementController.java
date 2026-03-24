@@ -118,6 +118,22 @@ public class UserManagementController {
 		return updateUser(id, userDto, selectedGroupIds, ra);
 	}
 
+	@PostMapping("")
+	public String createUser(@ModelAttribute("user") UserDto userDto,
+							 @RequestParam(value = "selectedGroupIds", required = false) List<Long> selectedGroupIds,
+							 RedirectAttributes ra) {
+		try {
+			userDto.setSelectedGroupIds(selectedGroupIds);
+			userManagementService.createUser(userDto);
+			ra.addFlashAttribute("message", "User '" + userDto.getUsername() + "' has been successfully created!");
+		} catch (Exception e) {
+			log.error("Error creating user: ", e);
+			ra.addFlashAttribute("errorMessage", "An error occurred while creating user: " + e.getMessage());
+			return "redirect:/admin/users/new";
+		}
+		return "redirect:/admin/users";
+	}
+
 	@DeleteMapping("/{id}")
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {

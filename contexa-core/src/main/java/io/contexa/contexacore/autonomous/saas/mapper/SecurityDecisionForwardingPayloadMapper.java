@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayload;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
-import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 
 import java.time.LocalDateTime;

@@ -2,6 +2,7 @@ package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.SessionBridgeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
@@ -26,31 +27,34 @@ public class SessionAuthorizationStampResolver implements AuthorizationStampReso
         if (session == null) {
             return Optional.empty();
         }
-        Object sessionAuthorization = session.getAttribute(config.getAttribute());
-        if (sessionAuthorization == null) {
+
+        Optional<SessionBridgeSupport.ResolvedSessionAttribute> resolvedSessionAttribute = SessionBridgeSupport.resolveBest(
+                session,
+                config.getAttribute(),
+                config.getAttributeCandidates(),
+                config.isAutoDiscover(),
+                candidate -> scoreAuthorizationCandidate(candidate, config)
+        );
+        if (resolvedSessionAttribute.isEmpty()) {
             return Optional.empty();
         }
 
+        Object sessionAuthorization = resolvedSessionAttribute.get().attributeValue();
         AuthorizationEffect effect = AuthorizationEffect.from(BridgeObjectExtractor.extractString(sessionAuthorization, config.getAuthorizationEffectKeys()));
         LinkedHashSet<String> effectiveRoles = new LinkedHashSet<>(BridgeObjectExtractor.extractStringSet(sessionAuthorization, config.getRoleKeys()));
         LinkedHashSet<String> effectiveAuthorities = new LinkedHashSet<>(BridgeObjectExtractor.extractStringSet(sessionAuthorization, config.getAuthorityKeys()));
+        if (effectiveAuthorities.isEmpty() && !effectiveRoles.isEmpty()) {
+            effectiveAuthorities.addAll(effectiveRoles);
+        }
         List<String> scopeTags = List.copyOf(new LinkedHashSet<>(BridgeObjectExtractor.extractStringSet(sessionAuthorization, config.getScopeTagKeys())));
         Boolean privileged = BridgeObjectExtractor.extractBoolean(sessionAuthorization, config.getPrivilegedKeys());
         String policyId = BridgeObjectExtractor.extractString(sessionAuthorization, config.getPolicyIdKeys());
         String policyVersion = BridgeObjectExtractor.extractString(sessionAuthorization, config.getPolicyVersionKeys());
 
-        if (effect == AuthorizationEffect.UNKNOWN
-                && effectiveRoles.isEmpty()
-                && effectiveAuthorities.isEmpty()
-                && scopeTags.isEmpty()
-                && privileged == null
-                && policyId == null
-                && policyVersion == null) {
-            return Optional.empty();
-        }
-
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(BridgeObjectExtractor.extractAttributes(sessionAuthorization, config.getAttributeKeys()));
         attributes.put("authorizationResolver", "SESSION");
+        attributes.put("bridgeSessionAttribute", resolvedSessionAttribute.get().attributeName());
+        attributes.put("bridgeSessionDetectionScore", resolvedSessionAttribute.get().score());
         return Optional.of(new AuthorizationStamp(
                 resolveSubjectId(request, sessionAuthorization, config),
                 requestContext.requestUri(),
@@ -75,6 +79,35 @@ public class SessionAuthorizationStampResolver implements AuthorizationStampReso
         return properties.getAuthorization().getSession();
     }
 
+    private int scoreAuthorizationCandidate(Object candidate, BridgeProperties.Authorization.Session config) {
+        int score = 0;
+        if (BridgeObjectExtractor.extractString(candidate, config.getAuthorizationEffectKeys()) != null) {
+            score += 3;
+        }
+        if (!BridgeObjectExtractor.extractStringSet(candidate, config.getRoleKeys()).isEmpty()) {
+            score += 4;
+        }
+        if (!BridgeObjectExtractor.extractStringSet(candidate, config.getAuthorityKeys()).isEmpty()) {
+            score += 4;
+        }
+        if (!BridgeObjectExtractor.extractStringSet(candidate, config.getScopeTagKeys()).isEmpty()) {
+            score += 2;
+        }
+        if (BridgeObjectExtractor.extractBoolean(candidate, config.getPrivilegedKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractString(candidate, config.getPolicyIdKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractString(candidate, config.getPolicyVersionKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractString(candidate, config.getPrincipalIdKeys()) != null) {
+            score += 1;
+        }
+        return score;
+    }
+
     private String resolveSubjectId(HttpServletRequest request, Object sessionAuthorization, BridgeProperties.Authorization.Session config) {
         String subjectId = BridgeObjectExtractor.extractString(sessionAuthorization, config.getPrincipalIdKeys());
         if (subjectId != null && !subjectId.isBlank()) {
@@ -83,4 +116,3 @@ public class SessionAuthorizationStampResolver implements AuthorizationStampReso
         return SecurityContextStampSupport.resolveCurrentPrincipalId(request);
     }
 }
-
