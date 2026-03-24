@@ -34,7 +34,7 @@ final class SecurityContextStampSupport {
 
     static String resolveSubjectIdFromRequestAttributes(HttpServletRequest request, BridgeProperties properties) {
         if (request != null && properties != null && properties.getAuthentication() != null && properties.getAuthentication().getRequestAttributes() != null) {
-            String principalId = text(request.getAttribute(properties.getAuthentication().getRequestAttributes().getPrincipalId()));
+            String principalId = text(request.getAttribute(properties.getAuthentication().getRequestAttributes().getFlatPrincipalId()));
             if (principalId != null) {
                 return principalId;
             }
@@ -132,4 +132,5 @@ final class SecurityContextStampSupport {
         return text.isBlank() ? null : text;
     }
 }
+
 

@@ -1,47 +1,53 @@
 package io.contexa.contexacommon.annotation;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-
+import io.contexa.contexacommon.security.bridge.AuthObjectLocation;
 import io.contexa.contexacommon.security.bridge.SecurityMode;
 import org.springframework.context.annotation.Import;
 
+import java.lang.annotation.*;
+
 /**
- * Enables AI Native Zero Trust security.
+ * Enables AI Native Zero Trust security for legacy system integration.
  * <p>
- * <b>FULL mode</b> (default): Contexa manages entire authentication and authorization.
- * For new projects or systems where Contexa is the primary security provider.
- * <pre>{@code
- * @EnableAISecurity
- * @SpringBootApplication
- * public class NewApplication { }
- * }</pre>
+ * Place this annotation on a {@code @SpringBootApplication} class to activate
+ * the Contexa AI security infrastructure. This annotation creates a default
+ * {@code PlatformConfig} (if none exists) using {@code IdentityDslRegistry},
+ * which triggers the full Zero Trust configurer mechanism automatically.
  *
- * <b>SANDBOX mode</b>: Contexa operates alongside existing legacy security.
- * Legacy security remains untouched. Only {@link Protectable} resources are protected.
+ * <h3>Usage:</h3>
  * <pre>{@code
- * @EnableAISecurity(
- *     mode = SecurityMode.SANDBOX
- * )
  * @SpringBootApplication
+ * @EnableAISecurity
  * public class LegacyApplication { }
  * }</pre>
  *
+ * <p>Requires {@code spring-boot-starter-security} on the classpath.
+ * Legacy systems must declare this dependency explicitly.</p>
+ *
  * @see Protectable
- * @see SecurityMode
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 @Import(AiSecurityImportSelector.class)
 public @interface EnableAISecurity {
+    /**
+     * Security mode. SANDBOX is the default for legacy integration.
+     */
+    SecurityMode mode() default SecurityMode.SANDBOX;
 
     /**
-     * Security mode. FULL for new projects, SANDBOX for legacy integration.
+     * Optional hint for authenticated object lookup in SANDBOX mode.
      */
-    SecurityMode mode() default SecurityMode.FULL;
+    AuthObjectLocation authObjectLocation() default AuthObjectLocation.AUTO;
 
+    /**
+     * Optional attribute name for session/request attribute based handoff.
+     */
+    String authObjectAttribute() default "";
+
+    /**
+     * Optional authenticated object type hint for reflective extraction.
+     */
+    Class<?> authObjectType() default Object.class;
 }

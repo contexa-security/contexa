@@ -81,6 +81,9 @@ public class SessionAuthBridge implements AuthBridge {
         }
 
         int score = 10;
+        if (matchesConfiguredType(candidate)) {
+            score += 8;
+        }
         if (BridgeObjectExtractor.extractString(candidate, properties.getDisplayNameKeys()) != null) {
             score += 2;
         }
@@ -103,5 +106,13 @@ public class SessionAuthBridge implements AuthBridge {
             score += 1;
         }
         return score;
+    }
+
+    private boolean matchesConfiguredType(Object candidate) {
+        String configuredType = properties.getObjectTypeName();
+        if (configuredType == null || configuredType.isBlank() || candidate == null) {
+            return false;
+        }
+        return configuredType.equals(candidate.getClass().getName()) || configuredType.equals(candidate.getClass().getSimpleName());
     }
 }

@@ -45,15 +45,16 @@ public class BridgeProperties {
         @Data
         public static class SecurityContext {
             private boolean enabled = true;
-            private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName", "username");
-            private List<String> principalTypeKeys = List.of("principalType", "userType", "actorType");
+            private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName", "username", "preferred_username");
+            private List<String> principalTypeKeys = List.of("principalType", "userType", "actorType", "token_use");
             private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod", "method", "factorType");
             private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa", "acr");
-            private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfaCompleted", "secondFactorVerified");
-            private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime", "issuedAt");
+            private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfaCompleted", "secondFactorVerified", "amr");
+            private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime", "issuedAt", "auth_time", "iat");
             private List<String> attributeKeys = List.of(
                     "organizationId", "orgId", "tenantId", "department", "team", "email", "loginIp",
-                    "authenticationType", "authenticationAssurance", "mfaVerified", "mfaCompleted", "authenticatedAt", "loginTime");
+                    "authenticationType", "authenticationAssurance", "mfaVerified", "mfaCompleted", "authenticatedAt", "loginTime",
+                    "iss", "aud", "azp", "scope", "scp", "amr", "acr");
         }
     }
 
@@ -78,12 +79,12 @@ public class BridgeProperties {
             private List<String> privilegedKeys = List.of("privileged", "isPrivileged", "privilegedFlow");
             private List<String> policyIdKeys = List.of("policyId", "policy", "decisionPolicy");
             private List<String> policyVersionKeys = List.of("policyVersion", "version");
-            private List<String> scopeTagKeys = List.of("scopeTags", "scopes", "scope", "permissionScopes");
-            private List<String> roleKeys = List.of("effectiveRoles", "roles", "roleSet");
-            private List<String> authorityKeys = List.of("effectiveAuthorities", "authorities", "permissions", "grantedAuthorities");
+            private List<String> scopeTagKeys = List.of("scopeTags", "scopes", "scope", "permissionScopes", "scp");
+            private List<String> roleKeys = List.of("effectiveRoles", "roles", "roleSet", "groups");
+            private List<String> authorityKeys = List.of("effectiveAuthorities", "authorities", "permissions", "grantedAuthorities", "scope", "scp");
             private List<String> attributeKeys = List.of(
                     "authorizationEffect", "effect", "privileged", "policyId", "policyVersion",
-                    "scopeTags", "scopes", "roles", "effectiveRoles", "permissions", "effectiveAuthorities");
+                    "scopeTags", "scopes", "scope", "scp", "roles", "effectiveRoles", "permissions", "effectiveAuthorities");
         }
 
         @Data
@@ -92,6 +93,7 @@ public class BridgeProperties {
             private String attribute = "";
             private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
             private boolean autoDiscover = true;
+            private String objectTypeName = "";
             private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
             private List<String> authorizationEffectKeys = List.of("authorizationEffect", "effect", "decision", "decisionEffect");
             private List<String> privilegedKeys = List.of("privileged", "isPrivileged", "privilegedFlow");
@@ -146,8 +148,9 @@ public class BridgeProperties {
         private String attribute = "";
         private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "sessionUser", "userSession", "principal", "user", "securityUser", "authenticatedPrincipal");
         private boolean autoDiscover = true;
+        private String objectTypeName = "";
         private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
-        private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName");
+        private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName", "preferred_username");
         private List<String> authoritiesKeys = List.of("roles", "authorities", "permissions", "scopes");
         private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod");
         private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa");
@@ -159,14 +162,27 @@ public class BridgeProperties {
     @Data
     public static class RequestAttributes {
         private boolean enabled = true;
-        private String principalId = "ctxa.auth.principalId";
-        private String displayName = "ctxa.auth.displayName";
-        private String authenticated = "ctxa.auth.authenticated";
-        private String authorities = "ctxa.auth.authorities";
-        private String authenticationType = "ctxa.auth.type";
-        private String authenticationAssurance = "ctxa.auth.assurance";
-        private String mfaCompleted = "ctxa.auth.mfaCompleted";
-        private String authenticationTime = "ctxa.auth.time";
+        private String attribute = "";
+        private List<String> attributeCandidates = List.of("currentUser", "authenticatedUser", "requestUser", "principal", "user", "authenticatedPrincipal", "authUser");
+        private boolean autoDiscover = true;
+        private String objectTypeName = "";
+        private List<String> principalIdKeys = List.of("userId", "username", "id", "loginId", "email");
+        private List<String> displayNameKeys = List.of("displayName", "name", "fullName", "userName", "preferred_username");
+        private List<String> authoritiesKeys = List.of("roles", "authorities", "permissions", "scopes");
+        private List<String> authenticationTypeKeys = List.of("authenticationType", "authMethod", "loginMethod");
+        private List<String> authenticationAssuranceKeys = List.of("authenticationAssurance", "authLevel", "loa");
+        private List<String> mfaKeys = List.of("mfa", "mfaVerified", "mfa_verified");
+        private List<String> authTimeKeys = List.of("authenticationTime", "authenticatedAt", "loginTime");
+        private List<String> attributeKeys = List.of("department", "organizationId", "orgId", "authMethod", "loginIp", "loginTime");
+
+        private String flatPrincipalId = "ctxa.auth.principalId";
+        private String flatDisplayName = "ctxa.auth.displayName";
+        private String flatAuthenticated = "ctxa.auth.authenticated";
+        private String flatAuthorities = "ctxa.auth.authorities";
+        private String flatAuthenticationType = "ctxa.auth.type";
+        private String flatAuthenticationAssurance = "ctxa.auth.assurance";
+        private String flatMfaCompleted = "ctxa.auth.mfaCompleted";
+        private String flatAuthenticationTime = "ctxa.auth.time";
 
         private String authorizationEffect = "ctxa.authz.effect";
         private String privileged = "ctxa.authz.privileged";
@@ -225,4 +241,3 @@ public class BridgeProperties {
         private String syntheticEmailDomain = "shadow.contexa.local";
     }
 }
-

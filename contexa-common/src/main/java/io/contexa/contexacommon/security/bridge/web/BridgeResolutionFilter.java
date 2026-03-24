@@ -15,8 +15,6 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
-import io.contexa.contexacommon.security.bridge.sync.BridgeUserShadowSyncResult;
-import io.contexa.contexacommon.security.bridge.sync.BridgeUserShadowSyncService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

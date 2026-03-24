@@ -28,7 +28,7 @@ import java.util.function.Consumer;
 
 @Slf4j
 @RequiredArgsConstructor
-public class DefaultBridgeUserShadowSyncService implements BridgeUserShadowSyncService {
+public class DefaultBridgeUserMirrorSyncService implements BridgeUserMirrorSyncService {
 
     private static final String USERS_WITH_AUTHORITIES_CACHE = "usersWithAuthorities";
     private static final ZoneId DEFAULT_ZONE = ZoneId.systemDefault();
@@ -42,7 +42,7 @@ public class DefaultBridgeUserShadowSyncService implements BridgeUserShadowSyncS
 
     @Override
     @Transactional
-    public BridgeUserShadowSyncResult sync(
+    public BridgeUserMirrorSyncResult sync(
             AuthenticationStamp authenticationStamp,
             AuthorizationStamp authorizationStamp,
             RequestContextSnapshot requestContext
@@ -73,7 +73,7 @@ public class DefaultBridgeUserShadowSyncService implements BridgeUserShadowSyncS
         SyncSnapshot syncSnapshot = buildSyncSnapshot(authenticationStamp, authorizationStamp, requestContext);
         if (shouldSkipSync(existingUser.orElse(null), existingProfile, authenticationStamp, requestContext, syncSnapshot, bridgeSubjectKey, externalSubjectId, authenticationSource, organizationId, now)) {
             Users user = existingUser.orElseThrow();
-            return new BridgeUserShadowSyncResult(
+            return new BridgeUserMirrorSyncResult(
                     user.getId(),
                     user.getUsername(),
                     externalSubjectId,
@@ -93,7 +93,7 @@ public class DefaultBridgeUserShadowSyncService implements BridgeUserShadowSyncS
         boolean profileUpdated = syncProfile(savedUser, existingProfile, syncSnapshot, now);
         evictUserCaches(savedUser);
 
-        return new BridgeUserShadowSyncResult(
+        return new BridgeUserMirrorSyncResult(
                 savedUser.getId(),
                 savedUser.getUsername(),
                 externalSubjectId,
@@ -460,7 +460,7 @@ public class DefaultBridgeUserShadowSyncService implements BridgeUserShadowSyncS
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (JsonProcessingException ex) {
-            log.error("[Bridge] Failed to serialize bridge user shadow payload", ex);
+            log.error("[Bridge] Failed to serialize bridge user mirror payload", ex);
             return "{}";
         }
     }

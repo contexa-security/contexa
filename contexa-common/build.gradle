@@ -12,6 +12,7 @@ jar {
 dependencies {
     api 'org.springframework.ai:spring-ai-model'
     compileOnly 'org.springframework.boot:spring-boot-starter-security'
+    compileOnly 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     api 'org.springframework.boot:spring-boot-starter-data-redis'
     implementation 'com.querydsl:querydsl-jpa:5.1.0:jakarta'
     implementation 'com.querydsl:querydsl-core:5.1.0'
@@ -20,6 +21,7 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-security'
+    testImplementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     testImplementation 'io.projectreactor:reactor-test'
     testImplementation 'com.h2database:h2'

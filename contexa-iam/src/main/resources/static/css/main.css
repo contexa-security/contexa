@@ -166,6 +166,29 @@ body::before {
 }
 
 /* Toast 메시지 - 다크 테마 스타일 */
+.toast-message {
+    padding: 1rem 1.25rem;
+    margin-bottom: 0.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    color: white;
+    font-size: 0.875rem;
+    font-weight: 500;
+    opacity: 1;
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+    transform: translateX(0);
+}
+
+.toast-message.fade-out {
+    opacity: 0;
+    transform: translateX(100%);
+}
+
+@keyframes slideInFromTop {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 .toast-success {
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.9) 0%, rgba(5, 150, 105, 0.9) 100%);
     backdrop-filter: blur(10px);

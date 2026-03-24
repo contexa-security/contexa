@@ -36,7 +36,12 @@ public class SecurityContextAuthorizationStampResolver implements AuthorizationS
                 .map(GrantedAuthority::getAuthority)
                 .toList();
         LinkedHashSet<String> roles = new LinkedHashSet<>();
-        roles.addAll(SecurityContextStampSupport.extractStringList(authentication, config.getRoleKeys()));
+        for (String resolvedRole : SecurityContextStampSupport.extractStringList(authentication, config.getRoleKeys())) {
+            String normalizedRole = normalizeRole(resolvedRole);
+            if (normalizedRole != null) {
+                roles.add(normalizedRole);
+            }
+        }
         authenticationAuthorities.stream()
                 .filter(value -> value.startsWith("ROLE_"))
                 .forEach(roles::add);
@@ -53,7 +58,8 @@ public class SecurityContextAuthorizationStampResolver implements AuthorizationS
 
         Boolean privileged = SecurityContextStampSupport.extractBoolean(authentication, config.getPrivilegedKeys());
         if (privileged == null) {
-            privileged = effectiveAuthorities.stream().anyMatch(this::isPrivilegedAuthority);
+            privileged = effectiveAuthorities.stream().anyMatch(this::isPrivilegedAuthority)
+                    || roles.stream().anyMatch(this::isPrivilegedAuthority);
         }
 
         return Optional.of(new AuthorizationStamp(
@@ -91,6 +97,16 @@ public class SecurityContextAuthorizationStampResolver implements AuthorizationS
         catch (IllegalArgumentException ignored) {
             return AuthorizationEffect.UNKNOWN;
         }
+    }
+
+    private String normalizeRole(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        if (value.startsWith("ROLE_")) {
+            return value;
+        }
+        return "ROLE_" + value;
     }
 
     private boolean isPrivilegedAuthority(String value) {

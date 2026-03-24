@@ -32,6 +32,7 @@ public class UserManagementController {
 	private final RoleService roleService;
 	private final GroupService groupService;
 	private final UserRepository userRepository;
+	private final io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService;
 
 	@GetMapping
 	public String getUsers(@RequestParam(required = false) String keyword,
@@ -69,6 +70,7 @@ public class UserManagementController {
 		model.addAttribute("roleList", roleList);
 		model.addAttribute("groupList", groupList);
 		model.addAttribute("selectedGroupIds", List.of());
+		model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
 
 		return "admin/userdetails";
 	}
@@ -88,6 +90,7 @@ public class UserManagementController {
 		model.addAttribute("roleList", roleList);
 		model.addAttribute("groupList", groupList);
 		model.addAttribute("selectedGroupIds", selectedGroupIds);
+		model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
 
 		return "admin/userdetails";
 	}
@@ -134,6 +137,7 @@ public class UserManagementController {
 			model.addAttribute("roleList", roleService.getRolesWithoutExpression());
 			model.addAttribute("groupList", groupService.getAllGroups());
 			model.addAttribute("selectedGroupIds", selectedGroupIds != null ? selectedGroupIds : List.of());
+			model.addAttribute("policy", passwordPolicyService.getCurrentPolicy());
 			return "admin/userdetails";
 		}
 		return "redirect:/admin/users";

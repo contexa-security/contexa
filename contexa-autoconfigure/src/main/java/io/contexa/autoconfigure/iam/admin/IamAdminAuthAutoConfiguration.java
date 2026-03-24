@@ -49,8 +49,9 @@ public class IamAdminAuthAutoConfiguration {
             UserManagementService userManagementService,
             RoleService roleService,
             GroupService groupService,
-            UserRepository userRepository) {
-        return new UserManagementController(userManagementService, roleService, groupService, userRepository);
+            UserRepository userRepository,
+            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService) {
+        return new UserManagementController(userManagementService, roleService, groupService, userRepository, passwordPolicyService);
     }
 
     @Bean

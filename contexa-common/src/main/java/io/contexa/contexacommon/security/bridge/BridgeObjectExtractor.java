@@ -33,8 +33,8 @@ public final class BridgeObjectExtractor {
             return Set.copyOf(values);
         }
         String text = raw.toString();
-        if (text.contains(",")) {
-            for (String token : text.split("\\s*,\\s*")) {
+        if (containsDelimiter(text)) {
+            for (String token : splitTextValues(text)) {
                 addNormalized(values, token);
             }
             return Set.copyOf(values);
@@ -49,11 +49,20 @@ public final class BridgeObjectExtractor {
             return instant;
         }
         if (raw instanceof Number number) {
-            return Instant.ofEpochMilli(number.longValue());
+            return toInstant(number.longValue());
         }
         if (raw instanceof String text && !text.isBlank()) {
+            String trimmed = text.trim();
+            if (trimmed.chars().allMatch(Character::isDigit)) {
+                try {
+                    return toInstant(Long.parseLong(trimmed));
+                }
+                catch (NumberFormatException ignored) {
+                    return null;
+                }
+            }
             try {
-                return Instant.parse(text.trim());
+                return Instant.parse(trimmed);
             }
             catch (DateTimeParseException ignored) {
                 return null;
@@ -66,6 +75,20 @@ public final class BridgeObjectExtractor {
         Object raw = extractRawValue(source, keys);
         if (raw instanceof Boolean booleanValue) {
             return booleanValue;
+        }
+        if (raw instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        if (raw instanceof Collection<?> collection) {
+            for (Object item : collection) {
+                String normalized = item != null ? item.toString().trim().toLowerCase() : "";
+                if (normalized.equals("mfa") || normalized.equals("otp") || normalized.equals("totp")
+                        || normalized.equals("sms") || normalized.equals("webauthn") || normalized.equals("passkey")
+                        || normalized.equals("biometric")) {
+                    return true;
+                }
+            }
+            return null;
         }
         if (raw instanceof String text && !text.isBlank()) {
             return Boolean.parseBoolean(text.trim());
@@ -83,8 +106,12 @@ public final class BridgeObjectExtractor {
             }
             return Map.copyOf(attributes);
         }
+        Map<String, Object> mappedSource = extractMappedSource(source);
+        if (!mappedSource.isEmpty()) {
+            attributes.putAll(mappedSource);
+        }
         if (source == null || preferredKeys == null || preferredKeys.isEmpty()) {
-            return Map.of();
+            return attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
         }
         for (String key : preferredKeys) {
             if (key == null || key.isBlank()) {
@@ -95,7 +122,7 @@ public final class BridgeObjectExtractor {
                 attributes.put(key, value);
             }
         }
-        return Map.copyOf(attributes);
+        return attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
     }
 
     public static Object extractRawValue(Object source, List<String> keys) {
@@ -110,6 +137,15 @@ public final class BridgeObjectExtractor {
                 }
             }
             return null;
+        }
+        Map<String, Object> mappedSource = extractMappedSource(source);
+        if (!mappedSource.isEmpty()) {
+            for (String key : keys) {
+                Object value = mappedSource.get(key);
+                if (value != null) {
+                    return value;
+                }
+            }
         }
         for (String key : keys) {
             if (key == null || key.isBlank()) {
@@ -210,6 +246,51 @@ public final class BridgeObjectExtractor {
             return "is";
         }
         return "is" + Character.toUpperCase(key.charAt(0)) + key.substring(1);
+    }
+
+    private static Map<String, Object> extractMappedSource(Object source) {
+        if (source == null) {
+            return Map.of();
+        }
+        for (String candidate : List.of("claims", "attributes", "tokenAttributes")) {
+            Object mappedValue = extractMemberValue(source, candidate);
+            if (mappedValue instanceof Map<?, ?> map) {
+                LinkedHashMap<String, Object> normalized = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> entry : map.entrySet()) {
+                    if (entry.getKey() instanceof String key && entry.getValue() != null) {
+                        normalized.put(key, entry.getValue());
+                    }
+                }
+                if (!normalized.isEmpty()) {
+                    return Map.copyOf(normalized);
+                }
+            }
+        }
+        return Map.of();
+    }
+
+    private static boolean containsDelimiter(String text) {
+        if (text == null) {
+            return false;
+        }
+        return text.contains(",") || text.contains(" ");
+    }
+
+    private static List<String> splitTextValues(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return List.of();
+        }
+        if (raw.contains(",")) {
+            return List.of(raw.split("\\s*,\\s*"));
+        }
+        return List.of(raw.trim().split("\\s+"));
+    }
+
+    private static Instant toInstant(long numericValue) {
+        if (Math.abs(numericValue) < 100000000000L) {
+            return Instant.ofEpochSecond(numericValue);
+        }
+        return Instant.ofEpochMilli(numericValue);
     }
 
     private static void addNormalized(Set<String> values, Object raw) {

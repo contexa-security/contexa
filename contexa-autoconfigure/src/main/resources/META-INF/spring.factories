@@ -1,2 +1,4 @@
 org.springframework.boot.autoconfigure.AutoConfigurationImportFilter=\
 io.contexa.autoconfigure.core.infra.StandaloneAutoConfigurationFilter
+org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer=\
+io.contexa.autoconfigure.ai.BridgeOAuth2ResourceServerFallbackConfigurer

@@ -7,7 +7,7 @@ import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageLevel;
 import io.contexa.contexacommon.security.bridge.resolver.*;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
-import io.contexa.contexacommon.security.bridge.sync.BridgeUserShadowSyncResult;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionResult;
 import org.junit.jupiter.api.AfterEach;
@@ -162,7 +162,7 @@ class BridgeResolutionFilterTest {
                         new HeaderDelegationStampResolver()
                 ),
                 new BridgeCoverageEvaluator(),
-                (authenticationStamp, authorizationStamp, requestContext) -> new BridgeUserShadowSyncResult(
+                (authenticationStamp, authorizationStamp, requestContext) -> new BridgeUserMirrorSyncResult(
                         77L,
                         "brg_sync_user",
                         authenticationStamp.principalId(),

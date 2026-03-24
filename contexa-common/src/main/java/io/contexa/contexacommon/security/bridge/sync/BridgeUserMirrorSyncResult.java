@@ -1,6 +1,6 @@
 package io.contexa.contexacommon.security.bridge.sync;
 
-public record BridgeUserShadowSyncResult(
+public record BridgeUserMirrorSyncResult(
         Long internalUserId,
         String internalUsername,
         String externalSubjectId,
