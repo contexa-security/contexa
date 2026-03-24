@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pep;
 
-import io.contexa.contexacore.autonomous.exception.RapidProtectableReentryDeniedException;
+import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import jakarta.servlet.http.HttpServletRequest;

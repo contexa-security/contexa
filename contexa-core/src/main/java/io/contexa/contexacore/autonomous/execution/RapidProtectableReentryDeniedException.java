@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.exception;
+package io.contexa.contexacore.autonomous.execution;
 
 import org.springframework.security.authorization.AuthorizationDeniedException;
 

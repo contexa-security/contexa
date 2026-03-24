@@ -24,7 +24,7 @@
                 <span id="serverMsg" th:if="${message}" th:text="${message}"></span>
                 <span id="serverErr" th:if="${errorMessage}" th:text="${errorMessage}"></span>
             </div>
-            <form th:action="${user.id != null ? '/admin/users/' + user.id : '/admin/users'}" method="post" th:object="${user}" class="space-y-6">
+            <form id="userForm" th:action="${user.id != null ? '/admin/users/' + user.id : '/admin/users'}" method="post" th:object="${user}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${user.id != null}" />
 
                 <!-- Basic Information Section -->
@@ -61,16 +61,10 @@
                         <label for="password" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                             <i class="fas fa-lock mr-1" style="color: #94a3b8;"></i> 비밀번호
                         </label>
-                        <div class="relative">
-                            <input type="password" id="password" name="password"
-                                   class="detail-input pr-10"
-                                   autocomplete="new-password"
-                                   th:placeholder="${user.id != null ? '비밀번호 변경 시에만 입력' : '비밀번호를 입력하세요'}" />
-                            <button type="button" id="togglePassword" class="absolute right-3 top-1/2 -translate-y-1/2"
-                                    style="background:none;border:none;color:#94a3b8;cursor:pointer;">
-                                <i class="fas fa-eye"></i>
-                            </button>
-                        </div>
+                        <input type="password" id="password" name="password"
+                               class="detail-input"
+                               autocomplete="new-password"
+                               th:placeholder="${user.id != null ? '비밀번호 변경 시에만 입력' : '비밀번호를 입력하세요'}" />
                     </div>
 
                     <!-- Password Confirm -->
@@ -82,6 +76,15 @@
                                class="detail-input"
                                autocomplete="new-password"
                                th:placeholder="${user.id != null ? '비밀번호 변경 시에만 입력' : '비밀번호를 다시 입력하세요'}" />
+                    </div>
+
+                    <!-- Show Password Checkbox -->
+                    <div class="flex items-center gap-2 mt-1">
+                        <input type="checkbox" id="showPassword"
+                               style="width:16px;height:16px;accent-color:#6366f1;cursor:pointer;" />
+                        <label for="showPassword" class="text-xs" style="color:#94a3b8;cursor:pointer;">
+                            비밀번호 보기
+                        </label>
                     </div>
 
                     <!-- Password Policy Checklist -->
@@ -463,27 +466,29 @@
 
         console.log('[userdetails] policy:', JSON.stringify(policy), 'isNewUser:', isNewUser);
 
-        var form = document.querySelector('form');
-        console.log('[userdetails] form:', form);
+        var allForms = document.querySelectorAll('form');
+        console.log('[userdetails] Total forms on page:', allForms.length);
+        allForms.forEach(function(f, i) {
+            console.log('[userdetails] form[' + i + ']:', f.id, f.action, f.method);
+        });
+
+        var form = document.getElementById('userForm');
+        if (!form) {
+            console.error('[userdetails] ERROR: userForm not found! Falling back to last form');
+            form = allForms[allForms.length - 1];
+        }
+        console.log('[userdetails] Selected form:', form ? (form.id + ' ' + form.action) : 'NONE');
 
         var passwordEl = document.getElementById('password');
         var confirmEl = document.getElementById('passwordConfirm');
         var checklist = document.getElementById('policyChecklist');
-        var toggleBtn = document.getElementById('togglePassword');
-
-        // Toggle password visibility
-        if (toggleBtn && passwordEl) {
-            toggleBtn.addEventListener('click', function() {
-                var icon = toggleBtn.querySelector('i');
-                if (passwordEl.type === 'password') {
-                    passwordEl.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
-                } else {
-                    passwordEl.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
-                }
+        // Show password checkbox
+        var showPwCheckbox = document.getElementById('showPassword');
+        if (showPwCheckbox) {
+            showPwCheckbox.addEventListener('change', function() {
+                var type = this.checked ? 'text' : 'password';
+                if (passwordEl) passwordEl.type = type;
+                if (confirmEl) confirmEl.type = type;
             });
         }
 

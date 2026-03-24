@@ -15,6 +15,8 @@ import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncResult;
+import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -44,7 +46,7 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
     private final List<DelegationStampResolver> delegationStampResolvers;
     private final BridgeCoverageEvaluator bridgeCoverageEvaluator;
     @Nullable
-    private final BridgeUserShadowSyncService bridgeUserShadowSyncService;
+    private final BridgeUserMirrorSyncService bridgeUserMirrorSyncService;
 
     public BridgeResolutionFilter(
             BridgeProperties properties,
@@ -71,14 +73,14 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
             List<AuthorizationStampResolver> authorizationStampResolvers,
             List<DelegationStampResolver> delegationStampResolvers,
             BridgeCoverageEvaluator bridgeCoverageEvaluator,
-            @Nullable BridgeUserShadowSyncService bridgeUserShadowSyncService) {
+            @Nullable BridgeUserMirrorSyncService bridgeUserMirrorSyncService) {
         this.properties = properties != null ? properties : new BridgeProperties();
         this.requestContextCollector = requestContextCollector;
         this.authenticationStampResolvers = authenticationStampResolvers != null ? List.copyOf(authenticationStampResolvers) : List.of();
         this.authorizationStampResolvers = authorizationStampResolvers != null ? List.copyOf(authorizationStampResolvers) : List.of();
         this.delegationStampResolvers = delegationStampResolvers != null ? List.copyOf(delegationStampResolvers) : List.of();
         this.bridgeCoverageEvaluator = bridgeCoverageEvaluator;
-        this.bridgeUserShadowSyncService = bridgeUserShadowSyncService;
+        this.bridgeUserMirrorSyncService = bridgeUserMirrorSyncService;
     }
 
     @Override
@@ -95,7 +97,7 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
                 .or(() -> deriveAuthorizationStamp(authenticationStamp, requestContext))
                 .orElse(null);
         DelegationStamp delegationStamp = resolveDelegationStamp(request, requestContext).orElse(null);
-        BridgeUserShadowSyncResult userSyncResult = synchronizeUser(authenticationStamp, authorizationStamp, requestContext);
+        BridgeUserMirrorSyncResult userSyncResult = synchronizeUser(authenticationStamp, authorizationStamp, requestContext);
 
         BridgeResolutionResult result = new BridgeResolutionResult(
                 requestContext,
@@ -187,19 +189,19 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         ));
     }
 
-    private BridgeUserShadowSyncResult synchronizeUser(
+    private BridgeUserMirrorSyncResult synchronizeUser(
             AuthenticationStamp authenticationStamp,
             AuthorizationStamp authorizationStamp,
             RequestContextSnapshot requestContext
     ) {
-        if (bridgeUserShadowSyncService == null || authenticationStamp == null || !authenticationStamp.authenticated()) {
+        if (bridgeUserMirrorSyncService == null || authenticationStamp == null || !authenticationStamp.authenticated()) {
             return null;
         }
         try {
-            return bridgeUserShadowSyncService.sync(authenticationStamp, authorizationStamp, requestContext);
+            return bridgeUserMirrorSyncService.sync(authenticationStamp, authorizationStamp, requestContext);
         } catch (Exception ex) {
             String principalId = authenticationStamp.principalId() != null ? authenticationStamp.principalId() : "unknown";
-            log.error("[Bridge] Failed to synchronize bridge user shadow for principalId: {}", principalId, ex);
+            log.error("[Bridge] Failed to synchronize bridge user mirror for principalId: {}", principalId, ex);
             return null;
         }
     }
@@ -207,7 +209,7 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
     private void populateSecurityContext(
             AuthenticationStamp authenticationStamp,
             BridgeResolutionResult result,
-            BridgeUserShadowSyncResult userSyncResult
+            BridgeUserMirrorSyncResult userSyncResult
     ) {
         if (!properties.isPopulateSecurityContext()) {
             return;
@@ -298,3 +300,4 @@ public class BridgeResolutionFilter extends OncePerRequestFilter {
         return text.isBlank() ? null : text;
     }
 }
+

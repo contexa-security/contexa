@@ -16,6 +16,8 @@ hcad:
     dbPath: data/GeoLite2-City.mmdb
 
 spring:
+  thymeleaf:
+    cache: false
   datasource:
     url: jdbc:postgresql://localhost:5432/contexa
     username: contexa

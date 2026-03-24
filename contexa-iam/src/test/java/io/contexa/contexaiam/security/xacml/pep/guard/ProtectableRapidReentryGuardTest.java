@@ -1,6 +1,6 @@
 package io.contexa.contexaiam.security.xacml.pep.guard;
 
-import io.contexa.contexacore.autonomous.exception.RapidProtectableReentryDeniedException;
+import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
 import io.contexa.contexacore.autonomous.repository.ProtectableRapidReentryRepository;
 import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import io.contexa.contexaiam.security.xacml.pep.ProtectableRapidReentryGuard;

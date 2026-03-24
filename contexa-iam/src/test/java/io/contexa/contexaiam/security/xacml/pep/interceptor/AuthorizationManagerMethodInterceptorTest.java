@@ -1,11 +1,9 @@
 package io.contexa.contexaiam.security.xacml.pep.interceptor;
 
 import io.contexa.contexacommon.annotation.Protectable;
-import io.contexa.contexacommon.enums.ZeroTrustAction;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
-import io.contexa.contexacore.autonomous.exception.RapidProtectableReentryDeniedException;
-import io.contexa.contexacore.autonomous.exception.ZeroTrustAccessDeniedException;
-import io.contexa.contexacore.autonomous.repository.ZeroTrustActionRepository;
+import io.contexa.contexacore.autonomous.execution.RapidProtectableReentryDeniedException;
+import io.contexa.contexacore.autonomous.execution.ZeroTrustAccessDeniedException;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
 import io.contexa.contexacore.metrics.AuthorizationMetrics;
 import io.contexa.contexaiam.security.xacml.pep.AuthorizationManagerMethodInterceptor;

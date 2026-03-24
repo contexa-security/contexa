@@ -1,4 +1,4 @@
-package io.contexa.contexacore.autonomous.exception;
+package io.contexa.contexacore.autonomous.execution;
 
 import io.contexa.contexacommon.enums.ZeroTrustAction;
 import org.springframework.security.authorization.AuthorizationDeniedException;
