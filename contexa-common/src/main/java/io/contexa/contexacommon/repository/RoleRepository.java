@@ -14,7 +14,7 @@ import java.util.Optional;
 
 public interface RoleRepository extends JpaRepository<Role, Long> {
 
-    @Query("SELECT r FROM Role r WHERE r.isExpression = false " +
+    @Query("SELECT r FROM Role r WHERE r.expression = false " +
             "AND (:keyword IS NULL OR LOWER(r.roleName) LIKE LOWER(CONCAT('%', :keyword, '%')) " +
             "OR LOWER(r.roleDesc) LIKE LOWER(CONCAT('%', :keyword, '%')))")
     Page<Role> searchByKeyword(@Param("keyword") String keyword, Pageable pageable);
@@ -25,7 +25,7 @@ public interface RoleRepository extends JpaRepository<Role, Long> {
     @Override
     void delete(Role role);
 
-    @Query("select r from Role r where r.isExpression = false")
+    @Query("select r from Role r where r.expression = false")
     List<Role> findAllRolesWithoutExpression();
 
     @Query("SELECT r FROM Role r LEFT JOIN FETCH r.rolePermissions p WHERE r.id = :id")

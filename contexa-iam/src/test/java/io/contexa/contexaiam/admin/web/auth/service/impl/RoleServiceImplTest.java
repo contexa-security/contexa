@@ -59,7 +59,7 @@ class RoleServiceImplTest {
                 .id(id)
                 .roleName(roleName)
                 .roleDesc("Test role")
-                .isExpression(false)
+                .expression(false)
                 .enabled(true)
                 .rolePermissions(new HashSet<>())
                 .build();

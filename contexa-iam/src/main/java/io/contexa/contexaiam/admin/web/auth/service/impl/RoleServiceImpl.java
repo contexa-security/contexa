@@ -1,6 +1,5 @@
 package io.contexa.contexaiam.admin.web.auth.service.impl;
 
-import io.contexa.contexacommon.annotation.Protectable;
 import io.contexa.contexacommon.enums.AuditEventCategory;
 import io.contexa.contexacommon.entity.Permission;
 import io.contexa.contexacommon.entity.Role;

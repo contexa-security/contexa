@@ -28,9 +28,9 @@ public class Role implements Serializable {
     @Column(name = "role_desc", length = 500)
     private String roleDesc;
 
-    @Column(name = "is_expression", nullable = false)
+    @Column(name = "expression", nullable = false)
     @Builder.Default
-    private boolean isExpression = false;
+    private boolean expression = false;
 
     @Column(nullable = false)
     @Builder.Default
