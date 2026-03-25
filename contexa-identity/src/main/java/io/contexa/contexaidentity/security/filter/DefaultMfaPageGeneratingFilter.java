@@ -1934,7 +1934,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     @Nullable
     private String getUsername() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Authentication authentication = SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication();
 
         if (authentication != null
                 && authentication.isAuthenticated()
