@@ -16,8 +16,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @AutoConfigureAfter({
-        IamAdminAuthAutoConfiguration.class,
-        IamAdminWorkflowAutoConfiguration.class
+        IamAdminAuthAutoConfiguration.class
 })
 public class IamAdminCenterAutoConfiguration {
 

@@ -1,7 +1,11 @@
 package io.contexa.contexaiam.security.xacml.pap.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexaiam.admin.web.studio.dto.SimulationResultDto;
+import io.contexa.contexacommon.entity.*;
+import io.contexa.contexacommon.repository.PermissionRepository;
+import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacommon.security.authority.PermissionAuthority;
+import io.contexa.contexacommon.security.authority.RoleAuthority;
 import io.contexa.contexaiam.domain.dto.PolicyDto;
 import io.contexa.contexaiam.domain.entity.PolicyTemplate;
 import io.contexa.contexaiam.domain.entity.policy.Policy;
@@ -10,20 +14,16 @@ import io.contexa.contexaiam.domain.entity.policy.PolicyRule;
 import io.contexa.contexaiam.domain.entity.policy.PolicyTarget;
 import io.contexa.contexaiam.repository.PolicyRepository;
 import io.contexa.contexaiam.repository.PolicyTemplateRepository;
-import io.contexa.contexaiam.security.xacml.pap.dto.*;
-import io.contexa.contexacommon.entity.*;
-import io.contexa.contexacommon.security.authority.RoleAuthority;
-import io.contexa.contexacommon.security.authority.PermissionAuthority;
-import io.contexa.contexacommon.repository.PermissionRepository;
-import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyConflictDto;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyContext;
+import io.contexa.contexaiam.security.xacml.pap.dto.PolicyTemplateDto;
+import io.contexa.contexaiam.security.xacml.pap.dto.VisualPolicyDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
 import java.util.*;
@@ -97,62 +97,6 @@ public class PolicyBuilderServiceImpl implements PolicyBuilderService {
         return policyService.createPolicy(policyDto);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public SimulationResultDto simulatePolicy(Policy policyToSimulate, SimulationContext context) {
-        if (context == null || CollectionUtils.isEmpty(context.userIds())) {
-            return new SimulationResultDto("No target users specified for simulation.", Collections.emptyList());
-        }
-
-        List<SimulationResultDto.ImpactDetail> allImpacts = new ArrayList<>();
-        List<Users> targetUsers = userRepository.findAllById(context.userIds());
-
-        for (Users user : targetUsers) {
-            Set<GrantedAuthority> authorities = initializeAuthorities(user);
-            Authentication authentication = new UsernamePasswordAuthenticationToken(user.getUsername(), null, authorities);
-
-            Set<String> beforePermissions = getEffectivePermissions(authentication, null);
-            Set<String> afterPermissions = getEffectivePermissions(authentication, policyToSimulate);
-
-            Set<String> gained = new HashSet<>(afterPermissions);
-            gained.removeAll(beforePermissions);
-            gained.forEach(permName -> {
-                
-                Permission p = permissionRepository.findByName(permName).orElse(null);
-                String description = (p != null && p.getDescription() != null) ? p.getDescription() : permName;
-
-                allImpacts.add(new SimulationResultDto.ImpactDetail(
-                        user.getName(),
-                        "USER",
-                        permName,       
-                        description,    
-                        SimulationResultDto.ImpactType.PERMISSION_GAINED,
-                        policyToSimulate.getName()
-                ));
-            });
-
-            Set<String> lost = new HashSet<>(beforePermissions);
-            lost.removeAll(afterPermissions);
-
-            lost.forEach(permName -> {
-                
-                Permission p = permissionRepository.findByName(permName).orElse(null);
-                String description = (p != null && p.getDescription() != null) ? p.getDescription() : permName;
-
-                allImpacts.add(new SimulationResultDto.ImpactDetail(
-                        user.getName(),
-                        "USER",
-                        permName,       
-                        description,    
-                        SimulationResultDto.ImpactType.PERMISSION_LOST,
-                        policyToSimulate.getName()
-                ));
-            });
-        }
-
-        String summary = String.format("A total of %d permission changes are expected for %d users.", allImpacts.size(), targetUsers.size());
-        return new SimulationResultDto(summary, allImpacts);
-    }
 
     @Override
     public List<PolicyConflictDto> detectConflicts(Policy newPolicy) {
