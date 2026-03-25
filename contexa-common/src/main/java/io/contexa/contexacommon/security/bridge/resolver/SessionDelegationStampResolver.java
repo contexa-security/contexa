@@ -41,10 +41,12 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
         Object sessionDelegation = resolvedSessionAttribute.get().attributeValue();
         String agentId = BridgeObjectExtractor.extractString(sessionDelegation, config.getAgentIdKeys());
         String objectiveId = BridgeObjectExtractor.extractString(sessionDelegation, config.getObjectiveIdKeys());
+        String objectiveFamily = BridgeObjectExtractor.extractString(sessionDelegation, config.getObjectiveFamilyKeys());
         Boolean delegated = BridgeObjectExtractor.extractBoolean(sessionDelegation, config.getDelegatedKeys());
         List<String> allowedOperations = List.copyOf(new LinkedHashSet<>(BridgeObjectExtractor.extractStringSet(sessionDelegation, config.getAllowedOperationsKeys())));
         List<String> allowedResources = List.copyOf(new LinkedHashSet<>(BridgeObjectExtractor.extractStringSet(sessionDelegation, config.getAllowedResourcesKeys())));
         Boolean approvalRequired = BridgeObjectExtractor.extractBoolean(sessionDelegation, config.getApprovalRequiredKeys());
+        Boolean privilegedExportAllowed = BridgeObjectExtractor.extractBoolean(sessionDelegation, config.getPrivilegedExportAllowedKeys());
         Boolean containmentOnly = BridgeObjectExtractor.extractBoolean(sessionDelegation, config.getContainmentOnlyKeys());
         Instant expiresAt = BridgeObjectExtractor.extractInstant(sessionDelegation, config.getExpiresAtKeys());
 
@@ -58,10 +60,12 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
                 agentId,
                 Boolean.TRUE.equals(delegated),
                 objectiveId,
+                objectiveFamily,
                 BridgeObjectExtractor.extractString(sessionDelegation, config.getObjectiveSummaryKeys()),
                 allowedOperations,
                 allowedResources,
                 approvalRequired,
+                privilegedExportAllowed,
                 containmentOnly,
                 expiresAt,
                 attributes
@@ -86,6 +90,9 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
         if (BridgeObjectExtractor.extractString(candidate, config.getObjectiveIdKeys()) != null) {
             score += 3;
         }
+        if (BridgeObjectExtractor.extractString(candidate, config.getObjectiveFamilyKeys()) != null) {
+            score += 2;
+        }
         if (BridgeObjectExtractor.extractString(candidate, config.getObjectiveSummaryKeys()) != null) {
             score += 1;
         }
@@ -96,6 +103,9 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
             score += 2;
         }
         if (BridgeObjectExtractor.extractBoolean(candidate, config.getApprovalRequiredKeys()) != null) {
+            score += 1;
+        }
+        if (BridgeObjectExtractor.extractBoolean(candidate, config.getPrivilegedExportAllowedKeys()) != null) {
             score += 1;
         }
         if (BridgeObjectExtractor.extractBoolean(candidate, config.getContainmentOnlyKeys()) != null) {

@@ -83,6 +83,10 @@ public final class CanonicalContextFieldPolicy {
     }
 
     public static boolean hasWorkProfile(CanonicalSecurityContext context) {
+        ContextTrustProfile trustProfile = findTrustProfile(context, "PERSONAL_WORK_PROFILE");
+        if (trustProfile != null && (trustProfile.getOverallQualityGrade() == null || !trustProfile.getOverallQualityGrade().supportsReasoning())) {
+            return false;
+        }
         return context != null
                 && context.getWorkProfile() != null
                 && (StringUtils.hasText(context.getWorkProfile().getSummary())
@@ -94,6 +98,18 @@ public final class CanonicalContextFieldPolicy {
                 || context.getWorkProfile().getProtectableInvocationDensity() != null
                 || StringUtils.hasText(context.getWorkProfile().getSeasonalBusinessProfile())
                 || !context.getWorkProfile().getLongTailLegitimateTasks().isEmpty());
+    }
+
+    private static ContextTrustProfile findTrustProfile(CanonicalSecurityContext context, String profileKey) {
+        if (context == null || context.getContextTrustProfiles() == null || context.getContextTrustProfiles().isEmpty()) {
+            return null;
+        }
+        for (ContextTrustProfile trustProfile : context.getContextTrustProfiles()) {
+            if (trustProfile != null && profileKey.equalsIgnoreCase(trustProfile.getProfileKey())) {
+                return trustProfile;
+            }
+        }
+        return null;
     }
 
     public static boolean hasRoleScopeProfile(CanonicalSecurityContext context) {
@@ -128,6 +144,27 @@ public final class CanonicalContextFieldPolicy {
                 || context.getFrictionProfile().getRecentDeniedAccessCount() != null
                 || context.getFrictionProfile().getBreakGlass() != null
                 || context.getFrictionProfile().getBlockedUser() != null);
+    }
+
+    public static boolean hasDelegationContext(CanonicalSecurityContext context) {
+        return context != null
+                && context.getDelegation() != null
+                && (Boolean.TRUE.equals(context.getDelegation().getDelegated())
+                || StringUtils.hasText(context.getDelegation().getAgentId())
+                || StringUtils.hasText(context.getDelegation().getObjectiveId())
+                || StringUtils.hasText(context.getDelegation().getObjectiveFamily())
+                || StringUtils.hasText(context.getDelegation().getObjectiveSummary())
+                || !context.getDelegation().getAllowedOperations().isEmpty()
+                || !context.getDelegation().getAllowedResources().isEmpty()
+                || context.getDelegation().getApprovalRequired() != null
+                || context.getDelegation().getPrivilegedExportAllowed() != null
+                || context.getDelegation().getContainmentOnly() != null);
+    }
+
+    public static boolean hasObjectiveDriftAssessment(CanonicalSecurityContext context) {
+        return hasDelegationContext(context)
+                && context.getDelegation() != null
+                && context.getDelegation().getObjectiveDrift() != null;
     }
 
     public static boolean hasPeerCohortProfile(CanonicalSecurityContext context) {

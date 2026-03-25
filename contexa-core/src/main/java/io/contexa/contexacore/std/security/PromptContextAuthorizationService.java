@@ -67,15 +67,17 @@ public class PromptContextAuthorizationService {
                 scope.retrievalPurpose(),
                 scope.allowedDocumentTypes());
         if (documents == null || documents.isEmpty()) {
-            return new AuthorizedPromptContext(List.of(), 0, 0, 0, scope.retrievalPurpose(), List.of(), retrievalPolicy, List.of());
+            return new AuthorizedPromptContext(List.of(), 0, 0, 0, scope.retrievalPurpose(), List.of(), retrievalPolicy, List.of(), List.of());
         }
 
         List<Document> allowed = new ArrayList<>();
         List<String> deniedReasons = new ArrayList<>();
         List<ContextProvenanceRecord> provenanceRecords = new ArrayList<>();
+        List<AuthorizedPromptContextItem> contextItems = new ArrayList<>();
         for (Document document : documents) {
             ContextAuthorizationDecision decision = evaluate(scope, retrievalPolicy, document);
             provenanceRecords.add(decision.provenanceRecord());
+            contextItems.add(buildAuditContextItem(document, decision));
             if (decision.allowed()) {
                 allowed.add(decorateDocument(document, decision, retrievalPolicy));
             }
@@ -92,7 +94,33 @@ public class PromptContextAuthorizationService {
                 scope.retrievalPurpose(),
                 deniedReasons,
                 retrievalPolicy,
-                provenanceRecords);
+                provenanceRecords,
+                contextItems);
+    }
+
+    private AuthorizedPromptContextItem buildAuditContextItem(Document document, ContextAuthorizationDecision decision) {
+        Map<String, Object> metadata = document != null && document.getMetadata() != null ? document.getMetadata() : Map.of();
+        return AuthorizedPromptContextItem.builder()
+                .contextType(resolveText(metadata,
+                        VectorDocumentMetadata.SOURCE_TYPE,
+                        VectorDocumentMetadata.DOCUMENT_TYPE,
+                        "contextType",
+                        "type"))
+                .sourceType(decision.sourceType())
+                .artifactId(decision.artifactId())
+                .artifactVersion(decision.artifactVersion())
+                .authorizationDecision(decision.decision())
+                .purposeMatch(decision.purposeMatch())
+                .provenanceSummary(decision.provenanceSummary())
+                .includedInPrompt(decision.allowed())
+                .promptSafetyDecision(decision.promptSafetyDecision())
+                .memoryReadDecision(decision.memoryReadDecision())
+                .accessScope(decision.accessScope())
+                .tenantBound(decision.tenantBound())
+                .similarityScore(resolveDouble(
+                        metadata.get(VectorDocumentMetadata.SIMILARITY_SCORE),
+                        document != null ? document.getScore() : null))
+                .build();
     }
 
     private ContextAuthorizationDecision evaluate(AuthorizationScope scope, PurposeBoundRetrievalPolicy retrievalPolicy, Document document) {
@@ -457,6 +485,21 @@ public class PromptContextAuthorizationService {
             }
         }
         return null;
+    }
+
+    private Double resolveDouble(Object value, Double fallback) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            try {
+                return Double.parseDouble(text.trim());
+            }
+            catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
     }
 
     private String normalize(@Nullable String value) {

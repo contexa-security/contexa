@@ -142,6 +142,20 @@ public class ObjectiveResourceCompatibilityCatalog {
         return "EXPORT".equals(canonicalizeOperation(operation));
     }
 
+    public String normalizeOperationFamily(String operation) {
+        if (!StringUtils.hasText(operation)) {
+            return null;
+        }
+        return canonicalizeOperation(operation);
+    }
+
+    public String normalizeResourceFamily(String resourceFamily) {
+        if (!StringUtils.hasText(resourceFamily)) {
+            return null;
+        }
+        return normalize(resourceFamily).toUpperCase(Locale.ROOT);
+    }
+
     private String canonicalizeOperation(String operation) {
         if (!StringUtils.hasText(operation)) {
             return "READ";

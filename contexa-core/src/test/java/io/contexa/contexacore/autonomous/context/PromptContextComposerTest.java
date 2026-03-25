@@ -77,6 +77,39 @@ class PromptContextComposerTest {
                         .seasonalBusinessProfile("Quarter-end finance export review window")
                         .longTailLegitimateTasks(List.of("Quarter close export attestation"))
                         .build())
+                .contextTrustProfiles(List.of(ContextTrustProfile.builder()
+                        .profileKey("PERSONAL_WORK_PROFILE")
+                        .collectorId("PROTECTABLE_WORK_PROFILE_COLLECTOR")
+                        .summary("Overall quality MODERATE | Observations 18 | Days covered 5")
+                        .provenanceSummary("collector=PROTECTABLE_WORK_PROFILE_COLLECTOR,window=7d,observations=18,daysCovered=5")
+                        .overallQualityGrade(ContextQualityGrade.MODERATE)
+                        .overallQualityScore(68)
+                        .scopeLimitations(List.of("Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself."))
+                        .qualityWarnings(List.of("Action family baseline includes fallback-derived signals; do not treat action semantics as proof of user intent."))
+                        .fieldRecords(List.of(
+                                ContextFieldTrustRecord.builder()
+                                        .fieldPath("workProfile.frequentProtectableResources")
+                                        .qualityGrade(ContextQualityGrade.STRONG)
+                                        .observationCount(18)
+                                        .daysCovered(5)
+                                        .fallbackRate(0.0d)
+                                        .unknownRate(0.0d)
+                                        .provenanceSummary("observations=18,daysCovered=5,sources=requestPath")
+                                        .build(),
+                                ContextFieldTrustRecord.builder()
+                                        .fieldPath("workProfile.frequentActionFamilies")
+                                        .qualityGrade(ContextQualityGrade.WEAK)
+                                        .observationCount(18)
+                                        .daysCovered(5)
+                                        .fallbackRate(0.33d)
+                                        .unknownRate(0.0d)
+                                        .provenanceSummary("observations=18,daysCovered=5,sources=actionFamily,httpMethod")
+                                        .build()))
+                        .evidenceRecords(List.of(ContextEvidenceRecord.builder()
+                                .evidenceId("obs-1")
+                                .summary("2026-03-24T09:00:00Z | ALLOWED | protectable | READ | /api/customer/list")
+                                .build()))
+                        .build()))
                 .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
                         .summary("Effective roles: ANALYST | Scope tags: customer_data | Resource family drift: true")
                         .currentResourceFamily("REPORT")
@@ -176,6 +209,7 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("=== SESSION NARRATIVE CONTEXT ===");
         assertThat(promptSection).contains("=== OBSERVED WORK PATTERN CONTEXT ===");
         assertThat(promptSection).contains("=== PERSONAL WORK PROFILE ===");
+        assertThat(promptSection).contains("=== CONTEXT QUALITY AND PROVENANCE ===");
         assertThat(promptSection).contains("=== ROLE AND WORK SCOPE CONTEXT ===");
         assertThat(promptSection).contains("=== PEER COHORT DELTA ===");
         assertThat(promptSection).contains("=== FRICTION AND APPROVAL HISTORY ===");
@@ -198,6 +232,12 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("PolicyId: policy-1");
         assertThat(promptSection).contains("NormalReadWriteExportRatio: 80:15:5");
         assertThat(promptSection).contains("ProtectableResourceHeatmap: /api/customer/list=9, /api/customer/export=3");
+        assertThat(promptSection).contains("TrustProfileKey: PERSONAL_WORK_PROFILE");
+        assertThat(promptSection).contains("TrustOverallQualityGrade: MODERATE");
+        assertThat(promptSection).contains("TrustFieldAudits:");
+        assertThat(promptSection).contains("workProfile.frequentActionFamilies | grade=WEAK");
+        assertThat(promptSection).contains("TrustEvidence:");
+        assertThat(promptSection).contains("obs-1 | 2026-03-24T09:00:00Z | ALLOWED | protectable | READ | /api/customer/list");
         assertThat(promptSection).contains("SeasonalBusinessProfile: Quarter-end finance export review window");
         assertThat(promptSection).contains("LongTailLegitimateTasks: Quarter close export attestation");
         assertThat(promptSection).contains("NormalApprovalPatterns: Export requires manager approval");

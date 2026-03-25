@@ -130,15 +130,17 @@ public class BridgeProperties {
             private List<String> delegatedKeys = List.of("delegated", "delegationEnabled", "agentDelegated");
             private List<String> agentIdKeys = List.of("agentId", "delegateAgentId");
             private List<String> objectiveIdKeys = List.of("objectiveId", "taskPurpose", "delegationObjectiveId");
+            private List<String> objectiveFamilyKeys = List.of("objectiveFamily", "objectiveType", "delegationObjectiveFamily");
             private List<String> objectiveSummaryKeys = List.of("objectiveSummary", "taskSummary", "delegationObjectiveSummary");
             private List<String> allowedOperationsKeys = List.of("allowedOperations", "delegatedOperations", "permittedOperations");
             private List<String> allowedResourcesKeys = List.of("allowedResources", "delegatedResources", "permittedResources");
             private List<String> approvalRequiredKeys = List.of("approvalRequired", "requiresApproval");
+            private List<String> privilegedExportAllowedKeys = List.of("privilegedExportAllowed", "allowPrivilegedExport");
             private List<String> containmentOnlyKeys = List.of("containmentOnly", "restrictedContainment");
             private List<String> expiresAtKeys = List.of("expiresAt", "delegationExpiresAt");
             private List<String> attributeKeys = List.of(
-                    "delegated", "agentId", "objectiveId", "objectiveSummary", "allowedOperations", "allowedResources",
-                    "approvalRequired", "containmentOnly", "expiresAt", "organizationId", "orgId", "tenantId", "department", "team");
+                    "delegated", "agentId", "objectiveId", "objectiveFamily", "objectiveSummary", "allowedOperations", "allowedResources",
+                    "approvalRequired", "privilegedExportAllowed", "containmentOnly", "expiresAt", "organizationId", "orgId", "tenantId", "department", "team");
         }
     }
 
@@ -195,10 +197,12 @@ public class BridgeProperties {
         private String delegated = "ctxa.delegation.enabled";
         private String agentId = "ctxa.delegation.agentId";
         private String objectiveId = "ctxa.delegation.objectiveId";
+        private String objectiveFamily = "ctxa.delegation.objectiveFamily";
         private String objectiveSummary = "ctxa.delegation.objectiveSummary";
         private String allowedOperations = "ctxa.delegation.allowedOperations";
         private String allowedResources = "ctxa.delegation.allowedResources";
         private String approvalRequired = "ctxa.delegation.approvalRequired";
+        private String privilegedExportAllowed = "ctxa.delegation.privilegedExportAllowed";
         private String containmentOnly = "ctxa.delegation.containmentOnly";
         private String expiresAt = "ctxa.delegation.expiresAt";
     }
@@ -226,10 +230,12 @@ public class BridgeProperties {
         private String delegated = "X-Contexa-Delegated";
         private String agentId = "X-Contexa-Agent-Id";
         private String objectiveId = "X-Contexa-Objective-Id";
+        private String objectiveFamily = "X-Contexa-Objective-Family";
         private String objectiveSummary = "X-Contexa-Objective-Summary";
         private String allowedOperations = "X-Contexa-Allowed-Operations";
         private String allowedResources = "X-Contexa-Allowed-Resources";
         private String approvalRequired = "X-Contexa-Approval-Required";
+        private String privilegedExportAllowed = "X-Contexa-Privileged-Export-Allowed";
         private String containmentOnly = "X-Contexa-Containment-Only";
         private String expiresAt = "X-Contexa-Delegation-Expires-At";
     }

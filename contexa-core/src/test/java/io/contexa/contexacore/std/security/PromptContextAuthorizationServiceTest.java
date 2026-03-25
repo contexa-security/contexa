@@ -63,6 +63,15 @@ class PromptContextAuthorizationServiceTest {
         assertThat(result.provenanceRecords()).hasSize(4);
         assertThat(result.provenanceRecords()).extracting(ContextProvenanceRecord::artifactId)
                 .contains("doc-1", "doc-2", "doc-3", "doc-4");
+        assertThat(result.contextItems()).hasSize(4);
+        assertThat(result.contextItems())
+                .filteredOn(AuthorizedPromptContextItem::includedInPrompt)
+                .extracting(AuthorizedPromptContextItem::artifactId)
+                .containsExactlyInAnyOrder("doc-1", "doc-4");
+        assertThat(result.contextItems())
+                .filteredOn(item -> !item.includedInPrompt())
+                .extracting(AuthorizedPromptContextItem::authorizationDecision)
+                .containsExactlyInAnyOrder("DENIED_USER_SCOPE", "DENIED_TENANT_SCOPE");
     }
 
     @Test

@@ -56,6 +56,7 @@ public class CanonicalSecurityContextHardener {
         if (context.getAttributes() == null) {
             context.setAttributes(Map.of());
         }
+        context.setContextTrustProfiles(hardenTrustProfiles(context.getContextTrustProfiles()));
         return context;
     }
 
@@ -275,5 +276,90 @@ public class CanonicalSecurityContextHardener {
             }
         }
         return new ArrayList<>(normalized);
+    }
+
+    private List<ContextTrustProfile> hardenTrustProfiles(List<ContextTrustProfile> trustProfiles) {
+        if (trustProfiles == null || trustProfiles.isEmpty()) {
+            return List.of();
+        }
+        List<ContextTrustProfile> normalizedProfiles = new ArrayList<>();
+        for (ContextTrustProfile trustProfile : trustProfiles) {
+            if (trustProfile == null) {
+                continue;
+            }
+            trustProfile.setProfileKey(normalizeUpperText(trustProfile.getProfileKey()));
+            trustProfile.setCollectorId(normalizeUpperText(trustProfile.getCollectorId()));
+            trustProfile.setSummary(normalizeText(trustProfile.getSummary()));
+            trustProfile.setProvenanceSummary(normalizeText(trustProfile.getProvenanceSummary()));
+            trustProfile.setOverallQualityScore(normalizeInteger(trustProfile.getOverallQualityScore()));
+            trustProfile.setScopeLimitations(normalizeList(trustProfile.getScopeLimitations()));
+            trustProfile.setQualityWarnings(normalizeList(trustProfile.getQualityWarnings()));
+            trustProfile.setFieldRecords(hardenFieldRecords(trustProfile.getFieldRecords()));
+            trustProfile.setEvidenceRecords(hardenEvidenceRecords(trustProfile.getEvidenceRecords()));
+            normalizedProfiles.add(trustProfile);
+        }
+        return normalizedProfiles;
+    }
+
+    private List<ContextFieldTrustRecord> hardenFieldRecords(List<ContextFieldTrustRecord> fieldRecords) {
+        if (fieldRecords == null || fieldRecords.isEmpty()) {
+            return List.of();
+        }
+        List<ContextFieldTrustRecord> normalizedRecords = new ArrayList<>();
+        for (ContextFieldTrustRecord fieldRecord : fieldRecords) {
+            if (fieldRecord == null) {
+                continue;
+            }
+            fieldRecord.setFieldPath(normalizeText(fieldRecord.getFieldPath()));
+            fieldRecord.setSemanticMeaning(normalizeText(fieldRecord.getSemanticMeaning()));
+            fieldRecord.setIntendedUse(normalizeText(fieldRecord.getIntendedUse()));
+            fieldRecord.setProvenanceSummary(normalizeText(fieldRecord.getProvenanceSummary()));
+            fieldRecord.setObservationCount(normalizeInteger(fieldRecord.getObservationCount()));
+            fieldRecord.setDaysCovered(normalizeInteger(fieldRecord.getDaysCovered()));
+            fieldRecord.setFallbackRate(normalizeDouble(fieldRecord.getFallbackRate()));
+            fieldRecord.setUnknownRate(normalizeDouble(fieldRecord.getUnknownRate()));
+            fieldRecord.setQualityScore(normalizeInteger(fieldRecord.getQualityScore()));
+            fieldRecord.setQualitySummary(normalizeText(fieldRecord.getQualitySummary()));
+            fieldRecord.setSourceKeys(normalizeList(fieldRecord.getSourceKeys()));
+            fieldRecord.setFallbackSourceKeys(normalizeList(fieldRecord.getFallbackSourceKeys()));
+            fieldRecord.setEvidenceIds(normalizeList(fieldRecord.getEvidenceIds()));
+            normalizedRecords.add(fieldRecord);
+        }
+        return normalizedRecords;
+    }
+
+    private List<ContextEvidenceRecord> hardenEvidenceRecords(List<ContextEvidenceRecord> evidenceRecords) {
+        if (evidenceRecords == null || evidenceRecords.isEmpty()) {
+            return List.of();
+        }
+        List<ContextEvidenceRecord> normalizedRecords = new ArrayList<>();
+        for (ContextEvidenceRecord evidenceRecord : evidenceRecords) {
+            if (evidenceRecord == null) {
+                continue;
+            }
+            evidenceRecord.setEvidenceId(normalizeText(evidenceRecord.getEvidenceId()));
+            evidenceRecord.setObservedAt(normalizeText(evidenceRecord.getObservedAt()));
+            evidenceRecord.setSummary(normalizeText(evidenceRecord.getSummary()));
+            evidenceRecord.setDecisionState(normalizeUpperText(evidenceRecord.getDecisionState()));
+            evidenceRecord.setSourceKeys(normalizeMap(evidenceRecord.getSourceKeys()));
+            evidenceRecord.setFlags(normalizeList(evidenceRecord.getFlags()));
+            normalizedRecords.add(evidenceRecord);
+        }
+        return normalizedRecords;
+    }
+
+    private Map<String, String> normalizeMap(Map<String, String> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : values.entrySet()) {
+            String key = normalizeText(entry.getKey());
+            String value = normalizeText(entry.getValue());
+            if (key != null && value != null) {
+                normalized.put(key, value);
+            }
+        }
+        return normalized;
     }
 }

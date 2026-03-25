@@ -66,10 +66,12 @@ class RequestAttributeBridgeResolutionFilterTest {
         request.setAttribute("ctxa.delegation.enabled", true);
         request.setAttribute("ctxa.delegation.agentId", "agent-99");
         request.setAttribute("ctxa.delegation.objectiveId", "objective-99");
+        request.setAttribute("ctxa.delegation.objectiveFamily", "REPORT_APPROVAL");
         request.setAttribute("ctxa.delegation.objectiveSummary", "Approve quarterly report");
         request.setAttribute("ctxa.delegation.allowedOperations", "APPROVE,READ");
         request.setAttribute("ctxa.delegation.allowedResources", "report:quarterly");
         request.setAttribute("ctxa.delegation.approvalRequired", true);
+        request.setAttribute("ctxa.delegation.privilegedExportAllowed", false);
         request.setAttribute("ctxa.delegation.containmentOnly", false);
         request.setAttribute("ctxa.delegation.expiresAt", "2026-03-24T00:00:00Z");
 
@@ -86,6 +88,8 @@ class RequestAttributeBridgeResolutionFilterTest {
         assertThat(result.authorizationStamp().effectiveAuthorities()).contains("REPORT_APPROVE");
         assertThat(result.delegationStamp()).isNotNull();
         assertThat(result.delegationStamp().subjectId()).isEqualTo("carol");
+        assertThat(result.delegationStamp().objectiveFamily()).isEqualTo("REPORT_APPROVAL");
+        assertThat(result.delegationStamp().privilegedExportAllowed()).isFalse();
         assertThat(result.delegationStamp().expiresAt()).isEqualTo(Instant.parse("2026-03-24T00:00:00Z"));
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.DELEGATION_CONTEXT);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isInstanceOf(BridgeAuthenticationToken.class);
@@ -95,6 +99,8 @@ class RequestAttributeBridgeResolutionFilterTest {
         assertThat(details.bridgeAuthorizationSource()).isEqualTo("REQUEST_ATTRIBUTE");
         assertThat(details.bridgeDelegationSource()).isEqualTo("REQUEST_ATTRIBUTE");
         assertThat(details.policyVersion()).isEqualTo("2026.03");
+        assertThat(details.objectiveFamily()).isEqualTo("REPORT_APPROVAL");
+        assertThat(details.privilegedExportAllowed()).isFalse();
     }
 }
 

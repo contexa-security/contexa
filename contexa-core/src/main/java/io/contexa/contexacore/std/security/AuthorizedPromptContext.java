@@ -13,7 +13,8 @@ public record AuthorizedPromptContext(
         String retrievalPurpose,
         List<String> deniedReasons,
         PurposeBoundRetrievalPolicy retrievalPolicy,
-        List<ContextProvenanceRecord> provenanceRecords) {
+        List<ContextProvenanceRecord> provenanceRecords,
+        List<AuthorizedPromptContextItem> contextItems) {
 
     public AuthorizedPromptContext {
         documents = documents == null ? List.of() : List.copyOf(documents);
@@ -23,6 +24,7 @@ public record AuthorizedPromptContext(
                 ? new PurposeBoundRetrievalPolicy(null, null, null, retrievalPurpose, Set.of())
                 : retrievalPolicy;
         provenanceRecords = provenanceRecords == null ? List.of() : List.copyOf(provenanceRecords);
+        contextItems = contextItems == null ? List.of() : List.copyOf(contextItems);
     }
 
     public AuthorizedPromptContext(
@@ -40,6 +42,7 @@ public record AuthorizedPromptContext(
                 retrievalPurpose,
                 deniedReasons,
                 new PurposeBoundRetrievalPolicy(null, null, null, retrievalPurpose, Set.of()),
+                List.of(),
                 List.of());
     }
 }

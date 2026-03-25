@@ -20,6 +20,7 @@ public class PromptContextComposer {
         appendSection(section, composeSessionNarrativeSection(context));
         appendSection(section, composeObservedScopeSection(context));
         appendSection(section, composeWorkProfileSection(context));
+        appendSection(section, composeContextQualityAndProvenanceSection(context));
         appendSection(section, composeRoleScopeSection(context));
         appendSection(section, composePeerCohortSection(context));
         appendSection(section, composeFrictionSection(context));
@@ -60,6 +61,10 @@ public class PromptContextComposer {
 
     public String composeWorkProfileSection(CanonicalSecurityContext context) {
         return composeSection(context, section -> appendWorkProfileSection(section, context.getWorkProfile()));
+    }
+
+    public String composeContextQualityAndProvenanceSection(CanonicalSecurityContext context) {
+        return composeSection(context, section -> appendContextQualityAndProvenanceSection(section, context.getContextTrustProfiles()));
     }
 
     public String composeRoleScopeSection(CanonicalSecurityContext context) {
@@ -278,6 +283,63 @@ public class PromptContextComposer {
         appendList(section, "LongTailLegitimateTasks", workProfile.getLongTailLegitimateTasks());
     }
 
+    private void appendContextQualityAndProvenanceSection(StringBuilder section, List<ContextTrustProfile> trustProfiles) {
+        if (trustProfiles == null || trustProfiles.isEmpty()) {
+            return;
+        }
+
+        section.append("\n=== CONTEXT QUALITY AND PROVENANCE ===\n");
+        for (ContextTrustProfile trustProfile : trustProfiles) {
+            if (trustProfile == null) {
+                continue;
+            }
+            appendLine(section, "TrustProfileKey", trustProfile.getProfileKey());
+            appendLine(section, "TrustCollectorId", trustProfile.getCollectorId());
+            appendLine(section, "TrustOverallQualityGrade", trustProfile.getOverallQualityGrade());
+            appendLine(section, "TrustOverallQualityScore", trustProfile.getOverallQualityScore());
+            appendLine(section, "TrustProfileSummary", trustProfile.getSummary());
+            appendLine(section, "TrustProvenanceSummary", trustProfile.getProvenanceSummary());
+            appendList(section, "TrustScopeLimitations", trustProfile.getScopeLimitations());
+            appendList(section, "TrustQualityWarnings", trustProfile.getQualityWarnings());
+            if (!trustProfile.getFieldRecords().isEmpty()) {
+                section.append("TrustFieldAudits:\n");
+                for (ContextFieldTrustRecord fieldRecord : trustProfile.getFieldRecords()) {
+                    if (fieldRecord == null) {
+                        continue;
+                    }
+                    section.append("- ")
+                            .append(fieldRecord.getFieldPath())
+                            .append(" | grade=")
+                            .append(fieldRecord.getQualityGrade())
+                            .append(" | observations=")
+                            .append(fieldRecord.getObservationCount())
+                            .append(" | days=")
+                            .append(fieldRecord.getDaysCovered())
+                            .append(" | fallback=")
+                            .append(formatPercent(fieldRecord.getFallbackRate()))
+                            .append(" | unknown=")
+                            .append(formatPercent(fieldRecord.getUnknownRate()))
+                            .append(" | provenance=")
+                            .append(fieldRecord.getProvenanceSummary())
+                            .append("\n");
+                }
+            }
+            if (!trustProfile.getEvidenceRecords().isEmpty()) {
+                section.append("TrustEvidence:\n");
+                for (ContextEvidenceRecord evidenceRecord : trustProfile.getEvidenceRecords()) {
+                    if (evidenceRecord == null) {
+                        continue;
+                    }
+                    section.append("- ")
+                            .append(evidenceRecord.getEvidenceId())
+                            .append(" | ")
+                            .append(evidenceRecord.getSummary())
+                            .append("\n");
+                }
+            }
+        }
+    }
+
     private void appendRoleScopeSection(StringBuilder section, CanonicalSecurityContext.RoleScopeProfile roleScopeProfile) {
         if (roleScopeProfile == null) {
             return;
@@ -455,5 +517,12 @@ public class PromptContextComposer {
                 .append(": ")
                 .append(text)
                 .append("\n");
+    }
+
+    private String formatPercent(Double value) {
+        if (value == null) {
+            return "0%";
+        }
+        return String.format(java.util.Locale.ROOT, "%.0f%%", value * 100.0d);
     }
 }

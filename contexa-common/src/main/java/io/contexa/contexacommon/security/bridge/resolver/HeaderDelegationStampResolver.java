@@ -22,8 +22,9 @@ public class HeaderDelegationStampResolver implements DelegationStampResolver {
         String delegated = request.getHeader(config.getDelegated());
         String agentId = request.getHeader(config.getAgentId());
         String objectiveId = request.getHeader(config.getObjectiveId());
+        String objectiveFamily = request.getHeader(config.getObjectiveFamily());
         String expiresAt = request.getHeader(config.getExpiresAt());
-        if (delegated == null && agentId == null && objectiveId == null && expiresAt == null) {
+        if (delegated == null && agentId == null && objectiveId == null && objectiveFamily == null && expiresAt == null) {
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
@@ -33,10 +34,12 @@ public class HeaderDelegationStampResolver implements DelegationStampResolver {
                 agentId,
                 Boolean.parseBoolean(delegated),
                 objectiveId,
+                objectiveFamily,
                 request.getHeader(config.getObjectiveSummary()),
                 split(request.getHeader(config.getAllowedOperations())),
                 split(request.getHeader(config.getAllowedResources())),
                 parseBoolean(request.getHeader(config.getApprovalRequired())),
+                parseBoolean(request.getHeader(config.getPrivilegedExportAllowed())),
                 parseBoolean(request.getHeader(config.getContainmentOnly())),
                 parseInstant(expiresAt),
                 attributes

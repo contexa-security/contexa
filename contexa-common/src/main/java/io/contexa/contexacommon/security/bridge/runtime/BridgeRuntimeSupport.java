@@ -150,10 +150,12 @@ public class BridgeRuntimeSupport {
             request.setAttribute(requestAttributes.getDelegated(), delegationStamp.delegated());
             request.setAttribute(requestAttributes.getAgentId(), delegationStamp.agentId());
             request.setAttribute(requestAttributes.getObjectiveId(), delegationStamp.objectiveId());
+            request.setAttribute(requestAttributes.getObjectiveFamily(), delegationStamp.objectiveFamily());
             request.setAttribute(requestAttributes.getObjectiveSummary(), delegationStamp.objectiveSummary());
             request.setAttribute(requestAttributes.getAllowedOperations(), delegationStamp.allowedOperations());
             request.setAttribute(requestAttributes.getAllowedResources(), delegationStamp.allowedResources());
             request.setAttribute(requestAttributes.getApprovalRequired(), delegationStamp.approvalRequired());
+            request.setAttribute(requestAttributes.getPrivilegedExportAllowed(), delegationStamp.privilegedExportAllowed());
             request.setAttribute(requestAttributes.getContainmentOnly(), delegationStamp.containmentOnly());
             request.setAttribute(requestAttributes.getExpiresAt(), delegationStamp.expiresAt());
         }
@@ -223,10 +225,12 @@ public class BridgeRuntimeSupport {
                 result.delegationStamp() != null ? result.delegationStamp().delegated() : null,
                 result.delegationStamp() != null ? result.delegationStamp().agentId() : null,
                 result.delegationStamp() != null ? result.delegationStamp().objectiveId() : null,
+                result.delegationStamp() != null ? result.delegationStamp().objectiveFamily() : null,
                 result.delegationStamp() != null ? result.delegationStamp().objectiveSummary() : null,
                 result.delegationStamp() != null ? result.delegationStamp().allowedOperations() : List.of(),
                 result.delegationStamp() != null ? result.delegationStamp().allowedResources() : List.of(),
                 result.delegationStamp() != null ? result.delegationStamp().approvalRequired() : null,
+                result.delegationStamp() != null ? result.delegationStamp().privilegedExportAllowed() : null,
                 result.delegationStamp() != null ? result.delegationStamp().containmentOnly() : null,
                 internalUserId,
                 internalUsername,

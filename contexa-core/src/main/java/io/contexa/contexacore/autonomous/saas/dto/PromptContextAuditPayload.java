@@ -16,8 +16,10 @@ public class PromptContextAuditPayload {
 
     private String auditId;
     private String correlationId;
+    private String tenantExternalRef;
     private String executionId;
     private String retrievalPurpose;
+    private String contextFingerprint;
     private int requestedDocumentCount;
     private int allowedDocumentCount;
     private int deniedDocumentCount;

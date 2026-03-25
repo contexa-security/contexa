@@ -138,6 +138,8 @@ public class ContextCoverageEvaluator {
             remediationHints.add("Propagate challenge, block, escalation, approval, and denied-access history.");
         }
 
+        appendDelegationFacts(context, availableFacts, missingCriticalFacts, remediationHints, confidenceWarnings);
+
         if (CanonicalContextFieldPolicy.hasReasoningMemoryProfile(context)) {
             availableFacts.add("Outcome and reasoning memory is available.");
         }
@@ -148,6 +150,7 @@ public class ContextCoverageEvaluator {
         }
 
         appendBridgeFacts(context, availableFacts, missingCriticalFacts, remediationHints);
+        appendTrustProfileFacts(context, availableFacts, remediationHints, confidenceWarnings);
 
         ContextCoverageLevel level = CanonicalContextFieldPolicy.determineCoverageLevel(context);
         String summary = switch (level) {
@@ -200,6 +203,73 @@ public class ContextCoverageEvaluator {
         for (String remediationHint : bridge.getRemediationHints()) {
             availableFacts.add("Bridge remediation hint: " + remediationHint);
             remediationHints.add(remediationHint);
+        }
+    }
+
+    private void appendDelegationFacts(
+            CanonicalSecurityContext context,
+            List<String> availableFacts,
+            List<String> missingCriticalFacts,
+            List<String> remediationHints,
+            List<String> confidenceWarnings) {
+        if (!CanonicalContextFieldPolicy.hasDelegationContext(context) || context.getDelegation() == null) {
+            return;
+        }
+        CanonicalSecurityContext.Delegation delegation = context.getDelegation();
+        availableFacts.add("Delegated objective context is available.");
+        if (delegation.getObjectiveFamily() != null && !delegation.getObjectiveFamily().isBlank()) {
+            availableFacts.add("Delegated objective family is available.");
+        }
+        else {
+            missingCriticalFacts.add("Delegated objective family is unavailable.");
+            remediationHints.add("Propagate a canonical objective family so delegated-agent intent can be evaluated without free-text guessing.");
+            confidenceWarnings.add("Delegated objective family is missing; delegated-agent intent should remain conservative.");
+        }
+
+        if (CanonicalContextFieldPolicy.hasObjectiveDriftAssessment(context)) {
+            availableFacts.add("Delegated objective drift is assessed.");
+            if (Boolean.TRUE.equals(delegation.getObjectiveDrift())) {
+                confidenceWarnings.add("Delegated objective drift is present; any ALLOW conclusion must explicitly justify why the request remains acceptable.");
+            }
+        }
+        else {
+            missingCriticalFacts.add("Delegated objective drift is unknown.");
+            remediationHints.add("Provide comparable current action/resource family inputs so delegated objective drift can be assessed before an ALLOW decision.");
+            confidenceWarnings.add("Delegated objective drift is unknown; delegated-agent ALLOW conclusions should remain conservative.");
+        }
+    }
+
+    private void appendTrustProfileFacts(
+            CanonicalSecurityContext context,
+            List<String> availableFacts,
+            List<String> remediationHints,
+            List<String> confidenceWarnings) {
+        if (context.getContextTrustProfiles() == null || context.getContextTrustProfiles().isEmpty()) {
+            return;
+        }
+        for (ContextTrustProfile trustProfile : context.getContextTrustProfiles()) {
+            if (trustProfile == null) {
+                continue;
+            }
+            if (trustProfile.getProfileKey() != null) {
+                availableFacts.add("Context trust profile is available for " + trustProfile.getProfileKey() + ".");
+            }
+            if (trustProfile.getProvenanceSummary() != null && !trustProfile.getProvenanceSummary().isBlank()) {
+                availableFacts.add("Context provenance summary: " + trustProfile.getProvenanceSummary());
+            }
+            if (trustProfile.getOverallQualityGrade() != null && !trustProfile.getOverallQualityGrade().supportsReasoning()) {
+                confidenceWarnings.add("Context trust profile " + trustProfile.getProfileKey()
+                        + " is " + trustProfile.getOverallQualityGrade()
+                        + "; treat it as a hint, not proof.");
+                remediationHints.add("Increase explicit collector signals and evidence coverage before using "
+                        + trustProfile.getProfileKey() + " as a strong reasoning anchor.");
+            }
+            for (String warning : trustProfile.getQualityWarnings()) {
+                confidenceWarnings.add(warning);
+            }
+            for (String limitation : trustProfile.getScopeLimitations()) {
+                confidenceWarnings.add("Scope limitation: " + limitation);
+            }
         }
     }
 
