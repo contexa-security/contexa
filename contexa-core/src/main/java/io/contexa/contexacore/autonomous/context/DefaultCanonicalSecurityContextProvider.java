@@ -20,6 +20,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     private final SessionNarrativeCollector sessionNarrativeCollector;
     private final ProtectableWorkProfileCollector protectableWorkProfileCollector;
     private final CanonicalSecurityContextHardener contextHardener;
+    private final ObjectiveDriftEvaluator objectiveDriftEvaluator = new ObjectiveDriftEvaluator();
 
     public DefaultCanonicalSecurityContextProvider(
             ResourceContextRegistry resourceContextRegistry,
@@ -227,6 +228,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         context.setFrictionProfile(resolveFrictionProfile(metadata, context));
         context.setReasoningMemoryProfile(resolveReasoningMemoryProfile(metadata, context));
         contextHardener.harden(context);
+        finalizeDelegation(context);
         context.setCoverage(coverageEvaluator.evaluate(context));
         return Optional.of(context);
     }
@@ -375,12 +377,6 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
 
         if (delegation.getDelegated() == null) {
             delegation.setDelegated(computeDelegatedFlag(delegation));
-        }
-        if (delegation.getObjectiveDrift() == null) {
-            delegation.setObjectiveDrift(computeObjectiveDrift(delegation, context));
-        }
-        if (!StringUtils.hasText(delegation.getObjectiveDriftSummary())) {
-            delegation.setObjectiveDriftSummary(buildDelegationDriftSummary(delegation, context));
         }
         return delegation;
     }
@@ -1336,56 +1332,50 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         return null;
     }
 
-    private Boolean computeObjectiveDrift(CanonicalSecurityContext.Delegation delegation, CanonicalSecurityContext context) {
-        if (delegation == null || !Boolean.TRUE.equals(delegation.getDelegated())) {
-            return null;
+    private void finalizeDelegation(CanonicalSecurityContext context) {
+        if (context == null || context.getDelegation() == null) {
+            return;
         }
-
-        boolean compared = false;
-        boolean drift = false;
-        String currentActionFamily = context != null && context.getRoleScopeProfile() != null
-                ? firstText(context.getRoleScopeProfile().getCurrentActionFamily(), context.getResource() != null ? context.getResource().getActionFamily() : null)
-                : context != null && context.getResource() != null ? context.getResource().getActionFamily() : null;
-        String currentResource = context != null && context.getResource() != null
-                ? firstText(context.getResource().getResourceId(), context.getResource().getRequestPath())
-                : null;
-
-        if (StringUtils.hasText(currentActionFamily) && !delegation.getAllowedOperations().isEmpty()) {
-            compared = true;
-            drift = delegation.getAllowedOperations().stream().noneMatch(currentActionFamily::equalsIgnoreCase);
+        CanonicalSecurityContext.Delegation delegation = context.getDelegation();
+        if (delegation.getDelegated() == null) {
+            delegation.setDelegated(computeDelegatedFlag(delegation));
         }
-        if (StringUtils.hasText(currentResource) && !delegation.getAllowedResources().isEmpty()) {
-            compared = true;
-            boolean resourceAllowed = delegation.getAllowedResources().stream().anyMatch(item ->
-                    currentResource.equalsIgnoreCase(item)
-                            || currentResource.startsWith(item)
-                            || item.startsWith(currentResource));
-            drift = drift || !resourceAllowed;
+        ObjectiveDriftEvaluation evaluation = objectiveDriftEvaluator.evaluate(delegation, context);
+        if (delegation.getObjectiveDrift() == null) {
+            delegation.setObjectiveDrift(evaluation.objectiveDrift());
         }
-        return compared ? drift : null;
+        if (!StringUtils.hasText(delegation.getObjectiveDriftSummary())) {
+            delegation.setObjectiveDriftSummary(buildDelegationDriftSummary(delegation, evaluation));
+        }
     }
 
-    private String buildDelegationDriftSummary(CanonicalSecurityContext.Delegation delegation, CanonicalSecurityContext context) {
-        if (delegation == null || delegation.getObjectiveDrift() == null) {
+    private String buildDelegationDriftSummary(
+            CanonicalSecurityContext.Delegation delegation,
+            ObjectiveDriftEvaluation evaluation) {
+        if (delegation == null || (!Boolean.TRUE.equals(delegation.getDelegated())
+                && !StringUtils.hasText(delegation.getObjectiveId())
+                && !StringUtils.hasText(delegation.getObjectiveFamily())
+                && !StringUtils.hasText(delegation.getObjectiveSummary()))) {
             return null;
         }
         List<String> facts = new ArrayList<>();
         if (Boolean.TRUE.equals(delegation.getObjectiveDrift())) {
             facts.add("Current request diverges from delegated objective scope.");
-        } else {
+        }
+        else if (Boolean.FALSE.equals(delegation.getObjectiveDrift())) {
             facts.add("Current request remains inside delegated objective scope.");
         }
-        if (context != null && context.getRoleScopeProfile() != null && StringUtils.hasText(context.getRoleScopeProfile().getCurrentActionFamily())) {
-            facts.add("Current action family: " + context.getRoleScopeProfile().getCurrentActionFamily());
+        else {
+            facts.add("Objective drift is unknown because comparable delegated action/resource family inputs are incomplete.");
         }
-        if (context != null && context.getResource() != null && StringUtils.hasText(context.getResource().getResourceId())) {
-            facts.add("Current resource: " + context.getResource().getResourceId());
+        if (StringUtils.hasText(delegation.getObjectiveFamily())) {
+            facts.add("Objective family: " + delegation.getObjectiveFamily());
         }
-        if (!delegation.getAllowedOperations().isEmpty()) {
-            facts.add("Allowed operations: " + String.join(", ", delegation.getAllowedOperations()));
+        if (StringUtils.hasText(delegation.getObjectiveSummary())) {
+            facts.add("Objective summary: " + delegation.getObjectiveSummary());
         }
-        if (!delegation.getAllowedResources().isEmpty()) {
-            facts.add("Allowed resources: " + String.join(", ", delegation.getAllowedResources()));
+        if (evaluation != null) {
+            facts.addAll(evaluation.facts());
         }
         return String.join(" | ", facts);
     }

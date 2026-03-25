@@ -22,8 +22,9 @@ public class RequestAttributeDelegationStampResolver implements DelegationStampR
         Object delegated = request.getAttribute(config.getDelegated());
         Object agentId = request.getAttribute(config.getAgentId());
         Object objectiveId = request.getAttribute(config.getObjectiveId());
+        Object objectiveFamily = request.getAttribute(config.getObjectiveFamily());
         Object expiresAt = request.getAttribute(config.getExpiresAt());
-        if (delegated == null && agentId == null && objectiveId == null && expiresAt == null) {
+        if (delegated == null && agentId == null && objectiveId == null && objectiveFamily == null && expiresAt == null) {
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
@@ -33,10 +34,12 @@ public class RequestAttributeDelegationStampResolver implements DelegationStampR
                 text(agentId),
                 delegated instanceof Boolean booleanValue ? booleanValue : Boolean.parseBoolean(text(delegated)),
                 text(objectiveId),
+                text(objectiveFamily),
                 text(request.getAttribute(config.getObjectiveSummary())),
                 split(request.getAttribute(config.getAllowedOperations())),
                 split(request.getAttribute(config.getAllowedResources())),
                 parseBoolean(request.getAttribute(config.getApprovalRequired())),
+                parseBoolean(request.getAttribute(config.getPrivilegedExportAllowed())),
                 parseBoolean(request.getAttribute(config.getContainmentOnly())),
                 parseInstant(expiresAt),
                 attributes

@@ -146,6 +146,27 @@ public final class CanonicalContextFieldPolicy {
                 || context.getFrictionProfile().getBlockedUser() != null);
     }
 
+    public static boolean hasDelegationContext(CanonicalSecurityContext context) {
+        return context != null
+                && context.getDelegation() != null
+                && (Boolean.TRUE.equals(context.getDelegation().getDelegated())
+                || StringUtils.hasText(context.getDelegation().getAgentId())
+                || StringUtils.hasText(context.getDelegation().getObjectiveId())
+                || StringUtils.hasText(context.getDelegation().getObjectiveFamily())
+                || StringUtils.hasText(context.getDelegation().getObjectiveSummary())
+                || !context.getDelegation().getAllowedOperations().isEmpty()
+                || !context.getDelegation().getAllowedResources().isEmpty()
+                || context.getDelegation().getApprovalRequired() != null
+                || context.getDelegation().getPrivilegedExportAllowed() != null
+                || context.getDelegation().getContainmentOnly() != null);
+    }
+
+    public static boolean hasObjectiveDriftAssessment(CanonicalSecurityContext context) {
+        return hasDelegationContext(context)
+                && context.getDelegation() != null
+                && context.getDelegation().getObjectiveDrift() != null;
+    }
+
     public static boolean hasPeerCohortProfile(CanonicalSecurityContext context) {
         return context != null
                 && context.getPeerCohortProfile() != null

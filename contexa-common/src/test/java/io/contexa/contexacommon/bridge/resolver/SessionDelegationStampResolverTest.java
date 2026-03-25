@@ -24,10 +24,12 @@ class SessionDelegationStampResolverTest {
         sessionDelegation.setDelegated(true);
         sessionDelegation.setAgentId("agent-1");
         sessionDelegation.setObjectiveId("objective-1");
+        sessionDelegation.setObjectiveFamily("REPORT_EXPORT");
         sessionDelegation.setObjectiveSummary("Export monthly report");
         sessionDelegation.setAllowedOperations(List.of("EXPORT"));
         sessionDelegation.setAllowedResources(List.of("report:monthly"));
         sessionDelegation.setApprovalRequired(true);
+        sessionDelegation.setPrivilegedExportAllowed(false);
         sessionDelegation.setContainmentOnly(false);
         sessionDelegation.setExpiresAt(Instant.parse("2026-03-24T00:00:00Z"));
 
@@ -47,10 +49,12 @@ class SessionDelegationStampResolverTest {
         assertThat(stamp.delegated()).isTrue();
         assertThat(stamp.agentId()).isEqualTo("agent-1");
         assertThat(stamp.objectiveId()).isEqualTo("objective-1");
+        assertThat(stamp.objectiveFamily()).isEqualTo("REPORT_EXPORT");
         assertThat(stamp.objectiveSummary()).isEqualTo("Export monthly report");
         assertThat(stamp.allowedOperations()).contains("EXPORT");
         assertThat(stamp.allowedResources()).contains("report:monthly");
         assertThat(stamp.approvalRequired()).isTrue();
+        assertThat(stamp.privilegedExportAllowed()).isFalse();
         assertThat(stamp.containmentOnly()).isFalse();
         assertThat(stamp.expiresAt()).isEqualTo(Instant.parse("2026-03-24T00:00:00Z"));
         assertThat(stamp.attributes()).containsEntry("delegationResolver", "SESSION");
@@ -61,10 +65,12 @@ class SessionDelegationStampResolverTest {
         private boolean delegated;
         private String agentId;
         private String objectiveId;
+        private String objectiveFamily;
         private String objectiveSummary;
         private List<String> allowedOperations = List.of();
         private List<String> allowedResources = List.of();
         private boolean approvalRequired;
+        private boolean privilegedExportAllowed;
         private boolean containmentOnly;
         private Instant expiresAt;
 
@@ -108,6 +114,14 @@ class SessionDelegationStampResolverTest {
             this.objectiveSummary = objectiveSummary;
         }
 
+        public String getObjectiveFamily() {
+            return objectiveFamily;
+        }
+
+        public void setObjectiveFamily(String objectiveFamily) {
+            this.objectiveFamily = objectiveFamily;
+        }
+
         public List<String> getAllowedOperations() {
             return allowedOperations;
         }
@@ -130,6 +144,14 @@ class SessionDelegationStampResolverTest {
 
         public void setApprovalRequired(boolean approvalRequired) {
             this.approvalRequired = approvalRequired;
+        }
+
+        public boolean isPrivilegedExportAllowed() {
+            return privilegedExportAllowed;
+        }
+
+        public void setPrivilegedExportAllowed(boolean privilegedExportAllowed) {
+            this.privilegedExportAllowed = privilegedExportAllowed;
         }
 
         public boolean isContainmentOnly() {

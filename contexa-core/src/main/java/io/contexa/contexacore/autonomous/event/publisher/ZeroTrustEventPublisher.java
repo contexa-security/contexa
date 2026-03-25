@@ -294,8 +294,10 @@ public class ZeroTrustEventPublisher {
             payload.put("delegated", true);
             putIfPresent(payload, "agentId", delegationStamp.agentId());
             putIfPresent(payload, "objectiveId", delegationStamp.objectiveId());
+            putIfPresent(payload, "objectiveFamily", delegationStamp.objectiveFamily());
             putIfPresent(payload, "objectiveSummary", delegationStamp.objectiveSummary());
             putIfPresent(payload, "approvalRequired", delegationStamp.approvalRequired());
+            putIfPresent(payload, "privilegedExportAllowed", delegationStamp.privilegedExportAllowed());
             putIfPresent(payload, "containmentOnly", delegationStamp.containmentOnly());
             if (!delegationStamp.allowedOperations().isEmpty()) {
                 payload.put("allowedOperations", delegationStamp.allowedOperations());

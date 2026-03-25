@@ -175,6 +175,10 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getDelegation().getDelegated()).isTrue();
         assertThat(context.getDelegation().getObjectiveDrift()).isTrue();
         assertThat(context.getDelegation().getObjectiveDriftSummary()).contains("diverges from delegated objective scope");
+        assertThat(context.getDelegation().getObjectiveDriftSummary()).contains("Current action family: EXPORT");
+        assertThat(context.getDelegation().getObjectiveDriftSummary()).contains("Current resource family: REPORT");
+        assertThat(context.getCoverage().confidenceWarnings())
+                .anyMatch(value -> value.contains("Delegated objective drift is present"));
         assertThat(context.getReasoningMemoryProfile()).isNotNull();
         assertThat(context.getReasoningMemoryProfile().getReinforcedCaseCount()).isEqualTo(6L);
         assertThat(context.getReasoningMemoryProfile().getObjectiveAwareReasoningMemory()).isEqualTo("EXPORT_GUARD");
