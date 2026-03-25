@@ -36,9 +36,7 @@ public class IamMiscAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public UserContextService userContextService(
-            AuditLogRepository auditLogRepository,
-            WizardSessionRepository wizardSessionRepository,
-            ObjectMapper objectMapper) {
-        return new UserContextServiceImpl(auditLogRepository, wizardSessionRepository, objectMapper);
+            AuditLogRepository auditLogRepository) {
+        return new UserContextServiceImpl(auditLogRepository);
     }
 }

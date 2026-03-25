@@ -1,17 +1,11 @@
 package io.contexa.contexaiam.admin.support.context.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import io.contexa.contexaiam.admin.support.context.dto.RecentActivityDto;
-import io.contexa.contexaiam.domain.entity.WizardSession;
-import io.contexa.contexaiam.repository.WizardSessionRepository;
-import io.contexa.contexaiam.admin.web.monitoring.dto.WizardContext;
 import io.contexa.contexacommon.repository.AuditLogRepository;
+import io.contexa.contexaiam.admin.support.context.dto.RecentActivityDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,43 +14,7 @@ import java.util.stream.Collectors;
 public class UserContextServiceImpl implements UserContextService {
 
     private final AuditLogRepository auditLogRepository;
-    private final WizardSessionRepository wizardSessionRepository;
-    private final ObjectMapper objectMapper;
 
-    @Override
-    @Transactional
-    public void saveWizardProgress(String userSessionId, String ownerUserId, WizardContext context) {
-        try {
-            String contextAsJson = objectMapper.writeValueAsString(context);
-            WizardSession session = WizardSession.create(userSessionId, contextAsJson, ownerUserId, 60);
-            wizardSessionRepository.save(session);
-        } catch (JsonProcessingException e) {
-            log.error("Failed to serialize WizardContext for session: {}", userSessionId, e);
-            throw new RuntimeException("Failed to save wizard progress state.", e);
-        }
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public WizardContext getWizardProgress(String userSessionId) {
-        WizardSession session = wizardSessionRepository.findById(userSessionId)
-                .orElseThrow(() -> new IllegalStateException("Wizard session not found or expired for ID: " + userSessionId));
-
-        try {
-            return objectMapper.readValue(session.getContextData(), WizardContext.class);
-        } catch (IOException e) {
-            log.error("Failed to deserialize WizardContext for session: {}", userSessionId, e);
-            throw new RuntimeException("Failed to load wizard progress state.", e);
-        }
-    }
-
-    @Override
-    @Transactional
-    public void clearWizardProgress(String userSessionId) {
-        if (wizardSessionRepository.existsById(userSessionId)) {
-            wizardSessionRepository.deleteById(userSessionId);
-        }
-    }
 
     @Override
     @Transactional(readOnly = true)
