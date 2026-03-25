@@ -1,4 +1,4 @@
-package io.contexa.contexaiam.admin.web.workflow.wizard.dto;
+package io.contexa.contexaiam.admin.web.monitoring.dto;
 
 import lombok.Builder;
 
