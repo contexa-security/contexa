@@ -42,7 +42,7 @@ public class PlatformSecurityConfig {
         };
         return registry
                 .global(globalHttpCustomizer)
-                .form(form -> form.order(20)
+                /*.form(form -> form.order(20)
                         .loginPage("/admin/login")
                         .defaultSuccessUrl("/admin")
                         .rawHttp(http-> http.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)))
@@ -50,15 +50,15 @@ public class PlatformSecurityConfig {
                 .oauth2(Customizer.withDefaults())
 
 
-//                .rest(rest -> rest.order(10)
-//                        .defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
-//                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
-//                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
+                .rest(rest -> rest.order(10)
+                        .defaultSuccessUrl("/admin")).session(Customizer.withDefaults())
+                .ott(ott -> ott.order(30)).session(Customizer.withDefaults())
+                .passkey(passkey -> passkey.order(40)).session(Customizer.withDefaults())
 
-.form(form -> form.order(50)).oauth2(Customizer.withDefaults())
+                .form(form -> form.order(50)).oauth2(Customizer.withDefaults())
                 .rest(rest -> rest.order(60)).oauth2(Customizer.withDefaults())
                 .ott(ott -> ott.order(70)).oauth2(Customizer.withDefaults())
-                .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())
+                .passkey(passkey -> passkey.order(80)).oauth2(Customizer.withDefaults())*/
 
                 .mfa(mfa -> mfa.urlPrefix("/admin").requiredFactors(1)
                                 .primaryAuthentication(auth -> auth.formLogin(form -> form
@@ -68,7 +68,7 @@ public class PlatformSecurityConfig {
                                 .ott(Customizer.withDefaults())
                                 .passkey(Customizer.withDefaults())
                                 .ott(Customizer.withDefaults())
-                        .order(60)
+                        .order(90)
                 ).session(Customizer.withDefaults())
                 .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth.formLogin(form -> form
@@ -76,12 +76,12 @@ public class PlatformSecurityConfig {
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-.mfaPage(page ->
+/*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/mfa/ott/request-code-ui", "/custom/mfa/challenge/ott")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
 
-                        .order(70)
+                        .order(1000)
                 ).session(Customizer.withDefaults())
 
                 .build();
