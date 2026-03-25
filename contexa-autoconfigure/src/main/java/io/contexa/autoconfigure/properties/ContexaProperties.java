@@ -228,7 +228,7 @@ public class ContexaProperties {
 
         private boolean enabled = false;
 
-        private String endpoint;
+        private String endpoint = "https://saas.ctxa.ai";
 
         private boolean includeReasoning = false;
 
@@ -244,9 +244,9 @@ public class ContexaProperties {
 
         private long dispatchIntervalMs = 30_000L;
 
-        private String pseudonymizationSecret;
+        private String pseudonymizationSecret = "default-dev-secret-change-in-prod";
 
-        private String globalCorrelationSecret;
+        private String globalCorrelationSecret = "default-dev-correlation-secret";
 
         @NestedConfigurationProperty
         private Oauth2 oauth2 = new Oauth2();
@@ -400,13 +400,13 @@ public class ContexaProperties {
 
             private String registrationId = "contexa-saas-client";
 
-            private String tokenUri;
+            private String tokenUri = "https://saas.ctxa.ai/oauth2/token";
 
-            private String clientId;
+            private String clientId = "dev-client";
 
-            private String clientSecret;
+            private String clientSecret = "dev-secret";
 
-            private String scope = "saas.xai.decision.ingest";
+            private String scope = "saas.xai.decision.ingest,saas.feedback.ingest,saas.baseline.ingest,saas.baseline-seed.read,saas.threat-intelligence.read,saas.threat-outcome.ingest,saas.threat-knowledge.read,saas.telemetry.ingest,saas.prompt-context-audit.ingest";
 
             private int expirySkewSeconds = 30;
 

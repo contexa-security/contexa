@@ -28,6 +28,7 @@ import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.properties.OAuth2TokenSettings;
 import io.contexa.contexaidentity.security.token.service.OAuth2TokenService;
 import io.contexa.contexaidentity.security.token.service.TokenService;
+import org.springframework.context.annotation.Primary;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategy;
 import io.contexa.contexaidentity.security.token.transport.TokenTransportStrategyFactory;
 import io.contexa.contexaidentity.security.token.validator.OAuth2TokenValidator;
@@ -464,8 +465,9 @@ public class IdentityOAuth2AutoConfiguration {
         return new HttpSessionOAuth2AuthorizedClientRepository();
     }
 
+    @Primary
     @Bean
-    @ConditionalOnMissingBean(OAuth2AuthorizedClientManager.class)
+    @ConditionalOnMissingBean(name = "authorizedClientManager")
     public OAuth2AuthorizedClientManager authorizedClientManager(
             ClientRegistrationRepository clientRegistrationRepository,
             OAuth2AuthorizedClientRepository authorizedClientRepository,
