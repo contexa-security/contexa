@@ -34,6 +34,10 @@ class CanonicalContextFieldPolicyTest {
                         .businessLabel("Customer Export Report")
                         .sensitivity("HIGH")
                         .build())
+                .sessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile.builder()
+                        .sessionAgeMinutes(12)
+                        .previousPath("/api/customer/list")
+                        .build())
                 .build();
 
         assertThat(CanonicalContextFieldPolicy.determineCoverageLevel(scopeAware))

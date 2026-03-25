@@ -35,6 +35,24 @@ public class CanonicalSecurityContextHardener {
         if (context.getObservedScope() != null) {
             hardenObservedScope(context.getObservedScope());
         }
+        if (context.getSessionNarrativeProfile() != null) {
+            hardenSessionNarrativeProfile(context.getSessionNarrativeProfile());
+        }
+        if (context.getWorkProfile() != null) {
+            hardenWorkProfile(context.getWorkProfile());
+        }
+        if (context.getRoleScopeProfile() != null) {
+            hardenRoleScopeProfile(context.getRoleScopeProfile());
+        }
+        if (context.getPeerCohortProfile() != null) {
+            hardenPeerCohortProfile(context.getPeerCohortProfile());
+        }
+        if (context.getFrictionProfile() != null) {
+            hardenFrictionProfile(context.getFrictionProfile());
+        }
+        if (context.getReasoningMemoryProfile() != null) {
+            hardenReasoningMemoryProfile(context.getReasoningMemoryProfile());
+        }
         if (context.getAttributes() == null) {
             context.setAttributes(Map.of());
         }
@@ -43,9 +61,13 @@ public class CanonicalSecurityContextHardener {
 
     private void hardenActor(CanonicalSecurityContext.Actor actor) {
         actor.setUserId(normalizeText(actor.getUserId()));
+        actor.setExternalSubjectId(normalizeText(actor.getExternalSubjectId()));
         actor.setOrganizationId(normalizeText(actor.getOrganizationId()));
+        actor.setTenantId(normalizeText(actor.getTenantId()));
         actor.setDepartment(normalizeText(actor.getDepartment()));
+        actor.setPosition(normalizeText(actor.getPosition()));
         actor.setPrincipalType(normalizeUpperText(actor.getPrincipalType()));
+        actor.setBridgeSubjectKey(normalizeText(actor.getBridgeSubjectKey()));
         actor.setRoleSet(normalizeList(actor.getRoleSet()));
         actor.setAuthoritySet(normalizeList(actor.getAuthoritySet()));
     }
@@ -54,8 +76,15 @@ public class CanonicalSecurityContextHardener {
         session.setSessionId(normalizeText(session.getSessionId()));
         session.setClientIp(normalizeText(session.getClientIp()));
         session.setUserAgent(normalizeText(session.getUserAgent()));
+        session.setAuthenticationType(normalizeUpperText(session.getAuthenticationType()));
+        session.setAuthenticationAssurance(normalizeUpperText(session.getAuthenticationAssurance()));
+        session.setRecentMfaFailureCount(normalizeInteger(session.getRecentMfaFailureCount()));
+        session.setLastMfaUsedAt(normalizeText(session.getLastMfaUsedAt()));
         session.setFailedLoginAttempts(normalizeInteger(session.getFailedLoginAttempts()));
         session.setRecentRequestCount(normalizeInteger(session.getRecentRequestCount()));
+        session.setRecentChallengeCount(normalizeInteger(session.getRecentChallengeCount()));
+        session.setRecentBlockCount(normalizeInteger(session.getRecentBlockCount()));
+        session.setRecentEscalationCount(normalizeInteger(session.getRecentEscalationCount()));
     }
 
     private void hardenResource(CanonicalSecurityContext.Resource resource) {
@@ -72,14 +101,19 @@ public class CanonicalSecurityContextHardener {
         authorization.setEffectiveRoles(normalizeList(authorization.getEffectiveRoles()));
         authorization.setEffectivePermissions(normalizeList(authorization.getEffectivePermissions()));
         authorization.setScopeTags(normalizeList(authorization.getScopeTags()));
+        authorization.setAuthorizationEffect(normalizeUpperText(authorization.getAuthorizationEffect()));
+        authorization.setPolicyId(normalizeText(authorization.getPolicyId()));
+        authorization.setPolicyVersion(normalizeText(authorization.getPolicyVersion()));
     }
 
     private void hardenDelegation(CanonicalSecurityContext.Delegation delegation) {
         delegation.setAgentId(normalizeText(delegation.getAgentId()));
         delegation.setObjectiveId(normalizeText(delegation.getObjectiveId()));
         delegation.setObjectiveFamily(normalizeUpperText(delegation.getObjectiveFamily()));
+        delegation.setObjectiveSummary(normalizeText(delegation.getObjectiveSummary()));
         delegation.setAllowedOperations(normalizeList(delegation.getAllowedOperations()));
         delegation.setAllowedResources(normalizeList(delegation.getAllowedResources()));
+        delegation.setObjectiveDriftSummary(normalizeText(delegation.getObjectiveDriftSummary()));
     }
 
     private void hardenObservedScope(CanonicalSecurityContext.ObservedScope observedScope) {
@@ -92,11 +126,112 @@ public class CanonicalSecurityContextHardener {
         observedScope.setFrequentActionFamilies(normalizeList(observedScope.getFrequentActionFamilies()));
     }
 
+    private void hardenSessionNarrativeProfile(CanonicalSecurityContext.SessionNarrativeProfile sessionNarrativeProfile) {
+        sessionNarrativeProfile.setSummary(normalizeText(sessionNarrativeProfile.getSummary()));
+        sessionNarrativeProfile.setSessionAgeMinutes(normalizeInteger(sessionNarrativeProfile.getSessionAgeMinutes()));
+        sessionNarrativeProfile.setPreviousPath(normalizeText(sessionNarrativeProfile.getPreviousPath()));
+        sessionNarrativeProfile.setPreviousActionFamily(normalizeUpperText(sessionNarrativeProfile.getPreviousActionFamily()));
+        sessionNarrativeProfile.setLastRequestIntervalMs(normalizeLong(sessionNarrativeProfile.getLastRequestIntervalMs()));
+        sessionNarrativeProfile.setSessionActionSequence(normalizeList(sessionNarrativeProfile.getSessionActionSequence()));
+        sessionNarrativeProfile.setSessionProtectableSequence(normalizeList(sessionNarrativeProfile.getSessionProtectableSequence()));
+    }
+
+    private void hardenWorkProfile(CanonicalSecurityContext.WorkProfile workProfile) {
+        workProfile.setSummary(normalizeText(workProfile.getSummary()));
+        workProfile.setFrequentProtectableResources(normalizeList(workProfile.getFrequentProtectableResources()));
+        workProfile.setFrequentActionFamilies(normalizeList(workProfile.getFrequentActionFamilies()));
+        workProfile.setFrequentSensitiveResourceCategories(normalizeList(workProfile.getFrequentSensitiveResourceCategories()));
+        workProfile.setProtectableResourceHeatmap(normalizeList(workProfile.getProtectableResourceHeatmap()));
+        workProfile.setNormalAccessHours(normalizeIntegerList(workProfile.getNormalAccessHours()));
+        workProfile.setNormalAccessDays(normalizeIntegerList(workProfile.getNormalAccessDays()));
+        workProfile.setNormalSessionLengthMinutes(normalizeInteger(workProfile.getNormalSessionLengthMinutes()));
+        workProfile.setNormalReadWriteExportRatio(normalizeText(workProfile.getNormalReadWriteExportRatio()));
+        workProfile.setNormalRequestRate(normalizeDouble(workProfile.getNormalRequestRate()));
+        workProfile.setNormalPrivilegedActionFrequency(normalizeDouble(workProfile.getNormalPrivilegedActionFrequency()));
+        workProfile.setProtectableInvocationDensity(normalizeDouble(workProfile.getProtectableInvocationDensity()));
+        workProfile.setSeasonalBusinessProfile(normalizeText(workProfile.getSeasonalBusinessProfile()));
+        workProfile.setLongTailLegitimateTasks(normalizeList(workProfile.getLongTailLegitimateTasks()));
+    }
+
+    private void hardenRoleScopeProfile(CanonicalSecurityContext.RoleScopeProfile roleScopeProfile) {
+        roleScopeProfile.setSummary(normalizeText(roleScopeProfile.getSummary()));
+        roleScopeProfile.setCurrentResourceFamily(normalizeUpperText(roleScopeProfile.getCurrentResourceFamily()));
+        roleScopeProfile.setCurrentActionFamily(normalizeUpperText(roleScopeProfile.getCurrentActionFamily()));
+        roleScopeProfile.setExpectedResourceFamilies(normalizeList(roleScopeProfile.getExpectedResourceFamilies()));
+        roleScopeProfile.setExpectedActionFamilies(normalizeList(roleScopeProfile.getExpectedActionFamilies()));
+        roleScopeProfile.setForbiddenResourceFamilies(normalizeList(roleScopeProfile.getForbiddenResourceFamilies()));
+        roleScopeProfile.setForbiddenActionFamilies(normalizeList(roleScopeProfile.getForbiddenActionFamilies()));
+        roleScopeProfile.setNormalApprovalPatterns(normalizeList(roleScopeProfile.getNormalApprovalPatterns()));
+        roleScopeProfile.setNormalEscalationPatterns(normalizeList(roleScopeProfile.getNormalEscalationPatterns()));
+        roleScopeProfile.setRecentPermissionChanges(normalizeList(roleScopeProfile.getRecentPermissionChanges()));
+        roleScopeProfile.setTemporaryElevationReason(normalizeText(roleScopeProfile.getTemporaryElevationReason()));
+        roleScopeProfile.setElevationWindowSummary(normalizeText(roleScopeProfile.getElevationWindowSummary()));
+    }
+
+    private void hardenPeerCohortProfile(CanonicalSecurityContext.PeerCohortProfile peerCohortProfile) {
+        peerCohortProfile.setCohortId(normalizeText(peerCohortProfile.getCohortId()));
+        peerCohortProfile.setSummary(normalizeText(peerCohortProfile.getSummary()));
+        peerCohortProfile.setPreferredResources(normalizeList(peerCohortProfile.getPreferredResources()));
+        peerCohortProfile.setPreferredActionFamilies(normalizeList(peerCohortProfile.getPreferredActionFamilies()));
+        peerCohortProfile.setNormalProtectableFrequencyBand(normalizeText(peerCohortProfile.getNormalProtectableFrequencyBand()));
+        peerCohortProfile.setNormalSensitivityBand(normalizeUpperText(peerCohortProfile.getNormalSensitivityBand()));
+    }
+
+    private void hardenFrictionProfile(CanonicalSecurityContext.FrictionProfile frictionProfile) {
+        frictionProfile.setSummary(normalizeText(frictionProfile.getSummary()));
+        frictionProfile.setRecentChallengeCount(normalizeInteger(frictionProfile.getRecentChallengeCount()));
+        frictionProfile.setRecentBlockCount(normalizeInteger(frictionProfile.getRecentBlockCount()));
+        frictionProfile.setRecentEscalationCount(normalizeInteger(frictionProfile.getRecentEscalationCount()));
+        frictionProfile.setApprovalStatus(normalizeUpperText(frictionProfile.getApprovalStatus()));
+        frictionProfile.setApprovalLineage(normalizeList(frictionProfile.getApprovalLineage()));
+        frictionProfile.setPendingApproverRoles(normalizeList(frictionProfile.getPendingApproverRoles()));
+        frictionProfile.setApprovalTicketId(normalizeText(frictionProfile.getApprovalTicketId()));
+        frictionProfile.setApprovalDecisionAgeMinutes(normalizeInteger(frictionProfile.getApprovalDecisionAgeMinutes()));
+        frictionProfile.setRecentDeniedAccessCount(normalizeInteger(frictionProfile.getRecentDeniedAccessCount()));
+    }
+
+    private void hardenReasoningMemoryProfile(CanonicalSecurityContext.ReasoningMemoryProfile reasoningMemoryProfile) {
+        reasoningMemoryProfile.setSummary(normalizeText(reasoningMemoryProfile.getSummary()));
+        reasoningMemoryProfile.setReinforcedCaseCount(normalizeLong(reasoningMemoryProfile.getReinforcedCaseCount()));
+        reasoningMemoryProfile.setHardNegativeCaseCount(normalizeLong(reasoningMemoryProfile.getHardNegativeCaseCount()));
+        reasoningMemoryProfile.setFalseNegativeCaseCount(normalizeLong(reasoningMemoryProfile.getFalseNegativeCaseCount()));
+        reasoningMemoryProfile.setKnowledgeAssistedCaseCount(normalizeLong(reasoningMemoryProfile.getKnowledgeAssistedCaseCount()));
+        reasoningMemoryProfile.setObjectiveAwareReasoningMemory(normalizeText(reasoningMemoryProfile.getObjectiveAwareReasoningMemory()));
+        reasoningMemoryProfile.setRetentionTier(normalizeUpperText(reasoningMemoryProfile.getRetentionTier()));
+        reasoningMemoryProfile.setRecallPriority(normalizeUpperText(reasoningMemoryProfile.getRecallPriority()));
+        reasoningMemoryProfile.setFreshnessState(normalizeUpperText(reasoningMemoryProfile.getFreshnessState()));
+        reasoningMemoryProfile.setReasoningState(normalizeUpperText(reasoningMemoryProfile.getReasoningState()));
+        reasoningMemoryProfile.setCohortPreference(normalizeUpperText(reasoningMemoryProfile.getCohortPreference()));
+        reasoningMemoryProfile.setMemoryRiskProfile(normalizeUpperText(reasoningMemoryProfile.getMemoryRiskProfile()));
+        reasoningMemoryProfile.setRetrievalWeight(normalizeInteger(reasoningMemoryProfile.getRetrievalWeight()));
+        reasoningMemoryProfile.setMatchedSignalKeys(normalizeList(reasoningMemoryProfile.getMatchedSignalKeys()));
+        reasoningMemoryProfile.setObjectiveFamilies(normalizeList(reasoningMemoryProfile.getObjectiveFamilies()));
+        reasoningMemoryProfile.setMemoryGuardrails(normalizeList(reasoningMemoryProfile.getMemoryGuardrails()));
+        reasoningMemoryProfile.setXaiLinkedFacts(normalizeList(reasoningMemoryProfile.getXaiLinkedFacts()));
+        reasoningMemoryProfile.setReasoningFacts(normalizeList(reasoningMemoryProfile.getReasoningFacts()));
+        reasoningMemoryProfile.setCrossTenantObjectiveMisusePackSummary(normalizeText(reasoningMemoryProfile.getCrossTenantObjectiveMisusePackSummary()));
+        reasoningMemoryProfile.setCrossTenantObjectiveMisuseFacts(normalizeList(reasoningMemoryProfile.getCrossTenantObjectiveMisuseFacts()));
+    }
+
     private Integer normalizeInteger(Integer value) {
         if (value == null) {
             return null;
         }
         return Math.max(value, 0);
+    }
+
+    private Double normalizeDouble(Double value) {
+        if (value == null) {
+            return null;
+        }
+        return value < 0 ? 0.0 : value;
+    }
+
+    private Long normalizeLong(Long value) {
+        if (value == null) {
+            return null;
+        }
+        return Math.max(value, 0L);
     }
 
     private String normalizeText(String value) {
@@ -121,6 +256,20 @@ public class CanonicalSecurityContextHardener {
         LinkedHashSet<String> normalized = new LinkedHashSet<>();
         for (String value : values) {
             String normalizedValue = normalizeText(value);
+            if (normalizedValue != null) {
+                normalized.add(normalizedValue);
+            }
+        }
+        return new ArrayList<>(normalized);
+    }
+
+    private List<Integer> normalizeIntegerList(List<Integer> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Integer> normalized = new LinkedHashSet<>();
+        for (Integer value : values) {
+            Integer normalizedValue = normalizeInteger(value);
             if (normalizedValue != null) {
                 normalized.add(normalizedValue);
             }

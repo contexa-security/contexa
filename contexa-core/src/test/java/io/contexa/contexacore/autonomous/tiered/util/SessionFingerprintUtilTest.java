@@ -1,6 +1,7 @@
-package io.contexa.contexacore.autonomous.utils;
+package io.contexa.contexacore.autonomous.tiered.util;
 
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.utils.SessionFingerprintUtil;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;

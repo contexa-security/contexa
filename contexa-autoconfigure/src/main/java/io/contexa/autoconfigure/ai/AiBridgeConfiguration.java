@@ -6,11 +6,17 @@ import io.contexa.contexacommon.repository.BridgeUserProfileRepository;
 import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexacommon.security.bridge.*;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
+import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridge;
+import io.contexa.contexacommon.security.bridge.handoff.ContexaAuthBridgeHandler;
+import io.contexa.contexacommon.security.bridge.handoff.DefaultContexaAuthBridgeHandler;
 import io.contexa.contexacommon.security.bridge.resolver.*;
+import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
 import io.contexa.contexacommon.security.bridge.sync.BridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.sync.DefaultBridgeUserMirrorSyncService;
 import io.contexa.contexacommon.security.bridge.web.BridgeResolutionFilter;
+import io.contexa.contexacore.security.AISessionSecurityContextRepository;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -152,6 +158,38 @@ public class AiBridgeConfiguration {
                 objectMapperProvider.getIfAvailable(ObjectMapper::new),
                 cacheManagerProvider.getIfAvailable()
         );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public BridgeRuntimeSupport bridgeRuntimeSupport(
+            BridgeProperties properties,
+            ObjectProvider<BridgeUserMirrorSyncService> bridgeUserMirrorSyncService) {
+        return new BridgeRuntimeSupport(properties, bridgeUserMirrorSyncService.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ContexaAuthBridgeHandler contexaAuthBridgeHandler(
+            BridgeProperties properties,
+            RequestContextCollector requestContextCollector,
+            BridgeCoverageEvaluator bridgeCoverageEvaluator,
+            BridgeRuntimeSupport bridgeRuntimeSupport,
+            ObjectProvider<AISessionSecurityContextRepository> aiSessionSecurityContextRepository) {
+        return new DefaultContexaAuthBridgeHandler(
+                properties,
+                requestContextCollector,
+                bridgeCoverageEvaluator,
+                bridgeRuntimeSupport,
+                aiSessionSecurityContextRepository.getIfAvailable()
+        );
+    }
+
+    @Bean("contexaAuthBridgeBinding")
+    @ConditionalOnMissingBean(name = "contexaAuthBridgeBinding")
+    public DisposableBean contexaAuthBridgeBinding(ContexaAuthBridgeHandler contexaAuthBridgeHandler) {
+        ContexaAuthBridge.registerHandler(contexaAuthBridgeHandler);
+        return ContexaAuthBridge::clearHandler;
     }
 
     @Bean

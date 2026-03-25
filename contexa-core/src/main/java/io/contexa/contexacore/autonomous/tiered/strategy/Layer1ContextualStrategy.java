@@ -13,6 +13,9 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -20,6 +23,8 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
+import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
@@ -40,11 +45,22 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
+    private static final PipelineConfiguration SECURITY_DECISION_PIPELINE_CONFIGURATION =
+            PipelineConfiguration.builder()
+                    .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
+                    .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
+                    .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                    .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
+                    .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
+                    .timeoutSeconds(120)
+                    .build();
+
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
     private final SaasBaselineSeedService baselineSeedService;
     private final SaasThreatIntelligenceService threatIntelligenceService;
     private final SaasThreatKnowledgePackService threatKnowledgePackService;
+    private final PipelineOrchestrator pipelineOrchestrator;
     private final Cache<String, SessionContext> sessionContextCache;
 
     public Layer1ContextualStrategy(UnifiedLLMOrchestrator llmOrchestrator,
@@ -60,6 +76,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     SaasThreatKnowledgePackService threatKnowledgePackService,
                                     PromptContextAuthorizationService promptContextAuthorizationService,
                                     PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                    PipelineOrchestrator pipelineOrchestrator,
                                     TieredStrategyProperties tieredStrategyProperties) {
         super(llmOrchestrator, eventEnricher, promptTemplate,
                 behaviorVectorService, unifiedVectorService, baselineLearningService,
@@ -69,6 +86,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         this.baselineSeedService = baselineSeedService;
         this.threatIntelligenceService = threatIntelligenceService;
         this.threatKnowledgePackService = threatKnowledgePackService;
+        this.pipelineOrchestrator = pipelineOrchestrator;
 
         TieredStrategyProperties.Layer1.Cache cacheConfig = tieredStrategyProperties.getLayer1().getCache();
         this.sessionContextCache = Caffeine.newBuilder()
@@ -131,42 +149,42 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
             cacheEscalationContext(event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
 
-            SecurityPromptTemplate.StructuredPrompt structured =
-                    promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
             promptBuildMs = System.currentTimeMillis() - promptBuildStart;
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
-            if (llmOrchestrator != null) {
-                ExecutionContext context = ExecutionContext.builder()
-                        .prompt(new Prompt(List.of(
-                                new SystemMessage(structured.systemText()),
-                                new UserMessage(structured.userText()))))
-                        .tier(1)
-                        .securityTaskType(ExecutionContext.SecurityTaskType.CONTEXTUAL_ANALYSIS)
-                        .timeoutMs((int) llmTimeoutMs)
-                        .requestId(event.getEventId())
-                        .userId(event.getUserId())
-                        .sessionId(event.getSessionId())
-                        .temperature(0.0)
-                        .topP(1.0)
-                        .build();
+            if (pipelineOrchestrator != null) {
+                SecurityDecisionRequest securityDecisionRequest =
+                        new SecurityDecisionRequest(new SecurityDecisionContext(
+                                event,
+                                sessionCtx,
+                                behaviorCtx,
+                                relatedDocuments
+                        ));
+                securityDecisionRequest.withParameter("responseType", SecurityDecisionResponse.class);
 
                 long llmExecutionStart = System.currentTimeMillis();
-                String jsonResponse = llmOrchestrator.execute(context)
+                SecurityDecisionResponse pipelineResponse = pipelineOrchestrator.execute(
+                                securityDecisionRequest,
+                                SECURITY_DECISION_PIPELINE_CONFIGURATION,
+                                SecurityDecisionResponse.class)
                         .timeout(Duration.ofMillis(llmTimeoutMs))
                         .onErrorResume(Exception.class, e -> {
-                            log.error("[Layer1] LLM execution failed, escalating to Layer 2: {}", event.getEventId(), e);
-                            return Mono.just("{\"action\":\"ESCALATE\",\"reasoning\":\"[AI Native] LLM execution failed - escalating to Layer 2\",\"mitre\":\"UNKNOWN\"}");
+                            log.error("[Layer1] Standard security pipeline failed, escalating to Layer 2: {}", event.getEventId(), e);
+                            return Mono.just(SecurityDecisionResponse.fromSecurityResponse(createDefaultResponse()));
                         })
                         .block();
                 llmExecutionMs = System.currentTimeMillis() - llmExecutionStart;
 
                 long responseParseStart = System.currentTimeMillis();
-                response = parseJsonResponse(jsonResponse);
+                response = validateAndFixResponse(
+                        pipelineResponse != null
+                                ? pipelineResponse.toSecurityResponse()
+                                : createDefaultResponse()
+                );
                 responseParseMs = System.currentTimeMillis() - responseParseStart;
             } else {
-                log.error("[Layer1] UnifiedLLMOrchestrator not available");
+                log.error("[Layer1] PipelineOrchestrator not available");
                 response = createDefaultResponse();
             }
 

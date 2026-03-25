@@ -21,6 +21,8 @@ import io.contexa.contexacore.autonomous.mcp.McpSecurityContextProvider;
 import io.contexa.contexacore.autonomous.repository.*;
 import io.contexa.contexacore.autonomous.saas.*;
 import io.contexa.contexacore.autonomous.service.AdminOverrideService;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import org.springframework.lang.Nullable;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.service.SynchronousProtectableDecisionService;
@@ -122,6 +124,9 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<AuthorizationSnapshotProvider> authorizationSnapshotProviders,
             ObjectProvider<OrganizationContextProvider> organizationContextProviders,
             ObjectProvider<DelegationContextProvider> delegationContextProviders,
+            ObjectProvider<PeerCohortContextProvider> peerCohortContextProviders,
+            ObjectProvider<FrictionContextProvider> frictionContextProviders,
+            ObjectProvider<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
             ObjectProvider<ObservedScopeInferenceService> observedScopeInferenceService) {
         return new DefaultCanonicalSecurityContextProvider(
                 resourceContextRegistry,
@@ -130,6 +135,9 @@ public class CoreAutonomousAutoConfiguration {
                 authorizationSnapshotProviders.orderedStream().toList(),
                 organizationContextProviders.orderedStream().toList(),
                 delegationContextProviders.orderedStream().toList(),
+                peerCohortContextProviders.orderedStream().toList(),
+                frictionContextProviders.orderedStream().toList(),
+                reasoningMemoryContextProviders.orderedStream().toList(),
                 observedScopeInferenceService.getIfAvailable());
     }
 
@@ -162,6 +170,13 @@ public class CoreAutonomousAutoConfiguration {
                 securityEventEnricher,
                 tieredStrategyProperties,
                 mcpSecurityContextProvider.getIfAvailable());
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate(
+            SecurityPromptTemplate securityPromptTemplate) {
+        return new SecurityDecisionStandardPromptTemplate(securityPromptTemplate);
     }
 
     @Bean
@@ -263,6 +278,7 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
             ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
             PromptContextAuthorizationService promptContextAuthorizationService,
+            ObjectProvider<PipelineOrchestrator> pipelineOrchestrator,
             TieredStrategyProperties tieredStrategyProperties) {
         return new Layer1ContextualStrategy(
                 llmOrchestrator,
@@ -278,6 +294,7 @@ public class CoreAutonomousAutoConfiguration {
                 threatKnowledgePackService.getIfAvailable(),
                 promptContextAuthorizationService,
                 promptContextAuditForwardingService.getIfAvailable(),
+                pipelineOrchestrator.getIfAvailable(),
                 tieredStrategyProperties);
     }
 

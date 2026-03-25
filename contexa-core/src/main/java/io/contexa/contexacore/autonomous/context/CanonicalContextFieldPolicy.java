@@ -69,11 +69,116 @@ public final class CanonicalContextFieldPolicy {
                 || context.getObservedScope().getRecentProtectableAccessCount() != null);
     }
 
+    public static boolean hasSessionNarrativeProfile(CanonicalSecurityContext context) {
+        return context != null
+                && context.getSessionNarrativeProfile() != null
+                && (StringUtils.hasText(context.getSessionNarrativeProfile().getSummary())
+                || context.getSessionNarrativeProfile().getSessionAgeMinutes() != null
+                || StringUtils.hasText(context.getSessionNarrativeProfile().getPreviousPath())
+                || StringUtils.hasText(context.getSessionNarrativeProfile().getPreviousActionFamily())
+                || context.getSessionNarrativeProfile().getLastRequestIntervalMs() != null
+                || !context.getSessionNarrativeProfile().getSessionActionSequence().isEmpty()
+                || !context.getSessionNarrativeProfile().getSessionProtectableSequence().isEmpty()
+                || context.getSessionNarrativeProfile().getBurstPattern() != null);
+    }
+
+    public static boolean hasWorkProfile(CanonicalSecurityContext context) {
+        return context != null
+                && context.getWorkProfile() != null
+                && (StringUtils.hasText(context.getWorkProfile().getSummary())
+                || !context.getWorkProfile().getFrequentProtectableResources().isEmpty()
+                || !context.getWorkProfile().getFrequentActionFamilies().isEmpty()
+                || !context.getWorkProfile().getProtectableResourceHeatmap().isEmpty()
+                || !context.getWorkProfile().getNormalAccessHours().isEmpty()
+                || context.getWorkProfile().getNormalRequestRate() != null
+                || context.getWorkProfile().getProtectableInvocationDensity() != null
+                || StringUtils.hasText(context.getWorkProfile().getSeasonalBusinessProfile())
+                || !context.getWorkProfile().getLongTailLegitimateTasks().isEmpty());
+    }
+
+    public static boolean hasRoleScopeProfile(CanonicalSecurityContext context) {
+        return context != null
+                && context.getRoleScopeProfile() != null
+                && (StringUtils.hasText(context.getRoleScopeProfile().getSummary())
+                || StringUtils.hasText(context.getRoleScopeProfile().getCurrentResourceFamily())
+                || StringUtils.hasText(context.getRoleScopeProfile().getCurrentActionFamily())
+                || !context.getRoleScopeProfile().getExpectedResourceFamilies().isEmpty()
+                || !context.getRoleScopeProfile().getExpectedActionFamilies().isEmpty()
+                || !context.getRoleScopeProfile().getForbiddenResourceFamilies().isEmpty()
+                || !context.getRoleScopeProfile().getForbiddenActionFamilies().isEmpty()
+                || !context.getRoleScopeProfile().getRecentPermissionChanges().isEmpty()
+                || context.getRoleScopeProfile().getResourceFamilyDrift() != null
+                || context.getRoleScopeProfile().getActionFamilyDrift() != null
+                || StringUtils.hasText(context.getRoleScopeProfile().getTemporaryElevationReason())
+                || context.getRoleScopeProfile().getTemporaryElevation() != null);
+    }
+
+    public static boolean hasFrictionProfile(CanonicalSecurityContext context) {
+        return context != null
+                && context.getFrictionProfile() != null
+                && (StringUtils.hasText(context.getFrictionProfile().getSummary())
+                || context.getFrictionProfile().getRecentChallengeCount() != null
+                || context.getFrictionProfile().getRecentBlockCount() != null
+                || context.getFrictionProfile().getRecentEscalationCount() != null
+                || context.getFrictionProfile().getApprovalRequired() != null
+                || !context.getFrictionProfile().getApprovalLineage().isEmpty()
+                || !context.getFrictionProfile().getPendingApproverRoles().isEmpty()
+                || StringUtils.hasText(context.getFrictionProfile().getApprovalTicketId())
+                || context.getFrictionProfile().getApprovalDecisionAgeMinutes() != null
+                || context.getFrictionProfile().getRecentDeniedAccessCount() != null
+                || context.getFrictionProfile().getBreakGlass() != null
+                || context.getFrictionProfile().getBlockedUser() != null);
+    }
+
+    public static boolean hasPeerCohortProfile(CanonicalSecurityContext context) {
+        return context != null
+                && context.getPeerCohortProfile() != null
+                && (StringUtils.hasText(context.getPeerCohortProfile().getCohortId())
+                || StringUtils.hasText(context.getPeerCohortProfile().getSummary())
+                || !context.getPeerCohortProfile().getPreferredResources().isEmpty()
+                || !context.getPeerCohortProfile().getPreferredActionFamilies().isEmpty()
+                || StringUtils.hasText(context.getPeerCohortProfile().getNormalProtectableFrequencyBand())
+                || StringUtils.hasText(context.getPeerCohortProfile().getNormalSensitivityBand())
+                || context.getPeerCohortProfile().getOutlierAgainstCohort() != null);
+    }
+
+    public static boolean hasReasoningMemoryProfile(CanonicalSecurityContext context) {
+        return context != null
+                && context.getReasoningMemoryProfile() != null
+                && (StringUtils.hasText(context.getReasoningMemoryProfile().getSummary())
+                || context.getReasoningMemoryProfile().getReinforcedCaseCount() != null
+                || context.getReasoningMemoryProfile().getHardNegativeCaseCount() != null
+                || context.getReasoningMemoryProfile().getFalseNegativeCaseCount() != null
+                || context.getReasoningMemoryProfile().getKnowledgeAssistedCaseCount() != null
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getObjectiveAwareReasoningMemory())
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getRetentionTier())
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getRecallPriority())
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getFreshnessState())
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getReasoningState())
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getCohortPreference())
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getMemoryRiskProfile())
+                || context.getReasoningMemoryProfile().getRetrievalWeight() != null
+                || !context.getReasoningMemoryProfile().getMatchedSignalKeys().isEmpty()
+                || !context.getReasoningMemoryProfile().getObjectiveFamilies().isEmpty()
+                || !context.getReasoningMemoryProfile().getMemoryGuardrails().isEmpty()
+                || !context.getReasoningMemoryProfile().getXaiLinkedFacts().isEmpty()
+                || !context.getReasoningMemoryProfile().getReasoningFacts().isEmpty()
+                || StringUtils.hasText(context.getReasoningMemoryProfile().getCrossTenantObjectiveMisusePackSummary())
+                || !context.getReasoningMemoryProfile().getCrossTenantObjectiveMisuseFacts().isEmpty());
+    }
+
     public static ContextCoverageLevel determineCoverageLevel(CanonicalSecurityContext context) {
         boolean identityAware = hasActorIdentity(context);
         boolean sessionAware = hasSessionIdentity(context);
         boolean scopeAware = hasEffectiveRoles(context) || hasAuthorizationScope(context);
-        boolean businessAware = hasResourceBusinessSemantics(context);
+        boolean businessAware = hasResourceBusinessSemantics(context)
+                && (hasObservedScope(context)
+                || hasSessionNarrativeProfile(context)
+                || hasWorkProfile(context)
+                || hasRoleScopeProfile(context)
+                || hasPeerCohortProfile(context)
+                || hasFrictionProfile(context)
+                || hasReasoningMemoryProfile(context));
 
         if (identityAware && sessionAware && scopeAware && businessAware) {
             return ContextCoverageLevel.BUSINESS_AWARE;

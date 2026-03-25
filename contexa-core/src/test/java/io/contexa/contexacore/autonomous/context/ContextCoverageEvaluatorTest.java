@@ -45,6 +45,8 @@ class ContextCoverageEvaluatorTest {
                 "Bridge authorization source is available.",
                 "Bridge delegation source is available.");
         assertThat(report.missingCriticalFacts()).contains("Bridge missing context: DELEGATION.");
+        assertThat(report.remediationHints()).contains("Attach peer cohort deltas through enterprise cohort enrichment when available.");
+        assertThat(report.confidenceWarnings()).contains("Peer cohort delta is missing; cohort-based deviation claims should remain conservative.");
         assertThat(report.summary()).contains("Bridge coverage: AUTHORIZATION_CONTEXT.");
     }
 }
