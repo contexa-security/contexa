@@ -81,9 +81,54 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:session:actions:%s", NAMESPACE, sessionId);
     }
 
+    public static String sessionNarrativeActions(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:narrative:actions:%s", NAMESPACE, sessionId);
+    }
+
+    public static String sessionProtectableAccesses(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:narrative:protectable:%s", NAMESPACE, sessionId);
+    }
+
+    public static String sessionRequestIntervals(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:narrative:intervals:%s", NAMESPACE, sessionId);
+    }
+
+    public static String sessionStartedAt(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:narrative:startedAt:%s", NAMESPACE, sessionId);
+    }
+
+    public static String sessionLastRequestTime(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:narrative:lastRequest:%s", NAMESPACE, sessionId);
+    }
+
+    public static String sessionPreviousPath(String sessionId) {
+        validateSessionId(sessionId);
+        return String.format("%s:session:narrative:previousPath:%s", NAMESPACE, sessionId);
+    }
+
     public static String sessionRisk(String sessionId) {
         validateSessionId(sessionId);
         return String.format("%s:session:risk:%s", NAMESPACE, sessionId);
+    }
+
+    public static String userWorkProfileObservations(String scopeKey) {
+        validateScopeKey(scopeKey);
+        return String.format("%s:work-profile:observations:%s", NAMESPACE, scopeKey);
+    }
+
+    public static String userLastRequestTime(String userId) {
+        validateUserId(userId);
+        return String.format("%s:hcad:last:request:%s", NAMESPACE, userId);
+    }
+
+    public static String userPreviousPath(String userId) {
+        validateUserId(userId);
+        return String.format("%s:hcad:previous:path:%s", NAMESPACE, userId);
     }
 
     public static String approvalWorkflow(Long proposalId) {
@@ -120,6 +165,12 @@ public class ZeroTrustRedisKeys {
     private static void validateSessionId(String sessionId) {
         if (sessionId == null || sessionId.trim().isEmpty()) {
             throw new IllegalArgumentException("SessionId cannot be null or empty");
+        }
+    }
+
+    private static void validateScopeKey(String scopeKey) {
+        if (scopeKey == null || scopeKey.trim().isEmpty()) {
+            throw new IllegalArgumentException("Scope key cannot be null or empty");
         }
     }
 }

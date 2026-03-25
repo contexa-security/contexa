@@ -83,6 +83,10 @@ public final class CanonicalContextFieldPolicy {
     }
 
     public static boolean hasWorkProfile(CanonicalSecurityContext context) {
+        ContextTrustProfile trustProfile = findTrustProfile(context, "PERSONAL_WORK_PROFILE");
+        if (trustProfile != null && (trustProfile.getOverallQualityGrade() == null || !trustProfile.getOverallQualityGrade().supportsReasoning())) {
+            return false;
+        }
         return context != null
                 && context.getWorkProfile() != null
                 && (StringUtils.hasText(context.getWorkProfile().getSummary())
@@ -94,6 +98,18 @@ public final class CanonicalContextFieldPolicy {
                 || context.getWorkProfile().getProtectableInvocationDensity() != null
                 || StringUtils.hasText(context.getWorkProfile().getSeasonalBusinessProfile())
                 || !context.getWorkProfile().getLongTailLegitimateTasks().isEmpty());
+    }
+
+    private static ContextTrustProfile findTrustProfile(CanonicalSecurityContext context, String profileKey) {
+        if (context == null || context.getContextTrustProfiles() == null || context.getContextTrustProfiles().isEmpty()) {
+            return null;
+        }
+        for (ContextTrustProfile trustProfile : context.getContextTrustProfiles()) {
+            if (trustProfile != null && profileKey.equalsIgnoreCase(trustProfile.getProfileKey())) {
+                return trustProfile;
+            }
+        }
+        return null;
     }
 
     public static boolean hasRoleScopeProfile(CanonicalSecurityContext context) {

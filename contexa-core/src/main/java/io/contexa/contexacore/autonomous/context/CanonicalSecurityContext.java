@@ -49,6 +49,9 @@ public class CanonicalSecurityContext {
     private Map<String, Object> attributes = new LinkedHashMap<>();
 
     @Builder.Default
+    private List<ContextTrustProfile> contextTrustProfiles = new ArrayList<>();
+
+    @Builder.Default
     private Instant collectedAt = Instant.now();
 
     @Data

@@ -8,7 +8,35 @@ public interface SecurityContextDataStore {
 
     List<String> getRecentSessionActions(String sessionId, int count);
 
+    void addSessionNarrativeActionFamily(String sessionId, String actionFamily);
+
+    List<String> getRecentSessionNarrativeActionFamilies(String sessionId, int count);
+
+    void addSessionProtectableAccess(String sessionId, String resourcePath);
+
+    List<String> getRecentSessionProtectableAccesses(String sessionId, int count);
+
+    void addSessionRequestInterval(String sessionId, long intervalMs);
+
+    List<Long> getRecentSessionRequestIntervals(String sessionId, int count);
+
+    void setSessionStartedAt(String sessionId, long timestamp);
+
+    Long getSessionStartedAt(String sessionId);
+
+    void setSessionLastRequestTime(String sessionId, long timestamp);
+
+    Long getSessionLastRequestTime(String sessionId);
+
+    void setSessionPreviousPath(String sessionId, String path);
+
+    String getSessionPreviousPath(String sessionId);
+
     void setSessionRisk(String sessionId, double riskScore);
+
+    void addWorkProfileObservation(String tenantId, String userId, String observation);
+
+    List<String> getRecentWorkProfileObservations(String tenantId, String userId, int count);
 
     void setLastRequestTime(String userId, long timestamp);
 

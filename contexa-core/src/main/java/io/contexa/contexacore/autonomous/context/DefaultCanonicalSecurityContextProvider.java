@@ -17,12 +17,41 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     private final List<FrictionContextProvider> frictionContextProviders;
     private final List<ReasoningMemoryContextProvider> reasoningMemoryContextProviders;
     private final ObservedScopeInferenceService observedScopeInferenceService;
+    private final SessionNarrativeCollector sessionNarrativeCollector;
+    private final ProtectableWorkProfileCollector protectableWorkProfileCollector;
     private final CanonicalSecurityContextHardener contextHardener;
 
     public DefaultCanonicalSecurityContextProvider(
             ResourceContextRegistry resourceContextRegistry,
             ContextCoverageEvaluator coverageEvaluator) {
-        this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), new MetadataObservedScopeInferenceService(), new CanonicalSecurityContextHardener());
+        this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                new MetadataObservedScopeInferenceService(), null, null, new CanonicalSecurityContextHardener());
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            SessionNarrativeCollector sessionNarrativeCollector) {
+        this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                new MetadataObservedScopeInferenceService(), sessionNarrativeCollector, null, new CanonicalSecurityContextHardener());
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            ProtectableWorkProfileCollector protectableWorkProfileCollector) {
+        this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                new MetadataObservedScopeInferenceService(), null, protectableWorkProfileCollector, new CanonicalSecurityContextHardener());
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            SessionNarrativeCollector sessionNarrativeCollector,
+            ProtectableWorkProfileCollector protectableWorkProfileCollector) {
+        this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                new MetadataObservedScopeInferenceService(), sessionNarrativeCollector, protectableWorkProfileCollector,
+                new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -34,7 +63,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             List<DelegationContextProvider> delegationContextProviders,
             ObservedScopeInferenceService observedScopeInferenceService) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
-                organizationContextProviders, delegationContextProviders, List.of(), List.of(), List.of(), observedScopeInferenceService, new CanonicalSecurityContextHardener());
+                organizationContextProviders, delegationContextProviders, List.of(), List.of(), List.of(),
+                observedScopeInferenceService, null, null, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -50,7 +80,44 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ObservedScopeInferenceService observedScopeInferenceService) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
-                reasoningMemoryContextProviders, observedScopeInferenceService, new CanonicalSecurityContextHardener());
+                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, new CanonicalSecurityContextHardener());
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            List<AuthenticationContextProvider> authenticationContextProviders,
+            List<AuthorizationSnapshotProvider> authorizationSnapshotProviders,
+            List<OrganizationContextProvider> organizationContextProviders,
+            List<DelegationContextProvider> delegationContextProviders,
+            List<PeerCohortContextProvider> peerCohortContextProviders,
+            List<FrictionContextProvider> frictionContextProviders,
+            List<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
+            ObservedScopeInferenceService observedScopeInferenceService,
+            SessionNarrativeCollector sessionNarrativeCollector) {
+        this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
+                organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
+                reasoningMemoryContextProviders, observedScopeInferenceService, sessionNarrativeCollector, null,
+                new CanonicalSecurityContextHardener());
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            List<AuthenticationContextProvider> authenticationContextProviders,
+            List<AuthorizationSnapshotProvider> authorizationSnapshotProviders,
+            List<OrganizationContextProvider> organizationContextProviders,
+            List<DelegationContextProvider> delegationContextProviders,
+            List<PeerCohortContextProvider> peerCohortContextProviders,
+            List<FrictionContextProvider> frictionContextProviders,
+            List<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
+            ObservedScopeInferenceService observedScopeInferenceService,
+            SessionNarrativeCollector sessionNarrativeCollector,
+            ProtectableWorkProfileCollector protectableWorkProfileCollector) {
+        this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
+                organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
+                reasoningMemoryContextProviders, observedScopeInferenceService, sessionNarrativeCollector, protectableWorkProfileCollector,
+                new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -65,7 +132,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ObservedScopeInferenceService observedScopeInferenceService) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, List.of(), reasoningMemoryContextProviders,
-                observedScopeInferenceService, new CanonicalSecurityContextHardener());
+                observedScopeInferenceService, null, null, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -80,6 +147,25 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             List<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
             ObservedScopeInferenceService observedScopeInferenceService,
             CanonicalSecurityContextHardener contextHardener) {
+        this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
+                organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
+                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, contextHardener);
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            List<AuthenticationContextProvider> authenticationContextProviders,
+            List<AuthorizationSnapshotProvider> authorizationSnapshotProviders,
+            List<OrganizationContextProvider> organizationContextProviders,
+            List<DelegationContextProvider> delegationContextProviders,
+            List<PeerCohortContextProvider> peerCohortContextProviders,
+            List<FrictionContextProvider> frictionContextProviders,
+            List<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
+            ObservedScopeInferenceService observedScopeInferenceService,
+            SessionNarrativeCollector sessionNarrativeCollector,
+            ProtectableWorkProfileCollector protectableWorkProfileCollector,
+            CanonicalSecurityContextHardener contextHardener) {
         this.resourceContextRegistry = resourceContextRegistry;
         this.coverageEvaluator = coverageEvaluator;
         this.authenticationContextProviders = authenticationContextProviders != null ? List.copyOf(authenticationContextProviders) : List.of();
@@ -90,6 +176,8 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         this.frictionContextProviders = frictionContextProviders != null ? List.copyOf(frictionContextProviders) : List.of();
         this.reasoningMemoryContextProviders = reasoningMemoryContextProviders != null ? List.copyOf(reasoningMemoryContextProviders) : List.of();
         this.observedScopeInferenceService = observedScopeInferenceService;
+        this.sessionNarrativeCollector = sessionNarrativeCollector;
+        this.protectableWorkProfileCollector = protectableWorkProfileCollector;
         this.contextHardener = contextHardener != null ? contextHardener : new CanonicalSecurityContextHardener();
     }
 
@@ -106,7 +194,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             CanonicalSecurityContextHardener contextHardener) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, List.of(),
-                reasoningMemoryContextProviders, observedScopeInferenceService, contextHardener);
+                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, contextHardener);
     }
 
     @Override
@@ -115,7 +203,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             return Optional.empty();
         }
 
-        Map<String, Object> metadata = event.getMetadata() != null ? event.getMetadata() : Map.of();
+        Map<String, Object> metadata = prepareMetadata(event);
 
         CanonicalSecurityContext context = CanonicalSecurityContext.builder()
                 .actor(resolveActor(event, metadata))
@@ -133,6 +221,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         inferObservedScope(event, context);
         context.setSessionNarrativeProfile(resolveSessionNarrativeProfile(metadata, context));
         context.setWorkProfile(resolveWorkProfile(metadata, context));
+        context.setContextTrustProfiles(resolveContextTrustProfiles(metadata));
         context.setRoleScopeProfile(resolveRoleScopeProfile(metadata, context));
         context.setPeerCohortProfile(resolvePeerCohortProfile(metadata, context));
         context.setFrictionProfile(resolveFrictionProfile(metadata, context));
@@ -140,6 +229,66 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         contextHardener.harden(context);
         context.setCoverage(coverageEvaluator.evaluate(context));
         return Optional.of(context);
+    }
+
+    private Map<String, Object> prepareMetadata(SecurityEvent event) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        if (event.getMetadata() != null) {
+            metadata.putAll(event.getMetadata());
+        }
+        event.setMetadata(metadata);
+        enrichSessionNarrativeMetadata(event, metadata);
+        enrichProtectableWorkProfileMetadata(event, metadata);
+        return metadata;
+    }
+
+    private void enrichSessionNarrativeMetadata(SecurityEvent event, Map<String, Object> metadata) {
+        if (sessionNarrativeCollector == null) {
+            return;
+        }
+        sessionNarrativeCollector.collect(event).ifPresent(snapshot -> {
+            metadata.put("sessionNarrativeSummary", snapshot.getSummary());
+            metadata.put("sessionAgeMinutes", snapshot.getSessionAgeMinutes());
+            metadata.put("previousPath", snapshot.getPreviousPath());
+            metadata.put("previousActionFamily", snapshot.getPreviousActionFamily());
+            metadata.put("lastRequestIntervalMs", snapshot.getLastRequestIntervalMs());
+            metadata.put("sessionActionSequence", snapshot.getSessionActionSequence());
+            metadata.put("sessionProtectableSequence", snapshot.getSessionProtectableSequence());
+            metadata.put("burstPattern", snapshot.getBurstPattern());
+        });
+    }
+
+    private void enrichProtectableWorkProfileMetadata(SecurityEvent event, Map<String, Object> metadata) {
+        if (protectableWorkProfileCollector == null) {
+            return;
+        }
+        protectableWorkProfileCollector.collect(event).ifPresent(snapshot -> {
+            metadata.put("workProfileSummary", snapshot.getSummary());
+            metadata.put("frequentProtectableResources", snapshot.getFrequentProtectableResources());
+            metadata.put("frequentActionFamilies", snapshot.getFrequentActionFamilies());
+            metadata.put("normalAccessHours", snapshot.getNormalAccessHours());
+            metadata.put("normalAccessDays", snapshot.getNormalAccessDays());
+            metadata.put("normalRequestRate", snapshot.getNormalRequestRate());
+            metadata.put("protectableInvocationDensity", snapshot.getProtectableInvocationDensity());
+            metadata.put("protectableResourceHeatmap", snapshot.getProtectableResourceHeatmap());
+            metadata.put("frequentSensitiveResourceCategories", snapshot.getFrequentSensitiveResourceCategories());
+            metadata.put("normalReadWriteExportRatio", snapshot.getNormalReadWriteExportRatio());
+            if (snapshot.getTrustProfile() != null) {
+                metadata.put("workProfileTrustProfile", snapshot.getTrustProfile());
+                metadata.put("workProfileQualityGrade", snapshot.getTrustProfile().getOverallQualityGrade());
+                metadata.put("workProfileQualityScore", snapshot.getTrustProfile().getOverallQualityScore());
+                metadata.put("workProfileProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
+                metadata.put("workProfileQualityWarnings", snapshot.getTrustProfile().getQualityWarnings());
+            }
+        });
+    }
+
+    private List<ContextTrustProfile> resolveContextTrustProfiles(Map<String, Object> metadata) {
+        Object workProfileTrustProfile = metadata.get("workProfileTrustProfile");
+        if (workProfileTrustProfile instanceof ContextTrustProfile trustProfile) {
+            return List.of(trustProfile);
+        }
+        return List.of();
     }
 
     private CanonicalSecurityContext.Actor resolveActor(SecurityEvent event, Map<String, Object> metadata) {

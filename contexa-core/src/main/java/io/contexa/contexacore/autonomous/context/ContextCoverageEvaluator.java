@@ -148,6 +148,7 @@ public class ContextCoverageEvaluator {
         }
 
         appendBridgeFacts(context, availableFacts, missingCriticalFacts, remediationHints);
+        appendTrustProfileFacts(context, availableFacts, remediationHints, confidenceWarnings);
 
         ContextCoverageLevel level = CanonicalContextFieldPolicy.determineCoverageLevel(context);
         String summary = switch (level) {
@@ -200,6 +201,40 @@ public class ContextCoverageEvaluator {
         for (String remediationHint : bridge.getRemediationHints()) {
             availableFacts.add("Bridge remediation hint: " + remediationHint);
             remediationHints.add(remediationHint);
+        }
+    }
+
+    private void appendTrustProfileFacts(
+            CanonicalSecurityContext context,
+            List<String> availableFacts,
+            List<String> remediationHints,
+            List<String> confidenceWarnings) {
+        if (context.getContextTrustProfiles() == null || context.getContextTrustProfiles().isEmpty()) {
+            return;
+        }
+        for (ContextTrustProfile trustProfile : context.getContextTrustProfiles()) {
+            if (trustProfile == null) {
+                continue;
+            }
+            if (trustProfile.getProfileKey() != null) {
+                availableFacts.add("Context trust profile is available for " + trustProfile.getProfileKey() + ".");
+            }
+            if (trustProfile.getProvenanceSummary() != null && !trustProfile.getProvenanceSummary().isBlank()) {
+                availableFacts.add("Context provenance summary: " + trustProfile.getProvenanceSummary());
+            }
+            if (trustProfile.getOverallQualityGrade() != null && !trustProfile.getOverallQualityGrade().supportsReasoning()) {
+                confidenceWarnings.add("Context trust profile " + trustProfile.getProfileKey()
+                        + " is " + trustProfile.getOverallQualityGrade()
+                        + "; treat it as a hint, not proof.");
+                remediationHints.add("Increase explicit collector signals and evidence coverage before using "
+                        + trustProfile.getProfileKey() + " as a strong reasoning anchor.");
+            }
+            for (String warning : trustProfile.getQualityWarnings()) {
+                confidenceWarnings.add(warning);
+            }
+            for (String limitation : trustProfile.getScopeLimitations()) {
+                confidenceWarnings.add("Scope limitation: " + limitation);
+            }
         }
     }
 

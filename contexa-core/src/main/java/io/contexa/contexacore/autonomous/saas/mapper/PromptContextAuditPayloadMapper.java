@@ -3,15 +3,19 @@ package io.contexa.contexacore.autonomous.saas.mapper;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.saas.dto.PromptContextAuditPayload;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
+import io.contexa.contexacore.std.security.AuthorizedPromptContextItem;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import org.springframework.ai.document.Document;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 public class PromptContextAuditPayloadMapper {
 
@@ -30,21 +34,24 @@ public class PromptContextAuditPayloadMapper {
         String resolvedPurpose = StringUtils.hasText(retrievalPurpose)
                 ? retrievalPurpose.trim()
                 : authorizedPromptContext.retrievalPurpose();
-        String auditId = resolveAuditId(event, correlationId, resolvedPurpose);
+        String tenantExternalRef = resolveTenantExternalRef(event);
+        List<String> deniedReasons = resolveDeniedReasons(authorizedPromptContext);
 
-        List<PromptContextAuditPayload.ContextItem> contexts = authorizedPromptContext.documents().stream()
-                .map(this::mapContextItem)
-                .toList();
+        List<PromptContextAuditPayload.ContextItem> contexts = resolveContextItems(authorizedPromptContext);
+        String contextFingerprint = resolveContextFingerprint(authorizedPromptContext, deniedReasons, contexts);
+        String auditId = resolveAuditId(event, correlationId, resolvedPurpose, contextFingerprint);
 
         return PromptContextAuditPayload.builder()
                 .auditId(auditId)
                 .correlationId(correlationId)
+                .tenantExternalRef(tenantExternalRef)
                 .executionId(resolveExecutionId(event))
                 .retrievalPurpose(resolvedPurpose)
+                .contextFingerprint(contextFingerprint)
                 .requestedDocumentCount(authorizedPromptContext.requestedDocumentCount())
                 .allowedDocumentCount(authorizedPromptContext.allowedDocumentCount())
                 .deniedDocumentCount(authorizedPromptContext.deniedDocumentCount())
-                .deniedReasons(authorizedPromptContext.deniedReasons())
+                .deniedReasons(deniedReasons)
                 .contexts(contexts)
                 .forwardedAt(LocalDateTime.now())
                 .build();
@@ -62,6 +69,17 @@ public class PromptContextAuditPayloadMapper {
             }
         }
         return "default";
+    }
+
+    private List<PromptContextAuditPayload.ContextItem> resolveContextItems(AuthorizedPromptContext authorizedPromptContext) {
+        if (authorizedPromptContext.contextItems() != null && !authorizedPromptContext.contextItems().isEmpty()) {
+            return authorizedPromptContext.contextItems().stream()
+                    .map(this::mapContextItem)
+                    .toList();
+        }
+        return authorizedPromptContext.documents().stream()
+                .map(this::mapContextItem)
+                .toList();
     }
 
     private PromptContextAuditPayload.ContextItem mapContextItem(Document document) {
@@ -107,6 +125,24 @@ public class PromptContextAuditPayloadMapper {
                 .build();
     }
 
+    private PromptContextAuditPayload.ContextItem mapContextItem(AuthorizedPromptContextItem item) {
+        return PromptContextAuditPayload.ContextItem.builder()
+                .contextType(item.contextType())
+                .sourceType(item.sourceType())
+                .artifactId(item.artifactId())
+                .artifactVersion(item.artifactVersion())
+                .authorizationDecision(item.authorizationDecision())
+                .purposeMatch(item.purposeMatch())
+                .provenanceSummary(item.provenanceSummary())
+                .includedInPrompt(item.includedInPrompt())
+                .promptSafetyDecision(item.promptSafetyDecision())
+                .memoryReadDecision(item.memoryReadDecision())
+                .accessScope(item.accessScope())
+                .tenantBound(item.tenantBound())
+                .similarityScore(item.similarityScore())
+                .build();
+    }
+
     private String resolveCorrelationId(SecurityEvent event) {
         if (event.getMetadata() != null) {
             Object correlationId = event.getMetadata().get("correlationId");
@@ -120,10 +156,63 @@ public class PromptContextAuditPayloadMapper {
         return UUID.randomUUID().toString();
     }
 
-    private String resolveAuditId(SecurityEvent event, String correlationId, String retrievalPurpose) {
+    private String resolveAuditId(SecurityEvent event, String correlationId, String retrievalPurpose, String contextFingerprint) {
         String eventId = StringUtils.hasText(event.getEventId()) ? event.getEventId().trim() : "unknown";
-        String fingerprint = correlationId + "|" + retrievalPurpose + "|" + eventId;
+        String fingerprint = correlationId + "|" + retrievalPurpose + "|" + eventId + "|" + contextFingerprint;
         return UUID.nameUUIDFromBytes(fingerprint.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private String resolveContextFingerprint(
+            AuthorizedPromptContext authorizedPromptContext,
+            List<String> deniedReasons,
+            List<PromptContextAuditPayload.ContextItem> contexts) {
+        List<String> parts = new ArrayList<>();
+        parts.add("requested=" + authorizedPromptContext.requestedDocumentCount());
+        parts.add("allowed=" + authorizedPromptContext.allowedDocumentCount());
+        parts.add("denied=" + authorizedPromptContext.deniedDocumentCount());
+        if (deniedReasons != null && !deniedReasons.isEmpty()) {
+            parts.add("deniedReasons=" + String.join(",", deniedReasons));
+        }
+        if (contexts != null && !contexts.isEmpty()) {
+            List<String> contextEntries = contexts.stream()
+                    .sorted(Comparator
+                            .comparing((PromptContextAuditPayload.ContextItem item) -> safeText(item.getContextType()))
+                            .thenComparing(item -> safeText(item.getSourceType()))
+                            .thenComparing(item -> safeText(item.getArtifactId()))
+                            .thenComparing(item -> safeText(item.getArtifactVersion()))
+                            .thenComparing(item -> safeText(item.getAuthorizationDecision()))
+                            .thenComparing(item -> Boolean.toString(item.isIncludedInPrompt())))
+                    .map(item -> String.join("|",
+                            safeText(item.getContextType()),
+                            safeText(item.getSourceType()),
+                            safeText(item.getArtifactId()),
+                            safeText(item.getArtifactVersion()),
+                            safeText(item.getAuthorizationDecision()),
+                            Boolean.toString(item.isIncludedInPrompt()),
+                            Boolean.toString(item.isPurposeMatch()),
+                            safeText(item.getAccessScope()),
+                            Boolean.toString(item.isTenantBound()),
+                            safeText(item.getProvenanceSummary())))
+                    .toList();
+            parts.addAll(contextEntries);
+        }
+        if (parts.isEmpty()) {
+            return "no_context";
+        }
+        String joined = String.join(";", parts);
+        return UUID.nameUUIDFromBytes(joined.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private List<String> resolveDeniedReasons(AuthorizedPromptContext authorizedPromptContext) {
+        if (authorizedPromptContext.deniedReasons() == null || authorizedPromptContext.deniedReasons().isEmpty()) {
+            return List.of();
+        }
+        return authorizedPromptContext.deniedReasons().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toUnmodifiableList());
     }
 
     private String resolveExecutionId(SecurityEvent event) {
@@ -177,5 +266,9 @@ public class PromptContextAuditPayloadMapper {
             }
         }
         return null;
+    }
+
+    private String safeText(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "";
     }
 }

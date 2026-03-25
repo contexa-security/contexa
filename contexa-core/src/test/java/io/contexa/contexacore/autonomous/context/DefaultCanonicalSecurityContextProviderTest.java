@@ -316,6 +316,130 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getSession().getSessionId()).isEqualTo("session-1");
         assertThat(context.getResource().getResourceId()).isEqualTo("/api/customer/export");
     }
+
+    @Test
+    void resolveShouldPopulateSessionNarrativeFromCollectorWithoutSyntheticMetadata() {
+        SessionNarrativeCollector collector =
+                new DefaultSessionNarrativeCollector(new io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore());
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator(),
+                        collector);
+
+        SecurityEvent first = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 10, 0, 0))
+                .build();
+        first.addMetadata("requestPath", "/api/customer/list");
+        first.addMetadata("httpMethod", "GET");
+        first.addMetadata("actionFamily", "READ");
+        first.addMetadata("isProtectable", true);
+
+        SecurityEvent second = SecurityEvent.builder()
+                .userId("alice")
+                .sessionId("session-1")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 10, 0, 0, 800_000_000))
+                .build();
+        second.addMetadata("requestPath", "/api/customer/export");
+        second.addMetadata("httpMethod", "POST");
+        second.addMetadata("actionFamily", "EXPORT");
+        second.addMetadata("isProtectable", true);
+
+        provider.resolve(first);
+        CanonicalSecurityContext context = provider.resolve(second).orElseThrow();
+
+        assertThat(context.getSessionNarrativeProfile()).isNotNull();
+        assertThat(context.getSessionNarrativeProfile().getPreviousPath()).isEqualTo("/api/customer/list");
+        assertThat(context.getSessionNarrativeProfile().getPreviousActionFamily()).isEqualTo("READ");
+        assertThat(context.getSessionNarrativeProfile().getLastRequestIntervalMs()).isEqualTo(800L);
+        assertThat(context.getSessionNarrativeProfile().getSessionActionSequence())
+                .containsExactly("READ", "EXPORT");
+        assertThat(context.getSessionNarrativeProfile().getSessionProtectableSequence())
+                .containsExactly("/api/customer/list", "/api/customer/export");
+        assertThat(second.getMetadata()).containsKeys(
+                "sessionNarrativeSummary",
+                "sessionAgeMinutes",
+                "previousPath",
+                "previousActionFamily",
+                "lastRequestIntervalMs",
+                "sessionActionSequence",
+                "sessionProtectableSequence",
+                "burstPattern");
+    }
+
+    @Test
+    void resolveShouldPopulateWorkProfileFromCollectorWithoutSyntheticMetadata() {
+        ProtectableWorkProfileCollector collector =
+                new DefaultProtectableWorkProfileCollector(new io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore());
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator(),
+                        collector);
+
+        SecurityEvent first = SecurityEvent.builder()
+                .userId("alice")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 0, 0))
+                .build();
+        first.addMetadata("tenantId", "tenant-acme");
+        first.addMetadata("requestPath", "/api/customer/list");
+        first.addMetadata("httpMethod", "GET");
+        first.addMetadata("actionFamily", "READ");
+        first.addMetadata("currentResourceFamily", "REPORT");
+        first.addMetadata("resourceSensitivity", "HIGH");
+        first.addMetadata("isProtectable", true);
+        first.addMetadata("granted", true);
+
+        SecurityEvent second = SecurityEvent.builder()
+                .userId("alice")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 10, 0, 0))
+                .build();
+        second.addMetadata("tenantId", "tenant-acme");
+        second.addMetadata("requestPath", "/api/customer/export");
+        second.addMetadata("httpMethod", "POST");
+        second.addMetadata("actionFamily", "EXPORT");
+        second.addMetadata("currentResourceFamily", "REPORT");
+        second.addMetadata("resourceSensitivity", "HIGH");
+        second.addMetadata("isProtectable", true);
+        second.addMetadata("granted", true);
+
+        provider.resolve(first);
+        CanonicalSecurityContext context = provider.resolve(second).orElseThrow();
+
+        assertThat(context.getWorkProfile()).isNotNull();
+        assertThat(context.getWorkProfile().getFrequentProtectableResources()).containsExactly("/api/customer/list");
+        assertThat(context.getWorkProfile().getFrequentActionFamilies()).containsExactly("READ");
+        assertThat(context.getWorkProfile().getNormalAccessHours()).containsExactly(9);
+        assertThat(context.getWorkProfile().getNormalAccessDays())
+                .containsExactly(LocalDateTime.of(2026, 3, 25, 9, 0).getDayOfWeek().getValue());
+        assertThat(context.getWorkProfile().getNormalRequestRate()).isEqualTo(1.0d);
+        assertThat(context.getWorkProfile().getProtectableInvocationDensity()).isEqualTo(1.0d);
+        assertThat(context.getWorkProfile().getProtectableResourceHeatmap()).containsExactly("/api/customer/list=1");
+        assertThat(context.getWorkProfile().getNormalReadWriteExportRatio()).isEqualTo("100:0:0");
+        assertThat(context.getContextTrustProfiles()).hasSize(1);
+        assertThat(context.getContextTrustProfiles().get(0).getProfileKey()).isEqualTo("PERSONAL_WORK_PROFILE");
+        assertThat(context.getContextTrustProfiles().get(0).getFieldRecords())
+                .extracting(ContextFieldTrustRecord::getFieldPath)
+                .contains("workProfile.frequentProtectableResources", "workProfile.frequentActionFamilies");
+        assertThat(second.getMetadata()).containsKeys(
+                "workProfileSummary",
+                "frequentProtectableResources",
+                "frequentActionFamilies",
+                "normalAccessHours",
+                "normalAccessDays",
+                "normalRequestRate",
+                "protectableInvocationDensity",
+                "protectableResourceHeatmap",
+                "frequentSensitiveResourceCategories",
+                "normalReadWriteExportRatio",
+                "workProfileTrustProfile",
+                "workProfileQualityGrade",
+                "workProfileQualityScore",
+                "workProfileProvenanceSummary");
+    }
+
     @Test
     void resolveShouldPreservePeerFrictionAndReasoningProfilesFromProviders() {
         DefaultCanonicalSecurityContextProvider provider = new DefaultCanonicalSecurityContextProvider(

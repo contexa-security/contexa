@@ -127,6 +127,8 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<PeerCohortContextProvider> peerCohortContextProviders,
             ObjectProvider<FrictionContextProvider> frictionContextProviders,
             ObjectProvider<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
+            ObjectProvider<SessionNarrativeCollector> sessionNarrativeCollector,
+            ObjectProvider<ProtectableWorkProfileCollector> protectableWorkProfileCollector,
             ObjectProvider<ObservedScopeInferenceService> observedScopeInferenceService) {
         return new DefaultCanonicalSecurityContextProvider(
                 resourceContextRegistry,
@@ -138,13 +140,27 @@ public class CoreAutonomousAutoConfiguration {
                 peerCohortContextProviders.orderedStream().toList(),
                 frictionContextProviders.orderedStream().toList(),
                 reasoningMemoryContextProviders.orderedStream().toList(),
-                observedScopeInferenceService.getIfAvailable());
+                observedScopeInferenceService.getIfAvailable(),
+                sessionNarrativeCollector.getIfAvailable(),
+                protectableWorkProfileCollector.getIfAvailable());
     }
 
     @Bean
     @ConditionalOnMissingBean
     public PromptContextComposer promptContextComposer() {
         return new PromptContextComposer();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public SessionNarrativeCollector sessionNarrativeCollector(SecurityContextDataStore dataStore) {
+        return new DefaultSessionNarrativeCollector(dataStore);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public ProtectableWorkProfileCollector protectableWorkProfileCollector(SecurityContextDataStore dataStore) {
+        return new DefaultProtectableWorkProfileCollector(dataStore);
     }
 
     @Bean
@@ -165,11 +181,15 @@ public class CoreAutonomousAutoConfiguration {
     public SecurityPromptTemplate securityPromptTemplate(
             SecurityEventEnricher securityEventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
-            ObjectProvider<McpSecurityContextProvider> mcpSecurityContextProvider) {
+            ObjectProvider<McpSecurityContextProvider> mcpSecurityContextProvider,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider,
+            PromptContextComposer promptContextComposer) {
         return new SecurityPromptTemplate(
                 securityEventEnricher,
                 tieredStrategyProperties,
-                mcpSecurityContextProvider.getIfAvailable());
+                mcpSecurityContextProvider.getIfAvailable(),
+                canonicalSecurityContextProvider,
+                promptContextComposer);
     }
 
     @Bean

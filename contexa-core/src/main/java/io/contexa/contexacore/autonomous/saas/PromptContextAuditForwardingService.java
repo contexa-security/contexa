@@ -8,6 +8,7 @@ import io.contexa.contexacore.autonomous.saas.mapper.PromptContextAuditPayloadMa
 import io.contexa.contexacore.domain.entity.PromptContextAuditForwardingOutboxRecord;
 import io.contexa.contexacore.repository.PromptContextAuditForwardingOutboxRepository;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
+import org.springframework.util.StringUtils;
 
 import java.util.concurrent.Executor;
 
@@ -43,7 +44,9 @@ public class PromptContextAuditForwardingService {
         PromptContextAuditForwardingOutboxRecord saved = repository.saveAndFlush(PromptContextAuditForwardingOutboxRecord.builder()
                 .auditId(payload.getAuditId())
                 .correlationId(payload.getCorrelationId())
-                .tenantExternalRef(payloadMapper.resolveTenantExternalRef(event))
+                .tenantExternalRef(StringUtils.hasText(payload.getTenantExternalRef())
+                        ? payload.getTenantExternalRef()
+                        : payloadMapper.resolveTenantExternalRef(event))
                 .payloadJson(writePayload(payload))
                 .status(PromptContextAuditForwardingOutboxRecord.STATUS_PENDING)
                 .build());

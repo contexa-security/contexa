@@ -67,6 +67,56 @@ class InMemorySecurityContextDataStoreTest {
     }
 
     @Test
+    @DisplayName("Session narrative action families keep an independent sliding window")
+    void sessionNarrativeActionFamilies_keepIndependentSlidingWindow() {
+        store.addSessionAction("session1", "12:00 | GET /api/customer/list");
+        store.addSessionNarrativeActionFamily("session1", "READ");
+        store.addSessionNarrativeActionFamily("session1", "EXPORT");
+
+        List<String> narrativeActions = store.getRecentSessionNarrativeActionFamilies("session1", 10);
+        List<String> genericActions = store.getRecentSessionActions("session1", 10);
+
+        assertThat(narrativeActions).containsExactly("READ", "EXPORT");
+        assertThat(genericActions).containsExactly("12:00 | GET /api/customer/list");
+    }
+
+    @Test
+    @DisplayName("Session narrative metadata round-trips protectable accesses, intervals, and timestamps")
+    void sessionNarrativeMetadata_roundTripsCollectorState() {
+        store.addSessionProtectableAccess("session1", "/api/customer/list");
+        store.addSessionProtectableAccess("session1", "/api/customer/export");
+        store.addSessionRequestInterval("session1", 900L);
+        store.addSessionRequestInterval("session1", 1200L);
+        store.setSessionStartedAt("session1", 1_710_000_000_000L);
+        store.setSessionLastRequestTime("session1", 1_710_000_001_200L);
+        store.setSessionPreviousPath("session1", "/api/customer/export");
+
+        assertThat(store.getRecentSessionProtectableAccesses("session1", 10))
+                .containsExactly("/api/customer/list", "/api/customer/export");
+        assertThat(store.getRecentSessionRequestIntervals("session1", 10))
+                .containsExactly(900L, 1200L);
+        assertThat(store.getSessionStartedAt("session1")).isEqualTo(1_710_000_000_000L);
+        assertThat(store.getSessionLastRequestTime("session1")).isEqualTo(1_710_000_001_200L);
+        assertThat(store.getSessionPreviousPath("session1")).isEqualTo("/api/customer/export");
+    }
+
+    @Test
+    @DisplayName("Work profile observations stay isolated per tenant scoped user")
+    void workProfileObservations_stayIsolatedPerTenantScopedUser() {
+        store.addWorkProfileObservation("tenant-a", "alice", "obs-a1");
+        store.addWorkProfileObservation("tenant-a", "alice", "obs-a2");
+        store.addWorkProfileObservation("tenant-b", "alice", "obs-b1");
+        store.addWorkProfileObservation(null, "alice", "obs-global");
+
+        assertThat(store.getRecentWorkProfileObservations("tenant-a", "alice", 10))
+                .containsExactly("obs-a1", "obs-a2");
+        assertThat(store.getRecentWorkProfileObservations("tenant-b", "alice", 10))
+                .containsExactly("obs-b1");
+        assertThat(store.getRecentWorkProfileObservations(null, "alice", 10))
+                .containsExactly("obs-global");
+    }
+
+    @Test
     @DisplayName("tryMarkEventAsProcessed returns true on first call, false on duplicate")
     void tryMarkEventAsProcessed_firstCallTrue_duplicateFalse() {
         boolean first = store.tryMarkEventAsProcessed("event-1");

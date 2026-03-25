@@ -52,9 +52,9 @@ class PromptContextAuditForwardingServiceTest {
         PromptContextAuditPayload payload = PromptContextAuditPayload.builder()
                 .auditId("audit-001")
                 .correlationId("corr-001")
+                .tenantExternalRef("tenant-acme")
                 .build();
         when(payloadMapper.map(event, "THREAT_RUNTIME_CONTEXT", authorizedPromptContext)).thenReturn(payload);
-        when(payloadMapper.resolveTenantExternalRef(event)).thenReturn("tenant-acme");
         when(repository.findByAuditId("audit-001")).thenReturn(Optional.empty());
         when(objectMapper.writeValueAsString(payload)).thenReturn("{\"auditId\":\"audit-001\"}");
         when(repository.saveAndFlush(any(PromptContextAuditForwardingOutboxRecord.class))).thenAnswer(invocation -> {
@@ -71,6 +71,7 @@ class PromptContextAuditForwardingServiceTest {
         assertThat(saved.getAuditId()).isEqualTo("audit-001");
         assertThat(saved.getTenantExternalRef()).isEqualTo("tenant-acme");
         assertThat(saved.getStatus()).isEqualTo(PromptContextAuditForwardingOutboxRecord.STATUS_PENDING);
+        verify(payloadMapper, never()).resolveTenantExternalRef(event);
         verify(dispatcher).dispatch(11L);
     }
 
@@ -95,5 +96,33 @@ class PromptContextAuditForwardingServiceTest {
 
         verify(repository, never()).saveAndFlush(any(PromptContextAuditForwardingOutboxRecord.class));
         verify(dispatcher).dispatch(7L);
+    }
+
+    @Test
+    void captureFallsBackToResolvedTenantExternalRefWhenPayloadOmitsIt() throws Exception {
+        SecurityEvent event = SecurityEvent.builder().eventId("evt-002").build();
+        AuthorizedPromptContext authorizedPromptContext = new AuthorizedPromptContext(List.of(), 1, 1, 0, "THREAT_RUNTIME_CONTEXT", List.of());
+        PromptContextAuditPayload payload = PromptContextAuditPayload.builder()
+                .auditId("audit-002")
+                .correlationId("corr-002")
+                .tenantExternalRef(" ")
+                .build();
+        when(payloadMapper.map(event, "THREAT_RUNTIME_CONTEXT", authorizedPromptContext)).thenReturn(payload);
+        when(payloadMapper.resolveTenantExternalRef(event)).thenReturn("tenant-fallback");
+        when(repository.findByAuditId("audit-002")).thenReturn(Optional.empty());
+        when(objectMapper.writeValueAsString(payload)).thenReturn("{\"auditId\":\"audit-002\"}");
+        when(repository.saveAndFlush(any(PromptContextAuditForwardingOutboxRecord.class))).thenAnswer(invocation -> {
+            PromptContextAuditForwardingOutboxRecord saved = invocation.getArgument(0);
+            saved.setId(17L);
+            return saved;
+        });
+
+        service.capture(event, "THREAT_RUNTIME_CONTEXT", authorizedPromptContext);
+
+        ArgumentCaptor<PromptContextAuditForwardingOutboxRecord> captor = ArgumentCaptor.forClass(PromptContextAuditForwardingOutboxRecord.class);
+        verify(repository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getTenantExternalRef()).isEqualTo("tenant-fallback");
+        verify(payloadMapper).resolveTenantExternalRef(event);
+        verify(dispatcher).dispatch(17L);
     }
 }
