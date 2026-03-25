@@ -13,6 +13,7 @@ import io.contexa.contexacore.autonomous.context.*;
 import io.contexa.contexacore.autonomous.event.SecurityEventCollector;
 import io.contexa.contexacore.autonomous.event.listener.ZeroTrustEventListener;
 import io.contexa.contexacore.autonomous.event.publisher.ZeroTrustEventPublisher;
+import io.contexa.contexacore.autonomous.execution.DelegatedExecutionFingerprintService;
 import io.contexa.contexacore.autonomous.execution.ZeroTrustExceptionHandler;
 import io.contexa.contexacore.autonomous.handler.SecurityEventHandler;
 import io.contexa.contexacore.autonomous.handler.handler.AuditingHandler;
@@ -92,6 +93,12 @@ public class CoreAutonomousAutoConfiguration {
     @ConditionalOnMissingBean
     public SecurityEventEnricher securityEventEnricher() {
         return new SecurityEventEnricher();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
+    public DelegatedExecutionFingerprintService delegatedExecutionFingerprintService() {
+        return new DelegatedExecutionFingerprintService();
     }
 
     @Bean
