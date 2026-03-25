@@ -2,6 +2,7 @@ package io.contexa.contexaidentity.security.core.adapter.state.oauth2;
 
 import io.contexa.contexacommon.properties.AuthContextProperties;
 import io.contexa.contexacommon.repository.UserRepository;
+import io.contexa.contexacore.security.AIOAuth2SecurityContextRepository;
 import io.contexa.contexacore.security.AIOAuth2ZeroTrustFilter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationConverter;
 import io.contexa.contexaidentity.security.core.adapter.state.oauth2.grant.AuthenticatedUserGrantAuthenticationProvider;
@@ -43,7 +44,8 @@ public final class OAuth2StateConfigurer extends AbstractHttpConfigurer<OAuth2St
         ApplicationContext appContext = getBuilder().getSharedObject(ApplicationContext.class);
         if (appContext != null) {
             try {
-                AIOAuth2ZeroTrustFilter zeroTrustFilter = appContext.getBean(AIOAuth2ZeroTrustFilter.class);
+                AIOAuth2SecurityContextRepository securityContextRepository = appContext.getBean(AIOAuth2SecurityContextRepository.class);
+                AIOAuth2ZeroTrustFilter zeroTrustFilter = new AIOAuth2ZeroTrustFilter(securityContextRepository);
                 http.addFilterAfter(zeroTrustFilter, BearerTokenAuthenticationFilter.class);
             } catch (Exception e) {
                 log.error("OAuth2StateConfigurer: AIOAuth2ZeroTrustFilter not found - Zero Trust will not be applied to OAuth2 requests");

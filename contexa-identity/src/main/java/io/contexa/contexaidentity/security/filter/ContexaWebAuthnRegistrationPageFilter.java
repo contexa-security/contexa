@@ -6,7 +6,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -57,11 +57,23 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         this.messageSource = messageSource;
     }
 
-    private String msg(String code, String defaultMsg) {
+    private java.util.Locale resolveLocale(HttpServletRequest request) {
+        jakarta.servlet.http.HttpSession session = request.getSession(false);
+        if (session != null) {
+            Object locale = session.getAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME);
+            if (locale instanceof java.util.Locale) {
+                return (java.util.Locale) locale;
+            }
+        }
+        java.util.Locale requestLocale = request.getLocale();
+        return requestLocale != null ? requestLocale : java.util.Locale.KOREAN;
+    }
+
+    private String msg(HttpServletRequest request, String code, String defaultMsg) {
         if (messageSource == null) {
             return defaultMsg;
         }
-        return messageSource.getMessage(code, null, defaultMsg, LocaleContextHolder.getLocale());
+        return messageSource.getMessage(code, null, defaultMsg, resolveLocale(request));
     }
 
     public void setRequestMatcher(RequestMatcher requestMatcher) {
@@ -84,37 +96,37 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         String html = MfaHtmlTemplates.fromTemplate(HTML_TEMPLATE)
                 .withValue("contextPath", request.getContextPath())
                 .withRawHtml("csrfHeaders", csrfToken != null ? renderCsrfHeader(csrfToken) : "{}")
-                .withRawHtml("passkeys", passkeyRows(request.getRemoteUser(), request.getContextPath(), csrfToken))
-                .withValue("i18nTitle", msg("webauthn.title", "Passkey Management"))
-                .withValue("i18nDescription", msg("webauthn.description", "Register and manage your passkeys for secure authentication."))
-                .withValue("i18nLabel", msg("webauthn.label", "Passkey Label"))
-                .withValue("i18nLabelPlaceholder", msg("webauthn.label.placeholder", "e.g. My MacBook, YubiKey"))
-                .withValue("i18nRegisterButton", msg("webauthn.register.button", "Register New Passkey"))
-                .withValue("i18nTableLabel", msg("webauthn.table.label", "Label"))
-                .withValue("i18nTableCreated", msg("webauthn.table.created", "Created"))
-                .withValue("i18nTableLastUsed", msg("webauthn.table.lastused", "Last Used"))
-                .withValue("i18nTableSignatures", msg("webauthn.table.signatures", "Signatures"))
-                .withValue("i18nTableAction", msg("webauthn.table.action", "Action"))
-                .withValue("i18nSuccess", msg("webauthn.success", "Passkey registered successfully!"))
+                .withRawHtml("passkeys", passkeyRows(request, request.getRemoteUser(), request.getContextPath(), csrfToken))
+                .withValue("i18nTitle", msg(request, "webauthn.title", "Passkey Management"))
+                .withValue("i18nDescription", msg(request, "webauthn.description", "Register and manage your passkeys for secure authentication."))
+                .withValue("i18nLabel", msg(request, "webauthn.label", "Passkey Label"))
+                .withValue("i18nLabelPlaceholder", msg(request, "webauthn.label.placeholder", "e.g. My MacBook, YubiKey"))
+                .withValue("i18nRegisterButton", msg(request, "webauthn.register.button", "Register New Passkey"))
+                .withValue("i18nTableLabel", msg(request, "webauthn.table.label", "Label"))
+                .withValue("i18nTableCreated", msg(request, "webauthn.table.created", "Created"))
+                .withValue("i18nTableLastUsed", msg(request, "webauthn.table.lastused", "Last Used"))
+                .withValue("i18nTableSignatures", msg(request, "webauthn.table.signatures", "Signatures"))
+                .withValue("i18nTableAction", msg(request, "webauthn.table.action", "Action"))
+                .withValue("i18nSuccess", msg(request, "webauthn.success", "Passkey registered successfully!"))
                 .render();
 
         response.getWriter().write(html);
     }
 
-    private String passkeyRows(String username, String contextPath, CsrfToken csrfToken) {
+    private String passkeyRows(HttpServletRequest request, String username, String contextPath, CsrfToken csrfToken) {
         PublicKeyCredentialUserEntity userEntity = this.userEntities.findByUsername(username);
         List<CredentialRecord> credentials = (userEntity != null)
                 ? this.userCredentials.findByUserId(userEntity.getId()) : Collections.emptyList();
         if (credentials.isEmpty()) {
-            String emptyMsg = msg("webauthn.empty", "No Passkeys registered");
+            String emptyMsg = msg(request, "webauthn.empty", "No Passkeys registered");
             return "<tr><td colspan=\"5\" style=\"text-align:center; color:#999; padding:20px;\">" + emptyMsg + "</td></tr>";
         }
         return credentials.stream()
-                .map(cr -> renderPasskeyRow(cr, contextPath, csrfToken))
+                .map(cr -> renderPasskeyRow(request, cr, contextPath, csrfToken))
                 .collect(Collectors.joining("\n"));
     }
 
-    private String renderPasskeyRow(CredentialRecord credential, String contextPath, CsrfToken csrfToken) {
+    private String renderPasskeyRow(HttpServletRequest request, CredentialRecord credential, String contextPath, CsrfToken csrfToken) {
         return MfaHtmlTemplates.fromTemplate(PASSKEY_ROW_TEMPLATE)
                 .withValue("label", credential.getLabel())
                 .withValue("created", formatInstant(credential.getCreated()))
@@ -124,7 +136,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 .withValue("csrfParameterName", csrfToken != null ? csrfToken.getParameterName() : "_csrf")
                 .withValue("csrfToken", csrfToken != null ? csrfToken.getToken() : "")
                 .withValue("contextPath", contextPath)
-                .withValue("deleteLabel", msg("webauthn.delete", "Delete"))
+                .withValue("deleteLabel", msg(request, "webauthn.delete", "Delete"))
                 .render();
     }
 

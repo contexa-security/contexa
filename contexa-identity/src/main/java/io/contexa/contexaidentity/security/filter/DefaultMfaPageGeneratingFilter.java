@@ -18,8 +18,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.lang.Nullable;
+import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -50,11 +50,23 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.messageSource = messageSource;
     }
 
-    private String msg(String code, String defaultMsg) {
+    private java.util.Locale resolveLocale(HttpServletRequest request) {
+        jakarta.servlet.http.HttpSession session = request.getSession(false);
+        if (session != null) {
+            Object locale = session.getAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME);
+            if (locale instanceof java.util.Locale) {
+                return (java.util.Locale) locale;
+            }
+        }
+        java.util.Locale requestLocale = request.getLocale();
+        return requestLocale != null ? requestLocale : java.util.Locale.KOREAN;
+    }
+
+    private String msg(HttpServletRequest request, String code, String defaultMsg) {
         if (messageSource == null) {
             return defaultMsg;
         }
-        return messageSource.getMessage(code, null, defaultMsg, LocaleContextHolder.getLocale());
+        return messageSource.getMessage(code, null, defaultMsg, resolveLocale(request));
     }
 
     @Override
@@ -1046,7 +1058,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
         this.stateMachineIntegrator = stateMachineIntegrator;
         this.authUrlProvider = authUrlProvider;
         this.mfaSettings = mfaSettings;
-        this.tokenPersistence = tokenPersistence != null ? tokenPersistence : "memory";
+        this.tokenPersistence = tokenPersistence != null ? tokenPersistence : "sessionStorage";
 
     }
 
@@ -1318,7 +1330,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String contextPath = request.getContextPath();
 
-        String username = getUsername();
+        String username = getUsername(request);
         if (username == null) {
             log.warn("Select Factor Page: Unauthenticated user access attempt");
             username = "(Unknown)";
@@ -1768,9 +1780,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String contextPath = request.getContextPath();
 
-        String username = getUsername();
+        String username = getUsername(request);
 
-        String usernameLabel = msg("mfa.username.label", "Username");
+        String usernameLabel = msg(request, "mfa.username.label", "Username");
         String usernameInput;
         if (username != null) {
 
@@ -1802,9 +1814,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfToken", getCsrfToken(request))
                 .withValue("csrfHeaderName", getCsrfHeaderName(request))
                 .withValue("csrfParameterName", getCsrfParameterName(request))
-                .withValue("i18nOttRequestTitle", msg("mfa.ott.request.title", "Request Authentication Code"))
-                .withValue("i18nOttRequestDescription", msg("mfa.ott.request.description", "An authentication code will be sent to your registered email address."))
-                .withValue("i18nOttRequestButton", msg("mfa.ott.request.button", "Send Authentication Code"))
+                .withValue("i18nOttRequestTitle", msg(request, "mfa.ott.request.title", "Request Authentication Code"))
+                .withValue("i18nOttRequestDescription", msg(request, "mfa.ott.request.description", "An authentication code will be sent to your registered email address."))
+                .withValue("i18nOttRequestButton", msg(request, "mfa.ott.request.button", "Send Authentication Code"))
                 .withRawHtml("usernameInput", usernameInput)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("errorMessage", errorMessage)
@@ -1822,7 +1834,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String contextPath = request.getContextPath();
 
-        String username = getUsername();
+        String username = getUsername(request);
         if (username == null) {
 
             log.warn("OTT Verify Page: Unauthenticated user access attempt");
@@ -1857,15 +1869,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("attemptsMade", String.valueOf(attemptsMade))
                 .withValue("maxAttempts", String.valueOf(maxAttempts))
                 .withValue("tokenPersistence", tokenPersistence)
-                .withValue("i18nOttVerifyTitle", msg("mfa.ott.verify.title", "Enter Authentication Code"))
-                .withValue("i18nOttVerifyDescription", msg("mfa.ott.verify.description", "Enter the 6-digit code sent to your email."))
-                .withValue("i18nOttVerifyAccountLabel", msg("mfa.ott.verify.account.label", "Account being authenticated"))
-                .withValue("i18nOttVerifyCodeLabel", msg("mfa.ott.verify.code.label", "Authentication Code"))
-                .withValue("i18nOttVerifyButton", msg("mfa.ott.verify.button", "Verify"))
-                .withValue("i18nOttResendButton", msg("mfa.ott.resend.button", "Resend Code"))
-                .withValue("i18nOttVerifyMaxAttempts", msg("mfa.ott.verify.max.attempts", "Maximum verification attempts exceeded. Please contact your administrator."))
-                .withValue("i18nOttVerifyRemaining", msg("mfa.ott.verify.remaining", " attempt(s) remaining out of "))
-                .withValue("i18nOttVerifyVerifying", msg("mfa.ott.verify.verifying", "Verifying..."))
+                .withValue("i18nOttVerifyTitle", msg(request, "mfa.ott.verify.title", "Enter Authentication Code"))
+                .withValue("i18nOttVerifyDescription", msg(request, "mfa.ott.verify.description", "Enter the 6-digit code sent to your email."))
+                .withValue("i18nOttVerifyAccountLabel", msg(request, "mfa.ott.verify.account.label", "Account being authenticated"))
+                .withValue("i18nOttVerifyCodeLabel", msg(request, "mfa.ott.verify.code.label", "Authentication Code"))
+                .withValue("i18nOttVerifyButton", msg(request, "mfa.ott.verify.button", "Verify"))
+                .withValue("i18nOttResendButton", msg(request, "mfa.ott.resend.button", "Resend Code"))
+                .withValue("i18nOttVerifyMaxAttempts", msg(request, "mfa.ott.verify.max.attempts", "Maximum verification attempts exceeded. Please contact your administrator."))
+                .withValue("i18nOttVerifyRemaining", msg(request, "mfa.ott.verify.remaining", " attempt(s) remaining out of "))
+                .withValue("i18nOttVerifyVerifying", msg(request, "mfa.ott.verify.verifying", "Verifying..."))
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
                 .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))
@@ -1882,7 +1894,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String contextPath = request.getContextPath();
 
-        String username = getUsername();
+        String username = getUsername(request);
         if (username == null) {
 
             log.warn("Passkey Challenge Page: Unauthenticated user access attempt");
@@ -1971,13 +1983,23 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     }
 
     @Nullable
-    private String getUsername() {
+    private String getUsername(HttpServletRequest request) {
+        // 1. SecurityContextHolder (SESSION mode or token-authenticated request)
         Authentication authentication = SecurityContextHolder.getContextHolderStrategy().getContext().getAuthentication();
-
         if (authentication != null
                 && authentication.isAuthenticated()
                 && !(authentication instanceof AnonymousAuthenticationToken)) {
             return authentication.getName();
+        }
+
+        // 2. FactorContext fallback (OAuth2 mode - token not yet delivered)
+        try {
+            var factorContext = stateMachineIntegrator.loadFactorContextFromRequest(request);
+            if (factorContext != null && factorContext.getUsername() != null) {
+                return factorContext.getUsername();
+            }
+        } catch (Exception e) {
+            log.error("Failed to load username from FactorContext", e);
         }
 
         return null;

@@ -69,20 +69,20 @@ public class PlatformSecurityConfig {
                                 .passkey(Customizer.withDefaults())
                                 .ott(Customizer.withDefaults())
                         .order(90)
-                ).session(Customizer.withDefaults())
-                .mfa(mfa -> mfa.requiredFactors(1)
+                ).oauth2(Customizer.withDefaults())
+               /* .mfa(mfa -> mfa.requiredFactors(1)
                         .primaryAuthentication(auth -> auth.formLogin(form -> form
                                 .defaultSuccessUrl("/test/zero-trust-index")))
 //                        .primaryAuthentication(auth -> auth.restLogin(Customizer.withDefaults()))
                         .passkey(Customizer.withDefaults())
                         .ott(Customizer.withDefaults())
-/*.mfaPage(page ->
+*//*.mfaPage(page ->
                                 page
                                         .ottPages("/custom/mfa/ott/request-code-ui", "/custom/mfa/challenge/ott")
-                                        .passkeyChallengePages("/custom/challenge/passkey"))*/
+                                        .passkeyChallengePages("/custom/challenge/passkey"))*//*
 
                         .order(1000)
-                ).session(Customizer.withDefaults())
+                ).session(Customizer.withDefaults())*/
 
                 .build();
     }

@@ -92,8 +92,11 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         if (stateType == StateType.SESSION
                 && http.getSharedObject(SecurityContextRepository.class) instanceof AISessionSecurityContextRepository) {
             // Session mode: keep AISessionSecurityContextRepository from global registration
+        } else if (securityContextRepository instanceof HttpSessionSecurityContextRepository) {
+            // MFA in-progress: session required regardless of StateType
+            http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
         } else if (stateType != StateType.SESSION) {
-            // OAuth2/Stateless: force NullSecurityContextRepository, Zero Trust handled by AIOAuth2ZeroTrustFilter
+            // OAuth2/Stateless (non-MFA or MFA final step): NullSecurityContextRepository
             http.setSharedObject(SecurityContextRepository.class, new NullSecurityContextRepository());
         } else if (!(securityContextRepository instanceof NullSecurityContextRepository)) {
             http.setSharedObject(SecurityContextRepository.class, securityContextRepository);
@@ -213,24 +216,22 @@ public abstract class AbstractAuthenticationAdapter<O extends AuthenticationProc
         if (isMfaFlow) {
             if (allSteps != null) {
                 int currentStepIndex = allSteps.indexOf(myStepConfig);
-                boolean isFirstStepInMfaFlow = (currentStepIndex == 0);
                 boolean isFinalStepInMfaFlow = (currentStepIndex == allSteps.size() - 1);
 
-                if (isFirstStepInMfaFlow && !isFinalStepInMfaFlow) {
-                    if(options.getSecurityContextRepository() != null) {
-                        return options.getSecurityContextRepository();
-                    }
-                    return new NullSecurityContextRepository();
-
-                } else if (isFinalStepInMfaFlow) {
+                if (isFinalStepInMfaFlow) {
+                    // Final step: use StateType-based repository (token or session)
                     return getSecurityContextRepository(stateType, options);
                 } else {
-                    return new NullSecurityContextRepository();
+                    // MFA in-progress: session required to maintain authentication between steps
+                    if (options.getSecurityContextRepository() != null) {
+                        return options.getSecurityContextRepository();
+                    }
+                    return new HttpSessionSecurityContextRepository();
                 }
             }
 
-            log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using NullSecurityContextRepository as fallback", getId());
-            return new NullSecurityContextRepository();
+            log.error("AuthenticationFeature [{}]: MFA flow detected but allSteps is null, using HttpSessionSecurityContextRepository as fallback", getId());
+            return new HttpSessionSecurityContextRepository();
         } else {
             return getSecurityContextRepository(stateType, options);
         }

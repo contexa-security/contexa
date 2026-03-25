@@ -926,6 +926,7 @@
 
             if (this.options.autoInit) {
                 this.stateTracker.restoreFromSession();
+                this._restoreTokensFromStorage();
             }
         }
 
@@ -937,6 +938,25 @@
         async init(options) {
             await this.apiClient.init(options);
             ContexaMFAUtils.log('MFA SDK initialized', 'info');
+        }
+
+        _restoreTokensFromStorage() {
+            const persistence = (this.options.tokenPersistence || 'memory').toLowerCase();
+            if (persistence === 'memory') return;
+
+            const storage = persistence === 'localstorage' ? localStorage : sessionStorage;
+            const accessToken = storage.getItem(TOKEN_STORAGE_KEYS.ACCESS_TOKEN);
+            const refreshToken = storage.getItem(TOKEN_STORAGE_KEYS.REFRESH_TOKEN);
+
+            if (accessToken) {
+                if (!window.TokenMemory) {
+                    window.TokenMemory = { accessToken: null, refreshToken: null };
+                }
+                window.TokenMemory.accessToken = accessToken;
+                if (refreshToken) {
+                    window.TokenMemory.refreshToken = refreshToken;
+                }
+            }
         }
 
         /**

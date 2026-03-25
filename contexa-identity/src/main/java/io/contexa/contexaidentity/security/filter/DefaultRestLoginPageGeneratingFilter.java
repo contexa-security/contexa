@@ -4,14 +4,16 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.MessageSource;
-import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.Locale;
 
 @Slf4j
 public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
@@ -27,11 +29,23 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         this.messageSource = messageSource;
     }
 
-    private String msg(String code, String defaultMsg) {
+    private Locale resolveLocale(HttpServletRequest request) {
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            Object locale = session.getAttribute(SessionLocaleResolver.LOCALE_SESSION_ATTRIBUTE_NAME);
+            if (locale instanceof Locale) {
+                return (Locale) locale;
+            }
+        }
+        Locale requestLocale = request.getLocale();
+        return requestLocale != null ? requestLocale : Locale.KOREAN;
+    }
+
+    private String msg(HttpServletRequest request, String code, String defaultMsg) {
         if (messageSource == null) {
             return defaultMsg;
         }
-        return messageSource.getMessage(code, null, defaultMsg, LocaleContextHolder.getLocale());
+        return messageSource.getMessage(code, null, defaultMsg, resolveLocale(request));
     }
 
     @Override
@@ -80,17 +94,17 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         String csrfParameterName = getCsrfParameterName(request);
 
         // i18n messages
-        String titleText = msg("login.title", "Login");
-        String usernamePlaceholder = msg("login.username.placeholder", "Username or Email");
-        String passwordPlaceholder = msg("login.password.placeholder", "Password");
-        String submitText = msg("login.submit", "Login");
-        String authenticatingText = msg("login.authenticating", "Authenticating...");
-        String footerText = msg("login.footer", "REST API based authentication system");
-        String errorInputText = msg("login.error.input", "Please enter username and password.");
-        String errorFailedText = msg("login.error.failed", "Login failed: Please check your username or password.");
-        String errorGenericText = msg("login.error.generic", "Login failed.");
-        String successText = msg("login.success", "Login successful!");
-        String logoutMsgText = msg("login.logout.message", "You have been logged out.");
+        String titleText = msg(request, "login.title", "Login");
+        String usernamePlaceholder = msg(request, "login.username.placeholder", "Username or Email");
+        String passwordPlaceholder = msg(request, "login.password.placeholder", "Password");
+        String submitText = msg(request, "login.submit", "Login");
+        String authenticatingText = msg(request, "login.authenticating", "Authenticating...");
+        String footerText = msg(request, "login.footer", "REST API based authentication system");
+        String errorInputText = msg(request, "login.error.input", "Please enter username and password.");
+        String errorFailedText = msg(request, "login.error.failed", "Login failed: Please check your username or password.");
+        String errorGenericText = msg(request, "login.error.generic", "Login failed.");
+        String successText = msg(request, "login.success", "Login successful!");
+        String logoutMsgText = msg(request, "login.logout.message", "You have been logged out.");
 
         String html = """
                 <!DOCTYPE html>
