@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='Zero Trust - 차단 사용자')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.blacklist.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -12,42 +12,42 @@
     <main class="flex-1 p-6 md:p-10">
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 text-center sm:text-left">
-                <h1 class="text-3xl font-bold text-gradient">Zero Trust - 차단 사용자</h1>
-                <p class="text-dark-muted mt-1">AI Native Zero Trust 차단 사용자 관리</p>
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.blacklist.title}">Zero Trust - Blocked Users</h1>
+                <p class="text-dark-muted mt-1" th:text="#{admin.blacklist.subtitle}">AI Native Zero Trust blocked user management</p>
             </div>
 
             <div class="flex flex-wrap gap-2 mb-6">
                 <a th:href="@{/admin/blacklist(filter='all')}"
                    th:classappend="${currentFilter == 'all'} ? 'filter-active' : 'filter-inactive'"
-                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300">전체</a>
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.blacklist.filter.all}">All</a>
                 <a th:href="@{/admin/blacklist(filter='blocked')}"
                    th:classappend="${currentFilter == 'blocked'} ? 'filter-active' : 'filter-inactive'"
-                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300">차단중</a>
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.blacklist.filter.blocked}">Blocked</a>
                 <a th:href="@{/admin/blacklist(filter='unblock_requested')}"
                    th:classappend="${currentFilter == 'unblock_requested'} ? 'filter-active-warn' : 'filter-inactive'"
-                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300">해지 요청</a>
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.blacklist.filter.unblock.requested}">Unblock Requested</a>
                 <a th:href="@{/admin/blacklist(filter='timeout_responded')}"
                    th:classappend="${currentFilter == 'timeout_responded'} ? 'filter-active-danger' : 'filter-inactive'"
-                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300">타임아웃 대응</a>
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.blacklist.filter.timeout.responded}">Timeout Responded</a>
                 <a th:href="@{/admin/blacklist(filter='resolved')}"
                    th:classappend="${currentFilter == 'resolved'} ? 'filter-active' : 'filter-inactive'"
-                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300">해제됨</a>
+                   class="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300" th:text="#{admin.blacklist.filter.resolved}">Resolved</a>
             </div>
 
             <div class="overflow-x-auto shadow-md rounded-lg">
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">ID</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.id}">ID</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold">User ID</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold">Username</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold">Risk Score</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold">Confidence</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">차단 일시</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">차단 횟수</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">상태</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.blacklist.table.blocked.at}">Blocked At</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.blacklist.table.block.count}">Block Count</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.blacklist.table.status}">Status</th>
                         <th scope="col" class="py-3.5 px-6 font-semibold">MFA</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">관리</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.actions}">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
@@ -85,20 +85,20 @@
                         <td class="py-4 px-6">
                             <a th:href="@{/admin/blacklist/{id}(id=${b.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
-                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">상세</a>
+                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);" th:text="#{common.detail}">Detail</a>
                             <form th:if="${b.status.name() == 'RESOLVED' or b.status.name() == 'TIMEOUT_RESPONDED'}"
                                   th:action="@{/admin/blacklist/{id}/delete(id=${b.id})}" method="post"
                                   class="inline-block"
-                                  onsubmit="return confirm('이 기록을 삭제하시겠습니까?');">
+                                  th:data-confirm-msg="#{common.confirm.delete.record}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
-                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">삭제</button>
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);" th:text="#{common.delete}">Delete</button>
                             </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(blockedUsers)}">
-                        <td colspan="10" class="py-4 px-6 text-center" style="color: #94a3b8;">
-                            차단된 사용자 기록이 없습니다.
+                        <td colspan="10" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.blacklist.empty}">
+                            No blocked user records.
                         </td>
                     </tr>
                     </tbody>

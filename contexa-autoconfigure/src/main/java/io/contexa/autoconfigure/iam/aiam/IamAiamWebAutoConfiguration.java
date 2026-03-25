@@ -29,14 +29,6 @@ public class IamAiamWebAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public AiStudioController aiStudioController(
-            AICoreOperations<StudioQueryContext> aiNativeProcessor,
-            StandardStreamingService streamingService) {
-        return new AiStudioController(aiNativeProcessor, streamingService);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public AiApiController aiApiController(
             AICoreOperations<PolicyContext> aiNativeProcessor,
             StandardStreamingService streamingService) {

@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='그룹 목록')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.groups.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -13,13 +13,13 @@
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 flex flex-col sm:flex-row justify-between items-center">
                 <div class="text-center sm:text-left mb-4 sm:mb-0">
-                    <h1 class="text-3xl font-bold text-gradient">그룹 목록</h1>
-                    <p class="text-dark-muted mt-1">시스템의 그룹을 관리하고 역할을 할당합니다.</p>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.groups.title}">Group List</h1>
+                    <p class="text-dark-muted mt-1" th:text="#{admin.groups.subtitle}">Manage system groups and assign roles.</p>
                 </div>
                 <a th:href="@{/admin/groups/register}"
                    class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white"
                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                    새 그룹 등록
+                    <span th:text="#{admin.groups.new}">New Group</span>
                 </a>
             </div>
 
@@ -29,15 +29,16 @@
                     <input type="text" name="keyword" th:value="${keyword}"
                            class="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm"
                            style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;"
-                           placeholder="검색...">
+                           th:placeholder="#{admin.users.search.placeholder}" placeholder="Search...">
                 </div>
                 <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-medium text-white"
                         style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
-                    <i class="fas fa-search mr-1"></i> 검색
+                    <i class="fas fa-search mr-1"></i> <span th:text="#{common.action.search}">Search</span>
                 </button>
                 <a th:href="@{/admin/groups}" class="px-4 py-2.5 rounded-lg text-sm font-medium"
-                   style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
-                    초기화
+                   style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
+                   th:text="#{common.action.reset}">
+                    Reset
                 </a>
             </form>
 
@@ -45,35 +46,37 @@
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">ID</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">그룹명</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">설명</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">할당된 역할 수</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">소속 사용자 수</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">관리</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.id}">ID</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.groups.table.name}">Group Name</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.groups.table.description}">Description</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.groups.table.role.count}">Assigned Roles</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.groups.table.user.count}">Member Count</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.actions}">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
                     <tr th:each="group : ${groups}" style="border-color: rgba(71, 85, 105, 0.3);">
                         <td class="py-4 px-6" th:text="${group.id}">1</td>
-                        <td class="py-4 px-6 font-medium" th:text="${group.name}">개발팀</td>
-                        <td class="py-4 px-6" th:text="${group.description}" style="color: #cbd5e1;">소프트웨어 개발 담당</td>
+                        <td class="py-4 px-6 font-medium" th:text="${group.name}">Dev Team</td>
+                        <td class="py-4 px-6" th:text="${group.description}" style="color: #cbd5e1;">Software Development</td>
                         <td class="py-4 px-6" th:text="${group.roleCount}">0</td>
                         <td class="py-4 px-6" th:text="${group.userCount}">0</td>
                         <td class="py-4 px-6">
                             <a th:href="@{/admin/groups/{id}(id=${group.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
-                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">수정</a>
+                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                               th:text="#{common.action.edit}">Edit</a>
                             <form th:action="@{/admin/groups/delete/{id}(id=${group.id})}" method="post" style="display:inline;"
-                                  onsubmit="return confirm('정말로 이 그룹을 삭제하시겠습니까?');">
+                                  th:data-confirm-msg="#{common.confirm.delete.group}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
-                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;">삭제</button>
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;"
+                                        th:text="#{common.action.delete}">Delete</button>
                             </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(groups)}">
                         <td colspan="6" class="py-4 px-6 text-center" style="color: #94a3b8;">
-                            표시할 그룹이 없습니다.
+                            <span th:text="#{admin.groups.empty}">No groups to display.</span>
                         </td>
                     </tr>
                     </tbody>

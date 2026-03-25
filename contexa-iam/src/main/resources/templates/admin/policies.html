@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='정책 목록')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.policies.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -13,13 +13,13 @@
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 flex flex-col sm:flex-row justify-between items-center">
                 <div class="text-center sm:text-left mb-4 sm:mb-0">
-                    <h1 class="text-3xl font-bold text-gradient">정책 목록 (Policy List)</h1>
-                    <p class="text-dark-muted mt-1">접근 제어 정책을 정의하고 관리합니다.</p>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.policies.title}">Policy List</h1>
+                    <p class="text-dark-muted mt-1" th:text="#{admin.policies.subtitle}">Define and manage access control policies.</p>
                 </div>
                 <a th:href="@{/admin/policies/register}"
                    class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white"
                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                    새 정책 등록
+                    <span th:text="#{admin.policies.new}">Register New Policy</span>
                 </a>
             </div>
 
@@ -28,14 +28,14 @@
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
                         <th scope="col" class="py-3.5 px-6 font-semibold">ID</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">정책명 (Name)</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">설명</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">적용대상</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">효과 (Effect)</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">출처</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">승인 상태</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">우선순위</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">관리</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.name}">Policy Name (Name)</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.description}">Description</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.targets}">Targets</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.effect}">Effect</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.source}">Source</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.approval}">Approval Status</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.priority}">Priority</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.policies.table.actions}">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
@@ -96,33 +96,33 @@
                         <td class="py-4 px-6 whitespace-nowrap">
                             <a th:href="@{/admin/policies/{id}(id=${policy.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-1"
-                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">수정</a>
+                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);" th:text="#{admin.policies.edit}">Edit</a>
                             <!-- Approve button (not shown if already APPROVED) -->
                             <form th:if="${policy.approvalStatus == null || policy.approvalStatus.name() != 'APPROVED'}"
                                   th:action="@{/admin/policies/{id}/approve(id=${policy.id})}" method="post" class="inline">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 mr-1"
-                                        style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">승인</button>
+                                        style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);" th:text="#{admin.policies.approve}">Approve</button>
                             </form>
                             <!-- Reject button (not shown if already REJECTED) -->
                             <form th:if="${policy.approvalStatus == null || policy.approvalStatus.name() != 'REJECTED'}"
                                   th:action="@{/admin/policies/{id}/reject(id=${policy.id})}" method="post" class="inline"
-                                  onsubmit="return confirm('이 정책을 거절하시겠습니까? 거절 시 비활성화됩니다.');">
+                                  th:data-confirm-msg="#{admin.policies.confirm.reject}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 mr-1"
-                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">거절</button>
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);" th:text="#{admin.policies.reject}">Reject</button>
                             </form>
                             <form th:action="@{/admin/policies/delete/{id}(id=${policy.id})}" method="post" class="inline"
-                                  onsubmit="return confirm('정말로 이 정책을 삭제하시겠습니까?');">
+                                  th:data-confirm-msg="#{admin.policies.confirm.delete}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
-                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">삭제</button>
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);" th:text="#{admin.policies.delete}">Delete</button>
                             </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(policies)}">
                         <td colspan="9" class="py-4 px-6 text-center" style="color: #94a3b8;">
-                            표시할 정책이 없습니다.
+                            <span th:text="#{admin.policies.empty}">No policies to display.</span>
                         </td>
                     </tr>
                     </tbody>

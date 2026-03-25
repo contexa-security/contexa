@@ -3,7 +3,7 @@
     <nav class="admin-sidebar">
         <div>
             <h3 class="main-title">
-                <span>IAM Command Center</span>
+                <span th:text="#{menu.main.title}">IAM Command Center</span>
             </h3>
             <ul class="space-y-1">
                 <li>
@@ -11,7 +11,7 @@
                         <div class="menu-icon-wrapper">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
                         </div>
-                        <span>대시보드</span>
+                        <span th:text="#{menu.dashboard}">Dashboard</span>
                         <span class="menu-glow"></span>
                     </a>
                 </li>
@@ -19,87 +19,86 @@
         </div>
 
         <div th:if="${contexaAdminEnterpriseEnabled}">
-            <h3 class="section-title">Enterprise Operations</h3>
+            <h3 class="section-title" th:text="#{menu.enterprise.title}">Enterprise Operations</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/enterprise}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-home'} ? ' active' : ''"><span class="menu-bullet"></span>Enterprise Home<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/zerotrust}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-zerotrust'} ? ' active' : ''"><span class="menu-bullet"></span>Zero Trust Operations<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/incidents}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-incidents'} ? ' active' : ''"><span class="menu-bullet"></span>SOAR Incident Console<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/approvals}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-approvals'} ? ' active' : ''"><span class="menu-bullet"></span>Approval Inbox<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/mcp}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-mcp'} ? ' active' : ''"><span class="menu-bullet"></span>MCP Tools and Servers<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/permits}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-permits'} ? ' active' : ''"><span class="menu-bullet"></span>Permit Registry<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/executions}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-executions'} ? ' active' : ''"><span class="menu-bullet"></span>Execution History<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/playbooks}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-playbooks'} ? ' active' : ''"><span class="menu-bullet"></span>Playbooks and Prompts<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/metrics}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-metrics'} ? ' active' : ''"><span class="menu-bullet"></span>Metrics and Dashboards<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/enterprise/integration}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-integration'} ? ' active' : ''"><span class="menu-bullet"></span>System Integration<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-home'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.home}">Enterprise Home</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/zerotrust}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-zerotrust'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.zerotrust}">Zero Trust Operations</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/incidents}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-incidents'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.incidents}">SOAR Incident Console</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/approvals}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-approvals'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.approvals}">Approval Inbox</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/mcp}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-mcp'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.mcp}">MCP Tools and Servers</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/permits}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-permits'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.permits}">Permit Registry</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/executions}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-executions'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.executions}">Execution History</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/playbooks}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-playbooks'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.playbooks}">Playbooks and Prompts</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/metrics}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-metrics'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.metrics}">Metrics and Dashboards</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/enterprise/integration}" class="menu-link-sub" th:classappend="${activePage == 'enterprise-integration'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.enterprise.integration}">System Integration</span><span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
         <div th:if="${contexaAdminSaasEnabled}">
-            <h3 class="section-title">SaaS Control Plane</h3>
+            <h3 class="section-title" th:text="#{menu.saas.title}">SaaS Control Plane</h3>
             <ul class="space-y-1">
                 <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','BILLING_ADMIN','DEDICATED_OPS_ADMIN')">
                     <a th:href="@{/admin/saas/tenants}" class="menu-link-sub" th:classappend="${activePage == 'saas-platform-tenants' or activePage == 'saas-platform-tenant-detail' or activePage == 'saas-platform-tenant-operations'} ? ' active' : ''">
-                        <span class="menu-bullet"></span>SaaS Tenants<span class="menu-glow"></span>
+                        <span class="menu-bullet"></span><span th:text="#{menu.saas.tenants}">SaaS Tenants</span><span class="menu-glow"></span>
                     </a>
                 </li>
                 <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','BILLING_ADMIN')">
                     <a th:href="@{/admin/saas/billing}" class="menu-link-sub" th:classappend="${activePage == 'saas-platform-billing'} ? ' active' : ''">
-                        <span class="menu-bullet"></span>Billing Operations<span class="menu-glow"></span>
+                        <span class="menu-bullet"></span><span th:text="#{menu.saas.billing}">Billing Operations</span><span class="menu-glow"></span>
                     </a>
                 </li>
                 <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','DEDICATED_OPS_ADMIN')">
                     <a th:href="@{/admin/saas/dedicated}" class="menu-link-sub" th:classappend="${activePage == 'saas-platform-dedicated'} ? ' active' : ''">
-                        <span class="menu-bullet"></span>Dedicated Operations<span class="menu-glow"></span>
+                        <span class="menu-bullet"></span><span th:text="#{menu.saas.dedicated}">Dedicated Operations</span><span class="menu-glow"></span>
                     </a>
                 </li>
                 <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','BILLING_ADMIN','DEDICATED_OPS_ADMIN')">
                     <a th:href="@{/admin/saas/release-governance}" class="menu-link-sub" th:classappend="${activePage == 'saas-release-governance'} ? ' active' : ''">
-                        <span class="menu-bullet"></span>Release Governance<span class="menu-glow"></span>
+                        <span class="menu-bullet"></span><span th:text="#{menu.saas.release.governance}">Release Governance</span><span class="menu-glow"></span>
                     </a>
                 </li>
                 <li sec:authorize="hasAnyRole('ADMIN','TENANT_ADMIN','TENANT_OPERATOR','TENANT_AUDITOR','TENANT_BILLING_ADMIN')">
                     <a th:href="@{/admin/saas/tenant/workspace}" class="menu-link-sub" th:classappend="${activePage == 'saas-tenant-workspace' or activePage == 'saas-tenant-overview' or activePage == 'saas-tenant-clients' or activePage == 'saas-tenant-billing'} ? ' active' : ''">
-                        <span class="menu-bullet"></span>Tenant Workspace<span class="menu-glow"></span>
+                        <span class="menu-bullet"></span><span th:text="#{menu.saas.tenant.workspace}">Tenant Workspace</span><span class="menu-glow"></span>
                     </a>
                 </li>
             </ul>
         </div>
 
         <div>
-            <h3 class="section-title">정책 센터</h3>
+            <h3 class="section-title" th:text="#{menu.policy.center.title}">Policy Center</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/policy-center}" class="menu-link-sub" th:classappend="${activePage == 'policy-center'} ? ' active' : ''"><span class="menu-bullet"></span><strong>정책 센터</strong><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/policy-center}" class="menu-link-sub" th:classappend="${activePage == 'policy-center'} ? ' active' : ''"><span class="menu-bullet"></span><strong th:text="#{menu.policy.center}">Policy Center</strong><span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
         <div>
-            <h3 class="section-title">권한 센터</h3>
+            <h3 class="section-title" th:text="#{menu.access.center.title}">Access Center</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/access-center}" class="menu-link-sub" th:classappend="${activePage == 'access-center'} ? ' active' : ''"><span class="menu-bullet"></span><strong>권한 센터</strong><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/access-center}" class="menu-link-sub" th:classappend="${activePage == 'access-center'} ? ' active' : ''"><span class="menu-bullet"></span><strong th:text="#{menu.access.center}">Access Center</strong><span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
         <div>
-            <h3 class="section-title">ID 및 접근 관리</h3>
+            <h3 class="section-title" th:text="#{menu.iam.title}">ID &amp; Access Management</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/users}" class="menu-link-sub" th:classappend="${activePage == 'users'} ? ' active' : ''"><span class="menu-bullet"></span>사용자 관리<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/groups}" class="menu-link-sub" th:classappend="${activePage == 'groups'} ? ' active' : ''"><span class="menu-bullet"></span>그룹 관리<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/roles}" class="menu-link-sub" th:classappend="${activePage == 'roles'} ? ' active' : ''"><span class="menu-bullet"></span>역할 관리<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/permissions}" class="menu-link-sub" th:classappend="${activePage == 'permissions'} ? ' active' : ''"><span class="menu-bullet"></span>권한 관리<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/role-hierarchies}" class="menu-link-sub" th:classappend="${activePage == 'role-hierarchies'} ? ' active' : ''"><span class="menu-bullet"></span>역할 계층 관리<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/password-policy}" class="menu-link-sub" th:classappend="${activePage == 'password-policy'} ? ' active' : ''"><span class="menu-bullet"></span>비밀번호 정책<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/users}" class="menu-link-sub" th:classappend="${activePage == 'users'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.iam.users}">User Management</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/groups}" class="menu-link-sub" th:classappend="${activePage == 'groups'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.iam.groups}">Group Management</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/roles}" class="menu-link-sub" th:classappend="${activePage == 'roles'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.iam.roles}">Role Management</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/permissions}" class="menu-link-sub" th:classappend="${activePage == 'permissions'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.iam.permissions}">Permission Management</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/role-hierarchies}" class="menu-link-sub" th:classappend="${activePage == 'role-hierarchies'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.iam.role.hierarchies}">Role Hierarchy</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/password-policy}" class="menu-link-sub" th:classappend="${activePage == 'password-policy'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.iam.password.policy}">Password Policy</span><span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
         <div>
-            <h3 class="section-title">Zero Trust</h3>
+            <h3 class="section-title" th:text="#{menu.zerotrust.title}">Zero Trust</h3>
             <ul class="space-y-1">
-                <li><a th:href="@{/admin/security-monitor}" class="menu-link-sub" th:classappend="${activePage == 'security-monitor'} ? ' active' : ''"><span class="menu-bullet"></span>실시간 현황<span class="menu-glow"></span></a></li>
-                <li><a th:href="@{/admin/blacklist}" class="menu-link-sub" th:classappend="${activePage == 'blacklist'} ? ' active' : ''"><span class="menu-bullet"></span>차단된 사용자<span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/security-monitor}" class="menu-link-sub" th:classappend="${activePage == 'security-monitor'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.zerotrust.monitor}">Real-time Monitor</span><span class="menu-glow"></span></a></li>
+                <li><a th:href="@{/admin/blacklist}" class="menu-link-sub" th:classappend="${activePage == 'blacklist'} ? ' active' : ''"><span class="menu-bullet"></span><span th:text="#{menu.zerotrust.blacklist}">Blocked Users</span><span class="menu-glow"></span></a></li>
             </ul>
         </div>
 
     </nav>
     <script th:src="@{/js/admin-menu.js}"></script>
 </div>
-

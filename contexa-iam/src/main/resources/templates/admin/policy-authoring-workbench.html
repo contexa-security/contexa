@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='비즈니스 정책 생성')}"></th:block>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.policy.authoring.title})}"></th:block>
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <style>
         /* Select2 다크 테마 스타일 (기존 common-head.html의 스타일과 조화되도록) */
@@ -63,34 +63,34 @@
     <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
         <div class="w-full max-w-3xl p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
             <div class="text-center mb-8">
-                <h1 class="text-3xl font-bold text-gradient">비즈니스 정책 생성</h1>
-                <p class="text-sm mt-2" style="color: #94a3b8;">사용자 친화적인 마법사를 통해 새로운 접근 정책을 생성합니다.</p>
+                <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.policy.authoring.title}">Business Policy Creation</h1>
+                <p class="text-sm mt-2" style="color: #94a3b8;" th:text="#{admin.policy.authoring.subtitle}">Create new access policies through a user-friendly wizard.</p>
             </div>
 
             <form id="policy-form" class="space-y-8" method="post" th:action="@{/admin/authoring/policy-workbench}" th:object="${businessPolicyDto}">
 
                 <div class="space-y-4">
-                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;">1. 정책 기본 정보</h3>
+                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;" th:text="#{admin.policy.authoring.step1.title}">1. Policy Basic Information</h3>
                     <div>
-                        <label for="policyName" class="block text-sm font-medium" style="color: #cbd5e1;">정책 이름:</label>
-                        <input type="text" id="policyName" th:field="*{policyName}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required placeholder="예: 개발팀 문서 접근 정책">
+                        <label for="policyName" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.authoring.policy.name}">Policy Name:</label>
+                        <input type="text" id="policyName" th:field="*{policyName}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required th:placeholder="#{admin.policy.authoring.js.name.placeholder}">
                     </div>
                     <div>
-                        <label for="description" class="block text-sm font-medium" style="color: #cbd5e1;">정책 설명:</label>
-                        <input type="text" id="description" th:field="*{description}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" placeholder="정책에 대한 상세 설명 (선택 사항)">
+                        <label for="description" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.authoring.policy.desc}">Policy Description:</label>
+                        <input type="text" id="description" th:field="*{description}" class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-app-accent focus:border-app-accent sm:text-sm" style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" th:placeholder="#{admin.policy.authoring.js.desc.placeholder}">
                     </div>
                 </div>
 
                 <div class="space-y-4">
-                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;">2. 주체 (누가?)</h3>
+                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;" th:text="#{admin.policy.authoring.step2.title}">2. Subject (Who?)</h3>
                     <div>
-                        <label for="subjectUserIds" class="block text-sm font-medium" style="color: #cbd5e1;">사용자 선택:</label>
+                        <label for="subjectUserIds" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.authoring.select.users}">Select Users:</label>
                         <select id="subjectUserIds" th:field="*{subjectUserIds}" multiple="multiple" class="mt-1 block w-full">
                             <option th:each="user : ${allUsers}" th:value="${user.id}" th:text="${user.name + ' (' + user.username + ')'}"></option>
                         </select>
                     </div>
                     <div>
-                        <label for="subjectGroupIds" class="block text-sm font-medium" style="color: #cbd5e1;">그룹 선택:</label>
+                        <label for="subjectGroupIds" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.authoring.select.groups}">Select Groups:</label>
                         <select id="subjectGroupIds" th:field="*{subjectGroupIds}" multiple="multiple" class="mt-1 block w-full">
                             <option th:each="group : ${allGroups}" th:value="${group.id}" th:text="${group.name}"></option>
                         </select>
@@ -98,16 +98,16 @@
                 </div>
 
                 <div class="space-y-4">
-                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;">3. 접근 대상 (무엇을 어떻게?)</h3>
+                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;" th:text="#{admin.policy.authoring.step3.title}">3. Access Target (What & How?)</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label for="businessResourceIds" class="block text-sm font-medium" style="color: #cbd5e1;">자원:</label>
+                            <label for="businessResourceIds" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.authoring.resource}">Resource:</label>
                             <select id="businessResourceIds" th:field="*{businessResourceIds}" multiple="multiple" class="mt-1 block w-full">
                                 <option th:each="resource : ${allResources}" th:value="${resource.id}" th:text="${resource.name}"></option>
                             </select>
                         </div>
                         <div>
-                            <label for="businessActionIds" class="block text-sm font-medium" style="color: #cbd5e1;">행위:</label>
+                            <label for="businessActionIds" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.authoring.action}">Action:</label>
                             <select id="businessActionIds" th:field="*{businessActionIds}" multiple="multiple" class="mt-1 block w-full">
                                 <option th:each="action : ${allActions}" th:value="${action.id}" th:text="${action.name}"></option>
                             </select>
@@ -116,15 +116,15 @@
                 </div>
 
                 <div class="space-y-4">
-                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;">4. 추가 조건 (어떤 상황에서?)</h3>
+                    <h3 class="text-lg font-semibold" style="color: #e2e8f0; border-bottom: 1px solid rgba(71, 85, 105, 0.3); padding-bottom: 0.5rem;" th:text="#{admin.policy.authoring.step4.title}">4. Additional Conditions (Under what circumstances?)</h3>
                     <div id="condition-container" class="space-y-4"></div>
-                    <button type="button" id="add-condition-btn" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;">+ 조건 추가</button>
+                    <button type="button" id="add-condition-btn" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;" th:text="#{admin.policy.authoring.add.condition}">+ Add Condition</button>
                 </div>
 
                 <div class="pt-8 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
                             style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                        정책 생성하기
+                        <span th:text="#{admin.policy.authoring.submit}">Create Policy</span>
                     </button>
                 </div>
             </form>
@@ -142,16 +142,24 @@
 </style>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- i18n data for JS -->
+<div id="i18nAuthoring" style="display:none"
+     th:data-select-placeholder="#{admin.policy.authoring.js.select.placeholder}"
+     th:data-no-results="#{admin.policy.authoring.js.no.results}"
+     th:data-select-condition-type="#{admin.policy.authoring.js.select.condition.type}"
+     th:data-param-placeholder="#{admin.policy.authoring.js.param.placeholder}"></div>
+
 <script th:src="@{/js/toast.js}"></script>
 <script th:inline="javascript">
     $(document).ready(function() {
-        // Select2 라이브러리 초기화
+        // Select2 initialization
+        var _i18nAuth = document.getElementById('i18nAuthoring').dataset;
         $('#subjectUserIds, #subjectGroupIds, #businessResourceIds, #businessActionIds').select2({
-            placeholder: "항목을 선택하세요",
+            placeholder: _i18nAuth.selectPlaceholder,
             allowClear: true,
             closeOnSelect: false,
             language: {
-                noResults: function() { return "검색 결과가 없습니다"; }
+                noResults: function() { return _i18nAuth.noResults; }
             }
         });
 
@@ -161,7 +169,7 @@
 
         // '조건 추가' 버튼 클릭 이벤트
         document.getElementById('add-condition-btn').addEventListener('click', () => {
-            let optionsHtml = '<option value="">조건 유형 선택</option>';
+            let optionsHtml = '<option value="">' + _i18nAuth.selectConditionType + '</option>';
             conditionTemplates.forEach(t => {
                 optionsHtml += `<option value="<span class="math-inline">\{t\.id\}" data\-params\="</span>{t.parameterCount}">${t.name}</option>`;
             });
@@ -197,11 +205,9 @@
                     const paramCount = parseInt(selectedOption.dataset.params || '0', 10);
                     const paramsContainer = e.target.closest('.condition-item').querySelector('.condition-params-container');
 
-                    paramsContainer.innerHTML = ''; // 기존 파라미터 필드 초기화
+                    paramsContainer.innerHTML = '';
                     for (let i = 0; i < paramCount; i++) {
-                        // DTO의 Map<Long, List<String>> 구조에 맞게 name 속성을 설정
-                        // Key: templateId, Value: params
-                        paramsContainer.innerHTML += `<input type="text" class="mt-1 block w-full" name="conditions[${selectedOption.value}]" placeholder="파라미터 ${i + 1} 입력" required style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0; border-radius: 0.5rem; padding: 0.625rem 1rem;">`;
+                        paramsContainer.innerHTML += `<input type="text" class="mt-1 block w-full" name="conditions[${selectedOption.value}]" placeholder="${_i18nAuth.paramPlaceholder.replace('{0}', i + 1)}" required style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0; border-radius: 0.5rem; padding: 0.625rem 1rem;">`;
                     }
                 }
             });

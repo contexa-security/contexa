@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='권한 목록')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.permissions.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -13,13 +13,13 @@
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 flex flex-col sm:flex-row justify-between items-center">
                 <div class="text-center sm:text-left mb-4 sm:mb-0">
-                    <h1 class="text-3xl font-bold text-gradient">권한 목록</h1>
-                    <p class="text-dark-muted mt-1">시스템의 세부 권한을 정의하고 관리합니다.</p>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.permissions.title}">Permission List</h1>
+                    <p class="text-dark-muted mt-1" th:text="#{admin.permissions.subtitle}">Define and manage detailed permissions.</p>
                 </div>
                 <a th:href="@{/admin/permissions/register}"
                    class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white"
                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                    새 권한 등록
+                    <span th:text="#{admin.permissions.new}">New Permission</span>
                 </a>
             </div>
 
@@ -29,15 +29,16 @@
                     <input type="text" name="keyword" th:value="${keyword}"
                            class="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm"
                            style="background:rgba(30,41,59,0.6);border:2px solid rgba(71,85,105,0.5);color:#e2e8f0;"
-                           placeholder="검색...">
+                           th:placeholder="#{admin.users.search.placeholder}" placeholder="Search...">
                 </div>
                 <button type="submit" class="px-4 py-2.5 rounded-lg text-sm font-medium text-white"
                         style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
-                    <i class="fas fa-search mr-1"></i> 검색
+                    <i class="fas fa-search mr-1"></i> <span th:text="#{common.action.search}">Search</span>
                 </button>
                 <a th:href="@{/admin/permissions}" class="px-4 py-2.5 rounded-lg text-sm font-medium"
-                   style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);">
-                    초기화
+                   style="color:#94a3b8;border:1px solid rgba(71,85,105,0.5);"
+                   th:text="#{common.action.reset}">
+                    Reset
                 </a>
             </form>
 
@@ -45,13 +46,13 @@
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">ID</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">권한</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">권한 명</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">권한 설명</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">대상 타입</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">행동 타입</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">관리</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.id}">ID</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.name}">Permission</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.friendly.name}">Friendly Name</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.description}">Description</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.target.type}">Target Type</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.permissions.table.action.type}">Action Type</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.actions}">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
@@ -59,7 +60,7 @@
                         <td class="py-4 px-6" th:text="${permission.id}">1</td>
                         <td class="py-4 px-6 font-mono text-sm" th:text="${permission.name}">DOCUMENT_READ</td>
                         <td class="py-4 px-6 font-mono text-sm" th:text="${permission.friendlyName}">DOCUMENT_READ</td>
-                        <td class="py-4 px-6" th:text="${permission.description}" style="color: #cbd5e1;">문서 읽기 권한</td>
+                        <td class="py-4 px-6" th:text="${permission.description}" style="color: #cbd5e1;">Document read permission</td>
                         <td class="py-4 px-6">
                             <span class="px-2 py-1 rounded-full text-xs font-semibold"
                                   th:style="${permission.targetType == 'URL' ? 'background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3);' : 'background: rgba(139, 92, 246, 0.2); color: #a78bfa; border: 1px solid rgba(139, 92, 246, 0.3);'}"
@@ -71,17 +72,19 @@
                         <td class="py-4 px-6">
                             <a th:href="@{/admin/permissions/{id}(id=${permission.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block mr-2"
-                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">수정</a>
+                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);"
+                               th:text="#{common.action.edit}">Edit</a>
                             <form th:action="@{/admin/permissions/delete/{id}(id=${permission.id})}" method="post" style="display:inline;"
-                                  onsubmit="return confirm('정말로 이 권한을 삭제하시겠습니까?');">
+                                  th:data-confirm-msg="#{common.confirm.delete.permission}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <button type="submit" class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
-                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;">삭제</button>
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); cursor:pointer;"
+                                        th:text="#{common.action.delete}">Delete</button>
                             </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(permissions)}">
                         <td colspan="7" class="py-4 px-6 text-center" style="color: #94a3b8;">
-                            표시할 권한이 없습니다.
+                            <span th:text="#{admin.permissions.empty}">No permissions to display.</span>
                         </td>
                     </tr>
                     </tbody>
@@ -125,7 +128,7 @@
         if (typeof initAuth === 'function') {
             initAuth();
         }
-        // 토스트 메시지 표시
+        // Show toast messages
         const message = /*[[${message}]]*/ null;
         if (message) {
             showToast(message, 'success');

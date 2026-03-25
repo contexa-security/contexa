@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='역할 계층 목록')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.role.hierarchy.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -13,13 +13,13 @@
         <div class="mx-auto dark-card p-6 sm:p-8 rounded-xl">
             <div class="mb-8 flex flex-col sm:flex-row justify-between items-center">
                 <div class="text-center sm:text-left mb-4 sm:mb-0">
-                    <h1 class="text-3xl font-bold text-gradient">역할 계층 관리</h1>
-                    <p class="text-dark-muted mt-1">역할 간의 상하 관계를 정의합니다. 여러 계층을 동시에 활성화할 수 있으며 자동 병합됩니다.</p>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.role.hierarchy.title}">Role Hierarchy Management</h1>
+                    <p class="text-dark-muted mt-1" th:text="#{admin.role.hierarchy.subtitle}">Define hierarchical relationships between roles. Multiple hierarchies can be active simultaneously and are automatically merged.</p>
                 </div>
                 <a th:href="@{/admin/role-hierarchies/register}"
                    class="px-6 py-3 rounded-xl font-semibold transition-all duration-300 text-white"
                    style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                    새 계층 등록
+                    <span th:text="#{admin.role.hierarchy.new}">Register New Hierarchy</span>
                 </a>
             </div>
 
@@ -27,11 +27,11 @@
                 <table class="min-w-full w-full text-sm text-left">
                     <thead class="text-xs text-white uppercase" style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%);">
                     <tr>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">ID</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">설명</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">계층 구조</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">활성 상태</th>
-                        <th scope="col" class="py-3.5 px-6 font-semibold">관리</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.id}">ID</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.role.hierarchy.table.description}">Description</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.role.hierarchy.table.structure}">Hierarchy Structure</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{admin.role.hierarchy.table.status}">Active Status</th>
+                        <th scope="col" class="py-3.5 px-6 font-semibold" th:text="#{common.table.actions}">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y" style="background: rgba(15, 23, 42, 0.6); color: #e2e8f0; border-color: rgba(71, 85, 105, 0.3);">
@@ -42,31 +42,31 @@
                         <td class="py-4 px-6 font-mono whitespace-pre-wrap" th:text="${h.hierarchyString}">ROLE_ADMIN > ROLE_MANAGER</td>
                         <td class="py-4 px-6">
                             <span th:if="${h.isActive}" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                                  style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);">활성</span>
+                                  style="background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid rgba(34, 197, 94, 0.3);" th:text="#{admin.role.hierarchy.active}">Active</span>
                             <span th:unless="${h.isActive}" class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
-                                  style="background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3);">비활성</span>
+                                  style="background: rgba(107, 114, 128, 0.2); color: #9ca3af; border: 1px solid rgba(107, 114, 128, 0.3);" th:text="#{admin.role.hierarchy.inactive}">Inactive</span>
                         </td>
                         <td class="py-4 px-6 space-x-3 whitespace-nowrap">
                             <a th:href="@{/admin/role-hierarchies/{id}(id=${h.id})}"
                                class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300 inline-block"
-                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">수정</a>
+                               style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);" th:text="#{common.edit}">Edit</a>
                             <form th:action="@{/admin/role-hierarchies/delete/{id}(id=${h.id})}" method="post" class="inline"
-                                  onsubmit="return confirm('정말로 이 계층을 삭제하시겠습니까?');">
+                                  th:data-confirm-msg="#{common.confirm.delete.hierarchy}" onsubmit="return confirm(this.getAttribute('data-confirm-msg'));">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
-                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">삭제</button>
+                                        style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);" th:text="#{common.delete}">Delete</button>
                             </form>
                             <form th:action="@{/admin/role-hierarchies/{id}/activate(id=${h.id})}" method="post" class="inline">
                                 <button type="submit"
                                         class="px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-300"
                                         th:style="${h.isActive ? 'background: rgba(34,197,94,0.2); color: #4ade80; border: 1px solid rgba(34,197,94,0.3);' : 'background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.3);'}"
-                                        th:text="${h.isActive ? '비활성화' : '활성화'}">활성화</button>
+                                        th:text="${h.isActive} ? #{common.action.deactivate} : #{common.action.activate}">Activate</button>
                             </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(hierarchies)}">
-                        <td colspan="5" class="py-4 px-6 text-center" style="color: #94a3b8;">
-                            표시할 역할 계층이 없습니다.
+                        <td colspan="5" class="py-4 px-6 text-center" style="color: #94a3b8;" th:text="#{admin.role.hierarchy.empty}">
+                            No role hierarchies to display.
                         </td>
                     </tr>
                     </tbody>

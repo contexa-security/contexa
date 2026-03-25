@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${policy.id != null ? '정책 수정' : '정책 등록'})}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${policy.id != null ? #{admin.policy.detail.edit.title} : #{admin.policy.detail.create.title}})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -12,30 +12,30 @@
     <main class="flex-1 p-6 md:p-10 flex items-center justify-center">
         <div class="w-full max-w-3xl p-8 sm:p-10 rounded-xl shadow-2xl" style="background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(20px); border: 1px solid rgba(71, 85, 105, 0.3);">
             <div class="text-center mb-8">
-                <h2 class="mt-4 text-3xl font-bold text-gradient" th:text="${policy.id != null ? '정책 수정' : '새 정책 등록'}"></h2>
+                <h2 class="mt-4 text-3xl font-bold text-gradient" th:text="${policy.id != null} ? #{admin.policy.detail.edit.title} : #{admin.policy.detail.create.title}"></h2>
             </div>
             <div class="mb-6 p-4 rounded-lg border" style="background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.3);">
-                <h3 class="font-semibold text-lg" style="color: #93c5fd;">정책 요약 (자동 생성)</h3>
-                <p class="mt-2 text-sm font-mono" style="color: #dbeafe;" th:text="${policy.description} ?: '저장 후 요약 정보가 생성됩니다.'"></p>
+                <h3 class="font-semibold text-lg" style="color: #93c5fd;" th:text="#{admin.policy.detail.summary.title}">Policy Summary (Auto-generated)</h3>
+                <p class="mt-2 text-sm font-mono" style="color: #dbeafe;" th:text="${policy.description} ?: #{admin.policy.detail.summary.empty}"></p>
             </div>
             <form th:action="${policy.id != null ? '/admin/policies/' + policy.id + '/edit' : '/admin/policies'}" method="post" th:object="${policy}" class="space-y-6">
                 <input type="hidden" th:field="*{id}" th:if="${policy.id != null}" />
 
                 <div>
-                    <label for="name" class="block text-sm font-medium" style="color: #cbd5e1;">정책명 (고유값):</label>
+                    <label for="name" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.name}">Policy Name (Unique):</label>
                     <input type="text" id="name" th:field="*{name}"
                            class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
                            style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required />
                 </div>
                 <div>
-                    <label for="description" class="block text-sm font-medium" style="color: #cbd5e1;">설명:</label>
+                    <label for="description" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.description}">Description:</label>
                     <input type="text" id="description" th:field="*{description}"
                            class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
                            style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label for="effect" class="block text-sm font-medium" style="color: #cbd5e1;">효과 (Effect):</label>
+                        <label for="effect" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.effect}">Effect:</label>
                         <select id="effect" th:field="*{effect}"
                                 class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
                                 style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
@@ -43,14 +43,14 @@
                         </select>
                     </div>
                     <div>
-                        <label for="priority" class="block text-sm font-medium" style="color: #cbd5e1;">우선순위 (낮을수록 먼저 평가):</label>
+                        <label for="priority" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.priority}">Priority (lower = evaluated first):</label>
                         <input type="number" id="priority" th:field="*{priority}"
                                class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
                                style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" required />
                     </div>
                 </div>
                 <div class="space-y-4">
-                    <label class="block text-sm font-medium" style="color: #cbd5e1;">적용 대상 (Targets)</label>
+                    <label class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.targets}">Targets</label>
                     <div id="targets-container" class="space-y-4">
                         <div th:each="target, stat : *{targets}" class="target-block grid grid-cols-12 gap-2 items-center">
                             <div class="col-span-3">
@@ -81,38 +81,38 @@
                             </div>
                         </div>
                     </div>
-                    <button type="button" id="add-target-btn" class="text-sm font-medium hover:underline" style="color: #818cf8;">+ 적용 대상 추가</button>
+                    <button type="button" id="add-target-btn" class="text-sm font-medium hover:underline" style="color: #818cf8;" th:text="#{admin.policy.detail.add.target}">+ Add Target</button>
                 </div>
 
                 <div class="space-y-4">
-                    <label class="block text-sm font-medium" style="color: #cbd5e1;">규칙 (Rules - 각 규칙은 OR 로 결합)</label>
+                    <label class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.rules}">Rules (each rule combined with OR)</label>
                     <div id="rules-container" class="space-y-4">
                         <div th:each="rule, ruleStat : *{rules}" class="rule-block p-4 rounded-lg space-y-3 relative" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
                             <button type="button" onclick="removeRule(this)" class="absolute top-2 right-2 hover:text-red-400" style="color: #94a3b8;">&times;</button>
-                            <h3 class="font-semibold" style="color: #e2e8f0;" th:text="'규칙(Rule) #' + ${ruleStat.index + 1}"></h3>
+                            <h3 class="font-semibold" style="color: #e2e8f0;" th:text="'Rule #' + ${ruleStat.index + 1}"></h3>
                             <div>
-                                <label th:for="${'ruleDesc' + ruleStat.index}" class="block text-sm font-medium" style="color: #cbd5e1;">규칙 설명:</label>
+                                <label th:for="${'ruleDesc' + ruleStat.index}" class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.rule.desc}">Rule Description:</label>
                                 <input type="text" th:id="${'ruleDesc' + ruleStat.index}" th:field="*{rules[__${ruleStat.index}__].description}"
                                        class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
                                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium" style="color: #cbd5e1;">조건 (Conditions - Rule 내부에서는 AND 결합):</label>
+                                <label class="block text-sm font-medium" style="color: #cbd5e1;" th:text="#{admin.policy.detail.conditions}">Conditions (AND within Rule):</label>
                                 <div class="conditions-list space-y-2 mt-2">
                                     <div th:each="cond, condStat : ${rule.conditions}" class="condition-block grid grid-cols-12 gap-2 items-center">
                                         <div class="col-span-3">
                                             <select th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].authorizationPhase}"
                                                     class="block w-full px-4 py-2.5 rounded-lg shadow-sm text-sm"
                                                     style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
-                                                <option th:value="'PRE_AUTHORIZE'" th:text="'사전 인가 (Pre)'"></option>
-                                                <option th:value="'POST_AUTHORIZE'" th:text="'사후 인가 (Post)'"></option>
+                                                <option th:value="'PRE_AUTHORIZE'" th:text="#{admin.policy.detail.pre.authorize}"></option>
+                                                <option th:value="'POST_AUTHORIZE'" th:text="#{admin.policy.detail.post.authorize}"></option>
                                             </select>
                                         </div>
                                         <div class="col-span-8">
                                             <input type="text" th:field="*{rules[__${ruleStat.index}__].conditions[__${condStat.index}__].expression}"
                                                    class="block w-full px-4 py-2.5 rounded-lg shadow-sm font-mono text-sm"
                                                    style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
-                                                   placeholder="SpEL 표현식 입력">
+                                                   th:placeholder="#{admin.policy.detail.spel.placeholder}">
                                         </div>
                                         <div class="col-span-1 text-center">
                                             <button type="button" onclick="removeElement(this, '.condition-block')"
@@ -120,29 +120,39 @@
                                         </div>
                                     </div>
                                 </div>
-                                <button type="button" onclick="addCondition(this)" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;">+ 조건 추가</button>
+                                <button type="button" onclick="addCondition(this)" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;" th:text="#{admin.policy.detail.add.condition}">+ Add Condition</button>
                             </div>
                         </div>
                     </div>
-                    <button type="button" id="add-rule-btn" class="text-sm font-medium hover:underline" style="color: #818cf8;">+ 규칙 추가</button>
+                    <button type="button" id="add-rule-btn" class="text-sm font-medium hover:underline" style="color: #818cf8;" th:text="#{admin.policy.detail.add.rule}">+ Add Rule</button>
                 </div>
 
                 <div class="pt-2">
                     <button type="submit"
                             class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
                             style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                        저장
+                        <span th:text="#{admin.policy.detail.save}">Save</span>
                     </button>
                 </div>
             </form>
             <div class="mt-6 text-center">
-                <a th:href="@{/admin/policies}" class="text-sm font-medium hover:underline" style="color: #818cf8;">정책 목록으로 돌아가기</a>
+                <a th:href="@{/admin/policies}" class="text-sm font-medium hover:underline" style="color: #818cf8;" th:text="#{admin.policy.detail.back}">Back to Policy List</a>
             </div>
         </div>
     </main>
 </div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
+
+<!-- i18n data for JS -->
+<div id="i18nPolicyDetail" style="display:none"
+     th:data-rule-title="#{admin.policy.detail.js.rule.title}"
+     th:data-rule-desc-label="#{admin.policy.detail.js.rule.desc.label}"
+     th:data-conditions-label="#{admin.policy.detail.js.conditions.label}"
+     th:data-add-condition="#{admin.policy.detail.js.add.condition}"
+     th:data-pre-authorize="#{admin.policy.detail.js.pre.authorize}"
+     th:data-post-authorize="#{admin.policy.detail.js.post.authorize}"
+     th:data-spel-placeholder="#{admin.policy.detail.js.spel.placeholder}"></div>
 
 <script>
     document.getElementById('add-target-btn').addEventListener('click', function() {
@@ -194,20 +204,21 @@
         const newRuleBlock = document.createElement('div');
         newRuleBlock.className = 'rule-block p-4 rounded-lg space-y-3 relative';
         newRuleBlock.style = 'background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);';
+        var _i18n = document.getElementById('i18nPolicyDetail').dataset;
         newRuleBlock.innerHTML = `
             <button type="button" onclick="removeRule(this)" class="absolute top-2 right-2 hover:text-red-400" style="color: #94a3b8;">&times;</button>
-            <h3 class="font-semibold" style="color: #e2e8f0;">규칙(Rule) #${newIndex + 1}</h3>
+            <h3 class="font-semibold" style="color: #e2e8f0;">${_i18n.ruleTitle.replace('{0}', newIndex + 1)}</h3>
             <div>
-                <label for="ruleDesc${newIndex}" class="block text-sm font-medium" style="color: #cbd5e1;">규칙 설명:</label>
+                <label for="ruleDesc${newIndex}" class="block text-sm font-medium" style="color: #cbd5e1;">${_i18n.ruleDescLabel}</label>
                 <input type="text" id="ruleDesc${newIndex}" name="rules[${newIndex}].description"
                        class="mt-1 block w-full px-4 py-2.5 rounded-lg shadow-sm sm:text-sm"
                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;" />
             </div>
             <div>
-                <label class="block text-sm font-medium" style="color: #cbd5e1;">조건 (Conditions - Rule 내부에서는 AND 결합):</label>
+                <label class="block text-sm font-medium" style="color: #cbd5e1;">${_i18n.conditionsLabel}</label>
                 <div class="conditions-list space-y-2 mt-2">
                 </div>
-                <button type="button" onclick="addCondition(this)" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;">+ 조건 추가</button>
+                <button type="button" onclick="addCondition(this)" class="mt-2 text-sm font-medium hover:underline" style="color: #818cf8;">${_i18n.addCondition}</button>
             </div>
         `;
         rulesContainer.appendChild(newRuleBlock);
@@ -246,9 +257,10 @@
         const ruleBlocks = rulesContainer.getElementsByClassName('rule-block');
         for (let i = 0; i < ruleBlocks.length; i++) {
             const block = ruleBlocks[i];
-            block.querySelector('h3').textContent = `규칙(Rule) #${i + 1}`;
+            var _i18n = document.getElementById('i18nPolicyDetail').dataset;
+            block.querySelector('h3').textContent = _i18n.ruleTitle.replace('{0}', i + 1);
 
-            // 규칙 설명 필드 업데이트
+            // Update rule description field
             const descLabel = block.querySelector('label[for^="ruleDesc"]');
             const descInput = block.querySelector('input[id^="ruleDesc"]');
             if (descLabel && descInput) {
@@ -276,20 +288,21 @@
 
         const newCondition = document.createElement('div');
         newCondition.className = 'condition-block grid grid-cols-12 gap-2 items-center';
+        var _i18n = document.getElementById('i18nPolicyDetail').dataset;
         newCondition.innerHTML = `
             <div class="col-span-3">
                 <select name="rules[${ruleIndex}].conditions[${conditionIndex}].authorizationPhase"
                         class="block w-full px-4 py-2.5 rounded-lg shadow-sm text-sm"
                         style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;">
-                    <option value="PRE_AUTHORIZE">사전 인가 (Pre)</option>
-                    <option value="POST_AUTHORIZE">사후 인가 (Post)</option>
+                    <option value="PRE_AUTHORIZE">${_i18n.preAuthorize}</option>
+                    <option value="POST_AUTHORIZE">${_i18n.postAuthorize}</option>
                 </select>
             </div>
             <div class="col-span-8">
                 <input type="text" name="rules[${ruleIndex}].conditions[${conditionIndex}].expression"
                        class="block w-full px-4 py-2.5 rounded-lg shadow-sm font-mono text-sm"
                        style="background: rgba(30, 41, 59, 0.6); border: 2px solid rgba(71, 85, 105, 0.5); color: #e2e8f0;"
-                       placeholder="SpEL 표현식 입력">
+                       placeholder="${_i18n.spelPlaceholder}">
             </div>
             <div class="col-span-1 text-center">
                 <button type="button" onclick="removeElement(this, '.condition-block')"

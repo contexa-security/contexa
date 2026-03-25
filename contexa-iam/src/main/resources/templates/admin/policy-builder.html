@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='지능형 정책 빌더')}"></th:block>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.policy.builder.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         /* 모달 오버레이 스타일 */
@@ -1054,7 +1054,7 @@
 <div class="modal-overlay">
     <div class="modal-container">
         <!-- 닫기 버튼 -->
-        <button class="close-button" title="닫기">
+        <button class="close-button" th:title="#{admin.policy.builder.close}">
             <i class="fas fa-times"></i>
         </button>
 
@@ -1063,32 +1063,32 @@
             <div class="policy-builder-container relative">
                 <div th:if="${resourceContext}" class="context-indicator">
                     <i class="fas fa-link"></i>
-                    <span>리소스 컨텍스트 인지됨</span>
+                    <span th:text="#{admin.policy.builder.context.detected}">Resource context detected</span>
                 </div>
 
                 <!-- 헤더 섹션 -->
                 <div class="mb-8">
-                    <h1 class="text-4xl font-bold text-gradient mb-2">지능형 정책 빌더</h1>
-                    <p class="text-lg text-dark-muted">AI와 시각적 도구를 사용하여 정교한 접근 제어 정책을 구성합니다.</p>
+                    <h1 class="text-4xl font-bold text-gradient mb-2" th:text="#{admin.policy.builder.title}">Intelligent Policy Builder</h1>
+                    <p class="text-lg text-dark-muted" th:text="#{admin.policy.builder.subtitle}">Compose sophisticated access control policies using AI and visual tools.</p>
                 </div>
 
                 <!-- AI 입력 섹션 -->
                 <div class="ai-input-section">
                     <h2 class="text-2xl font-bold mb-4 text-gradient">
-                        <i class="fas fa-magic mr-3"></i>AI로 정책 생성하기
+                        <i class="fas fa-magic mr-3"></i><span th:text="#{admin.policy.builder.ai.title}">Generate Policy with AI</span>
                     </h2>
                     <textarea
                             id="naturalLanguageInput"
                             class="ai-textarea w-full"
                             rows="3"
-                            placeholder="예시) 개발팀은 평일 업무시간에만 '고객 데이터 조회' 권한을 가집니다."></textarea>
+                            th:placeholder="#{admin.policy.builder.ai.placeholder}"></textarea>
                     <div class="flex items-center gap-3 mt-4">
-                        <select id="ai-query-mode" class="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-300 text-sm" title="AI 분석 모드">
-                            <option value="streaming">스트리밍 분석</option>
-                            <option value="sync">일반 분석</option>
+                        <select id="ai-query-mode" class="px-3 py-2 bg-slate-700 border border-slate-600 rounded text-slate-300 text-sm" th:title="#{admin.policy.builder.js.ai.mode.title}">
+                            <option value="streaming" th:text="#{admin.policy.builder.ai.mode.streaming}">Streaming Analysis</option>
+                            <option value="sync" th:text="#{admin.policy.builder.ai.mode.sync}">Standard Analysis</option>
                         </select>
                         <button id="generateByAiBtn" class="ai-generate-btn flex-1">
-                            <i class="fas fa-robot mr-3"></i>AI로 정책 초안 생성
+                            <i class="fas fa-robot mr-3"></i><span th:text="#{admin.policy.builder.ai.generate}">Generate Policy Draft with AI</span>
                         </button>
                     </div>
                 </div>
@@ -1101,7 +1101,7 @@
                         <div class="palette-section">
                             <div class="palette-header">
                                 <div class="palette-icon"><i class="fas fa-user-shield"></i></div>
-                                <h3 class="palette-title">역할 (Who)</h3>
+                                <h3 class="palette-title" th:text="#{admin.policy.builder.palette.roles}">Roles (Who)</h3>
                             </div>
                             <div id="roles-palette" class="palette-container dark-scroll">
                                 <div th:each="role : ${allRoles}"
@@ -1121,7 +1121,7 @@
                                 <div class="palette-icon">
                                     <i class="fas fa-key"></i>
                                 </div>
-                                <h3 class="palette-title">권한 (What)</h3>
+                                <h3 class="palette-title" th:text="#{admin.policy.builder.palette.permissions}">Permissions (What)</h3>
                             </div>
                             <div id="permissionsPalette" class="palette-container dark-scroll">
                                 <div th:if="${preselectedPermission != null}"
@@ -1160,7 +1160,7 @@
                                 <div class="palette-icon">
                                     <i class="fas fa-clock"></i>
                                 </div>
-                                <h3 class="palette-title">조건 (When)</h3>
+                                <h3 class="palette-title" th:text="#{admin.policy.builder.palette.conditions}">Conditions (When)</h3>
                             </div>
                             <div id="conditionsPalette" class="palette-container dark-scroll">
                                 <div th:each="cond : ${allConditions}"
@@ -1168,7 +1168,7 @@
                                      th:classappend="${!cond.isCompatible} ? 'disabled' : ''"
                                      th:draggable="${cond.isCompatible}"
                                      th:data-info="${cond.id + ':' + cond.name}"
-                                     th:data-spel="${cond.spelTemplate}" th:title="${!cond.isCompatible ? '현재 리소스 컨텍스트에서는 사용할 수 없는 조건입니다.' : cond.description}"
+                                     th:data-spel="${cond.spelTemplate}" th:title="${!cond.isCompatible} ? #{admin.policy.builder.condition.incompatible} : ${cond.description}"
                                      data-type="condition">
                                     <i class="fas fa-clock text-orange-400"></i>
                                     <span th:text="${cond.name}"></span>
@@ -1180,32 +1180,32 @@
                     <!-- 캔버스 영역 -->
                     <div class="col-span-12 lg:col-span-6">
                         <div class="dark-card p-6">
-                            <h2 class="text-2xl font-bold text-gradient mb-6">정책 구성</h2>
+                            <h2 class="text-2xl font-bold text-gradient mb-6" th:text="#{admin.policy.builder.canvas.title}">Policy Composition</h2>
                             <div class="space-y-6">
                                 <div>
-                                    <label class="modern-label">이 역할(들)은 (WHO)</label>
+                                    <label class="modern-label" th:text="#{admin.policy.builder.canvas.who}">These role(s) (WHO)</label>
                                     <div id="roles-canvas" class="canvas-zone" data-canvas-type="role">
                                         <div class="canvas-placeholder">
                                             <i class="fas fa-hand-pointer"></i>
-                                            <span>왼쪽에서 역할을 드래그하여 여기에 놓으세요</span>
+                                            <span th:text="#{admin.policy.builder.canvas.drag.role}">Drag roles from the left and drop here</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="modern-label">이러한 권한으로 (WHAT)</label>
+                                    <label class="modern-label" th:text="#{admin.policy.builder.canvas.what}">With these permissions (WHAT)</label>
                                     <div id="permissions-canvas" class="canvas-zone" data-canvas-type="permission">
                                         <div class="canvas-placeholder">
                                             <i class="fas fa-hand-pointer"></i>
-                                            <span>왼쪽에서 권한을 드래그하여 여기에 놓으세요</span>
+                                            <span th:text="#{admin.policy.builder.canvas.drag.permission}">Drag permissions from the left and drop here</span>
                                         </div>
                                     </div>
                                 </div>
                                 <div>
-                                    <label class="modern-label">아래 조건이 만족될 때 (WHEN)</label>
+                                    <label class="modern-label" th:text="#{admin.policy.builder.canvas.when}">When these conditions are met (WHEN)</label>
                                     <div id="conditions-canvas" class="canvas-zone" data-canvas-type="condition">
                                         <div class="canvas-placeholder">
                                             <i class="fas fa-hand-pointer"></i>
-                                            <span>왼쪽에서 조건을 드래그하여 여기에 놓으세요</span>
+                                            <span th:text="#{admin.policy.builder.canvas.drag.condition}">Drag conditions from the left and drop here</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1216,31 +1216,31 @@
                     <!-- 속성 및 저장 패널 -->
                     <div class="col-span-12 lg:col-span-3">
                         <div class="properties-panel">
-                            <h2 class="text-xl font-bold text-gradient mb-6">속성 및 저장</h2>
+                            <h2 class="text-xl font-bold text-gradient mb-6" th:text="#{admin.policy.builder.properties.title}">Properties & Save</h2>
                             <div class="space-y-4">
                                 <div>
-                                    <label for="policyNameInput" class="modern-label">정책 이름</label>
-                                    <input type="text" id="policyNameInput" class="modern-input w-full" placeholder="예: 개발팀 소스코드 접근 정책">
+                                    <label for="policyNameInput" class="modern-label" th:text="#{admin.policy.builder.properties.name}">Policy Name</label>
+                                    <input type="text" id="policyNameInput" class="modern-input w-full" th:placeholder="#{admin.policy.builder.properties.name.placeholder}">
                                 </div>
                                 <div>
-                                    <label for="policyDescTextarea" class="modern-label">설명</label>
-                                    <textarea id="policyDescTextarea" class="modern-input w-full" rows="3" placeholder="정책의 목적과 적용 범위를 설명하세요"></textarea>
+                                    <label for="policyDescTextarea" class="modern-label" th:text="#{admin.policy.builder.properties.desc}">Description</label>
+                                    <textarea id="policyDescTextarea" class="modern-input w-full" rows="3" th:placeholder="#{admin.policy.builder.properties.desc.placeholder}"></textarea>
                                 </div>
                                 <div>
-                                    <label for="policyEffectSelect" class="modern-label">효과</label>
+                                    <label for="policyEffectSelect" class="modern-label" th:text="#{admin.policy.builder.properties.effect}">Effect</label>
                                     <select id="policyEffectSelect" class="modern-input w-full">
-                                        <option value="ALLOW">허용 (ALLOW)</option>
-                                        <option value="DENY">거부 (DENY)</option>
+                                        <option value="ALLOW" th:text="#{admin.policy.builder.properties.effect.allow}">Allow (ALLOW)</option>
+                                        <option value="DENY" th:text="#{admin.policy.builder.properties.effect.deny}">Deny (DENY)</option>
                                     </select>
                                 </div>
 
                                 <!-- AI 동적 분석 섹션 -->
                                 <div class="ai-toggle-container">
                                     <h3 class="font-semibold text-dark-secondary mb-3">
-                                        <i class="fas fa-robot mr-2 text-gradient"></i>AI 동적 분석
+                                        <i class="fas fa-robot mr-2 text-gradient"></i><span th:text="#{admin.policy.builder.properties.ai.title}">AI Dynamic Analysis</span>
                                     </h3>
                                     <label for="aiEnabledCheckbox" class="flex items-center justify-between cursor-pointer">
-                                        <span class="text-sm text-dark-primary">AI 실시간 리스크 평가</span>
+                                        <span class="text-sm text-dark-primary" th:text="#{admin.policy.builder.properties.ai.realtime}">AI Real-time Risk Assessment</span>
                                         <input type="checkbox" id="aiEnabledCheckbox" class="modern-checkbox">
                                     </label>
                                     <div id="aiActionContainer" class="hidden mt-4">
@@ -1252,27 +1252,27 @@
 
                                 <div>
                                     <label for="customSpelInput" class="modern-label">
-                                        <i class="fas fa-code mr-2"></i>추가 조건 (전문가용)
+                                        <i class="fas fa-code mr-2"></i><span th:text="#{admin.policy.builder.properties.custom.spel}">Additional Conditions (Expert)</span>
                                     </label>
                                     <textarea id="customSpelInput" class="modern-input w-full font-mono text-xs" rows="2" placeholder="e.g., #request.remoteAddr == '1.2.3.4'"></textarea>
                                 </div>
                             </div>
 
                             <button id="savePolicyBtn" class="save-button mt-6">
-                                <i class="fas fa-save mr-2"></i>정책 생성하기
+                                <i class="fas fa-save mr-2"></i><span th:text="#{admin.policy.builder.save}">Create Policy</span>
                             </button>
                         </div>
 
                         <!-- 실시간 미리보기 -->
                         <div class="preview-panel">
                             <h3 class="font-semibold text-dark-secondary mb-4 text-lg">
-                                <i class="fas fa-eye mr-2"></i>실시간 정책 미리보기
+                                <i class="fas fa-eye mr-2"></i><span th:text="#{admin.policy.builder.preview.title}">Real-time Policy Preview</span>
                             </h3>
                             <div id="policyPreview" class="preview-content">
                                 <div class="text-center text-dark-muted py-8">
                                     <i class="fas fa-puzzle-piece text-4xl mb-4 opacity-50"></i>
-                                    <div>정책 구성 요소를 추가하면</div>
-                                    <div>상세한 미리보기가 표시됩니다</div>
+                                    <div th:text="#{admin.policy.builder.preview.empty1}">Add policy components to see</div>
+                                    <div th:text="#{admin.policy.builder.preview.empty2}">a detailed preview</div>
                                 </div>
                             </div>
                         </div>

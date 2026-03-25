@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='권한 부여 마법사')}"></th:block>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.granting.wizard.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
 </head>
 <body class="flex flex-col min-h-screen font-sans">
@@ -18,22 +18,22 @@
              th:data-assignment-type="${assignmentType}">
             <div class="mb-8 flex justify-between items-center">
                 <div>
-                    <h1 class="text-3xl font-bold text-gradient">권한 부여 마법사</h1>
+                    <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.granting.wizard.title}">Permission Grant Wizard</h1>
                     <p class="text-dark-muted mt-2">
-                        주체 <strong id="subject-name" class="text-indigo-300" th:text="${subjectName}"></strong>의 멤버십을 관리합니다.
+                        <span th:text="#{admin.granting.wizard.subtitle.manage}">Manage membership of subject</span> <strong id="subject-name" class="text-indigo-300" th:text="${subjectName}"></strong>
                     </p>
                 </div>
                 <div>
-                    <a th:href="@{/admin/studio}" class="dark-btn-secondary">취소</a>
+                    <a th:href="@{/admin/studio}" class="dark-btn-secondary" th:text="#{admin.granting.wizard.cancel}">Cancel</a>
                     <button id="save-button" type="button" class="dark-btn-primary ml-2">
-                        <i class="fas fa-save mr-2"></i>저장
+                        <i class="fas fa-save mr-2"></i><span th:text="#{admin.granting.wizard.save}">Save</span>
                     </button>
                 </div>
             </div>
 
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div id="selection-panel" class="lg:col-span-4 dark-card p-4">
-                    <h3 class="font-semibold text-lg text-slate-300 mb-4" th:text="'전체 ' + (${assignmentType == 'GROUP'} ? '그룹' : '역할') + ' 목록'"></h3>
+                    <h3 class="font-semibold text-lg text-slate-300 mb-4" th:text="${assignmentType == 'GROUP'} ? #{admin.granting.wizard.all.groups} : #{admin.granting.wizard.all.roles}"></h3>
                     <div class="h-96 overflow-y-auto space-y-2 pr-2 dark-scroll">
                         <div th:each="item : ${allAssignments}" class="dark-checkbox-item">
                             <input type="checkbox" th:value="${item.id}" th:id="'item-'+${item.id}"
@@ -44,16 +44,16 @@
                 </div>
 
                 <div class="lg:col-span-4 dark-card p-4">
-                    <h3 class="font-semibold text-lg text-slate-300 mb-4" th:text="'현재 할당된 ' + (${assignmentType == 'GROUP'} ? '그룹' : '역할')"></h3>
+                    <h3 class="font-semibold text-lg text-slate-300 mb-4" th:text="${assignmentType == 'GROUP'} ? #{admin.granting.wizard.current.groups} : #{admin.granting.wizard.current.roles}"></h3>
                     <div id="assignment-list" class="h-96 overflow-y-auto space-y-2 pr-2 dark-scroll">
                     </div>
                 </div>
 
                 <div class="lg:col-span-4 dark-card p-4">
-                    <h3 class="font-semibold text-lg text-slate-300 mb-4">실시간 영향 분석</h3>
+                    <h3 class="font-semibold text-lg text-slate-300 mb-4" th:text="#{admin.granting.wizard.impact.title}">Real-time Impact Analysis</h3>
                     <div id="simulation-result-container" class="h-96 overflow-y-auto space-y-4 dark-scroll">
-                        <div class="flex items-center justify-center h-full text-slate-500">
-                            멤버십 변경 시 분석 결과가 여기에 표시됩니다.
+                        <div class="flex items-center justify-center h-full text-slate-500" th:text="#{admin.granting.wizard.impact.placeholder}">
+                            Analysis results will be displayed when membership changes.
                         </div>
                     </div>
                 </div>

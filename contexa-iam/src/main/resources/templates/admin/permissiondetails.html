@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${permission.id != null ? '권한 수정' : '권한 등록'})}">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${permission.id != null ? #{admin.permissions.detail.edit.title} : #{admin.permissions.detail.create.title}})}">
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 
@@ -16,7 +16,7 @@
                 <div class="inline-flex items-center justify-center w-16 h-16 rounded-full mb-4" style="background: linear-gradient(135deg, #6366f1, #818cf8);">
                     <i class="fas fa-key text-2xl text-white"></i>
                 </div>
-                <h2 class="text-3xl font-bold text-gradient" th:text="${permission.id != null ? '권한 수정' : '새 권한 등록'}"></h2>
+                <h2 class="text-3xl font-bold text-gradient" th:text="${permission.id != null} ? #{admin.permissions.detail.edit.title} : #{admin.permissions.detail.create.title}">Permission Details</h2>
             </div>
 
             <form th:action="${permission.id != null ? '/admin/permissions/' + permission.id + '/edit' : '/admin/permissions'}" method="post" th:object="${permission}" class="space-y-6">
@@ -26,13 +26,13 @@
                 <div class="space-y-4">
                     <h3 class="text-lg font-semibold flex items-center gap-2" style="color: #e2e8f0;">
                         <i class="fas fa-info-circle" style="color: #818cf8;"></i>
-                        기본 정보
+                        <span th:text="#{admin.permissions.detail.basic.info}">Basic Information</span>
                     </h3>
 
                     <!-- Permission Name -->
                     <div>
                         <label for="name" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                            <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> 권한명 (고유값, 대문자)
+                            <i class="fas fa-tag mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.name}">Permission Name (unique, uppercase)</span>
                         </label>
                         <input type="text" id="name" th:field="*{name}"
                                class="detail-input font-mono"
@@ -42,21 +42,21 @@
                     <!-- Friendly Name -->
                     <div>
                         <label for="friendlyName" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                            <i class="fas fa-smile mr-1" style="color: #94a3b8;"></i> 친화적 이름
+                            <i class="fas fa-smile mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.friendly.name}">Friendly Name</span>
                         </label>
                         <input type="text" id="friendlyName" th:field="*{friendlyName}"
                                class="detail-input"
-                               placeholder="사용자 조회" />
+                               th:placeholder="#{admin.permissions.detail.friendly.name.placeholder}" placeholder="Read Users" />
                     </div>
 
                     <!-- Description -->
                     <div>
                         <label for="description" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                            <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> 설명
+                            <i class="fas fa-align-left mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.description}">Description</span>
                         </label>
                         <input type="text" id="description" th:field="*{description}"
                                class="detail-input"
-                               placeholder="권한에 대한 설명을 입력하세요" />
+                               th:placeholder="#{admin.permissions.detail.description.placeholder}" placeholder="Enter permission description" />
                     </div>
                 </div>
 
@@ -64,14 +64,14 @@
                 <div class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
                         <i class="fas fa-crosshairs" style="color: #818cf8;"></i>
-                        접근 제어
+                        <span th:text="#{admin.permissions.detail.access.control}">Access Control</span>
                     </h3>
 
                     <div class="grid grid-cols-2 gap-4">
                         <!-- Target Type -->
                         <div>
                             <label for="targetType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                                <i class="fas fa-bullseye mr-1" style="color: #94a3b8;"></i> 대상 타입
+                                <i class="fas fa-bullseye mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.target.type}">Target Type</span>
                             </label>
                             <input type="text" id="targetType" th:field="*{targetType}"
                                    class="detail-input"
@@ -81,7 +81,7 @@
                         <!-- Action Type -->
                         <div>
                             <label for="actionType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                                <i class="fas fa-bolt mr-1" style="color: #94a3b8;"></i> 행동 타입
+                                <i class="fas fa-bolt mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.action.type}">Action Type</span>
                             </label>
                             <input type="text" id="actionType" th:field="*{actionType}"
                                    class="detail-input"
@@ -92,7 +92,7 @@
                     <!-- Condition Expression -->
                     <div class="mt-4">
                         <label for="conditionExpression" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                            <i class="fas fa-code mr-1" style="color: #94a3b8;"></i> 조건 표현식 (SpEL)
+                            <i class="fas fa-code mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.condition.expression}">Condition Expression (SpEL)</span>
                         </label>
                         <textarea id="conditionExpression" th:field="*{conditionExpression}" rows="3"
                                   class="detail-input font-mono"
@@ -104,15 +104,15 @@
                 <div th:if="${permission.id != null and permission.managedResourceId != null}" class="pt-6 border-t" style="border-color: rgba(71, 85, 105, 0.3);">
                     <h3 class="text-lg font-semibold flex items-center gap-2 mb-4" style="color: #e2e8f0;">
                         <i class="fas fa-link" style="color: #818cf8;"></i>
-                        연결된 리소스
+                        <span th:text="#{admin.permissions.detail.linked.resource}">Linked Resource</span>
                     </h3>
                     <div class="p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
                         <p class="text-sm font-mono" style="color: #94a3b8;" th:text="${permission.managedResourceIdentifier}"></p>
                         <a th:href="@{/admin/workbench/resources(keyword=${permission.managedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
-                            <i class="fas fa-external-link-alt mr-1"></i> 워크벤치에서 보기
+                            <i class="fas fa-external-link-alt mr-1"></i> <span th:text="#{admin.permissions.detail.view.workbench}">View in Workbench</span>
                         </a>
                     </div>
-                    <p class="text-xs mt-2" style="color: #64748b;">권한과 리소스의 연결은 '리소스 워크벤치'에서 관리됩니다.</p>
+                    <p class="text-xs mt-2" style="color: #64748b;" th:text="#{admin.permissions.detail.resource.link.desc}">Permission-resource linking is managed in the Resource Workbench.</p>
                 </div>
 
                 <!-- Submit Button -->
@@ -121,7 +121,7 @@
                             class="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-app-accent transition-all duration-150 ease-in-out transform hover:scale-105"
                             style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
                         <i class="fas fa-check mr-2"></i>
-                        <span th:text="${permission.id != null ? '권한 저장' : '권한 등록'}"></span>
+                        <span th:text="${permission.id != null} ? #{admin.permissions.detail.save} : #{admin.permissions.detail.register}">Save</span>
                     </button>
                 </div>
             </form>
@@ -130,7 +130,7 @@
             <div class="mt-6 text-center">
                 <a th:href="@{/admin/permissions}" class="inline-flex items-center text-sm font-medium hover:underline transition-all duration-200" style="color: #818cf8;">
                     <i class="fas fa-arrow-left mr-2"></i>
-                    권한 목록으로 돌아가기
+                    <span th:text="#{admin.permissions.detail.back}">Back to Permission List</span>
                 </a>
             </div>
         </div>

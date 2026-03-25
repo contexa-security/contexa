@@ -9,19 +9,19 @@
             <nav class="header-actions flex items-center space-x-2">
                 <a id="homeLink" th:href="@{/admin}" class="nav-link group">
                     <span class="nav-icon"><i class="fas fa-home"></i></span>
-                    <span>Home</span>
+                    <span th:text="#{header.home}">Home</span>
                     <span class="nav-glow"></span>
                 </a>
 
                 <th:block sec:authorize="isAnonymous()">
                     <a id="loginLink" th:href="@{/admin/login}" class="nav-link group">
                         <span class="nav-icon"><i class="fas fa-sign-in-alt"></i></span>
-                        <span>로그인</span>
+                        <span th:text="#{header.login}">Login</span>
                         <span class="nav-glow"></span>
                     </a>
                     <a id="registerLink" th:href="@{/register}" class="nav-link group">
                         <span class="nav-icon"><i class="fas fa-user-plus"></i></span>
-                        <span>회원가입</span>
+                        <span th:text="#{header.register}">Register</span>
                         <span class="nav-glow"></span>
                     </a>
                 </th:block>
@@ -29,23 +29,29 @@
                 <th:block sec:authorize="isAuthenticated()">
                     <a id="usersLink" th:href="@{/users}" class="nav-link group">
                         <span class="nav-icon"><i class="fas fa-users"></i></span>
-                        <span>사용자 정보</span>
+                        <span th:text="#{header.user.info}">User Info</span>
                         <span class="nav-glow"></span>
                     </a>
                     <a id="adminLink" th:href="@{/admin}" class="nav-link group nav-admin">
                         <span class="nav-icon"><i class="fas fa-shield-alt"></i></span>
-                        <span>관리자</span>
+                        <span th:text="#{header.admin}">Admin</span>
                         <span class="nav-glow"></span>
                     </a>
                     <form th:action="@{/admin/logout}" method="post" class="nav-logout-form">
                         <input th:if="${_csrf != null}" type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
                         <button type="submit" class="nav-link group nav-logout">
                             <span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span>
-                            <span>로그아웃</span>
+                            <span th:text="#{header.logout}">Logout</span>
                             <span class="nav-glow"></span>
                         </button>
                     </form>
                 </th:block>
+
+                <select onchange="location.href='?lang=' + this.value"
+                        style="background:rgba(30,41,59,0.6);border:1px solid rgba(71,85,105,0.5);color:#e2e8f0;padding:0.25rem 0.5rem;border-radius:0.375rem;font-size:0.75rem;">
+                    <option value="ko" th:selected="${#locale.language == 'ko'}">한국어</option>
+                    <option value="en" th:selected="${#locale.language == 'en'}">English</option>
+                </select>
             </nav>
         </div>
     </header>
@@ -139,7 +145,7 @@
             box-shadow: 0 4px 15px rgba(239, 68, 68, 0.5);
         }
 
-        /* 헤더 배경 애니메이션 효과 */
+        /* Header background animation */
         header::before {
             content: '';
             position: absolute;

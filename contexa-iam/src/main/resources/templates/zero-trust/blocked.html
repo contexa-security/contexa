@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='계정 차단')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{zerotrust.blocked.page.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
 
 <div class="flex items-center justify-center min-h-screen p-4">
@@ -12,58 +12,51 @@
                       d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/>
             </svg>
         </div>
-        <h1 class="text-2xl font-bold mb-3" style="color: #f87171;">계정이 차단되었습니다</h1>
-        <p class="mb-6" style="color: #94a3b8;" th:if="${!mfaFailed and !mfaExhausted}">
-            보안 사유로 계정 접근이 제한되었습니다.<br/>
-            MFA 인증 후 차단 해제를 요청할 수 있습니다.
-        </p>
-        <p class="mb-6" style="color: #94a3b8;" th:if="${mfaFailed or mfaExhausted}">
-            보안 사유로 계정 접근이 제한되었습니다.<br/>
-            관리자에게 문의 바랍니다.
-        </p>
+        <h1 class="text-2xl font-bold mb-3" style="color: #f87171;" th:text="#{zerotrust.blocked.title}">Your account has been blocked</h1>
+        <p class="mb-6" style="color: #94a3b8;" th:if="${!mfaFailed and !mfaExhausted}"
+           th:utext="#{zerotrust.blocked.desc}"></p>
+        <p class="mb-6" style="color: #94a3b8;" th:if="${mfaFailed or mfaExhausted}"
+           th:utext="#{zerotrust.blocked.desc.exhausted}"></p>
 
         <!-- MFA not verified: show initiate button or exhausted message -->
         <div th:if="${!mfaVerified and !mfaFailed}" id="mfa-initiate-section" class="mb-4">
             <!-- MFA fail count warning -->
             <div th:if="${mfaFailCount > 0 and !mfaExhausted}" class="mb-4 p-3 rounded-lg"
                  style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3);">
-                <p class="text-sm font-semibold" style="color: #fbbf24;">
-                    MFA 인증 실패: <span th:text="${mfaFailCount}">0</span>/<span th:text="${maxMfaAttempts}">3</span>
-                </p>
+                <p class="text-sm font-semibold" style="color: #fbbf24;"
+                   th:text="#{zerotrust.blocked.mfa.fail.count(${mfaFailCount},${maxMfaAttempts})}"></p>
             </div>
 
             <!-- MFA exhausted -->
             <div th:if="${mfaExhausted}" class="mb-4 p-3 rounded-lg"
                  style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
-                <p class="text-sm font-semibold" style="color: #f87171;">
-                    MFA 인증 기회가 소진되었습니다.<br/>
-                    관리자에게 문의하세요.
-                </p>
+                <p class="text-sm font-semibold" style="color: #f87171;"
+                   th:utext="#{zerotrust.blocked.mfa.exhausted}"></p>
             </div>
 
             <button th:if="${!mfaExhausted}" id="initiate-mfa-btn"
                     class="w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all duration-300 cursor-pointer"
                     style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
-                MFA 인증 시작
+                <span th:text="#{zerotrust.blocked.mfa.start}">Start MFA Verification</span>
             </button>
         </div>
 
         <!-- MFA verified: show reason + unblock request -->
         <div th:if="${mfaVerified}" id="request-form" class="mb-4">
             <div class="mb-4 p-3 rounded-lg" style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3);">
-                <p class="text-sm font-semibold" style="color: #4ade80;">MFA 인증 완료</p>
+                <p class="text-sm font-semibold" style="color: #4ade80;" th:text="#{zerotrust.blocked.mfa.verified}">MFA Verification Complete</p>
             </div>
 
             <textarea id="reason-input"
                       class="w-full p-3 rounded-lg text-sm mb-4"
                       style="background: rgba(15, 23, 42, 0.8); color: #e2e8f0; border: 1px solid #334155;"
                       rows="3"
-                      placeholder="차단 해제 사유를 입력하세요 (필수)"></textarea>
+                      th:placeholder="#{zerotrust.blocked.reason.placeholder}"></textarea>
 
             <button id="unblock-btn"
                     class="w-full py-3 px-6 rounded-lg text-sm font-semibold transition-all duration-300 cursor-pointer"
                     style="background: rgba(99, 102, 241, 0.2); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);">
-                차단 해제 요청
+                <span th:text="#{zerotrust.blocked.unblock.request}">Request Unblock</span>
             </button>
         </div>
 

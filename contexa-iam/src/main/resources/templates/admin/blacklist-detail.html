@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.thymeleaf.org/extras/spring-security" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='차단 사용자 상세')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.blacklist.detail.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans">
 
 <div th:insert="~{fragments/header :: header}"></div>
@@ -14,15 +14,15 @@
 
             <div class="mb-6">
                 <a th:href="@{/admin/blacklist}" class="text-sm transition-all duration-300"
-                   style="color: #818cf8;">&larr; 차단 사용자 목록으로</a>
+                   style="color: #818cf8;">&larr; <span th:text="#{admin.blacklist.detail.back}">Back to Blocked Users List</span></a>
             </div>
 
             <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h1 class="text-2xl font-bold text-gradient mb-6">차단 사용자 상세</h1>
+                <h1 class="text-2xl font-bold text-gradient mb-6" th:text="#{admin.blacklist.detail.title}">Blocked User Details</h1>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">사용자 정보</h3>
+                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.user.info}">User Information</h3>
                         <div class="space-y-3">
                             <div>
                                 <span class="text-xs" style="color: #64748b;">User ID</span>
@@ -44,7 +44,7 @@
                     </div>
 
                     <div>
-                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">AI 분석 결과</h3>
+                        <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.ai.analysis}">AI Analysis Results</h3>
                         <div class="space-y-3">
                             <div>
                                 <span class="text-xs" style="color: #64748b;">Risk Score</span>
@@ -67,25 +67,25 @@
             </div>
 
             <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">위협 분석 근거</h3>
+                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.threat.analysis}">Threat Analysis Rationale</h3>
                 <div class="p-4 rounded-lg" style="background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(71, 85, 105, 0.3);">
-                    <p class="text-sm whitespace-pre-wrap" style="color: #e2e8f0;" th:text="${blocked.reasoning ?: '분석 근거가 없습니다.'}"></p>
+                    <p class="text-sm whitespace-pre-wrap" style="color: #e2e8f0;" th:text="${blocked.reasoning} ?: #{admin.blacklist.detail.no.reasoning}"></p>
                 </div>
             </div>
 
             <div class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">차단 이력</h3>
+                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.block.history}">Block History</h3>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                        <span class="text-xs" style="color: #64748b;">차단 일시</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.blocked.at}">Blocked At</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.blockedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;">누적 차단 횟수</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.block.count}">Cumulative Block Count</span>
                         <p class="text-sm font-semibold" style="color: #f87171;" th:text="${blocked.blockCount}"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;">상태</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.status}">Status</span>
                         <p>
                             <span th:if="${blocked.status.name() == 'BLOCKED'}"
                                   class="px-3 py-1 rounded-full text-xs font-semibold"
@@ -105,18 +105,18 @@
             </div>
 
             <div th:if="${blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #fbbf24;">해지 요청 정보</h3>
+                <h3 class="text-sm font-semibold mb-3" style="color: #fbbf24;" th:text="#{admin.blacklist.detail.unblock.request}">Unblock Request Information</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <span class="text-xs" style="color: #64748b;">요청 일시</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.requested.at}">Requested At</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.unblockRequestedAt != null} ? ${#temporals.format(blocked.unblockRequestedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;">요청 사유</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.request.reason}">Request Reason</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.unblockReason ?: 'N/A'}"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;">MFA 인증 상태</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.mfa.status}">MFA Verification Status</span>
                         <p>
                             <span th:if="${blocked.mfaVerified != null AND blocked.mfaVerified}"
                                   class="px-3 py-1 rounded-full text-xs font-semibold"
@@ -127,7 +127,7 @@
                         </p>
                     </div>
                     <div th:if="${blocked.mfaVerified != null AND blocked.mfaVerified AND blocked.mfaVerifiedAt != null}">
-                        <span class="text-xs" style="color: #64748b;">MFA 인증 일시</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.mfa.verified.at}">MFA Verified At</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${#temporals.format(blocked.mfaVerifiedAt, 'yyyy-MM-dd HH:mm:ss')}"></p>
                     </div>
                 </div>
@@ -135,54 +135,54 @@
                 <div th:if="${blocked.mfaVerified != null AND blocked.mfaVerified}"
                      class="mt-4 p-3 rounded-lg text-sm"
                      style="background: rgba(34, 197, 94, 0.1); border: 1px solid rgba(34, 197, 94, 0.3); color: #4ade80;">
-                    MFA 인증이 완료된 해지 요청입니다. 정상 사용자일 가능성이 높습니다.
+                    <span th:text="#{admin.blacklist.detail.mfa.verified.hint}">Unblock request with MFA verification completed. Likely a legitimate user.</span>
                 </div>
                 <div th:if="${blocked.mfaVerified == null OR !blocked.mfaVerified}"
                      class="mt-4 p-3 rounded-lg text-sm"
                      style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171;">
-                    MFA 인증 없이 제출된 해지 요청입니다. 공격자 가능성을 검토하세요.
+                    <span th:text="#{admin.blacklist.detail.mfa.not.verified.hint}">Unblock request submitted without MFA verification. Please review for potential attacker.</span>
                 </div>
             </div>
 
             <div th:if="${blocked.status.name() == 'TIMEOUT_RESPONDED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #c084fc;">SOAR 자동 대응 완료</h3>
+                <h3 class="text-sm font-semibold mb-3" style="color: #c084fc;" th:text="#{admin.blacklist.detail.soar.title}">SOAR Auto Response Complete</h3>
                 <div class="p-4 rounded-lg"
                      style="background: rgba(168, 85, 247, 0.1); border: 1px solid rgba(168, 85, 247, 0.3);">
                     <p class="text-sm" style="color: #e2e8f0;">
-                        차단 후 24시간 내 해지 요청이 없어 공격자로 판정되었습니다.<br/>
-                        자동 대응이 실행되었습니다: IP 차단 + 세션 무효화
+                        <span th:text="#{admin.blacklist.detail.soar.desc1}">No unblock request within 24 hours after block - identified as attacker.</span><br/>
+                        <span th:text="#{admin.blacklist.detail.soar.desc2}">Auto response executed: IP block + session invalidation</span>
                     </p>
                 </div>
             </div>
 
             <div th:if="${blocked.status.name() == 'RESOLVED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;">해제 상세</h3>
+                <h3 class="text-sm font-semibold mb-3" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.resolve.title}">Resolution Details</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <span class="text-xs" style="color: #64748b;">해제 일시</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.at}">Resolved At</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolvedAt != null} ? ${#temporals.format(blocked.resolvedAt, 'yyyy-MM-dd HH:mm:ss')} : 'N/A'"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;">처리자</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.by}">Resolved By</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolvedBy ?: 'N/A'}"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;">해제 Action</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.action}">Resolution Action</span>
                         <p class="text-sm font-semibold" style="color: #38bdf8;" th:text="${blocked.resolvedAction ?: 'N/A'}"></p>
                     </div>
                     <div>
-                        <span class="text-xs" style="color: #64748b;">해제 사유</span>
+                        <span class="text-xs" style="color: #64748b;" th:text="#{admin.blacklist.detail.resolve.reason}">Resolution Reason</span>
                         <p class="text-sm" style="color: #e2e8f0;" th:text="${blocked.resolveReason ?: 'N/A'}"></p>
                     </div>
                 </div>
             </div>
 
             <div th:if="${blocked.status.name() == 'BLOCKED' or blocked.status.name() == 'UNBLOCK_REQUESTED'}" class="dark-card p-6 sm:p-8 rounded-xl mb-6">
-                <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;">차단 해제</h3>
+                <h3 class="text-lg font-semibold mb-4" style="color: #e2e8f0;" th:text="#{admin.blacklist.detail.unblock.title}">Unblock User</h3>
                 <form th:action="@{/admin/blacklist/{id}/resolve(id=${blocked.id})}" method="post" id="resolveForm">
 
                     <div class="mb-5">
-                        <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;">해제 Action</label>
+                        <label class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.blacklist.detail.unblock.action}">Resolution Action</label>
                         <div class="flex flex-col gap-3">
                             <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
                                    style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(71, 85, 105, 0.3);">
@@ -190,7 +190,7 @@
                                        class="w-4 h-4" style="accent-color: #6366f1;">
                                 <div>
                                     <span class="text-sm font-medium" style="color: #e2e8f0;">ALLOW</span>
-                                    <span class="text-xs ml-2" style="color: #94a3b8;">- 즉시 접근 허용</span>
+                                    <span class="text-xs ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.allow.desc}">- Immediately allow access</span>
                                 </div>
                             </label>
                             <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
@@ -199,7 +199,7 @@
                                        class="w-4 h-4" style="accent-color: #6366f1;">
                                 <div>
                                     <span class="text-sm font-medium" style="color: #e2e8f0;">PENDING_ANALYSIS</span>
-                                    <span class="text-xs ml-2" style="color: #94a3b8;">- 다음 접근 시 재분석</span>
+                                    <span class="text-xs ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.pending.desc}">- Re-analyze on next access</span>
                                 </div>
                             </label>
                             <label class="flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300"
@@ -208,24 +208,24 @@
                                        class="w-4 h-4" style="accent-color: #6366f1;">
                                 <div>
                                     <span class="text-sm font-medium" style="color: #e2e8f0;">CHALLENGE</span>
-                                    <span class="text-xs ml-2" style="color: #94a3b8;">- MFA 인증 요구</span>
+                                    <span class="text-xs ml-2" style="color: #94a3b8;" th:text="#{admin.blacklist.detail.challenge.desc}">- Require MFA verification</span>
                                 </div>
                             </label>
                         </div>
                     </div>
 
                     <div class="mb-5">
-                        <label for="reason" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">사유 (필수)</label>
+                        <label for="reason" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.blacklist.detail.reason.label}">Reason (Required)</label>
                         <textarea id="reason" name="reason" rows="3" required minlength="5"
                                   class="w-full px-4 py-3 rounded-lg text-sm focus:outline-none focus:ring-2"
                                   style="background: rgba(15, 23, 42, 0.8); color: #e2e8f0; border: 1px solid rgba(71, 85, 105, 0.3); focus-ring-color: #6366f1;"
-                                  placeholder="차단 해제 사유를 입력하세요..."></textarea>
+                                  th:placeholder="#{admin.blacklist.detail.reason.placeholder}"></textarea>
                     </div>
 
                     <button type="submit"
                             class="px-6 py-3 rounded-xl font-semibold text-white transition-all duration-300"
                             style="background: linear-gradient(135deg, #6366f1, #4f46e5); box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);">
-                        차단 해제
+                        <span th:text="#{admin.blacklist.detail.unblock.submit}">Unblock User</span>
                     </button>
                 </form>
             </div>
@@ -242,6 +242,11 @@
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 
+<!-- i18n data for JS -->
+<div id="i18nBlacklistDetail" style="display:none"
+     th:data-reason-min="#{admin.blacklist.detail.js.reason.min}"
+     th:data-select-action="#{admin.blacklist.detail.js.select.action}"></div>
+
 <script th:inline="javascript">
     /*<![CDATA[*/
     document.addEventListener('DOMContentLoaded', () => {
@@ -254,19 +259,20 @@
             showToast(errorMessage, 'error');
         }
 
+        var _i18n = document.getElementById('i18nBlacklistDetail').dataset;
         const form = document.getElementById('resolveForm');
         if (form) {
             form.addEventListener('submit', function(e) {
                 const reason = document.getElementById('reason').value.trim();
                 if (reason.length < 5) {
                     e.preventDefault();
-                    showToast('사유는 5자 이상 입력해야 합니다.', 'error');
+                    showToast(_i18n.reasonMin, 'error');
                     return;
                 }
                 const checked = form.querySelector('input[name="resolvedAction"]:checked');
                 if (!checked) {
                     e.preventDefault();
-                    showToast('해제 Action을 선택하세요.', 'error');
+                    showToast(_i18n.selectAction, 'error');
                 }
             });
         }

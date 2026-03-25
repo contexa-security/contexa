@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle='보안 분석 진행 중')}"></head>
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{zerotrust.pending.page.title})}"></head>
 <body class="flex flex-col min-h-screen font-sans" style="background: #050810;">
 
 <div class="flex items-center justify-center min-h-screen p-4">
@@ -11,33 +11,31 @@
             <div id="spinner" class="mx-auto w-16 h-16 border-4 rounded-full animate-spin"
                  style="border-color: #334155; border-top-color: #6366f1;"></div>
         </div>
-        <h1 class="text-2xl font-bold mb-3" style="color: #e2e8f0;">보안 분석 진행 중</h1>
-        <p class="mb-6" style="color: #94a3b8;">
-            현재 권한 분석이 진행 중입니다.<br/>
-            분석이 완료되면 자동으로 이동합니다.
-        </p>
+        <h1 class="text-2xl font-bold mb-3" style="color: #e2e8f0;" th:text="#{zerotrust.pending.title}">Security Analysis in Progress</h1>
+        <p class="mb-6" style="color: #94a3b8;"
+           th:utext="#{zerotrust.pending.desc}"></p>
 
         <div id="analysis-steps" class="text-left mb-6" style="color: #94a3b8;">
             <div id="step-layer1" class="flex items-center mb-3 p-3 rounded-lg"
                  style="background: rgba(15, 23, 42, 0.6);">
                 <span id="step-layer1-icon" class="mr-3 text-lg" style="color: #475569;">&#9679;</span>
-                <span>Layer 1 분석</span>
+                <span th:text="#{zerotrust.pending.step.layer1}">Layer 1 Analysis</span>
             </div>
             <div id="step-layer2" class="flex items-center mb-3 p-3 rounded-lg"
                  style="background: rgba(15, 23, 42, 0.6);">
                 <span id="step-layer2-icon" class="mr-3 text-lg" style="color: #475569;">&#9679;</span>
-                <span>Layer 2 분석</span>
+                <span th:text="#{zerotrust.pending.step.layer2}">Layer 2 Analysis</span>
             </div>
             <div id="step-decision" class="flex items-center p-3 rounded-lg"
                  style="background: rgba(15, 23, 42, 0.6);">
                 <span id="step-decision-icon" class="mr-3 text-lg" style="color: #475569;">&#9679;</span>
-                <span>최종 결정</span>
+                <span th:text="#{zerotrust.pending.step.decision}">Final Decision</span>
             </div>
         </div>
 
         <div id="sse-status" class="text-xs" style="color: #475569;">
             <span id="sse-indicator" style="color: #475569;">&#9679;</span>
-            <span id="sse-text">연결 대기 중</span>
+            <span id="sse-text" th:text="#{zerotrust.pending.sse.waiting}">Waiting for connection</span>
         </div>
 
         <div id="error-message" class="hidden mt-4 p-3 rounded-lg text-sm"

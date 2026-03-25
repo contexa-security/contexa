@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
 <head>
-    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle='리소스 워크벤치')}"></th:block>
+    <th:block th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.resource.workbench.title})}"></th:block>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
     <style>
         /* 테이블 스타일 개선 */
@@ -403,15 +403,15 @@
             <div class="page-header">
                 <div class="flex flex-col sm:flex-row justify-between items-start gap-4">
                     <div>
-                        <h1 class="text-3xl font-bold text-gradient">리소스 워크벤치</h1>
-                        <p class="text-dark-muted mt-2">
-                            시스템에서 자동 탐지된 기술 리소스를 검토하고, 비즈니스 의미를 부여하여 관리 가능한 '권한'으로 변환합니다.
+                        <h1 class="text-3xl font-bold text-gradient" th:text="#{admin.resource.workbench.title}">Resource Workbench</h1>
+                        <p class="text-dark-muted mt-2" th:text="#{admin.resource.workbench.subtitle}">
+                            Review auto-detected technical resources, assign business meaning, and convert to manageable permissions.
                         </p>
                     </div>
                     <form th:action="@{/admin/workbench/resources/refresh}" method="post">
                         <button type="submit" class="modern-btn-refresh whitespace-nowrap">
                             <i class="fas fa-sync-alt"></i>
-                            <span>리소스 새로고침</span>
+                            <span th:text="#{admin.resource.workbench.refresh}">Refresh Resources</span>
                         </button>
                     </form>
                 </div>
@@ -421,34 +421,34 @@
             <form th:action="@{/admin/workbench/resources}" method="get" th:object="${criteria}" class="filter-container mb-8">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
-                        <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">서비스 오너 (모듈)</label>
+                        <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.resource.workbench.service.owner}">Service Owner (Module)</label>
                         <select id="serviceOwner" th:field="*{serviceOwner}" class="modern-select">
-                            <option value="">전체</option>
+                            <option value="" th:text="#{admin.resource.workbench.status.all}">All</option>
                             <option th:each="owner : ${serviceOwners}" th:value="${owner}" th:text="${owner}"></option>
                         </select>
                     </div>
                     <div>
-                        <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">상태</label>
+                        <label for="status" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.resource.workbench.status}">Status</label>
                         <select id="status" th:field="*{status}" class="modern-select">
-                            <option value="">전체</option>
-                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}">정의 필요</option>
-                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}">권한 생성됨</option>
-                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}">정책 연결됨</option>
-                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}">관리 제외만 보기</option>
+                            <option value="" th:text="#{admin.resource.workbench.status.all}">All</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).NEEDS_DEFINITION}" th:text="#{admin.resource.workbench.status.needs.definition}">Needs Definition</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).PERMISSION_CREATED}" th:text="#{admin.resource.workbench.status.permission.created}">Permission Created</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).POLICY_CONNECTED}" th:text="#{admin.resource.workbench.status.policy.connected}">Policy Connected</option>
+                            <option th:value="${T(io.contexa.contexacommon.entity.ManagedResource.Status).EXCLUDED}" th:text="#{admin.resource.workbench.status.excluded.only}">Excluded Only</option>
                         </select>
                     </div>
                     <div>
-                        <label for="keyword" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">키워드</label>
-                        <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" placeholder="식별자, 설명 등...">
+                        <label for="keyword" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.resource.workbench.keyword}">Keyword</label>
+                        <input type="text" id="keyword" th:field="*{keyword}" class="modern-input" th:placeholder="#{admin.resource.workbench.keyword.placeholder}">
                     </div>
                     <div class="flex gap-2">
                         <button type="submit" class="modern-btn-primary flex-1">
                             <i class="fas fa-search"></i>
-                            <span>검색</span>
+                            <span th:text="#{admin.resource.workbench.search}">Search</span>
                         </button>
                         <a th:href="@{/admin/workbench/resources}" class="modern-btn-secondary flex-1 text-center">
                             <i class="fas fa-redo"></i>
-                            <span>초기화</span>
+                            <span th:text="#{admin.resource.workbench.reset}">Reset</span>
                         </a>
                     </div>
                 </div>
@@ -459,18 +459,18 @@
                 <table class="min-w-full text-sm">
                     <thead>
                     <tr>
-                        <th class="py-4 px-6 text-center text-white text-xs uppercase font-semibold tracking-wider">상태</th>
-                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider">친화적 이름 / 설명</th>
-                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider">기술 식별자</th>
-                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider">도구 및 이력</th>
-                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider">작업</th>
+                        <th class="py-4 px-6 text-center text-white text-xs uppercase font-semibold tracking-wider" th:text="#{admin.resource.workbench.table.status}">Status</th>
+                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider" th:text="#{admin.resource.workbench.table.name.desc}">Friendly Name / Description</th>
+                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider" th:text="#{admin.resource.workbench.table.identifier}">Technical Identifier</th>
+                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider" th:text="#{admin.resource.workbench.table.tools}">Tools & History</th>
+                        <th class="py-4 px-6 text-left text-white text-xs uppercase font-semibold tracking-wider" th:text="#{admin.resource.workbench.table.actions}">Actions</th>
                     </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-700">
                     <tr th:if="${resourcePage == null or resourcePage.empty}">
                         <td colspan="5" class="text-center py-12 text-slate-500">
                             <i class="fas fa-inbox text-4xl mb-3"></i>
-                            <p>조건에 맞는 리소스가 없습니다.</p>
+                            <p th:text="#{admin.resource.workbench.empty}">No resources matching the criteria.</p>
                         </td>
                     </tr>
                     <th:block th:if="${resourcePage != null}">
@@ -486,10 +486,10 @@
                                res.status?.name() == 'PERMISSION_CREATED' ? 'fas fa-check-circle' :
                                res.status?.name() == 'POLICY_CONNECTED' ? 'fas fa-link' : 'fas fa-ban'}"></i>
                 <span th:text="${res.status != null ?
-                                (res.status.name() == 'NEEDS_DEFINITION' ? '정의 필요' :
-                                 res.status.name() == 'PERMISSION_CREATED' ? '권한 생성됨' :
-                                 res.status.name() == 'POLICY_CONNECTED' ? '정책 연결됨' : '관리 제외')
-                                : '상태 미지정'}"></span>
+                                (res.status.name() == 'NEEDS_DEFINITION' ? #{admin.resource.workbench.status.needs.definition} :
+                                 res.status.name() == 'PERMISSION_CREATED' ? #{admin.resource.workbench.status.permission.created} :
+                                 res.status.name() == 'POLICY_CONNECTED' ? #{admin.resource.workbench.status.policy.connected} : #{admin.resource.workbench.exclude})
+                                : #{admin.resource.workbench.status.unset}}"></span>
             </span>
                             </td>
 
@@ -497,11 +497,11 @@
                                 <div class="input-container">
                                     <input type="text" name="friendlyName" th:value="${res.friendlyName}"
                                            class="modern-input font-semibold mb-3"
-                                           placeholder="관리용 이름 입력" required>
+                                           th:placeholder="#{admin.resource.workbench.name.placeholder}" required>
                                     <textarea name="description"
                                               class="modern-input"
                                               rows="2"
-                                              placeholder="관리용 상세 설명 입력"
+                                              th:placeholder="#{admin.resource.workbench.desc.placeholder}"
                                               th:text="${res.description}"></textarea>
                                 </div>
                             </td>
@@ -518,7 +518,7 @@
                             <td class="table-cell-top">
                                 <div class="flex flex-wrap items-center gap-2 mb-3">
                                     <span th:if="${res.sourceCodeLocation}" class="modern-action-link" th:title="${res.sourceCodeLocation}" style="cursor: default;">
-                                        <i class="fas fa-code"></i> 코드
+                                        <i class="fas fa-code"></i> <span th:text="#{admin.resource.workbench.code}">Code</span>
                                     </span>
                                     <a th:if="${res.apiDocsUrl}" th:href="@{${res.apiDocsUrl}}" target="_blank" class="modern-action-link">
                                         <i class="fas fa-book-open"></i> API
@@ -526,7 +526,7 @@
                                 </div>
                                 <div class="date-info">
                                     <i class="fas fa-clock text-xs mr-1"></i>
-                                    최초 발견: <span class="date-value" th:text="${#temporals.format(res.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
+                                    <span th:text="#{admin.resource.workbench.first.discovered}">First Discovered:</span> <span class="date-value" th:text="${#temporals.format(res.createdAt, 'yyyy-MM-dd HH:mm')}"></span>
                                 </div>
                             </td>
 
@@ -537,13 +537,13 @@
                                                 th:attr="data-resource-id=${res.id}"
                                                 onclick="defineAndSetupPolicy(this)">
                                             <i class="fas fa-magic"></i>
-                                            <span>권한 정의 & 정책 설정</span>
+                                            <span th:text="#{admin.resource.workbench.define.setup}">Define Permission & Setup Policy</span>
                                         </button>
                                     </div>
 
                                     <div th:if="${res.status?.name() == 'POLICY_CONNECTED'}"
                                          class="text-xs text-center p-2 rounded-full bg-green-500/20 text-green-400 border border-green-500/30">
-                                        <i class="fas fa-link mr-1"></i> 정책에 연결됨
+                                        <i class="fas fa-link mr-1"></i> <span th:text="#{admin.resource.workbench.connected}">Connected to Policy</span>
                                     </div>
 
                                     <div th:if="${res.status?.name() != 'EXCLUDED'}">
@@ -551,7 +551,7 @@
                                                 th:attr="data-resource-id=${res.id}"
                                                 onclick="excludeResource(this)">
                                             <i class="fas fa-ban"></i>
-                                            <span>관리 제외</span>
+                                            <span th:text="#{admin.resource.workbench.exclude}">Exclude from Management</span>
                                         </button>
                                     </div>
 
@@ -560,7 +560,7 @@
                                                 th:attr="data-resource-id=${res.id}"
                                                 onclick="restoreResource(this)">
                                             <i class="fas fa-undo"></i>
-                                            <span>관리 복원</span>
+                                            <span th:text="#{admin.resource.workbench.restore}">Restore to Management</span>
                                         </button>
                                     </div>
                                 </div>
@@ -613,10 +613,9 @@
                         </div>
                     </div>
 
-                    <h2 class="text-3xl font-bold text-gradient mb-3">정책 설정 방식 선택</h2>
+                    <h2 class="text-3xl font-bold text-gradient mb-3" th:text="#{admin.resource.workbench.modal.title}">Select Policy Setup Method</h2>
                     <p class="text-dark-secondary text-lg max-w-2xl mx-auto leading-relaxed">
-                        생성될 '<span id="modal-permission-name" class="text-indigo-400 font-semibold bg-indigo-500/10 px-2 py-1 rounded-md"></span>' 권한에 대한<br>
-                        정책을 어떻게 설정하시겠습니까?
+                        <span th:text="#{admin.resource.workbench.modal.subtitle.prefix}">For the permission '</span><span id="modal-permission-name" class="text-indigo-400 font-semibold bg-indigo-500/10 px-2 py-1 rounded-md"></span><span th:text="#{admin.resource.workbench.modal.subtitle.suffix}">' to be created, how would you like to set the policy?</span>
                     </p>
                 </div>
             </div>
@@ -643,32 +642,31 @@
                                     <i class="fas fa-magic text-xl text-white"></i>
                                 </div>
                                 <div class="bg-indigo-500/20 text-indigo-400 px-3 py-1 rounded-full text-xs font-semibold">
-                                    빠른 설정
+                                    <span th:text="#{admin.resource.workbench.modal.quick.badge}">Quick Setup</span>
                                 </div>
                             </div>
 
                             <h3 class="text-xl font-bold text-dark-primary mb-4 group-hover:text-indigo-300 transition-colors">
-                                간편 정책 생성 (마법사)
+                                <span th:text="#{admin.resource.workbench.modal.quick.title}">Quick Policy Creation (Wizard)</span>
                             </h3>
 
                             <p class="text-sm text-dark-muted leading-relaxed mb-6">
-                                기존 역할에 이 권한을 즉시 부여하는 가장 빠른 방법입니다.
-                                복잡한 조건은 설정할 수 없습니다.
+                                <span th:text="#{admin.resource.workbench.modal.quick.desc}">The fastest way to grant this permission to an existing role. Complex conditions are not available.</span>
                             </p>
 
                             <!-- 특징 리스트 -->
                             <div class="space-y-2">
                                 <div class="flex items-center text-xs text-dark-secondary">
                                     <i class="fas fa-check text-green-400 mr-2"></i>
-                                    즉시 적용 가능
+                                    <span th:text="#{admin.resource.workbench.modal.quick.feature1}">Immediate application</span>
                                 </div>
                                 <div class="flex items-center text-xs text-dark-secondary">
                                     <i class="fas fa-check text-green-400 mr-2"></i>
-                                    기본 역할 기반 권한
+                                    <span th:text="#{admin.resource.workbench.modal.quick.feature2}">Basic role-based permissions</span>
                                 </div>
                                 <div class="flex items-center text-xs text-dark-secondary">
                                     <i class="fas fa-check text-green-400 mr-2"></i>
-                                    간단한 설정
+                                    <span th:text="#{admin.resource.workbench.modal.quick.feature3}">Simple setup</span>
                                 </div>
                             </div>
 
@@ -677,7 +675,7 @@
                                 <div class="action-badge-primary w-full text-center py-3 rounded-xl
                                        group-hover:bg-indigo-500/30 transition-all duration-300">
                                     <i class="fas fa-arrow-right mr-2"></i>
-                                    이 방식으로 설정
+                                    <span th:text="#{admin.resource.workbench.modal.quick.action}">Set up this way</span>
                                 </div>
                             </div>
                         </div>
@@ -703,32 +701,31 @@
                                     <i class="fas fa-brain text-xl text-white"></i>
                                 </div>
                                 <div class="bg-purple-500/20 text-purple-400 px-3 py-1 rounded-full text-xs font-semibold">
-                                    고급 설정
+                                    <span th:text="#{admin.resource.workbench.modal.advanced.badge}">Advanced Setup</span>
                                 </div>
                             </div>
 
                             <h3 class="text-xl font-bold text-dark-primary mb-4 group-hover:text-purple-300 transition-colors">
-                                AI 정책 생성 (빌더)
+                                <span th:text="#{admin.resource.workbench.modal.advanced.title}">AI Policy Creation (Builder)</span>
                             </h3>
 
                             <p class="text-sm text-dark-muted leading-relaxed mb-6">
-                                AI 리스크 평가, 특정 시간/IP 등 동적이고 세밀한 조건을
-                                포함한 정책을 설정합니다.
+                                <span th:text="#{admin.resource.workbench.modal.advanced.desc}">Set policies with dynamic and detailed conditions including AI risk assessment, specific time/IP, etc.</span>
                             </p>
 
                             <!-- 특징 리스트 -->
                             <div class="space-y-2">
                                 <div class="flex items-center text-xs text-dark-secondary">
                                     <i class="fas fa-check text-green-400 mr-2"></i>
-                                    AI 기반 리스크 평가
+                                    <span th:text="#{admin.resource.workbench.modal.advanced.feature1}">AI-based risk assessment</span>
                                 </div>
                                 <div class="flex items-center text-xs text-dark-secondary">
                                     <i class="fas fa-check text-green-400 mr-2"></i>
-                                    동적 조건 설정
+                                    <span th:text="#{admin.resource.workbench.modal.advanced.feature2}">Dynamic condition setup</span>
                                 </div>
                                 <div class="flex items-center text-xs text-dark-secondary">
                                     <i class="fas fa-check text-green-400 mr-2"></i>
-                                    세밀한 권한 제어
+                                    <span th:text="#{admin.resource.workbench.modal.advanced.feature3}">Fine-grained permission control</span>
                                 </div>
                             </div>
 
@@ -738,7 +735,7 @@
                                        group-hover:bg-purple-500/30 transition-all duration-300"
                                      style="background: rgba(139, 92, 246, 0.2); color: #c084fc; border-color: rgba(139, 92, 246, 0.3);">
                                     <i class="fas fa-arrow-right mr-2"></i>
-                                    이 방식으로 설정
+                                    <span th:text="#{admin.resource.workbench.modal.advanced.action}">Set up this way</span>
                                 </div>
                             </div>
                         </div>
@@ -750,14 +747,14 @@
             <div class="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-700/50">
                 <div class="flex items-center text-sm text-dark-muted">
                     <i class="fas fa-info-circle mr-2 text-blue-400"></i>
-                    나중에 정책 관리 페이지에서도 설정할 수 있습니다
+                    <span th:text="#{admin.resource.workbench.modal.later.info}">You can also set it later from the policy management page</span>
                 </div>
 
                 <div class="flex gap-3">
                     <button type="button" onclick="closePolicySetupModal()"
                             class="dark-btn-secondary px-6 py-3 hover:scale-105 transition-transform duration-300 rounded-xl">
                         <i class="fas fa-clock mr-2"></i>
-                        나중에 설정하기
+                        <span th:text="#{admin.resource.workbench.modal.later.button}">Set up later</span>
                     </button>
                 </div>
             </div>

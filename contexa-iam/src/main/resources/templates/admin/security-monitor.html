@@ -17,88 +17,88 @@
         <div class="modern-card">
             <div class="mb-6">
                 <h1 class="text-2xl font-bold" style="background: linear-gradient(135deg, #6366f1, #818cf8, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
-                    실시간 보안 현황
+                    <span th:text="#{admin.security.monitor.title}">Real-time Security Status</span>
                 </h1>
-                <p class="text-sm mt-1" style="color: #94a3b8;">audit_log 기반 제로트러스트 보안 이벤트 모니터링</p>
+                <p class="text-sm mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.subtitle}">Audit log based Zero Trust security event monitoring</p>
             </div>
 
             <!-- Summary Cards (eventCategory 기반 분류) -->
             <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3 mb-6">
                 <a th:href="@{/admin/security-monitor(hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(30,41,59,0.6); border: 1px solid rgba(71,85,105,0.4); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #e2e8f0;" th:text="${totalCount}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">전체 이벤트</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.total.events}">Total Events</div>
                 </a>
                 <a th:href="@{/admin/security-monitor(category='SECURITY_DECISION', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #a78bfa;" th:text="${securityDecision}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">AI 보안 분석</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.ai.analysis}">AI Security Analysis</div>
                 </a>
                 <a th:href="@{/admin/security-monitor(category='USER_BLOCKED', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #f87171;" th:text="${userBlocked}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">사용자 차단</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.user.blocked}">User Blocked</div>
                 </a>
                 <a th:href="@{/admin/security-monitor(category='MFA_VERIFICATION_SUCCESS', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #22d3ee;" th:text="${mfaVerified}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">MFA 인증</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.mfa.verified}">MFA Verified</div>
                 </a>
                 <a th:href="@{/admin/security-monitor(category='AUTHENTICATION_SUCCESS', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #60a5fa;" th:text="${authSuccess}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">인증 성공</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.auth.success}">Auth Success</div>
                 </a>
                 <a th:href="@{/admin/security-monitor(category='AUTHENTICATION_FAILURE', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #fbbf24;" th:text="${authFailure}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">인증 실패</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.auth.failure}">Auth Failure</div>
                 </a>
                 <a th:href="@{/admin/security-monitor(category='ADMIN_OVERRIDE', hours=${hours})}" class="rounded-lg p-3 text-center" style="background: rgba(99,102,241,0.08); border: 1px solid rgba(99,102,241,0.3); text-decoration: none;">
                     <div class="text-2xl font-bold" style="color: #818cf8;" th:text="${adminOverride}">0</div>
-                    <div class="text-xs mt-1" style="color: #94a3b8;">관리자 오버라이드</div>
+                    <div class="text-xs mt-1" style="color: #94a3b8;" th:text="#{admin.security.monitor.admin.override}">Admin Override</div>
                 </a>
             </div>
 
             <!-- Filter -->
             <div class="flex items-center gap-3 mb-6" style="background: rgba(30,41,59,0.4); border: 1px solid rgba(71,85,105,0.3); border-radius: 0.5rem; padding: 0.75rem 1rem;">
-                <span class="text-sm" style="color: #94a3b8;">기간:</span>
+                <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.period}">Period:</span>
                 <a th:href="@{/admin/security-monitor(hours=1, category=${category})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 1 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">1시간</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.1h}">1 Hour</a>
                 <a th:href="@{/admin/security-monitor(hours=6, category=${category})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 6 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">6시간</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.6h}">6 Hours</a>
                 <a th:href="@{/admin/security-monitor(hours=24, category=${category})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 24 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">24시간</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.24h}">24 Hours</a>
                 <a th:href="@{/admin/security-monitor(hours=72, category=${category})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${hours == 72 ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">3일</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.period.3d}">3 Days</a>
 
                 <span class="mx-2" style="color: #334155;">|</span>
-                <span class="text-sm" style="color: #94a3b8;">필터:</span>
+                <span class="text-sm" style="color: #94a3b8;" th:text="#{admin.security.monitor.filter}">Filter:</span>
                 <a th:href="@{/admin/security-monitor(hours=${hours})}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == null || category == '' ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">전체</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.filter.all}">All</a>
                 <a th:href="@{/admin/security-monitor(hours=${hours}, category='SECURITY_DECISION')}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'SECURITY_DECISION' ? 'background: rgba(139,92,246,0.3); color: #c4b5fd; border: 1px solid rgba(139,92,246,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">AI 분석</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.filter.ai}">AI Analysis</a>
                 <a th:href="@{/admin/security-monitor(hours=${hours}, category='AUTHENTICATION_FAILURE')}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'AUTHENTICATION_FAILURE' ? 'background: rgba(239,68,68,0.3); color: #fca5a5; border: 1px solid rgba(239,68,68,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">인증 실패</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.filter.auth.failure}">Auth Failure</a>
                 <a th:href="@{/admin/security-monitor(hours=${hours}, category='ADMIN_OVERRIDE')}" class="text-xs px-3 py-1 rounded-full"
                    th:style="${category == 'ADMIN_OVERRIDE' ? 'background: rgba(99,102,241,0.3); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.5);' : 'background: rgba(71,85,105,0.2); color: #94a3b8; border: 1px solid rgba(71,85,105,0.3);'}"
-                   style="text-decoration: none;">관리자 오버라이드</a>
+                   style="text-decoration: none;" th:text="#{admin.security.monitor.filter.admin.override}">Admin Override</a>
             </div>
 
             <!-- IP Grouping View (DISTINCT_IP filter only) -->
             <div th:if="${filterType == 'DISTINCT_IP' and ipGroups != null}" class="mb-6">
                 <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-base font-bold" style="color: #22d3ee;"><i class="fas fa-network-wired mr-2"></i>IP 주소별 접근 현황</h3>
-                    <span class="text-xs" style="color: #64748b;" th:text="'총 ' + ${totalIpGroups} + '개 IP'"></span>
+                    <h3 class="text-base font-bold" style="color: #22d3ee;"><i class="fas fa-network-wired mr-2"></i><span th:text="#{admin.security.monitor.ip.access}">IP Address Access Status</span></h3>
+                    <span class="text-xs" style="color: #64748b;" th:text="#{admin.security.monitor.ip.total(${totalIpGroups})}"></span>
                 </div>
                 <div class="modern-table overflow-x-auto mb-4">
                     <table class="w-full">
                         <thead>
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">IP 주소</th>
-                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">접근 횟수</th>
-                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">마지막 접근</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.ip.address}">IP Address</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.ip.access.count}">Access Count</th>
+                            <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.ip.last.access}">Last Access</th>
                         </tr>
                         </thead>
                         <tbody style="background: rgba(15,23,42,0.6);">
@@ -112,7 +112,7 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs mb-4" style="color: #64748b;">아래는 IP가 기록된 전체 이벤트 목록입니다.</p>
+                <p class="text-xs mb-4" style="color: #64748b;" th:text="#{admin.security.monitor.ip.events.below}">Below is the full list of events with recorded IP addresses.</p>
             </div>
 
             <!-- Event List -->
@@ -120,18 +120,18 @@
                 <table class="w-full">
                     <thead>
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">시간</th>
-                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">카테고리</th>
-                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">사용자</th>
-                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">결정</th>
-                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">리소스</th>
-                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">위험도</th>
-                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);">IP</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.time}">Time</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.category}">Category</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.user}">User</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.decision}">Decision</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.resource}">Resource</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.risk}">Risk</th>
+                        <th class="px-4 py-3 text-left text-xs font-bold text-white uppercase" style="background: linear-gradient(135deg, #1e293b, #334155);" th:text="#{admin.security.monitor.table.ip}">IP</th>
                     </tr>
                     </thead>
                     <tbody style="background: rgba(15,23,42,0.6);">
                     <tr th:if="${logPage.totalElements == 0}">
-                        <td colspan="7" class="text-center py-8" style="color: #64748b;">해당 기간에 보안 이벤트가 없습니다.</td>
+                        <td colspan="7" class="text-center py-8" style="color: #64748b;" th:text="#{admin.security.monitor.no.events}">No security events for this period.</td>
                     </tr>
                     <tr th:each="log : ${logPage.content}" style="border-bottom: 1px solid rgba(71,85,105,0.2); cursor: pointer;"
                         th:onclick="'window.location.href=\'/admin/security-monitor/' + ${log.id} + '\''"
