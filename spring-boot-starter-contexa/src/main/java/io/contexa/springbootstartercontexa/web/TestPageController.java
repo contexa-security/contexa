@@ -33,7 +33,6 @@ public class TestPageController {
      * - 각 AnalysisRequirement 레벨별 API 테스트
      * - 실행 결과 로그 표시
      *
-     * @param model Thymeleaf 모델
      * @return 템플릿 경로
      */
     @GetMapping("/test/token")

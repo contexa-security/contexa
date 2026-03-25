@@ -432,8 +432,9 @@ public class IdentityOAuth2AutoConfiguration {
         return new OAuth2LogoutSuccessHandler(responseWriter);
     }
 
+    @Primary
     @Bean
-    @ConditionalOnMissingBean(ClientRegistrationRepository.class)
+    @ConditionalOnMissingBean(name = "clientRegistrationRepository")
     public ClientRegistrationRepository clientRegistrationRepository() {
         OAuth2TokenSettings oauth2 = authContextProperties.getOauth2();
 
@@ -459,8 +460,9 @@ public class IdentityOAuth2AutoConfiguration {
         return new InMemoryClientRegistrationRepository(registration);
     }
 
+    @Primary
     @Bean
-    @ConditionalOnMissingBean(OAuth2AuthorizedClientRepository.class)
+    @ConditionalOnMissingBean(name = "authorizedClientRepository")
     public OAuth2AuthorizedClientRepository authorizedClientRepository() {
         return new HttpSessionOAuth2AuthorizedClientRepository();
     }
