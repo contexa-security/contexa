@@ -13,7 +13,7 @@ import org.springframework.web.servlet.i18n.SessionLocaleResolver;
 
 import java.util.Locale;
 
-@AutoConfiguration
+@AutoConfiguration(before = org.springframework.boot.autoconfigure.web.servlet.WebMvcAutoConfiguration.class)
 public class IamI18nAutoConfiguration implements WebMvcConfigurer {
 
     @Bean

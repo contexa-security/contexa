@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -15,9 +17,21 @@ import java.io.PrintWriter;
 public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
 
     private String loginPageUrl = "/api/login";
+    private MessageSource messageSource;
 
     public DefaultRestLoginPageGeneratingFilter(String loginPageUrl) {
         this.loginPageUrl = loginPageUrl;
+    }
+
+    public void setMessageSource(MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
+
+    private String msg(String code, String defaultMsg) {
+        if (messageSource == null) {
+            return defaultMsg;
+        }
+        return messageSource.getMessage(code, null, defaultMsg, LocaleContextHolder.getLocale());
     }
 
     @Override
@@ -65,6 +79,19 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
         String csrfHeaderName = getCsrfHeaderName(request);
         String csrfParameterName = getCsrfParameterName(request);
 
+        // i18n messages
+        String titleText = msg("login.title", "Login");
+        String usernamePlaceholder = msg("login.username.placeholder", "Username or Email");
+        String passwordPlaceholder = msg("login.password.placeholder", "Password");
+        String submitText = msg("login.submit", "Login");
+        String authenticatingText = msg("login.authenticating", "Authenticating...");
+        String footerText = msg("login.footer", "REST API based authentication system");
+        String errorInputText = msg("login.error.input", "Please enter username and password.");
+        String errorFailedText = msg("login.error.failed", "Login failed: Please check your username or password.");
+        String errorGenericText = msg("login.error.generic", "Login failed.");
+        String successText = msg("login.success", "Login successful!");
+        String logoutMsgText = msg("login.logout.message", "You have been logged out.");
+
         String html = """
                 <!DOCTYPE html>
                 <html lang="en">
@@ -74,7 +101,7 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                     <meta name="_csrf" content="%s">
                     <meta name="_csrf_header" content="%s">
                     <meta name="_csrf_parameter" content="%s">
-                    <title>Login</title>
+                    <title>%s</title>
                     <style>
                         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
                         .container { max-width: 400px; margin: 50px auto; background: white; padding: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
@@ -94,65 +121,74 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                     </style>
                 </head>
                 <body>
-                    <div class="container">
-                        <h1>Login</h1>
+                    <div class="container"
+                         data-msg-error-input="%s"
+                         data-msg-error-failed="%s"
+                         data-msg-error-generic="%s"
+                         data-msg-success="%s">
+                        <h1>%s</h1>
                         <div id="message-area">
                             %s
                             %s
                         </div>
                         <div id="loginContainer" class="form">
-                            <input type="text" id="username" placeholder="Username or Email" required autofocus>
-                            <input type="password" id="password" placeholder="Password" required>
-                            <button type="button" id="loginButton">Login</button>
-                            <div class="spinner" id="spinner">Authenticating...</div>
+                            <input type="text" id="username" placeholder="%s" required autofocus>
+                            <input type="password" id="password" placeholder="%s" required>
+                            <button type="button" id="loginButton">%s</button>
+                            <div class="spinner" id="spinner">%s</div>
                         </div>
                         <div class="form-footer" id="form-footer">
-                            REST API based authentication system
+                            %s
                         </div>
                     </div>
-                
+
                     <script>
                         document.addEventListener('DOMContentLoaded', function() {
+                            const container = document.querySelector('.container');
                             const messageArea = document.getElementById('message-area');
                             const loginButton = document.getElementById('loginButton');
                             const spinner = document.getElementById('spinner');
                             const formFooter = document.getElementById('form-footer');
-                
+                            const msgErrorInput = container.dataset.msgErrorInput;
+                            const msgErrorFailed = container.dataset.msgErrorFailed;
+                            const msgErrorGeneric = container.dataset.msgErrorGeneric;
+                            const msgSuccess = container.dataset.msgSuccess;
+
                             function getCsrfToken() {
                                 const meta = document.querySelector('meta[name="_csrf"]');
                                 return meta ? meta.getAttribute('content') : null;
                             }
-                
+
                             function getCsrfHeader() {
                                 const meta = document.querySelector('meta[name="_csrf_header"]');
                                 return meta ? meta.getAttribute('content') : 'X-CSRF-TOKEN';
                             }
-                
+
                             loginButton.addEventListener('click', async () => {
                                 const username = document.getElementById('username').value;
                                 const password = document.getElementById('password').value;
-                
+
                                 if (!username || !password) {
-                                    messageArea.innerHTML = '<div class="message error">Please enter username and password.</div>';
+                                    messageArea.innerHTML = '<div class="message error">' + msgErrorInput + '</div>';
                                     return;
                                 }
-                
+
                                 loginButton.disabled = true;
                                 spinner.classList.add('active');
                                 messageArea.innerHTML = '';
-                
+
                                 try {
                                     const csrfToken = getCsrfToken();
                                     const csrfHeaderName = getCsrfHeader();
-                
+
                                     const headers = {
                                         'Content-Type': 'application/json'
                                     };
-                
+
                                     if (csrfToken && csrfHeaderName) {
                                         headers[csrfHeaderName] = csrfToken;
                                     }
-                
+
                                     const response = await fetch('%s', {
                                         method: 'POST',
                                         headers: headers,
@@ -161,31 +197,31 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                                             password: password
                                         })
                                     });
-                
+
                                     if (!response.ok) {
-                                        const errorData = await response.json().catch(() => ({ message: 'Login failed: Please check your username or password.' }));
-                                        throw new Error(errorData.message || 'Login failed.');
+                                        const errorData = await response.json().catch(() => ({ message: msgErrorFailed }));
+                                        throw new Error(errorData.message || msgErrorGeneric);
                                     }
-                
+
                                     const result = await response.json();
-                
+
                                     console.log('[DEBUG] Login success:', result);
-                
-                                    messageArea.innerHTML = '<div class="message success">Login successful!</div>';
+
+                                    messageArea.innerHTML = '<div class="message success">' + msgSuccess + '</div>';
                                     const redirectUrl = result.redirectUrl || '/';
                                     setTimeout(() => {
                                         window.location.href = redirectUrl;
                                     }, 500);
-                
+
                                 } catch (error) {
                                     console.error('Login error:', error);
-                
+
                                     messageArea.innerHTML = '<div class="message error">' + error.message + '</div>';
                                     loginButton.disabled = false;
                                     spinner.classList.remove('active');
                                 }
                             });
-                
+
                             document.getElementById('password').addEventListener('keypress', (e) => {
                                 if (e.key === 'Enter') {
                                     loginButton.click();
@@ -199,8 +235,19 @@ public class DefaultRestLoginPageGeneratingFilter extends OncePerRequestFilter {
                 csrfToken,
                 csrfHeaderName,
                 csrfParameterName,
-                errorMessage != null ? "<div class=\"message error\">Login failed: Please check your username or password.</div>" : "",
-                logoutMessage != null ? "<div class=\"message success\">You have been logged out.</div>" : "",
+                titleText,
+                errorInputText,
+                errorFailedText,
+                errorGenericText,
+                successText,
+                titleText,
+                errorMessage != null ? "<div class=\"message error\">" + errorFailedText + "</div>" : "",
+                logoutMessage != null ? "<div class=\"message success\">" + logoutMsgText + "</div>" : "",
+                usernamePlaceholder,
+                passwordPlaceholder,
+                submitText,
+                authenticatingText,
+                footerText,
                 loginPageUrl
         );
 

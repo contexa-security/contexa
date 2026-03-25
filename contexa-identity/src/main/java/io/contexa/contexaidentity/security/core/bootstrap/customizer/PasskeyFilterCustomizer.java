@@ -143,6 +143,13 @@ public class PasskeyFilterCustomizer extends AbstractFilterCustomizer {
 
             ContexaWebAuthnRegistrationPageFilter contexaFilter =
                     new ContexaWebAuthnRegistrationPageFilter(userEntities, userCredentials);
+            try {
+                org.springframework.context.MessageSource messageSource =
+                        appContext.getBean(org.springframework.context.MessageSource.class);
+                contexaFilter.setMessageSource(messageSource);
+            } catch (Exception ignored) {
+                // MessageSource not available - use default English strings
+            }
 
             List<Filter> filters = builtChain.getFilters();
             for (int i = 0; i < filters.size(); i++) {

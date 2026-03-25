@@ -17,6 +17,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.lang.Nullable;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -42,6 +44,18 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
     private AuthUrlProvider authUrlProvider;
     private final MfaSettings mfaSettings;
     private final String tokenPersistence;
+    private MessageSource messageSource;
+
+    public void setMessageSource(MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
+
+    private String msg(String code, String defaultMsg) {
+        if (messageSource == null) {
+            return defaultMsg;
+        }
+        return messageSource.getMessage(code, null, defaultMsg, LocaleContextHolder.getLocale());
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -123,11 +137,11 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String OTT_READONLY_USERNAME_INPUT = """
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">{{i18nUsernameLabel}}</label>
                 <input type="text" id="username" name="username"
                        value="{{username}}"
                        class="form-control"
-                       placeholder="Username"
+                       placeholder="{{i18nUsernameLabel}}"
                        required
                        >
             </div>
@@ -135,10 +149,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
     private static final String OTT_EDITABLE_USERNAME_INPUT = """
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">{{i18nUsernameLabel}}</label>
                 <input type="text" id="username" name="username"
                        class="form-control"
-                       placeholder="Enter your username"
+                       placeholder="{{i18nUsernameLabel}}"
                        required
                        autofocus>
             </div>
@@ -156,7 +170,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>Request Authentication Code</title>
+                <title>{{i18nOttRequestTitle}}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -253,15 +267,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
             </head>
             <body>
                 <div class="container">
-                    <h1>Request Authentication Code</h1>
-                    <p class="description">An authentication code will be sent to your registered email address.</p>
+                    <h1>{{i18nOttRequestTitle}}</h1>
+                    <p class="description">{{i18nOttRequestDescription}}</p>
                     {{errorMessage}}
                     <form id="ott-request-form" method="post" action="{{ottRequestUrl}}">
                         {{usernameInput}}
                         {{hiddenInputs}}
 
                         <button type="submit" class="primary-button">
-                            Send Authentication Code
+                            {{i18nOttRequestButton}}
                         </button>
                     </form>
             
@@ -282,7 +296,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 <meta name="_csrf" content="{{csrfToken}}">
                 <meta name="_csrf_header" content="{{csrfHeaderName}}">
                 <meta name="_csrf_parameter" content="{{csrfParameterName}}">
-                <title>MFA - Enter Authentication Code</title>
+                <title>{{i18nOttVerifyTitle}}</title>
                 <style>
                     * { margin: 0; padding: 0; box-sizing: border-box; }
                     body {
@@ -413,12 +427,16 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 </style>
             </head>
             <body>
-                <div class="container">
-                    <h1>Enter Authentication Code</h1>
-                    <p class="description">Enter the 6-digit code sent to your email.</p>
+                <div class="container"
+                     data-msg-max-attempts="{{i18nOttVerifyMaxAttempts}}"
+                     data-msg-remaining="{{i18nOttVerifyRemaining}}"
+                     data-msg-verifying="{{i18nOttVerifyVerifying}}"
+                     data-msg-verify="{{i18nOttVerifyButton}}">
+                    <h1>{{i18nOttVerifyTitle}}</h1>
+                    <p class="description">{{i18nOttVerifyDescription}}</p>
 
                     <div class="user-info">
-                        <div class="label">Account being authenticated</div>
+                        <div class="label">{{i18nOttVerifyAccountLabel}}</div>
                         <div class="username">{{username}}</div>
                     </div>
 
@@ -426,7 +444,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
                     <form id="ott-verify-form" method="post" action="{{ottVerifyUrl}}">
                         <div class="form-group">
-                            <label for="token">Authentication Code</label>
+                            <label for="token">{{i18nOttVerifyCodeLabel}}</label>
                             <input type="text" id="token" name="token"
                                    class="form-control"
                                    required
@@ -436,14 +454,14 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                         {{hiddenInputs}}
 
                         <button type="submit" class="primary-button">
-                            Verify
+                            {{i18nOttVerifyButton}}
                         </button>
                     </form>
 
                     <form id="resend-form" method="post" action="{{ottResendUrl}}">
                         {{resendHiddenInputs}}
                         <button type="submit" class="secondary-button">
-                            Resend Code
+                            {{i18nOttResendButton}}
                         </button>
                     </form>
             
@@ -455,6 +473,12 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             var currentAttempts = parseInt('{{attemptsMade}}', 10) || 0;
                             var maxAttempts = parseInt('{{maxAttempts}}', 10) || 5;
 
+                            const containerEl = document.querySelector('.container');
+                            const msgMaxAttempts = containerEl.dataset.msgMaxAttempts;
+                            const msgRemaining = containerEl.dataset.msgRemaining;
+                            const msgVerifying = containerEl.dataset.msgVerifying;
+                            const msgVerify = containerEl.dataset.msgVerify;
+
                             const verifyForm = document.getElementById('ott-verify-form');
                             const resendForm = document.getElementById('resend-form');
                             const verifyButton = verifyForm.querySelector('button[type="submit"]');
@@ -465,9 +489,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                             function disableVerificationForm() {
                                 codeInput.disabled = true;
                                 verifyButton.disabled = true;
-                                verifyButton.textContent = 'Verify';
+                                verifyButton.textContent = msgVerify;
                                 resendButton.disabled = true;
-                                errorMsgEl.textContent = 'Maximum verification attempts exceeded. Please contact your administrator.';
+                                errorMsgEl.textContent = msgMaxAttempts;
                                 errorMsgEl.style.display = 'block';
                             }
 
@@ -477,7 +501,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                 if (remaining <= 0) {
                                     disableVerificationForm();
                                 } else {
-                                    errorMsgEl.textContent = remaining + ' attempt(s) remaining out of ' + maxAttempts + '.';
+                                    errorMsgEl.textContent = remaining + msgRemaining + maxAttempts + '.';
                                     errorMsgEl.style.display = 'block';
                                 }
                             }
@@ -492,7 +516,7 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
                                 const code = codeInput.value;
                                 verifyButton.disabled = true;
-                                verifyButton.textContent = 'Verifying...';
+                                verifyButton.textContent = msgVerifying;
 
                                 try {
                                     const result = await mfa.verifyOtt(code);
@@ -525,12 +549,10 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                                     if (remaining <= 0) {
                                         disableVerificationForm();
                                     } else {
-                                        var msg = 'Authentication code verification failed. '
-                                            + remaining + ' attempt(s) remaining out of ' + maxAttempts + '.';
-                                        errorMsgEl.textContent = msg;
+                                        errorMsgEl.textContent = remaining + msgRemaining + maxAttempts + '.';
                                         errorMsgEl.style.display = 'block';
                                         verifyButton.disabled = false;
-                                        verifyButton.textContent = 'Verify';
+                                        verifyButton.textContent = msgVerify;
                                         codeInput.value = '';
                                         codeInput.focus();
                                     }
@@ -1748,15 +1770,19 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
 
         String username = getUsername();
 
+        String usernameLabel = msg("mfa.username.label", "Username");
         String usernameInput;
         if (username != null) {
 
             usernameInput = MfaHtmlTemplates.fromTemplate(OTT_READONLY_USERNAME_INPUT)
                     .withValue("username", username)
+                    .withValue("i18nUsernameLabel", usernameLabel)
                     .render();
         } else {
 
-            usernameInput = OTT_EDITABLE_USERNAME_INPUT;
+            usernameInput = MfaHtmlTemplates.fromTemplate(OTT_EDITABLE_USERNAME_INPUT)
+                    .withValue("i18nUsernameLabel", usernameLabel)
+                    .render();
         }
 
         String hiddenInputs = resolveHiddenInputs(request);
@@ -1776,6 +1802,9 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("csrfToken", getCsrfToken(request))
                 .withValue("csrfHeaderName", getCsrfHeaderName(request))
                 .withValue("csrfParameterName", getCsrfParameterName(request))
+                .withValue("i18nOttRequestTitle", msg("mfa.ott.request.title", "Request Authentication Code"))
+                .withValue("i18nOttRequestDescription", msg("mfa.ott.request.description", "An authentication code will be sent to your registered email address."))
+                .withValue("i18nOttRequestButton", msg("mfa.ott.request.button", "Send Authentication Code"))
                 .withRawHtml("usernameInput", usernameInput)
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("errorMessage", errorMessage)
@@ -1828,6 +1857,15 @@ public class DefaultMfaPageGeneratingFilter extends OncePerRequestFilter {
                 .withValue("attemptsMade", String.valueOf(attemptsMade))
                 .withValue("maxAttempts", String.valueOf(maxAttempts))
                 .withValue("tokenPersistence", tokenPersistence)
+                .withValue("i18nOttVerifyTitle", msg("mfa.ott.verify.title", "Enter Authentication Code"))
+                .withValue("i18nOttVerifyDescription", msg("mfa.ott.verify.description", "Enter the 6-digit code sent to your email."))
+                .withValue("i18nOttVerifyAccountLabel", msg("mfa.ott.verify.account.label", "Account being authenticated"))
+                .withValue("i18nOttVerifyCodeLabel", msg("mfa.ott.verify.code.label", "Authentication Code"))
+                .withValue("i18nOttVerifyButton", msg("mfa.ott.verify.button", "Verify"))
+                .withValue("i18nOttResendButton", msg("mfa.ott.resend.button", "Resend Code"))
+                .withValue("i18nOttVerifyMaxAttempts", msg("mfa.ott.verify.max.attempts", "Maximum verification attempts exceeded. Please contact your administrator."))
+                .withValue("i18nOttVerifyRemaining", msg("mfa.ott.verify.remaining", " attempt(s) remaining out of "))
+                .withValue("i18nOttVerifyVerifying", msg("mfa.ott.verify.verifying", "Verifying..."))
                 .withRawHtml("hiddenInputs", hiddenInputs)
                 .withRawHtml("resendHiddenInputs", resendHiddenInputs)
                 .withRawHtml("selectFactorLink", buildSelectFactorLink(contextPath, stateMachineIntegrator.loadFactorContextFromRequest(request)))

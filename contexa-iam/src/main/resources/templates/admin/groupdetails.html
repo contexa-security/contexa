@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ko">
-<head th:replace="~{fragments/common-head :: head-elements(pageTitle=${group.id != null ? #{admin.groups.detail.edit.title} : #{admin.groups.detail.create.title}})}">
+<head th:replace="~{fragments/common-head :: head-elements(pageTitle=#{admin.groups.detail.title})}">
 </head>
 <body class="flex flex-col min-h-screen font-sans">
 

@@ -5,6 +5,8 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.security.web.csrf.CsrfToken;
@@ -41,6 +43,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
 
     private final PublicKeyCredentialUserEntityRepository userEntities;
     private final UserCredentialRepository userCredentials;
+    private MessageSource messageSource;
 
     public ContexaWebAuthnRegistrationPageFilter(PublicKeyCredentialUserEntityRepository userEntities,
                                                   UserCredentialRepository userCredentials) {
@@ -48,6 +51,17 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         Assert.notNull(userCredentials, "userCredentials cannot be null");
         this.userEntities = userEntities;
         this.userCredentials = userCredentials;
+    }
+
+    public void setMessageSource(MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
+
+    private String msg(String code, String defaultMsg) {
+        if (messageSource == null) {
+            return defaultMsg;
+        }
+        return messageSource.getMessage(code, null, defaultMsg, LocaleContextHolder.getLocale());
     }
 
     public void setRequestMatcher(RequestMatcher requestMatcher) {
@@ -71,6 +85,17 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 .withValue("contextPath", request.getContextPath())
                 .withRawHtml("csrfHeaders", csrfToken != null ? renderCsrfHeader(csrfToken) : "{}")
                 .withRawHtml("passkeys", passkeyRows(request.getRemoteUser(), request.getContextPath(), csrfToken))
+                .withValue("i18nTitle", msg("webauthn.title", "Passkey Management"))
+                .withValue("i18nDescription", msg("webauthn.description", "Register and manage your passkeys for secure authentication."))
+                .withValue("i18nLabel", msg("webauthn.label", "Passkey Label"))
+                .withValue("i18nLabelPlaceholder", msg("webauthn.label.placeholder", "e.g. My MacBook, YubiKey"))
+                .withValue("i18nRegisterButton", msg("webauthn.register.button", "Register New Passkey"))
+                .withValue("i18nTableLabel", msg("webauthn.table.label", "Label"))
+                .withValue("i18nTableCreated", msg("webauthn.table.created", "Created"))
+                .withValue("i18nTableLastUsed", msg("webauthn.table.lastused", "Last Used"))
+                .withValue("i18nTableSignatures", msg("webauthn.table.signatures", "Signatures"))
+                .withValue("i18nTableAction", msg("webauthn.table.action", "Action"))
+                .withValue("i18nSuccess", msg("webauthn.success", "Passkey registered successfully!"))
                 .render();
 
         response.getWriter().write(html);
@@ -81,7 +106,8 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
         List<CredentialRecord> credentials = (userEntity != null)
                 ? this.userCredentials.findByUserId(userEntity.getId()) : Collections.emptyList();
         if (credentials.isEmpty()) {
-            return "<tr><td colspan=\"5\" style=\"text-align:center; color:#999; padding:20px;\">No Passkeys registered</td></tr>";
+            String emptyMsg = msg("webauthn.empty", "No Passkeys registered");
+            return "<tr><td colspan=\"5\" style=\"text-align:center; color:#999; padding:20px;\">" + emptyMsg + "</td></tr>";
         }
         return credentials.stream()
                 .map(cr -> renderPasskeyRow(cr, contextPath, csrfToken))
@@ -98,6 +124,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                 .withValue("csrfParameterName", csrfToken != null ? csrfToken.getParameterName() : "_csrf")
                 .withValue("csrfToken", csrfToken != null ? csrfToken.getToken() : "")
                 .withValue("contextPath", contextPath)
+                .withValue("deleteLabel", msg("webauthn.delete", "Delete"))
                 .render();
     }
 
@@ -126,7 +153,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
             <head>
                 <meta charset="utf-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-                <title>WebAuthn Registration - Passkey Management</title>
+                <title>{{i18nTitle}}</title>
                 <script type="text/javascript" src="{{contextPath}}/login/webauthn.js"></script>
                 <script type="text/javascript">
                     const ui = {
@@ -265,26 +292,26 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
             </head>
             <body>
                 <div class="container">
-                    <h1>Passkey Management</h1>
-                    <p class="description">Register and manage your passkeys for secure authentication.</p>
+                    <h1>{{i18nTitle}}</h1>
+                    <p class="description">{{i18nDescription}}</p>
                     <form method="post" action="#" onclick="return false">
-                        <div id="success" class="alert alert-success">Passkey registered successfully!</div>
+                        <div id="success" class="alert alert-success">{{i18nSuccess}}</div>
                         <div id="error" class="alert alert-danger"></div>
                         <div class="form-group">
-                            <label for="label">Passkey Label</label>
+                            <label for="label">{{i18nLabel}}</label>
                             <input type="text" id="label" name="label" class="form-control"
-                                   placeholder="e.g. My MacBook, YubiKey" required autofocus>
+                                   placeholder="{{i18nLabelPlaceholder}}" required autofocus>
                         </div>
-                        <button id="register" class="primary-button" type="submit">Register New Passkey</button>
+                        <button id="register" class="primary-button" type="submit">{{i18nRegisterButton}}</button>
                     </form>
                     <table>
                         <thead>
                             <tr>
-                                <th>Label</th>
-                                <th>Created</th>
-                                <th>Last Used</th>
-                                <th>Signatures</th>
-                                <th>Action</th>
+                                <th>{{i18nTableLabel}}</th>
+                                <th>{{i18nTableCreated}}</th>
+                                <th>{{i18nTableLastUsed}}</th>
+                                <th>{{i18nTableSignatures}}</th>
+                                <th>{{i18nTableAction}}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -306,7 +333,7 @@ public class ContexaWebAuthnRegistrationPageFilter extends OncePerRequestFilter 
                                     <form class="delete-form no-margin" method="post" action="{{contextPath}}/webauthn/register/{{credentialId}}">
                                         <input type="hidden" name="method" value="delete">
                                         <input type="hidden" name="{{csrfParameterName}}" value="{{csrfToken}}">
-                                        <button class="small-button" type="submit">Delete</button>
+                                        <button class="small-button" type="submit">{{deleteLabel}}</button>
                                     </form>
                                 </td>
                             </tr>

@@ -72,6 +72,13 @@ public class MfaPageGeneratingConfigurer implements SecurityConfigurer {
                     authContextProperties.getMfa(),
                     authContextProperties.getTokenPersistence()
             );
+            try {
+                org.springframework.context.MessageSource messageSource =
+                        applicationContext.getBean(org.springframework.context.MessageSource.class);
+                mfaPageFilter.setMessageSource(messageSource);
+            } catch (Exception ignored) {
+                // MessageSource not available - use default English strings
+            }
 
             flowContext.http().setSharedObject(DefaultMfaPageGeneratingFilter.class, mfaPageFilter);
             flowContext.http().addFilterBefore(mfaPageFilter, UsernamePasswordAuthenticationFilter.class);

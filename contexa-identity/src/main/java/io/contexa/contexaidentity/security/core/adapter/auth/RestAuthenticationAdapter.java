@@ -8,6 +8,7 @@ import io.contexa.contexaidentity.security.filter.DefaultRestLoginPageGenerating
 import io.contexa.contexaidentity.security.filter.RestAuthenticationFilter;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationFailureHandler;
 import io.contexa.contexaidentity.security.handler.PlatformAuthenticationSuccessHandler;
+import org.springframework.context.MessageSource;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -66,6 +67,9 @@ public final class RestAuthenticationAdapter extends BaseRestAuthenticationAdapt
         String loginPageUrl = currentFlow.getUrlPrefix() != null
                 ? currentFlow.getUrlPrefix() + "/api/login" : "/api/login";
         DefaultRestLoginPageGeneratingFilter loginPageFilter = new DefaultRestLoginPageGeneratingFilter(loginPageUrl);
+        MessageSource messageSource = http.getSharedObject(org.springframework.context.ApplicationContext.class)
+                .getBean(MessageSource.class);
+        loginPageFilter.setMessageSource(messageSource);
         http.addFilterBefore(loginPageFilter, UsernamePasswordAuthenticationFilter.class);
     }
 }
