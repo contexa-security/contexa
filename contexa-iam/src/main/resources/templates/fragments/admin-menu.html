@@ -1,5 +1,4 @@
 <div th:fragment="menu" xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
-    <link rel="stylesheet" th:href="@{/css/admin-menu.css}" />
     <nav class="admin-sidebar">
         <ul class="main-menu">
             <!-- 1. Dashboard -->
@@ -23,8 +22,7 @@
                 <div class="submenu-panel">
                     <ul>
                         <li><a th:href="@{/admin/policy-center}" class="submenu-link" data-page="policy-center">
-                            <span th:text="#{menu.policy.center}">Policy Center</span>
-                        </a></li>
+                            <span th:text="#{menu.policy.center}">Policy Center</span></a></li>
                     </ul>
                 </div>
             </li>
@@ -40,8 +38,7 @@
                 <div class="submenu-panel">
                     <ul>
                         <li><a th:href="@{/admin/access-center}" class="submenu-link" data-page="access-center">
-                            <span th:text="#{menu.access.center}">Access Center</span>
-                        </a></li>
+                            <span th:text="#{menu.access.center}">Access Center</span></a></li>
                     </ul>
                 </div>
             </li>
@@ -57,23 +54,17 @@
                 <div class="submenu-panel">
                     <ul>
                         <li><a th:href="@{/admin/users}" class="submenu-link" data-page="users">
-                            <span th:text="#{menu.iam.users}">Users</span>
-                        </a></li>
+                            <span th:text="#{menu.iam.users}">User Management</span></a></li>
                         <li><a th:href="@{/admin/groups}" class="submenu-link" data-page="groups">
-                            <span th:text="#{menu.iam.groups}">Groups</span>
-                        </a></li>
+                            <span th:text="#{menu.iam.groups}">Group Management</span></a></li>
                         <li><a th:href="@{/admin/roles}" class="submenu-link" data-page="roles">
-                            <span th:text="#{menu.iam.roles}">Roles</span>
-                        </a></li>
+                            <span th:text="#{menu.iam.roles}">Role Management</span></a></li>
                         <li><a th:href="@{/admin/permissions}" class="submenu-link" data-page="permissions">
-                            <span th:text="#{menu.iam.permissions}">Permissions</span>
-                        </a></li>
+                            <span th:text="#{menu.iam.permissions}">Permission Management</span></a></li>
                         <li><a th:href="@{/admin/role-hierarchies}" class="submenu-link" data-page="role-hierarchies">
-                            <span th:text="#{menu.iam.role.hierarchies}">Role Hierarchy</span>
-                        </a></li>
+                            <span th:text="#{menu.iam.role.hierarchies}">Role Hierarchy</span></a></li>
                         <li><a th:href="@{/admin/password-policy}" class="submenu-link" data-page="password-policy">
-                            <span th:text="#{menu.iam.password.policy}">Password Policy</span>
-                        </a></li>
+                            <span th:text="#{menu.iam.password.policy}">Password Policy</span></a></li>
                     </ul>
                 </div>
             </li>
@@ -89,17 +80,13 @@
                 <div class="submenu-panel">
                     <ul>
                         <li><a th:href="@{/admin/security-monitor}" class="submenu-link" data-page="security-monitor">
-                            <span th:text="#{menu.zerotrust.monitor}">Monitor</span>
-                        </a></li>
+                            <span th:text="#{menu.zerotrust.monitor}">Real-time Monitor</span></a></li>
                         <li><a th:href="@{/admin/blacklist}" class="submenu-link" data-page="blacklist">
-                            <span th:text="#{menu.zerotrust.blacklist}">Blocked Users</span>
-                        </a></li>
+                            <span th:text="#{menu.zerotrust.blacklist}">Blocked Users</span></a></li>
                         <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/enterprise/zerotrust}" class="submenu-link" data-page="enterprise-zerotrust">
-                            <span th:text="#{menu.enterprise.zerotrust}">ZT Ops</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.zerotrust}">ZT Operations</span></a></li>
                         <li th:if="${contexaAdminEnterpriseEnabled}"><a th:href="@{/admin/enterprise/incidents}" class="submenu-link" data-page="enterprise-incidents">
-                            <span th:text="#{menu.enterprise.incidents}">SOAR Console</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.incidents}">SOAR Console</span></a></li>
                     </ul>
                 </div>
             </li>
@@ -115,29 +102,21 @@
                 <div class="submenu-panel">
                     <ul>
                         <li><a th:href="@{/admin/enterprise}" class="submenu-link" data-page="enterprise-home">
-                            <span th:text="#{menu.enterprise.home}">Home</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.home}">Enterprise Home</span></a></li>
                         <li><a th:href="@{/admin/enterprise/approvals}" class="submenu-link" data-page="enterprise-approvals">
-                            <span th:text="#{menu.enterprise.approvals}">Approvals</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.approvals}">Approval Inbox</span></a></li>
                         <li><a th:href="@{/admin/enterprise/mcp}" class="submenu-link" data-page="enterprise-mcp">
-                            <span th:text="#{menu.enterprise.mcp}">MCP</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.mcp}">MCP Tools</span></a></li>
                         <li><a th:href="@{/admin/enterprise/permits}" class="submenu-link" data-page="enterprise-permits">
-                            <span th:text="#{menu.enterprise.permits}">Permits</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.permits}">Permit Registry</span></a></li>
                         <li><a th:href="@{/admin/enterprise/executions}" class="submenu-link" data-page="enterprise-executions">
-                            <span th:text="#{menu.enterprise.executions}">Executions</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.executions}">Execution History</span></a></li>
                         <li><a th:href="@{/admin/enterprise/playbooks}" class="submenu-link" data-page="enterprise-playbooks">
-                            <span th:text="#{menu.enterprise.playbooks}">Playbooks</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.playbooks}">Playbooks</span></a></li>
                         <li><a th:href="@{/admin/enterprise/metrics}" class="submenu-link" data-page="enterprise-metrics">
-                            <span th:text="#{menu.enterprise.metrics}">Metrics</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.metrics}">Metrics</span></a></li>
                         <li><a th:href="@{/admin/enterprise/integration}" class="submenu-link" data-page="enterprise-integration">
-                            <span th:text="#{menu.enterprise.integration}">Integration</span>
-                        </a></li>
+                            <span th:text="#{menu.enterprise.integration}">Integration</span></a></li>
                     </ul>
                 </div>
             </li>
@@ -154,29 +133,19 @@
                     <ul>
                         <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','BILLING_ADMIN','DEDICATED_OPS_ADMIN')">
                             <a th:href="@{/admin/saas/tenants}" class="submenu-link" data-page="saas-platform-tenants">
-                                <span th:text="#{menu.saas.tenants}">Tenants</span>
-                            </a>
-                        </li>
+                                <span th:text="#{menu.saas.tenants}">SaaS Tenants</span></a></li>
                         <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','BILLING_ADMIN')">
                             <a th:href="@{/admin/saas/billing}" class="submenu-link" data-page="saas-platform-billing">
-                                <span th:text="#{menu.saas.billing}">Billing</span>
-                            </a>
-                        </li>
+                                <span th:text="#{menu.saas.billing}">Billing</span></a></li>
                         <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','DEDICATED_OPS_ADMIN')">
                             <a th:href="@{/admin/saas/dedicated}" class="submenu-link" data-page="saas-platform-dedicated">
-                                <span th:text="#{menu.saas.dedicated}">Dedicated</span>
-                            </a>
-                        </li>
+                                <span th:text="#{menu.saas.dedicated}">Dedicated</span></a></li>
                         <li sec:authorize="hasAnyRole('ADMIN','PLATFORM_ADMIN','BILLING_ADMIN','DEDICATED_OPS_ADMIN')">
                             <a th:href="@{/admin/saas/release-governance}" class="submenu-link" data-page="saas-release-governance">
-                                <span th:text="#{menu.saas.release.governance}">Release</span>
-                            </a>
-                        </li>
+                                <span th:text="#{menu.saas.release.governance}">Release</span></a></li>
                         <li sec:authorize="hasAnyRole('ADMIN','TENANT_ADMIN','TENANT_OPERATOR','TENANT_AUDITOR','TENANT_BILLING_ADMIN')">
                             <a th:href="@{/admin/saas/tenant/workspace}" class="submenu-link" data-page="saas-tenant-workspace">
-                                <span th:text="#{menu.saas.tenant.workspace}">Tenant Workspace</span>
-                            </a>
-                        </li>
+                                <span th:text="#{menu.saas.tenant.workspace}">Tenant Workspace</span></a></li>
                     </ul>
                 </div>
             </li>

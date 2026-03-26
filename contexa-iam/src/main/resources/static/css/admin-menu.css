@@ -109,9 +109,9 @@ nav.admin-sidebar .main-menu-link.active {
     box-shadow: 0 0 12px rgba(99, 102, 241, 0.3), inset 0 0 8px rgba(99, 102, 241, 0.15);
 }
 
-/* Submenu panel - MUST be hidden by default */
+/* Submenu panel - hidden by default, shown on hover */
 nav.admin-sidebar .submenu-panel {
-    display: none !important;
+    display: none;
     position: absolute;
     left: 100%;
     top: 0;
@@ -151,7 +151,7 @@ nav.admin-sidebar .main-menu-item.has-submenu::after {
 /* Show submenu and bridge on hover */
 nav.admin-sidebar .main-menu-item.has-submenu:hover > .submenu-panel,
 nav.admin-sidebar .main-menu-item.has-submenu.submenu-open > .submenu-panel {
-    display: block !important;
+    display: block;
 }
 
 nav.admin-sidebar .main-menu-item.has-submenu:hover::after,
