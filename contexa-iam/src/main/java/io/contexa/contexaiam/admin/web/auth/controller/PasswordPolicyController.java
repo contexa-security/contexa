@@ -3,6 +3,8 @@ package io.contexa.contexaiam.admin.web.auth.controller;
 import io.contexa.contexacommon.entity.PasswordPolicy;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -22,6 +24,11 @@ import java.util.Map;
 public class PasswordPolicyController {
 
     private final PasswordPolicyService passwordPolicyService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     public String showPolicy(Model model) {
@@ -34,9 +41,9 @@ public class PasswordPolicyController {
     public String updatePolicy(@ModelAttribute PasswordPolicy policy, RedirectAttributes ra) {
         try {
             passwordPolicyService.updatePolicy(policy);
-            ra.addFlashAttribute("message", "Password policy updated successfully.");
+            ra.addFlashAttribute("message", msg("msg.password.policy.updated"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Failed to update password policy: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.password.policy.update.error", e.getMessage()));
         }
         return "redirect:/admin/password-policy";
     }

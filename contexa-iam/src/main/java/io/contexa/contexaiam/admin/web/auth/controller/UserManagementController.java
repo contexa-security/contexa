@@ -11,6 +11,8 @@ import io.contexa.contexacommon.entity.Users;
 import io.contexa.contexacommon.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -33,6 +35,11 @@ public class UserManagementController {
 	private final GroupService groupService;
 	private final UserRepository userRepository;
 	private final io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService;
+	private final MessageSource messageSource;
+
+	private String msg(String key, Object... args) {
+		return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+	}
 
 	@GetMapping
 	public String getUsers(@RequestParam(required = false) String keyword,
@@ -104,10 +111,10 @@ public class UserManagementController {
 			userDto.setId(id);
 			userDto.setSelectedGroupIds(selectedGroupIds);
 			userManagementService.modifyUser(userDto);
-			ra.addFlashAttribute("message", "User '" + userDto.getUsername() + "' information has been successfully updated!");
+			ra.addFlashAttribute("message", msg("msg.user.updated", userDto.getUsername()));
 					} catch (Exception e) {
 			log.error("Error modifying user: ", e);
-			ra.addFlashAttribute("errorMessage", "An error occurred while updating user: " + e.getMessage());
+			ra.addFlashAttribute("errorMessage", msg("msg.user.update.error", e.getMessage()));
 			return "redirect:/admin/users/" + id;
 		}
 		return "redirect:/admin/users";
@@ -129,7 +136,7 @@ public class UserManagementController {
 		try {
 			userDto.setSelectedGroupIds(selectedGroupIds);
 			userManagementService.createUser(userDto);
-			ra.addFlashAttribute("message", "User '" + userDto.getUsername() + "' has been successfully created!");
+			ra.addFlashAttribute("message", msg("msg.user.created", userDto.getUsername()));
 		} catch (Exception e) {
 			log.error("Error creating user: ", e);
 			model.addAttribute("errorMessage", e.getMessage());
@@ -147,10 +154,10 @@ public class UserManagementController {
 	public String removeUser(@PathVariable Long id, RedirectAttributes ra) {
 		try {
 			userManagementService.deleteUser(id);
-			ra.addFlashAttribute("message", "User (ID: " + id + ") has been successfully deleted!");
+			ra.addFlashAttribute("message", msg("msg.user.deleted", id));
 					} catch (Exception e) {
 			log.error("Error deleting user: ", e);
-			ra.addFlashAttribute("errorMessage", "An error occurred while deleting user: " + e.getMessage());
+			ra.addFlashAttribute("errorMessage", msg("msg.user.delete.error", e.getMessage()));
 		}
 		return "redirect:/admin/users";
 	}

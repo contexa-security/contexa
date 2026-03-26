@@ -5,6 +5,8 @@ import io.contexa.contexaiam.domain.entity.BlockedUser;
 import io.contexa.contexaiam.domain.entity.BlockedUserStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
@@ -21,6 +23,11 @@ import java.util.List;
 public class BlacklistController {
 
     private final BlockedUserService blockedUserService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     public String listBlockedUsers(
@@ -50,7 +57,7 @@ public class BlacklistController {
                     return "admin/blacklist-detail";
                 })
                 .orElseGet(() -> {
-                    ra.addFlashAttribute("errorMessage", "Block record not found: id=" + id);
+                    ra.addFlashAttribute("errorMessage", msg("msg.blacklist.not.found", id));
                     return "redirect:/admin/blacklist";
                 });
     }
@@ -63,10 +70,10 @@ public class BlacklistController {
         try {
             String adminId = extractCurrentUserId();
             blockedUserService.resolveBlockById(id, adminId, resolvedAction, reason);
-            ra.addFlashAttribute("message", "Block resolved successfully.");
+            ra.addFlashAttribute("message", msg("msg.blacklist.resolved"));
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to resolve block: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", "Failed to resolve block: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.blacklist.resolve.error", e.getMessage()));
             return "redirect:/admin/blacklist/" + id;
         }
         return "redirect:/admin/blacklist";
@@ -76,10 +83,10 @@ public class BlacklistController {
     public String deleteBlockRecord(@PathVariable Long id, RedirectAttributes ra) {
         try {
             blockedUserService.deleteBlockRecord(id);
-            ra.addFlashAttribute("message", "Block record deleted successfully.");
+            ra.addFlashAttribute("message", msg("msg.blacklist.deleted"));
         } catch (Exception e) {
             log.error("[BlacklistController] Failed to delete block record: id={}", id, e);
-            ra.addFlashAttribute("errorMessage", "Failed to delete: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.blacklist.delete.error", e.getMessage()));
         }
         return "redirect:/admin/blacklist";
     }

@@ -12,6 +12,7 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicyService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
@@ -30,10 +31,11 @@ public class IamAdminCenterAutoConfiguration {
             PermissionCatalogService permissionCatalogService,
             BusinessPolicyService businessPolicyService,
             ConditionTemplateRepository conditionTemplateRepository,
-            ManagedResourceRepository managedResourceRepository) {
+            ManagedResourceRepository managedResourceRepository,
+            MessageSource messageSource) {
         return new PolicyCenterController(
                 resourceRegistryService, policyService, policyRepository, roleService,
                 permissionCatalogService, businessPolicyService, conditionTemplateRepository,
-                managedResourceRepository);
+                managedResourceRepository, messageSource);
     }
 }

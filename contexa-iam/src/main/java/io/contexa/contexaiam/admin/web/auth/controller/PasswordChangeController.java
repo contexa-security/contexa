@@ -5,6 +5,8 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Controller;
@@ -24,6 +26,11 @@ public class PasswordChangeController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicyService passwordPolicyService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping("/password-change")
     public String showPasswordChangeForm(@RequestParam String username, Model model) {
@@ -45,26 +52,26 @@ public class PasswordChangeController {
         // Validate user exists
         Users user = userRepository.findByUsername(username).orElse(null);
         if (user == null) {
-            ra.addFlashAttribute("errorMessage", "User not found");
+            ra.addFlashAttribute("errorMessage", msg("msg.password.change.user.not.found"));
             return "redirect:/password-change?username=" + username;
         }
 
         // Validate current password
         if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
-            ra.addFlashAttribute("errorMessage", "Current password is incorrect");
+            ra.addFlashAttribute("errorMessage", msg("msg.password.change.current.incorrect"));
             return "redirect:/password-change?username=" + username;
         }
 
         // Validate new password confirmation
         if (!newPassword.equals(confirmPassword)) {
-            ra.addFlashAttribute("errorMessage", "New passwords do not match");
+            ra.addFlashAttribute("errorMessage", msg("msg.password.change.mismatch"));
             return "redirect:/password-change?username=" + username;
         }
 
         // Validate against password policy
         List<String> violations = passwordPolicyService.validatePassword(newPassword);
         if (!violations.isEmpty()) {
-            ra.addFlashAttribute("errorMessage", "Password policy violation: " + String.join(", ", violations));
+            ra.addFlashAttribute("errorMessage", msg("msg.password.change.policy.violation", String.join(", ", violations)));
             return "redirect:/password-change?username=" + username;
         }
 
@@ -74,7 +81,7 @@ public class PasswordChangeController {
         user.setCredentialsExpired(false);
         userRepository.save(user);
 
-        ra.addFlashAttribute("message", "Password has been changed successfully. Please login again.");
+        ra.addFlashAttribute("message", msg("msg.password.change.success"));
         return "redirect:/admin/mfa/login";
     }
 }

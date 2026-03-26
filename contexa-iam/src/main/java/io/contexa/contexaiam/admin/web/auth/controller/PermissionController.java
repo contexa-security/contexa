@@ -9,6 +9,8 @@ import io.contexa.contexacommon.repository.PermissionRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -30,6 +32,11 @@ public class PermissionController {
     private final ModelMapper modelMapper;
     private final FunctionCatalogService functionCatalogService;
     private final PermissionRepository permissionRepository;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     public String getPermissions(@RequestParam(required = false) String keyword,
@@ -60,7 +67,7 @@ public class PermissionController {
     public String createPermission(@ModelAttribute("permission") PermissionDto permissionDto, RedirectAttributes ra) {
         Permission permission = modelMapper.map(permissionDto, Permission.class);
         permissionService.createPermission(permission);
-        ra.addFlashAttribute("message", "Permission '" + permission.getName() + "' has been successfully created.");
+        ra.addFlashAttribute("message", msg("msg.permission.created", permission.getName()));
         return "redirect:/admin/permissions";
     }
 
@@ -79,7 +86,7 @@ public class PermissionController {
     public String updatePermission(@PathVariable Long id, @ModelAttribute("permission") PermissionDto permissionDto,
                                    RedirectAttributes ra) {
         Permission permission = permissionService.updatePermission(id, permissionDto);
-        ra.addFlashAttribute("message", "Permission '" + permission.getName() + "' has been successfully updated.");
+        ra.addFlashAttribute("message", msg("msg.permission.updated", permission.getName()));
         return "redirect:/admin/permissions";
     }
 
@@ -92,9 +99,9 @@ public class PermissionController {
     public String deletePermission(@PathVariable Long id, RedirectAttributes ra) {
         try {
             permissionService.deletePermission(id);
-            ra.addFlashAttribute("message", "Permission (ID: " + id + ") has been successfully deleted.");
+            ra.addFlashAttribute("message", msg("msg.permission.deleted", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Error occurred while deleting permission: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.permission.delete.error", e.getMessage()));
         }
         return "redirect:/admin/permissions";
     }

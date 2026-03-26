@@ -10,6 +10,8 @@ import io.contexa.contexacommon.repository.GroupRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -32,6 +34,11 @@ public class GroupController {
     private final RoleService roleService;
     private final ModelMapper modelMapper;
     private final GroupRepository groupRepository;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     public String getGroups(@RequestParam(required = false) String keyword,
@@ -72,12 +79,12 @@ public class GroupController {
             Group group = modelMapper.map(groupDto, Group.class);
             groupService.createGroup(group, selectedRoleIds); 
 
-            ra.addFlashAttribute("message", "Group '" + group.getName() + "' has been successfully created.");
+            ra.addFlashAttribute("message", msg("msg.group.created", group.getName()));
                     } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to create group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Unknown error occurred while creating group: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.group.create.error", e.getMessage()));
             log.error("Error creating group", e);
         }
         return "redirect:/admin/groups";
@@ -112,12 +119,12 @@ public class GroupController {
             Group group = modelMapper.map(groupDto, Group.class);
             groupService.updateGroup(group, selectedRoleIds); 
 
-            ra.addFlashAttribute("message", "Group '" + group.getName() + "' has been successfully updated!");
+            ra.addFlashAttribute("message", msg("msg.group.updated", group.getName()));
                     } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
             log.warn("Failed to update group: {}", e.getMessage());
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Unknown error occurred while updating group: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.group.update.error", e.getMessage()));
             log.error("Error updating group", e);
         }
         return "redirect:/admin/groups";
@@ -127,9 +134,9 @@ public class GroupController {
     public String deleteGroup(@PathVariable Long id, RedirectAttributes ra) {
         try {
             groupService.deleteGroup(id);
-            ra.addFlashAttribute("message", "Group (ID: " + id + ") has been successfully deleted!");
+            ra.addFlashAttribute("message", msg("msg.group.deleted", id));
                     } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Error occurred while deleting group: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.group.delete.error", e.getMessage()));
             log.error("Error deleting group ID: {}", id, e);
         }
         return "redirect:/admin/groups";

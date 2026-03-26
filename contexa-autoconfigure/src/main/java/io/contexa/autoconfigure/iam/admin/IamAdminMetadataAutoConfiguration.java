@@ -21,6 +21,7 @@ import io.contexa.contexacommon.repository.UserRepository;
 import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
@@ -29,8 +30,9 @@ public class IamAdminMetadataAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public ResourceAdminController resourceAdminController(
-            ResourceRegistryService resourceRegistryService) {
-        return new ResourceAdminController(resourceRegistryService);
+            ResourceRegistryService resourceRegistryService,
+            MessageSource messageSource) {
+        return new ResourceAdminController(resourceRegistryService, messageSource);
     }
 
     @Bean

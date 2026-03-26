@@ -19,6 +19,7 @@ import io.contexa.contexaiam.security.xacml.pap.service.PolicySynchronizationSer
 import org.modelmapper.ModelMapper;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,8 +40,9 @@ public class IamAdminAuthAutoConfiguration {
             UserRepository userRepository,
             ModelMapper modelMapper,
             PasswordEncoder passwordEncoder,
-            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService) {
-        return new UserController(userRepository, modelMapper, passwordEncoder, passwordPolicyService);
+            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService,
+            MessageSource messageSource) {
+        return new UserController(userRepository, modelMapper, passwordEncoder, passwordPolicyService, messageSource);
     }
 
     @Bean
@@ -50,8 +52,9 @@ public class IamAdminAuthAutoConfiguration {
             RoleService roleService,
             GroupService groupService,
             UserRepository userRepository,
-            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService) {
-        return new UserManagementController(userManagementService, roleService, groupService, userRepository, passwordPolicyService);
+            io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService passwordPolicyService,
+            MessageSource messageSource) {
+        return new UserManagementController(userManagementService, roleService, groupService, userRepository, passwordPolicyService, messageSource);
     }
 
     @Bean
@@ -60,8 +63,9 @@ public class IamAdminAuthAutoConfiguration {
             RoleService roleService,
             PermissionService permissionService,
             ModelMapper modelMapper,
-            RoleRepository roleRepository) {
-        return new RoleController(roleService, permissionService, modelMapper, roleRepository);
+            RoleRepository roleRepository,
+            MessageSource messageSource) {
+        return new RoleController(roleService, permissionService, modelMapper, roleRepository, messageSource);
     }
 
     @Bean
@@ -70,9 +74,10 @@ public class IamAdminAuthAutoConfiguration {
             RoleHierarchyService roleHierarchyService,
             ModelMapper modelMapper,
             RoleService roleService,
-            GroupService groupService) {
+            GroupService groupService,
+            MessageSource messageSource) {
         return new RoleHierarchyController(
-                roleHierarchyService, modelMapper, roleService, groupService);
+                roleHierarchyService, modelMapper, roleService, groupService, messageSource);
     }
 
     @Bean
@@ -81,8 +86,9 @@ public class IamAdminAuthAutoConfiguration {
             GroupService groupService,
             RoleService roleService,
             ModelMapper modelMapper,
-            GroupRepository groupRepository) {
-        return new GroupController(groupService, roleService, modelMapper, groupRepository);
+            GroupRepository groupRepository,
+            MessageSource messageSource) {
+        return new GroupController(groupService, roleService, modelMapper, groupRepository, messageSource);
     }
 
     @Bean
@@ -91,8 +97,9 @@ public class IamAdminAuthAutoConfiguration {
             PermissionService permissionService,
             ModelMapper modelMapper,
             FunctionCatalogService functionCatalogService,
-            PermissionRepository permissionRepository) {
-        return new PermissionController(permissionService, modelMapper, functionCatalogService, permissionRepository);
+            PermissionRepository permissionRepository,
+            MessageSource messageSource) {
+        return new PermissionController(permissionService, modelMapper, functionCatalogService, permissionRepository, messageSource);
     }
 
     @Bean("userManagementService")

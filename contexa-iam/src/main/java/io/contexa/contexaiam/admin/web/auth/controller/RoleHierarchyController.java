@@ -14,6 +14,8 @@ import io.contexa.contexacommon.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -33,6 +35,11 @@ public class RoleHierarchyController {
     private final ModelMapper modelMapper;
     private final RoleService roleService;
     private final GroupService groupService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     public String getRoleHierarchies(Model model) {
@@ -56,7 +63,7 @@ public class RoleHierarchyController {
         try {
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.createRoleHierarchy(entity);
-            ra.addFlashAttribute("message", "Role hierarchy has been successfully created!");
+            ra.addFlashAttribute("message", msg("msg.hierarchy.created"));
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/register";
@@ -104,7 +111,7 @@ public class RoleHierarchyController {
 
         } catch (Exception e) {
             log.error("Error loading role hierarchy details for ID: {}", id, e);
-            model.addAttribute("error", "An error occurred while loading role hierarchy information.");
+            model.addAttribute("error", msg("msg.hierarchy.load.error"));
             return "redirect:/admin/role-hierarchies";
         }
 
@@ -117,7 +124,7 @@ public class RoleHierarchyController {
             hierarchyDto.setId(id);
             RoleHierarchyEntity entity = modelMapper.map(hierarchyDto, RoleHierarchyEntity.class);
             roleHierarchyService.updateRoleHierarchy(entity);
-            ra.addFlashAttribute("message", "Role hierarchy has been successfully updated!");
+            ra.addFlashAttribute("message", msg("msg.hierarchy.updated"));
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin/role-hierarchies/" + id;
@@ -128,7 +135,7 @@ public class RoleHierarchyController {
     @PostMapping("/delete/{id}")
     public String deleteRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         roleHierarchyService.deleteRoleHierarchy(id);
-        ra.addFlashAttribute("message", "Role hierarchy (ID: " + id + ") has been successfully deleted!");
+        ra.addFlashAttribute("message", msg("msg.hierarchy.deleted", id));
         return "redirect:/admin/role-hierarchies";
     }
 
@@ -136,8 +143,8 @@ public class RoleHierarchyController {
     public String activateRoleHierarchy(@PathVariable Long id, RedirectAttributes ra) {
         try {
             boolean newState = roleHierarchyService.activateRoleHierarchy(id);
-            String status = newState ? "activated" : "deactivated";
-            ra.addFlashAttribute("message", "Role hierarchy (ID: " + id + ") has been " + status + "!");
+            String status = newState ? msg("msg.hierarchy.status.activated") : msg("msg.hierarchy.status.deactivated");
+            ra.addFlashAttribute("message", msg("msg.hierarchy.status.changed", id, status));
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("error", e.getMessage());
         }

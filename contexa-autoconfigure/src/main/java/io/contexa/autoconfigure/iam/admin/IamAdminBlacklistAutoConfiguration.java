@@ -13,6 +13,7 @@ import io.contexa.contexacommon.soar.event.SecurityActionEventPublisher;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
@@ -40,8 +41,8 @@ public class IamAdminBlacklistAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public BlacklistController blacklistController(BlockedUserService blockedUserService) {
-        return new BlacklistController(blockedUserService);
+    public BlacklistController blacklistController(BlockedUserService blockedUserService, MessageSource messageSource) {
+        return new BlacklistController(blockedUserService, messageSource);
     }
 
     @Bean

@@ -9,6 +9,8 @@ import io.contexa.contexacommon.repository.RoleRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -31,6 +33,11 @@ public class RoleController {
 	private final PermissionService permissionService;
 	private final ModelMapper modelMapper;
 	private final RoleRepository roleRepository;
+	private final MessageSource messageSource;
+
+	private String msg(String key, Object... args) {
+		return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+	}
 
 	@GetMapping
 	public String getRoles(@RequestParam(required = false) String keyword,
@@ -67,7 +74,7 @@ public class RoleController {
 	public String createRole(@ModelAttribute("role") RoleDto roleDto, RedirectAttributes ra) {
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.createRole(role, roleDto.getPermissionIds());
-		ra.addFlashAttribute("message", "Role has been successfully created!");
+		ra.addFlashAttribute("message", msg("msg.role.created"));
 		return "redirect:/admin/roles";
 	}
 
@@ -92,14 +99,14 @@ public class RoleController {
 		roleDto.setId(id); 
 		Role role = modelMapper.map(roleDto, Role.class);
 		roleService.updateRole(role, roleDto.getPermissionIds());
-		ra.addFlashAttribute("message", "Role has been successfully updated!");
+		ra.addFlashAttribute("message", msg("msg.role.updated"));
 		return "redirect:/admin/roles";
 	}
 
 	@PostMapping("/delete/{id}")
 	public String deleteRole(@PathVariable Long id, RedirectAttributes ra) {
 		roleService.deleteRole(id);
-		ra.addFlashAttribute("message", "Role has been successfully deleted!");
+		ra.addFlashAttribute("message", msg("msg.role.deleted"));
 		return "redirect:/admin/roles";
 	}
 }

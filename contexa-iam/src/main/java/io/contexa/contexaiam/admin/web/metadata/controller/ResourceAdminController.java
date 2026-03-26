@@ -8,6 +8,8 @@ import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Permission;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -29,6 +31,11 @@ import org.springframework.stereotype.Controller;
 public class ResourceAdminController {
 
     private final ResourceRegistryService resourceRegistryService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping
     public String resourceWorkbenchPage(
@@ -50,9 +57,9 @@ public class ResourceAdminController {
     public String refreshResources(RedirectAttributes ra) {
         try {
             resourceRegistryService.refreshAndSynchronizeResources();
-            ra.addFlashAttribute("message", "System resources have been successfully refreshed.");
+            ra.addFlashAttribute("message", msg("msg.resource.refreshed"));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Error occurred while refreshing resources: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.resource.refresh.error", e.getMessage()));
         }
         return "redirect:/admin/workbench/resources";
     }
@@ -65,7 +72,7 @@ public class ResourceAdminController {
             Permission newPermission = resourceRegistryService.defineResourceAsPermission(id, metadataDto);
 
             Map<String, Object> response = Map.of(
-                    "message", "Resource has been successfully defined as a permission.",
+                    "message", msg("msg.resource.permission.created"),
                     "permissionId", newPermission.getId(),
                     "permissionName", newPermission.getFriendlyName()
             );
@@ -115,9 +122,9 @@ public class ResourceAdminController {
     public String updateManagementStatus(@PathVariable Long id, @ModelAttribute ResourceManagementDto managementDto, RedirectAttributes ra) {
         try {
             resourceRegistryService.updateResourceManagementStatus(id, managementDto);
-            ra.addFlashAttribute("message", "Management status of resource (ID: " + id + ") has been changed.");
+            ra.addFlashAttribute("message", msg("msg.resource.status.changed", id));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Error occurred while changing management status: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.resource.status.change.error", e.getMessage()));
         }
         return "redirect:/admin/workbench/resources";
     }

@@ -7,6 +7,7 @@ import io.contexa.contexaiam.admin.web.auth.controller.PasswordPolicyController;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -21,8 +22,8 @@ public class IamAdminPasswordPolicyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public PasswordPolicyController passwordPolicyController(PasswordPolicyService passwordPolicyService) {
-        return new PasswordPolicyController(passwordPolicyService);
+    public PasswordPolicyController passwordPolicyController(PasswordPolicyService passwordPolicyService, MessageSource messageSource) {
+        return new PasswordPolicyController(passwordPolicyService, messageSource);
     }
 
     @Bean
@@ -30,7 +31,8 @@ public class IamAdminPasswordPolicyAutoConfiguration {
     public PasswordChangeController passwordChangeController(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            PasswordPolicyService passwordPolicyService) {
-        return new PasswordChangeController(userRepository, passwordEncoder, passwordPolicyService);
+            PasswordPolicyService passwordPolicyService,
+            MessageSource messageSource) {
+        return new PasswordChangeController(userRepository, passwordEncoder, passwordPolicyService, messageSource);
     }
 }

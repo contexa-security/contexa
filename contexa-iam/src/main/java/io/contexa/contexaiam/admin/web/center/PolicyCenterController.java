@@ -24,6 +24,8 @@ import io.contexa.contexacommon.entity.ManagedResource;
 import io.contexa.contexacommon.entity.Role;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -56,6 +58,11 @@ public class PolicyCenterController {
     private final BusinessPolicyService businessPolicyService;
     private final ConditionTemplateRepository conditionTemplateRepository;
     private final ManagedResourceRepository managedResourceRepository;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     // ==================== Main Page ====================
 
@@ -98,7 +105,7 @@ public class PolicyCenterController {
             model.addAttribute("serviceOwners", Collections.emptySet());
             model.addAttribute("policy", new PolicyDto());
             model.addAttribute("policyPage", Page.empty());
-            model.addAttribute("errorMessage", "Failed to load data. Please try again.");
+            model.addAttribute("errorMessage", msg("msg.policy.load.error"));
         }
 
         return "admin/policy-center";
@@ -111,10 +118,10 @@ public class PolicyCenterController {
         try {
             resourceRegistryService.refreshAndSynchronizeResources();
             synchronizeResourcePolicyStatus();
-            ra.addFlashAttribute("message", "Resources refreshed successfully.");
+            ra.addFlashAttribute("message", msg("msg.policy.resources.refreshed"));
         } catch (Exception e) {
             log.error("Failed to refresh resources", e);
-            ra.addFlashAttribute("errorMessage", "Refresh failed: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.refresh.error", e.getMessage()));
         }
         return "redirect:/admin/policy-center?tab=resources";
     }
@@ -232,7 +239,7 @@ public class PolicyCenterController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("policyId", saved.getId());
-            response.put("message", "Policy created successfully.");
+            response.put("message", msg("msg.policy.created"));
             if (!duplicateAutoRoles.isEmpty()) {
                 response.put("warning",
                         "Auto-policies already exist for roles: " + String.join(", ", duplicateAutoRoles)
@@ -328,10 +335,10 @@ public class PolicyCenterController {
     public String createPolicyFromCenter(@ModelAttribute PolicyDto policyDto, RedirectAttributes ra) {
         try {
             policyService.createPolicy(policyDto);
-            ra.addFlashAttribute("message", "Policy created successfully.");
+            ra.addFlashAttribute("message", msg("msg.policy.created"));
         } catch (Exception e) {
             log.error("Failed to create policy", e);
-            ra.addFlashAttribute("errorMessage", "Failed to create policy: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", msg("msg.policy.create.error", e.getMessage()));
         }
         return "redirect:/admin/policy-center?tab=list";
     }

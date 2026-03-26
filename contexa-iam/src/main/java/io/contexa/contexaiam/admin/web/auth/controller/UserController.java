@@ -7,6 +7,8 @@ import io.contexa.contexacommon.repository.UserRepository;
 import io.contexa.contexaiam.admin.web.auth.service.PasswordPolicyService;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.ui.Model;
@@ -27,6 +29,11 @@ public class UserController {
     private final ModelMapper modelMapper;
     private final PasswordEncoder passwordEncoder;
     private final PasswordPolicyService passwordPolicyService;
+    private final MessageSource messageSource;
+
+    private String msg(String key, Object... args) {
+        return messageSource.getMessage(key, args, LocaleContextHolder.getLocale());
+    }
 
     @GetMapping("/register")
     public String registerPage(Model model) {
@@ -39,13 +46,13 @@ public class UserController {
 
         if (userRepository.findByUsername(userDto.getUsername()).isPresent()) {
             return ResponseEntity.badRequest().body(java.util.Map.of(
-                    "error", "Username already exists"));
+                    "error", msg("msg.user.username.exists")));
         }
 
         java.util.List<String> violations = passwordPolicyService.validatePassword(userDto.getPassword());
         if (!violations.isEmpty()) {
             return ResponseEntity.badRequest().body(java.util.Map.of(
-                    "error", "Password policy violation",
+                    "error", msg("msg.user.password.policy.violation"),
                     "violations", violations));
         }
 
