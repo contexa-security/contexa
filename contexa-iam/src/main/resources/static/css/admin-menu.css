@@ -7,11 +7,11 @@ nav.admin-sidebar {
     background: linear-gradient(180deg, #06080f 0%, #0a0f1c 40%, #0d1225 100%);
     border-right: 1px solid rgba(99, 102, 241, 0.12);
     width: 6rem;
-    height: 100vh;
-    padding: 1rem 0;
+    height: calc(100vh - 4rem);
+    padding: 0.75rem 0;
     color: white;
     position: fixed;
-    top: 0;
+    top: 4rem;
     left: 0;
     z-index: 1000;
     box-shadow: 2px 0 24px rgba(0, 0, 0, 0.5), inset -1px 0 0 rgba(99, 102, 241, 0.06);
@@ -32,25 +32,6 @@ nav.admin-sidebar::before {
     inset: 0;
     background: radial-gradient(ellipse at top center, rgba(99, 102, 241, 0.08) 0%, transparent 60%);
     pointer-events: none;
-}
-
-/* Brand title */
-nav.admin-sidebar .sidebar-brand {
-    text-align: center;
-    padding: 0.25rem 0.5rem 0.75rem;
-    margin-bottom: 0.5rem;
-    border-bottom: 1px solid rgba(99, 102, 241, 0.1);
-}
-
-nav.admin-sidebar .brand-text {
-    font-size: 0.6rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    background: linear-gradient(135deg, #818cf8, #6366f1);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
 }
 
 /* Main menu list */
@@ -159,12 +140,13 @@ nav.admin-sidebar .main-menu-link.active::before {
     background: linear-gradient(135deg, rgba(15, 23, 42, 0.97) 0%, rgba(30, 41, 59, 0.97) 100%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.35);
     border-radius: 0.75rem;
     box-shadow:
-        0 8px 32px rgba(0, 0, 0, 0.4),
-        0 0 1px rgba(99, 102, 241, 0.2),
-        inset 0 1px 0 rgba(255, 255, 255, 0.03);
+        0 8px 32px rgba(0, 0, 0, 0.5),
+        0 0 20px rgba(99, 102, 241, 0.12),
+        0 0 1px rgba(99, 102, 241, 0.4),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06);
     padding: 0.5rem;
     z-index: 99999;
     opacity: 1;
