@@ -73,9 +73,11 @@
                             <label for="targetType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                                 <i class="fas fa-bullseye mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.target.type}">Target Type</span>
                             </label>
-                            <input type="text" id="targetType" th:field="*{targetType}"
-                                   class="detail-input"
-                                   placeholder="URL, METHOD, ..." />
+                            <select id="targetType" th:field="*{targetType}" class="detail-input">
+                                <option value="">-- Select --</option>
+                                <option value="URL">URL</option>
+                                <option value="METHOD">METHOD</option>
+                            </select>
                         </div>
 
                         <!-- Action Type -->
@@ -83,20 +85,15 @@
                             <label for="actionType" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
                                 <i class="fas fa-bolt mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.action.type}">Action Type</span>
                             </label>
-                            <input type="text" id="actionType" th:field="*{actionType}"
-                                   class="detail-input"
-                                   placeholder="READ, WRITE, ..." />
+                            <select id="actionType" th:field="*{actionType}" class="detail-input">
+                                <option value="">-- Select --</option>
+                                <option value="READ">READ</option>
+                                <option value="WRITE">WRITE</option>
+                                <option value="EXECUTE">EXECUTE</option>
+                                <option value="DELETE">DELETE</option>
+                                <option value="ALL">ALL</option>
+                            </select>
                         </div>
-                    </div>
-
-                    <!-- Condition Expression -->
-                    <div class="mt-4">
-                        <label for="conditionExpression" class="block text-sm font-medium mb-2" style="color: #cbd5e1;">
-                            <i class="fas fa-code mr-1" style="color: #94a3b8;"></i> <span th:text="#{admin.permissions.detail.condition.expression}">Condition Expression (SpEL)</span>
-                        </label>
-                        <textarea id="conditionExpression" th:field="*{conditionExpression}" rows="3"
-                                  class="detail-input font-mono"
-                                  placeholder="hasAuthority('ADMIN') or #userId == authentication.principal.id"></textarea>
                     </div>
                 </div>
 
@@ -107,12 +104,11 @@
                         <span th:text="#{admin.permissions.detail.linked.resource}">Linked Resource</span>
                     </h3>
                     <div class="p-4 rounded-lg" style="background: rgba(30, 41, 59, 0.4); border: 1px solid rgba(71, 85, 105, 0.3);">
-                        <p class="text-sm font-mono" style="color: #94a3b8;" th:text="${permission.managedResourceIdentifier}"></p>
-                        <a th:href="@{/admin/workbench/resources(keyword=${permission.managedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
-                            <i class="fas fa-external-link-alt mr-1"></i> <span th:text="#{admin.permissions.detail.view.workbench}">View in Workbench</span>
+                        <p class="text-sm font-mono" style="color: #94a3b8; word-break: break-all; overflow-wrap: break-word;" th:text="${permission.managedResourceIdentifier}"></p>
+                        <a th:href="@{/admin/policy-center(tab='resources',keyword=${permission.managedResourceIdentifier})}" class="text-xs hover:underline mt-2 inline-block" style="color: #818cf8;">
+                            <i class="fas fa-external-link-alt mr-1"></i> <span th:text="#{admin.permissions.detail.view.policy.center}">View in Policy Center</span>
                         </a>
                     </div>
-                    <p class="text-xs mt-2" style="color: #64748b;" th:text="#{admin.permissions.detail.resource.link.desc}">Permission-resource linking is managed in the Resource Workbench.</p>
                 </div>
 
                 <!-- Submit Button -->

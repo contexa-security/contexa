@@ -20,7 +20,7 @@ public class IamI18nAutoConfiguration implements WebMvcConfigurer {
     @ConditionalOnMissingBean
     public MessageSource messageSource() {
         ResourceBundleMessageSource source = new ResourceBundleMessageSource();
-        source.setBasenames("i18n/messages", "i18n/messages-enterprise");
+        source.setBasenames("i18n/messages");
         source.setDefaultEncoding("UTF-8");
         source.setFallbackToSystemLocale(false);
         source.setUseCodeAsDefaultMessage(true);
