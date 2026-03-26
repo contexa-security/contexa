@@ -136,17 +136,17 @@ nav.admin-sidebar .main-menu-link.active::before {
 .submenu-panel {
     display: none;
     position: fixed;
-    min-width: 15rem;
-    background: linear-gradient(135deg, rgba(15, 23, 42, 0.97) 0%, rgba(30, 41, 59, 0.97) 100%);
+    min-width: 16rem;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 100%);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(99, 102, 241, 0.35);
+    border: 1px solid rgba(129, 140, 248, 0.45);
     border-radius: 0.75rem;
     box-shadow:
         0 8px 32px rgba(0, 0, 0, 0.5),
-        0 0 20px rgba(99, 102, 241, 0.12),
-        0 0 1px rgba(99, 102, 241, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        0 0 24px rgba(99, 102, 241, 0.15),
+        0 0 1px rgba(129, 140, 248, 0.5),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
     padding: 0.5rem;
     z-index: 99999;
     opacity: 1;
@@ -174,10 +174,10 @@ nav.admin-sidebar .main-menu-link.active::before {
 .submenu-link {
     display: flex;
     align-items: center;
-    padding: 0.55rem 0.875rem;
-    color: #94a3b8;
-    font-size: 0.8125rem;
-    font-weight: 450;
+    padding: 0.625rem 1rem;
+    color: #cbd5e1;
+    font-size: 0.875rem;
+    font-weight: 500;
     text-decoration: none;
     border-radius: 0.5rem;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
