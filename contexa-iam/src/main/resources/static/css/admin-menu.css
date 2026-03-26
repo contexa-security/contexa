@@ -91,9 +91,6 @@ nav.admin-sidebar .main-menu-label {
     line-height: 1.2;
     text-align: center;
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 4rem;
 }
 
 /* Hover state for main menu link */
@@ -112,8 +109,8 @@ nav.admin-sidebar .main-menu-link.active {
 /* Submenu panel - hidden by default, shown on hover */
 nav.admin-sidebar .submenu-panel {
     display: none;
-    position: absolute;
-    left: 100%;
+    position: fixed;
+    left: 5rem;
     top: 0;
     min-width: 14rem;
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
@@ -136,28 +133,9 @@ nav.admin-sidebar .submenu-panel {
     }
 }
 
-/* Bridge to prevent mouse gap between sidebar and submenu */
-nav.admin-sidebar .main-menu-item.has-submenu::after {
-    content: "";
-    display: none;
-    position: absolute;
-    left: 100%;
-    top: 0;
-    width: 8px;
-    height: 100%;
-    background: transparent;
-}
+/* Bridge gap handled by JavaScript mouseenter/mouseleave with timer */
 
-/* Show submenu and bridge on hover */
-nav.admin-sidebar .main-menu-item.has-submenu:hover > .submenu-panel,
-nav.admin-sidebar .main-menu-item.has-submenu.submenu-open > .submenu-panel {
-    display: block;
-}
-
-nav.admin-sidebar .main-menu-item.has-submenu:hover::after,
-nav.admin-sidebar .main-menu-item.has-submenu.submenu-open::after {
-    display: block;
-}
+/* Submenu show/hide is controlled by JavaScript (position: fixed requires dynamic top calculation) */
 
 /* Submenu list reset */
 nav.admin-sidebar .submenu-panel ul {

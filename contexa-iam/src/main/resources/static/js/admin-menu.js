@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     var path = window.location.pathname;
 
-    // Map URL paths to groups
     var groupMap = {
         '/admin/dashboard': 'dashboard',
         '/admin/policy-center': 'policy',
@@ -18,58 +17,82 @@ document.addEventListener('DOMContentLoaded', function() {
         '/admin/saas': 'saas'
     };
 
-    // Find active group by matching path prefix
     var activeGroup = null;
     var keys = Object.keys(groupMap);
     for (var i = 0; i < keys.length; i++) {
         if (path === keys[i] || path.startsWith(keys[i] + '/')) {
             activeGroup = groupMap[keys[i]];
-            break;
         }
     }
+    if (path === '/admin/dashboard' || path === '/admin' || path === '/admin/') activeGroup = 'dashboard';
 
-    // Highlight active main menu item
     if (activeGroup) {
         var mainLink = document.querySelector('.main-menu-link[data-group="' + activeGroup + '"]');
         if (mainLink) mainLink.classList.add('active');
     }
 
-    // Highlight active submenu link
     document.querySelectorAll('.submenu-link').forEach(function(link) {
-        var href = link.getAttribute('href') || link.getAttribute('th:href');
+        var href = link.getAttribute('href');
         if (href && (path === href || path.startsWith(href + '/'))) {
             link.classList.add('active');
         }
     });
 
+    // Hover submenu: position fixed, calculate top from parent item
+    document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
+        var panel = item.querySelector('.submenu-panel');
+        if (!panel) return;
+
+        var hideTimer = null;
+
+        function showPanel() {
+            if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+            // Close all other panels
+            document.querySelectorAll('.submenu-panel').forEach(function(p) {
+                if (p !== panel) p.style.display = 'none';
+            });
+            var rect = item.getBoundingClientRect();
+            panel.style.top = rect.top + 'px';
+            panel.style.display = 'block';
+            // Overflow prevention
+            var panelRect = panel.getBoundingClientRect();
+            if (panelRect.bottom > window.innerHeight - 10) {
+                panel.style.top = (window.innerHeight - panelRect.height - 10) + 'px';
+            }
+        }
+
+        function hidePanel() {
+            hideTimer = setTimeout(function() {
+                panel.style.display = 'none';
+            }, 80);
+        }
+
+        item.addEventListener('mouseenter', showPanel);
+        item.addEventListener('mouseleave', hidePanel);
+        panel.addEventListener('mouseenter', function() {
+            if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+        });
+        panel.addEventListener('mouseleave', hidePanel);
+    });
+
     // Mobile touch support
     if ('ontouchstart' in window) {
         document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
-            item.addEventListener('click', function(e) {
-                if (!e.target.closest('.submenu-link')) {
+            var link = item.querySelector('.main-menu-link');
+            if (link) {
+                link.addEventListener('click', function(e) {
                     e.preventDefault();
-                    // Close other open submenus
-                    document.querySelectorAll('.main-menu-item.submenu-open').forEach(function(other) {
-                        if (other !== item) other.classList.remove('submenu-open');
-                    });
-                    item.classList.toggle('submenu-open');
-                }
-            });
-        });
-    }
-
-    // Submenu overflow prevention
-    document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
-        item.addEventListener('mouseenter', function() {
-            var panel = this.querySelector('.submenu-panel');
-            if (!panel) return;
-            panel.style.top = '';
-            panel.style.bottom = '';
-            var rect = panel.getBoundingClientRect();
-            if (rect.bottom > window.innerHeight - 10) {
-                panel.style.top = 'auto';
-                panel.style.bottom = '0';
+                    var panel = item.querySelector('.submenu-panel');
+                    if (!panel) return;
+                    var isVisible = panel.style.display === 'block';
+                    document.querySelectorAll('.submenu-panel').forEach(function(p) { p.style.display = 'none'; });
+                    if (!isVisible) {
+                        var rect = item.getBoundingClientRect();
+                        panel.style.top = rect.top + 'px';
+                        panel.style.display = 'block';
+                    }
+                });
             }
         });
-    });
+    }
 });
