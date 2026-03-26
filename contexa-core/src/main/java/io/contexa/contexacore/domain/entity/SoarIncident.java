@@ -29,7 +29,7 @@ public class SoarIncident {
     @Column(nullable = false)
     private SoarIncidentStatus status;
 
-    @Column
+    @Column(length = 20)
     private String severity;
 
     @Column
