@@ -61,9 +61,9 @@ nav.admin-sidebar .main-menu-link {
     justify-content: center;
     gap: 0.4rem;
     width: 5rem;
-    padding: 0.75rem 0.25rem;
+    padding: 0.85rem 0.25rem;
     border-radius: 0.625rem;
-    color: #64748b;
+    color: #94a3b8;
     text-decoration: none;
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -72,8 +72,8 @@ nav.admin-sidebar .main-menu-link {
 
 /* Icon */
 nav.admin-sidebar .main-menu-icon {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -82,15 +82,15 @@ nav.admin-sidebar .main-menu-icon {
 }
 
 nav.admin-sidebar .main-menu-icon svg {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     stroke: currentColor;
     stroke-width: 1.5;
 }
 
 /* Label */
 nav.admin-sidebar .main-menu-label {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     font-weight: 600;
     line-height: 1;
     text-align: center;
