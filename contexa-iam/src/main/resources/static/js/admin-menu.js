@@ -1,26 +1,75 @@
-// admin-menu.js - 현재 페이지 활성화 표시
 document.addEventListener('DOMContentLoaded', function() {
-    const currentPath = window.location.pathname;
-    const menuLinks = document.querySelectorAll('.admin-sidebar a');
+    var path = window.location.pathname;
 
-    menuLinks.forEach(link => {
-        const href = link.getAttribute('href');
+    // Map URL paths to groups
+    var groupMap = {
+        '/admin/dashboard': 'dashboard',
+        '/admin/policy-center': 'policy',
+        '/admin/access-center': 'access',
+        '/admin/users': 'iam', '/admin/groups': 'iam', '/admin/roles': 'iam',
+        '/admin/permissions': 'iam', '/admin/role-hierarchies': 'iam', '/admin/password-policy': 'iam',
+        '/admin/security-monitor': 'security', '/admin/blacklist': 'security',
+        '/admin/enterprise/zerotrust': 'security', '/admin/enterprise/incidents': 'security',
+        '/admin/enterprise': 'enterprise',
+        '/admin/enterprise/approvals': 'enterprise', '/admin/enterprise/mcp': 'enterprise',
+        '/admin/enterprise/permits': 'enterprise', '/admin/enterprise/executions': 'enterprise',
+        '/admin/enterprise/playbooks': 'enterprise', '/admin/enterprise/metrics': 'enterprise',
+        '/admin/enterprise/integration': 'enterprise',
+        '/admin/saas': 'saas'
+    };
 
-        // 정확히 일치하는 경로
-        if (href === currentPath) {
-            link.classList.add('active');
+    // Find active group by matching path prefix
+    var activeGroup = null;
+    var keys = Object.keys(groupMap);
+    for (var i = 0; i < keys.length; i++) {
+        if (path === keys[i] || path.startsWith(keys[i] + '/')) {
+            activeGroup = groupMap[keys[i]];
+            break;
         }
-        // 하위 경로 포함 (예: /admin/users/new는 /admin/users 메뉴 활성화)
-        else if (currentPath.startsWith(href) && href !== '/admin/dashboard') {
+    }
+
+    // Highlight active main menu item
+    if (activeGroup) {
+        var mainLink = document.querySelector('.main-menu-link[data-group="' + activeGroup + '"]');
+        if (mainLink) mainLink.classList.add('active');
+    }
+
+    // Highlight active submenu link
+    document.querySelectorAll('.submenu-link').forEach(function(link) {
+        var href = link.getAttribute('href') || link.getAttribute('th:href');
+        if (href && (path === href || path.startsWith(href + '/'))) {
             link.classList.add('active');
         }
     });
 
-    // 대시보드는 정확히 일치할 때만 활성화
-    if (currentPath === '/admin/dashboard' || currentPath === '/admin') {
-        const dashboardLink = document.querySelector('a[href*="/admin/dashboard"]');
-        if (dashboardLink) {
-            dashboardLink.classList.add('active');
-        }
+    // Mobile touch support
+    if ('ontouchstart' in window) {
+        document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
+            item.addEventListener('click', function(e) {
+                if (!e.target.closest('.submenu-link')) {
+                    e.preventDefault();
+                    // Close other open submenus
+                    document.querySelectorAll('.main-menu-item.submenu-open').forEach(function(other) {
+                        if (other !== item) other.classList.remove('submenu-open');
+                    });
+                    item.classList.toggle('submenu-open');
+                }
+            });
+        });
     }
+
+    // Submenu overflow prevention
+    document.querySelectorAll('.main-menu-item.has-submenu').forEach(function(item) {
+        item.addEventListener('mouseenter', function() {
+            var panel = this.querySelector('.submenu-panel');
+            if (!panel) return;
+            panel.style.top = '';
+            panel.style.bottom = '';
+            var rect = panel.getBoundingClientRect();
+            if (rect.bottom > window.innerHeight - 10) {
+                panel.style.top = 'auto';
+                panel.style.bottom = '0';
+            }
+        });
+    });
 });

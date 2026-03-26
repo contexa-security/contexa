@@ -403,7 +403,7 @@ aside + main {
     /* 사이드바가 있는 main 태그에 여백 적용 */
     aside + main,
     aside + .main-content {
-        margin-left: 16rem !important;
+        margin-left: 4.5rem !important;
     }
     
     /* 스튜디오 페이지는 제외 */
@@ -414,7 +414,7 @@ aside + main {
     /* 더 구체적인 선택자로 강제 적용 */
     .flex aside + main,
     .flex aside + .main-content {
-        margin-left: 16rem !important;
+        margin-left: 4.5rem !important;
     }
     
     /* 스튜디오는 제외 */
@@ -435,12 +435,12 @@ aside + main {
     /* 사이드바 여백 최우선 적용 */
     html body aside + main,
     html body aside + .main-content {
-        margin-left: 16rem !important;
+        margin-left: 4.5rem !important;
     }
     
     html body .flex aside + main,
     html body .flex aside + .main-content {
-        margin-left: 16rem !important;
+        margin-left: 4.5rem !important;
     }
     
     /* 스튜디오는 제외 */
