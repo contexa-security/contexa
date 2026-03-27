@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
 import org.springframework.ui.Model;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
@@ -160,7 +161,7 @@ public class PolicyController {
     }
 
     private String extractCurrentUsername() {
-        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        var auth = SecurityContextHolder.getContext().getAuthentication();
         return (auth != null && auth.getName() != null) ? auth.getName() : "SYSTEM";
     }
 }

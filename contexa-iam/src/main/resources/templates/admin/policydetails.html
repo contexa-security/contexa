@@ -121,7 +121,7 @@
                             <span th:if="${t.httpMethod != null and t.httpMethod != 'ANY'}" style="color:#94a3b8;font-size:0.75rem;" th:text="${t.httpMethod}"></span>
                             <span class="font-mono" style="color:#e2e8f0;" th:text="${t.targetIdentifier}"></span>
                         </div>
-                        <div th:if="${#sets.isEmpty(policy.targets)}" style="color:#64748b;font-size:0.8125rem;" th:text="#{admin.policy.detail.no.targets}">No targets defined.</div>
+                        <div th:if="${#lists.isEmpty(policy.targets)}" style="color:#64748b;font-size:0.8125rem;" th:text="#{admin.policy.detail.no.targets}">No targets defined.</div>
                     </div>
                 </div>
 
@@ -131,7 +131,7 @@
                     <div class="space-y-2">
                         <div th:each="r, rStat : ${policy.rules}" style="background:rgba(30,41,59,0.4);border:1px solid rgba(71,85,105,0.3);border-radius:0.5rem;padding:0.75rem;">
                             <div class="font-semibold text-sm mb-2" style="color:#e2e8f0;">
-                                Rule #<span th:text="${rStat.index + 1}"></span>
+                                <span th:text="#{admin.policy.detail.rule.label}">Rule</span> #<span th:text="${rStat.index + 1}"></span>
                                 <span th:if="${r.description != null}" style="color:#94a3b8;font-weight:400;margin-left:0.5rem;" th:text="'- ' + ${r.description}"></span>
                             </div>
                             <div th:each="c : ${r.conditions}" class="flex items-start gap-2 mb-1" style="padding:0.25rem 0.5rem;background:rgba(15,23,42,0.4);border-radius:0.25rem;">
@@ -144,7 +144,7 @@
                             </div>
                             <div th:if="${#sets.isEmpty(r.conditions)}" style="color:#64748b;font-size:0.75rem;" th:text="#{admin.policy.detail.no.conditions}">No conditions.</div>
                         </div>
-                        <div th:if="${#sets.isEmpty(policy.rules)}" style="color:#64748b;font-size:0.8125rem;" th:text="#{admin.policy.detail.no.rules}">No rules defined.</div>
+                        <div th:if="${#lists.isEmpty(policy.rules)}" style="color:#64748b;font-size:0.8125rem;" th:text="#{admin.policy.detail.no.rules}">No rules defined.</div>
                     </div>
                 </div>
             </div>
