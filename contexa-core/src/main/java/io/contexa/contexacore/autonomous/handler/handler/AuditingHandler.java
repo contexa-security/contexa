@@ -46,9 +46,14 @@ public class AuditingHandler implements SecurityEventHandler {
             Map<String, Object> details = new HashMap<>();
             details.put("eventId", event.getEventId());
             details.put("decision", result.getAction());
+            details.put("llmProposedAction", result.getProposedAction());
             details.put("riskScore", result.getRiskScore());
             details.put("confidence", result.getConfidence());
+            details.put("llmAuditConfidence", result.resolveAuditConfidence());
             details.put("reasoning", result.getReasoning());
+            details.put("autonomyConstraintApplied", result.getAutonomyConstraintApplied());
+            details.put("autonomyConstraintSummary", result.getAutonomyConstraintSummary());
+            details.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
             details.put("severity", event.getSeverity() != null ? event.getSeverity().toString() : null);
             details.put("aiAnalysisLevel", result.getAiAnalysisLevel());
             details.put("processingTimeMs", processingTimeMs);

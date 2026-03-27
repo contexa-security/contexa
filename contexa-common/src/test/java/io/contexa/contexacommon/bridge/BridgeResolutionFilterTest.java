@@ -42,7 +42,7 @@ class BridgeResolutionFilterTest {
         BridgeResolutionResult result = (BridgeResolutionResult) request.getAttribute(BridgeRequestAttributes.RESOLUTION_RESULT);
         assertThat(result).isNotNull();
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.DELEGATION_CONTEXT);
-        assertThat(result.coverageReport().summary()).contains("delegated execution context");
+        assertThat(result.coverageReport().summary()).contains("Bridge completeness reached authentication, authorization, and delegated execution context");
         assertThat(result.authenticationStamp()).isNotNull();
         assertThat(result.authorizationStamp()).isNotNull();
         assertThat(result.authorizationStamp().subjectId()).isEqualTo("alice");
@@ -57,7 +57,7 @@ class BridgeResolutionFilterTest {
         assertThat(details.bridgeAuthenticationSource()).isEqualTo("HEADER");
         assertThat(details.bridgeAuthorizationSource()).isEqualTo("HEADER");
         assertThat(details.bridgeDelegationSource()).isEqualTo("HEADER");
-        assertThat(details.bridgeCoverageSummary()).contains("delegated execution context");
+        assertThat(details.bridgeCoverageSummary()).contains("Bridge completeness reached authentication, authorization, and delegated execution context");
         assertThat(details.bridgeRemediationHints()).isEmpty();
         assertThat(details.authenticationType()).isEqualTo("JWT");
         assertThat(details.authorizationEffect()).isEqualTo("ALLOW");
@@ -109,9 +109,12 @@ class BridgeResolutionFilterTest {
         assertThat(result.authorizationStamp().effect().name()).isEqualTo("UNKNOWN");
         assertThat(result.authorizationStamp().effectiveRoles()).contains("ROLE_USER");
         assertThat(result.authorizationStamp().effectiveAuthorities()).contains("ROLE_USER", "REPORT_EXPORT");
+        assertThat(result.authorizationStamp().privileged()).isNull();
+        assertThat(result.authorizationStamp().attributes())
+                .containsEntry("authorizationEvidenceState", "DERIVED_RUNTIME_FALLBACK");
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.AUTHORIZATION_CONTEXT);
         assertThat(result.coverageReport().missingContexts()).contains(io.contexa.contexacommon.security.bridge.coverage.MissingBridgeContext.AUTHORIZATION_EFFECT);
-        assertThat(result.coverageReport().summary()).contains("authorization context");
+        assertThat(result.coverageReport().summary()).contains("Bridge completeness reached authentication");
     }
 
     @Test
@@ -136,7 +139,7 @@ class BridgeResolutionFilterTest {
         assertThat(result.authorizationStamp().decisionSource()).isEqualTo("SECURITY_CONTEXT");
         assertThat(result.authorizationStamp().effectiveAuthorities()).contains("REPORT_EXPORT");
         assertThat(result.coverageReport().level()).isEqualTo(BridgeCoverageLevel.AUTHORIZATION_CONTEXT);
-        assertThat(result.coverageReport().summary()).contains("authorization context");
+        assertThat(result.coverageReport().summary()).contains("Bridge completeness reached authentication");
     }
 
     @Test

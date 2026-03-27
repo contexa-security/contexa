@@ -3,6 +3,11 @@ package io.contexa.contexacore.autonomous.tiered.strategy;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.DefaultPromptConfidenceGuardrail;
+import io.contexa.contexacore.autonomous.context.PromptConfidenceGuardrail;
+import io.contexa.contexacore.autonomous.context.PromptDecisionAdjustment;
+import io.contexa.contexacore.autonomous.context.ProposedPromptDecision;
 import io.contexa.contexacommon.hcad.domain.BaselineVector;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
@@ -11,15 +16,22 @@ import io.contexa.contexacore.autonomous.saas.SaasBaselineSeedService;
 import io.contexa.contexacore.autonomous.saas.dto.BaselineSeedSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.VectorDocumentType;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
+import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.constants.VectorDocumentMetadata;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.components.prompt.PromptBudgetProfile;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.security.AuthorizedPromptContext;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +39,7 @@ import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
 import org.springframework.ai.vectorstore.filter.Filter;
 import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -37,22 +50,33 @@ import java.util.stream.Collectors;
 @Slf4j
 public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy {
 
+    protected static final PipelineConfiguration SECURITY_DECISION_PIPELINE_CONFIGURATION =
+            PipelineConfiguration.builder()
+                    .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
+                    .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
+                    .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
+                    .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
+                    .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
+                    .timeoutSeconds(120)
+                    .build();
+
     protected final UnifiedLLMOrchestrator llmOrchestrator;
     protected final SecurityEventEnricher eventEnricher;
-    protected final SecurityPromptTemplate promptTemplate;
+    protected final SecurityDecisionStandardPromptTemplate promptTemplate;
     protected final BehaviorVectorService behaviorVectorService;
     protected final UnifiedVectorService unifiedVectorService;
     protected final BaselineLearningService baselineLearningService;
     protected final TieredStrategyProperties tieredStrategyProperties;
     protected final PromptContextAuthorizationService promptContextAuthorizationService;
     protected final PromptContextAuditForwardingService promptContextAuditForwardingService;
-    private static final Cache<String, SecurityPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
+    protected final PromptConfidenceGuardrail promptConfidenceGuardrail;
+    private static final Cache<String, SecurityDecisionStandardPromptTemplate.SessionContext> ESCALATION_SESSION_CACHE =
             Caffeine.newBuilder()
                     .maximumSize(1000)
                     .expireAfterWrite(30, TimeUnit.MINUTES)
                     .build();
 
-    private static final Cache<String, SecurityPromptTemplate.BehaviorAnalysis> ESCALATION_BEHAVIOR_CACHE =
+    private static final Cache<String, SecurityDecisionStandardPromptTemplate.BehaviorAnalysis> ESCALATION_BEHAVIOR_CACHE =
             Caffeine.newBuilder()
                     .maximumSize(1000)
                     .expireAfterWrite(30, TimeUnit.MINUTES)
@@ -67,7 +91,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     protected AbstractTieredStrategy(
             UnifiedLLMOrchestrator llmOrchestrator,
             SecurityEventEnricher eventEnricher,
-            SecurityPromptTemplate promptTemplate,
+            SecurityDecisionStandardPromptTemplate promptTemplate,
             BehaviorVectorService behaviorVectorService,
             UnifiedVectorService unifiedVectorService,
             BaselineLearningService baselineLearningService,
@@ -77,7 +101,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         this.llmOrchestrator = llmOrchestrator;
         this.eventEnricher = eventEnricher != null ? eventEnricher : new SecurityEventEnricher();
         this.promptTemplate = promptTemplate != null ? promptTemplate
-            : new SecurityPromptTemplate(this.eventEnricher, tieredStrategyProperties);
+            : new SecurityDecisionStandardPromptTemplate(this.eventEnricher, tieredStrategyProperties);
         this.behaviorVectorService = behaviorVectorService;
         this.unifiedVectorService = unifiedVectorService;
         this.baselineLearningService = baselineLearningService;
@@ -86,6 +110,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
                 ? promptContextAuthorizationService
                 : new PromptContextAuthorizationService();
         this.promptContextAuditForwardingService = promptContextAuditForwardingService;
+        this.promptConfidenceGuardrail = new DefaultPromptConfidenceGuardrail();
     }
 
     protected abstract String getLayerName();
@@ -100,8 +125,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
     }
 
     protected static void cacheEscalationContext(String eventId,
-                                                  SecurityPromptTemplate.SessionContext sessionCtx,
-                                                  SecurityPromptTemplate.BehaviorAnalysis behaviorCtx,
+                                                  SecurityDecisionStandardPromptTemplate.SessionContext sessionCtx,
+                                                  SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorCtx,
                                                   List<Document> ragDocuments) {
         if (eventId == null) return;
         if (sessionCtx != null) ESCALATION_SESSION_CACHE.put(eventId, sessionCtx);
@@ -109,11 +134,11 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         if (ragDocuments != null && !ragDocuments.isEmpty()) ESCALATION_RAG_CACHE.put(eventId, ragDocuments);
     }
 
-    protected static SecurityPromptTemplate.SessionContext getCachedSessionContext(String eventId) {
+    protected static SecurityDecisionStandardPromptTemplate.SessionContext getCachedSessionContext(String eventId) {
         return eventId != null ? ESCALATION_SESSION_CACHE.getIfPresent(eventId) : null;
     }
 
-    protected static SecurityPromptTemplate.BehaviorAnalysis getCachedBehaviorAnalysis(String eventId) {
+    protected static SecurityDecisionStandardPromptTemplate.BehaviorAnalysis getCachedBehaviorAnalysis(String eventId) {
         return eventId != null ? ESCALATION_BEHAVIOR_CACHE.getIfPresent(eventId) : null;
     }
 
@@ -257,6 +282,32 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return Math.max(0.0, Math.min(1.0, value));
     }
 
+    protected SecurityDecision applyPromptConfidenceGuardrail(SecurityDecision decision, SecurityEvent event) {
+        if (decision == null) {
+            return null;
+        }
+
+        CanonicalSecurityContext canonicalContext = resolveCanonicalContext(event).orElse(null);
+        PromptDecisionAdjustment adjustment = promptConfidenceGuardrail.evaluate(
+                canonicalContext,
+                ProposedPromptDecision.from(decision)
+        );
+
+        decision.setConfidence(adjustment.effectiveConfidence());
+        decision.setAutonomyConstraintApplied(adjustment.applied());
+        decision.setAutonomyConstraintReasons(adjustment.reasons());
+        decision.setAutonomyConstraintSummary(adjustment.summary());
+        decision.setAutonomousAction(adjustment.enforcementAction());
+        return decision;
+    }
+
+    private Optional<CanonicalSecurityContext> resolveCanonicalContext(SecurityEvent event) {
+        if (event == null || promptTemplate == null) {
+            return Optional.empty();
+        }
+        return promptTemplate.resolveCanonicalSecurityContextForGuardrail(event);
+    }
+
     protected BaseBehaviorAnalysis analyzeBehaviorPatternsBase(SecurityEvent event,
                                                                  BaselineLearningService baselineLearningService,
                                                                  List<String> similarEvents) {
@@ -294,7 +345,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
 
     protected void annotateThreatKnowledgeContext(
             SecurityEvent event,
-            SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
         if (event == null || behaviorAnalysis == null) {
             return;
         }
@@ -350,7 +401,7 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         }
     }
     protected void enrichBehaviorAnalysisWithBaselineSupport(
-            SecurityPromptTemplate.BehaviorAnalysis context,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis context,
             SecurityEvent event,
             SaasBaselineSeedService baselineSeedService) {
         if (context == null || event == null || event.getUserId() == null || baselineLearningService == null) {
@@ -599,8 +650,8 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
         return response;
     }
 
-    protected Map<String, Object> buildAnalysisContext(SecurityPromptTemplate.SessionContext sessionCtx,
-                                                       SecurityPromptTemplate.BehaviorAnalysis behaviorCtx, List<Document> relatedDocuments) {
+    protected Map<String, Object> buildAnalysisContext(SecurityDecisionStandardPromptTemplate.SessionContext sessionCtx,
+                                                       SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorCtx, List<Document> relatedDocuments) {
         Map<String, Object> context = new HashMap<>();
         if (sessionCtx != null) {
             context.put("sessionContext", sessionCtx);
@@ -612,6 +663,88 @@ public abstract class AbstractTieredStrategy implements ThreatEvaluationStrategy
             context.put("relatedDocuments", relatedDocuments);
         }
         return context;
+    }
+
+    protected SecurityDecisionRequest buildSecurityDecisionRequest(
+            SecurityEvent event,
+            SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+            List<Document> relatedDocuments) {
+        SecurityDecisionRequest request = new SecurityDecisionRequest(
+                new SecurityDecisionContext(
+                        event,
+                        sessionContext,
+                        behaviorAnalysis,
+                        relatedDocuments
+                ));
+        request.withParameter("responseType", SecurityDecisionResponse.class);
+        request.withParameter("promptBudgetProfile", resolvePromptBudgetProfile().profileKey());
+        return request;
+    }
+
+    protected PromptBudgetProfile resolvePromptBudgetProfile() {
+        String layerName = getLayerName();
+        if (layerName != null && layerName.toLowerCase(Locale.ROOT).contains("layer2")) {
+            return PromptBudgetProfile.CORTEX_L2_STANDARD;
+        }
+        return PromptBudgetProfile.CORTEX_L1_STANDARD;
+    }
+
+    protected void clearPromptRuntimeTelemetry(SecurityEvent event) {
+        if (event == null) {
+            return;
+        }
+        Map<String, Object> metadata = ensureMutableEventMetadata(event);
+        for (String key : PromptRuntimeTelemetrySupport.runtimeTelemetryKeys()) {
+            metadata.remove(key);
+        }
+        metadata.remove("promptRuntimeTelemetryLinked");
+        metadata.remove("promptRuntimeTelemetryLayer");
+    }
+
+    protected void capturePromptRuntimeTelemetry(SecurityEvent event, SecurityDecisionResponse pipelineResponse) {
+        if (event == null || pipelineResponse == null) {
+            return;
+        }
+        Map<String, Object> telemetry = PromptRuntimeTelemetrySupport.extractRuntimeTelemetry(
+                pipelineResponse.getAllMetadata());
+        if (telemetry.isEmpty()) {
+            return;
+        }
+        Map<String, Object> metadata = ensureMutableEventMetadata(event);
+        telemetry.forEach(metadata::put);
+        metadata.put("promptRuntimeTelemetryLinked", true);
+        metadata.put("promptRuntimeTelemetryLayer", getLayerName());
+    }
+
+    private Map<String, Object> ensureMutableEventMetadata(SecurityEvent event) {
+        Map<String, Object> current = event.getMetadata();
+        if (current == null) {
+            Map<String, Object> fresh = new LinkedHashMap<>();
+            event.setMetadata(fresh);
+            return fresh;
+        }
+        if (current instanceof LinkedHashMap || current instanceof HashMap) {
+            return current;
+        }
+        Map<String, Object> copied = new LinkedHashMap<>(current);
+        event.setMetadata(copied);
+        return copied;
+    }
+
+    protected Mono<SecurityDecisionResponse> executeSecurityDecisionPipeline(
+            PipelineOrchestrator pipelineOrchestrator,
+            SecurityEvent event,
+            SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+            List<Document> relatedDocuments) {
+        if (pipelineOrchestrator == null) {
+            return Mono.error(new IllegalStateException("PipelineOrchestrator not available"));
+        }
+        return pipelineOrchestrator.execute(
+                buildSecurityDecisionRequest(event, sessionContext, behaviorAnalysis, relatedDocuments),
+                SECURITY_DECISION_PIPELINE_CONFIGURATION,
+                SecurityDecisionResponse.class);
     }
 }
 

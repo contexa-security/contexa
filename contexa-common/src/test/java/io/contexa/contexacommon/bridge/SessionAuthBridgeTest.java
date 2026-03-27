@@ -38,7 +38,9 @@ class SessionAuthBridgeTest {
                 .containsEntry("authenticationType", "PASSKEY")
                 .containsEntry("authenticationAssurance", "HIGH")
                 .containsEntry("mfaCompleted", true)
-                .containsEntry("authenticationTime", Instant.parse("2026-03-23T10:15:30Z"));
+                .containsEntry("authenticationTime", Instant.parse("2026-03-23T10:15:30Z"))
+                .containsEntry("bridgeStructuralMatchPurpose", "STRUCTURAL_DISCOVERY_ONLY")
+                .containsEntry("authenticationAssuranceEvidenceState", "EXPLICIT_CUSTOMER_SIGNAL");
     }
 
     private static class SessionUser {

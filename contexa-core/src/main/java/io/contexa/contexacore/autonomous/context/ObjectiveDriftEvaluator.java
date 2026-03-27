@@ -81,8 +81,8 @@ public class ObjectiveDriftEvaluator {
             boolean actionAllowed = comparedActionFamilies.stream().anyMatch(currentActionFamily::equalsIgnoreCase);
             drift = drift || !actionAllowed;
             facts.add(actionAllowed
-                    ? "Current action family stays inside the delegated objective."
-                    : "Current action family falls outside the delegated objective.");
+                    ? "Current action family is listed in delegated action scope evidence."
+                    : "Current action family is not listed in delegated action scope evidence.");
         }
 
         if (StringUtils.hasText(currentResourceFamily) && !comparedResourceFamilies.isEmpty()) {
@@ -90,8 +90,8 @@ public class ObjectiveDriftEvaluator {
             boolean resourceFamilyAllowed = comparedResourceFamilies.stream().anyMatch(currentResourceFamily::equalsIgnoreCase);
             drift = drift || !resourceFamilyAllowed;
             facts.add(resourceFamilyAllowed
-                    ? "Current resource family stays inside the delegated objective."
-                    : "Current resource family falls outside the delegated objective.");
+                    ? "Current resource family is listed in delegated resource scope evidence."
+                    : "Current resource family is not listed in delegated resource scope evidence.");
         }
 
         if (StringUtils.hasText(currentResourceId) && !resourceConstraints.rawConstraints().isEmpty()) {
@@ -111,18 +111,18 @@ public class ObjectiveDriftEvaluator {
                     || "RETRIEVE".equalsIgnoreCase(currentActionFamily);
             drift = drift || !containmentAligned;
             if (!containmentAligned) {
-                facts.add("Containment-only delegated objective does not permit the current action family.");
+                facts.add("Containment-only delegated scope evidence does not include the current action family.");
             }
         }
 
         if (Boolean.FALSE.equals(delegation.getPrivilegedExportAllowed()) && "EXPORT".equalsIgnoreCase(currentActionFamily)) {
             compared = true;
             drift = true;
-            facts.add("Privileged export is not allowed for this delegated objective.");
+            facts.add("Delegated scope evidence marks privileged export as disallowed.");
         }
 
         if (!compared) {
-            facts.add("Objective drift is unknown because comparable action/resource family inputs are missing.");
+            facts.add("Delegated objective comparison is incomplete because comparable action/resource family inputs are missing.");
             return new ObjectiveDriftEvaluation(
                     null,
                     comparisonSource,
@@ -134,9 +134,6 @@ public class ObjectiveDriftEvaluator {
                     facts);
         }
 
-        facts.add(drift
-                ? "Delegated objective drift is present."
-                : "Delegated objective remains aligned.");
         return new ObjectiveDriftEvaluation(
                 drift,
                 comparisonSource,

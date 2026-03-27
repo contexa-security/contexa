@@ -37,8 +37,11 @@ public class RequestAttributeAuthBridge implements AuthBridge {
                 Set<String> authorities = BridgeObjectExtractor.extractStringSet(authenticatedObject, properties.getAuthoritiesKeys());
                 LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(BridgeObjectExtractor.extractAttributes(authenticatedObject, properties.getAttributeKeys()));
                 attributes.put("bridgeAuthenticationSource", "REQUEST_ATTRIBUTE");
-                attributes.put("bridgeRequestAttribute", resolvedAttribute.get().attributeName());
-                attributes.put("bridgeRequestDetectionScore", resolvedAttribute.get().score());
+                BridgeSemanticBoundaryPolicy.putStructuralSelectionMetadata(
+                        attributes,
+                        "bridgeRequestAttribute",
+                        resolvedAttribute.get().attributeName(),
+                        resolvedAttribute.get().score());
 
                 String authenticationType = BridgeObjectExtractor.extractString(authenticatedObject, properties.getAuthenticationTypeKeys());
                 if (authenticationType != null) {
@@ -56,6 +59,9 @@ public class RequestAttributeAuthBridge implements AuthBridge {
                 if (authenticationTime != null) {
                     attributes.put("authenticationTime", authenticationTime);
                 }
+                attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationAssurance));
+                attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaCompleted));
+                attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationTime));
                 return new BridgedUser(principalId, displayName != null ? displayName : principalId, authorities, Map.copyOf(attributes));
             }
         }
@@ -74,6 +80,9 @@ public class RequestAttributeAuthBridge implements AuthBridge {
         putIfPresent(attributes, "authenticationAssurance", request.getAttribute(properties.getFlatAuthenticationAssurance()));
         putIfPresent(attributes, "mfaCompleted", request.getAttribute(properties.getFlatMfaCompleted()));
         putIfPresent(attributes, "authenticationTime", request.getAttribute(properties.getFlatAuthenticationTime()));
+        attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(attributes.get("authenticationAssurance")));
+        attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(attributes.get("mfaCompleted")));
+        attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(attributes.get("authenticationTime")));
         return new BridgedUser(
                 principal.toString(),
                 toText(request.getAttribute(properties.getFlatDisplayName()), principal.toString()),

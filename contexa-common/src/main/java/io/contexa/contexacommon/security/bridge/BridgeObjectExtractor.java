@@ -80,20 +80,13 @@ public final class BridgeObjectExtractor {
             return number.intValue() != 0;
         }
         if (raw instanceof Collection<?> collection) {
-            for (Object item : collection) {
-                String normalized = item != null ? item.toString().trim().toLowerCase() : "";
-                if (normalized.equals("mfa") || normalized.equals("otp") || normalized.equals("totp")
-                        || normalized.equals("sms") || normalized.equals("webauthn") || normalized.equals("passkey")
-                        || normalized.equals("biometric")) {
-                    return true;
-                }
+            if (collection.size() != 1) {
+                return null;
             }
-            return null;
+            Object item = collection.iterator().next();
+            return parseBooleanValue(item);
         }
-        if (raw instanceof String text && !text.isBlank()) {
-            return Boolean.parseBoolean(text.trim());
-        }
-        return null;
+        return parseBooleanValue(raw);
     }
 
     public static Map<String, Object> extractAttributes(Object source, List<String> preferredKeys) {
@@ -301,5 +294,26 @@ public final class BridgeObjectExtractor {
         if (!value.isBlank()) {
             values.add(value);
         }
+    }
+
+    private static Boolean parseBooleanValue(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof Boolean booleanValue) {
+            return booleanValue;
+        }
+        if (raw instanceof Number number) {
+            return number.intValue() != 0;
+        }
+        if (raw instanceof String text && !text.isBlank()) {
+            String normalized = text.trim().toLowerCase(Locale.ROOT);
+            return switch (normalized) {
+                case "true", "1", "yes", "y" -> true;
+                case "false", "0", "no", "n" -> false;
+                default -> null;
+            };
+        }
+        return null;
     }
 }

@@ -295,10 +295,10 @@ public class MetadataObservedScopeInferenceService implements ObservedScopeInfer
             clauses.add("Sensitive protectable access count is " + sensitiveAccessCount + ".");
         }
         if (Boolean.TRUE.equals(rareCurrentResource)) {
-            clauses.add("Current resource is rare compared with observed work history.");
+            clauses.add("Current resource is not present in the top observed work-history resources.");
         }
         if (Boolean.TRUE.equals(rareCurrentActionFamily)) {
-            clauses.add("Current action family is rare compared with observed work history.");
+            clauses.add("Current action family is not present in the top observed work-history actions.");
         }
         if (clauses.isEmpty()) {
             return "Observed work-pattern history is limited.";

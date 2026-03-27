@@ -1,6 +1,7 @@
 package io.contexa.contexacore.std.pipeline.step;
 
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
+import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.components.retriever.ContextRetriever;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -39,11 +40,21 @@ public class PromptGenerationStep implements PipelineStep {
 
             String contextInfo = contextResult != null ? contextResult.getContextInfo() : "";
             String metadata = systemMetadata != null ? systemMetadata : "";
-            PromptGenerator.PromptGenerationResult promptResult = promptGenerator.generatePrompt(request, contextInfo, metadata);
+            PromptGenerationResult promptResult = promptGenerator.generatePrompt(request, contextInfo, metadata);
 
             Class<?> aiGenerationType = promptGenerator.getAIGenerationType(request);
             if (aiGenerationType != null) {
                 context.addMetadata("aiGenerationType", aiGenerationType);
+            }
+            if (promptResult.getPromptExecutionMetadata() != null) {
+                context.addMetadata("promptExecutionMetadata", promptResult.getPromptExecutionMetadata());
+                context.addMetadata("promptHash", promptResult.getPromptExecutionMetadata().promptHash());
+                context.addMetadata("promptVersion", promptResult.getPromptExecutionMetadata()
+                        .governanceDescriptor()
+                        .promptVersion());
+                context.addMetadata("budgetProfile", promptResult.getPromptExecutionMetadata().budgetProfile().profileKey());
+                context.addMetadata("promptEvidenceCompleteness", promptResult.getPromptExecutionMetadata().promptEvidenceCompleteness().name());
+                context.addMetadata("omittedSections", promptResult.getPromptExecutionMetadata().omittedSections());
             }
             context.addStepResult(PipelineConfiguration.PipelineStep.PROMPT_GENERATION, promptResult);
 

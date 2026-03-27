@@ -2,6 +2,7 @@ package io.contexa.autoconfigure.core.autonomous;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.contexa.autoconfigure.properties.ContexaProperties;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.event.LlmAnalysisEventObserver;
 import io.contexa.contexacore.autonomous.handler.handler.SaasForwardingHandler;
 import io.contexa.contexacore.autonomous.saas.*;
@@ -15,6 +16,7 @@ import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationSe
 import io.contexa.contexacore.hcad.store.BaselineDataStore;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import io.contexa.contexacore.repository.*;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -181,8 +183,13 @@ public class CoreSaasForwardingAutoConfiguration {
     public SecurityDecisionForwardingPayloadMapper securityDecisionForwardingPayloadMapper(
             TenantScopedPseudonymizationService pseudonymizationService,
             ThreatSignalNormalizationService threatSignalNormalizationService,
-            SaasForwardingProperties properties) {
-        return new SecurityDecisionForwardingPayloadMapper(pseudonymizationService, threatSignalNormalizationService, properties);
+            SaasForwardingProperties properties,
+            ObjectProvider<CanonicalSecurityContextProvider> canonicalSecurityContextProvider) {
+        return new SecurityDecisionForwardingPayloadMapper(
+                pseudonymizationService,
+                threatSignalNormalizationService,
+                properties,
+                canonicalSecurityContextProvider.getIfAvailable());
     }
 
     @Bean

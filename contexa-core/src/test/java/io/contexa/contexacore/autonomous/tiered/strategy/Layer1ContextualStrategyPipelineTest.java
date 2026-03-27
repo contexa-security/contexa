@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
@@ -48,7 +48,7 @@ class Layer1ContextualStrategyPipelineTest {
                 null,
                 null,
                 new SecurityEventEnricher(),
-                new SecurityPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
+                new SecurityDecisionStandardPromptTemplate(new SecurityEventEnricher(), new TieredStrategyProperties()),
                 null,
                 null,
                 null,

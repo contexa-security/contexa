@@ -18,11 +18,16 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
 
     private static final int MAX_SESSION_ACTIONS = 100;
     private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
+    private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
+    private static final int MAX_PERMISSION_CHANGE_OBSERVATIONS = 200;
     private static final Duration SESSION_ACTIONS_TTL = Duration.ofHours(24);
     private static final Duration SESSION_RISK_TTL = Duration.ofHours(1);
     private static final Duration ACTIVITY_TTL = Duration.ofMinutes(10);
     private static final Duration SESSION_NARRATIVE_TTL = ACTIVITY_TTL;
     private static final Duration WORK_PROFILE_TTL = Duration.ofDays(30);
+    private static final Duration ROLE_SCOPE_TTL = Duration.ofDays(30);
+    private static final Duration PERMISSION_CHANGE_TTL = Duration.ofDays(30);
+    private static final Duration AUTHORIZATION_SCOPE_STATE_TTL = Duration.ofDays(30);
     private static final Duration EVENT_PROCESSED_TTL = Duration.ofHours(24);
     private static final Duration SOAR_TTL = Duration.ofDays(7);
     private static final Duration USER_SESSIONS_TTL = Duration.ofDays(7);
@@ -225,6 +230,80 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     @Override
+    public void addRoleScopeObservation(String tenantId, String scopeKey, String observation) {
+        try {
+            pushBoundedList(
+                    ZeroTrustRedisKeys.roleScopeObservations(composeTenantScopedKey(tenantId, scopeKey)),
+                    observation,
+                    ROLE_SCOPE_TTL,
+                    MAX_ROLE_SCOPE_OBSERVATIONS);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to add role scope observation: tenantId={}, scopeKey={}", tenantId, scopeKey, e);
+        }
+    }
+
+    @Override
+    public List<String> getRecentRoleScopeObservations(String tenantId, String scopeKey, int count) {
+        try {
+            return readStringList(
+                    ZeroTrustRedisKeys.roleScopeObservations(composeTenantScopedKey(tenantId, scopeKey)),
+                    count);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to get role scope observations: tenantId={}, scopeKey={}", tenantId, scopeKey, e);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public void addPermissionChangeObservation(String tenantId, String userId, String observation) {
+        try {
+            pushBoundedList(
+                    ZeroTrustRedisKeys.userPermissionChangeObservations(composeTenantScopedKey(tenantId, userId)),
+                    observation,
+                    PERMISSION_CHANGE_TTL,
+                    MAX_PERMISSION_CHANGE_OBSERVATIONS);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to add permission change observation: tenantId={}, userId={}", tenantId, userId, e);
+        }
+    }
+
+    @Override
+    public List<String> getRecentPermissionChangeObservations(String tenantId, String userId, int count) {
+        try {
+            return readStringList(
+                    ZeroTrustRedisKeys.userPermissionChangeObservations(composeTenantScopedKey(tenantId, userId)),
+                    count);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to get permission change observations: tenantId={}, userId={}", tenantId, userId, e);
+            return Collections.emptyList();
+        }
+    }
+
+    @Override
+    public void setAuthorizationScopeState(String tenantId, String userId, String state) {
+        try {
+            redisTemplate.opsForValue().set(
+                    ZeroTrustRedisKeys.userAuthorizationScopeState(composeTenantScopedKey(tenantId, userId)),
+                    state,
+                    AUTHORIZATION_SCOPE_STATE_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to set authorization scope state: tenantId={}, userId={}", tenantId, userId, e);
+        }
+    }
+
+    @Override
+    public String getAuthorizationScopeState(String tenantId, String userId) {
+        try {
+            return readStringValueAndTouch(
+                    ZeroTrustRedisKeys.userAuthorizationScopeState(composeTenantScopedKey(tenantId, userId)),
+                    AUTHORIZATION_SCOPE_STATE_TTL);
+        } catch (Exception e) {
+            log.error("[SecurityContextDataStore] Failed to get authorization scope state: tenantId={}, userId={}", tenantId, userId, e);
+            return null;
+        }
+    }
+
+    @Override
     public void setLastRequestTime(String userId, long timestamp) {
         try {
             String key = ZeroTrustRedisKeys.userLastRequestTime(userId);
@@ -346,9 +425,13 @@ public class RedisSecurityContextDataStore implements SecurityContextDataStore {
     }
 
     private String composeWorkProfileScopeKey(String tenantId, String userId) {
+        return composeTenantScopedKey(tenantId, userId);
+    }
+
+    private String composeTenantScopedKey(String tenantId, String key) {
         if (tenantId == null || tenantId.isBlank()) {
-            return userId;
+            return key;
         }
-        return tenantId + "::" + userId;
+        return tenantId + "::" + key;
     }
 }

@@ -1,6 +1,7 @@
 package io.contexa.autoconfigure.core.autonomous;
 
 import io.contexa.contexacore.autonomous.context.ProtectableWorkProfileCollector;
+import io.contexa.contexacore.autonomous.context.RoleScopeCollector;
 import io.contexa.contexacore.autonomous.context.SessionNarrativeCollector;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import org.junit.jupiter.api.DisplayName;
@@ -125,6 +126,35 @@ class CoreAutonomousAutoConfigurationTest {
             Method canonicalProviderMethod = findMethod("canonicalSecurityContextProvider");
 
             assertThat(canonicalProviderMethod.toGenericString()).contains("ProtectableWorkProfileCollector");
+        }
+
+        private Method findMethod(String name) {
+            return java.util.Arrays.stream(CoreAutonomousAutoConfiguration.class.getDeclaredMethods())
+                    .filter(method -> method.getName().equals(name))
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("Method not found: " + name));
+        }
+    }
+
+    @Nested
+    @DisplayName("Role scope wiring")
+    class RoleScopeWiring {
+
+        @Test
+        @DisplayName("Should declare RoleScopeCollector bean method backed by SecurityContextDataStore")
+        void shouldDeclareRoleScopeCollectorBeanMethod() throws Exception {
+            Method method = CoreAutonomousAutoConfiguration.class
+                    .getDeclaredMethod("roleScopeCollector", SecurityContextDataStore.class);
+
+            assertThat(method.getReturnType()).isEqualTo(RoleScopeCollector.class);
+        }
+
+        @Test
+        @DisplayName("Should wire RoleScopeCollector into canonical context provider")
+        void shouldWireRoleScopeCollectorIntoRuntimePath() {
+            Method canonicalProviderMethod = findMethod("canonicalSecurityContextProvider");
+
+            assertThat(canonicalProviderMethod.toGenericString()).contains("RoleScopeCollector");
         }
 
         private Method findMethod(String name) {

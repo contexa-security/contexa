@@ -57,7 +57,7 @@ class ContextCoverageEvaluatorTest {
         assertThat(report.remediationHints()).contains("Attach peer cohort deltas through enterprise cohort enrichment when available.");
         assertThat(report.confidenceWarnings()).contains(
                 "Peer cohort delta is missing; cohort-based deviation claims should remain conservative.",
-                "Context trust profile PERSONAL_WORK_PROFILE is WEAK; treat it as a hint, not proof.",
+                "Context evidence for PERSONAL_WORK_PROFILE is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.",
                 "Action family baseline includes fallback-derived signals; do not treat action semantics as proof of user intent.",
                 "Scope limitation: Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself.");
         assertThat(report.summary()).contains("Bridge coverage: AUTHORIZATION_CONTEXT.");

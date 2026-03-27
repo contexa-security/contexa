@@ -12,6 +12,8 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
 
     private static final int MAX_SESSION_ACTIONS = 100;
     private static final int MAX_WORK_PROFILE_OBSERVATIONS = 5_000;
+    private static final int MAX_ROLE_SCOPE_OBSERVATIONS = 5_000;
+    private static final int MAX_PERMISSION_CHANGE_OBSERVATIONS = 200;
     private static final int MAX_PROCESSED_EVENTS = 50_000;
     private static final int MAX_SOAR_EXECUTIONS = 10_000;
     private static final int MAX_SESSION_ENTRIES = 10_000;
@@ -21,10 +23,13 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     private final ConcurrentHashMap<String, List<String>> sessionProtectableAccesses = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<Long>> sessionRequestIntervals = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, List<String>> workProfileObservations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<String>> roleScopeObservations = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<String>> permissionChangeObservations = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Double> sessionRisks = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> sessionStartedAt = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> sessionLastRequestTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> sessionPreviousPaths = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, String> authorizationScopeStates = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Long> lastRequestTimes = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, String> previousPaths = new ConcurrentHashMap<>();
     private final Set<String> processedEvents = Collections.newSetFromMap(
@@ -150,6 +155,45 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     @Override
+    public void addRoleScopeObservation(String tenantId, String scopeKey, String observation) {
+        appendToStringSequence(
+                roleScopeObservations,
+                composeTenantScopedKey(tenantId, scopeKey),
+                observation,
+                MAX_ROLE_SCOPE_OBSERVATIONS);
+    }
+
+    @Override
+    public List<String> getRecentRoleScopeObservations(String tenantId, String scopeKey, int count) {
+        return recentStringSequence(roleScopeObservations.get(composeTenantScopedKey(tenantId, scopeKey)), count);
+    }
+
+    @Override
+    public void addPermissionChangeObservation(String tenantId, String userId, String observation) {
+        appendToStringSequence(
+                permissionChangeObservations,
+                composeTenantScopedKey(tenantId, userId),
+                observation,
+                MAX_PERMISSION_CHANGE_OBSERVATIONS);
+    }
+
+    @Override
+    public List<String> getRecentPermissionChangeObservations(String tenantId, String userId, int count) {
+        return recentStringSequence(permissionChangeObservations.get(composeTenantScopedKey(tenantId, userId)), count);
+    }
+
+    @Override
+    public void setAuthorizationScopeState(String tenantId, String userId, String state) {
+        authorizationScopeStates.put(composeTenantScopedKey(tenantId, userId), state);
+        evictIfOversized();
+    }
+
+    @Override
+    public String getAuthorizationScopeState(String tenantId, String userId) {
+        return authorizationScopeStates.get(composeTenantScopedKey(tenantId, userId));
+    }
+
+    @Override
     public void setLastRequestTime(String userId, long timestamp) {
         lastRequestTimes.put(userId, timestamp);
     }
@@ -248,6 +292,30 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
                 workProfileObservations.remove(key);
             });
         }
+        if (roleScopeObservations.size() > MAX_SESSION_ENTRIES) {
+            roleScopeObservations.keys().asIterator().forEachRemaining(key -> {
+                if (roleScopeObservations.size() <= MAX_SESSION_ENTRIES) {
+                    return;
+                }
+                roleScopeObservations.remove(key);
+            });
+        }
+        if (permissionChangeObservations.size() > MAX_SESSION_ENTRIES) {
+            permissionChangeObservations.keys().asIterator().forEachRemaining(key -> {
+                if (permissionChangeObservations.size() <= MAX_SESSION_ENTRIES) {
+                    return;
+                }
+                permissionChangeObservations.remove(key);
+            });
+        }
+        if (authorizationScopeStates.size() > MAX_SESSION_ENTRIES) {
+            authorizationScopeStates.keys().asIterator().forEachRemaining(key -> {
+                if (authorizationScopeStates.size() <= MAX_SESSION_ENTRIES) {
+                    return;
+                }
+                authorizationScopeStates.remove(key);
+            });
+        }
     }
 
     private void pruneSessionScopedEntries(String sessionId) {
@@ -262,9 +330,13 @@ public class InMemorySecurityContextDataStore implements SecurityContextDataStor
     }
 
     private String composeWorkProfileKey(String tenantId, String userId) {
+        return composeTenantScopedKey(tenantId, userId);
+    }
+
+    private String composeTenantScopedKey(String tenantId, String key) {
         if (tenantId == null || tenantId.isBlank()) {
-            return userId;
+            return key;
         }
-        return tenantId + "::" + userId;
+        return tenantId + "::" + key;
     }
 }

@@ -1,6 +1,7 @@
 package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationStamp;
@@ -57,9 +58,16 @@ public class SecurityContextAuthorizationStampResolver implements AuthorizationS
         attributes.put("authorizationResolver", "SECURITY_CONTEXT");
 
         Boolean privileged = SecurityContextStampSupport.extractBoolean(authentication, config.getPrivilegedKeys());
+        attributes.put("authorizationPrivilegedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(privileged));
         if (privileged == null) {
-            privileged = effectiveAuthorities.stream().anyMatch(this::isPrivilegedAuthority)
-                    || roles.stream().anyMatch(this::isPrivilegedAuthority);
+            List<String> privilegedSignals = BridgeSemanticBoundaryPolicy.privilegedAuthoritySignals(effectiveAuthorities);
+            if (privilegedSignals.isEmpty()) {
+                privilegedSignals = BridgeSemanticBoundaryPolicy.privilegedAuthoritySignals(roles);
+            }
+            if (!privilegedSignals.isEmpty()) {
+                attributes.put("privilegedAuthoritySignals", privilegedSignals);
+                attributes.put("privilegedAuthoritySignalPurpose", BridgeSemanticBoundaryPolicy.HEURISTIC_HINT_ONLY);
+            }
         }
 
         return Optional.of(new AuthorizationStamp(
@@ -107,10 +115,5 @@ public class SecurityContextAuthorizationStampResolver implements AuthorizationS
             return value;
         }
         return "ROLE_" + value;
-    }
-
-    private boolean isPrivilegedAuthority(String value) {
-        String normalized = value != null ? value.toUpperCase() : "";
-        return normalized.contains("ADMIN") || normalized.contains("ROOT") || normalized.contains("SUPER") || normalized.contains("PRIVILEGED");
     }
 }

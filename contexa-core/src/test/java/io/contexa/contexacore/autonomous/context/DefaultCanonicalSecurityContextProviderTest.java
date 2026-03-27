@@ -174,11 +174,11 @@ class DefaultCanonicalSecurityContextProviderTest {
         assertThat(context.getDelegation()).isNotNull();
         assertThat(context.getDelegation().getDelegated()).isTrue();
         assertThat(context.getDelegation().getObjectiveDrift()).isTrue();
-        assertThat(context.getDelegation().getObjectiveDriftSummary()).contains("diverges from delegated objective scope");
+        assertThat(context.getDelegation().getObjectiveDriftSummary()).contains("Delegated objective comparison evidence is available.");
         assertThat(context.getDelegation().getObjectiveDriftSummary()).contains("Current action family: EXPORT");
         assertThat(context.getDelegation().getObjectiveDriftSummary()).contains("Current resource family: REPORT");
         assertThat(context.getCoverage().confidenceWarnings())
-                .anyMatch(value -> value.contains("Delegated objective drift is present"));
+                .anyMatch(value -> value.contains("Delegated objective comparison shows a mismatch"));
         assertThat(context.getReasoningMemoryProfile()).isNotNull();
         assertThat(context.getReasoningMemoryProfile().getReinforcedCaseCount()).isEqualTo(6L);
         assertThat(context.getReasoningMemoryProfile().getObjectiveAwareReasoningMemory()).isEqualTo("EXPORT_GUARD");
@@ -439,9 +439,70 @@ class DefaultCanonicalSecurityContextProviderTest {
                 "frequentSensitiveResourceCategories",
                 "normalReadWriteExportRatio",
                 "workProfileTrustProfile",
-                "workProfileQualityGrade",
-                "workProfileQualityScore",
                 "workProfileProvenanceSummary");
+    }
+
+    @Test
+    void resolveShouldPopulateRoleScopeFromCollectorWithoutSyntheticMetadata() {
+        RoleScopeCollector collector =
+                new DefaultRoleScopeCollector(new io.contexa.contexacore.autonomous.store.InMemorySecurityContextDataStore());
+        DefaultCanonicalSecurityContextProvider provider =
+                new DefaultCanonicalSecurityContextProvider(
+                        new InMemoryResourceContextRegistry(),
+                        new ContextCoverageEvaluator(),
+                        collector);
+
+        SecurityEvent first = SecurityEvent.builder()
+                .userId("alice")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 9, 0, 0))
+                .build();
+        first.addMetadata("tenantId", "tenant-acme");
+        first.addMetadata("effectiveRoles", List.of("ROLE_ANALYST"));
+        first.addMetadata("scopeTags", List.of("customer_data"));
+        first.addMetadata("effectivePermissions", List.of("report.read"));
+        first.addMetadata("currentActionFamily", "READ");
+        first.addMetadata("currentResourceFamily", "REPORT");
+        first.addMetadata("policyId", "policy-1");
+        first.addMetadata("policyVersion", "2026.03");
+        first.addMetadata("granted", true);
+
+        SecurityEvent second = SecurityEvent.builder()
+                .userId("alice")
+                .timestamp(LocalDateTime.of(2026, 3, 25, 10, 0, 0))
+                .build();
+        second.addMetadata("tenantId", "tenant-acme");
+        second.addMetadata("effectiveRoles", List.of("ROLE_ANALYST", "ROLE_EXPORT_REVIEWER"));
+        second.addMetadata("scopeTags", List.of("customer_data", "export"));
+        second.addMetadata("effectivePermissions", List.of("report.read", "report.export"));
+        second.addMetadata("currentActionFamily", "EXPORT");
+        second.addMetadata("currentResourceFamily", "REPORT");
+        second.addMetadata("policyId", "policy-1");
+        second.addMetadata("policyVersion", "2026.03");
+        second.addMetadata("granted", true);
+        second.addMetadata("temporaryElevation", true);
+        second.addMetadata("temporaryElevationReason", "Emergency customer export review");
+
+        provider.resolve(first);
+        CanonicalSecurityContext context = provider.resolve(second).orElseThrow();
+
+        assertThat(context.getRoleScopeProfile()).isNotNull();
+        assertThat(context.getRoleScopeProfile().getExpectedResourceFamilies()).containsExactly("REPORT");
+        assertThat(context.getRoleScopeProfile().getExpectedActionFamilies()).containsExactly("READ");
+        assertThat(context.getRoleScopeProfile().getCurrentActionFamily()).isEqualTo("EXPORT");
+        assertThat(context.getRoleScopeProfile().getActionFamilyDrift()).isNull();
+        assertThat(context.getRoleScopeProfile().getTemporaryElevation()).isTrue();
+        assertThat(context.getContextTrustProfiles())
+                .extracting(ContextTrustProfile::getProfileKey)
+                .contains("ROLE_SCOPE_PROFILE");
+        assertThat(second.getMetadata()).containsKeys(
+                "roleScopeSummary",
+                "expectedResourceFamilies",
+                "expectedActionFamilies",
+                "recentPermissionChanges",
+                "temporaryElevation",
+                "temporaryElevationReason",
+                "roleScopeTrustProfile",
+                "roleScopeProvenanceSummary");
     }
 
     @Test

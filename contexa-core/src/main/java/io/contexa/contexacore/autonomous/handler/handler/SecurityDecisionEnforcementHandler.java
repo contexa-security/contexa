@@ -81,6 +81,16 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
         additionalFields.put("threatEvidence", result.getThreatIndicators() != null
                 ? String.join(", ", result.getThreatIndicators()) : "");
         additionalFields.put("analysisDepth", result.getAiAnalysisLevel());
+        if (result.getProposedAction() != null && !result.getProposedAction().isBlank()) {
+            additionalFields.put("llmProposedAction", result.getProposedAction());
+        }
+        if (Boolean.TRUE.equals(result.getAutonomyConstraintApplied())) {
+            additionalFields.put("autonomyConstraintApplied", true);
+            additionalFields.put("autonomyConstraintSummary", result.getAutonomyConstraintSummary());
+            if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
+                additionalFields.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
+            }
+        }
 
         String contextBindingHash = SessionFingerprintUtil.generateContextBindingHash(
                 event.getSessionId(), event.getSourceIp(), event.getUserAgent());
@@ -137,15 +147,25 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
     }
 
     private SecurityDecision buildSecurityDecision(ProcessingResult result) {
-        ZeroTrustAction decisionAction;
+        ZeroTrustAction proposedAction;
+        ZeroTrustAction enforcedAction;
         String reasoningPrefix;
         String action = result.getAction();
+        String proposed = result.getProposedAction();
 
-        if (action != null && !action.isBlank()) {
+        if (proposed != null && !proposed.isBlank()) {
             reasoningPrefix = "AI Native Decision: ";
-            decisionAction = ZeroTrustAction.fromString(action);
+            proposedAction = ZeroTrustAction.fromString(proposed);
+            enforcedAction = action != null && !action.isBlank()
+                    ? ZeroTrustAction.fromString(action)
+                    : proposedAction;
+        } else if (action != null && !action.isBlank()) {
+            reasoningPrefix = "AI Native Decision: ";
+            proposedAction = ZeroTrustAction.fromString(action);
+            enforcedAction = proposedAction;
         } else {
-            decisionAction = ZeroTrustAction.ESCALATE;
+            proposedAction = ZeroTrustAction.ESCALATE;
+            enforcedAction = ZeroTrustAction.ESCALATE;
             reasoningPrefix = "AI Analysis Incomplete: ";
         }
 
@@ -155,10 +175,16 @@ public class SecurityDecisionEnforcementHandler implements SecurityEventHandler 
                 ? new ArrayList<>(result.getRecommendedActions()) : new ArrayList<>();
 
         return SecurityDecision.builder()
-                .action(decisionAction)
+                .action(proposedAction)
+                .autonomousAction(enforcedAction)
+                .confidence(result.getConfidence())
+                .llmAuditConfidence(result.resolveAuditConfidence())
                 .iocIndicators(indicators)
                 .mitigationActions(mitigationActions)
                 .reasoning(reasoningPrefix + firstNonBlank(result.getReasoning(), "No additional reasoning"))
+                .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
+                .autonomyConstraintReasons(result.getAutonomyConstraintReasons())
+                .autonomyConstraintSummary(result.getAutonomyConstraintSummary())
                 .build();
     }
 

@@ -4,14 +4,16 @@ import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityResponse;
 import io.contexa.contexacore.autonomous.domain.ThreatAssessment;
 import io.contexa.contexacommon.enums.ZeroTrustAction;
-import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.saas.PromptContextAuditForwardingService;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
+import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +24,9 @@ import org.mockito.quality.Strictness;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.springframework.ai.document.Document;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -37,7 +41,7 @@ class AbstractTieredStrategyTest {
     private SecurityEventEnricher eventEnricher;
 
     @Mock
-    private SecurityPromptTemplate promptTemplate;
+    private SecurityDecisionStandardPromptTemplate promptTemplate;
 
     @Mock
     private BehaviorVectorService behaviorVectorService;
@@ -47,6 +51,12 @@ class AbstractTieredStrategyTest {
 
     @Mock
     private BaselineLearningService baselineLearningService;
+
+    @Mock
+    private PromptContextAuthorizationService promptContextAuthorizationService;
+
+    @Mock
+    private PromptContextAuditForwardingService promptContextAuditForwardingService;
 
     private TieredStrategyProperties tieredStrategyProperties;
 
@@ -62,6 +72,8 @@ class AbstractTieredStrategyTest {
                 behaviorVectorService,
                 unifiedVectorService,
                 baselineLearningService,
+                promptContextAuthorizationService,
+                promptContextAuditForwardingService,
                 tieredStrategyProperties
         );
     }
@@ -167,13 +179,13 @@ class AbstractTieredStrategyTest {
     @DisplayName("cacheEscalationContext should store and retrieve session context by eventId")
     void cacheEscalationContext_storesSessionContext_retrievable() {
         String eventId = "test-event-001";
-        SecurityPromptTemplate.SessionContext sessionCtx = new SecurityPromptTemplate.SessionContext();
+        SecurityDecisionStandardPromptTemplate.SessionContext sessionCtx = new SecurityDecisionStandardPromptTemplate.SessionContext();
         sessionCtx.setSessionId("session-123");
         sessionCtx.setUserId("user-456");
 
         AbstractTieredStrategy.cacheEscalationContext(eventId, sessionCtx, null, null);
 
-        SecurityPromptTemplate.SessionContext cached = AbstractTieredStrategy.getCachedSessionContext(eventId);
+        SecurityDecisionStandardPromptTemplate.SessionContext cached = AbstractTieredStrategy.getCachedSessionContext(eventId);
         assertThat(cached).isNotNull();
         assertThat(cached.getSessionId()).isEqualTo("session-123");
         assertThat(cached.getUserId()).isEqualTo("user-456");
@@ -183,12 +195,12 @@ class AbstractTieredStrategyTest {
     @DisplayName("cacheEscalationContext should store and retrieve behavior analysis by eventId")
     void cacheEscalationContext_storesBehaviorAnalysis_retrievable() {
         String eventId = "test-event-002";
-        SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = new SecurityPromptTemplate.BehaviorAnalysis();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorCtx = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
         behaviorCtx.setBaselineEstablished(true);
 
         AbstractTieredStrategy.cacheEscalationContext(eventId, null, behaviorCtx, null);
 
-        SecurityPromptTemplate.BehaviorAnalysis cached = AbstractTieredStrategy.getCachedBehaviorAnalysis(eventId);
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis cached = AbstractTieredStrategy.getCachedBehaviorAnalysis(eventId);
         assertThat(cached).isNotNull();
         assertThat(cached.isBaselineEstablished()).isTrue();
     }
@@ -209,15 +221,67 @@ class AbstractTieredStrategyTest {
     @Test
     @DisplayName("getCachedSessionContext should return null for null eventId")
     void getCachedSessionContext_nullEventId_returnsNull() {
-        SecurityPromptTemplate.SessionContext cached = AbstractTieredStrategy.getCachedSessionContext(null);
+        SecurityDecisionStandardPromptTemplate.SessionContext cached = AbstractTieredStrategy.getCachedSessionContext(null);
         assertThat(cached).isNull();
     }
 
     @Test
     @DisplayName("getCachedBehaviorAnalysis should return null for unknown eventId")
     void getCachedBehaviorAnalysis_unknownEventId_returnsNull() {
-        SecurityPromptTemplate.BehaviorAnalysis cached = AbstractTieredStrategy.getCachedBehaviorAnalysis("non-existent-id");
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis cached = AbstractTieredStrategy.getCachedBehaviorAnalysis("non-existent-id");
         assertThat(cached).isNull();
+    }
+
+    @Test
+    @DisplayName("capturePromptRuntimeTelemetry should copy prompt runtime facts into mutable event metadata")
+    void capturePromptRuntimeTelemetry_copiesRuntimeFacts() {
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(Map.of("existingKey", "existingValue"))
+                .build();
+        SecurityDecisionResponse response = new SecurityDecisionResponse();
+        response.withMetadata("promptVersion", "2026.03.27-e0.2");
+        response.withMetadata("promptHash", "sha256:test-prompt");
+        response.withMetadata("budgetProfile", "CORTEX_L2_STANDARD");
+        response.withMetadata("promptEvidenceCompleteness", "SUFFICIENT");
+        response.withMetadata("promptSectionSet", List.of("CURRENT_REQUEST", "ROLE_SCOPE"));
+
+        strategy.capturePromptRuntimeTelemetryForTest(event, response);
+
+        assertThat(event.getMetadata())
+                .containsEntry("existingKey", "existingValue")
+                .containsEntry("promptVersion", "2026.03.27-e0.2")
+                .containsEntry("promptHash", "sha256:test-prompt")
+                .containsEntry("budgetProfile", "CORTEX_L2_STANDARD")
+                .containsEntry("promptEvidenceCompleteness", "SUFFICIENT")
+                .containsEntry("promptRuntimeTelemetryLinked", true)
+                .containsEntry("promptRuntimeTelemetryLayer", "TestLayer");
+        assertThat(event.getMetadata().get("promptSectionSet")).isEqualTo(List.of("CURRENT_REQUEST", "ROLE_SCOPE"));
+        assertThat(event.getMetadata()).isInstanceOf(LinkedHashMap.class);
+    }
+
+    @Test
+    @DisplayName("clearPromptRuntimeTelemetry should remove stale prompt runtime facts")
+    void clearPromptRuntimeTelemetry_removesStaleFacts() {
+        SecurityEvent event = SecurityEvent.builder()
+                .metadata(new LinkedHashMap<>(java.util.Map.of(
+                        "promptVersion", "stale-version",
+                        "promptHash", "sha256:stale",
+                        "budgetProfile", "CORTEX_L1_STANDARD",
+                        "promptRuntimeTelemetryLinked", true,
+                        "promptRuntimeTelemetryLayer", "Layer1",
+                        "preserveKey", "preserveValue")))
+                .build();
+
+        strategy.clearPromptRuntimeTelemetryForTest(event);
+
+        assertThat(event.getMetadata())
+                .doesNotContainKeys(
+                        "promptVersion",
+                        "promptHash",
+                        "budgetProfile",
+                        "promptRuntimeTelemetryLinked",
+                        "promptRuntimeTelemetryLayer")
+                .containsEntry("preserveKey", "preserveValue");
     }
 
     // -- Concrete test implementation of the abstract class --
@@ -226,14 +290,19 @@ class AbstractTieredStrategyTest {
 
         ConcreteStrategy(UnifiedLLMOrchestrator llmOrchestrator,
                          SecurityEventEnricher eventEnricher,
-                         SecurityPromptTemplate promptTemplate,
+                         SecurityDecisionStandardPromptTemplate promptTemplate,
                          BehaviorVectorService behaviorVectorService,
                          UnifiedVectorService unifiedVectorService,
                          BaselineLearningService baselineLearningService,
+                         PromptContextAuthorizationService promptContextAuthorizationService,
+                         PromptContextAuditForwardingService promptContextAuditForwardingService,
                          TieredStrategyProperties tieredStrategyProperties) {
             super(llmOrchestrator, eventEnricher, promptTemplate,
                     behaviorVectorService, unifiedVectorService,
-                    baselineLearningService, tieredStrategyProperties);
+                    baselineLearningService,
+                    promptContextAuthorizationService,
+                    promptContextAuditForwardingService,
+                    tieredStrategyProperties);
         }
 
         @Override
@@ -261,6 +330,14 @@ class AbstractTieredStrategyTest {
 
         ZeroTrustAction callMapStringToAction(String action) {
             return mapStringToAction(action);
+        }
+
+        void capturePromptRuntimeTelemetryForTest(SecurityEvent event, SecurityDecisionResponse response) {
+            capturePromptRuntimeTelemetry(event, response);
+        }
+
+        void clearPromptRuntimeTelemetryForTest(SecurityEvent event) {
+            clearPromptRuntimeTelemetry(event);
         }
     }
 }

@@ -48,8 +48,11 @@ public class SessionAuthBridge implements AuthBridge {
         Set<String> authorities = BridgeObjectExtractor.extractStringSet(sessionUser, properties.getAuthoritiesKeys());
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(BridgeObjectExtractor.extractAttributes(sessionUser, properties.getAttributeKeys()));
         attributes.put("bridgeAuthenticationSource", "SESSION");
-        attributes.put("bridgeSessionAttribute", resolvedSessionAttribute.get().attributeName());
-        attributes.put("bridgeSessionDetectionScore", resolvedSessionAttribute.get().score());
+        BridgeSemanticBoundaryPolicy.putStructuralSelectionMetadata(
+                attributes,
+                "bridgeSessionAttribute",
+                resolvedSessionAttribute.get().attributeName(),
+                resolvedSessionAttribute.get().score());
 
         String authenticationType = BridgeObjectExtractor.extractString(sessionUser, properties.getAuthenticationTypeKeys());
         if (authenticationType != null) {
@@ -70,6 +73,9 @@ public class SessionAuthBridge implements AuthBridge {
         if (authenticationTime != null) {
             attributes.put("authenticationTime", authenticationTime);
         }
+        attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationAssurance));
+        attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaCompleted));
+        attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationTime));
 
         return new BridgedUser(principalId, displayName != null ? displayName : principalId, authorities, Map.copyOf(attributes));
     }

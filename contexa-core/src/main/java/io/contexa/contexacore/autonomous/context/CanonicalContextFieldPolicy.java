@@ -84,7 +84,7 @@ public final class CanonicalContextFieldPolicy {
 
     public static boolean hasWorkProfile(CanonicalSecurityContext context) {
         ContextTrustProfile trustProfile = findTrustProfile(context, "PERSONAL_WORK_PROFILE");
-        if (trustProfile != null && (trustProfile.getOverallQualityGrade() == null || !trustProfile.getOverallQualityGrade().supportsReasoning())) {
+        if (trustProfile != null && ContextSemanticBoundaryPolicy.requiresEvidenceCaution(trustProfile)) {
             return false;
         }
         return context != null
@@ -113,6 +113,10 @@ public final class CanonicalContextFieldPolicy {
     }
 
     public static boolean hasRoleScopeProfile(CanonicalSecurityContext context) {
+        ContextTrustProfile trustProfile = findTrustProfile(context, "ROLE_SCOPE_PROFILE");
+        if (trustProfile != null && ContextSemanticBoundaryPolicy.requiresEvidenceCaution(trustProfile)) {
+            return false;
+        }
         return context != null
                 && context.getRoleScopeProfile() != null
                 && (StringUtils.hasText(context.getRoleScopeProfile().getSummary())
@@ -123,8 +127,6 @@ public final class CanonicalContextFieldPolicy {
                 || !context.getRoleScopeProfile().getForbiddenResourceFamilies().isEmpty()
                 || !context.getRoleScopeProfile().getForbiddenActionFamilies().isEmpty()
                 || !context.getRoleScopeProfile().getRecentPermissionChanges().isEmpty()
-                || context.getRoleScopeProfile().getResourceFamilyDrift() != null
-                || context.getRoleScopeProfile().getActionFamilyDrift() != null
                 || StringUtils.hasText(context.getRoleScopeProfile().getTemporaryElevationReason())
                 || context.getRoleScopeProfile().getTemporaryElevation() != null);
     }
@@ -175,8 +177,7 @@ public final class CanonicalContextFieldPolicy {
                 || !context.getPeerCohortProfile().getPreferredResources().isEmpty()
                 || !context.getPeerCohortProfile().getPreferredActionFamilies().isEmpty()
                 || StringUtils.hasText(context.getPeerCohortProfile().getNormalProtectableFrequencyBand())
-                || StringUtils.hasText(context.getPeerCohortProfile().getNormalSensitivityBand())
-                || context.getPeerCohortProfile().getOutlierAgainstCohort() != null);
+                || StringUtils.hasText(context.getPeerCohortProfile().getNormalSensitivityBand()));
     }
 
     public static boolean hasReasoningMemoryProfile(CanonicalSecurityContext context) {

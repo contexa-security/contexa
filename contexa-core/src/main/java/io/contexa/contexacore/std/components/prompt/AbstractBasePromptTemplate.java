@@ -1,6 +1,5 @@
 package io.contexa.contexacore.std.components.prompt;
 
-import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
 
@@ -19,7 +18,7 @@ import io.contexa.contexacommon.domain.request.AIRequest;
  * @see AbstractStreamingPromptTemplate
  * @see AbstractStandardPromptTemplate
  */
-public abstract class AbstractBasePromptTemplate implements PromptTemplate {
+public abstract class AbstractBasePromptTemplate implements GovernedPromptTemplate {
 
     /**
      * Standard parameter name for natural language queries.
@@ -106,5 +105,13 @@ public abstract class AbstractBasePromptTemplate implements PromptTemplate {
      */
     protected boolean isContextType(AIRequest<? extends DomainContext> request, Class<? extends DomainContext> contextType) {
         return request.getContext() != null && contextType.isInstance(request.getContext());
+    }
+
+    @Override
+    public PromptGovernanceDescriptor getPromptGovernanceDescriptor() {
+        String templateKey = getSupportedType() != null && getSupportedType().name() != null
+                ? getSupportedType().name()
+                : getClass().getSimpleName();
+        return PromptGovernanceSupport.buildDefaultDescriptor(templateKey, getClass());
     }
 }

@@ -1,5 +1,7 @@
 package io.contexa.contexacore.std.pipeline.step;
 
+import io.contexa.contexacommon.domain.request.AIResponse;
+import io.contexa.contexacore.std.components.prompt.PromptRuntimeTelemetrySupport;
 import io.contexa.contexacore.std.components.prompt.PromptGenerator;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;
@@ -95,6 +97,15 @@ public class PostprocessingStep implements PipelineStep {
 
         context.addMetadata("status", "SUCCESS");
         context.addMetadata("completedAt", System.currentTimeMillis());
+
+        if (response instanceof AIResponse aiResponse) {
+            for (String key : PromptRuntimeTelemetrySupport.runtimeTelemetryKeys()) {
+                Object value = context.getMetadata(key, Object.class);
+                if (value != null) {
+                    aiResponse.withMetadata(key, value);
+                }
+            }
+        }
     }
 
     private Object createMinimalFallbackResponse(PipelineExecutionContext context) {

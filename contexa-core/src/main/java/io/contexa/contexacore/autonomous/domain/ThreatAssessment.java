@@ -21,16 +21,32 @@ public class ThreatAssessment {
     private List<String> indicators;
     private List<String> recommendedActions;
     private String strategyName;
+    /**
+     * Effective confidence after runtime autonomy constraints.
+     */
     private Double confidence;
+    /**
+     * Raw confidence proposed by the LLM.
+     */
     private Double llmAuditConfidence;
+    /**
+     * LLM semantic action proposal.
+     */
     private String action;
+    /**
+     * Final action used for autonomous execution. Null means the proposal stands as-is.
+     */
+    private String autonomousAction;
     private String reasoning;
+    private Boolean autonomyConstraintApplied;
+    private List<String> autonomyConstraintReasons;
+    private String autonomyConstraintSummary;
 
     @Builder.Default
     private boolean shouldEscalate = false;
 
     public Double getConfidenceScore() {
-        return resolveAuditConfidence();
+        return confidence != null ? confidence : resolveAuditConfidence();
     }
 
     public Double resolveAuditRiskScore() {

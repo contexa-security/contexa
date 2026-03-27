@@ -19,6 +19,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
     private final ObservedScopeInferenceService observedScopeInferenceService;
     private final SessionNarrativeCollector sessionNarrativeCollector;
     private final ProtectableWorkProfileCollector protectableWorkProfileCollector;
+    private final RoleScopeCollector roleScopeCollector;
     private final CanonicalSecurityContextHardener contextHardener;
     private final ObjectiveDriftEvaluator objectiveDriftEvaluator = new ObjectiveDriftEvaluator();
 
@@ -26,7 +27,15 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ResourceContextRegistry resourceContextRegistry,
             ContextCoverageEvaluator coverageEvaluator) {
         this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                new MetadataObservedScopeInferenceService(), null, null, new CanonicalSecurityContextHardener());
+                new MetadataObservedScopeInferenceService(), null, null, null, new CanonicalSecurityContextHardener());
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            RoleScopeCollector roleScopeCollector) {
+        this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+                new MetadataObservedScopeInferenceService(), null, null, roleScopeCollector, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -34,7 +43,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ContextCoverageEvaluator coverageEvaluator,
             SessionNarrativeCollector sessionNarrativeCollector) {
         this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                new MetadataObservedScopeInferenceService(), sessionNarrativeCollector, null, new CanonicalSecurityContextHardener());
+                new MetadataObservedScopeInferenceService(), sessionNarrativeCollector, null, null, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -42,7 +51,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ContextCoverageEvaluator coverageEvaluator,
             ProtectableWorkProfileCollector protectableWorkProfileCollector) {
         this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                new MetadataObservedScopeInferenceService(), null, protectableWorkProfileCollector, new CanonicalSecurityContextHardener());
+                new MetadataObservedScopeInferenceService(), null, protectableWorkProfileCollector, null, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -51,7 +60,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             SessionNarrativeCollector sessionNarrativeCollector,
             ProtectableWorkProfileCollector protectableWorkProfileCollector) {
         this(resourceContextRegistry, coverageEvaluator, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
-                new MetadataObservedScopeInferenceService(), sessionNarrativeCollector, protectableWorkProfileCollector,
+                new MetadataObservedScopeInferenceService(), sessionNarrativeCollector, protectableWorkProfileCollector, null,
                 new CanonicalSecurityContextHardener());
     }
 
@@ -65,7 +74,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ObservedScopeInferenceService observedScopeInferenceService) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, List.of(), List.of(), List.of(),
-                observedScopeInferenceService, null, null, new CanonicalSecurityContextHardener());
+                observedScopeInferenceService, null, null, null, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -81,7 +90,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ObservedScopeInferenceService observedScopeInferenceService) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
-                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, new CanonicalSecurityContextHardener());
+                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, null, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -98,7 +107,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             SessionNarrativeCollector sessionNarrativeCollector) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
-                reasoningMemoryContextProviders, observedScopeInferenceService, sessionNarrativeCollector, null,
+                reasoningMemoryContextProviders, observedScopeInferenceService, sessionNarrativeCollector, null, null,
                 new CanonicalSecurityContextHardener());
     }
 
@@ -118,7 +127,27 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
                 reasoningMemoryContextProviders, observedScopeInferenceService, sessionNarrativeCollector, protectableWorkProfileCollector,
-                new CanonicalSecurityContextHardener());
+                null, new CanonicalSecurityContextHardener());
+    }
+
+    public DefaultCanonicalSecurityContextProvider(
+            ResourceContextRegistry resourceContextRegistry,
+            ContextCoverageEvaluator coverageEvaluator,
+            List<AuthenticationContextProvider> authenticationContextProviders,
+            List<AuthorizationSnapshotProvider> authorizationSnapshotProviders,
+            List<OrganizationContextProvider> organizationContextProviders,
+            List<DelegationContextProvider> delegationContextProviders,
+            List<PeerCohortContextProvider> peerCohortContextProviders,
+            List<FrictionContextProvider> frictionContextProviders,
+            List<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
+            ObservedScopeInferenceService observedScopeInferenceService,
+            SessionNarrativeCollector sessionNarrativeCollector,
+            ProtectableWorkProfileCollector protectableWorkProfileCollector,
+            RoleScopeCollector roleScopeCollector) {
+        this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
+                organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
+                reasoningMemoryContextProviders, observedScopeInferenceService, sessionNarrativeCollector, protectableWorkProfileCollector,
+                roleScopeCollector, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -133,7 +162,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ObservedScopeInferenceService observedScopeInferenceService) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, List.of(), reasoningMemoryContextProviders,
-                observedScopeInferenceService, null, null, new CanonicalSecurityContextHardener());
+                observedScopeInferenceService, null, null, null, new CanonicalSecurityContextHardener());
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -150,7 +179,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             CanonicalSecurityContextHardener contextHardener) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, frictionContextProviders,
-                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, contextHardener);
+                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, null, contextHardener);
     }
 
     public DefaultCanonicalSecurityContextProvider(
@@ -166,6 +195,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             ObservedScopeInferenceService observedScopeInferenceService,
             SessionNarrativeCollector sessionNarrativeCollector,
             ProtectableWorkProfileCollector protectableWorkProfileCollector,
+            RoleScopeCollector roleScopeCollector,
             CanonicalSecurityContextHardener contextHardener) {
         this.resourceContextRegistry = resourceContextRegistry;
         this.coverageEvaluator = coverageEvaluator;
@@ -179,6 +209,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         this.observedScopeInferenceService = observedScopeInferenceService;
         this.sessionNarrativeCollector = sessionNarrativeCollector;
         this.protectableWorkProfileCollector = protectableWorkProfileCollector;
+        this.roleScopeCollector = roleScopeCollector;
         this.contextHardener = contextHardener != null ? contextHardener : new CanonicalSecurityContextHardener();
     }
 
@@ -195,7 +226,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             CanonicalSecurityContextHardener contextHardener) {
         this(resourceContextRegistry, coverageEvaluator, authenticationContextProviders, authorizationSnapshotProviders,
                 organizationContextProviders, delegationContextProviders, peerCohortContextProviders, List.of(),
-                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, contextHardener);
+                reasoningMemoryContextProviders, observedScopeInferenceService, null, null, null, contextHardener);
     }
 
     @Override
@@ -241,6 +272,7 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         event.setMetadata(metadata);
         enrichSessionNarrativeMetadata(event, metadata);
         enrichProtectableWorkProfileMetadata(event, metadata);
+        enrichRoleScopeMetadata(event, metadata);
         return metadata;
     }
 
@@ -277,20 +309,49 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             metadata.put("normalReadWriteExportRatio", snapshot.getNormalReadWriteExportRatio());
             if (snapshot.getTrustProfile() != null) {
                 metadata.put("workProfileTrustProfile", snapshot.getTrustProfile());
-                metadata.put("workProfileQualityGrade", snapshot.getTrustProfile().getOverallQualityGrade());
-                metadata.put("workProfileQualityScore", snapshot.getTrustProfile().getOverallQualityScore());
                 metadata.put("workProfileProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
                 metadata.put("workProfileQualityWarnings", snapshot.getTrustProfile().getQualityWarnings());
             }
         });
     }
 
+    private void enrichRoleScopeMetadata(SecurityEvent event, Map<String, Object> metadata) {
+        if (roleScopeCollector == null) {
+            return;
+        }
+        roleScopeCollector.collect(event).ifPresent(snapshot -> {
+            metadata.put("roleScopeSummary", snapshot.getSummary());
+            metadata.put("currentResourceFamily", snapshot.getCurrentResourceFamily());
+            metadata.put("currentActionFamily", snapshot.getCurrentActionFamily());
+            metadata.put("expectedResourceFamilies", snapshot.getExpectedResourceFamilies());
+            metadata.put("expectedActionFamilies", snapshot.getExpectedActionFamilies());
+            metadata.put("forbiddenResourceFamilies", snapshot.getForbiddenResourceFamilies());
+            metadata.put("forbiddenActionFamilies", snapshot.getForbiddenActionFamilies());
+            metadata.put("normalApprovalPatterns", snapshot.getNormalApprovalPatterns());
+            metadata.put("normalEscalationPatterns", snapshot.getNormalEscalationPatterns());
+            metadata.put("recentPermissionChanges", snapshot.getRecentPermissionChanges());
+            metadata.put("temporaryElevation", snapshot.getTemporaryElevation());
+            metadata.put("temporaryElevationReason", snapshot.getTemporaryElevationReason());
+            metadata.put("elevatedPrivilegeWindowActive", snapshot.getElevatedPrivilegeWindowActive());
+            metadata.put("elevationWindowSummary", snapshot.getElevationWindowSummary());
+            if (snapshot.getTrustProfile() != null) {
+                metadata.put("roleScopeTrustProfile", snapshot.getTrustProfile());
+                metadata.put("roleScopeProvenanceSummary", snapshot.getTrustProfile().getProvenanceSummary());
+            }
+        });
+    }
+
     private List<ContextTrustProfile> resolveContextTrustProfiles(Map<String, Object> metadata) {
+        List<ContextTrustProfile> trustProfiles = new ArrayList<>();
         Object workProfileTrustProfile = metadata.get("workProfileTrustProfile");
         if (workProfileTrustProfile instanceof ContextTrustProfile trustProfile) {
-            return List.of(trustProfile);
+            trustProfiles.add(trustProfile);
         }
-        return List.of();
+        Object roleScopeTrustProfile = metadata.get("roleScopeTrustProfile");
+        if (roleScopeTrustProfile instanceof ContextTrustProfile trustProfile) {
+            trustProfiles.add(trustProfile);
+        }
+        return List.copyOf(trustProfiles);
     }
 
     private CanonicalSecurityContext.Actor resolveActor(SecurityEvent event, Map<String, Object> metadata) {
@@ -604,12 +665,10 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 .recentPermissionChanges(normalizeStrings(metadata.get("recentPermissionChanges"), metadata.get("permissionChangeEvents")))
                 .resourceFamilyDrift(resolveBoolean(
                         metadata.get("resourceFamilyDrift"),
-                        metadata.get("resource_family_drift"),
-                        computeFamilyDrift(currentResourceFamily, expectedResourceFamilies, forbiddenResourceFamilies)))
+                        metadata.get("resource_family_drift")))
                 .actionFamilyDrift(resolveBoolean(
                         metadata.get("actionFamilyDrift"),
-                        metadata.get("action_family_drift"),
-                        computeFamilyDrift(currentActionFamily, expectedActionFamilies, forbiddenActionFamilies)))
+                        metadata.get("action_family_drift")))
                 .temporaryElevation(resolveBoolean(metadata.get("temporaryElevation"), metadata.get("temporary_elevation")))
                 .temporaryElevationReason(firstText(metadata.get("temporaryElevationReason"), metadata.get("elevationReason"), metadata.get("temporary_elevation_reason")))
                 .elevatedPrivilegeWindowActive(resolveBoolean(metadata.get("elevatedPrivilegeWindowActive"), metadata.get("elevated_privilege_window_active")))
@@ -973,8 +1032,6 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
                 || !roleScopeProfile.getNormalApprovalPatterns().isEmpty()
                 || !roleScopeProfile.getNormalEscalationPatterns().isEmpty()
                 || !roleScopeProfile.getRecentPermissionChanges().isEmpty()
-                || roleScopeProfile.getResourceFamilyDrift() != null
-                || roleScopeProfile.getActionFamilyDrift() != null
                 || roleScopeProfile.getTemporaryElevation() != null
                 || StringUtils.hasText(roleScopeProfile.getTemporaryElevationReason())
                 || roleScopeProfile.getElevatedPrivilegeWindowActive() != null
@@ -1110,11 +1167,20 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         if (roleScopeProfile != null && StringUtils.hasText(roleScopeProfile.getCurrentResourceFamily())) {
             facts.add("Current resource family: " + roleScopeProfile.getCurrentResourceFamily());
         }
-        if (roleScopeProfile != null && roleScopeProfile.getResourceFamilyDrift() != null) {
-            facts.add("Resource family drift: " + roleScopeProfile.getResourceFamilyDrift());
+        if (roleScopeProfile != null && StringUtils.hasText(roleScopeProfile.getCurrentActionFamily())) {
+            facts.add("Current action family: " + roleScopeProfile.getCurrentActionFamily());
         }
-        if (roleScopeProfile != null && roleScopeProfile.getActionFamilyDrift() != null) {
-            facts.add("Action family drift: " + roleScopeProfile.getActionFamilyDrift());
+        if (roleScopeProfile != null && !roleScopeProfile.getExpectedResourceFamilies().isEmpty()) {
+            facts.add("Expected resource families: " + String.join(", ", roleScopeProfile.getExpectedResourceFamilies()));
+        }
+        if (roleScopeProfile != null && !roleScopeProfile.getExpectedActionFamilies().isEmpty()) {
+            facts.add("Expected action families: " + String.join(", ", roleScopeProfile.getExpectedActionFamilies()));
+        }
+        if (roleScopeProfile != null && !roleScopeProfile.getForbiddenResourceFamilies().isEmpty()) {
+            facts.add("Denied resource families: " + String.join(", ", roleScopeProfile.getForbiddenResourceFamilies()));
+        }
+        if (roleScopeProfile != null && !roleScopeProfile.getForbiddenActionFamilies().isEmpty()) {
+            facts.add("Denied action families: " + String.join(", ", roleScopeProfile.getForbiddenActionFamilies()));
         }
         if (roleScopeProfile != null && Boolean.TRUE.equals(roleScopeProfile.getTemporaryElevation())) {
             facts.add("Temporary elevation is active");
@@ -1130,11 +1196,17 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         if (roleScopeProfile != null && StringUtils.hasText(roleScopeProfile.getCurrentActionFamily())) {
             facts.add("Current action family: " + roleScopeProfile.getCurrentActionFamily());
         }
-        if (roleScopeProfile != null && roleScopeProfile.getResourceFamilyDrift() != null) {
-            facts.add("Resource family drift: " + roleScopeProfile.getResourceFamilyDrift());
+        if (roleScopeProfile != null && !roleScopeProfile.getExpectedResourceFamilies().isEmpty()) {
+            facts.add("Expected resource families: " + String.join(", ", roleScopeProfile.getExpectedResourceFamilies()));
         }
-        if (roleScopeProfile != null && roleScopeProfile.getActionFamilyDrift() != null) {
-            facts.add("Action family drift: " + roleScopeProfile.getActionFamilyDrift());
+        if (roleScopeProfile != null && !roleScopeProfile.getExpectedActionFamilies().isEmpty()) {
+            facts.add("Expected action families: " + String.join(", ", roleScopeProfile.getExpectedActionFamilies()));
+        }
+        if (roleScopeProfile != null && !roleScopeProfile.getForbiddenResourceFamilies().isEmpty()) {
+            facts.add("Denied resource families: " + String.join(", ", roleScopeProfile.getForbiddenResourceFamilies()));
+        }
+        if (roleScopeProfile != null && !roleScopeProfile.getForbiddenActionFamilies().isEmpty()) {
+            facts.add("Denied action families: " + String.join(", ", roleScopeProfile.getForbiddenActionFamilies()));
         }
         return facts.isEmpty() ? null : String.join(" | ", facts);
     }
@@ -1157,9 +1229,6 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         }
         if (StringUtils.hasText(peerCohortProfile.getNormalSensitivityBand())) {
             facts.add("Cohort normal sensitivity band: " + peerCohortProfile.getNormalSensitivityBand());
-        }
-        if (peerCohortProfile.getOutlierAgainstCohort() != null) {
-            facts.add("Outlier against cohort: " + peerCohortProfile.getOutlierAgainstCohort());
         }
         if (facts.isEmpty() && context != null && context.getActor() != null && StringUtils.hasText(context.getActor().getDepartment())) {
             facts.add("Peer cohort reasoning is anchored to department " + context.getActor().getDepartment());
@@ -1359,15 +1428,9 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
             return null;
         }
         List<String> facts = new ArrayList<>();
-        if (Boolean.TRUE.equals(delegation.getObjectiveDrift())) {
-            facts.add("Current request diverges from delegated objective scope.");
-        }
-        else if (Boolean.FALSE.equals(delegation.getObjectiveDrift())) {
-            facts.add("Current request remains inside delegated objective scope.");
-        }
-        else {
-            facts.add("Objective drift is unknown because comparable delegated action/resource family inputs are incomplete.");
-        }
+        facts.add(Boolean.TRUE.equals(delegation.getObjectiveDrift()) || Boolean.FALSE.equals(delegation.getObjectiveDrift())
+                ? "Delegated objective comparison evidence is available."
+                : "Delegated objective comparison is incomplete because comparable delegated action/resource family inputs are missing.");
         if (StringUtils.hasText(delegation.getObjectiveFamily())) {
             facts.add("Objective family: " + delegation.getObjectiveFamily());
         }
@@ -1387,17 +1450,5 @@ public class DefaultCanonicalSecurityContextProvider implements CanonicalSecurit
         return new ArrayList<>(values);
     }
 
-    private Boolean computeFamilyDrift(String currentFamily, List<String> expectedFamilies, List<String> forbiddenFamilies) {
-        if (!StringUtils.hasText(currentFamily)) {
-            return null;
-        }
-        if (forbiddenFamilies != null && forbiddenFamilies.stream().anyMatch(item -> currentFamily.equalsIgnoreCase(item))) {
-            return true;
-        }
-        if (expectedFamilies == null || expectedFamilies.isEmpty()) {
-            return null;
-        }
-        return expectedFamilies.stream().noneMatch(item -> currentFamily.equalsIgnoreCase(item));
-    }
 }
 

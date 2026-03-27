@@ -1,6 +1,7 @@
 package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,9 +53,9 @@ public class SecurityContextAuthenticationStampResolver implements Authenticatio
             authenticationType = authentication.getClass().getSimpleName();
         }
         String authenticationAssurance = SecurityContextStampSupport.extractString(authentication, config.getAuthenticationAssuranceKeys());
-        if (authenticationAssurance == null) {
-            authenticationAssurance = Boolean.TRUE.equals(mfaCompleted) ? "HIGH" : "STANDARD";
-        }
+        attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationAssurance));
+        attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaCompleted));
+        attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationTime));
 
         return Optional.of(new AuthenticationStamp(
                 principalId,

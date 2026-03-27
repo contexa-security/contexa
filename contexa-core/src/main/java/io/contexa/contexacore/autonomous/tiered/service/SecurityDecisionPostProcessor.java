@@ -49,7 +49,7 @@ public class SecurityDecisionPostProcessor {
         }
 
         try {
-            ZeroTrustAction action = decision.getAction();
+            ZeroTrustAction action = decision.resolveAutonomousAction();
             if (action == null) {
                 log.error("[SecurityDecisionPostProcessor] Decision action is null, skipping vector storage: eventId={}",
                         event.getEventId());
@@ -122,7 +122,10 @@ public class SecurityDecisionPostProcessor {
                     event.getTimestamp().getMinute()));
         }
 
-        sentence.append(", observed ").append(decision.getAction().name().toLowerCase());
+        ZeroTrustAction observedAction = decision.resolveAutonomousAction();
+        if (observedAction != null) {
+            sentence.append(", observed ").append(observedAction.name().toLowerCase());
+        }
 
         return sentence.toString();
     }
@@ -133,9 +136,14 @@ public class SecurityDecisionPostProcessor {
         sb.append(buildActionSummary(event, decision));
         sb.append("\n");
 
-        sb.append("Decision: action=").append(decision.getAction().name());
+        sb.append("Decision: proposedAction=").append(decision.getAction() != null ? decision.getAction().name() : "UNKNOWN");
+        ZeroTrustAction autonomousAction = decision.resolveAutonomousAction();
+        if (autonomousAction != null) {
+            sb.append(", autonomousAction=").append(autonomousAction.name());
+        }
         sb.append(", riskScore=").append(formatScore(decision.getRiskScore()));
         sb.append(", confidence=").append(formatScore(decision.getConfidence()));
+        sb.append(", llmAuditConfidence=").append(formatScore(decision.resolveAuditConfidence()));
         if (decision.getProcessingLayer() > 0) {
             sb.append(", analysisLayer=").append(decision.getProcessingLayer());
         }
@@ -143,6 +151,11 @@ public class SecurityDecisionPostProcessor {
 
         if (decision.getReasoning() != null && !decision.getReasoning().isBlank()) {
             sb.append("Reasoning: ").append(truncate(decision.getReasoning(), 300)).append("\n");
+        }
+        if (Boolean.TRUE.equals(decision.getAutonomyConstraintApplied())) {
+            sb.append("AutonomyConstraint: ")
+                    .append(truncate(decision.getAutonomyConstraintSummary(), 220))
+                    .append("\n");
         }
 
         appendSessionContext(sb, event);
@@ -354,12 +367,29 @@ public class SecurityDecisionPostProcessor {
         }
 
         if (decision.getAction() != null) {
-            metadata.put("action", decision.getAction().name());
+            metadata.put("proposedAction", decision.getAction().name());
+        }
+        ZeroTrustAction autonomousAction = decision.resolveAutonomousAction();
+        if (autonomousAction != null) {
+            metadata.put("action", autonomousAction.name());
+            metadata.put("autonomousAction", autonomousAction.name());
         }
         double rs = decision.getRiskScore();
         metadata.put("riskScore", Double.isNaN(rs) ? -1.0 : rs);
         double conf = decision.getConfidence();
         metadata.put("confidence", Double.isNaN(conf) ? -1.0 : conf);
+        if (decision.resolveAuditConfidence() != null) {
+            metadata.put("llmAuditConfidence", decision.resolveAuditConfidence());
+        }
+        if (Boolean.TRUE.equals(decision.getAutonomyConstraintApplied())) {
+            metadata.put("autonomyConstraintApplied", true);
+            if (decision.getAutonomyConstraintSummary() != null) {
+                metadata.put("autonomyConstraintSummary", decision.getAutonomyConstraintSummary());
+            }
+            if (decision.getAutonomyConstraintReasons() != null && !decision.getAutonomyConstraintReasons().isEmpty()) {
+                metadata.put("autonomyConstraintReasons", decision.getAutonomyConstraintReasons());
+            }
+        }
 
         if (decision.getProcessingLayer() > 0) {
             metadata.put("analysisDepth", decision.getProcessingLayer());
@@ -436,6 +466,11 @@ public class SecurityDecisionPostProcessor {
         if (val != null) {
             target.put(key, val);
         }
+    }
+
+    private static String formatScore(Double score) {
+        if (score == null || Double.isNaN(score)) return "N/A";
+        return String.format("%.2f", score);
     }
 
     private static String formatScore(double score) {

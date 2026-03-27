@@ -20,4 +20,18 @@ class ThreatAssessmentTest {
         assertThat(assessment.resolveAuditRiskScore()).isEqualTo(0.64);
         assertThat(assessment.getConfidenceScore()).isEqualTo(0.92);
     }
+
+    @Test
+    void confidenceScorePrefersEffectiveConfidenceWhenPresent() {
+        ThreatAssessment assessment = ThreatAssessment.builder()
+                .confidence(0.58)
+                .llmAuditConfidence(0.93)
+                .action("ALLOW")
+                .autonomousAction("CHALLENGE")
+                .build();
+
+        assertThat(assessment.getConfidenceScore()).isEqualTo(0.58);
+        assertThat(assessment.getAction()).isEqualTo("ALLOW");
+        assertThat(assessment.getAutonomousAction()).isEqualTo("CHALLENGE");
+    }
 }

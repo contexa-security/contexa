@@ -121,6 +121,21 @@ public class ZeroTrustRedisKeys {
         return String.format("%s:work-profile:observations:%s", NAMESPACE, scopeKey);
     }
 
+    public static String roleScopeObservations(String scopeKey) {
+        validateScopeKey(scopeKey);
+        return String.format("%s:role-scope:observations:%s", NAMESPACE, scopeKey);
+    }
+
+    public static String userPermissionChangeObservations(String scopeKey) {
+        validateScopeKey(scopeKey);
+        return String.format("%s:role-scope:permission-changes:%s", NAMESPACE, scopeKey);
+    }
+
+    public static String userAuthorizationScopeState(String scopeKey) {
+        validateScopeKey(scopeKey);
+        return String.format("%s:role-scope:authorization-state:%s", NAMESPACE, scopeKey);
+    }
+
     public static String userLastRequestTime(String userId) {
         validateUserId(userId);
         return String.format("%s:hcad:last:request:%s", NAMESPACE, userId);

@@ -97,18 +97,18 @@ public class BridgeCoverageEvaluator {
 
     private String resolveSummary(BridgeCoverageLevel level, LinkedHashSet<MissingBridgeContext> missing) {
         return switch (level) {
-            case NONE -> "Bridge did not establish a trusted authenticated principal for the current request.";
-            case AUTHENTICATION_ONLY -> "Bridge resolved authentication, but request-level authorization context is still incomplete.";
+            case NONE -> "Bridge completeness did not reach an authenticated principal for the current request.";
+            case AUTHENTICATION_ONLY -> "Bridge completeness reached authentication, but request-level authorization context is still incomplete.";
             case AUTHORIZATION_CONTEXT -> {
                 if (missing.contains(MissingBridgeContext.AUTHORIZATION_EFFECT) || missing.contains(MissingBridgeContext.AUTHORIZATION_AUTHORITIES)) {
-                    yield "Bridge resolved authentication and partial authorization context for the current request.";
+                    yield "Bridge completeness reached authentication and partial authorization context for the current request.";
                 }
                 if (missing.contains(MissingBridgeContext.DELEGATION)) {
-                    yield "Bridge resolved authentication and authorization context, but delegated execution metadata is incomplete for this request.";
+                    yield "Bridge completeness reached authentication and authorization context, but delegated execution metadata is incomplete for this request.";
                 }
-                yield "Bridge resolved authentication and authorization context for the current request.";
+                yield "Bridge completeness reached authentication and authorization context for the current request.";
             }
-            case DELEGATION_CONTEXT -> "Bridge resolved authentication, authorization, and delegated execution context for the current request.";
+            case DELEGATION_CONTEXT -> "Bridge completeness reached authentication, authorization, and delegated execution context for the current request.";
         };
     }
 

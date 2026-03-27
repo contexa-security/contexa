@@ -1,6 +1,6 @@
 package io.contexa.contexacore.std.pipeline.step;
 
-import io.contexa.contexacore.std.components.prompt.PromptGenerator.PromptGenerationResult;
+import io.contexa.contexacore.std.components.prompt.PromptGenerationResult;
 import io.contexa.contexacore.std.llm.config.LLMClient;
 import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineExecutionContext;

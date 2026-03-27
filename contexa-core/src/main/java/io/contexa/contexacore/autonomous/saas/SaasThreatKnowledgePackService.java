@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.saas.client.SaasThreatKnowledgePackHttp
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalMatcherService;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -79,7 +79,7 @@ public class SaasThreatKnowledgePackService {
 
     public ThreatKnowledgePackMatchContext buildThreatKnowledgeContext(
             SecurityEvent event,
-            SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
         if (!isEnabled() || event == null) {
             return ThreatKnowledgePackMatchContext.empty();
         }

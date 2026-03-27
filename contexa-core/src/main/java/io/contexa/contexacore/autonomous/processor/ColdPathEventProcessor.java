@@ -60,15 +60,25 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
             ThreatAnalysisResult analysisResult = performTieredAIAnalysis(event, riskScore);
             result.setAction(analysisResult.getAction());
+            result.setProposedAction(analysisResult.getProposedAction());
+            result.setConfidence(analysisResult.getConfidence());
             result.setLlmAuditRiskScore(analysisResult.getFinalScore());
-            result.setLlmAuditConfidence(analysisResult.getConfidence());
+            result.setLlmAuditConfidence(analysisResult.getLlmAuditConfidence());
             result.setReasoning(analysisResult.getReasoning());
             result.setThreatIndicators(analysisResult.getIndicators());
             result.setRecommendedActions(new ArrayList<>(analysisResult.getRecommendedActions()));
             result.setAiAnalysisLevel(analysisResult.getAnalysisDepth());
+            result.setAutonomyConstraintApplied(analysisResult.getAutonomyConstraintApplied());
+            result.setAutonomyConstraintReasons(analysisResult.getAutonomyConstraintReasons());
+            result.setAutonomyConstraintSummary(analysisResult.getAutonomyConstraintSummary());
             result.addAnalysisData("aiAssessment", analysisResult);
             result.addAnalysisData("llmAuditRiskScore", analysisResult.getFinalScore());
-            result.addAnalysisData("llmAuditConfidence", analysisResult.getConfidence());
+            result.addAnalysisData("confidence", analysisResult.getConfidence());
+            result.addAnalysisData("llmAuditConfidence", analysisResult.getLlmAuditConfidence());
+            result.addAnalysisData("llmProposedAction", analysisResult.getProposedAction());
+            result.addAnalysisData("autonomousEnforcementAction", analysisResult.getAction());
+            result.addAnalysisData("autonomyConstraintApplied", analysisResult.getAutonomyConstraintApplied());
+            result.addAnalysisData("autonomyConstraintSummary", analysisResult.getAutonomyConstraintSummary());
 
             long processingTime = System.currentTimeMillis() - startTime;
             result.setProcessingTimeMs(processingTime);
@@ -103,18 +113,23 @@ public class ColdPathEventProcessor implements IPathProcessor {
 
                 if (!layer1Assessment.isShouldEscalate()) {
                     result.setFinalScore(layer1Assessment.resolveAuditRiskScore());
-                    result.setConfidence(layer1Assessment.resolveAuditConfidence());
+                    result.setConfidence(layer1Assessment.getConfidence());
+                    result.setLlmAuditConfidence(layer1Assessment.resolveAuditConfidence());
                     result.addIndicators(layer1Assessment.getIndicators());
                     result.addRecommendedActions(layer1Assessment.getRecommendedActions());
                     result.setAnalysisDepth(1);
-                    result.setAction(layer1Assessment.getAction());
+                    result.setProposedAction(layer1Assessment.getAction());
+                    result.setAction(resolveEnforcedAction(layer1Assessment));
                     result.setReasoning(layer1Assessment.getReasoning());
+                    result.setAutonomyConstraintApplied(layer1Assessment.getAutonomyConstraintApplied());
+                    result.setAutonomyConstraintReasons(layer1Assessment.getAutonomyConstraintReasons());
+                    result.setAutonomyConstraintSummary(layer1Assessment.getAutonomyConstraintSummary());
                     String reasoning = layer1Assessment.getReasoning() != null
                             ? layer1Assessment.getReasoning() : "Layer1 analysis completed";
                     publishLayer1Complete(userId, layer1Assessment.getAction(),
                             reasoning, extractMitre(layer1Assessment), layer1ElapsedMs);
 
-                    publishDecisionApplied(userId, layer1Assessment.getAction(), "LAYER1", requestPath);
+                    publishDecisionApplied(userId, result.getAction(), "LAYER1", requestPath);
 
                     return result;
                 }
@@ -160,18 +175,23 @@ public class ColdPathEventProcessor implements IPathProcessor {
                 long layer2ElapsedMs = System.currentTimeMillis() - layer2StartTime;
 
                 result.setFinalScore(layer2Assessment.resolveAuditRiskScore());
-                result.setConfidence(layer2Assessment.resolveAuditConfidence());
+                result.setConfidence(layer2Assessment.getConfidence());
+                result.setLlmAuditConfidence(layer2Assessment.resolveAuditConfidence());
                 result.addIndicators(layer2Assessment.getIndicators());
                 result.addRecommendedActions(layer2Assessment.getRecommendedActions());
                 result.setAnalysisDepth(2);
-                result.setAction(layer2Assessment.getAction());
+                result.setProposedAction(layer2Assessment.getAction());
+                result.setAction(resolveEnforcedAction(layer2Assessment));
                 result.setReasoning(layer2Assessment.getReasoning());
+                result.setAutonomyConstraintApplied(layer2Assessment.getAutonomyConstraintApplied());
+                result.setAutonomyConstraintReasons(layer2Assessment.getAutonomyConstraintReasons());
+                result.setAutonomyConstraintSummary(layer2Assessment.getAutonomyConstraintSummary());
                 String layer2Reasoning = layer2Assessment.getReasoning() != null
                         ? layer2Assessment.getReasoning() : "Layer2 expert analysis completed";
                 publishLayer2Complete(userId, layer2Assessment.getAction(),
                         layer2Reasoning, extractMitre(layer2Assessment), layer2ElapsedMs);
 
-                publishDecisionApplied(userId, layer2Assessment.getAction(), "LAYER2", requestPath);
+                publishDecisionApplied(userId, result.getAction(), "LAYER2", requestPath);
 
                 return result;
             }
@@ -204,11 +224,16 @@ public class ColdPathEventProcessor implements IPathProcessor {
         private double baseScore;
         private Double finalScore;
         private Double confidence;
+        private Double llmAuditConfidence;
         private Set<String> indicators = new HashSet<>();
         private Set<String> recommendedActions = new HashSet<>();
         private int analysisDepth = 0;
         private String action;
+        private String proposedAction;
         private String reasoning;
+        private Boolean autonomyConstraintApplied;
+        private List<String> autonomyConstraintReasons = new ArrayList<>();
+        private String autonomyConstraintSummary;
 
         public List<String> getIndicators() {
             return new ArrayList<>(indicators);
@@ -227,27 +252,53 @@ public class ColdPathEventProcessor implements IPathProcessor {
         }
 
         public SecurityDecision getFinalDecision() {
-            ZeroTrustAction decisionAction;
+            ZeroTrustAction proposedDecisionAction;
+            ZeroTrustAction enforcedDecisionAction;
             String reasoningPrefix;
 
-            if (action != null && !action.isBlank()) {
+            if (proposedAction != null && !proposedAction.isBlank()) {
                 reasoningPrefix = "AI Native Decision: ";
-                decisionAction = ZeroTrustAction.fromString(action);
+                proposedDecisionAction = ZeroTrustAction.fromString(proposedAction);
+                enforcedDecisionAction = action != null && !action.isBlank()
+                        ? ZeroTrustAction.fromString(action)
+                        : proposedDecisionAction;
+            } else if (action != null && !action.isBlank()) {
+                reasoningPrefix = "AI Native Decision: ";
+                proposedDecisionAction = ZeroTrustAction.fromString(action);
+                enforcedDecisionAction = proposedDecisionAction;
             } else {
-                decisionAction = ZeroTrustAction.ESCALATE;
+                proposedDecisionAction = ZeroTrustAction.ESCALATE;
+                enforcedDecisionAction = ZeroTrustAction.ESCALATE;
                 reasoningPrefix = "AI Analysis Incomplete: ";
             }
             return SecurityDecision.builder()
-                    .action(decisionAction)
+                    .action(proposedDecisionAction)
+                    .autonomousAction(enforcedDecisionAction)
                     .riskScore(null)
-                    .confidence(null)
+                    .confidence(confidence)
                     .llmAuditRiskScore(finalScore)
-                    .llmAuditConfidence(confidence)
+                    .llmAuditConfidence(llmAuditConfidence)
                     .iocIndicators(new ArrayList<>(indicators))
                     .mitigationActions(new ArrayList<>(recommendedActions))
                     .reasoning(reasoningPrefix + (reasoning != null ? reasoning : "No additional reasoning"))
+                    .autonomyConstraintApplied(autonomyConstraintApplied)
+                    .autonomyConstraintReasons(new ArrayList<>(autonomyConstraintReasons))
+                    .autonomyConstraintSummary(autonomyConstraintSummary)
                     .build();
         }
+    }
+
+    private String resolveEnforcedAction(ThreatAssessment assessment) {
+        if (assessment == null) {
+            return ZeroTrustAction.ESCALATE.name();
+        }
+        if (assessment.getAutonomousAction() != null && !assessment.getAutonomousAction().isBlank()) {
+            return assessment.getAutonomousAction();
+        }
+        if (assessment.getAction() != null && !assessment.getAction().isBlank()) {
+            return assessment.getAction();
+        }
+        return ZeroTrustAction.ESCALATE.name();
     }
 
     private void publishContextCollected(String userId, String requestPath, String analysisRequirement) {

@@ -11,7 +11,8 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.domain.SoarContext;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
@@ -19,14 +20,11 @@ import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.soar.approval.ApprovalRequestDetails;
 import io.contexa.contexacore.soar.approval.ApprovalService;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
-import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
+import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Mono;
@@ -47,13 +45,14 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
     private final SaasBaselineSeedService baselineSeedService;
     private final SaasThreatIntelligenceService threatIntelligenceService;
     private final SaasThreatKnowledgePackService threatKnowledgePackService;
+    private final PipelineOrchestrator pipelineOrchestrator;
 
     @Autowired
     public Layer2ExpertStrategy(UnifiedLLMOrchestrator llmOrchestrator,
                                 ApprovalService approvalService,
                                 SecurityContextDataStore dataStore,
                                 SecurityEventEnricher eventEnricher,
-                                SecurityPromptTemplate promptTemplate,
+                                SecurityDecisionStandardPromptTemplate promptTemplate,
                                 UnifiedVectorService unifiedVectorService,
                                 BehaviorVectorService behaviorVectorService,
                                 BaselineLearningService baselineLearningService,
@@ -63,7 +62,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                                 SaasThreatIntelligenceService threatIntelligenceService,
                                 SaasThreatKnowledgePackService threatKnowledgePackService,
                                 PromptContextAuthorizationService promptContextAuthorizationService,
-                                PromptContextAuditForwardingService promptContextAuditForwardingService) {
+                                PromptContextAuditForwardingService promptContextAuditForwardingService,
+                                PipelineOrchestrator pipelineOrchestrator) {
         super(llmOrchestrator, eventEnricher, promptTemplate,
               behaviorVectorService, unifiedVectorService, baselineLearningService,
               promptContextAuthorizationService, promptContextAuditForwardingService, tieredStrategyProperties);
@@ -74,24 +74,30 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         this.baselineSeedService = baselineSeedService;
         this.threatIntelligenceService = threatIntelligenceService;
         this.threatKnowledgePackService = threatKnowledgePackService;
+        this.pipelineOrchestrator = pipelineOrchestrator;
     }
     @Override
     public ThreatAssessment evaluate(SecurityEvent event) {
         SecurityDecision expertDecision = performDeepAnalysis(event);
         String action = expertDecision.getAction() != null ? expertDecision.getAction().name() : "ESCALATE";
+        ZeroTrustAction autonomousAction = expertDecision.resolveAutonomousAction();
 
         return ThreatAssessment.builder()
                 .riskScore(null)
-                .confidence(null)
+                .confidence(expertDecision.getConfidence())
                 .llmAuditRiskScore(expertDecision.resolveAuditRiskScore())
                 .llmAuditConfidence(expertDecision.resolveAuditConfidence())
                 .indicators(new ArrayList<>())
-                .recommendedActions(List.of(mapActionToRecommendation(expertDecision.getAction())))
+                .recommendedActions(List.of(mapActionToRecommendation(autonomousAction)))
                 .strategyName("Layer2-Expert")
                 .assessedAt(LocalDateTime.now())
                 .shouldEscalate(false)
                 .action(action)
+                .autonomousAction(autonomousAction != null ? autonomousAction.name() : null)
                 .reasoning(expertDecision.getReasoning())
+                .autonomyConstraintApplied(expertDecision.getAutonomyConstraintApplied())
+                .autonomyConstraintReasons(expertDecision.getAutonomyConstraintReasons())
+                .autonomyConstraintSummary(expertDecision.getAutonomyConstraintSummary())
                 .build();
     }
 
@@ -104,43 +110,37 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         long startTime = System.currentTimeMillis();
         try {
             List<Document> relatedDocuments = getCachedOrSearchRelatedContext(event);
-            SecurityPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
-            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event, relatedDocuments);
+            SecurityDecisionStandardPromptTemplate.SessionContext sessionCtx = getCachedOrBuildSessionContext(event);
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorCtx = getCachedOrBuildBehaviorAnalysis(event, relatedDocuments);
             annotateThreatKnowledgeContext(event, behaviorCtx);
-            SecurityPromptTemplate.StructuredPrompt structured =
-                    promptTemplate.buildStructuredPrompt(event, sessionCtx, behaviorCtx, relatedDocuments);
 
             SecurityResponse response;
-            if (llmOrchestrator != null) {
-                ExecutionContext context = ExecutionContext.builder()
-                        .prompt(new Prompt(List.of(
-                                new SystemMessage(structured.systemText()),
-                                new UserMessage(structured.userText()))))
-                        .tier(2)
-                        .securityTaskType(ExecutionContext.SecurityTaskType.EXPERT_INVESTIGATION)
-                        .timeoutMs((int) tieredStrategyProperties.getLayer2().getTimeoutMs())
-                        .requestId(event.getEventId())
-                        .userId(event.getUserId())
-                        .sessionId(event.getSessionId())
-                        .temperature(0.0)
-                        .topP(1.0)
-                        .build();
-
-                String jsonResponse = llmOrchestrator.execute(context)
+            clearPromptRuntimeTelemetry(event);
+            if (pipelineOrchestrator != null) {
+                SecurityDecisionResponse pipelineResponse = executeSecurityDecisionPipeline(
+                                pipelineOrchestrator,
+                                event,
+                                sessionCtx,
+                                behaviorCtx,
+                                relatedDocuments)
                         .timeout(Duration.ofMillis(tieredStrategyProperties.getLayer2().getTimeoutMs()))
                         .onErrorResume(Exception.class, e -> {
-                            log.error("[Layer2] LLM execution failed, applying failsafe blocking: {}", event.getEventId(), e);
-                            return Mono.just("{\"action\":\"BLOCK\",\"reasoning\":\"LLM execution failed - failsafe blocking applied\",\"mitre\":\"UNKNOWN\"}");
+                            log.error("[Layer2] Standard security pipeline failed, applying failsafe blocking: {}", event.getEventId(), e);
+                            return Mono.just(SecurityDecisionResponse.fromSecurityResponse(createLayer2PipelineFallbackResponse()));
                         })
                         .block();
-
-                response = parseJsonResponse(jsonResponse);
+                response = validateAndFixResponse(
+                        pipelineResponse != null
+                                ? pipelineResponse.toSecurityResponse()
+                                : createLayer2PipelineFallbackResponse()
+                );
+                capturePromptRuntimeTelemetry(event, pipelineResponse);
             } else {
-                log.error("[Layer2] UnifiedLLMOrchestrator not available");
-                response = createDefaultResponse();
+                log.error("[Layer2] PipelineOrchestrator not available");
+                response = createLayer2PipelineFallbackResponse();
             }
 
-            SecurityDecision expertDecision = convertToSecurityDecision(response, event);
+            SecurityDecision expertDecision = applyPromptConfidenceGuardrail(convertToSecurityDecision(response, event), event);
 
             if (tieredStrategyProperties.getLayer2().isEnableSoar() && expertDecision.getAction() == ZeroTrustAction.BLOCK) {
                 executeSoarPlaybook(expertDecision, event);
@@ -179,8 +179,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return searchRelatedContextBase(event, tieredStrategyProperties.getLayer2().getRagTopK(), similarityThreshold);
     }
 
-    private SecurityPromptTemplate.SessionContext getCachedOrBuildSessionContext(SecurityEvent event) {
-        SecurityPromptTemplate.SessionContext cached = getCachedSessionContext(event.getEventId());
+    private SecurityDecisionStandardPromptTemplate.SessionContext getCachedOrBuildSessionContext(SecurityEvent event) {
+        SecurityDecisionStandardPromptTemplate.SessionContext cached = getCachedSessionContext(event.getEventId());
         if (cached != null) {
             return cached;
         }
@@ -188,9 +188,9 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return rebuildSessionContext(event);
     }
 
-    private SecurityPromptTemplate.BehaviorAnalysis getCachedOrBuildBehaviorAnalysis(
+    private SecurityDecisionStandardPromptTemplate.BehaviorAnalysis getCachedOrBuildBehaviorAnalysis(
             SecurityEvent event, List<Document> ragDocuments) {
-        SecurityPromptTemplate.BehaviorAnalysis cached = getCachedBehaviorAnalysis(event.getEventId());
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis cached = getCachedBehaviorAnalysis(event.getEventId());
         if (cached != null) {
             return cached;
         }
@@ -198,8 +198,8 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return rebuildBehaviorAnalysis(event, ragDocuments);
     }
 
-    private SecurityPromptTemplate.SessionContext rebuildSessionContext(SecurityEvent event) {
-        SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
+    private SecurityDecisionStandardPromptTemplate.SessionContext rebuildSessionContext(SecurityEvent event) {
+        SecurityDecisionStandardPromptTemplate.SessionContext ctx = new SecurityDecisionStandardPromptTemplate.SessionContext();
         ctx.setSessionId(event.getSessionId());
         ctx.setUserId(event.getUserId());
 
@@ -213,12 +213,12 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
         return ctx;
     }
 
-    private SecurityPromptTemplate.BehaviorAnalysis rebuildBehaviorAnalysis(
+    private SecurityDecisionStandardPromptTemplate.BehaviorAnalysis rebuildBehaviorAnalysis(
             SecurityEvent event, List<Document> ragDocuments) {
         List<String> similarEvents = extractSimilarEventsSummary(ragDocuments);
         BaseBehaviorAnalysis base = analyzeBehaviorPatternsBase(event, baselineLearningService, similarEvents);
 
-        SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis ctx = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
         ctx.setSimilarEvents(base.getSimilarEvents());
         ctx.setBaselineContext(base.getBaselineContext());
         ctx.setBaselineEstablished(base.isBaselineEstablished());
@@ -348,6 +348,16 @@ public class Layer2ExpertStrategy extends AbstractTieredStrategy {
                 .reasoning("[AI Native] Layer 2 LLM analysis failed - applying failsafe blocking")
                 .requiresApproval(true)
                 .expertRecommendation("Manual review required - LLM analysis failed")
+                .build();
+    }
+
+    private SecurityResponse createLayer2PipelineFallbackResponse() {
+        return SecurityResponse.builder()
+                .riskScore(null)
+                .confidence(null)
+                .action(ZeroTrustAction.BLOCK.name())
+                .reasoning("[AI Native] Layer 2 pipeline unavailable - applying failsafe blocking")
+                .mitre("UNKNOWN")
                 .build();
     }
 

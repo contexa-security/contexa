@@ -2,6 +2,7 @@ package io.contexa.contexacommon.security.bridge.handoff;
 
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.coverage.BridgeCoverageEvaluator;
 import io.contexa.contexacommon.security.bridge.runtime.BridgeRuntimeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextCollector;
@@ -109,7 +110,6 @@ public class DefaultContexaAuthBridgeHandler implements ContexaAuthBridgeHandler
         putIfAbsent(attributes, "authenticationAssurance", handoff.authenticationAssurance(), extractAuthenticationAssurance(principal, requestAttributes));
         putIfAbsent(attributes, "mfaCompleted", handoff.mfaVerified(), BridgeObjectExtractor.extractBoolean(principal, requestAttributes.getMfaKeys()));
         putIfAbsent(attributes, "authenticationTime", extractInstant(attributes.get("authenticationTime")), BridgeObjectExtractor.extractInstant(principal, requestAttributes.getAuthTimeKeys()));
-        attributes.putIfAbsent("authenticationTime", Instant.now());
         putIfAbsent(attributes, "sessionId", requestContext.sessionId(), null);
 
         String authenticationType = firstText(
@@ -131,9 +131,11 @@ public class DefaultContexaAuthBridgeHandler implements ContexaAuthBridgeHandler
         );
         Instant authenticationTime = firstInstant(
                 extractInstant(attributes.get("authenticationTime")),
-                BridgeObjectExtractor.extractInstant(principal, requestAttributes.getAuthTimeKeys()),
-                Instant.now()
+                BridgeObjectExtractor.extractInstant(principal, requestAttributes.getAuthTimeKeys())
         );
+        attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationAssurance));
+        attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaVerified));
+        attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationTime));
 
         return new AuthenticationStamp(
                 principalId,

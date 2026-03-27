@@ -261,9 +261,9 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
                 || actionField.getQualityGrade() == ContextQualityGrade.REJECTED) {
             overallScore = Math.min(overallScore, 30);
         }
-        else if (!resourceField.getQualityGrade().supportsReasoning()
-                || !actionField.getQualityGrade().supportsReasoning()
-                || !densityField.getQualityGrade().supportsReasoning()) {
+        else if (ContextSemanticBoundaryPolicy.requiresEvidenceCaution(resourceField)
+                || ContextSemanticBoundaryPolicy.requiresEvidenceCaution(actionField)
+                || ContextSemanticBoundaryPolicy.requiresEvidenceCaution(densityField)) {
             overallScore = Math.min(overallScore, 55);
         }
         ContextQualityGrade overallGrade = resolveGrade(overallScore);
@@ -276,7 +276,7 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             qualityWarnings.add("Work profile baseline is thin; treat pattern claims as provisional until more allowed observations accumulate.");
         }
         if (!actionField.getFallbackSourceKeys().isEmpty()) {
-            qualityWarnings.add("Action family baseline includes fallback-derived signals; do not treat action semantics as proof of user intent.");
+            qualityWarnings.add("Action family baseline includes fallback-derived signals; do not treat it as a standalone indicator of user intent.");
         }
         qualityWarnings.add("This profile describes enacted post-auth access behavior, not approved business intent, approval lineage, or delegated objective.");
 
@@ -472,11 +472,11 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
     }
 
     private void appendQualityWarning(List<String> warnings, ContextFieldTrustRecord fieldRecord) {
-        if (fieldRecord == null || fieldRecord.getQualityGrade() == null || fieldRecord.getQualityGrade().supportsReasoning()) {
+        if (!ContextSemanticBoundaryPolicy.requiresEvidenceCaution(fieldRecord)) {
             return;
         }
-        warnings.add(fieldRecord.getFieldPath() + " is " + fieldRecord.getQualityGrade()
-                + "; " + fieldRecord.getQualitySummary());
+        warnings.add(fieldRecord.getFieldPath()
+                + " has thin or fallback-heavy evidence; " + fieldRecord.getQualitySummary());
     }
 
     private String buildTrustProfileSummary(
@@ -487,7 +487,6 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             List<String> frequentActionFamilies,
             Double protectableInvocationDensity) {
         StringJoiner joiner = new StringJoiner(" | ");
-        joiner.add("Overall quality " + overallGrade);
         joiner.add("Observations " + observationCount);
         joiner.add("Days covered " + daysCovered);
         if (!frequentProtectableResources.isEmpty()) {
@@ -546,17 +545,16 @@ public class DefaultProtectableWorkProfileCollector implements ProtectableWorkPr
             double fallbackRate,
             double unknownRate) {
         StringJoiner joiner = new StringJoiner(" | ");
-        joiner.add("grade=" + qualityGrade);
         joiner.add("observations=" + observationCount);
         joiner.add("daysCovered=" + daysCovered);
         joiner.add(String.format(Locale.ROOT, "fallback=%.0f%%", percentage(fallbackRate)));
         joiner.add(String.format(Locale.ROOT, "unknown=%.0f%%", percentage(unknownRate)));
-        if (qualityGrade == ContextQualityGrade.REJECTED) {
-            joiner.add("Do not use as proof; collect stronger explicit signals.");
-        }
-        else if (qualityGrade == ContextQualityGrade.WEAK) {
-            joiner.add("Use only as a low-confidence hint.");
-        }
+        joiner.add("evidenceState=" + ContextSemanticBoundaryPolicy.describeEvidenceState(
+                qualityGrade,
+                observationCount,
+                daysCovered,
+                fallbackRate,
+                unknownRate));
         return joiner.toString();
     }
 

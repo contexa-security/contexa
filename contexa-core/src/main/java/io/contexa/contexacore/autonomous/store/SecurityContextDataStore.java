@@ -38,6 +38,18 @@ public interface SecurityContextDataStore {
 
     List<String> getRecentWorkProfileObservations(String tenantId, String userId, int count);
 
+    void addRoleScopeObservation(String tenantId, String scopeKey, String observation);
+
+    List<String> getRecentRoleScopeObservations(String tenantId, String scopeKey, int count);
+
+    void addPermissionChangeObservation(String tenantId, String userId, String observation);
+
+    List<String> getRecentPermissionChangeObservations(String tenantId, String userId, int count);
+
+    void setAuthorizationScopeState(String tenantId, String userId, String state);
+
+    String getAuthorizationScopeState(String tenantId, String userId);
+
     void setLastRequestTime(String userId, long timestamp);
 
     Long getLastRequestTime(String userId);

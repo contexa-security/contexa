@@ -4,13 +4,13 @@ import io.contexa.contexacommon.domain.PromptTemplate;
 import io.contexa.contexacommon.domain.TemplateType;
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacommon.domain.request.AIRequest;
-import io.contexa.contexacore.std.pipeline.streaming.StreamingProtocol;
 import jakarta.annotation.PostConstruct;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,18 +46,14 @@ public class PromptGenerator {
         String systemPrompt = template.generateSystemPrompt(request, systemMetadata);
         String userPrompt = template.generateUserPrompt(request, contextInfo);
 
-        Map<String, Object> metadata = Map.of(
-                "templateKey", templateKey,
-                "systemPromptLength", systemPrompt.length(),
-                "userPromptLength", userPrompt.length(),
-                "generationTime", System.currentTimeMillis()
-        );
+        PromptExecutionMetadata promptExecutionMetadata = buildPromptExecutionMetadata(templateKey, template, systemPrompt, userPrompt);
+        Map<String, Object> metadata = new LinkedHashMap<>(promptExecutionMetadata.toMetadataMap());
 
         SystemMessage systemMessage = SystemMessage.builder().text(systemPrompt).metadata(metadata).build();
         UserMessage userMessage = UserMessage.builder().text(userPrompt).metadata(metadata).build();
         Prompt prompt = new Prompt(List.of(systemMessage, userMessage));
 
-        return new PromptGenerationResult(prompt, systemPrompt, userPrompt, metadata);
+        return new PromptGenerationResult(prompt, systemPrompt, userPrompt, metadata, promptExecutionMetadata);
     }
 
     public void registerTemplate(String key, PromptTemplate template) {
@@ -89,33 +85,16 @@ public class PromptGenerator {
         throw new IllegalArgumentException("Template matching failed");
     }
 
-    public static class PromptGenerationResult {
-        private final Prompt prompt;
-        private final String systemPrompt;
-        private final String userPrompt;
-        private final Map<String, Object> metadata;
-
-        public PromptGenerationResult(Prompt prompt, String systemPrompt, String userPrompt, Map<String, Object> metadata) {
-            this.prompt = prompt;
-            this.systemPrompt = systemPrompt;
-            this.userPrompt = userPrompt;
-            this.metadata = metadata;
+    private PromptExecutionMetadata buildPromptExecutionMetadata(
+            String templateKey,
+            PromptTemplate template,
+            String systemPrompt,
+            String userPrompt) {
+        if (template instanceof GovernedPromptTemplate governedPromptTemplate) {
+            return governedPromptTemplate.buildPromptExecutionMetadata(systemPrompt, userPrompt);
         }
-
-        public Prompt getPrompt() {
-            return prompt;
-        }
-
-        public String getSystemPrompt() {
-            return systemPrompt;
-        }
-
-        public String getUserPrompt() {
-            return userPrompt;
-        }
-
-        public Map<String, Object> getMetadata() {
-            return metadata;
-        }
+        PromptGovernanceDescriptor descriptor =
+                PromptGovernanceSupport.buildDefaultDescriptor(templateKey, template.getClass());
+        return PromptGovernanceSupport.buildExecutionMetadata(descriptor, systemPrompt, userPrompt);
     }
 }

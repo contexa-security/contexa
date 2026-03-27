@@ -1,8 +1,10 @@
 package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.AuthBridge;
+import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgedUser;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthenticationStamp;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,24 +31,21 @@ public class AuthBridgeAuthenticationStampResolver implements AuthenticationStam
             return Optional.empty();
         }
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(bridgedUser.attributes());
-        Instant authenticationTime = null;
-        Object authTime = attributes.get("authenticationTime");
-        if (authTime instanceof Instant instant) {
-            authenticationTime = instant;
-        }
-        Boolean mfaCompleted = null;
-        Object mfa = attributes.get("mfaCompleted");
-        if (mfa instanceof Boolean booleanValue) {
-            mfaCompleted = booleanValue;
-        }
+        Instant authenticationTime = BridgeObjectExtractor.extractInstant(attributes, java.util.List.of("authenticationTime"));
+        Boolean mfaCompleted = BridgeObjectExtractor.extractBoolean(attributes, java.util.List.of("mfaCompleted"));
+        String authenticationType = BridgeObjectExtractor.extractString(attributes, java.util.List.of("authenticationType"));
+        String authenticationAssurance = BridgeObjectExtractor.extractString(attributes, java.util.List.of("authenticationAssurance"));
+        attributes.put("authenticationAssuranceEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationAssurance));
+        attributes.put("mfaCompletedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(mfaCompleted));
+        attributes.put("authenticationTimeEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(authenticationTime));
         return Optional.of(new AuthenticationStamp(
                 bridgedUser.username(),
                 bridgedUser.displayName(),
                 "BRIDGED_USER",
                 true,
-                String.valueOf(attributes.getOrDefault("authenticationType", "BRIDGE")),
+                authenticationType,
                 String.valueOf(attributes.getOrDefault("bridgeAuthenticationSource", authBridge.getClass().getSimpleName())),
-                String.valueOf(attributes.getOrDefault("authenticationAssurance", "STANDARD")),
+                authenticationAssurance,
                 mfaCompleted,
                 authenticationTime,
                 requestContext.sessionId(),

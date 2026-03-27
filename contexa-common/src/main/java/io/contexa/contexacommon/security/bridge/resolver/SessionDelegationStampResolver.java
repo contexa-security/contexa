@@ -2,6 +2,7 @@ package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.SessionBridgeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.DelegationStamp;
@@ -52,8 +53,11 @@ public class SessionDelegationStampResolver implements DelegationStampResolver {
 
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(BridgeObjectExtractor.extractAttributes(sessionDelegation, config.getAttributeKeys()));
         attributes.put("delegationResolver", "SESSION");
-        attributes.put("bridgeSessionAttribute", resolvedSessionAttribute.get().attributeName());
-        attributes.put("bridgeSessionDetectionScore", resolvedSessionAttribute.get().score());
+        BridgeSemanticBoundaryPolicy.putStructuralSelectionMetadata(
+                attributes,
+                "bridgeSessionAttribute",
+                resolvedSessionAttribute.get().attributeName(),
+                resolvedSessionAttribute.get().score());
 
         return Optional.of(new DelegationStamp(
                 resolveSubjectId(request, sessionDelegation, config),

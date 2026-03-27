@@ -1,11 +1,13 @@
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
+import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayload;
 import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizationService;
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
-import io.contexa.contexacore.autonomous.security.processor.ProcessingResult;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
 import org.junit.jupiter.api.Test;
 
@@ -23,12 +25,39 @@ class SecurityDecisionForwardingPayloadMapperTest {
         SecurityDecisionForwardingPayloadMapper mapper = new SecurityDecisionForwardingPayloadMapper(
                 new TenantScopedPseudonymizationService(properties),
                 new ThreatSignalNormalizationService(),
-                properties);
+                properties,
+                canonicalSecurityContextProvider());
 
         SecurityDecisionForwardingPayload payload = mapper.map(context());
 
         assertThat(payload.getDecision()).isEqualTo("BLOCK");
+        assertThat(payload.getLlmProposedAction()).isEqualTo("ALLOW");
+        assertThat(payload.getAutonomousEnforcementAction()).isEqualTo("BLOCK");
+        assertThat(payload.getLlmAuditRiskScore()).isEqualTo(0.93);
+        assertThat(payload.getEffectiveConfidence()).isEqualTo(0.54);
+        assertThat(payload.getLlmAuditConfidence()).isEqualTo(0.88);
+        assertThat(payload.getAutonomyConstraintApplied()).isTrue();
+        assertThat(payload.getAutonomyConstraintSummary()).contains("approval lineage");
         assertThat(payload.getReasoning()).isNull();
+        assertThat(payload.getWorkProfileSummary()).contains("Frequent protectable resources");
+        assertThat(payload.getRoleDriftSummary()).contains("Current resource family: ACCOUNT");
+        assertThat(payload.getRoleDriftSummary()).contains("Current action family: READ");
+        assertThat(payload.getApprovalSummary()).contains("Approval status: PENDING");
+        assertThat(payload.getObjectiveDriftSummary()).contains("Delegated objective comparison is incomplete");
+        assertThat(payload.getPromptKey()).isEqualTo("security-decision-standard");
+        assertThat(payload.getPromptTemplateKey()).isEqualTo("SecurityDecisionStandard");
+        assertThat(payload.getPromptVersion()).isEqualTo("2026.03.27-e0.2");
+        assertThat(payload.getPromptContractVersion()).isEqualTo("CORTEX_PROMPT_CONTRACT_V2");
+        assertThat(payload.getPromptReleaseStatus()).isEqualTo("PRODUCTION");
+        assertThat(payload.getPromptHash()).isEqualTo("sha256:prompt");
+        assertThat(payload.getSystemPromptHash()).isEqualTo("sha256:system");
+        assertThat(payload.getUserPromptHash()).isEqualTo("sha256:user");
+        assertThat(payload.getBudgetProfile()).isEqualTo("CORTEX_L2_STANDARD");
+        assertThat(payload.getPromptEvidenceCompleteness()).isEqualTo("SUFFICIENT");
+        assertThat(payload.getPromptSectionSet()).containsExactly("CURRENT_REQUEST", "ROLE_SCOPE", "EXPLICIT_MISSING_KNOWLEDGE");
+        assertThat(payload.getOmittedSections()).containsExactly("RAG_CONTEXT");
+        assertThat(payload.getPromptOmissionCount()).isEqualTo(1);
+        assertThat(payload.getPromptGeneratedAtEpochMs()).isEqualTo(1711111111111L);
         assertThat(payload.getBehaviorPatterns()).containsExactly("IMPOSSIBLE_TRAVEL", "NEW_DEVICE");
         assertThat(payload.getEvidenceList()).containsExactly(
                 "geo_velocity_anomaly",
@@ -57,7 +86,18 @@ class SecurityDecisionForwardingPayloadMapperTest {
                 .containsEntry("bridgeAuthenticationSource", "SECURITY_CONTEXT")
                 .containsEntry("bridgeAuthorizationSource", "HEADER")
                 .containsEntry("bridgeDelegationSource", "NONE")
-                .containsEntry("llmAuditConfidence", 0.88);
+                .containsEntry("llmAuditConfidence", 0.88)
+                .containsEntry("effectiveConfidence", 0.54)
+                .containsEntry("workProfileSummary", payload.getWorkProfileSummary())
+                .containsEntry("roleDriftSummary", payload.getRoleDriftSummary())
+                .containsEntry("approvalSummary", payload.getApprovalSummary())
+                .containsEntry("objectiveDriftSummary", payload.getObjectiveDriftSummary())
+                .containsEntry("promptVersion", payload.getPromptVersion())
+                .containsEntry("promptHash", payload.getPromptHash())
+                .containsEntry("budgetProfile", payload.getBudgetProfile())
+                .containsEntry("promptEvidenceCompleteness", payload.getPromptEvidenceCompleteness())
+                .containsEntry("promptRuntimeTelemetryLinked", true)
+                .containsEntry("promptRuntimeTelemetryLayer", "Layer2");
     }
 
     @Test
@@ -66,7 +106,8 @@ class SecurityDecisionForwardingPayloadMapperTest {
         SecurityDecisionForwardingPayloadMapper mapper = new SecurityDecisionForwardingPayloadMapper(
                 new TenantScopedPseudonymizationService(properties),
                 new ThreatSignalNormalizationService(),
-                properties);
+                properties,
+                canonicalSecurityContextProvider());
 
         SecurityDecisionForwardingPayload payload = mapper.map(context());
 
@@ -90,6 +131,35 @@ class SecurityDecisionForwardingPayloadMapperTest {
                         .expirySkewSeconds(30)
                         .build())
                 .build();
+    }
+
+    private CanonicalSecurityContextProvider canonicalSecurityContextProvider() {
+        CanonicalSecurityContext canonicalSecurityContext = CanonicalSecurityContext.builder()
+                .workProfile(CanonicalSecurityContext.WorkProfile.builder()
+                        .summary("Frequent protectable resources: /api/account/profile | Frequent action families: READ | Protectable invocation density: 0.67")
+                        .build())
+                .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
+                        .currentResourceFamily("ACCOUNT")
+                        .currentActionFamily("READ")
+                        .resourceFamilyDrift(true)
+                        .actionFamilyDrift(false)
+                        .summary("Current resource family: ACCOUNT | Current action family: READ")
+                        .build())
+                .frictionProfile(CanonicalSecurityContext.FrictionProfile.builder()
+                        .approvalRequired(true)
+                        .approvalStatus("PENDING")
+                        .approvalMissing(true)
+                        .approvalLineage(List.of("manager-approval"))
+                        .summary("Approval required: true | Approval status: PENDING | Approval missing: true | Approval lineage: manager-approval")
+                        .build())
+                .delegation(CanonicalSecurityContext.Delegation.builder()
+                        .delegated(true)
+                        .objectiveFamily("ACCOUNT_SUPPORT")
+                        .objectiveDrift(null)
+                        .objectiveDriftSummary("Delegated objective comparison is incomplete because comparable delegated action/resource family inputs are missing.")
+                        .build())
+                .build();
+        return event -> java.util.Optional.of(canonicalSecurityContext);
     }
 
     private SecurityEventContext context() {
@@ -127,18 +197,37 @@ class SecurityDecisionForwardingPayloadMapperTest {
                         Map.entry("reasoningMemoryApplied", true),
                         Map.entry("baselineSeedApplied", true),
                         Map.entry("personalBaselineEstablished", true),
-                        Map.entry("organizationBaselineEstablished", true)))
+                        Map.entry("organizationBaselineEstablished", true),
+                        Map.entry("promptKey", "security-decision-standard"),
+                        Map.entry("templateKey", "SecurityDecisionStandard"),
+                        Map.entry("promptVersion", "2026.03.27-e0.2"),
+                        Map.entry("contractVersion", "CORTEX_PROMPT_CONTRACT_V2"),
+                        Map.entry("promptReleaseStatus", "PRODUCTION"),
+                        Map.entry("promptHash", "sha256:prompt"),
+                        Map.entry("systemPromptHash", "sha256:system"),
+                        Map.entry("userPromptHash", "sha256:user"),
+                        Map.entry("budgetProfile", "CORTEX_L2_STANDARD"),
+                        Map.entry("promptEvidenceCompleteness", "SUFFICIENT"),
+                        Map.entry("promptSectionSet", List.of("CURRENT_REQUEST", "ROLE_SCOPE", "EXPLICIT_MISSING_KNOWLEDGE")),
+                        Map.entry("omittedSections", List.of("RAG_CONTEXT")),
+                        Map.entry("promptOmissionCount", 1),
+                        Map.entry("promptGeneratedAtEpochMs", 1711111111111L),
+                        Map.entry("promptRuntimeTelemetryLinked", true),
+                        Map.entry("promptRuntimeTelemetryLayer", "Layer2")))
                 .build();
         ProcessingResult result = ProcessingResult.builder()
                 .success(true)
                 .action("BLOCK")
+                .proposedAction("ALLOW")
                 .riskScore(null)
-                .confidence(null)
+                .confidence(0.54)
                 .llmAuditRiskScore(0.93)
                 .llmAuditConfidence(0.88)
                 .aiAnalysisLevel(2)
                 .processingTimeMs(1820L)
                 .reasoning("Suspicious impossible-travel pattern detected")
+                .autonomyConstraintApplied(true)
+                .autonomyConstraintSummary("Autonomous allow is not permitted until approval lineage is explicit.")
                 .threatIndicators(List.of("geo_velocity_anomaly", "new_browser_fingerprint", "token_replay"))
                 .analysisData(Map.of(
                         "behaviorPatterns", List.of("IMPOSSIBLE_TRAVEL", "NEW_DEVICE"),

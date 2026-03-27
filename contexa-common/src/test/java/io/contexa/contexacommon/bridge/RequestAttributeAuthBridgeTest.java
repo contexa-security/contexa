@@ -37,9 +37,11 @@ class RequestAttributeAuthBridgeTest {
         assertThat(user.roles()).contains("ROLE_MANAGER", "REPORT_READ");
         assertThat(user.attributes()).containsEntry("bridgeAuthenticationSource", "REQUEST_ATTRIBUTE");
         assertThat(user.attributes()).containsEntry("bridgeRequestAttribute", "verifiedUser");
+        assertThat(user.attributes()).containsEntry("bridgeStructuralMatchPurpose", "STRUCTURAL_DISCOVERY_ONLY");
         assertThat(user.attributes()).containsEntry("authenticationType", "PATTERN");
         assertThat(user.attributes()).containsEntry("authenticationAssurance", "HIGH");
         assertThat(user.attributes()).containsEntry("mfaCompleted", true);
+        assertThat(user.attributes()).containsEntry("authenticationAssuranceEvidenceState", "EXPLICIT_CUSTOMER_SIGNAL");
     }
 
     @Test

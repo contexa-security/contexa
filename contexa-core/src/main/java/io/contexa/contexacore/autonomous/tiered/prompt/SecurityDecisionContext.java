@@ -2,7 +2,6 @@ package io.contexa.contexacore.autonomous.tiered.prompt;
 
 import io.contexa.contexacommon.domain.context.DomainContext;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import lombok.Getter;
 import org.springframework.ai.document.Document;
 
@@ -12,13 +11,13 @@ import java.util.List;
 public class SecurityDecisionContext extends DomainContext {
 
     private final SecurityEvent securityEvent;
-    private final SecurityPromptTemplate.SessionContext sessionContext;
-    private final SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis;
+    private final SecurityDecisionStandardPromptTemplate.SessionContext sessionContext;
+    private final SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis;
     private final List<Document> relatedDocuments;
 
     public SecurityDecisionContext(SecurityEvent securityEvent,
-                                   SecurityPromptTemplate.SessionContext sessionContext,
-                                   SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+                                   SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+                                   SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
                                    List<Document> relatedDocuments) {
         super(
                 securityEvent != null ? securityEvent.getUserId() : null,

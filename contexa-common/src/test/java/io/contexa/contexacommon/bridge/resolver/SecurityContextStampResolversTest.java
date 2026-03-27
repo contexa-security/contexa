@@ -184,6 +184,48 @@ class SecurityContextStampResolversTest {
     }
 
     @Test
+    void authenticationResolverShouldNotDeriveAssuranceFromMfaPresenceAlone() {
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                new CustomPrincipal("alice", "Alice Kim", "WORKFORCE", "tenant-acme", "finance"),
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_USER"))
+        );
+        authentication.setDetails(Map.of("mfaVerified", true));
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        AuthenticationStamp stamp = authenticationStampResolver.resolve(
+                null,
+                new RequestContextSnapshot("/reports/view", "GET", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/view", null, false, Instant.now()),
+                new BridgeProperties()
+        ).orElseThrow();
+
+        assertThat(stamp.mfaCompleted()).isTrue();
+        assertThat(stamp.authenticationAssurance()).isNull();
+        assertThat(stamp.attributes()).containsEntry("authenticationAssuranceEvidenceState", "UNAVAILABLE");
+    }
+
+    @Test
+    void authorizationResolverShouldKeepPrivilegedNullWhenOnlyAuthorityNamesSuggestElevation() {
+        UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                new CustomPrincipal("alice", "Alice Kim", "WORKFORCE", "tenant-acme", "finance"),
+                "n/a",
+                List.of(new SimpleGrantedAuthority("ROLE_ADMIN"), new SimpleGrantedAuthority("REPORT_EXPORT"))
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        AuthorizationStamp stamp = authorizationStampResolver.resolve(
+                null,
+                new RequestContextSnapshot("/reports/export", "POST", "10.0.0.10", "JUnit", "session-1", "request-1", "/reports/export", null, false, Instant.now()),
+                new BridgeProperties()
+        ).orElseThrow();
+
+        assertThat(stamp.privileged()).isNull();
+        assertThat(stamp.attributes()).containsEntry("authorizationPrivilegedEvidenceState", "UNAVAILABLE");
+        assertThat(stamp.attributes()).containsEntry("privilegedAuthoritySignalPurpose", "HEURISTIC_HINT_ONLY");
+        assertThat((List<String>) stamp.attributes().get("privilegedAuthoritySignals")).contains("ROLE_ADMIN");
+    }
+
+    @Test
     void resolversShouldReadBridgeAuthenticationDetailsFromSecurityContextToken() {
         BridgeAuthenticationDetails details = new BridgeAuthenticationDetails(
                 "SESSION",

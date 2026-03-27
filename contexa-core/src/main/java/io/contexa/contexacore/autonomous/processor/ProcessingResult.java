@@ -26,10 +26,24 @@ public class ProcessingResult {
 
     private ProcessingPath processingPath;
 
+    /**
+     * Final action applied by the runtime after autonomy constraints.
+     */
     private String action;
 
+    /**
+     * Primary semantic action proposed by the LLM.
+     */
+    private String proposedAction;
+
+    /**
+     * Effective confidence after autonomy constraints.
+     */
     private Double confidence;
 
+    /**
+     * Raw confidence proposed by the LLM.
+     */
     private Double llmAuditConfidence;
 
     private String reasoning;
@@ -52,6 +66,12 @@ public class ProcessingResult {
     private String errorMessage;
 
     private String message;
+
+    private Boolean autonomyConstraintApplied;
+
+    private List<String> autonomyConstraintReasons;
+
+    private String autonomyConstraintSummary;
 
     public enum ProcessingPath {
         COLD_PATH("Cold Path - AI Analysis"),

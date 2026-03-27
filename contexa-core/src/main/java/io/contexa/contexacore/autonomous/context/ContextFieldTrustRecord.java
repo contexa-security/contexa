@@ -12,6 +12,10 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * Field-level evidence lineage and coverage metadata. This record packages provenance and evidence
+ * sufficiency only; it is not a semantic legitimacy, abuse, or intent verdict.
+ */
 public class ContextFieldTrustRecord {
 
     private String fieldPath;
@@ -30,8 +34,14 @@ public class ContextFieldTrustRecord {
 
     private Double unknownRate;
 
+    /**
+     * Audit-only evidence sufficiency grade. Never expose this as a semantic conclusion.
+     */
     private ContextQualityGrade qualityGrade;
 
+    /**
+     * Audit-only evidence sufficiency score. Never expose this as a semantic conclusion.
+     */
     private Integer qualityScore;
 
     private String qualitySummary;

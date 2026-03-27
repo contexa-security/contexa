@@ -35,7 +35,6 @@ import io.contexa.contexacore.autonomous.tiered.cache.VectorStoreCacheLayer;
 import io.contexa.contexacore.autonomous.tiered.service.SecurityDecisionPostProcessor;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer1ContextualStrategy;
 import io.contexa.contexacore.autonomous.tiered.strategy.Layer2ExpertStrategy;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.autonomous.utils.InMemoryThreatScoreUtil;
 import io.contexa.contexacore.autonomous.utils.RedisThreatScoreUtil;
@@ -129,6 +128,7 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<ReasoningMemoryContextProvider> reasoningMemoryContextProviders,
             ObjectProvider<SessionNarrativeCollector> sessionNarrativeCollector,
             ObjectProvider<ProtectableWorkProfileCollector> protectableWorkProfileCollector,
+            ObjectProvider<RoleScopeCollector> roleScopeCollector,
             ObjectProvider<ObservedScopeInferenceService> observedScopeInferenceService) {
         return new DefaultCanonicalSecurityContextProvider(
                 resourceContextRegistry,
@@ -142,7 +142,8 @@ public class CoreAutonomousAutoConfiguration {
                 reasoningMemoryContextProviders.orderedStream().toList(),
                 observedScopeInferenceService.getIfAvailable(),
                 sessionNarrativeCollector.getIfAvailable(),
-                protectableWorkProfileCollector.getIfAvailable());
+                protectableWorkProfileCollector.getIfAvailable(),
+                roleScopeCollector.getIfAvailable());
     }
 
     @Bean
@@ -165,6 +166,12 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public RoleScopeCollector roleScopeCollector(SecurityContextDataStore dataStore) {
+        return new DefaultRoleScopeCollector(dataStore);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     public ObservedScopeInferenceService observedScopeInferenceService() {
         return new MetadataObservedScopeInferenceService();
     }
@@ -178,25 +185,18 @@ public class CoreAutonomousAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityPromptTemplate securityPromptTemplate(
+    public SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate(
             SecurityEventEnricher securityEventEnricher,
             TieredStrategyProperties tieredStrategyProperties,
             ObjectProvider<McpSecurityContextProvider> mcpSecurityContextProvider,
             CanonicalSecurityContextProvider canonicalSecurityContextProvider,
             PromptContextComposer promptContextComposer) {
-        return new SecurityPromptTemplate(
+        return new SecurityDecisionStandardPromptTemplate(
                 securityEventEnricher,
                 tieredStrategyProperties,
                 mcpSecurityContextProvider.getIfAvailable(),
                 canonicalSecurityContextProvider,
                 promptContextComposer);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate(
-            SecurityPromptTemplate securityPromptTemplate) {
-        return new SecurityDecisionStandardPromptTemplate(securityPromptTemplate);
     }
 
     @Bean
@@ -289,7 +289,7 @@ public class CoreAutonomousAutoConfiguration {
             UnifiedVectorService unifiedVectorService,
             SecurityContextDataStore dataStore,
             SecurityEventEnricher securityEventEnricher,
-            SecurityPromptTemplate securityPromptTemplate,
+            SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate,
             BehaviorVectorService behaviorVectorService,
             BaselineLearningService baselineLearningService,
             SecurityLearningService securityLearningService,
@@ -305,7 +305,7 @@ public class CoreAutonomousAutoConfiguration {
                 unifiedVectorService,
                 dataStore,
                 securityEventEnricher,
-                securityPromptTemplate,
+                securityDecisionStandardPromptTemplate,
                 behaviorVectorService,
                 baselineLearningService,
                 securityLearningService,
@@ -326,7 +326,7 @@ public class CoreAutonomousAutoConfiguration {
             @Autowired(required = false) ApprovalService approvalService,
             SecurityContextDataStore dataStore,
             SecurityEventEnricher securityEventEnricher,
-            SecurityPromptTemplate securityPromptTemplate,
+            SecurityDecisionStandardPromptTemplate securityDecisionStandardPromptTemplate,
             UnifiedVectorService unifiedVectorService,
             BehaviorVectorService behaviorVectorService,
             BaselineLearningService baselineLearningService,
@@ -336,13 +336,14 @@ public class CoreAutonomousAutoConfiguration {
             ObjectProvider<SaasThreatIntelligenceService> threatIntelligenceService,
             ObjectProvider<SaasThreatKnowledgePackService> threatKnowledgePackService,
             ObjectProvider<PromptContextAuditForwardingService> promptContextAuditForwardingService,
-            PromptContextAuthorizationService promptContextAuthorizationService) {
+            PromptContextAuthorizationService promptContextAuthorizationService,
+            ObjectProvider<PipelineOrchestrator> pipelineOrchestrator) {
         return new Layer2ExpertStrategy(
                 llmOrchestrator,
                 approvalService,
                 dataStore,
                 securityEventEnricher,
-                securityPromptTemplate,
+                securityDecisionStandardPromptTemplate,
                 unifiedVectorService,
                 behaviorVectorService,
                 baselineLearningService,
@@ -352,7 +353,8 @@ public class CoreAutonomousAutoConfiguration {
                 threatIntelligenceService.getIfAvailable(),
                 threatKnowledgePackService.getIfAvailable(),
                 promptContextAuthorizationService,
-                promptContextAuditForwardingService.getIfAvailable());
+                promptContextAuditForwardingService.getIfAvailable(),
+                pipelineOrchestrator.getIfAvailable());
     }
 
     @Bean

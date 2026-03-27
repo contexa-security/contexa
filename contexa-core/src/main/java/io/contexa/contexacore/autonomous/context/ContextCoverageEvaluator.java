@@ -93,7 +93,7 @@ public class ContextCoverageEvaluator {
         else {
             missingCriticalFacts.add("Observed work pattern is unavailable.");
             remediationHints.add("Collect protectable access history so observed work patterns can be inferred.");
-            confidenceWarnings.add("Observed work pattern is missing; rare-resource and rare-action conclusions are limited.");
+            confidenceWarnings.add("Observed work pattern is missing; comparisons against previously seen resources or action families remain limited.");
         }
 
         if (CanonicalContextFieldPolicy.hasSessionNarrativeProfile(context)) {
@@ -227,15 +227,15 @@ public class ContextCoverageEvaluator {
         }
 
         if (CanonicalContextFieldPolicy.hasObjectiveDriftAssessment(context)) {
-            availableFacts.add("Delegated objective drift is assessed.");
+            availableFacts.add("Delegated objective comparison evidence is available.");
             if (Boolean.TRUE.equals(delegation.getObjectiveDrift())) {
-                confidenceWarnings.add("Delegated objective drift is present; any ALLOW conclusion must explicitly justify why the request remains acceptable.");
+                confidenceWarnings.add("Delegated objective comparison shows a mismatch between current request facts and declared delegated scope; any ALLOW conclusion must explain why the request is still acceptable.");
             }
         }
         else {
-            missingCriticalFacts.add("Delegated objective drift is unknown.");
-            remediationHints.add("Provide comparable current action/resource family inputs so delegated objective drift can be assessed before an ALLOW decision.");
-            confidenceWarnings.add("Delegated objective drift is unknown; delegated-agent ALLOW conclusions should remain conservative.");
+            missingCriticalFacts.add("Delegated objective comparison is incomplete.");
+            remediationHints.add("Provide comparable current action/resource family inputs so delegated objective comparison can be evaluated before an ALLOW decision.");
+            confidenceWarnings.add("Delegated objective comparison is incomplete; delegated-agent ALLOW conclusions should remain conservative.");
         }
     }
 
@@ -257,10 +257,9 @@ public class ContextCoverageEvaluator {
             if (trustProfile.getProvenanceSummary() != null && !trustProfile.getProvenanceSummary().isBlank()) {
                 availableFacts.add("Context provenance summary: " + trustProfile.getProvenanceSummary());
             }
-            if (trustProfile.getOverallQualityGrade() != null && !trustProfile.getOverallQualityGrade().supportsReasoning()) {
-                confidenceWarnings.add("Context trust profile " + trustProfile.getProfileKey()
-                        + " is " + trustProfile.getOverallQualityGrade()
-                        + "; treat it as a hint, not proof.");
+            if (ContextSemanticBoundaryPolicy.requiresEvidenceCaution(trustProfile)) {
+                confidenceWarnings.add("Context evidence for " + trustProfile.getProfileKey()
+                        + " is thin, fallback-heavy, or comparison-incomplete; do not use it as a standalone reasoning anchor.");
                 remediationHints.add("Increase explicit collector signals and evidence coverage before using "
                         + trustProfile.getProfileKey() + " as a strong reasoning anchor.");
             }

@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.context;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,7 +59,7 @@ class PromptContextComposerTest {
                         .build())
                 .observedScope(CanonicalSecurityContext.ObservedScope.builder()
                         .profileSource("PROTECTABLE_ACCESS_HISTORY")
-                        .summary("Current resource is rare compared with observed work history.")
+                        .summary("Current resource is not present in the top observed work-history resources.")
                         .recentProtectableAccessCount(12)
                         .recentDeniedAccessCount(1)
                         .frequentResources(List.of("/api/customer/list", "/api/customer/search"))
@@ -111,7 +112,7 @@ class PromptContextComposerTest {
                                 .build()))
                         .build()))
                 .roleScopeProfile(CanonicalSecurityContext.RoleScopeProfile.builder()
-                        .summary("Effective roles: ANALYST | Scope tags: customer_data | Resource family drift: true")
+                        .summary("Effective roles: ANALYST | Scope tags: customer_data | Current resource family: REPORT | Expected resource families: REPORT")
                         .currentResourceFamily("REPORT")
                         .currentActionFamily("EXPORT")
                         .expectedResourceFamilies(List.of("REPORT"))
@@ -127,7 +128,7 @@ class PromptContextComposerTest {
                         .build())
                 .peerCohortProfile(CanonicalSecurityContext.PeerCohortProfile.builder()
                         .cohortId("FINANCE_ANALYST_APAC")
-                        .summary("Peer cohort id: FINANCE_ANALYST_APAC | Cohort preferred resources: /api/customer/list | Outlier against cohort: true")
+                        .summary("Peer cohort id: FINANCE_ANALYST_APAC | Cohort preferred resources: /api/customer/list")
                         .preferredResources(List.of("/api/customer/list"))
                         .preferredActionFamilies(List.of("READ"))
                         .normalProtectableFrequencyBand("MEDIUM")
@@ -156,7 +157,7 @@ class PromptContextComposerTest {
                         .approvalRequired(true)
                         .containmentOnly(true)
                         .objectiveDrift(true)
-                        .objectiveDriftSummary("Current request diverges from delegated objective scope.")
+                        .objectiveDriftSummary("Delegated objective comparison evidence is available. | Objective family: THREAT_KNOWLEDGE_RUNTIME_REUSE | Current action family: EXPORT | Current resource family: REPORT | Allowed action families: READ | Current action family is not listed in delegated action scope evidence.")
                         .build())
                 .reasoningMemoryProfile(CanonicalSecurityContext.ReasoningMemoryProfile.builder()
                         .summary("Reinforced cases: 6 | Hard negative cases: 1 | Recall priority: HIGH")
@@ -201,6 +202,22 @@ class PromptContextComposerTest {
 
         String promptSection = new PromptContextComposer().compose(context);
 
+        assertThat(extractHeaders(promptSection)).containsExactly(
+                "=== BRIDGE RESOLUTION CONTEXT ===",
+                "=== CONTEXT COVERAGE ===",
+                "=== IDENTITY AND ROLE CONTEXT ===",
+                "=== AUTHENTICATION AND ASSURANCE CONTEXT ===",
+                "=== RESOURCE AND ACTION CONTEXT ===",
+                "=== SESSION NARRATIVE CONTEXT ===",
+                "=== OBSERVED WORK PATTERN CONTEXT ===",
+                "=== PERSONAL WORK PROFILE ===",
+                "=== ROLE AND WORK SCOPE CONTEXT ===",
+                "=== PEER COHORT DELTA ===",
+                "=== FRICTION AND APPROVAL HISTORY ===",
+                "=== DELEGATED OBJECTIVE CONTEXT ===",
+                "=== OUTCOME AND REASONING MEMORY ===",
+                "=== EXPLICIT MISSING KNOWLEDGE ==="
+        );
         assertThat(promptSection).contains("=== CONTEXT COVERAGE ===");
         assertThat(promptSection).contains("=== BRIDGE RESOLUTION CONTEXT ===");
         assertThat(promptSection).contains("=== IDENTITY AND ROLE CONTEXT ===");
@@ -209,7 +226,6 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("=== SESSION NARRATIVE CONTEXT ===");
         assertThat(promptSection).contains("=== OBSERVED WORK PATTERN CONTEXT ===");
         assertThat(promptSection).contains("=== PERSONAL WORK PROFILE ===");
-        assertThat(promptSection).contains("=== CONTEXT QUALITY AND PROVENANCE ===");
         assertThat(promptSection).contains("=== ROLE AND WORK SCOPE CONTEXT ===");
         assertThat(promptSection).contains("=== PEER COHORT DELTA ===");
         assertThat(promptSection).contains("=== FRICTION AND APPROVAL HISTORY ===");
@@ -224,7 +240,8 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("ConfidenceWarnings:");
         assertThat(promptSection).contains("BridgeAuthenticationSource: SECURITY_CONTEXT");
         assertThat(promptSection).contains("BridgeAuthorizationSource: HEADER");
-        assertThat(promptSection).contains("BridgeCoverageSummary: Bridge resolved authentication and authorization context for the current request.");
+        assertThat(promptSection).contains("BridgeCompletenessSummary: Bridge completeness reached authentication and authorization context for the current request.");
+        assertThat(promptSection).doesNotContain("BridgeCoverageScore:");
         assertThat(promptSection).contains("BridgeRemediationHints: If delegated agents are used, propagate delegation metadata for the current request. Otherwise this gap can be ignored.");
         assertThat(promptSection).contains("AuthenticationType: SESSION");
         assertThat(promptSection).contains("RecentMfaFailureCount: 2");
@@ -232,29 +249,46 @@ class PromptContextComposerTest {
         assertThat(promptSection).contains("PolicyId: policy-1");
         assertThat(promptSection).contains("NormalReadWriteExportRatio: 80:15:5");
         assertThat(promptSection).contains("ProtectableResourceHeatmap: /api/customer/list=9, /api/customer/export=3");
-        assertThat(promptSection).contains("TrustProfileKey: PERSONAL_WORK_PROFILE");
-        assertThat(promptSection).contains("TrustOverallQualityGrade: MODERATE");
-        assertThat(promptSection).contains("TrustFieldAudits:");
-        assertThat(promptSection).contains("workProfile.frequentActionFamilies | grade=WEAK");
-        assertThat(promptSection).contains("TrustEvidence:");
-        assertThat(promptSection).contains("obs-1 | 2026-03-24T09:00:00Z | ALLOWED | protectable | READ | /api/customer/list");
+        assertThat(promptSection).contains("ContextEvidenceLimitation: PERSONAL_WORK_PROFILE | collector=PROTECTABLE_WORK_PROFILE_COLLECTOR");
+        assertThat(promptSection).contains("ContextTrustLimitation: PERSONAL_WORK_PROFILE | Use this profile to understand enacted work patterns after authorization, not to infer business objective by itself.");
+        assertThat(promptSection).contains("ContextTrustWarning: PERSONAL_WORK_PROFILE | Action family baseline includes fallback-derived signals; do not treat action semantics as proof of user intent.");
+        assertThat(promptSection).contains("ContextFieldCoverage: workProfile.frequentActionFamilies | observations=18 | days=5 | fallback=33% | unknown=0%");
+        assertThat(promptSection).contains("ContextFieldLimitation: workProfile.frequentActionFamilies | value derivation depends on fallback signals");
         assertThat(promptSection).contains("SeasonalBusinessProfile: Quarter-end finance export review window");
         assertThat(promptSection).contains("LongTailLegitimateTasks: Quarter close export attestation");
         assertThat(promptSection).contains("NormalApprovalPatterns: Export requires manager approval");
         assertThat(promptSection).contains("ApprovalRequired: true");
         assertThat(promptSection).contains("CurrentResourceFamily: REPORT");
-        assertThat(promptSection).contains("ResourceFamilyDrift: true");
+        assertThat(promptSection).contains("CurrentResourcePresentInObservedHistory: false");
+        assertThat(promptSection).contains("CurrentResourceFamilyPresentInExpectedRoleScope: true");
+        assertThat(promptSection).contains("CurrentActionFamilyPresentInExpectedRoleScope: true");
         assertThat(promptSection).contains("TemporaryElevationReason: Emergency customer export review");
         assertThat(promptSection).contains("ApprovalLineage: Manager approved request-7, Director review pending");
         assertThat(promptSection).contains("ApprovalTicketId: APR-2026-0007");
         assertThat(promptSection).contains("Delegated: true");
-        assertThat(promptSection).contains("ObjectiveDrift: true");
-        assertThat(promptSection).contains("ObjectiveDriftSummary: Current request diverges from delegated objective scope.");
+        assertThat(promptSection).contains("ObjectiveAlignmentEvidence: Delegated objective comparison evidence is available.");
+        assertThat(promptSection).contains("CurrentResourcePresentInPeerPreferredResources: false");
+        assertThat(promptSection).contains("CurrentActionFamilyPresentInPeerPreferredActions: true");
         assertThat(promptSection).contains("MatchedSignalKeys: signal-credential-export");
         assertThat(promptSection).contains("MemoryGuardrails: Prefer TENANT_LOCAL memory weighting before weaker analogies.");
         assertThat(promptSection).contains("CrossTenantObjectiveMisusePackSummary: Cross-tenant signals: 2 | cross-tenant objective misuse evidence is available for EXPORT_GUARD, DATA_EXFIL");
         assertThat(promptSection).contains("CrossTenantObjectiveMisuseFacts: Signal signal-1 spans 4 tenants for objective families EXPORT_GUARD, DATA_EXFIL.");
         assertThat(promptSection).contains("Customer Export Report");
         assertThat(promptSection).contains("CoverageLevel: BUSINESS_AWARE");
+        assertThat(promptSection).doesNotContain("ResourceFamilyDrift:");
+        assertThat(promptSection).doesNotContain("ActionFamilyDrift:");
+        assertThat(promptSection).doesNotContain("ObjectiveDrift:");
+        assertThat(promptSection).doesNotContain("OutlierAgainstCohort:");
+        assertThat(promptSection).doesNotContain("ContextTrust: ");
+    }
+
+    private List<String> extractHeaders(String promptSection) {
+        List<String> headers = new ArrayList<>();
+        for (String line : promptSection.split("\\R")) {
+            if (line.startsWith("=== ") && line.endsWith(" ===")) {
+                headers.add(line);
+            }
+        }
+        return headers;
     }
 }

@@ -108,6 +108,7 @@ class ColdPathEventProcessorTest {
         assertThat(result.isSuccess()).isTrue();
         verify(expertStrategy).evaluate(any(SecurityEvent.class));
         assertThat(result.getAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
+        assertThat(result.getProposedAction()).isEqualTo(ZeroTrustAction.BLOCK.name());
     }
 
     @Test
@@ -137,6 +138,39 @@ class ColdPathEventProcessorTest {
         assertThat(result.isSuccess()).isTrue();
         assertThat(result.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
         assertThat(result.getConfidence()).isEqualTo(0.3);
+    }
+
+    @Test
+    @DisplayName("Layer1 autonomy constraint should preserve LLM proposed action")
+    void layer1AutonomyConstraint_shouldPreserveProposedAction() {
+        SecurityEvent event = SecurityEvent.builder()
+                .userId("user-4")
+                .sourceIp("10.0.0.5")
+                .build();
+        event.addMetadata("requestPath", "/api/export");
+
+        ThreatAssessment layer1Assessment = ThreatAssessment.builder()
+                .riskScore(0.2)
+                .confidence(0.54)
+                .llmAuditConfidence(0.91)
+                .action(ZeroTrustAction.ALLOW.name())
+                .autonomousAction(ZeroTrustAction.CHALLENGE.name())
+                .reasoning("Semantically legitimate, but approval lineage is unresolved.")
+                .autonomyConstraintApplied(true)
+                .autonomyConstraintSummary("Autonomous allow is not permitted until approval lineage is explicit.")
+                .shouldEscalate(false)
+                .build();
+
+        when(contextualStrategy.evaluate(any(SecurityEvent.class))).thenReturn(layer1Assessment);
+
+        ProcessingResult result = processor.processEvent(event, 0.2);
+
+        assertThat(result.isSuccess()).isTrue();
+        assertThat(result.getProposedAction()).isEqualTo(ZeroTrustAction.ALLOW.name());
+        assertThat(result.getAction()).isEqualTo(ZeroTrustAction.CHALLENGE.name());
+        assertThat(result.getConfidence()).isEqualTo(0.54);
+        assertThat(result.resolveAuditConfidence()).isEqualTo(0.91);
+        assertThat(result.getAutonomyConstraintApplied()).isTrue();
     }
 
     @Test

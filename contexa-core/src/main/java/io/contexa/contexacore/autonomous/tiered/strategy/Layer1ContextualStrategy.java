@@ -13,24 +13,17 @@ import io.contexa.contexacore.autonomous.saas.SaasThreatKnowledgePackService;
 import io.contexa.contexacore.autonomous.service.SecurityLearningService;
 import io.contexa.contexacore.autonomous.store.SecurityContextDataStore;
 import io.contexa.contexacore.autonomous.tiered.SecurityDecision;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionContext;
-import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionRequest;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionResponse;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
 import io.contexa.contexacore.autonomous.tiered.util.SecurityEventEnricher;
 import io.contexa.contexacore.hcad.service.BaselineLearningService;
 import io.contexa.contexacore.properties.TieredStrategyProperties;
 import io.contexa.contexacore.std.labs.behavior.BehaviorVectorService;
-import io.contexa.contexacore.std.llm.client.ExecutionContext;
 import io.contexa.contexacore.std.llm.client.UnifiedLLMOrchestrator;
-import io.contexa.contexacore.std.pipeline.PipelineConfiguration;
 import io.contexa.contexacore.std.pipeline.PipelineOrchestrator;
 import io.contexa.contexacore.std.rag.service.UnifiedVectorService;
 import io.contexa.contexacore.std.security.PromptContextAuthorizationService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.document.Document;
 import reactor.core.publisher.Mono;
 
@@ -45,16 +38,6 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 public class Layer1ContextualStrategy extends AbstractTieredStrategy {
 
-    private static final PipelineConfiguration SECURITY_DECISION_PIPELINE_CONFIGURATION =
-            PipelineConfiguration.builder()
-                    .addStep(PipelineConfiguration.PipelineStep.PREPROCESSING)
-                    .addStep(PipelineConfiguration.PipelineStep.PROMPT_GENERATION)
-                    .addStep(PipelineConfiguration.PipelineStep.LLM_EXECUTION)
-                    .addStep(PipelineConfiguration.PipelineStep.RESPONSE_PARSING)
-                    .addStep(PipelineConfiguration.PipelineStep.POSTPROCESSING)
-                    .timeoutSeconds(120)
-                    .build();
-
     private final SecurityContextDataStore dataStore;
     private final SecurityLearningService securityLearningService;
     private final SaasBaselineSeedService baselineSeedService;
@@ -67,7 +50,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                     UnifiedVectorService unifiedVectorService,
                                     SecurityContextDataStore dataStore,
                                     SecurityEventEnricher eventEnricher,
-                                    SecurityPromptTemplate promptTemplate,
+                                    SecurityDecisionStandardPromptTemplate promptTemplate,
                                     BehaviorVectorService behaviorVectorService,
                                     BaselineLearningService baselineLearningService,
                                     SecurityLearningService securityLearningService,
@@ -101,20 +84,25 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         SecurityDecision decision = analyzeWithContext(event);
         boolean shouldEscalate = decision.getAction() == ZeroTrustAction.ESCALATE;
         String action = decision.getAction() != null ? decision.getAction().name() : "ESCALATE";
+        ZeroTrustAction autonomousAction = decision.resolveAutonomousAction();
 
         return ThreatAssessment.builder()
                 .eventId(event.getEventId())
                 .assessedAt(LocalDateTime.now())
                 .riskScore(null)
-                .confidence(null)
+                .confidence(decision.getConfidence())
                 .llmAuditRiskScore(decision.resolveAuditRiskScore())
                 .llmAuditConfidence(decision.resolveAuditConfidence())
                 .indicators(new ArrayList<>())
-                .recommendedActions(List.of(mapActionToRecommendation(decision.getAction())))
+                .recommendedActions(List.of(mapActionToRecommendation(autonomousAction)))
                 .strategyName("Layer1-Contextual")
                 .shouldEscalate(shouldEscalate)
                 .action(action)
+                .autonomousAction(autonomousAction != null ? autonomousAction.name() : null)
                 .reasoning(decision.getReasoning())
+                .autonomyConstraintApplied(decision.getAutonomyConstraintApplied())
+                .autonomyConstraintReasons(decision.getAutonomyConstraintReasons())
+                .autonomyConstraintSummary(decision.getAutonomyConstraintSummary())
                 .build();
     }
 
@@ -143,8 +131,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             behaviorAnalysisMs = System.currentTimeMillis() - behaviorAnalysisStart;
 
             long promptBuildStart = System.currentTimeMillis();
-            SecurityPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
-            SecurityPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
+            SecurityDecisionStandardPromptTemplate.SessionContext sessionCtx = convertToTemplateSessionContext(sessionContext);
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorCtx = convertToTemplateBehaviorAnalysis(behaviorAnalysis, event);
             annotateThreatKnowledgeContext(event, behaviorCtx);
 
             cacheEscalationContext(event.getEventId(), sessionCtx, behaviorCtx, relatedDocuments);
@@ -153,21 +141,15 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
             long llmTimeoutMs = tieredStrategyProperties.getLayer1().getTimeout().getLlmMs();
 
             SecurityResponse response = null;
+            clearPromptRuntimeTelemetry(event);
             if (pipelineOrchestrator != null) {
-                SecurityDecisionRequest securityDecisionRequest =
-                        new SecurityDecisionRequest(new SecurityDecisionContext(
+                long llmExecutionStart = System.currentTimeMillis();
+                SecurityDecisionResponse pipelineResponse = executeSecurityDecisionPipeline(
+                                pipelineOrchestrator,
                                 event,
                                 sessionCtx,
                                 behaviorCtx,
-                                relatedDocuments
-                        ));
-                securityDecisionRequest.withParameter("responseType", SecurityDecisionResponse.class);
-
-                long llmExecutionStart = System.currentTimeMillis();
-                SecurityDecisionResponse pipelineResponse = pipelineOrchestrator.execute(
-                                securityDecisionRequest,
-                                SECURITY_DECISION_PIPELINE_CONFIGURATION,
-                                SecurityDecisionResponse.class)
+                                relatedDocuments)
                         .timeout(Duration.ofMillis(llmTimeoutMs))
                         .onErrorResume(Exception.class, e -> {
                             log.error("[Layer1] Standard security pipeline failed, escalating to Layer 2: {}", event.getEventId(), e);
@@ -183,12 +165,13 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
                                 : createDefaultResponse()
                 );
                 responseParseMs = System.currentTimeMillis() - responseParseStart;
+                capturePromptRuntimeTelemetry(event, pipelineResponse);
             } else {
                 log.error("[Layer1] PipelineOrchestrator not available");
                 response = createDefaultResponse();
             }
 
-            SecurityDecision decision = convertToSecurityDecision(response, event);
+            SecurityDecision decision = applyPromptConfidenceGuardrail(convertToSecurityDecision(response, event), event);
             decision.setProcessingTimeMs(System.currentTimeMillis() - startTime);
             decision.setProcessingLayer(1);
 
@@ -283,8 +266,8 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return searchRelatedContextBase(event, topK, similarityThreshold);
     }
 
-    private SecurityPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
-        SecurityPromptTemplate.SessionContext ctx = new SecurityPromptTemplate.SessionContext();
+    private SecurityDecisionStandardPromptTemplate.SessionContext convertToTemplateSessionContext(SessionContext sessionContext) {
+        SecurityDecisionStandardPromptTemplate.SessionContext ctx = new SecurityDecisionStandardPromptTemplate.SessionContext();
         ctx.setSessionId(sessionContext.getSessionId());
         ctx.setUserId(sessionContext.getUserId());
         ctx.setAuthMethod(sessionContext.getAuthMethod());
@@ -301,10 +284,10 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
         return ctx;
     }
 
-    private SecurityPromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(
+    private SecurityDecisionStandardPromptTemplate.BehaviorAnalysis convertToTemplateBehaviorAnalysis(
             BaseBehaviorAnalysis behaviorAnalysis,
             SecurityEvent event) {
-        SecurityPromptTemplate.BehaviorAnalysis ctx = new SecurityPromptTemplate.BehaviorAnalysis();
+        SecurityDecisionStandardPromptTemplate.BehaviorAnalysis ctx = new SecurityDecisionStandardPromptTemplate.BehaviorAnalysis();
         ctx.setSimilarEvents(behaviorAnalysis.getSimilarEvents());
         ctx.setBaselineContext(behaviorAnalysis.getBaselineContext());
         ctx.setBaselineEstablished(behaviorAnalysis.isBaselineEstablished());
@@ -343,7 +326,7 @@ public class Layer1ContextualStrategy extends AbstractTieredStrategy {
     }
 
     private void enrichWithActivityContext(
-            SecurityPromptTemplate.BehaviorAnalysis ctx, SecurityEvent event) {
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis ctx, SecurityEvent event) {
         if (dataStore == null || event.getUserId() == null) return;
 
         try {

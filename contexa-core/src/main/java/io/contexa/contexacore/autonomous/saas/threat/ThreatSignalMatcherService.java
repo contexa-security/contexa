@@ -5,7 +5,7 @@ import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceMatchContext
 import io.contexa.contexacore.autonomous.saas.dto.ThreatIntelligenceSnapshot;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackMatchContext;
 import io.contexa.contexacore.autonomous.saas.dto.ThreatKnowledgePackSnapshot;
-import io.contexa.contexacore.autonomous.tiered.template.SecurityPromptTemplate;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -26,7 +26,7 @@ public class ThreatSignalMatcherService {
 
     public ThreatIntelligenceMatchContext buildContext(
             SecurityEvent event,
-            SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
             List<ThreatIntelligenceSnapshot.ThreatSignalItem> activeSignals,
             int limit) {
         if (event == null || activeSignals == null || activeSignals.isEmpty()) {
@@ -56,7 +56,7 @@ public class ThreatSignalMatcherService {
 
     public ThreatKnowledgePackMatchContext buildKnowledgeContext(
             SecurityEvent event,
-            SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+            SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
             List<ThreatKnowledgePackSnapshot.KnowledgeCaseItem> knowledgeCases,
             int limit) {
         if (event == null || knowledgeCases == null || knowledgeCases.isEmpty()) {
@@ -186,7 +186,7 @@ public class ThreatSignalMatcherService {
         return new MatchFacts(matchedFacts, matchingDimensions, concreteOverlap);
     }
 
-    private EventTraits deriveTraits(SecurityEvent event, SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
+    private EventTraits deriveTraits(SecurityEvent event, SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis) {
         Map<String, Object> metadata = event.getMetadata() != null ? event.getMetadata() : Map.of();
         String requestPath = extractText(metadata, "requestPath");
         if (!StringUtils.hasText(requestPath)) {

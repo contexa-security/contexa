@@ -2,6 +2,7 @@ package io.contexa.contexacore.autonomous.tiered.template;
 
 import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
+import io.contexa.contexacore.autonomous.tiered.prompt.SecurityDecisionStandardPromptTemplate;
 import lombok.Getter;
 import org.springframework.ai.document.Document;
 
@@ -11,24 +12,24 @@ import java.util.List;
 public class SecurityPromptBuildContext {
 
     private final SecurityEvent event;
-    private final SecurityPromptTemplate.SessionContext sessionContext;
-    private final SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis;
+    private final SecurityDecisionStandardPromptTemplate.SessionContext sessionContext;
+    private final SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis;
     private final List<Document> relatedDocuments;
     private final CanonicalSecurityContext canonicalSecurityContext;
     private final String userId;
     private final String baselineContext;
     private final BaselineStatus baselineStatus;
-    private final SecurityPromptTemplate.DetectedPatterns detectedPatterns;
+    private final SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns;
 
     public SecurityPromptBuildContext(SecurityEvent event,
-                                      SecurityPromptTemplate.SessionContext sessionContext,
-                                      SecurityPromptTemplate.BehaviorAnalysis behaviorAnalysis,
+                                      SecurityDecisionStandardPromptTemplate.SessionContext sessionContext,
+                                      SecurityDecisionStandardPromptTemplate.BehaviorAnalysis behaviorAnalysis,
                                       List<Document> relatedDocuments,
                                       CanonicalSecurityContext canonicalSecurityContext,
                                       String userId,
                                       String baselineContext,
                                       BaselineStatus baselineStatus,
-                                      SecurityPromptTemplate.DetectedPatterns detectedPatterns) {
+                                      SecurityDecisionStandardPromptTemplate.DetectedPatterns detectedPatterns) {
         this.event = event;
         this.sessionContext = sessionContext;
         this.behaviorAnalysis = behaviorAnalysis;

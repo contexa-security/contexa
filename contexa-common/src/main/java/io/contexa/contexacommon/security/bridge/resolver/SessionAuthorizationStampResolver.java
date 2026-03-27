@@ -2,6 +2,7 @@ package io.contexa.contexacommon.security.bridge.resolver;
 
 import io.contexa.contexacommon.security.bridge.BridgeObjectExtractor;
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.SessionBridgeSupport;
 import io.contexa.contexacommon.security.bridge.sensor.RequestContextSnapshot;
 import io.contexa.contexacommon.security.bridge.stamp.AuthorizationEffect;
@@ -53,8 +54,12 @@ public class SessionAuthorizationStampResolver implements AuthorizationStampReso
 
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>(BridgeObjectExtractor.extractAttributes(sessionAuthorization, config.getAttributeKeys()));
         attributes.put("authorizationResolver", "SESSION");
-        attributes.put("bridgeSessionAttribute", resolvedSessionAttribute.get().attributeName());
-        attributes.put("bridgeSessionDetectionScore", resolvedSessionAttribute.get().score());
+        BridgeSemanticBoundaryPolicy.putStructuralSelectionMetadata(
+                attributes,
+                "bridgeSessionAttribute",
+                resolvedSessionAttribute.get().attributeName(),
+                resolvedSessionAttribute.get().score());
+        attributes.put("authorizationPrivilegedEvidenceState", BridgeSemanticBoundaryPolicy.explicitOrUnavailable(privileged));
         return Optional.of(new AuthorizationStamp(
                 resolveSubjectId(request, sessionAuthorization, config),
                 requestContext.requestUri(),

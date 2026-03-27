@@ -117,6 +117,29 @@ class InMemorySecurityContextDataStoreTest {
     }
 
     @Test
+    @DisplayName("Role scope observations and permission changes stay isolated per tenant scope")
+    void roleScopeObservationsAndPermissionChanges_stayIsolatedPerTenantScope() {
+        store.addRoleScopeObservation("tenant-a", "scope-1", "role-a1");
+        store.addRoleScopeObservation("tenant-a", "scope-1", "role-a2");
+        store.addRoleScopeObservation("tenant-b", "scope-1", "role-b1");
+        store.addPermissionChangeObservation("tenant-a", "alice", "change-a1");
+        store.addPermissionChangeObservation("tenant-b", "alice", "change-b1");
+        store.setAuthorizationScopeState("tenant-a", "alice", "state-a");
+        store.setAuthorizationScopeState("tenant-b", "alice", "state-b");
+
+        assertThat(store.getRecentRoleScopeObservations("tenant-a", "scope-1", 10))
+                .containsExactly("role-a1", "role-a2");
+        assertThat(store.getRecentRoleScopeObservations("tenant-b", "scope-1", 10))
+                .containsExactly("role-b1");
+        assertThat(store.getRecentPermissionChangeObservations("tenant-a", "alice", 10))
+                .containsExactly("change-a1");
+        assertThat(store.getRecentPermissionChangeObservations("tenant-b", "alice", 10))
+                .containsExactly("change-b1");
+        assertThat(store.getAuthorizationScopeState("tenant-a", "alice")).isEqualTo("state-a");
+        assertThat(store.getAuthorizationScopeState("tenant-b", "alice")).isEqualTo("state-b");
+    }
+
+    @Test
     @DisplayName("tryMarkEventAsProcessed returns true on first call, false on duplicate")
     void tryMarkEventAsProcessed_firstCallTrue_duplicateFalse() {
         boolean first = store.tryMarkEventAsProcessed("event-1");

@@ -39,6 +39,7 @@ class BridgeCoverageEvaluatorTest {
 
         assertThat(report.level()).isEqualTo(BridgeCoverageLevel.DELEGATION_CONTEXT);
         assertThat(report.score()).isEqualTo(90);
+        assertThat(report.purpose()).isEqualTo("BRIDGE_COMPLETENESS_ONLY");
         assertThat(report.summary()).contains("delegated execution context");
         assertThat(report.remediationHints()).isEmpty();
         assertThat(report.missingContexts()).doesNotContain(MissingBridgeContext.AUTHENTICATION, MissingBridgeContext.AUTHORIZATION, MissingBridgeContext.DELEGATION);
@@ -55,7 +56,7 @@ class BridgeCoverageEvaluatorTest {
 
         assertThat(report.level()).isEqualTo(BridgeCoverageLevel.AUTHENTICATION_ONLY);
         assertThat(report.score()).isEqualTo(40);
-        assertThat(report.summary()).contains("authorization context is still incomplete");
+        assertThat(report.summary()).contains("Bridge completeness reached authentication");
         assertThat(report.missingContexts()).contains(MissingBridgeContext.AUTHORIZATION);
         assertThat(report.missingContexts()).doesNotContain(MissingBridgeContext.DELEGATION);
         assertThat(report.remediationHints()).anyMatch(value -> value.contains("authorization stamp"));
@@ -99,6 +100,6 @@ class BridgeCoverageEvaluatorTest {
         assertThat(report.level()).isEqualTo(BridgeCoverageLevel.AUTHORIZATION_CONTEXT);
         assertThat(report.score()).isEqualTo(75);
         assertThat(report.missingContexts()).doesNotContain(MissingBridgeContext.DELEGATION);
-        assertThat(report.summary()).contains("authentication and authorization context for the current request");
+        assertThat(report.summary()).contains("Bridge completeness reached authentication and authorization context");
     }
 }

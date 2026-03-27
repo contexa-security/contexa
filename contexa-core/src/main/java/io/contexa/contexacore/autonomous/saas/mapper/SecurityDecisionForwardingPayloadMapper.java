@@ -1,5 +1,7 @@
 package io.contexa.contexacore.autonomous.saas.mapper;
 
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContext;
+import io.contexa.contexacore.autonomous.context.CanonicalSecurityContextProvider;
 import io.contexa.contexacore.autonomous.domain.SecurityEvent;
 import io.contexa.contexacore.autonomous.domain.SecurityEventContext;
 import io.contexa.contexacore.autonomous.saas.dto.SecurityDecisionForwardingPayload;
@@ -7,6 +9,7 @@ import io.contexa.contexacore.autonomous.saas.security.TenantScopedPseudonymizat
 import io.contexa.contexacore.autonomous.saas.threat.ThreatSignalNormalizationService;
 import io.contexa.contexacore.autonomous.processor.ProcessingResult;
 import io.contexa.contexacore.properties.SaasForwardingProperties;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -22,14 +25,24 @@ public class SecurityDecisionForwardingPayloadMapper {
     private final TenantScopedPseudonymizationService pseudonymizationService;
     private final ThreatSignalNormalizationService threatSignalNormalizationService;
     private final SaasForwardingProperties properties;
+    private final CanonicalSecurityContextProvider canonicalSecurityContextProvider;
 
     public SecurityDecisionForwardingPayloadMapper(
             TenantScopedPseudonymizationService pseudonymizationService,
             ThreatSignalNormalizationService threatSignalNormalizationService,
             SaasForwardingProperties properties) {
+        this(pseudonymizationService, threatSignalNormalizationService, properties, null);
+    }
+
+    public SecurityDecisionForwardingPayloadMapper(
+            TenantScopedPseudonymizationService pseudonymizationService,
+            ThreatSignalNormalizationService threatSignalNormalizationService,
+            SaasForwardingProperties properties,
+            CanonicalSecurityContextProvider canonicalSecurityContextProvider) {
         this.pseudonymizationService = pseudonymizationService;
         this.threatSignalNormalizationService = threatSignalNormalizationService;
         this.properties = properties;
+        this.canonicalSecurityContextProvider = canonicalSecurityContextProvider;
     }
 
     public SecurityDecisionForwardingPayload map(SecurityEventContext context) {
@@ -37,6 +50,11 @@ public class SecurityDecisionForwardingPayloadMapper {
         ProcessingResult result = requireResult(context);
         Map<String, Object> eventMetadata = event.getMetadata() != null ? event.getMetadata() : Map.of();
         Map<String, Object> analysisData = result.getAnalysisData() != null ? result.getAnalysisData() : Map.of();
+        CanonicalSecurityContext canonicalSecurityContext = resolveCanonicalSecurityContext(event);
+        String workProfileSummary = resolveWorkProfileSummary(canonicalSecurityContext, eventMetadata);
+        String roleDriftSummary = resolveRoleDriftSummary(canonicalSecurityContext, eventMetadata);
+        String approvalSummary = resolveApprovalSummary(canonicalSecurityContext, eventMetadata);
+        String objectiveDriftSummary = resolveObjectiveDriftSummary(canonicalSecurityContext, eventMetadata);
         String tenantScope = resolveTenantScope(eventMetadata);
         ThreatSignalNormalizationService.NormalizedThreatSignal threatSignal =
                 threatSignalNormalizationService.normalize(event, result);
@@ -44,9 +62,17 @@ public class SecurityDecisionForwardingPayloadMapper {
         return SecurityDecisionForwardingPayload.builder()
                 .correlationId(resolveCorrelationId(event, context))
                 .decision(result.getAction())
+                .llmProposedAction(resolveLlmProposedAction(result))
+                .autonomousEnforcementAction(resolveAutonomousEnforcementAction(result))
                 .aiAnalysisLevel(result.getAiAnalysisLevel())
                 .processingTimeMs(result.getProcessingTimeMs())
+                .llmAuditRiskScore(result.resolveAuditRiskScore())
+                .effectiveConfidence(result.getConfidence())
+                .llmAuditConfidence(result.resolveAuditConfidence())
                 .reasoning(properties.isIncludeReasoning() ? result.getReasoning() : null)
+                .autonomyConstraintApplied(result.getAutonomyConstraintApplied())
+                .autonomyConstraintSummary(result.getAutonomyConstraintSummary())
+                .autonomyConstraintReasons(copyList(result.getAutonomyConstraintReasons()))
                 .severityLevel(event.getSeverity() != null ? event.getSeverity().name() : null)
                 .eventSource(event.getSource() != null ? event.getSource().name() : null)
                 .eventTimestamp(event.getTimestamp())
@@ -61,6 +87,24 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .mitreTacticHints(threatSignal.mitreTacticHints())
                 .targetSurfaceCategory(threatSignal.targetSurfaceCategory())
                 .signalTags(threatSignal.signalTags())
+                .workProfileSummary(workProfileSummary)
+                .roleDriftSummary(roleDriftSummary)
+                .approvalSummary(approvalSummary)
+                .objectiveDriftSummary(objectiveDriftSummary)
+                .promptKey(extractText(eventMetadata, "promptKey"))
+                .promptTemplateKey(extractText(eventMetadata, "templateKey"))
+                .promptVersion(extractText(eventMetadata, "promptVersion"))
+                .promptContractVersion(extractText(eventMetadata, "contractVersion"))
+                .promptReleaseStatus(extractText(eventMetadata, "promptReleaseStatus"))
+                .promptHash(extractText(eventMetadata, "promptHash"))
+                .systemPromptHash(extractText(eventMetadata, "systemPromptHash"))
+                .userPromptHash(extractText(eventMetadata, "userPromptHash"))
+                .budgetProfile(extractText(eventMetadata, "budgetProfile"))
+                .promptEvidenceCompleteness(extractText(eventMetadata, "promptEvidenceCompleteness"))
+                .promptSectionSet(extractStringList(eventMetadata.get("promptSectionSet")))
+                .omittedSections(extractStringList(eventMetadata.get("omittedSections")))
+                .promptOmissionCount(extractInteger(eventMetadata, "promptOmissionCount"))
+                .promptGeneratedAtEpochMs(extractLong(eventMetadata, "promptGeneratedAtEpochMs"))
                 .requestPath(extractRequestPath(eventMetadata))
                 .geoCountry(extractText(eventMetadata, "geoCountry"))
                 .geoCity(extractText(eventMetadata, "geoCity"))
@@ -69,7 +113,14 @@ public class SecurityDecisionForwardingPayloadMapper {
                 .travelDistanceKm(extractDouble(eventMetadata, "travelDistanceKm"))
                 .layer1Assessment(extractMap(analysisData.get("layer1Assessment")))
                 .layer2Assessment(extractMap(analysisData.get("layer2Assessment")))
-                .attributes(extractAttributes(eventMetadata, analysisData, result))
+                .attributes(extractAttributes(
+                        eventMetadata,
+                        analysisData,
+                        result,
+                        workProfileSummary,
+                        roleDriftSummary,
+                        approvalSummary,
+                        objectiveDriftSummary))
                 .forwardedAt(LocalDateTime.now())
                 .build();
     }
@@ -139,7 +190,14 @@ public class SecurityDecisionForwardingPayloadMapper {
         return extractText(eventMetadata, "requestUri");
     }
 
-    private Map<String, Object> extractAttributes(Map<String, Object> eventMetadata, Map<String, Object> analysisData, ProcessingResult result) {
+    private Map<String, Object> extractAttributes(
+            Map<String, Object> eventMetadata,
+            Map<String, Object> analysisData,
+            ProcessingResult result,
+            String workProfileSummary,
+            String roleDriftSummary,
+            String approvalSummary,
+            String objectiveDriftSummary) {
         Map<String, Object> attributes = new LinkedHashMap<>();
         if (properties.isIncludeRawAnalysisData()) {
             attributes.putAll(analysisData);
@@ -178,8 +236,26 @@ public class SecurityDecisionForwardingPayloadMapper {
         if (result.resolveAuditRiskScore() != null) {
             attributes.put("llmAuditRiskScore", result.resolveAuditRiskScore());
         }
+        if (result.getConfidence() != null) {
+            attributes.put("effectiveConfidence", result.getConfidence());
+        }
         if (result.resolveAuditConfidence() != null) {
             attributes.put("llmAuditConfidence", result.resolveAuditConfidence());
+        }
+        if (result.getProposedAction() != null && !result.getProposedAction().isBlank()) {
+            attributes.put("llmProposedAction", result.getProposedAction());
+        }
+        if (result.getAction() != null && !result.getAction().isBlank()) {
+            attributes.put("autonomousEnforcementAction", result.getAction());
+        }
+        if (Boolean.TRUE.equals(result.getAutonomyConstraintApplied())) {
+            attributes.put("autonomyConstraintApplied", true);
+            if (result.getAutonomyConstraintSummary() != null) {
+                attributes.put("autonomyConstraintSummary", result.getAutonomyConstraintSummary());
+            }
+            if (result.getAutonomyConstraintReasons() != null && !result.getAutonomyConstraintReasons().isEmpty()) {
+                attributes.put("autonomyConstraintReasons", result.getAutonomyConstraintReasons());
+            }
         }
         attributes.put(OPERATIONAL_EVIDENCE_SOURCE, resolveOperationalEvidenceSource(result, analysisData));
         copyIfPresent(eventMetadata, attributes, "parameter_risk_flags");
@@ -188,7 +264,33 @@ public class SecurityDecisionForwardingPayloadMapper {
         copyIfPresent(analysisData, attributes, "parameterRiskFlags");
         copyIfPresent(analysisData, attributes, "promptRiskFlags");
         copyIfPresent(analysisData, attributes, "toolArgumentsSummary");
+        copyIfPresent(attributes, "workProfileSummary", workProfileSummary);
+        copyIfPresent(attributes, "roleDriftSummary", roleDriftSummary);
+        copyIfPresent(attributes, "approvalSummary", approvalSummary);
+        copyIfPresent(attributes, "objectiveDriftSummary", objectiveDriftSummary);
+        copyIfPresent(eventMetadata, attributes, "promptKey");
+        copyIfPresent(eventMetadata, attributes, "templateKey");
+        copyIfPresent(eventMetadata, attributes, "promptVersion");
+        copyIfPresent(eventMetadata, attributes, "contractVersion");
+        copyIfPresent(eventMetadata, attributes, "promptReleaseStatus");
+        copyIfPresent(eventMetadata, attributes, "promptHash");
+        copyIfPresent(eventMetadata, attributes, "systemPromptHash");
+        copyIfPresent(eventMetadata, attributes, "userPromptHash");
+        copyIfPresent(eventMetadata, attributes, "budgetProfile");
+        copyIfPresent(eventMetadata, attributes, "promptEvidenceCompleteness");
+        copyIfPresent(eventMetadata, attributes, "promptSectionSet");
+        copyIfPresent(eventMetadata, attributes, "omittedSections");
+        copyIfPresent(eventMetadata, attributes, "promptOmissionCount");
+        copyIfPresent(eventMetadata, attributes, "promptGeneratedAtEpochMs");
+        copyIfPresent(eventMetadata, attributes, "promptRuntimeTelemetryLinked");
+        copyIfPresent(eventMetadata, attributes, "promptRuntimeTelemetryLayer");
         return attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
+    }
+
+    private void copyIfPresent(Map<String, Object> target, String key, Object value) {
+        if (value != null) {
+            target.put(key, value);
+        }
     }
 
     private void copyIfPresent(Map<String, Object> source, Map<String, Object> target, String key) {
@@ -196,6 +298,139 @@ public class SecurityDecisionForwardingPayloadMapper {
         if (value != null) {
             target.put(key, value);
         }
+    }
+
+    private String resolveLlmProposedAction(ProcessingResult result) {
+        if (result.getProposedAction() != null && !result.getProposedAction().isBlank()) {
+            return result.getProposedAction();
+        }
+        return result.getAction();
+    }
+
+    private String resolveAutonomousEnforcementAction(ProcessingResult result) {
+        if (result.getAction() != null && !result.getAction().isBlank()) {
+            return result.getAction();
+        }
+        return result.getProposedAction();
+    }
+
+    private CanonicalSecurityContext resolveCanonicalSecurityContext(SecurityEvent event) {
+        if (canonicalSecurityContextProvider == null || event == null) {
+            return null;
+        }
+        try {
+            return canonicalSecurityContextProvider.resolve(event).orElse(null);
+        }
+        catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private String resolveWorkProfileSummary(CanonicalSecurityContext canonicalSecurityContext, Map<String, Object> eventMetadata) {
+        if (canonicalSecurityContext != null
+                && canonicalSecurityContext.getWorkProfile() != null
+                && StringUtils.hasText(canonicalSecurityContext.getWorkProfile().getSummary())) {
+            return canonicalSecurityContext.getWorkProfile().getSummary();
+        }
+        return extractText(eventMetadata, "workProfileSummary");
+    }
+
+    private String resolveRoleDriftSummary(CanonicalSecurityContext canonicalSecurityContext, Map<String, Object> eventMetadata) {
+        if (canonicalSecurityContext != null && canonicalSecurityContext.getRoleScopeProfile() != null) {
+            CanonicalSecurityContext.RoleScopeProfile roleScopeProfile = canonicalSecurityContext.getRoleScopeProfile();
+            List<String> facts = new ArrayList<>();
+            if (StringUtils.hasText(roleScopeProfile.getCurrentResourceFamily())) {
+                facts.add("Current resource family: " + roleScopeProfile.getCurrentResourceFamily());
+            }
+            if (StringUtils.hasText(roleScopeProfile.getCurrentActionFamily())) {
+                facts.add("Current action family: " + roleScopeProfile.getCurrentActionFamily());
+            }
+            if (!roleScopeProfile.getExpectedResourceFamilies().isEmpty()) {
+                facts.add("Expected resource families: " + String.join(", ", roleScopeProfile.getExpectedResourceFamilies()));
+            }
+            if (!roleScopeProfile.getExpectedActionFamilies().isEmpty()) {
+                facts.add("Expected action families: " + String.join(", ", roleScopeProfile.getExpectedActionFamilies()));
+            }
+            if (!roleScopeProfile.getForbiddenResourceFamilies().isEmpty()) {
+                facts.add("Denied resource families: " + String.join(", ", roleScopeProfile.getForbiddenResourceFamilies()));
+            }
+            if (!roleScopeProfile.getForbiddenActionFamilies().isEmpty()) {
+                facts.add("Denied action families: " + String.join(", ", roleScopeProfile.getForbiddenActionFamilies()));
+            }
+            if (StringUtils.hasText(roleScopeProfile.getCurrentResourceFamily()) && !roleScopeProfile.getExpectedResourceFamilies().isEmpty()) {
+                facts.add("Current resource family present in expected role-scope evidence: "
+                        + containsIgnoreCase(roleScopeProfile.getExpectedResourceFamilies(), roleScopeProfile.getCurrentResourceFamily()));
+            }
+            if (StringUtils.hasText(roleScopeProfile.getCurrentActionFamily()) && !roleScopeProfile.getExpectedActionFamilies().isEmpty()) {
+                facts.add("Current action family present in expected role-scope evidence: "
+                        + containsIgnoreCase(roleScopeProfile.getExpectedActionFamilies(), roleScopeProfile.getCurrentActionFamily()));
+            }
+            if (Boolean.TRUE.equals(roleScopeProfile.getTemporaryElevation())) {
+                facts.add("Temporary elevation is active");
+            }
+            if (StringUtils.hasText(roleScopeProfile.getElevationWindowSummary())) {
+                facts.add(roleScopeProfile.getElevationWindowSummary());
+            }
+            if (!facts.isEmpty()) {
+                return String.join(" | ", facts);
+            }
+            if (StringUtils.hasText(roleScopeProfile.getSummary())) {
+                return roleScopeProfile.getSummary();
+            }
+        }
+        return firstNonBlank(extractText(eventMetadata, "roleDriftSummary"), extractText(eventMetadata, "roleScopeSummary"));
+    }
+
+    private String resolveApprovalSummary(CanonicalSecurityContext canonicalSecurityContext, Map<String, Object> eventMetadata) {
+        if (canonicalSecurityContext != null && canonicalSecurityContext.getFrictionProfile() != null) {
+            CanonicalSecurityContext.FrictionProfile frictionProfile = canonicalSecurityContext.getFrictionProfile();
+            if (StringUtils.hasText(frictionProfile.getSummary())) {
+                return frictionProfile.getSummary();
+            }
+            List<String> facts = new ArrayList<>();
+            if (frictionProfile.getApprovalRequired() != null) {
+                facts.add("Approval required: " + frictionProfile.getApprovalRequired());
+            }
+            if (StringUtils.hasText(frictionProfile.getApprovalStatus())) {
+                facts.add("Approval status: " + frictionProfile.getApprovalStatus());
+            }
+            if (frictionProfile.getApprovalMissing() != null) {
+                facts.add("Approval missing: " + frictionProfile.getApprovalMissing());
+            }
+            if (!frictionProfile.getApprovalLineage().isEmpty()) {
+                facts.add("Approval lineage: " + String.join(", ", frictionProfile.getApprovalLineage()));
+            }
+            if (StringUtils.hasText(frictionProfile.getApprovalTicketId())) {
+                facts.add("Approval ticket: " + frictionProfile.getApprovalTicketId());
+            }
+            if (!facts.isEmpty()) {
+                return String.join(" | ", facts);
+            }
+        }
+        return firstNonBlank(extractText(eventMetadata, "approvalSummary"), extractText(eventMetadata, "frictionProfileSummary"));
+    }
+
+    private String resolveObjectiveDriftSummary(CanonicalSecurityContext canonicalSecurityContext, Map<String, Object> eventMetadata) {
+        if (canonicalSecurityContext != null
+                && canonicalSecurityContext.getDelegation() != null
+                && StringUtils.hasText(canonicalSecurityContext.getDelegation().getObjectiveDriftSummary())) {
+            return canonicalSecurityContext.getDelegation().getObjectiveDriftSummary();
+        }
+        return firstNonBlank(
+                extractText(eventMetadata, "objectiveDriftSummary"),
+                extractText(eventMetadata, "delegationObjectiveDriftSummary"));
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return null;
     }
 
     private String extractText(Map<String, Object> source, String key) {
@@ -234,6 +469,38 @@ public class SecurityDecisionForwardingPayloadMapper {
         return 0.0d;
     }
 
+    private Integer extractInteger(Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text.trim());
+            }
+            catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Long extractLong(Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Long.parseLong(text.trim());
+            }
+            catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> extractMap(Object value) {
         if (value instanceof Map<?, ?> map) {
@@ -256,6 +523,25 @@ public class SecurityDecisionForwardingPayloadMapper {
                     .toList();
         }
         return List.of();
+    }
+
+    private List<String> copyList(List<String> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(values);
+    }
+
+    private boolean containsIgnoreCase(List<String> values, String target) {
+        if (!StringUtils.hasText(target) || values == null || values.isEmpty()) {
+            return false;
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value) && target.equalsIgnoreCase(value.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

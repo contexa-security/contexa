@@ -2,6 +2,7 @@ package io.contexa.contexacommon.security.bridge.runtime;
 
 import io.contexa.contexacommon.security.bridge.BridgeProperties;
 import io.contexa.contexacommon.security.bridge.BridgeRequestAttributes;
+import io.contexa.contexacommon.security.bridge.BridgeSemanticBoundaryPolicy;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationDetails;
 import io.contexa.contexacommon.security.bridge.authentication.BridgeAuthenticationToken;
 import io.contexa.contexacommon.security.bridge.authentication.BridgePrincipal;
@@ -70,13 +71,19 @@ public class BridgeRuntimeSupport {
         LinkedHashMap<String, Object> attributes = new LinkedHashMap<>();
         attributes.put("authorizationResolver", "AUTHENTICATION_DERIVED");
         attributes.put("derivedFromAuthenticationSource", authenticationStamp.authenticationSource());
+        attributes.put("authorizationEvidenceState", BridgeSemanticBoundaryPolicy.DERIVED_RUNTIME_FALLBACK);
+        List<String> privilegedAuthoritySignals = BridgeSemanticBoundaryPolicy.privilegedAuthoritySignals(effectiveAuthorities);
+        if (!privilegedAuthoritySignals.isEmpty()) {
+            attributes.put("privilegedAuthoritySignals", privilegedAuthoritySignals);
+            attributes.put("privilegedAuthoritySignalPurpose", BridgeSemanticBoundaryPolicy.HEURISTIC_HINT_ONLY);
+        }
 
         return Optional.of(new AuthorizationStamp(
                 authenticationStamp.principalId(),
                 resourceId,
                 action,
                 AuthorizationEffect.UNKNOWN,
-                effectiveAuthorities.stream().anyMatch(this::isPrivilegedAuthority),
+                null,
                 List.of(),
                 null,
                 null,
@@ -260,12 +267,6 @@ public class BridgeRuntimeSupport {
         SecurityContextHolder.getContext().setAuthentication(authenticationToken);
         return authenticationToken;
     }
-
-    private boolean isPrivilegedAuthority(String authority) {
-        String normalized = authority != null ? authority.toUpperCase() : "";
-        return normalized.contains("ADMIN") || normalized.contains("ROOT") || normalized.contains("SUPER") || normalized.contains("PRIVILEGED");
-    }
-
     @Nullable
     private String text(@Nullable Object value) {
         if (value == null) {

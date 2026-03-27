@@ -39,6 +39,21 @@ class ProcessingResultTest {
         assertThat(result.getRiskScore()).isNull();
         assertThat(result.getLlmAuditRiskScore()).isEqualTo(0.72);
     }
+
+    @Test
+    void processingResultPreservesProposedAndEnforcedDecisionSeparately() {
+        ProcessingResult result = ProcessingResult.builder()
+                .action("CHALLENGE")
+                .proposedAction("ALLOW")
+                .confidence(0.54)
+                .llmAuditConfidence(0.91)
+                .build();
+
+        assertThat(result.getAction()).isEqualTo("CHALLENGE");
+        assertThat(result.getProposedAction()).isEqualTo("ALLOW");
+        assertThat(result.getConfidence()).isEqualTo(0.54);
+        assertThat(result.resolveAuditConfidence()).isEqualTo(0.91);
+    }
 }
 
 
