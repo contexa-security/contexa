@@ -150,7 +150,7 @@ public class CoreStdComponentsAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
+    @ConditionalOnMissingBean(name = "universalPipelineExecutor")
     public UniversalPipelineExecutor universalPipelineExecutor(
             ContextRetrievalStep contextRetrievalStep,
             PreprocessingStep preprocessingStep,
