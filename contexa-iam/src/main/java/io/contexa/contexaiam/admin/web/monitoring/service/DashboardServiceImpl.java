@@ -26,6 +26,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -52,64 +54,111 @@ public class DashboardServiceImpl implements DashboardService {
         String currentUsername = SecurityContextHolder.getContext().getAuthentication().getName();
         LocalDateTime since24h = LocalDateTime.now().minusHours(24);
 
+        // ManagedResource: 3 queries -> 1 GROUP BY
+        Map<ManagedResource.Status, Long> resourceCounts = new EnumMap<>(ManagedResource.Status.class);
+        long resourceTotal = 0;
+        for (Object[] row : managedResourceRepository.countGroupByStatus()) {
+            ManagedResource.Status status = (ManagedResource.Status) row[0];
+            long count = (Long) row[1];
+            resourceCounts.put(status, count);
+            resourceTotal += count;
+        }
+
+        // BlockedUser: 5 queries -> 1 GROUP BY
+        Map<BlockedUserStatus, Long> blockedCounts = new EnumMap<>(BlockedUserStatus.class);
+        for (Object[] row : blockedUserJpaRepository.countGroupByStatus()) {
+            blockedCounts.put((BlockedUserStatus) row[0], (Long) row[1]);
+        }
+
+        // AuditLog EventCategory: 3 queries -> 1 GROUP BY
+        Map<String, Long> eventCatCounts = new HashMap<>();
+        for (Object[] row : auditLogRepository.countByEventCategoriesGrouped(since24h,
+                List.of("AUTHENTICATION_SUCCESS", "AUTHENTICATION_FAILURE", "SECURITY_DECISION"))) {
+            eventCatCounts.put((String) row[0], (Long) row[1]);
+        }
+
+        // ZeroTrust Decision: 5 queries -> 1 GROUP BY
+        Map<String, Long> ztCounts = new HashMap<>();
+        long ztTotal = 0;
+        for (Object[] row : auditLogRepository.countZeroTrustGroupByDecision(since24h)) {
+            String decision = (String) row[0];
+            long count = (Long) row[1];
+            ztCounts.put(decision, count);
+            ztTotal += count;
+        }
+
+        // Policy counts: computed once, shared between buildStatistics and buildPolicyStatus
+        long policyTotal = policyRepository.count();
+        long policyActive = policyRepository.countByIsActiveTrue();
+
         return new DashboardDto(
-                buildStatistics(),
+                buildStatistics(policyTotal, policyActive),
                 userContextService.getRecentActivities(currentUsername),
                 analyzeRiskIndicators(),
                 securityScoreCalculator.calculate(),
                 permissionMatrixService.getPermissionMatrix(null),
-                buildPolicyStatus(),
+                buildPolicyStatus(policyTotal, policyActive),
                 buildAccessTrends(),
-                managedResourceRepository.count(),
-                managedResourceRepository.countByStatus(ManagedResource.Status.POLICY_CONNECTED),
-                managedResourceRepository.countByStatus(ManagedResource.Status.PERMISSION_CREATED),
-                blockedUserJpaRepository.countByStatus(BlockedUserStatus.BLOCKED),
-                blockedUserJpaRepository.countByStatus(BlockedUserStatus.UNBLOCK_REQUESTED),
-                blockedUserJpaRepository.countByStatus(BlockedUserStatus.TIMEOUT_RESPONDED),
-                blockedUserJpaRepository.countByStatus(BlockedUserStatus.MFA_FAILED),
-                blockedUserJpaRepository.countByStatus(BlockedUserStatus.RESOLVED),
+                resourceTotal,
+                resourceCounts.getOrDefault(ManagedResource.Status.POLICY_CONNECTED, 0L),
+                resourceCounts.getOrDefault(ManagedResource.Status.PERMISSION_CREATED, 0L),
+                blockedCounts.getOrDefault(BlockedUserStatus.BLOCKED, 0L),
+                blockedCounts.getOrDefault(BlockedUserStatus.UNBLOCK_REQUESTED, 0L),
+                blockedCounts.getOrDefault(BlockedUserStatus.TIMEOUT_RESPONDED, 0L),
+                blockedCounts.getOrDefault(BlockedUserStatus.MFA_FAILED, 0L),
+                blockedCounts.getOrDefault(BlockedUserStatus.RESOLVED, 0L),
                 blockedUserJpaRepository.findTop5ByStatusInOrderByBlockedAtDesc(List.of(BlockedUserStatus.BLOCKED, BlockedUserStatus.UNBLOCK_REQUESTED)),
-                // 24h security activity from audit_log
                 auditLogRepository.countAllowedSince(since24h),
                 auditLogRepository.countDeniedAttemptsSince(since24h),
-                auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_SUCCESS", since24h),
-                auditLogRepository.countByEventCategoryAndTimestampAfter("AUTHENTICATION_FAILURE", since24h),
-                auditLogRepository.countByEventCategoryAndTimestampAfter("SECURITY_DECISION", since24h),
+                eventCatCounts.getOrDefault("AUTHENTICATION_SUCCESS", 0L),
+                eventCatCounts.getOrDefault("AUTHENTICATION_FAILURE", 0L),
+                eventCatCounts.getOrDefault("SECURITY_DECISION", 0L),
                 auditLogRepository.countAdminOverridesSince(since24h),
                 auditLogRepository.countSecurityErrorsSince(since24h),
                 auditLogRepository.countAfterHoursAccessSince(since24h),
                 auditLogRepository.countDistinctIpsSince(since24h),
                 auditLogRepository.avgRiskScoreSince(since24h),
-                // Zero Trust decision breakdown (SECURITY_DECISION category only)
-                auditLogRepository.countZeroTrustDecisionSince("ALLOW", since24h),
-                auditLogRepository.countZeroTrustTotalSince(since24h),
-                auditLogRepository.countZeroTrustDecisionSince("CHALLENGE", since24h),
-                auditLogRepository.countZeroTrustDecisionSince("BLOCK", since24h),
-                auditLogRepository.countZeroTrustDecisionSince("ESCALATE", since24h),
+                ztCounts.getOrDefault("ALLOW", 0L),
+                ztTotal,
+                ztCounts.getOrDefault("CHALLENGE", 0L),
+                ztCounts.getOrDefault("BLOCK", 0L),
+                ztCounts.getOrDefault("ESCALATE", 0L),
                 auditLogRepository.countPolicyChangesSince(since24h),
                 auditLogRepository.countIamChangesSince(since24h),
                 auditLogRepository.findRecentThreatEvents(since24h).stream().limit(5).toList()
         );
     }
 
-    private StatisticsDto buildStatistics() {
+    private StatisticsDto buildStatistics(long policyTotal, long policyActive) {
         return new StatisticsDto(
                 userRepository.count(),
                 groupRepository.count(),
                 roleRepository.count(),
                 permissionRepository.count(),
-                policyRepository.count(),
-                policyRepository.countByIsActiveTrue(),
+                policyTotal,
+                policyActive,
                 userRepository.countByMfaEnabled(true),
                 userRepository.countByMfaEnabled(false)
         );
     }
 
-    private PolicyStatusDto buildPolicyStatus() {
+    private PolicyStatusDto buildPolicyStatus(long policyTotal, long policyActive) {
         List<Policy.PolicySource> aiSources = List.of(
                 Policy.PolicySource.AI_GENERATED,
                 Policy.PolicySource.AI_EVOLVED
         );
+
+        // Policy source: 3 queries -> 1 GROUP BY
+        Map<Policy.PolicySource, Long> sourceCounts = new EnumMap<>(Policy.PolicySource.class);
+        for (Object[] row : policyRepository.countGroupBySource()) {
+            sourceCounts.put((Policy.PolicySource) row[0], (Long) row[1]);
+        }
+
+        // AI approval: 3 queries -> 1 GROUP BY
+        Map<Policy.ApprovalStatus, Long> approvalCounts = new EnumMap<>(Policy.ApprovalStatus.class);
+        for (Object[] row : policyRepository.countAIApprovalGroupByStatus(aiSources)) {
+            approvalCounts.put((Policy.ApprovalStatus) row[0], (Long) row[1]);
+        }
 
         List<RecentPolicyDto> recentPolicies = policyRepository.findTop5ByOrderByCreatedAtDesc()
                 .stream()
@@ -124,14 +173,14 @@ public class DashboardServiceImpl implements DashboardService {
                 .toList();
 
         return new PolicyStatusDto(
-                policyRepository.count(),
-                policyRepository.countByIsActiveTrue(),
-                policyRepository.countBySource(Policy.PolicySource.MANUAL),
-                policyRepository.countBySource(Policy.PolicySource.AI_GENERATED),
-                policyRepository.countBySource(Policy.PolicySource.AI_EVOLVED),
-                policyRepository.countBySourceInAndApprovalStatus(aiSources, Policy.ApprovalStatus.PENDING),
-                policyRepository.countBySourceInAndApprovalStatus(aiSources, Policy.ApprovalStatus.APPROVED),
-                policyRepository.countBySourceInAndApprovalStatus(aiSources, Policy.ApprovalStatus.REJECTED),
+                policyTotal,
+                policyActive,
+                sourceCounts.getOrDefault(Policy.PolicySource.MANUAL, 0L),
+                sourceCounts.getOrDefault(Policy.PolicySource.AI_GENERATED, 0L),
+                sourceCounts.getOrDefault(Policy.PolicySource.AI_EVOLVED, 0L),
+                approvalCounts.getOrDefault(Policy.ApprovalStatus.PENDING, 0L),
+                approvalCounts.getOrDefault(Policy.ApprovalStatus.APPROVED, 0L),
+                approvalCounts.getOrDefault(Policy.ApprovalStatus.REJECTED, 0L),
                 policyRepository.calculateAverageConfidenceScoreForAIPolicies(),
                 recentPolicies
         );

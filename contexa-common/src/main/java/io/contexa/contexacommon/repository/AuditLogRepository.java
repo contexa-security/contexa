@@ -233,4 +233,11 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
 
     @Query("SELECT a FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory = :category AND lower(a.principalName) LIKE :keyword ORDER BY a.timestamp DESC")
     Page<AuditLog> findByTimestampAfterAndCategoryAndPrincipalNameLike(@Param("since") LocalDateTime since, @Param("category") String category, @Param("keyword") String keyword, Pageable pageable);
+
+    // Dashboard GROUP BY queries
+    @Query("SELECT a.eventCategory, COUNT(a) FROM AuditLog a WHERE a.timestamp >= :since AND a.eventCategory IN :cats GROUP BY a.eventCategory")
+    List<Object[]> countByEventCategoriesGrouped(@Param("since") LocalDateTime since, @Param("cats") List<String> cats);
+
+    @Query("SELECT a.decision, COUNT(a) FROM AuditLog a WHERE a.eventCategory = 'SECURITY_DECISION' AND a.timestamp >= :since GROUP BY a.decision")
+    List<Object[]> countZeroTrustGroupByDecision(@Param("since") LocalDateTime since);
 }

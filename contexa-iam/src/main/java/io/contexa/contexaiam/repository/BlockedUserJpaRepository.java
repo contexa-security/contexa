@@ -36,4 +36,7 @@ public interface BlockedUserJpaRepository extends JpaRepository<BlockedUser, Lon
 
     @Query("SELECT b FROM BlockedUser b WHERE b.status = :status AND lower(b.username) LIKE :keyword ORDER BY b.blockedAt DESC")
     List<BlockedUser> searchByStatusAndUsername(@Param("status") BlockedUserStatus status, @Param("keyword") String keyword);
+
+    @Query("SELECT b.status, COUNT(b) FROM BlockedUser b GROUP BY b.status")
+    List<Object[]> countGroupByStatus();
 }

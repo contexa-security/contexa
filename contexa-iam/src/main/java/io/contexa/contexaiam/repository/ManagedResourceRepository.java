@@ -22,4 +22,6 @@ public interface ManagedResourceRepository extends JpaRepository<ManagedResource
 
     long countByStatus(ManagedResource.Status status);
 
+    @Query("SELECT m.status, COUNT(m) FROM ManagedResource m GROUP BY m.status")
+    List<Object[]> countGroupByStatus();
 }

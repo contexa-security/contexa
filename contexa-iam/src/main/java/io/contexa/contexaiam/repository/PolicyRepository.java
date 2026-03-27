@@ -141,4 +141,10 @@ public interface PolicyRepository extends JpaRepository<Policy, Long> {
             @Param("targetType") String targetType,
             @Param("targetIdentifier") String targetIdentifier,
             @Param("excludePolicyId") Long excludePolicyId);
+
+    @Query("SELECT p.source, COUNT(p) FROM Policy p GROUP BY p.source")
+    List<Object[]> countGroupBySource();
+
+    @Query("SELECT p.approvalStatus, COUNT(p) FROM Policy p WHERE p.source IN :sources GROUP BY p.approvalStatus")
+    List<Object[]> countAIApprovalGroupByStatus(@Param("sources") List<Policy.PolicySource> sources);
 }
