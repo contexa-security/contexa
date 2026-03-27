@@ -6,11 +6,11 @@
     <header class="shadow-2xl relative overflow-hidden" style="background: linear-gradient(135deg, #050810 0%, #0a0f1c 50%, #0f172a 100%); border-bottom: 2px solid #1e293b;">
         <div class="absolute inset-0 bg-gradient-to-r from-violet-600/5 via-transparent to-indigo-600/5"></div>
         <div class="flex items-center justify-between h-16 relative z-10 px-6">
-            <a th:href="@{/admin}" style="text-decoration:none;display:flex;align-items:center;gap:0.625rem;margin-left:6rem;">
+            <a th:href="@{/admin}" style="text-decoration:none;display:flex;align-items:center;gap:0.625rem;margin-left:6rem;flex-shrink:0;">
                 <img th:src="@{/img/logo.png}" alt="Contexa" style="width:44px;height:44px;object-fit:contain;border-radius:0.375rem;" />
                 <span style="font-size:1.5rem;font-weight:800;letter-spacing:0.04em;line-height:1;color:#94a3b8;">CONTE<span style="color:#00D4FF;">X</span>A</span>
             </a>
-            <nav class="header-actions flex items-center space-x-2">
+            <nav class="header-actions flex items-center space-x-2" style="flex-shrink:0;white-space:nowrap;">
                 <a id="homeLink" th:href="@{/admin}" class="nav-link group">
                     <span class="nav-icon"><i class="fas fa-home"></i></span>
                     <span th:text="#{header.home}">Home</span>
