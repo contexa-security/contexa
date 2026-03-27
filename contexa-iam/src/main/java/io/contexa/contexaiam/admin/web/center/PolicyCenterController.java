@@ -68,7 +68,7 @@ public class PolicyCenterController {
 
     @GetMapping
     public String policyCenter(
-            @RequestParam(required = false, defaultValue = "resources") String tab,
+            @RequestParam(required = false, defaultValue = "create") String tab,
             @ModelAttribute("criteria") ResourceSearchCriteria criteria,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable,
             @RequestParam(required = false) String policyKeyword,

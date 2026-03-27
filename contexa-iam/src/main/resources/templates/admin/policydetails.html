@@ -10,10 +10,9 @@
 <div th:insert="~{fragments/header :: header}"></div>
 <div id="toast-container" class="fixed top-5 right-5 z-[70000] w-full max-w-xs sm:max-w-sm"></div>
 
-<div class="flex flex-1">
-    <aside th:insert="~{fragments/admin-menu :: menu}" class="hidden md:block"></aside>
+<div th:replace="~{fragments/admin-menu :: menu}"></div>
 
-    <main class="flex-1 p-6 md:p-10">
+<main class="flex-1 p-6 md:p-10">
         <div class="w-full max-w-4xl mx-auto space-y-6">
 
             <!-- Page Header -->
@@ -200,7 +199,6 @@
             </form>
         </div>
     </main>
-</div>
 
 <div th:insert="~{fragments/footer :: footer}" class="mt-auto"></div>
 

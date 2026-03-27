@@ -23,16 +23,11 @@
 
             <!-- Tab Navigation -->
             <nav class="pc-tab-nav mb-6">
-                <a th:href="@{/admin/policy-center(tab='resources')}"
-                   class="pc-tab-btn" th:classappend="${activeTab == 'resources'} ? ' active' : ''">
-                    <i class="fas fa-cube"></i>
-                    <span th:text="#{admin.policy.center.tab.resources}">Resources (Resources)</span>
-                    <span class="tab-count" th:text="${resourcePage?.totalElements} ?: '0'"></span>
-                </a>
                 <a th:href="@{/admin/policy-center(tab='create')}"
-                   class="pc-tab-btn" th:classappend="${activeTab == 'create'} ? ' active' : ''">
+                   class="pc-tab-btn" th:classappend="${activeTab == 'create' or activeTab == 'resources'} ? ' active' : ''">
                     <i class="fas fa-plus-circle"></i>
-                    <span th:text="#{admin.policy.center.tab.create}">Policy Create (Create)</span>
+                    <span th:text="#{admin.policy.center.tab.create}">Policy Creation</span>
+                    <span class="tab-count" th:text="${resourcePage?.totalElements} ?: '0'"></span>
                 </a>
                 <a th:href="@{/admin/policy-center(tab='list')}"
                    class="pc-tab-btn" th:classappend="${activeTab == 'list'} ? ' active' : ''">
@@ -43,11 +38,11 @@
             </nav>
 
             <!-- ==================== TAB 1: RESOURCES ==================== -->
-            <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources'} ? ' active' : ''">
+            <div id="tab-resources" class="pc-tab-content" th:classappend="${activeTab == 'resources' or activeTab == 'create'} ? ' active' : ''">
 
                 <!-- Filter -->
                 <form th:action="@{/admin/policy-center}" method="get" th:object="${criteria}" class="filter-container mb-8">
-                    <input type="hidden" name="tab" value="resources" />
+                    <input type="hidden" name="tab" value="create" />
                     <div class="grid grid-cols-1 gap-4 items-end" style="grid-template-columns: 1fr 1fr 2fr 2fr;">
                         <div>
                             <label for="serviceOwner" class="block text-sm font-medium mb-2" style="color: #cbd5e1;" th:text="#{admin.policy.center.resource.service.owner}">Service Owner (Service Owner)</label>
@@ -186,8 +181,8 @@
                 </nav>
             </div>
 
-            <!-- ==================== TAB 2: CREATE POLICY ==================== -->
-            <div id="tab-create" class="pc-tab-content" th:classappend="${activeTab == 'create'} ? ' active' : ''">
+            <!-- tab-create: hidden tab activated by JS when Quick/AI mode selected from modal -->
+            <div id="tab-create" class="pc-tab-content">
 
                 <!-- Resource Context Banner (shown when resource is selected) -->
                 <div id="create-resource-banner" class="hidden mb-4">
@@ -631,7 +626,7 @@
                     <h2 class="text-xl font-bold" style="color: #e2e8f0;">
                         <i class="fas fa-list-alt mr-2" style="color: #818cf8;"></i><span th:text="#{admin.policy.center.tab.list}">Policy List</span>
                     </h2>
-                    <a th:href="@{/admin/policy-center(tab='create')}" class="modern-btn-primary mt-4 sm:mt-0">
+                    <a th:href="@{/admin/policies/register}" class="modern-btn-primary mt-4 sm:mt-0">
                         <i class="fas fa-plus"></i> <span th:text="#{admin.policy.center.list.new}">New Policy</span>
                     </a>
                 </div>
