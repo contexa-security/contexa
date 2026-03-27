@@ -23,11 +23,6 @@
                         <span th:text="#{header.login}">Login</span>
                         <span class="nav-glow"></span>
                     </a>
-                    <a id="registerLink" th:href="@{/register}" class="nav-link group">
-                        <span class="nav-icon"><i class="fas fa-user-plus"></i></span>
-                        <span th:text="#{header.register}">Register</span>
-                        <span class="nav-glow"></span>
-                    </a>
                 </th:block>
 
                 <th:block sec:authorize="isAuthenticated()">
